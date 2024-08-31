@@ -1,0 +1,22 @@
+menu "Xiaozhi Assistant"
+
+config WEBSOCKET_URL
+    string "Websocket URL"
+    default "ws://"
+    help
+        Communication with the server through websocket after wake up.
+
+config WEBSOCKET_ACCESS_TOKEN
+    string "Websocket Access Token"
+    default ""
+    help
+        Access token for websocket communication.
+
+
+config BUILTIN_LED_GPIO
+    int "Builtin LED GPIO"
+    default 48
+    help
+        GPIO number of the builtin LED.
+
+endmenu
