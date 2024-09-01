@@ -7,9 +7,6 @@
 #include "silk_resampler.h"
 
 #define TAG "application"
-#define INPUT_SAMPLE_RATE 16000
-#define DECODE_SAMPLE_RATE 24000
-#define OUTPUT_SAMPLE_RATE 24000
 
 
 Application::Application() {
@@ -27,10 +24,10 @@ Application::Application() {
         }
     }
     
-    opus_encoder_.Configure(INPUT_SAMPLE_RATE, 1);
-    opus_decoder_ = opus_decoder_create(DECODE_SAMPLE_RATE, 1, NULL);
-    if (DECODE_SAMPLE_RATE != OUTPUT_SAMPLE_RATE) {
-        assert(0 == silk_resampler_init(&resampler_state_, DECODE_SAMPLE_RATE, OUTPUT_SAMPLE_RATE, 1));
+    opus_encoder_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1);
+    opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
+    if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+        assert(0 == silk_resampler_init(&resampler_state_, opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, 1));
     }
 }
 
@@ -59,7 +56,7 @@ Application::~Application() {
 }
 
 void Application::Start() {
-    audio_device_.Start(INPUT_SAMPLE_RATE, OUTPUT_SAMPLE_RATE);
+    audio_device_.Start(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     audio_device_.OnStateChanged([this]() {
         if (audio_device_.playing()) {
             SetChatState(kChatStateSpeaking);
@@ -154,7 +151,7 @@ void Application::StartCommunication() {
             .total_ch_num = 1,
             .mic_num = 1,
             .ref_num = 0,
-            .sample_rate = INPUT_SAMPLE_RATE
+            .sample_rate = CONFIG_AUDIO_INPUT_SAMPLE_RATE,
         },
         .debug_init = false,
         .debug_hook = {{ AFE_DEBUG_HOOK_MASE_TASK_IN, NULL }, { AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL }},
@@ -195,7 +192,7 @@ void Application::StartDetection() {
             .total_ch_num = 1,
             .mic_num = 1,
             .ref_num = 0,
-            .sample_rate = INPUT_SAMPLE_RATE
+            .sample_rate = CONFIG_AUDIO_INPUT_SAMPLE_RATE
         },
         .debug_init = false,
         .debug_hook = {{ AFE_DEBUG_HOOK_MASE_TASK_IN, NULL }, { AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL }},
@@ -335,11 +332,11 @@ void Application::AudioEncodeTask() {
 }
 
 void Application::AudioDecodeTask() {
-    int frame_size = DECODE_SAMPLE_RATE / 1000 * opus_duration_ms_;
-
     while (true) {
         AudioPacket* packet;
         xQueueReceive(audio_decode_queue_, &packet, portMAX_DELAY);
+
+        int frame_size = opus_decode_sample_rate_ / 1000 * opus_duration_ms_;
         packet->pcm.resize(frame_size);
 
         int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
@@ -349,14 +346,27 @@ void Application::AudioDecodeTask() {
             continue;
         }
 
-        if (DECODE_SAMPLE_RATE != OUTPUT_SAMPLE_RATE) {
-            int target_size = frame_size * OUTPUT_SAMPLE_RATE / DECODE_SAMPLE_RATE;
+        if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+            int target_size = frame_size * CONFIG_AUDIO_OUTPUT_SAMPLE_RATE / opus_decode_sample_rate_;
             std::vector<int16_t> resampled(target_size);
             assert(0 == silk_resampler(&resampler_state_, resampled.data(), packet->pcm.data(), frame_size));
             packet->pcm = std::move(resampled);
         }
 
         audio_device_.QueueAudioPacket(packet);
+    }
+}
+
+void Application::SetDecodeSampleRate(int sample_rate) {
+    if (opus_decode_sample_rate_ == sample_rate) {
+        return;
+    }
+
+    opus_decoder_destroy(opus_decoder_);
+    opus_decode_sample_rate_ = sample_rate;
+    opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
+    if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+        assert(0 == silk_resampler_init(&resampler_state_, opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, 1));
     }
 }
 
@@ -379,7 +389,7 @@ void Application::StartWebSocketClient() {
         message += "\"type\":\"hello\", \"version\":\"1.0\",";
         message += "\"wakeup_model\":\"" + std::string(wakenet_model_) + "\",";
         message += "\"audio_params\":{";
-        message += "\"format\":\"opus\", \"sample_rate\":" + std::to_string(INPUT_SAMPLE_RATE) + ", \"channels\":1";
+        message += "\"format\":\"opus\", \"sample_rate\":" + std::to_string(CONFIG_AUDIO_INPUT_SAMPLE_RATE) + ", \"channels\":1";
         message += "}}";
         ws_client_->Send(message);
     });
@@ -403,6 +413,10 @@ void Application::StartWebSocketClient() {
                     auto state = cJSON_GetObjectItem(root, "state");
                     if (strcmp(state->valuestring, "start") == 0) {
                         packet->type = kAudioPacketTypeStart;
+                        auto sample_rate = cJSON_GetObjectItem(root, "sample_rate");
+                        if (sample_rate != NULL) {
+                            SetDecodeSampleRate(sample_rate->valueint);
+                        }
                     } else if (strcmp(state->valuestring, "stop") == 0) {
                         packet->type = kAudioPacketTypeStop;
                     } else if (strcmp(state->valuestring, "sentence_end") == 0) {

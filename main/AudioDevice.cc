@@ -23,15 +23,14 @@ AudioDevice::~AudioDevice() {
 }
 
 void AudioDevice::Start(int input_sample_rate, int output_sample_rate) {
-    assert(input_sample_rate == 16000);
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
-    if (output_sample_rate == 16000) {
-        CreateDuplexChannels();
-    } else {
+#ifdef CONFIG_AUDIO_DEVICE_I2S_SIMPLEX
         CreateSimplexChannels();
-    }
+#else
+        CreateDuplexChannels();
+#endif
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
@@ -77,10 +76,10 @@ void AudioDevice::CreateDuplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = GPIO_NUM_5,
-            .ws = GPIO_NUM_4,
-            .dout = GPIO_NUM_6,
-            .din = GPIO_NUM_3,
+            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_WS,
+            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
+            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -93,6 +92,7 @@ void AudioDevice::CreateDuplexChannels() {
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
+#ifdef CONFIG_AUDIO_DEVICE_I2S_SIMPLEX
 void AudioDevice::CreateSimplexChannels() {
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
@@ -127,9 +127,9 @@ void AudioDevice::CreateSimplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = GPIO_NUM_5,
-            .ws = GPIO_NUM_4,
-            .dout = GPIO_NUM_6,
+            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_WS,
+            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -144,13 +144,14 @@ void AudioDevice::CreateSimplexChannels() {
     chan_cfg.id = I2S_NUM_1;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
-    std_cfg.gpio_cfg.bclk = GPIO_NUM_11;
-    std_cfg.gpio_cfg.ws = GPIO_NUM_10;
+    std_cfg.gpio_cfg.bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_BCLK;
+    std_cfg.gpio_cfg.ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
-    std_cfg.gpio_cfg.din = GPIO_NUM_3;
+    std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Simplex channels created");
 }
+#endif
 
 void AudioDevice::Write(const int16_t* data, int samples) {
     int32_t buffer[samples];

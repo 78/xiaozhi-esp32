@@ -19,4 +19,60 @@ config BUILTIN_LED_GPIO
     help
         GPIO number of the builtin LED.
 
+config AUDIO_INPUT_SAMPLE_RATE
+    int "Audio Input Sample Rate"
+    default 16000
+    help
+        Audio input sample rate.
+
+config AUDIO_OUTPUT_SAMPLE_RATE
+    int "Audio Output Sample Rate"
+    default 24000
+    help
+        Audio output sample rate.
+
+config AUDIO_DEVICE_I2S_GPIO_BCLK
+    int "I2S GPIO BCLK"
+    default 5
+    help
+        GPIO number of the I2S BCLK.
+
+config AUDIO_DEVICE_I2S_GPIO_WS
+    int "I2S GPIO WS"
+    default 4
+    help
+        GPIO number of the I2S WS.
+
+config AUDIO_DEVICE_I2S_GPIO_DOUT
+    int "I2S GPIO DOUT"
+    default 6
+    help
+        GPIO number of the I2S DOUT.
+
+config AUDIO_DEVICE_I2S_GPIO_DIN
+    int "I2S GPIO DIN"
+    default 3
+    help
+        GPIO number of the I2S DIN.
+    
+config AUDIO_DEVICE_I2S_SIMPLEX
+    bool "I2S Simplex"
+    default n
+    help
+        Enable I2S Simplex mode.
+    
+config AUDIO_DEVICE_I2S_MIC_GPIO_BCLK
+    int "I2S MIC GPIO BCLK"
+    default 11
+    depends on AUDIO_DEVICE_I2S_SIMPLEX
+    help
+        GPIO number of the I2S MIC BCLK.
+    
+config AUDIO_DEVICE_I2S_MIC_GPIO_WS
+    int "I2S MIC GPIO WS"
+    default 10
+    depends on AUDIO_DEVICE_I2S_SIMPLEX
+    help
+        GPIO number of the I2S MIC WS.
+
 endmenu

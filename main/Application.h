@@ -62,8 +62,10 @@ private:
     OpusDecoder* opus_decoder_ = nullptr;
 
     int opus_duration_ms_ = 60;
+    int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
     silk_resampler_state_struct resampler_state_;
 
+    void SetDecodeSampleRate(int sample_rate);
     void SetChatState(ChatState state);
     void StartDetection();
     void StartCommunication();
