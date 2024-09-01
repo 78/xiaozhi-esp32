@@ -19,7 +19,7 @@ public:
     bool IsConnected() const;
     bool Connect(const char* uri);
     void Send(const std::string& data);
-    void Send(const char* data, size_t len, bool binary = false);
+    void Send(const void* data, size_t len, bool binary = false);
 
     void OnConnected(std::function<void()> callback);
     void OnDisconnected(std::function<void()> callback);

@@ -14,7 +14,7 @@
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
-    audio_encode_queue_ = xQueueCreate(100, sizeof(AudioEncoderData));
+    audio_encode_queue_ = xQueueCreate(100, sizeof(iovec));
     audio_decode_queue_ = xQueueCreate(100, sizeof(AudioPacket*));
 
     srmodel_list_t *models = esp_srmodel_init("model");
@@ -74,16 +74,17 @@ void Application::Start() {
     });
 
     // OPUS encoder / decoder use a lot of stack memory
-    audio_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
+    const size_t opus_stack_size = 4096 * 8;
+    audio_encode_task_stack_ = (StackType_t*)malloc(opus_stack_size);
     xTaskCreateStatic([](void* arg) {
         Application* app = (Application*)arg;
         app->AudioEncodeTask();
-    }, "opus_encode", 4096 * 8, this, 1, audio_encode_task_stack_, &audio_encode_task_buffer_);
-    audio_decode_task_stack_ = (StackType_t*)malloc(4096 * 8);
+    }, "opus_encode", opus_stack_size, this, 1, audio_encode_task_stack_, &audio_encode_task_buffer_);
+    audio_decode_task_stack_ = (StackType_t*)malloc(opus_stack_size);
     xTaskCreateStatic([](void* arg) {
         Application* app = (Application*)arg;
         app->AudioDecodeTask();
-    }, "opus_decode", 4096 * 8, this, 1, audio_decode_task_stack_, &audio_decode_task_buffer_);
+    }, "opus_decode", opus_stack_size, this, 1, audio_decode_task_stack_, &audio_decode_task_buffer_);
 
     wifi_station_.Start();
 
@@ -305,10 +306,11 @@ void Application::AudioCommunicationTask() {
 
         if (chat_state_ == kChatStateListening) {
             // Send audio data to server
-            AudioEncoderData data;
-            data.size = res->data_size;
-            data.data = malloc(data.size);
-            memcpy((void*)data.data, res->data, data.size);
+            iovec data = {
+                .iov_base = malloc(res->data_size),
+                .iov_len = (size_t)res->data_size
+            };
+            memcpy(data.iov_base, res->data, res->data_size);
             xQueueSend(audio_encode_queue_, &data, portMAX_DELAY);
         }
     }
@@ -317,17 +319,18 @@ void Application::AudioCommunicationTask() {
 void Application::AudioEncodeTask() {
     ESP_LOGI(TAG, "Audio encode task started");
     while (true) {
-        AudioEncoderData data;
-        xQueueReceive(audio_encode_queue_, &data, portMAX_DELAY);
+        iovec pcm;
+        xQueueReceive(audio_encode_queue_, &pcm, portMAX_DELAY);
 
         // Encode audio data
-        opus_encoder_.Encode(data.data, data.size, [this](const void* data, size_t size) {
+        opus_encoder_.Encode(pcm, [this](const iovec opus) {
             std::lock_guard<std::recursive_mutex> lock(mutex_);
             if (ws_client_ && ws_client_->IsConnected()) {
-                ws_client_->Send((const char*)data, size, true);
+                ws_client_->Send(opus.iov_base, opus.iov_len, true);
             }
         });
-        free((void*)data.data);
+
+        free(pcm.iov_base);
     }
 }
 
@@ -342,7 +345,7 @@ void Application::AudioDecodeTask() {
         int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
-            free(packet);
+            delete packet;
             continue;
         }
 

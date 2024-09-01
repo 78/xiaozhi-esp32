@@ -3,7 +3,12 @@
 
 #include <functional>
 #include <string>
+#include <vector>
+#include <memory>
+
+#include "lwip/sockets.h"
 #include "opus.h"
+
 
 class OpusEncoder {
 public:
@@ -11,15 +16,14 @@ public:
     ~OpusEncoder();
 
     void Configure(int sample_rate, int channels, int duration_ms = 60);
-    void Encode(const void* pcm, size_t pcm_len, std::function<void(const void*, size_t)> handler);
+    void Encode(const iovec pcm, std::function<void(const iovec opus)> handler);
     bool IsBufferEmpty() const { return in_buffer_.empty(); }
 
 private:
     struct OpusEncoder* audio_enc_ = nullptr;
     int frame_size_;
-    int out_size_;
-    uint8_t* out_buffer_ = nullptr;
-    std::string in_buffer_;
+    std::vector<uint8_t> out_buffer_;
+    std::vector<int16_t> in_buffer_;
 };
 
 #endif // _OPUS_ENCODER_H_

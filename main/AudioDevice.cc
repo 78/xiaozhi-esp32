@@ -3,7 +3,6 @@
 #include <cstring>
 
 #define TAG "AudioDevice"
-#define SPEAKING BIT0
 
 AudioDevice::AudioDevice() {
     audio_play_queue_ = xQueueCreate(100, sizeof(AudioPacket*));
@@ -214,6 +213,7 @@ void AudioDevice::AudioPlayTask() {
                     delete p;
                 }
                 breaked_ = false;
+                playing_ = false;
             }
             break;
         case kAudioPacketTypeData:

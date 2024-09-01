@@ -19,10 +19,6 @@
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
 
-struct AudioEncoderData {
-    const void* data;
-    size_t size;
-};
 
 enum ChatState {
     kChatStateIdle,

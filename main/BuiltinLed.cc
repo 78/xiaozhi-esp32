@@ -83,7 +83,7 @@ void BuiltinLed::Blink(int times, int interval_ms) {
         delete args;
         this_->blink_task_ = nullptr;
         vTaskDelete(NULL);
-    }, "blink", 4096, args, tskIDLE_PRIORITY, &blink_task_);
+    }, "blink", 1024, args, tskIDLE_PRIORITY, &blink_task_);
 
     xSemaphoreGive(mutex_);
 }

@@ -2,6 +2,7 @@
 #include <cstring>
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_crt_bundle.h"
 
 
 #define TAG "WebSocket"
@@ -13,6 +14,7 @@ WebSocketClient::WebSocketClient(bool auto_reconnect) {
     esp_websocket_client_config_t config = {};
     config.task_prio = 1;
     config.disable_auto_reconnect = !auto_reconnect;
+    config.crt_bundle_attach = esp_crt_bundle_attach;
     client_ = esp_websocket_client_init(&config);
     assert(client_ != NULL);
 
@@ -93,11 +95,11 @@ bool WebSocketClient::Connect(const char* uri) {
     return bits & WEBSOCKET_CONNECTED_BIT;
 }
 
-void WebSocketClient::Send(const char* data, size_t len, bool binary) {
+void WebSocketClient::Send(const void* data, size_t len, bool binary) {
     if (binary) {
-        esp_websocket_client_send_bin(client_, data, len, portMAX_DELAY);
+        esp_websocket_client_send_bin(client_, (const char*)data, len, portMAX_DELAY);
     } else {
-        esp_websocket_client_send_text(client_, data, len, portMAX_DELAY);
+        esp_websocket_client_send_text(client_, (const char*)data, len, portMAX_DELAY);
     }
 }
 
