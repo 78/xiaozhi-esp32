@@ -427,21 +427,23 @@ void Application::AudioDecodeTask() {
         AudioPacket* packet;
         xQueueReceive(audio_decode_queue_, &packet, portMAX_DELAY);
 
-        int frame_size = opus_decode_sample_rate_ / 1000 * opus_duration_ms_;
-        packet->pcm.resize(frame_size);
+        if (packet->type == kAudioPacketTypeData) {
+            int frame_size = opus_decode_sample_rate_ / 1000 * opus_duration_ms_;
+            packet->pcm.resize(frame_size);
 
-        int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
-        if (ret < 0) {
-            ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
-            delete packet;
-            continue;
-        }
+            int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
+            if (ret < 0) {
+                ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
+                delete packet;
+                continue;
+            }
 
-        if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-            int target_size = frame_size * CONFIG_AUDIO_OUTPUT_SAMPLE_RATE / opus_decode_sample_rate_;
-            std::vector<int16_t> resampled(target_size);
-            assert(0 == silk_resampler(&resampler_state_, resampled.data(), packet->pcm.data(), frame_size));
-            packet->pcm = std::move(resampled);
+            if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+                int target_size = frame_size * CONFIG_AUDIO_OUTPUT_SAMPLE_RATE / opus_decode_sample_rate_;
+                std::vector<int16_t> resampled(target_size);
+                assert(0 == silk_resampler(&resampler_state_, resampled.data(), packet->pcm.data(), frame_size));
+                packet->pcm = std::move(resampled);
+            }
         }
 
         audio_device_.QueueAudioPacket(packet);
