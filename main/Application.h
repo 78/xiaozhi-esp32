@@ -15,9 +15,11 @@
 #include "esp_afe_sr_models.h"
 #include "esp_nsn_models.h"
 #include <mutex>
+#include <list>
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
+#define DETECT_PACKETS_ENCODED 4
 
 
 enum ChatState {
@@ -25,6 +27,7 @@ enum ChatState {
     kChatStateConnecting,
     kChatStateListening,
     kChatStateSpeaking,
+    kChatStateWakeWordDetected
 };
 
 class Application {
@@ -65,11 +68,20 @@ private:
     int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
     silk_resampler_state_struct resampler_state_;
 
+    TaskHandle_t wake_word_encode_task_ = nullptr;
+    StaticTask_t wake_word_encode_task_buffer_;
+    StackType_t* wake_word_encode_task_stack_ = nullptr;
+    std::list<iovec> wake_word_pcm_;
+    std::vector<iovec> wake_word_opus_;
+
     void SetDecodeSampleRate(int sample_rate);
     void SetChatState(ChatState state);
     void StartDetection();
     void StartCommunication();
     void StartWebSocketClient();
+    void StoreWakeWordData(uint8_t* data, size_t size);
+    void EncodeWakeWordData();
+    void SendWakeWordData();
 
     void AudioFeedTask();
     void AudioDetectionTask();

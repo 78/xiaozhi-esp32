@@ -40,6 +40,16 @@ Application::~Application() {
         esp_afe_vc_v1.destroy(afe_communication_data_);
     }
 
+    if (wake_word_encode_task_stack_ != nullptr) {
+        free(wake_word_encode_task_stack_);
+    }
+    for (auto& pcm : wake_word_pcm_) {
+        free(pcm.iov_base);
+    }
+    for (auto& opus : wake_word_opus_) {
+        free(opus.iov_base);
+    }
+    
     if (opus_decoder_ != nullptr) {
         opus_decoder_destroy(opus_decoder_);
     }
@@ -56,6 +66,7 @@ Application::~Application() {
 }
 
 void Application::Start() {
+    // Initialize the audio device
     audio_device_.Start(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     audio_device_.OnStateChanged([this]() {
         if (audio_device_.playing()) {
@@ -83,11 +94,17 @@ void Application::Start() {
         app->AudioDecodeTask();
     }, "opus_decode", opus_stack_size, this, 1, audio_decode_task_stack_, &audio_decode_task_buffer_);
 
+    // Blink the LED to indicate the device is connecting
+    builtin_led_.SetBlue();
+    builtin_led_.BlinkOnce();
     wifi_station_.Start();
 
     StartCommunication();
     StartDetection();
 
+    // Blink the LED to indicate the device is running
+    builtin_led_.SetGreen();
+    builtin_led_.BlinkOnce();
     xEventGroupSetBits(event_group_, DETECTION_RUNNING);
 }
 
@@ -113,13 +130,19 @@ void Application::SetChatState(ChatState state) {
             builtin_led_.SetGreen();
             builtin_led_.TurnOn();
             break;
+        case kChatStateWakeWordDetected:
+            ESP_LOGI(TAG, "Chat state: wake word detected");
+            builtin_led_.SetBlue();
+            builtin_led_.TurnOn();
+            break;
     }
 
+    const char* state_str[] = { "idle", "connecting", "listening", "speaking", "wake_word_detected", "unknown" };
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (ws_client_ && ws_client_->IsConnected()) {
         cJSON* root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "state");
-        cJSON_AddStringToObject(root, "state", chat_state_ == kChatStateListening ? "listening" : "speaking");
+        cJSON_AddStringToObject(root, "state", state_str[chat_state_]);
         char* json = cJSON_PrintUnformatted(root);
         ws_client_->Send(json);
         cJSON_Delete(root);
@@ -232,6 +255,55 @@ void Application::AudioFeedTask() {
     vTaskDelete(NULL);
 }
 
+void Application::StoreWakeWordData(uint8_t* data, size_t size) {
+    // store audio data to detect_packets_
+    auto iov = (iovec){
+        .iov_base = heap_caps_malloc(size, MALLOC_CAP_SPIRAM),
+        .iov_len = size
+    };
+    memcpy(iov.iov_base, data, size);
+    wake_word_pcm_.push_back(iov);
+    // remove the oldest packet if the size is larger than 50, about 2 seconds
+    if (wake_word_pcm_.size() > 50) {
+        heap_caps_free(wake_word_pcm_.front().iov_base);
+        wake_word_pcm_.pop_front();
+    }
+}
+
+void Application::EncodeWakeWordData() {
+    wake_word_opus_.clear();
+    if (wake_word_encode_task_stack_ == nullptr) {
+        wake_word_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
+    }
+    wake_word_encode_task_ = xTaskCreateStatic([](void* arg) {
+        Application* app = (Application*)arg;
+        // encode detect packets
+        for (auto& pcm : app->wake_word_pcm_) {
+            app->opus_encoder_.Encode(pcm, [app](const iovec opus) {
+                // append the opus data to the packet
+                iovec iov = {
+                    .iov_base = heap_caps_malloc(opus.iov_len, MALLOC_CAP_SPIRAM),
+                    .iov_len = opus.iov_len
+                };
+                memcpy(iov.iov_base, opus.iov_base, opus.iov_len);
+                app->wake_word_opus_.push_back(iov);
+            });
+            free(pcm.iov_base);
+        }
+        app->wake_word_pcm_.clear();
+        xEventGroupSetBits(app->event_group_, DETECT_PACKETS_ENCODED);
+        vTaskDelete(NULL);
+    }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
+}
+
+void Application::SendWakeWordData() {
+    for (auto& opus: wake_word_opus_) {
+        ws_client_->Send(opus.iov_base, opus.iov_len, true);
+        heap_caps_free(opus.iov_base);
+    }
+    wake_word_opus_.clear();
+}
+
 void Application::AudioDetectionTask() {
     auto chunk_size = esp_afe_sr_v1.get_fetch_chunksize(afe_detection_data_);
     ESP_LOGI(TAG, "Audio detection task started, chunk size: %d", chunk_size);
@@ -248,17 +320,31 @@ void Application::AudioDetectionTask() {
             continue;;
         }
 
-        if (res->wakeup_state == WAKENET_DETECTED) {
-            ESP_LOGI(TAG, "Wakenet detected");
+        // Store the wake word data for voice recognition, like who is speaking
+        StoreWakeWordData((uint8_t*)res->data, res->data_size);
 
+        if (res->wakeup_state == WAKENET_DETECTED) {
             xEventGroupClearBits(event_group_, DETECTION_RUNNING);
             SetChatState(kChatStateConnecting);
+
+            // Encode the wake word data and start websocket client at the same time
+            // They both consume a lot of time (700ms), so we can do them in parallel
+            EncodeWakeWordData();
             StartWebSocketClient();
+
+            // Here the websocket is done, and we also wait for the wake word data to be encoded
+            xEventGroupWaitBits(event_group_, DETECT_PACKETS_ENCODED, pdFALSE, pdTRUE, portMAX_DELAY);
 
             std::lock_guard<std::recursive_mutex> lock(mutex_);
             if (ws_client_ && ws_client_->IsConnected()) {
+                // Send the wake word data to the server
+                SendWakeWordData();
+                // Send a ready message to indicate the server that the wake word data is sent
+                SetChatState(kChatStateWakeWordDetected);
                 // If connected, the hello message is already sent, so we can start communication
                 xEventGroupSetBits(event_group_, COMMUNICATION_RUNNING);
+                
+                ESP_LOGI(TAG, "Start communication after wake word detected");
             } else {
                 SetChatState(kChatStateIdle);
                 xEventGroupSetBits(event_group_, DETECTION_RUNNING);
@@ -318,6 +404,11 @@ void Application::AudioEncodeTask() {
     while (true) {
         iovec pcm;
         xQueueReceive(audio_encode_queue_, &pcm, portMAX_DELAY);
+
+        if (pcm.iov_len == 0) {
+            ESP_LOGE(TAG, "Empty audio data");
+            continue;
+        }
 
         // Encode audio data
         opus_encoder_.Encode(pcm, [this](const iovec opus) {
