@@ -28,11 +28,16 @@ void OpusEncoder::Configure(int sample_rate, int channels, int duration_ms) {
 
     // Set DTX
     opus_encoder_ctl(audio_enc_, OPUS_SET_DTX(1));
-    // Set complexity to 5
-    opus_encoder_ctl(audio_enc_, OPUS_SET_COMPLEXITY(5));
+    SetComplexity(5);
 
     frame_size_ = sample_rate / 1000 * duration_ms;
     out_buffer_.resize(sample_rate * channels * sizeof(int16_t));
+}
+
+void OpusEncoder::SetComplexity(int complexity) {
+    if (audio_enc_ != nullptr) {
+        opus_encoder_ctl(audio_enc_, OPUS_SET_COMPLEXITY(complexity));
+    }
 }
 
 void OpusEncoder::Encode(const iovec pcm, std::function<void(const iovec opus)> handler) {
@@ -57,4 +62,11 @@ void OpusEncoder::Encode(const iovec pcm, std::function<void(const iovec opus)> 
 
         in_buffer_.erase(in_buffer_.begin(), in_buffer_.begin() + frame_size_);
     }
+}
+
+void OpusEncoder::ResetState() {
+    if (audio_enc_ != nullptr) {
+        opus_encoder_ctl(audio_enc_, OPUS_RESET_STATE);
+    }
+    in_buffer_.clear();
 }

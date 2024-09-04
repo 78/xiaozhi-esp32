@@ -277,10 +277,14 @@ void Application::EncodeWakeWordData() {
     }
     wake_word_encode_task_ = xTaskCreateStatic([](void* arg) {
         Application* app = (Application*)arg;
+        auto start_time = esp_timer_get_time();
         // encode detect packets
-        for (auto& pcm : app->wake_word_pcm_) {
-            app->opus_encoder_.Encode(pcm, [app](const iovec opus) {
-                // append the opus data to the packet
+        OpusEncoder* encoder = new OpusEncoder();
+        encoder->Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1, 60);
+        encoder->SetComplexity(2);
+
+        for (auto& pcm: app->wake_word_pcm_) {
+            encoder->Encode(pcm, [app](const iovec opus) {
                 iovec iov = {
                     .iov_base = heap_caps_malloc(opus.iov_len, MALLOC_CAP_SPIRAM),
                     .iov_len = opus.iov_len
@@ -288,10 +292,14 @@ void Application::EncodeWakeWordData() {
                 memcpy(iov.iov_base, opus.iov_base, opus.iov_len);
                 app->wake_word_opus_.push_back(iov);
             });
-            free(pcm.iov_base);
+            heap_caps_free(pcm.iov_base);
         }
         app->wake_word_pcm_.clear();
+
+        auto end_time = esp_timer_get_time();
+        ESP_LOGI(TAG, "Encode wake word data opus packets: %d in %lld ms", app->wake_word_opus_.size(), (end_time - start_time) / 1000);
         xEventGroupSetBits(app->event_group_, DETECT_PACKETS_ENCODED);
+        delete encoder;
         vTaskDelete(NULL);
     }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
@@ -333,7 +341,7 @@ void Application::AudioDetectionTask() {
             StartWebSocketClient();
 
             // Here the websocket is done, and we also wait for the wake word data to be encoded
-            xEventGroupWaitBits(event_group_, DETECT_PACKETS_ENCODED, pdFALSE, pdTRUE, portMAX_DELAY);
+            xEventGroupWaitBits(event_group_, DETECT_PACKETS_ENCODED, pdTRUE, pdTRUE, portMAX_DELAY);
 
             std::lock_guard<std::recursive_mutex> lock(mutex_);
             if (ws_client_ && ws_client_->IsConnected()) {
@@ -341,6 +349,7 @@ void Application::AudioDetectionTask() {
                 SendWakeWordData();
                 // Send a ready message to indicate the server that the wake word data is sent
                 SetChatState(kChatStateWakeWordDetected);
+                opus_encoder_.ResetState();
                 // If connected, the hello message is already sent, so we can start communication
                 xEventGroupSetBits(event_group_, COMMUNICATION_RUNNING);
                 
@@ -404,11 +413,6 @@ void Application::AudioEncodeTask() {
     while (true) {
         iovec pcm;
         xQueueReceive(audio_encode_queue_, &pcm, portMAX_DELAY);
-
-        if (pcm.iov_len == 0) {
-            ESP_LOGE(TAG, "Empty audio data");
-            continue;
-        }
 
         // Encode audio data
         opus_encoder_.Encode(pcm, [this](const iovec opus) {

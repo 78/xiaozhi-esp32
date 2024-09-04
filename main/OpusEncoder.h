@@ -16,8 +16,10 @@ public:
     ~OpusEncoder();
 
     void Configure(int sample_rate, int channels, int duration_ms = 60);
+    void SetComplexity(int complexity);
     void Encode(const iovec pcm, std::function<void(const iovec opus)> handler);
     bool IsBufferEmpty() const { return in_buffer_.empty(); }
+    void ResetState();
 
 private:
     struct OpusEncoder* audio_enc_ = nullptr;
