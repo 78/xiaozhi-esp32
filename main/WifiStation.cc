@@ -93,6 +93,13 @@ void WifiStation::Start() {
     } else {
         ESP_LOGI(TAG, "WifiStation started");
     }
+
+    // Get station info
+    wifi_ap_record_t ap_info;
+    ESP_ERROR_CHECK(esp_wifi_sta_get_ap_info(&ap_info));
+    ESP_LOGI(TAG, "Connected to %s rssi=%d channel=%d", ap_info.ssid, ap_info.rssi, ap_info.primary);
+    rssi_ = ap_info.rssi;
+    channel_ = ap_info.primary;
 }
 
 bool WifiStation::IsConnected() {

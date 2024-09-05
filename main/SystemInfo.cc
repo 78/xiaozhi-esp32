@@ -8,6 +8,8 @@
 #include "esp_partition.h"
 #include "esp_app_desc.h"
 #include "esp_psram.h"
+#include "esp_wifi.h"
+#include "esp_ota_ops.h"
 
 
 #define TAG "SystemInfo"
@@ -62,14 +64,22 @@ std::string SystemInfo::GetJsonString() {
                 "idf_version": "4.2-dev"
                 "elf_sha256": ""
             },
-            "partition_table": {
+            "partition_table": [
                 "app": {
                     "label": "app",
                     "type": 1,
                     "subtype": 2,
                     "address": 0x10000,
                     "size": 0x100000
-                },
+                }
+            ],
+            "ota": {
+                "label": "ota_0"
+            },
+            "wifi": {
+                "ssid": "my-wifi",
+                "rss": -50,
+                "channel": 6
             }
         }
     */
@@ -117,7 +127,20 @@ std::string SystemInfo::GetJsonString() {
         it = esp_partition_next(it);
     }
     json.pop_back(); // Remove the last comma
-    json += "]";
+    json += "],";
+
+    json += "\"ota\":{";
+    auto ota_partition = esp_ota_get_running_partition();
+    json += "\"label\":\"" + std::string(ota_partition->label) + "\"";
+    json += "},";
+
+    wifi_ap_record_t ap_info;
+    esp_wifi_sta_get_ap_info(&ap_info);
+    json += "\"wifi\":{";
+    json += "\"ssid\":\"" + std::string(reinterpret_cast<char*>(ap_info.ssid)) + "\",";
+    json += "\"rssi\":" + std::to_string(ap_info.rssi) + ",";
+    json += "\"channel\":" + std::to_string(ap_info.primary);
+    json += "}";
 
     // Close the JSON object
     json += "}";

@@ -98,6 +98,18 @@ void Application::Start() {
     builtin_led_.SetBlue();
     builtin_led_.BlinkOnce();
     wifi_station_.Start();
+    
+    // Check if there is a new firmware version available
+    firmware_upgrade_.CheckVersion();
+    if (firmware_upgrade_.HasNewVersion()) {
+        builtin_led_.TurnOn();
+        firmware_upgrade_.StartUpgrade();
+        // If upgrade success, the device will reboot and never reach here
+        ESP_LOGI(TAG, "Firmware upgrade failed...");
+        builtin_led_.TurnOff();
+    } else {
+        firmware_upgrade_.MarkValid();
+    }
 
     StartCommunication();
     StartDetection();

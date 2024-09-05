@@ -18,3 +18,5 @@ dependencies:
   #   # `public` flag doesn't have an effect dependencies of the `main` component.
   #   # All dependencies of `main` are public by default.
   #   public: true
+description: "An AI voice assistant for ESP32"
+url: "https://github.com/78/xiaozhi-esp32"

@@ -1,8 +1,14 @@
 menu "Xiaozhi Assistant"
 
+config OTA_UPGRADE_URL
+    string "OTA Upgrade URL"
+    default "https://"
+    help
+        The application will access this URL to check for updates when it starts and every 24 hours.
+
 config WEBSOCKET_URL
     string "Websocket URL"
-    default "ws://"
+    default "wss://"
     help
         Communication with the server through websocket after wake up.
 

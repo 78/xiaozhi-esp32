@@ -6,6 +6,7 @@
 #include "OpusEncoder.h"
 #include "WebSocketClient.h"
 #include "BuiltinLed.h"
+#include "FirmwareUpgrade.h"
 
 #include "opus.h"
 #include "resampler_structs.h"
@@ -40,6 +41,7 @@ private:
     WifiStation wifi_station_;
     AudioDevice audio_device_;
     BuiltinLed builtin_led_;
+    FirmwareUpgrade firmware_upgrade_;
 
     std::recursive_mutex mutex_;
     WebSocketClient* ws_client_ = nullptr;

@@ -7,6 +7,7 @@ set(SOURCES "AudioDevice.cc"
             "WifiConfigurationAp.cc"
             "main.cc"
             "WifiStation.cc"
+            "FirmwareUpgrade.cc"
             )
 
 idf_component_register(SRCS ${SOURCES}
