@@ -32,10 +32,15 @@ void FirmwareUpgrade::CheckVersion() {
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_header(client, "Device-Id", SystemInfo::GetMacAddress().c_str());
-    esp_http_client_set_post_field(client, device_info.c_str(), device_info.length());
-    esp_err_t err = esp_http_client_open(client, 0);
+    esp_err_t err = esp_http_client_open(client, device_info.length());
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to perform HTTP request: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        return;
+    }
+    auto written = esp_http_client_write(client, device_info.data(), device_info.length());
+    if (written < 0) {
+        ESP_LOGE(TAG, "Failed to write request body: %s", esp_err_to_name(err));
         esp_http_client_cleanup(client);
         return;
     }
