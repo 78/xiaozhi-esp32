@@ -63,7 +63,7 @@ config AUDIO_DEVICE_I2S_GPIO_DIN
     
 config AUDIO_DEVICE_I2S_SIMPLEX
     bool "I2S Simplex"
-    default n
+    default y
     help
         Enable I2S Simplex mode.
     
