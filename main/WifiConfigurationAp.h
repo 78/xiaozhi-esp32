@@ -20,6 +20,7 @@ private:
     void StartWebServer();
     bool ConnectToWifi(const std::string &ssid, const std::string &password);
     void Save(const std::string &ssid, const std::string &password);
+    static std::string UrlDecode(const std::string &url);
 };
 
 #endif // _WIFI_CONFIGURATION_AP_H_

@@ -159,9 +159,12 @@ void WifiConfigurationAp::StartWebServer()
             buf[ret] = '\0';
             ESP_LOGI(TAG, "Received form data: %s", buf);
 
+            std::string decoded = UrlDecode(buf);
+            ESP_LOGI(TAG, "Decoded form data: %s", decoded.c_str());
+
             // Parse the form data
             char ssid[32], password[64];
-            if (sscanf(buf, "ssid=%32[^&]&password=%64s", ssid, password) != 2) {
+            if (sscanf(decoded.c_str(), "ssid=%32[^&]&password=%64s", ssid, password) != 2) {
                 httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid form data");
                 return ESP_FAIL;
             }
@@ -193,6 +196,28 @@ void WifiConfigurationAp::StartWebServer()
 
     ESP_LOGI(TAG, "Web server started");
 }
+
+std::string WifiConfigurationAp::UrlDecode(const std::string &url)
+{
+    std::string decoded;
+    for (size_t i = 0; i < url.length(); ++i) {
+        if (url[i] == '%') {
+            char hex[3];
+            hex[0] = url[i + 1];
+            hex[1] = url[i + 2];
+            hex[2] = '\0';
+            char ch = static_cast<char>(std::stoi(hex, nullptr, 16));
+            decoded += ch;
+            i += 2;
+        } else if (url[i] == '+') {
+            decoded += ' ';
+        } else {
+            decoded += url[i];
+        }
+    }
+    return decoded;
+}
+
 
 void WifiConfigurationAp::Start()
 {
