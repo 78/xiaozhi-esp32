@@ -1,5 +1,6 @@
 set(SOURCES "AudioDevice.cc"
             "SystemInfo.cc"
+            "SystemReset.cc"
             "WebSocketClient.cc"
             "OpusEncoder.cc"
             "BuiltinLed.cc"
