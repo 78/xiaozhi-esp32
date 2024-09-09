@@ -18,13 +18,6 @@ config WEBSOCKET_ACCESS_TOKEN
     help
         Access token for websocket communication.
 
-
-config BUILTIN_LED_GPIO
-    int "Builtin LED GPIO"
-    default 48
-    help
-        GPIO number of the builtin LED.
-
 config AUDIO_INPUT_SAMPLE_RATE
     int "Audio Input Sample Rate"
     default 16000

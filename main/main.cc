@@ -10,6 +10,7 @@
 #include "Application.h"
 #include "SystemInfo.h"
 #include "SystemReset.h"
+#include "BuiltinLed.h"
 
 #define TAG "main"
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
@@ -37,15 +38,17 @@ extern "C" void app_main(void)
 
     // If the WiFi configuration is not found, launch the WiFi configuration AP
     if (ret != ESP_OK) {
-        auto app = new WifiConfigurationAp();
-        app->Start();
+        auto& builtin_led = BuiltinLed::GetInstance();
+        builtin_led.SetBlue();
+        builtin_led.Blink(1000, 500);
+
+        WifiConfigurationAp::GetInstance().Start("Xiaozhi");
         return;
     }
     nvs_close(nvs_handle);
     
     // Otherwise, launch the application
-    auto app = new Application();
-    app->Start();
+    Application::GetInstance().Start();
 
     // Dump CPU usage every 10 second
     while (true) {

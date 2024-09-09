@@ -1,4 +1,6 @@
 #include "Application.h"
+#include "BuiltinLed.h"
+#include "WifiStation.h"
 #include <cstring>
 #include "esp_log.h"
 #include "model_path.h"
@@ -94,19 +96,20 @@ void Application::Start() {
         app->AudioDecodeTask();
     }, "opus_decode", opus_stack_size, this, 1, audio_decode_task_stack_, &audio_decode_task_buffer_);
 
+    auto& builtin_led = BuiltinLed::GetInstance();
     // Blink the LED to indicate the device is connecting
-    builtin_led_.SetBlue();
-    builtin_led_.BlinkOnce();
-    wifi_station_.Start();
+    builtin_led.SetBlue();
+    builtin_led.BlinkOnce();
+    WifiStation::GetInstance().Start();
     
     // Check if there is a new firmware version available
     firmware_upgrade_.CheckVersion();
     if (firmware_upgrade_.HasNewVersion()) {
-        builtin_led_.TurnOn();
+        builtin_led.TurnOn();
         firmware_upgrade_.StartUpgrade();
         // If upgrade success, the device will reboot and never reach here
         ESP_LOGI(TAG, "Firmware upgrade failed...");
-        builtin_led_.TurnOff();
+        builtin_led.TurnOff();
     } else {
         firmware_upgrade_.MarkValid();
     }
@@ -115,37 +118,38 @@ void Application::Start() {
     StartDetection();
 
     // Blink the LED to indicate the device is running
-    builtin_led_.SetGreen();
-    builtin_led_.BlinkOnce();
+    builtin_led.SetGreen();
+    builtin_led.BlinkOnce();
     xEventGroupSetBits(event_group_, DETECTION_RUNNING);
 }
 
 void Application::SetChatState(ChatState state) {
+    auto& builtin_led = BuiltinLed::GetInstance();
     chat_state_ = state;
     switch (chat_state_) {
         case kChatStateIdle:
             ESP_LOGI(TAG, "Chat state: idle");
-            builtin_led_.TurnOff();
+            builtin_led.TurnOff();
             break;
         case kChatStateConnecting:
             ESP_LOGI(TAG, "Chat state: connecting");
-            builtin_led_.SetBlue();
-            builtin_led_.TurnOn();
+            builtin_led.SetBlue();
+            builtin_led.TurnOn();
             break;
         case kChatStateListening:
             ESP_LOGI(TAG, "Chat state: listening");
-            builtin_led_.SetRed();
-            builtin_led_.TurnOn();
+            builtin_led.SetRed();
+            builtin_led.TurnOn();
             break;
         case kChatStateSpeaking:
             ESP_LOGI(TAG, "Chat state: speaking");
-            builtin_led_.SetGreen();
-            builtin_led_.TurnOn();
+            builtin_led.SetGreen();
+            builtin_led.TurnOn();
             break;
         case kChatStateWakeWordDetected:
             ESP_LOGI(TAG, "Chat state: wake word detected");
-            builtin_led_.SetBlue();
-            builtin_led_.TurnOn();
+            builtin_led.SetBlue();
+            builtin_led.TurnOn();
             break;
     }
 
