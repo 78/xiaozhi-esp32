@@ -1,10 +1,10 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  78/esp-opus: "^1.0.2"
   78/esp-builtin-led: "^1.0.0"
   78/esp-wifi-connect: "^1.0.0"
-  espressif/esp_websocket_client: "^1.2.3"
-  espressif/led_strip: "*"
+  78/esp-ota: "^1.0.0"
+  78/esp-websocket: "^1.0.0"
+  78/esp-opus-encoder: "^1.0.0"
   espressif/esp-sr: "^1.9.0"
   ## Required IDF version
   idf:

@@ -6,9 +6,8 @@
 #include "model_path.h"
 #include "SystemInfo.h"
 #include "cJSON.h"
-#include "silk_resampler.h"
 
-#define TAG "application"
+#define TAG "Application"
 
 
 Application::Application() {
@@ -29,7 +28,7 @@ Application::Application() {
     opus_encoder_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1);
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-        assert(0 == silk_resampler_init(&resampler_state_, opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, 1));
+        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
 }
 
@@ -461,7 +460,7 @@ void Application::AudioDecodeTask() {
             if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
                 int target_size = frame_size * CONFIG_AUDIO_OUTPUT_SAMPLE_RATE / opus_decode_sample_rate_;
                 std::vector<int16_t> resampled(target_size);
-                assert(0 == silk_resampler(&resampler_state_, resampled.data(), packet->pcm.data(), frame_size));
+                opus_resampler_.Process(packet->pcm.data(), frame_size, resampled.data(), target_size);
                 packet->pcm = std::move(resampled);
             }
         }
@@ -479,7 +478,7 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     opus_decode_sample_rate_ = sample_rate;
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-        assert(0 == silk_resampler_init(&resampler_state_, opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, 1));
+        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
 }
 

@@ -7,3 +7,4 @@ build/
 sdkconfig.old
 sdkconfig
 dependencies.lock
+.env

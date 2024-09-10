@@ -3,6 +3,7 @@
 
 #include "AudioDevice.h"
 #include "OpusEncoder.h"
+#include "OpusResampler.h"
 #include "WebSocketClient.h"
 #include "FirmwareUpgrade.h"
 
@@ -74,7 +75,7 @@ private:
 
     int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
-    silk_resampler_state_struct resampler_state_;
+    OpusResampler opus_resampler_;
 
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t wake_word_encode_task_buffer_;
