@@ -6,6 +6,7 @@
 #include "model_path.h"
 #include "SystemInfo.h"
 #include "cJSON.h"
+#include "driver/gpio.h"
 
 #define TAG "Application"
 
@@ -150,9 +151,14 @@ void Application::SetChatState(ChatState state) {
             builtin_led.SetBlue();
             builtin_led.TurnOn();
             break;
+        case kChatStateTesting:
+            ESP_LOGI(TAG, "Chat state: testing");
+            builtin_led.SetRed();
+            builtin_led.TurnOn();
+            break;
     }
 
-    const char* state_str[] = { "idle", "connecting", "listening", "speaking", "wake_word_detected", "unknown" };
+    const char* state_str[] = { "idle", "connecting", "listening", "speaking", "wake_word_detected", "testing", "unknown" };
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (ws_client_ && ws_client_->IsConnected()) {
         cJSON* root = cJSON_CreateObject();
@@ -327,6 +333,49 @@ void Application::SendWakeWordData() {
     wake_word_opus_.clear();
 }
 
+void Application::CheckTestButton() {
+    if (gpio_get_level(GPIO_NUM_1) == 0) {
+        if (chat_state_ == kChatStateIdle) {
+            SetChatState(kChatStateTesting);
+            test_resampler_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
+        }
+    } else {
+        if (chat_state_ == kChatStateTesting) {
+            SetChatState(kChatStateIdle);
+            
+            // 创建新线程来处理音频播放
+            xTaskCreate([](void* arg) {
+                Application* app = static_cast<Application*>(arg);
+                app->PlayTestAudio();
+                vTaskDelete(NULL);
+            }, "play_test_audio", 4096, this, 1, NULL);
+        }
+    }
+}
+
+void Application::PlayTestAudio() {
+    // 写入音频数据到扬声器
+    auto packet = new AudioPacket();
+    packet->type = kAudioPacketTypeStart;
+    audio_device_.QueueAudioPacket(packet);
+
+    for (auto& pcm : test_pcm_) {
+        packet = new AudioPacket();
+        packet->type = kAudioPacketTypeData;
+        packet->pcm.resize(test_resampler_.GetOutputSamples(pcm.iov_len / 2));
+        test_resampler_.Process((int16_t*)pcm.iov_base, pcm.iov_len / 2, packet->pcm.data());
+        audio_device_.QueueAudioPacket(packet);
+        heap_caps_free(pcm.iov_base);
+    }
+    // 清除测试PCM数据
+    test_pcm_.clear();
+
+    // 停止音频设备
+    packet = new AudioPacket();
+    packet->type = kAudioPacketTypeStop;
+    audio_device_.QueueAudioPacket(packet);
+}
+
 void Application::AudioDetectionTask() {
     auto chunk_size = esp_afe_sr_v1.get_fetch_chunksize(afe_detection_data_);
     ESP_LOGI(TAG, "Audio detection task started, chunk size: %d", chunk_size);
@@ -345,6 +394,17 @@ void Application::AudioDetectionTask() {
 
         // Store the wake word data for voice recognition, like who is speaking
         StoreWakeWordData((uint8_t*)res->data, res->data_size);
+
+        CheckTestButton();
+        if (chat_state_ == kChatStateTesting) {
+            iovec iov = {
+                .iov_base = heap_caps_malloc(res->data_size, MALLOC_CAP_SPIRAM),
+                .iov_len = (size_t)res->data_size
+            };
+            memcpy(iov.iov_base, res->data, res->data_size);
+            test_pcm_.push_back(iov);
+            continue;
+        }
 
         if (res->wakeup_state == WAKENET_DETECTED) {
             xEventGroupClearBits(event_group_, DETECTION_RUNNING);
@@ -458,9 +518,9 @@ void Application::AudioDecodeTask() {
             }
 
             if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-                int target_size = frame_size * CONFIG_AUDIO_OUTPUT_SAMPLE_RATE / opus_decode_sample_rate_;
+                int target_size = test_resampler_.GetOutputSamples(frame_size);
                 std::vector<int16_t> resampled(target_size);
-                opus_resampler_.Process(packet->pcm.data(), frame_size, resampled.data(), target_size);
+                test_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
                 packet->pcm = std::move(resampled);
             }
         }
