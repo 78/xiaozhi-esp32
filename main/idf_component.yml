@@ -4,7 +4,7 @@ dependencies:
   78/esp-wifi-connect: "^1.0.0"
   78/esp-ota: "^1.0.0"
   78/esp-websocket: "^1.0.0"
-  78/esp-opus-encoder: "^1.0.0"
+  78/esp-opus-encoder: "^1.0.1"
   espressif/esp-sr: "^1.9.0"
   ## Required IDF version
   idf:
