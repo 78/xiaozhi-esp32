@@ -1,14 +1,20 @@
 menu "Xiaozhi Assistant"
 
+config OTA_VERSION_URL
+    string "OTA Version URL"
+    default "https://api.tenclass.net/xiaozhi/ota/"
+    help
+        The application will access this URL to check for updates.
+
 config WEBSOCKET_URL
     string "Websocket URL"
-    default "wss://"
+    default "wss://api.tenclass.net/xiaozhi/v1/"
     help
         Communication with the server through websocket after wake up.
 
 config WEBSOCKET_ACCESS_TOKEN
     string "Websocket Access Token"
-    default ""
+    default "test-token"
     help
         Access token for websocket communication.
 

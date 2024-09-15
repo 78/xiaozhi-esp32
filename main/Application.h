@@ -28,7 +28,8 @@ enum ChatState {
     kChatStateListening,
     kChatStateSpeaking,
     kChatStateWakeWordDetected,
-    kChatStateTesting
+    kChatStateTesting,
+    kChatStateUpgrading
 };
 
 class Application {
@@ -96,6 +97,7 @@ private:
     void SendWakeWordData();
     void CheckTestButton();
     void PlayTestAudio();
+    void CheckNewVersion();
     
     void AudioFeedTask();
     void AudioDetectionTask();

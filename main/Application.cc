@@ -1,6 +1,5 @@
 #include "Application.h"
 #include "BuiltinLed.h"
-#include "WifiStation.h"
 #include <cstring>
 #include "esp_log.h"
 #include "model_path.h"
@@ -31,6 +30,8 @@ Application::Application() {
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
         opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
+
+    firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
 }
 
 Application::~Application() {
@@ -67,6 +68,24 @@ Application::~Application() {
     vEventGroupDelete(event_group_);
 }
 
+void Application::CheckNewVersion() {
+    // Check if there is a new firmware version available
+    firmware_upgrade_.CheckVersion();
+    if (firmware_upgrade_.HasNewVersion()) {
+        // Wait for the chat state to be idle
+        while (chat_state_ != kChatStateIdle) {
+            vTaskDelay(100);
+        }
+        SetChatState(kChatStateUpgrading);
+        firmware_upgrade_.StartUpgrade();
+        // If upgrade success, the device will reboot and never reach here
+        ESP_LOGI(TAG, "Firmware upgrade failed...");
+        SetChatState(kChatStateIdle);
+    } else {
+        firmware_upgrade_.MarkValid();
+    }
+}
+
 void Application::Start() {
     // Initialize the audio device
     audio_device_.Start(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
@@ -96,31 +115,21 @@ void Application::Start() {
         app->AudioDecodeTask();
     }, "opus_decode", opus_stack_size, this, 1, audio_decode_task_stack_, &audio_decode_task_buffer_);
 
-    auto& builtin_led = BuiltinLed::GetInstance();
-    // Blink the LED to indicate the device is connecting
-    builtin_led.SetBlue();
-    builtin_led.BlinkOnce();
-    WifiStation::GetInstance().Start();
-    
-    // Check if there is a new firmware version available
-    firmware_upgrade_.CheckVersion();
-    if (firmware_upgrade_.HasNewVersion()) {
-        builtin_led.TurnOn();
-        firmware_upgrade_.StartUpgrade();
-        // If upgrade success, the device will reboot and never reach here
-        ESP_LOGI(TAG, "Firmware upgrade failed...");
-        builtin_led.TurnOff();
-    } else {
-        firmware_upgrade_.MarkValid();
-    }
-
     StartCommunication();
     StartDetection();
 
     // Blink the LED to indicate the device is running
+    auto& builtin_led = BuiltinLed::GetInstance();
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
     xEventGroupSetBits(event_group_, DETECTION_RUNNING);
+
+    // Launch a task to check for new firmware version
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->CheckNewVersion();
+        vTaskDelete(NULL);
+    }, "check_new_version", 4096 * 2, this, 1, NULL);
 }
 
 void Application::SetChatState(ChatState state) {
@@ -156,6 +165,11 @@ void Application::SetChatState(ChatState state) {
             builtin_led.SetRed();
             builtin_led.TurnOn();
             break;
+        case kChatStateUpgrading:
+            ESP_LOGI(TAG, "Chat state: upgrading");
+            builtin_led.SetGreen();
+            builtin_led.StartContinuousBlink(100);
+            break;
     }
 
     const char* state_str[] = { "idle", "connecting", "listening", "speaking", "wake_word_detected", "testing", "unknown" };
@@ -175,7 +189,7 @@ void Application::StartCommunication() {
     afe_config_t afe_config = {
         .aec_init = false,
         .se_init = true,
-        .vad_init = false,
+        .vad_init = true,
         .wakenet_init = false,
         .voice_communication_init = true,
         .voice_communication_agc_init = true,
@@ -406,7 +420,7 @@ void Application::AudioDetectionTask() {
             continue;
         }
 
-        if (res->wakeup_state == WAKENET_DETECTED) {
+        if (chat_state_ == kChatStateIdle && res->wakeup_state == WAKENET_DETECTED) {
             xEventGroupClearBits(event_group_, DETECTION_RUNNING);
             SetChatState(kChatStateConnecting);
 

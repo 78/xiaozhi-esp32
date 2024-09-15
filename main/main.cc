@@ -11,6 +11,7 @@
 #include "SystemInfo.h"
 #include "SystemReset.h"
 #include "BuiltinLed.h"
+#include "WifiStation.h"
 
 #define TAG "main"
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
@@ -32,21 +33,19 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    // Get the WiFi configuration
-    nvs_handle_t nvs_handle;
-    ret = nvs_open("wifi", NVS_READONLY, &nvs_handle);
-
-    // If the WiFi configuration is not found, launch the WiFi configuration AP
-    if (ret != ESP_OK) {
-        auto& builtin_led = BuiltinLed::GetInstance();
+    // Try to connect to WiFi, if failed, launch the WiFi configuration AP
+    auto& builtin_led = BuiltinLed::GetInstance();
+    auto& wifi_station = WifiStation::GetInstance();
+    builtin_led.SetBlue();
+    builtin_led.StartContinuousBlink(100);
+    wifi_station.Start();
+    if (!wifi_station.IsConnected()) {
         builtin_led.SetBlue();
         builtin_led.Blink(1000, 500);
-
         WifiConfigurationAp::GetInstance().Start("Xiaozhi");
         return;
     }
-    nvs_close(nvs_handle);
-    
+
     // Otherwise, launch the application
     Application::GetInstance().Start();
 
