@@ -230,7 +230,7 @@ void Application::StartDetection() {
     afe_config_t afe_config = {
         .aec_init = false,
         .se_init = true,
-        .vad_init = false,
+        .vad_init = true,
         .wakenet_init = true,
         .voice_communication_init = false,
         .voice_communication_agc_init = false,
@@ -411,12 +411,19 @@ void Application::AudioDetectionTask() {
 
         CheckTestButton();
         if (chat_state_ == kChatStateTesting) {
-            iovec iov = {
-                .iov_base = heap_caps_malloc(res->data_size, MALLOC_CAP_SPIRAM),
-                .iov_len = (size_t)res->data_size
-            };
-            memcpy(iov.iov_base, res->data, res->data_size);
-            test_pcm_.push_back(iov);
+            auto& builtin_led = BuiltinLed::GetInstance();
+            if (res->vad_state == AFE_VAD_SPEECH) {
+                iovec iov = {
+                    .iov_base = heap_caps_malloc(res->data_size, MALLOC_CAP_SPIRAM),
+                    .iov_len = (size_t)res->data_size
+                };
+                memcpy(iov.iov_base, res->data, res->data_size);
+                test_pcm_.push_back(iov);
+                builtin_led.SetRed(128);
+            } else {
+                builtin_led.SetRed(32);
+            }
+            builtin_led.TurnOn();
             continue;
         }
 
@@ -486,6 +493,15 @@ void Application::AudioCommunicationTask() {
         }
 
         if (chat_state_ == kChatStateListening) {
+            // Update the LED state based on the VAD state
+            auto& builtin_led = BuiltinLed::GetInstance();
+            if (res->vad_state == AFE_VAD_SPEECH) {
+                builtin_led.SetRed(128);
+            } else {
+                builtin_led.SetRed(32);
+            }
+            builtin_led.TurnOn();
+
             // Send audio data to server
             iovec data = {
                 .iov_base = malloc(res->data_size),
