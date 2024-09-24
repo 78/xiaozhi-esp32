@@ -205,7 +205,7 @@ void AudioDevice::AudioPlayTask() {
             }
             break;
         case kAudioPacketTypeSentenceStart:
-            ESP_LOGI(TAG, "Playing sentence: %s", packet->text.c_str());
+            ESP_LOGI(TAG, "<< %s", packet->text.c_str());
             break;
         case kAudioPacketTypeSentenceEnd:
             if (breaked_) { // Clear the queue
@@ -219,6 +219,7 @@ void AudioDevice::AudioPlayTask() {
             break;
         case kAudioPacketTypeData:
             Write(packet->pcm.data(), packet->pcm.size());
+            last_timestamp_ = packet->timestamp;
             break;
         default:
             ESP_LOGE(TAG, "Unknown audio packet type: %d", packet->type);

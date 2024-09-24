@@ -54,6 +54,6 @@ extern "C" void app_main(void)
         vTaskDelay(10000 / portTICK_PERIOD_MS);
         // SystemInfo::PrintRealTimeStats(STATS_TICKS);
         int free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-        ESP_LOGI(TAG, "Free heap size: %u minimal internal: %u", SystemInfo::GetFreeHeapSize(), free_sram);
+        ESP_LOGD(TAG, "Free heap size: %u minimal internal: %u", SystemInfo::GetFreeHeapSize(), free_sram);
     }
 }

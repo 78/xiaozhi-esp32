@@ -19,7 +19,17 @@
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
-#define DETECT_PACKETS_ENCODED 4
+#define WAKE_WORD_ENCODED 4
+
+#define PROTOCOL_VERSION 2
+struct BinaryProtocol {
+    uint16_t version;
+    uint16_t type;
+    uint32_t reserved;
+    uint32_t timestamp;
+    uint32_t payload_size;
+    uint8_t payload[];
+} __attribute__((packed));
 
 
 enum ChatState {
@@ -85,8 +95,9 @@ private:
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
     std::list<iovec> wake_word_pcm_;
-    std::vector<iovec> wake_word_opus_;
+    std::vector<BinaryProtocol*> wake_word_opus_;
 
+    BinaryProtocol* AllocateBinaryProtocol(void* payload, size_t payload_size);
     void SetDecodeSampleRate(int sample_rate);
     void SetChatState(ChatState state);
     void StartDetection();

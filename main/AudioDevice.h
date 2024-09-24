@@ -28,13 +28,6 @@ struct AudioPacket {
     uint32_t timestamp;
 };
 
-struct AudioDataHeader {
-    uint32_t version;
-    uint32_t reserved;
-    uint32_t timestamp;
-    uint32_t payload_size;
-} __attribute__((packed));
-
 class AudioDevice {
 public:
     AudioDevice();
@@ -51,6 +44,7 @@ public:
     int output_sample_rate() const { return output_sample_rate_; }
     bool duplex() const { return duplex_; }
     bool playing() const { return playing_; }
+    uint32_t last_timestamp() const { return last_timestamp_; }
 
 private:
     bool playing_ = false;
@@ -58,6 +52,7 @@ private:
     bool duplex_ = false;
     int input_sample_rate_ = 0;
     int output_sample_rate_ = 0;
+    uint32_t last_timestamp_ = 0;
 
     i2s_chan_handle_t tx_handle_ = nullptr;
     i2s_chan_handle_t rx_handle_ = nullptr;
