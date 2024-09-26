@@ -302,8 +302,8 @@ void Application::StoreWakeWordData(uint8_t* data, size_t size) {
     };
     memcpy(iov.iov_base, data, size);
     wake_word_pcm_.push_back(iov);
-    // remove the oldest packet if the size is larger than 50, about 2 seconds
-    if (wake_word_pcm_.size() > 50) {
+    // keep about 2 seconds of data, detect duration is 32ms (sample_rate == 16000, chunksize == 512)
+    if (wake_word_pcm_.size() > 2000 / 32) {
         heap_caps_free(wake_word_pcm_.front().iov_base);
         wake_word_pcm_.pop_front();
     }
@@ -320,7 +320,7 @@ void Application::EncodeWakeWordData() {
         // encode detect packets
         OpusEncoder* encoder = new OpusEncoder();
         encoder->Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1, 60);
-        encoder->SetComplexity(2);
+        encoder->SetComplexity(0);
 
         for (auto& pcm: app->wake_word_pcm_) {
             encoder->Encode(pcm, [app](const iovec opus) {
