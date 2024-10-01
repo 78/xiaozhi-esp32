@@ -2,50 +2,41 @@
 
 BiliBili 视频介绍 [【ESP32+SenseVoice+Qwen72B打造你的AI聊天伴侣！】](https://www.bilibili.com/video/BV11msTenEH3/?share_source=copy_web&vd_source=ee1aafe19d6e60cf22e60a93881faeba)
 
+这是虾哥的第一个硬件作品。
+
+## 项目目的
+
+本项目基于乐鑫的 ESP-IDF 进行开发。
+
+本项目是一个开源项目，主要用于教学目的。我们希望通过这个项目，能够帮助更多人入门 AI 硬件开发,了解如何将当下飞速发展的大语言模型应用到实际的硬件设备中。无论你是对 AI 感兴趣的学生，还是想要探索新技术的开发者，都可以通过这个项目获得宝贵的学习经验。
+
+欢迎所有人参与到项目的开发和改进中来。如果你有任何想法或建议，请随时提出 issue 或加入群聊。
+
 学习交流 QQ 群：946599635
+
+## 已实现功能
+
+- Wi-Fi 配网
+- 离线语音唤醒（使用乐鑫方案）
+- 流式语音对话（WebSocket 协议）
+- 支持国语、粤语、英语、日语、韩语 5 种语言识别（使用 SenseVoice 方案）
+- 声纹识别（识别是谁在喊 AI 的名字，[3D Speaker 项目](https://github.com/modelscope/3D-Speaker)）
+- 使用大模型 TTS（火山引擎方案，阿里云接入中）
+- 支持可配置的提示词和音色（自定义角色）
+- 免费提供 Qwen2.5 72B 和 豆包模型（受限于性能和额度，人多后可能会限额）
+- 支持每轮对话后自我总结，生成记忆体
+- 扩展液晶显示屏，显示信号强弱（后面可以显示中文字幕）
+- 支持 ML307 Cat.1 4G 模块（可选）
 
 ## 硬件部分
 
-### DIY 所需硬件
+为方便协作，目前所有硬件资料都放在飞书文档中：
 
-- 开发板：ESP32-S3-DevKitC-1
-- 麦克风：INMP441
-- 功放：MAX98357
-- 喇叭：8Ω 3W
-- 400 孔面包板 2 块
-- 导线若干
+[《小智 AI 聊天机器人百科全书》](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
 
+第二版接线图如下：
 
-### GPIO 接线指引
-
-以下是默认接线方案，如果你的接线跟默认不一样，请在项目配置中同步修改。
-
-![接线图](./docs/wiring.jpg)
-
-注意，MAX98357 的 GND 和 VIN 接线隐藏在元件下方。INMP441 的 VDD 和 GND 不能接反，否则会烧毁麦克风。
-
-#### MAX98357 功放
-
-```
-LRC -> GPIO 4
-BCLK -> GPIO 5
-DIN -> GPIO 6
-GAIN -> GND（如果音量太大，请将 GAIN 接到 3.3V）
-SD -> 3.3V
-GND -> GND
-VIN -> 3.3V 或 5V（如果你的喇叭需要 5V，应该将 VIN 接到 5V）
-```
-
-#### INMP441 麦克风
-
-```
-L/R -> GND
-WS -> GPIO 10
-SCK -> GPIO 11
-SD -> GPIO 3
-VDD -> 3.3V
-GND -> GND
-```
+![第二版接线图](docs/wiring2.jpg)
 
 ## 固件部分
 
@@ -73,7 +64,7 @@ GND -> GND
 - 配置完成后，编译固件
 
 
-## 配置 Wi-Fi
+## 配置 Wi-Fi （4G 版本跳过）
 
 按照上述接线，烧录固件，设备上电后，开发板上的 RGB 会闪烁蓝灯（部分开发板需要焊接 RGB 灯的开关才会亮），进入配网状态。
 

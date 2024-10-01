@@ -4,8 +4,12 @@
 #include "AudioDevice.h"
 #include "OpusEncoder.h"
 #include "OpusResampler.h"
-#include "WebSocketClient.h"
+#include "WebSocket.h"
+#include "Display.h"
+#include "Ml307AtModem.h"
 #include "FirmwareUpgrade.h"
+#include "Ml307Http.h"
+#include "EspHttp.h"
 
 #include "opus.h"
 #include "resampler_structs.h"
@@ -60,15 +64,23 @@ private:
     ~Application();
 
     AudioDevice audio_device_;
+#ifdef CONFIG_USE_ML307
+    Ml307AtModem ml307_at_modem_;
+    Ml307Http http_;
+#else
+    EspHttp http_;
+#endif
     FirmwareUpgrade firmware_upgrade_;
+#ifdef CONFIG_USE_DISPLAY
+    Display display_;
+#endif
 
     std::recursive_mutex mutex_;
-    WebSocketClient* ws_client_ = nullptr;
+    WebSocket* ws_client_ = nullptr;
     esp_afe_sr_data_t* afe_detection_data_ = nullptr;
     esp_afe_sr_data_t* afe_communication_data_ = nullptr;
     EventGroupHandle_t event_group_;
     char* wakenet_model_ = NULL;
-    char* nsnet_model_ = NULL;
     volatile ChatState chat_state_ = kChatStateIdle;
 
     // Audio encode / decode
@@ -95,7 +107,11 @@ private:
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
     std::list<iovec> wake_word_pcm_;
-    std::vector<BinaryProtocol*> wake_word_opus_;
+    std::string wake_word_opus_;
+
+    TaskHandle_t check_new_version_task_ = nullptr;
+    StaticTask_t check_new_version_task_buffer_;
+    StackType_t* check_new_version_task_stack_ = nullptr;
 
     BinaryProtocol* AllocateBinaryProtocol(void* payload, size_t payload_size);
     void SetDecodeSampleRate(int sample_rate);
@@ -109,6 +125,7 @@ private:
     void CheckTestButton();
     void PlayTestAudio();
     void CheckNewVersion();
+    void UpdateDisplay();
     
     void AudioFeedTask();
     void AudioDetectionTask();

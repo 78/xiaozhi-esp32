@@ -30,29 +30,29 @@ config AUDIO_OUTPUT_SAMPLE_RATE
     help
         Audio output sample rate.
 
-config AUDIO_DEVICE_I2S_GPIO_BCLK
-    int "I2S GPIO BCLK"
-    default 5
-    help
-        GPIO number of the I2S BCLK.
-
-config AUDIO_DEVICE_I2S_GPIO_WS
+config AUDIO_DEVICE_I2S_MIC_GPIO_WS
     int "I2S GPIO WS"
     default 4
     help
         GPIO number of the I2S WS.
 
-config AUDIO_DEVICE_I2S_GPIO_DOUT
-    int "I2S GPIO DOUT"
+config AUDIO_DEVICE_I2S_MIC_GPIO_BCLK
+    int "I2S GPIO BCLK"
+    default 5
+    help
+        GPIO number of the I2S BCLK.
+
+config AUDIO_DEVICE_I2S_MIC_GPIO_DIN
+    int "I2S GPIO DIN"
     default 6
     help
-        GPIO number of the I2S DOUT.
-
-config AUDIO_DEVICE_I2S_GPIO_DIN
-    int "I2S GPIO DIN"
-    default 3
-    help
         GPIO number of the I2S DIN.
+
+config AUDIO_DEVICE_I2S_SPK_GPIO_DOUT
+    int "I2S GPIO DOUT"
+    default 7
+    help
+        GPIO number of the I2S DOUT.
     
 config AUDIO_DEVICE_I2S_SIMPLEX
     bool "I2S Simplex"
@@ -60,18 +60,65 @@ config AUDIO_DEVICE_I2S_SIMPLEX
     help
         Enable I2S Simplex mode.
     
-config AUDIO_DEVICE_I2S_MIC_GPIO_BCLK
-    int "I2S MIC GPIO BCLK"
-    default 11
+config AUDIO_DEVICE_I2S_SPK_GPIO_BCLK
+    int "I2S SPK GPIO BCLK"
+    default 15
     depends on AUDIO_DEVICE_I2S_SIMPLEX
     help
         GPIO number of the I2S MIC BCLK.
     
-config AUDIO_DEVICE_I2S_MIC_GPIO_WS
-    int "I2S MIC GPIO WS"
-    default 10
+config AUDIO_DEVICE_I2S_SPK_GPIO_WS
+    int "I2S SPK GPIO WS"
+    default 16
     depends on AUDIO_DEVICE_I2S_SIMPLEX
     help
         GPIO number of the I2S MIC WS.
+
+config USE_ML307
+    bool "Use ML307"
+    default n
+    help
+        Use ML307 as the modem.
+
+config ML307_RX_PIN
+    int "ML307 RX Pin"
+    default 11
+    depends on USE_ML307
+    help
+        GPIO number of the ML307 RX.
+
+config ML307_TX_PIN
+    int "ML307 TX Pin"
+    default 12
+    depends on USE_ML307
+    help
+        GPIO number of the ML307 TX.
+
+config USE_DISPLAY
+    bool "Use Display"
+    default n
+    help
+        Use Display.
+
+config DISPLAY_HEIGHT
+    int "Display Height"
+    default 64
+    depends on USE_DISPLAY
+    help
+        Display height in pixels.
+
+config DISPLAY_SDA_PIN
+    int "Display SDA Pin"
+    default 41
+    depends on USE_DISPLAY
+    help
+        GPIO number of the Display SDA.
+
+config DISPLAY_SCL_PIN
+    int "Display SCL Pin"
+    default 42
+    depends on USE_DISPLAY
+    help
+        GPIO number of the Display SCL.
 
 endmenu

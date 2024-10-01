@@ -76,10 +76,10 @@ void AudioDevice::CreateDuplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_WS,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
-            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN,
+            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_BCLK,
+            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS,
+            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_DOUT,
+            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -127,9 +127,9 @@ void AudioDevice::CreateSimplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_WS,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
+            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_BCLK,
+            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_WS,
+            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -147,7 +147,7 @@ void AudioDevice::CreateSimplexChannels() {
     std_cfg.gpio_cfg.bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_BCLK;
     std_cfg.gpio_cfg.ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
-    std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN;
+    std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Simplex channels created");
 }

@@ -1,24 +1,13 @@
 ## IDF Component Manager Manifest File
 dependencies:
   78/esp-builtin-led: "^1.0.1"
-  78/esp-wifi-connect: "^1.0.1"
-  78/esp-ota: "^1.0.1"
-  78/esp-websocket: "^1.0.0"
+  78/esp-wifi-connect: "^1.1.0"
   78/esp-opus-encoder: "^1.0.1"
+  78/esp-ml307: "^1.1.0"
   espressif/esp-sr: "^1.9.0"
+  lvgl/lvgl: "^8.4.0"
+  esp_lvgl_port: "^1.4.0"
   ## Required IDF version
   idf:
     version: ">=5.3"
-  # # Put list of dependencies here
-  # # For components maintained by Espressif:
-  # component: "~1.0.0"
-  # # For 3rd party components:
-  # username/component: ">=1.0.0,<2.0.0"
-  # username2/component2:
-  #   version: "~1.0.0"
-  #   # For transient dependencies `public` flag can be set.
-  #   # `public` flag doesn't have an effect dependencies of the `main` component.
-  #   # All dependencies of `main` are public by default.
-  #   public: true
-description: "An AI voice assistant for ESP32"
-url: "https://github.com/78/xiaozhi-esp32"
+
