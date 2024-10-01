@@ -102,7 +102,7 @@ config USE_DISPLAY
 
 config DISPLAY_HEIGHT
     int "Display Height"
-    default 64
+    default 32
     depends on USE_DISPLAY
     help
         Display height in pixels.
