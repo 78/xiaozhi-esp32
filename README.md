@@ -17,6 +17,7 @@ BiliBili 视频介绍 [【ESP32+SenseVoice+Qwen72B打造你的AI聊天伴侣！�
 ## 已实现功能
 
 - Wi-Fi 配网
+- 支持 BOOT 键唤醒和打断
 - 离线语音唤醒（使用乐鑫方案）
 - 流式语音对话（WebSocket 协议）
 - 支持国语、粤语、英语、日语、韩语 5 种语言识别（使用 SenseVoice 方案）
