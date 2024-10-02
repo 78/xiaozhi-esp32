@@ -1,18 +1,15 @@
-#include <cstdio>
-
-#include "esp_log.h"
-#include "esp_err.h"
-#include "nvs.h"
-#include "nvs_flash.h"
-#include "driver/gpio.h"
-#include "esp_event.h"
+#include <esp_log.h>
+#include <esp_err.h>
+#include <nvs.h>
+#include <nvs_flash.h>
+#include <driver/gpio.h>
+#include <esp_event.h>
 
 #include "Application.h"
 #include "SystemInfo.h"
 #include "SystemReset.h"
 
 #define TAG "main"
-#define STATS_TICKS         pdMS_TO_TICKS(1000)
 
 extern "C" void app_main(void)
 {
@@ -37,8 +34,9 @@ extern "C" void app_main(void)
     // Dump CPU usage every 10 second
     while (true) {
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        // SystemInfo::PrintRealTimeStats(STATS_TICKS);
-        int free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-        ESP_LOGI(TAG, "Free heap size: %u minimal internal: %u", SystemInfo::GetFreeHeapSize(), free_sram);
+        // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
+        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+        ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
     }
 }

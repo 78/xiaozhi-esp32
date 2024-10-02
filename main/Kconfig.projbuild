@@ -74,6 +74,18 @@ config AUDIO_DEVICE_I2S_SPK_GPIO_WS
     help
         GPIO number of the I2S MIC WS.
 
+config BOOT_BUTTON_GPIO
+    int "Boot Button GPIO"
+    default 0
+    help
+        GPIO number of the boot button.
+
+config USE_AFE_SR
+    bool "Use Espressif AFE SR"
+    default y
+    help
+        Use AFE SR for wake word detection.
+
 config USE_ML307
     bool "Use ML307"
     default n

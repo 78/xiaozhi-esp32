@@ -1,10 +1,11 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  78/esp-builtin-led: "^1.0.1"
+  78/esp-builtin-led: "^1.0.2"
   78/esp-wifi-connect: "^1.1.0"
-  78/esp-opus-encoder: "^1.0.1"
-  78/esp-ml307: "^1.1.0"
+  78/esp-opus-encoder: "^1.0.2"
+  78/esp-ml307: "^1.1.1"
   espressif/esp-sr: "^1.9.0"
+  espressif/button: "^3.3.1"
   lvgl/lvgl: "^8.4.0"
   esp_lvgl_port: "^1.4.0"
   ## Required IDF version

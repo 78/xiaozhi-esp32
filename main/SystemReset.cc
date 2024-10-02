@@ -1,10 +1,10 @@
 #include "SystemReset.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include "driver/gpio.h"
-#include "esp_partition.h"
-#include "esp_system.h"
-#include "freertos/FreeRTOS.h"
+#include <esp_log.h>
+#include <nvs_flash.h>
+#include <driver/gpio.h>
+#include <esp_partition.h>
+#include <esp_system.h>
+#include <freertos/FreeRTOS.h>
 
 
 #define TAG "SystemReset"

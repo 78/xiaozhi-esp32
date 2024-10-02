@@ -2,28 +2,33 @@
 #define _APPLICATION_H_
 
 #include "AudioDevice.h"
-#include "OpusEncoder.h"
-#include "OpusResampler.h"
-#include "WebSocket.h"
-#include "Display.h"
-#include "Ml307AtModem.h"
-#include "FirmwareUpgrade.h"
-#include "Ml307Http.h"
-#include "EspHttp.h"
+#include <OpusEncoder.h>
+#include <OpusResampler.h>
+#include <WebSocket.h>
+#include <Ml307AtModem.h>
+#include <Ml307Http.h>
+#include <EspHttp.h>
 
-#include "opus.h"
-#include "resampler_structs.h"
-#include "freertos/event_groups.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
-#include "esp_afe_sr_models.h"
-#include "esp_nsn_models.h"
+#include <opus.h>
+#include <resampler_structs.h>
+#include <freertos/event_groups.h>
+#include <freertos/task.h>
 #include <mutex>
 #include <list>
+#include <condition_variable>
+
+#include "Display.h"
+#include "FirmwareUpgrade.h"
+
+#ifdef CONFIG_USE_AFE_SR
+#include "WakeWordDetect.h"
+#include "AudioProcessor.h"
+#endif
+
+#include "Button.h"
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
-#define WAKE_WORD_ENCODED 4
 
 #define PROTOCOL_VERSION 2
 struct BinaryProtocol {
@@ -35,6 +40,23 @@ struct BinaryProtocol {
     uint8_t payload[];
 } __attribute__((packed));
 
+enum AudioPacketType {
+    kAudioPacketTypeUnkonwn = 0,
+    kAudioPacketTypeStart,
+    kAudioPacketTypeStop,
+    kAudioPacketTypeData,
+    kAudioPacketTypeSentenceStart,
+    kAudioPacketTypeSentenceEnd
+};
+
+struct AudioPacket {
+    AudioPacketType type = kAudioPacketTypeUnkonwn;
+    std::string text;
+    std::vector<uint8_t> opus;
+    std::vector<int16_t> pcm;
+    uint32_t timestamp;
+};
+
 
 enum ChatState {
     kChatStateIdle,
@@ -42,7 +64,6 @@ enum ChatState {
     kChatStateListening,
     kChatStateSpeaking,
     kChatStateWakeWordDetected,
-    kChatStateTesting,
     kChatStateUpgrading
 };
 
@@ -63,7 +84,12 @@ private:
     Application();
     ~Application();
 
+    Button button_;
     AudioDevice audio_device_;
+#ifdef CONFIG_USE_AFE_SR
+    WakeWordDetect wake_word_detect_;
+    AudioProcessor audio_processor_;
+#endif
 #ifdef CONFIG_USE_ML307
     Ml307AtModem ml307_at_modem_;
     Ml307Http http_;
@@ -74,25 +100,22 @@ private:
 #ifdef CONFIG_USE_DISPLAY
     Display display_;
 #endif
-
-    std::recursive_mutex mutex_;
+    std::mutex mutex_;
+    std::condition_variable_any cv_;
+    std::list<std::function<void()>> main_tasks_;
     WebSocket* ws_client_ = nullptr;
-    esp_afe_sr_data_t* afe_detection_data_ = nullptr;
-    esp_afe_sr_data_t* afe_communication_data_ = nullptr;
     EventGroupHandle_t event_group_;
-    char* wakenet_model_ = NULL;
     volatile ChatState chat_state_ = kChatStateIdle;
+    volatile bool break_speaking_ = false;
+    bool skip_to_end_ = false;
 
     // Audio encode / decode
-    TaskHandle_t audio_feed_task_ = nullptr;
+    TaskHandle_t audio_encode_task_ = nullptr;
     StaticTask_t audio_encode_task_buffer_;
     StackType_t* audio_encode_task_stack_ = nullptr;
-    QueueHandle_t audio_encode_queue_ = nullptr;
-
-    TaskHandle_t audio_decode_task_ = nullptr;
-    StaticTask_t audio_decode_task_buffer_;
-    StackType_t* audio_decode_task_stack_ = nullptr;
-    QueueHandle_t audio_decode_queue_ = nullptr;
+    std::list<std::vector<int16_t>> audio_encode_queue_;
+    std::list<AudioPacket*> audio_decode_queue_;
+    std::list<AudioPacket*> audio_play_queue_;
 
     OpusEncoder opus_encoder_;
     OpusDecoder* opus_decoder_ = nullptr;
@@ -100,38 +123,23 @@ private:
     int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
     OpusResampler opus_resampler_;
-    OpusResampler test_resampler_;
-    std::vector<iovec> test_pcm_;
-
-    TaskHandle_t wake_word_encode_task_ = nullptr;
-    StaticTask_t wake_word_encode_task_buffer_;
-    StackType_t* wake_word_encode_task_stack_ = nullptr;
-    std::list<iovec> wake_word_pcm_;
-    std::string wake_word_opus_;
 
     TaskHandle_t check_new_version_task_ = nullptr;
     StaticTask_t check_new_version_task_buffer_;
     StackType_t* check_new_version_task_stack_ = nullptr;
 
-    BinaryProtocol* AllocateBinaryProtocol(void* payload, size_t payload_size);
+    void MainLoop();
+    void Schedule(std::function<void()> callback);
+    BinaryProtocol* AllocateBinaryProtocol(const uint8_t* payload, size_t payload_size);
     void SetDecodeSampleRate(int sample_rate);
     void SetChatState(ChatState state);
-    void StartDetection();
-    void StartCommunication();
     void StartWebSocketClient();
-    void StoreWakeWordData(uint8_t* data, size_t size);
-    void EncodeWakeWordData();
-    void SendWakeWordData();
-    void CheckTestButton();
-    void PlayTestAudio();
     void CheckNewVersion();
     void UpdateDisplay();
-    
-    void AudioFeedTask();
-    void AudioDetectionTask();
-    void AudioCommunicationTask();
+
     void AudioEncodeTask();
-    void AudioDecodeTask();
+    void AudioPlayTask();
+    void HandleAudioPacket(AudioPacket* packet);
 };
 
 #endif // _APPLICATION_H_

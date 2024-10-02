@@ -1,15 +1,13 @@
 #include "SystemInfo.h"
-#include "freertos/task.h"
-#include "esp_log.h"
-#include "esp_flash.h"
-#include "esp_mac.h"
-#include "esp_chip_info.h"
-#include "esp_system.h"
-#include "esp_partition.h"
-#include "esp_app_desc.h"
-#include "esp_psram.h"
-#include "esp_wifi.h"
-#include "esp_ota_ops.h"
+#include <freertos/task.h>
+#include <esp_log.h>
+#include <esp_flash.h>
+#include <esp_mac.h>
+#include <esp_chip_info.h>
+#include <esp_system.h>
+#include <esp_partition.h>
+#include <esp_app_desc.h>
+#include <esp_ota_ops.h>
 
 
 #define TAG "SystemInfo"
@@ -80,7 +78,6 @@ std::string SystemInfo::GetJsonString() {
     */
     std::string json = "{";
     json += "\"flash_size\":" + std::to_string(GetFlashSize()) + ",";
-    json += "\"psram_size\":" + std::to_string(esp_psram_get_size()) + ",";
     json += "\"minimum_free_heap_size\":" + std::to_string(GetMinimumFreeHeapSize()) + ",";
     json += "\"mac_address\":\"" + GetMacAddress() + "\",";
     json += "\"chip_model_name\":\"" + GetChipModelName() + "\",";
