@@ -443,7 +443,7 @@ void Application::AudioEncodeTask() {
             audio_decode_queue_.pop_front();
             lock.unlock();
 
-            int frame_size = opus_decode_sample_rate_ / 1000 * opus_duration_ms_;
+            int frame_size = opus_decode_sample_rate_ * opus_duration_ms_ / 1000;
             packet->pcm.resize(frame_size);
 
             int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
@@ -539,6 +539,7 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     opus_decode_sample_rate_ = sample_rate;
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+        ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
         opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
 }
