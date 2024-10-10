@@ -1,4 +1,5 @@
 #include <BuiltinLed.h>
+#include <TcpTransport.h>
 #include <TlsTransport.h>
 #include <Ml307SslTransport.h>
 #include <WifiConfigurationAp.h>
@@ -433,7 +434,9 @@ void Application::AudioEncodeTask() {
                 auto protocol = AllocateBinaryProtocol(opus, opus_size);
                 Schedule([this, protocol, opus_size]() {
                     if (ws_client_ && ws_client_->IsConnected()) {
-                        ws_client_->Send(protocol, sizeof(BinaryProtocol) + opus_size, true);
+                        if (!ws_client_->Send(protocol, sizeof(BinaryProtocol) + opus_size, true)) {
+                            ESP_LOGE(TAG, "Failed to send audio data");
+                        }
                     }
                     heap_caps_free(protocol);
                 });
@@ -550,11 +553,16 @@ void Application::StartWebSocketClient() {
         delete ws_client_;
     }
 
+    std::string url = CONFIG_WEBSOCKET_URL;
     std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
 #ifdef CONFIG_USE_ML307
     ws_client_ = new WebSocket(new Ml307SslTransport(ml307_at_modem_, 0));
 #else
-    ws_client_ = new WebSocket(new TlsTransport());
+    if (url.find("wss://") == 0) {
+        ws_client_ = new WebSocket(new TlsTransport());
+    } else {
+        ws_client_ = new WebSocket(new TcpTransport());
+    }
 #endif
     ws_client_->SetHeader("Authorization", token.c_str());
     ws_client_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
@@ -618,7 +626,16 @@ void Application::StartWebSocketClient() {
                     if (text != NULL) {
                         ESP_LOGI(TAG, ">> %s", text->valuestring);
                     }
+                } else if (strcmp(type->valuestring, "llm") == 0) {
+                    auto emotion = cJSON_GetObjectItem(root, "emotion");
+                    if (emotion != NULL) {
+                        ESP_LOGD(TAG, "EMOTION: %s", emotion->valuestring);
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
                 }
+            } else {
+                ESP_LOGE(TAG, "Missing message type, data: %s", data);
             }
             cJSON_Delete(root);
         }
@@ -640,7 +657,7 @@ void Application::StartWebSocketClient() {
         });
     });
 
-    if (!ws_client_->Connect(CONFIG_WEBSOCKET_URL)) {
+    if (!ws_client_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         return;
     }
