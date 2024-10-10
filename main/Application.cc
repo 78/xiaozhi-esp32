@@ -361,11 +361,11 @@ void Application::Start()
         vTaskDelete(NULL); }, "main_loop", 4096 * 2, this, 5, NULL);
     label_ask_set_text("可以唤醒我啦");
     // Launch a task to check for new firmware version
-    // xTaskCreate([](void* arg) {
-    //     Application* app = (Application*)arg;
-    //     app->CheckNewVersion();
-    //     vTaskDelete(NULL);
-    // }, "check_new_version", 4096 * 1, this, 1, NULL);
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->CheckNewVersion();
+        vTaskDelete(NULL);
+    }, "check_new_version", 4096 * 1, this, 1, NULL);
 
 #ifdef CONFIG_USE_DISPLAY
     // Launch a task to update the display
@@ -420,6 +420,10 @@ void Application::SetChatState(ChatState state)
     {
     case kChatStateIdle:
         builtin_led.TurnOff();
+        sr_anim_stop();
+        label_ask_set_text("可以唤醒我啦");
+        label_reply_set_text("");
+
         break;
     case kChatStateConnecting:
         builtin_led.SetBlue();
