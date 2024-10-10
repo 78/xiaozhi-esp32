@@ -1,5 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  espressif/iot_usbh_modem: "^0.2.1"
+  espressif/esp_modem: "^1.1.0"
   78/esp-builtin-led: "^1.0.2"
   78/esp-wifi-connect: "^1.1.0"
   78/esp-opus-encoder: "^1.0.2"
@@ -8,6 +10,11 @@ dependencies:
   espressif/button: "^3.3.1"
   lvgl/lvgl: "^8.4.0"
   esp_lvgl_port: "^1.4.0"
+  espressif/es8311: "^1.0.0"
+  espressif/es7210: "^1.0.0"
+  espressif/esp_lcd_touch_cst816s: "^1.0.0"
+  espressif/esp_io_expander_tca9554: "^1.0.0"
+
   ## Required IDF version
   idf:
     version: ">=5.3"

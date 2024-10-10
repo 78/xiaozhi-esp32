@@ -159,7 +159,7 @@ void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
 
 void WakeWordDetect::EncodeWakeWordData() {
     if (wake_word_encode_task_stack_ == nullptr) {
-        wake_word_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
+        wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(8*4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
     wake_word_encode_task_ = xTaskCreateStatic([](void* arg) {
         auto this_ = (WakeWordDetect*)arg;

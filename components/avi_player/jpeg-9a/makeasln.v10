@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+add_compile_options(-Wno-error=format= -Wno-format)
+add_compile_options(-fdiagnostics-color=always)
+project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cjpeg", "cjpeg.vcxproj", "{2E7FAAD9-2F58-4BDE-81F2-1D6D3FB8BF57}"
+EndProject
+add_compile_options(-Wno-error=format= -Wno-format)
+add_compile_options(-fdiagnostics-color=always)
+project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "djpeg", "djpeg.vcxproj", "{11043137-B453-4DFA-9010-4D2B9DC1545C}"
+EndProject
+add_compile_options(-Wno-error=format= -Wno-format)
+add_compile_options(-fdiagnostics-color=always)
+project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "jpegtran", "jpegtran.vcxproj", "{025BAC50-51B5-4FFE-BC47-3F920BB4047E}"
+EndProject
+add_compile_options(-Wno-error=format= -Wno-format)
+add_compile_options(-fdiagnostics-color=always)
+project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rdjpgcom", "rdjpgcom.vcxproj", "{C81513DB-78DC-46BC-BC98-82E745203976}"
+EndProject
+add_compile_options(-Wno-error=format= -Wno-format)
+add_compile_options(-fdiagnostics-color=always)
+project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wrjpgcom", "wrjpgcom.vcxproj", "{B57065D4-DDDA-4668-BAF5-2D49270C973C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2E7FAAD9-2F58-4BDE-81F2-1D6D3FB8BF57}.Release|Win32.ActiveCfg = Release|Win32
+		{2E7FAAD9-2F58-4BDE-81F2-1D6D3FB8BF57}.Release|Win32.Build.0 = Release|Win32
+		{11043137-B453-4DFA-9010-4D2B9DC1545C}.Release|Win32.ActiveCfg = Release|Win32
+		{11043137-B453-4DFA-9010-4D2B9DC1545C}.Release|Win32.Build.0 = Release|Win32
+		{025BAC50-51B5-4FFE-BC47-3F920BB4047E}.Release|Win32.ActiveCfg = Release|Win32
+		{025BAC50-51B5-4FFE-BC47-3F920BB4047E}.Release|Win32.Build.0 = Release|Win32
+		{C81513DB-78DC-46BC-BC98-82E745203976}.Release|Win32.ActiveCfg = Release|Win32
+		{C81513DB-78DC-46BC-BC98-82E745203976}.Release|Win32.Build.0 = Release|Win32
+		{B57065D4-DDDA-4668-BAF5-2D49270C973C}.Release|Win32.ActiveCfg = Release|Win32
+		{B57065D4-DDDA-4668-BAF5-2D49270C973C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

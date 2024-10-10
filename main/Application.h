@@ -31,6 +31,7 @@
 #define COMMUNICATION_RUNNING 2
 
 #define PROTOCOL_VERSION 2
+
 struct BinaryProtocol {
     uint16_t version;
     uint16_t type;

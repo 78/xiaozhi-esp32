@@ -11,7 +11,7 @@ AudioProcessor::AudioProcessor()
 
     afe_config_t afe_config = {
         .aec_init = false,
-        .se_init = true,
+        .se_init = false,
         .vad_init = false,
         .wakenet_init = false,
         .voice_communication_init = true,
@@ -21,7 +21,7 @@ AudioProcessor::AudioProcessor()
         .wakenet_model_name = NULL,
         .wakenet_model_name_2 = NULL,
         .wakenet_mode = DET_MODE_90,
-        .afe_mode = SR_MODE_HIGH_PERF,
+        .afe_mode = SR_MODE_LOW_COST,
         .afe_perferred_core = 0,
         .afe_perferred_priority = 5,
         .afe_ringbuf_size = 50,
