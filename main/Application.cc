@@ -154,6 +154,14 @@ void Application::Start() {
 
     ESP_LOGI(TAG, "ML307 IMEI: %s", ml307_at_modem_.GetImei().c_str());
     ESP_LOGI(TAG, "ML307 ICCID: %s", ml307_at_modem_.GetIccid().c_str());
+
+    // If low power, the material ready event will be triggered by the modem because of a reset
+    ml307_at_modem_.OnMaterialReady([this]() {
+        ESP_LOGI(TAG, "ML307 material ready");
+        Schedule([this]() {
+            SetChatState(kChatStateIdle);
+        });
+    });
 #else
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto& wifi_station = WifiStation::GetInstance();    
