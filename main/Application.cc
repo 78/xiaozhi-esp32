@@ -217,7 +217,7 @@ void Application::Start()
         builtin_led.Blink(1000, 500);
         auto &wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
-        label_ask_set_text("请用手机连接Wifi 进行配网");
+        label_reply_set_text("请用手机连接Xiaozhi开头Wifi,连接成功后进入192.168.4.1进行配网，配网完成进入https://xiaozhi.me/注册后输入验证码配置");
 #ifdef CONFIG_USE_DISPLAY
         display_.SetText(wifi_ap.GetSsid() + "\n" + wifi_ap.GetWebServerUrl());
 #endif

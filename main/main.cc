@@ -23,194 +23,15 @@
 #include "lv_demos.h"
 #include "usbh_modem_board.h"
 #include "esp_netif.h"
+#include "file_manager.h"
 #define TAG "main"
 
 #define BSP_IO_EXPANDER_I2C_ADDRESS_TCA9554A (ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000)
 #define BSP_IO_EXPANDER_I2C_ADDRESS_TCA9554 (ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000)
 
-// Using SPI2 in the example
-#define LCD_HOST SPI2_HOST
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////// Please update the following configuration according to your LCD spec //////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define EXAMPLE_LCD_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
-#define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL 1
-#define EXAMPLE_LCD_BK_LIGHT_OFF_LEVEL !EXAMPLE_LCD_BK_LIGHT_ON_LEVEL
-#define EXAMPLE_PIN_NUM_SCLK 1
-#define EXAMPLE_PIN_NUM_MOSI 0
-#define EXAMPLE_PIN_NUM_MISO -1
-#define EXAMPLE_PIN_NUM_LCD_DC 2
-#define EXAMPLE_PIN_NUM_LCD_RST -1
-#define EXAMPLE_PIN_NUM_LCD_CS 46
-#define EXAMPLE_PIN_NUM_TOUCH_CS -1
-
-// The pixel number in horizontal and vertical
-#define EXAMPLE_LCD_H_RES 280
-#define EXAMPLE_LCD_V_RES 240
-
-// Bit number used to represent command and parameter
-#define EXAMPLE_LCD_CMD_BITS 8
-#define EXAMPLE_LCD_PARAM_BITS 8
-
-#define EXAMPLE_LVGL_TICK_PERIOD_MS 2
-#define EXAMPLE_LVGL_TASK_MAX_DELAY_MS 500
-#define EXAMPLE_LVGL_TASK_MIN_DELAY_MS 1
-#define EXAMPLE_LVGL_TASK_STACK_SIZE (4 * 1024)
-#define EXAMPLE_LVGL_TASK_PRIORITY 2
-
-static SemaphoreHandle_t lvgl_mux = NULL;
-
-esp_lcd_touch_handle_t tp = NULL;
-
-extern void example_lvgl_demo_ui(lv_disp_t *disp);
-
-static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
-{
-    lv_disp_drv_t *disp_driver = (lv_disp_drv_t *)user_ctx;
-    lv_disp_flush_ready(disp_driver);
-    return false;
-}
-
-static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
-{
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
-    int offsetx1 = area->x1;
-    int offsetx2 = area->x2;
-    int offsety1 = area->y1;
-    int offsety2 = area->y2;
-    // copy a buffer's content to a specific area of the display
-    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, color_map);
-}
-
-/* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
-static void example_lvgl_port_update_callback(lv_disp_drv_t *drv)
-{
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
-
-    switch (drv->rotated)
-    {
-    case LV_DISP_ROT_NONE:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, false);
-        esp_lcd_panel_mirror(panel_handle, true, false);
-
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-
-        break;
-    case LV_DISP_ROT_90:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, true);
-        esp_lcd_panel_mirror(panel_handle, true, true);
-
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-
-        break;
-    case LV_DISP_ROT_180:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, false);
-        esp_lcd_panel_mirror(panel_handle, false, true);
-
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-
-        break;
-    case LV_DISP_ROT_270:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, true);
-        esp_lcd_panel_mirror(panel_handle, false, false);
-
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-
-        break;
-    }
-}
-
-static void example_lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
-{
-    uint16_t touchpad_x[1] = {0};
-    uint16_t touchpad_y[1] = {0};
-    uint8_t touchpad_cnt = 0;
-
-    /* Read touch controller data */
-    esp_lcd_touch_read_data((esp_lcd_touch_handle_t)drv->user_data);
-
-    /* Get coordinates */
-    bool touchpad_pressed = esp_lcd_touch_get_coordinates((esp_lcd_touch_handle_t)drv->user_data, touchpad_x, touchpad_y, NULL, &touchpad_cnt, 1);
-
-    if (touchpad_pressed && touchpad_cnt > 0)
-    {
-        data->point.x = touchpad_x[0];
-        data->point.y = touchpad_y[0];
-        data->state = LV_INDEV_STATE_PRESSED;
-    }
-    else
-    {
-        data->state = LV_INDEV_STATE_RELEASED;
-    }
-}
-
-static void example_increase_lvgl_tick(void *arg)
-{
-    /* Tell LVGL how many milliseconds has elapsed */
-    lv_tick_inc(EXAMPLE_LVGL_TICK_PERIOD_MS);
-}
-
-bool example_lvgl_lock(int timeout_ms)
-{
-    // Convert timeout in milliseconds to FreeRTOS ticks
-    // If `timeout_ms` is set to -1, the program will block until the condition is met
-    const TickType_t timeout_ticks = (timeout_ms == -1) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-    return xSemaphoreTakeRecursive(lvgl_mux, timeout_ticks) == pdTRUE;
-}
-
-void example_lvgl_unlock(void)
-{
-    xSemaphoreGiveRecursive(lvgl_mux);
-}
-
-static void example_lvgl_port_task(void *arg)
-{
-    ESP_LOGI(TAG, "Starting LVGL task");
-    uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
-    while (1)
-    {
-        // Lock the mutex due to the LVGL APIs are not thread-safe
-        if (example_lvgl_lock(-1))
-        {
-            task_delay_ms = lv_timer_handler();
-            // Release the mutex
-            example_lvgl_unlock();
-        }
-        if (task_delay_ms > EXAMPLE_LVGL_TASK_MAX_DELAY_MS)
-        {
-            task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
-        }
-        else if (task_delay_ms < EXAMPLE_LVGL_TASK_MIN_DELAY_MS)
-        {
-            task_delay_ms = EXAMPLE_LVGL_TASK_MIN_DELAY_MS;
-        }
-        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
-    }
-}
-
-/**************************** LVGL主界面更新函数 **********************************/
-
-extern char ask_text[256];
-extern char minimax_content[2048];
-extern int ask_flag;
-extern int answer_flag;
-
 #define I2C_SCL_IO (GPIO_NUM_18)
 #define I2C_SDA_IO (GPIO_NUM_17)
-
+esp_err_t tfcard_ret = ESP_FAIL;
 static void lv_tick_task(void *arg)
 {
     (void)arg;
@@ -261,11 +82,10 @@ static void gui_task(void *arg)
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, 10 * 1000));
 
-    // xTaskCreate(main_page_task, "main_page_task", 4096, NULL, 5, NULL);
-
-    // lv_timer_create(value_update_cb, 500, NULL); // 创建一个lv_timer
-    avi_player_load();
     lv_main_page();
+    if (tfcard_ret == ESP_OK)
+        avi_player_load();
+
     // lv_demo_widgets();
     // lv_demo_music();
     // lv_demo_benchmark();
@@ -376,6 +196,7 @@ extern "C" void app_main(void)
         vTaskDelay(200);
         (esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_2, true));
     }
+    tfcard_ret = fm_sdcard_init();
 
     //     /* Waiting for modem powerup */
     //     ESP_LOGI(TAG, "====================================");
@@ -397,43 +218,46 @@ extern "C" void app_main(void)
     // Otherwise, launch the application
 
     xTaskCreatePinnedToCore(&gui_task, "gui task", 1024 * 5, NULL, 5, NULL, 0);
+    vTaskDelay(1000);
     // label_ask_set_text("可以唤醒我啦");
     Application::GetInstance().Start();
-    while (1)
+    if (tfcard_ret == ESP_OK)
     {
-        switch (biaoqing)
+        while (1)
         {
-        case 0:
-            play_change(FACE_STATIC);
-            break;
+            switch (biaoqing)
+            {
+            case 0:
+                play_change(FACE_STATIC);
+                break;
 
-        case 1:
-            play_change(FACE_HAPPY);
+            case 1:
+                play_change(FACE_HAPPY);
 
-            break;
-        case 2:
-            play_change(FACE_ANGRY);
+                break;
+            case 2:
+                play_change(FACE_ANGRY);
 
-            break;
-        case 3:
-            play_change(FACE_BAD);
+                break;
+            case 3:
+                play_change(FACE_BAD);
 
-            break;
-        case 4:
-            play_change(FACE_FEAR);
+                break;
+            case 4:
+                play_change(FACE_FEAR);
 
-            break;
-        case 5:
-            play_change(FACE_NOGOOD);
+                break;
+            case 5:
+                play_change(FACE_NOGOOD);
 
-            break;
-        default:
-            break;
+                break;
+            default:
+                break;
+            }
+            biaoqing = 0;
+            vTaskDelay(100 / portTICK_PERIOD_MS);
         }
-        biaoqing = 0;
-        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-
     // Dump CPU usage every 10 second
     while (true)
     {

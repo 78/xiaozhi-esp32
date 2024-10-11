@@ -362,7 +362,7 @@ void IN_play(char *file, uint8_t state)
 
         break;
     case CIRCLE_END:
-                    // in_play_state = CIRCLE_IN;
+        // in_play_state = CIRCLE_IN;
 
         vTaskDelay(2 / portTICK_PERIOD_MS);
 
@@ -559,21 +559,10 @@ void imgcam_init(void)
 
     img_cam = lv_img_create(lv_scr_act());
     lv_obj_align(img_cam, LV_ALIGN_CENTER, 0, 0);
-    // lv_obj_set_size(img_cam, 320, 240);
-    // lv_img_set_src(img_cam, &img_test);
 }
 void avi_player_load()
 {
     imgcam_init();
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-
-    esp_err_t ret = fm_sdcard_init();
-    if(ret != ESP_OK)
-    {
-        return;
-    }
 
     xTaskCreatePinnedToCore(&Avi_Player_Task, "Avi_Player_Task", 1024 * 8, NULL, 10, NULL, 1);
-
-    // xTaskCreatePinnedToCore(&Cam_Task, "Cam_Task", 1024 * 8, NULL, 10, NULL, 0);
 }
