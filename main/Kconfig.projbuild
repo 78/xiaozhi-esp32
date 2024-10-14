@@ -80,6 +80,12 @@ config BOOT_BUTTON_GPIO
     help
         GPIO number of the boot button.
 
+config VOLUME_UP_BUTTON_GPIO
+    int "Volume Up Button GPIO"
+    default 40
+    help
+        GPIO number of the volume up button.
+
 config USE_AFE_SR
     bool "Use Espressif AFE SR"
     default y

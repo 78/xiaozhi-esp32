@@ -17,7 +17,8 @@
 
 
 Application::Application()
-    : button_((gpio_num_t)CONFIG_BOOT_BUTTON_GPIO)
+    : boot_button_((gpio_num_t)CONFIG_BOOT_BUTTON_GPIO),
+      volume_up_button_((gpio_num_t)CONFIG_VOLUME_UP_BUTTON_GPIO)
 #ifdef CONFIG_USE_ML307
     , ml307_at_modem_(CONFIG_ML307_TX_PIN, CONFIG_ML307_RX_PIN, 4096),
       http_(ml307_at_modem_),
@@ -220,7 +221,7 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->AudioPlayTask();
         vTaskDelete(NULL);
-    }, "play_audio", 4096 * 2, this, 5, NULL);
+    }, "play_audio", 4096 * 4, this, 5, NULL);
 
 #ifdef CONFIG_USE_AFE_SR
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
@@ -286,7 +287,7 @@ void Application::Start() {
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
 
-    button_.OnClick([this]() {
+    boot_button_.OnClick([this]() {
         Schedule([this]() {
             if (chat_state_ == kChatStateIdle) {
                 SetChatState(kChatStateConnecting);
@@ -309,6 +310,28 @@ void Application::Start() {
                     ws_client_->Close();
                 }
             }
+        });
+    });
+
+    volume_up_button_.OnClick([this]() {
+        Schedule([this]() {
+            auto volume = audio_device_.output_volume() + 10;
+            if (volume > 100) {
+                volume = 0;
+            }
+            audio_device_.SetOutputVolume(volume);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n" + std::to_string(volume));
+#endif
+        });
+    });
+
+    volume_up_button_.OnLongPress([this]() {
+        Schedule([this]() {
+            audio_device_.SetOutputVolume(0);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n0");
+#endif
         });
     });
 

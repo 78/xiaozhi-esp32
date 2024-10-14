@@ -84,7 +84,8 @@ private:
     Application();
     ~Application();
 
-    Button button_;
+    Button boot_button_;
+    Button volume_up_button_;
     AudioDevice audio_device_;
 #ifdef CONFIG_USE_AFE_SR
     WakeWordDetect wake_word_detect_;

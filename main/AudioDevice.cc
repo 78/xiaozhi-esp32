@@ -1,7 +1,7 @@
 #include "AudioDevice.h"
 #include <esp_log.h>
 #include <cstring>
-
+#include <cmath>
 #define TAG "AudioDevice"
 
 AudioDevice::AudioDevice() {
@@ -152,8 +152,12 @@ void AudioDevice::CreateSimplexChannels() {
 
 void AudioDevice::Write(const int16_t* data, int samples) {
     int32_t buffer[samples];
+
+    // output_volume_: 0-100
+    // volume_factor_: 0-65536
+    int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
     for (int i = 0; i < samples; i++) {
-        buffer[i] = int32_t(data[i]) << 15;
+        buffer[i] = int32_t(data[i]) * volume_factor;
     }
 
     size_t bytes_written;
@@ -195,4 +199,9 @@ void AudioDevice::InputTask() {
             on_input_data_(input_buffer, samples);
         }
     }
+}
+
+void AudioDevice::SetOutputVolume(int volume) {
+    output_volume_ = volume;
+    ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
 }

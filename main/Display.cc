@@ -104,19 +104,28 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         lv_label_set_text(label_, "Initializing...");
         lv_obj_set_width(label_, disp_->driver->hor_res);
         lv_obj_set_height(label_, disp_->driver->ver_res);
-        lv_obj_set_style_text_line_space(label_, 0, 0);
-        lv_obj_set_style_pad_all(label_, 0, 0);
-        lv_obj_set_style_outline_pad(label_, 0, 0);
+
+        notification_ = lv_label_create(lv_disp_get_scr_act(disp_));
+        lv_label_set_text(notification_, "Notification\nTest");
+        lv_obj_set_width(notification_, disp_->driver->hor_res);
+        lv_obj_set_height(notification_, disp_->driver->ver_res);
+        lv_obj_set_style_opa(notification_, LV_OPA_MIN, 0);
         lvgl_port_unlock();
     }
 }
 
 Display::~Display() {
-    if (label_ != nullptr) {
-        lvgl_port_lock(0);
-        lv_obj_del(label_);
-        lvgl_port_unlock();
+    if (notification_timer_ != nullptr) {
+        esp_timer_stop(notification_timer_);
+        esp_timer_delete(notification_timer_);
     }
+
+    lvgl_port_lock(0);
+    if (label_ != nullptr) {
+        lv_obj_del(label_);
+        lv_obj_del(notification_);
+    }
+    lvgl_port_unlock();
 
     if (disp_ != nullptr) {
         lvgl_port_deinit();
@@ -133,6 +142,37 @@ void Display::SetText(const std::string &text) {
         // Change the text of the label
         lv_label_set_text(label_, text_.c_str());
         lvgl_port_unlock();
+    }
+}
+
+void Display::ShowNotification(const std::string &text) {
+    if (notification_ != nullptr) {
+        lvgl_port_lock(0);
+        lv_label_set_text(notification_, text.c_str());
+        lv_obj_set_style_opa(notification_, LV_OPA_MAX, 0);
+        lv_obj_set_style_opa(label_, LV_OPA_MIN, 0);
+        lvgl_port_unlock();
+
+        if (notification_timer_ != nullptr) {
+            esp_timer_stop(notification_timer_);
+            esp_timer_delete(notification_timer_);
+        }
+
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void *arg) {
+                Display *display = static_cast<Display*>(arg);
+                lvgl_port_lock(0);
+                lv_obj_set_style_opa(display->notification_, LV_OPA_MIN, 0);
+                lv_obj_set_style_opa(display->label_, LV_OPA_MAX, 0);
+                lvgl_port_unlock();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "Notification Timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &notification_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, 3000000));
     }
 }
 
