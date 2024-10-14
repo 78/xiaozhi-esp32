@@ -357,12 +357,10 @@ void AudioDevice::OutputData(std::vector<int16_t>& data) {
 }
 
 void AudioDevice::InputTask() {
-    int duration = 10;
+    int duration = 20;
     int input_frame_size = input_sample_rate_ / 1000 * duration;
     int16_t input_buffer[input_frame_size];
 
-
-    // int16_t *input_buffer=(int16_t *)heap_caps_malloc(input_frame_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     while (true) {
         int samples = Read(input_buffer, input_frame_size);
