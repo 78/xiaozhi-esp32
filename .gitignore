@@ -8,3 +8,4 @@ sdkconfig.old
 sdkconfig
 dependencies.lock
 .env
+releases/
