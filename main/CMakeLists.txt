@@ -11,6 +11,9 @@ set(SOURCES "AudioDevice.cc"
 if(CONFIG_USE_AFE_SR)
     list(APPEND SOURCES "AudioProcessor.cc" "WakeWordDetect.cc")
 endif()
+if(CONFIG_AUDIO_CODEC_ES8311_ES7210)
+    list(APPEND SOURCES "BoxAudioDevice.cc")
+endif()
 
 idf_component_register(SRCS ${SOURCES}
                     INCLUDE_DIRS "."

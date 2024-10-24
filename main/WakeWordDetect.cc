@@ -15,6 +15,24 @@ WakeWordDetect::WakeWordDetect()
       wake_word_opus_() {
 
     event_group_ = xEventGroupCreate();
+}
+
+WakeWordDetect::~WakeWordDetect() {
+    if (afe_detection_data_ != nullptr) {
+        esp_afe_sr_v1.destroy(afe_detection_data_);
+    }
+
+    if (wake_word_encode_task_stack_ != nullptr) {
+        free(wake_word_encode_task_stack_);
+    }
+
+    vEventGroupDelete(event_group_);
+}
+
+void WakeWordDetect::Initialize(int channels, bool reference) {
+    channels_ = channels;
+    reference_ = reference;
+    int ref_num = reference_ ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
     for (int i = 0; i < models->num; i++) {
@@ -25,7 +43,7 @@ WakeWordDetect::WakeWordDetect()
     }
 
     afe_config_t afe_config = {
-        .aec_init = false,
+        .aec_init = reference_,
         .se_init = true,
         .vad_init = true,
         .wakenet_init = true,
@@ -37,17 +55,17 @@ WakeWordDetect::WakeWordDetect()
         .wakenet_model_name_2 = NULL,
         .wakenet_mode = DET_MODE_90,
         .afe_mode = SR_MODE_HIGH_PERF,
-        .afe_perferred_core = 0,
-        .afe_perferred_priority = 5,
+        .afe_perferred_core = 1,
+        .afe_perferred_priority = 1,
         .afe_ringbuf_size = 50,
         .memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM,
         .afe_linear_gain = 1.0,
         .agc_mode = AFE_MN_PEAK_AGC_MODE_2,
         .pcm_config = {
-            .total_ch_num = 1,
-            .mic_num = 1,
-            .ref_num = 0,
-            .sample_rate = CONFIG_AUDIO_INPUT_SAMPLE_RATE
+            .total_ch_num = channels_,
+            .mic_num = channels_ - ref_num,
+            .ref_num = ref_num,
+            .sample_rate = 16000
         },
         .debug_init = false,
         .debug_hook = {{ AFE_DEBUG_HOOK_MASE_TASK_IN, NULL }, { AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL }},
@@ -62,19 +80,7 @@ WakeWordDetect::WakeWordDetect()
         auto this_ = (WakeWordDetect*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096 * 2, this, 5, NULL);
-}
-
-WakeWordDetect::~WakeWordDetect() {
-    if (afe_detection_data_ != nullptr) {
-        esp_afe_sr_v1.destroy(afe_detection_data_);
-    }
-
-    if (wake_word_encode_task_stack_ != nullptr) {
-        free(wake_word_encode_task_stack_);
-    }
-
-    vEventGroupDelete(event_group_);
+    }, "audio_detection", 4096 * 2, this, 1, NULL);
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void()> callback) {
@@ -97,10 +103,10 @@ bool WakeWordDetect::IsDetectionRunning() {
     return xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT;
 }
 
-void WakeWordDetect::Feed(const int16_t* data, int size) {
-    input_buffer_.insert(input_buffer_.end(), data, data + size);
+void WakeWordDetect::Feed(std::vector<int16_t>& data) {
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
 
-    auto chunk_size = esp_afe_sr_v1.get_feed_chunksize(afe_detection_data_);
+    auto chunk_size = esp_afe_sr_v1.get_feed_chunksize(afe_detection_data_) * channels_;
     while (input_buffer_.size() >= chunk_size) {
         esp_afe_sr_v1.feed(afe_detection_data_, input_buffer_.data());
         input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
@@ -166,7 +172,7 @@ void WakeWordDetect::EncodeWakeWordData() {
         auto start_time = esp_timer_get_time();
         // encode detect packets
         OpusEncoder* encoder = new OpusEncoder();
-        encoder->Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1, 60);
+        encoder->Configure(16000, 1, 60);
         encoder->SetComplexity(0);
         this_->wake_word_opus_.resize(4096 * 4);
         size_t offset = 0;

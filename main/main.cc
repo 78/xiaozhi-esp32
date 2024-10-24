@@ -13,6 +13,19 @@
 
 extern "C" void app_main(void)
 {
+#ifdef CONFIG_AUDIO_CODEC_ES8311_ES7210
+    // Make GPIO15 HIGH to enable the 4G module
+    gpio_config_t ml307_enable_config = {
+        .pin_bit_mask = (1ULL << 15),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&ml307_enable_config);
+    gpio_set_level(GPIO_NUM_15, 1);
+#endif
+
     // Check if the reset button is pressed
     SystemReset system_reset;
     system_reset.CheckButtons();

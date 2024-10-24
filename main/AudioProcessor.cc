@@ -8,6 +8,12 @@ static const char* TAG = "AudioProcessor";
 AudioProcessor::AudioProcessor()
     : afe_communication_data_(nullptr) {
     event_group_ = xEventGroupCreate();
+}
+
+void AudioProcessor::Initialize(int channels, bool reference) {
+    channels_ = channels;
+    reference_ = reference;
+    int ref_num = reference_ ? 1 : 0;
 
     afe_config_t afe_config = {
         .aec_init = false,
@@ -22,17 +28,17 @@ AudioProcessor::AudioProcessor()
         .wakenet_model_name_2 = NULL,
         .wakenet_mode = DET_MODE_90,
         .afe_mode = SR_MODE_HIGH_PERF,
-        .afe_perferred_core = 0,
-        .afe_perferred_priority = 5,
+        .afe_perferred_core = 1,
+        .afe_perferred_priority = 1,
         .afe_ringbuf_size = 50,
         .memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM,
         .afe_linear_gain = 1.0,
         .agc_mode = AFE_MN_PEAK_AGC_MODE_2,
         .pcm_config = {
-            .total_ch_num = 1,
-            .mic_num = 1,
-            .ref_num = 0,
-            .sample_rate = CONFIG_AUDIO_INPUT_SAMPLE_RATE,
+            .total_ch_num = channels_,
+            .mic_num = channels_ - ref_num,
+            .ref_num = ref_num,
+            .sample_rate = 16000,
         },
         .debug_init = false,
         .debug_hook = {{ AFE_DEBUG_HOOK_MASE_TASK_IN, NULL }, { AFE_DEBUG_HOOK_FETCH_TASK_IN, NULL }},
@@ -47,7 +53,7 @@ AudioProcessor::AudioProcessor()
         auto this_ = (AudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
-    }, "audio_communication", 4096 * 2, this, 5, NULL);
+    }, "audio_communication", 4096 * 2, this, 1, NULL);
 }
 
 AudioProcessor::~AudioProcessor() {
@@ -57,10 +63,10 @@ AudioProcessor::~AudioProcessor() {
     vEventGroupDelete(event_group_);
 }
 
-void AudioProcessor::Input(const int16_t* data, int size) {
-    input_buffer_.insert(input_buffer_.end(), data, data + size);
+void AudioProcessor::Input(std::vector<int16_t>& data) {
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
 
-    auto chunk_size = esp_afe_vc_v1.get_feed_chunksize(afe_communication_data_);
+    auto chunk_size = esp_afe_vc_v1.get_feed_chunksize(afe_communication_data_) * channels_;
     while (input_buffer_.size() >= chunk_size) {
         auto chunk = input_buffer_.data();
         esp_afe_vc_v1.feed(afe_communication_data_, chunk);
@@ -92,6 +98,9 @@ void AudioProcessor::AudioProcessorTask() {
         xEventGroupWaitBits(event_group_, PROCESSOR_RUNNING, pdFALSE, pdTRUE, portMAX_DELAY);
 
         auto res = esp_afe_vc_v1.fetch(afe_communication_data_);
+        if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
+            continue;
+        }
         if (res == nullptr || res->ret_value == ESP_FAIL) {
             if (res != nullptr) {
                 ESP_LOGI(TAG, "Error code: %d", res->ret_value);

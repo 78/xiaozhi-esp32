@@ -18,25 +18,28 @@
 
 Application::Application()
     : boot_button_((gpio_num_t)CONFIG_BOOT_BUTTON_GPIO),
-      volume_up_button_((gpio_num_t)CONFIG_VOLUME_UP_BUTTON_GPIO)
-#ifdef CONFIG_USE_ML307
-    , ml307_at_modem_(CONFIG_ML307_TX_PIN, CONFIG_ML307_RX_PIN, 4096),
-      http_(ml307_at_modem_),
-      firmware_upgrade_(http_)
-#else
-    , http_(),
-    firmware_upgrade_(http_)
-#endif
+      volume_up_button_((gpio_num_t)CONFIG_VOLUME_UP_BUTTON_GPIO),
+      volume_down_button_((gpio_num_t)CONFIG_VOLUME_DOWN_BUTTON_GPIO),
 #ifdef CONFIG_USE_DISPLAY
-    , display_(CONFIG_DISPLAY_SDA_PIN, CONFIG_DISPLAY_SCL_PIN)
+      display_(CONFIG_DISPLAY_SDA_PIN, CONFIG_DISPLAY_SCL_PIN),
 #endif
+#ifdef CONFIG_USE_ML307
+      ml307_at_modem_(CONFIG_ML307_TX_PIN, CONFIG_ML307_RX_PIN, 4096),
+      http_(ml307_at_modem_),
+#else
+      http_(),
+#endif
+      firmware_upgrade_(http_)
 {
     event_group_ = xEventGroupCreate();
-    
-    opus_encoder_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1);
+
+    opus_encoder_.Configure(16000, 1);
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
+        output_resampler_.Configure(CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, opus_decode_sample_rate_);
+    }
+    if (16000 != CONFIG_AUDIO_INPUT_SAMPLE_RATE) {
+        input_resampler_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 16000);
     }
 
     firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
@@ -185,28 +188,48 @@ void Application::Start() {
     }
 #endif
 
-    audio_device_.OnInputData([this](const int16_t* data, int size) {
+    audio_device_.Initialize();
+    audio_device_.OnInputData([this](std::vector<int16_t>&& data) {
+        if (16000 != CONFIG_AUDIO_INPUT_SAMPLE_RATE) {
+            if (audio_device_.input_channels() == 2) {
+                auto left_channel = std::vector<int16_t>(data.size() / 2);
+                auto right_channel = std::vector<int16_t>(data.size() / 2);
+                for (size_t i = 0, j = 0; i < left_channel.size(); ++i, j += 2) {
+                    left_channel[i] = data[j];
+                    right_channel[i] = data[j + 1];
+                }
+                auto resampled_left = std::vector<int16_t>(input_resampler_.GetOutputSamples(left_channel.size()));
+                auto resampled_right = std::vector<int16_t>(input_resampler_.GetOutputSamples(right_channel.size()));
+                input_resampler_.Process(left_channel.data(), left_channel.size(), resampled_left.data());
+                input_resampler_.Process(right_channel.data(), right_channel.size(), resampled_right.data());
+                data.resize(resampled_left.size() + resampled_right.size());
+                for (size_t i = 0, j = 0; i < resampled_left.size(); ++i, j += 2) {
+                    data[j] = resampled_left[i];
+                    data[j + 1] = resampled_right[i];
+                }
+            } else {
+                auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
+                input_resampler_.Process(data.data(), data.size(), resampled.data());
+                data = std::move(resampled);
+            }
+        }
 #ifdef CONFIG_USE_AFE_SR
         if (audio_processor_.IsRunning()) {
-            audio_processor_.Input(data, size);
+            audio_processor_.Input(data);
         }
         if (wake_word_detect_.IsDetectionRunning()) {
-            wake_word_detect_.Feed(data, size);
+            wake_word_detect_.Feed(data);
         }
 #else
-        std::vector<int16_t> pcm(data, data + size);
-        Schedule([this, pcm = std::move(pcm)]() {
+        Schedule([this, data = std::move(data)]() {
             if (chat_state_ == kChatStateListening) {
                 std::lock_guard<std::mutex> lock(mutex_);
-                audio_encode_queue_.emplace_back(std::move(pcm));
+                audio_encode_queue_.emplace_back(std::move(data));
                 cv_.notify_all();
             }
         });
 #endif
     });
-
-    // Initialize the audio device
-    audio_device_.Start(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
 
     // OPUS encoder / decoder use a lot of stack memory
     const size_t opus_stack_size = 4096 * 8;
@@ -221,9 +244,10 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->AudioPlayTask();
         vTaskDelete(NULL);
-    }, "play_audio", 4096 * 4, this, 5, NULL);
+    }, "play_audio", 4096 * 4, this, 4, NULL);
 
 #ifdef CONFIG_USE_AFE_SR
+    wake_word_detect_.Initialize(audio_device_.input_channels(), audio_device_.input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
             auto& builtin_led = BuiltinLed::GetInstance();
@@ -272,6 +296,7 @@ void Application::Start() {
     });
     wake_word_detect_.StartDetection();
 
+    audio_processor_.Initialize(audio_device_.input_channels(), audio_device_.input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
         Schedule([this, data = std::move(data)]() {
             if (chat_state_ == kChatStateListening) {
@@ -317,7 +342,7 @@ void Application::Start() {
         Schedule([this]() {
             auto volume = audio_device_.output_volume() + 10;
             if (volume > 100) {
-                volume = 0;
+                volume = 100;
             }
             audio_device_.SetOutputVolume(volume);
 #ifdef CONFIG_USE_DISPLAY
@@ -327,6 +352,28 @@ void Application::Start() {
     });
 
     volume_up_button_.OnLongPress([this]() {
+        Schedule([this]() {
+            audio_device_.SetOutputVolume(100);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n100");
+#endif
+        });
+    });
+
+    volume_down_button_.OnClick([this]() {
+        Schedule([this]() {
+            auto volume = audio_device_.output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            audio_device_.SetOutputVolume(volume);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n" + std::to_string(volume));
+#endif
+        });
+    });
+
+    volume_down_button_.OnLongPress([this]() {
         Schedule([this]() {
             audio_device_.SetOutputVolume(0);
 #ifdef CONFIG_USE_DISPLAY
@@ -449,10 +496,12 @@ BinaryProtocol* Application::AllocateBinaryProtocol(const uint8_t* payload, size
 
 void Application::AudioEncodeTask() {
     ESP_LOGI(TAG, "Audio encode task started");
+    const int max_audio_play_queue_size_ = 2;
+
     while (true) {
         std::unique_lock<std::mutex> lock(mutex_);
         cv_.wait(lock, [this]() {
-            return !audio_encode_queue_.empty() || !audio_decode_queue_.empty();
+            return !audio_encode_queue_.empty() || (!audio_decode_queue_.empty() && audio_play_queue_.size() < max_audio_play_queue_size_);
         });
 
         if (!audio_encode_queue_.empty()) {
@@ -488,9 +537,9 @@ void Application::AudioEncodeTask() {
             }
 
             if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
-                int target_size = opus_resampler_.GetOutputSamples(frame_size);
+                int target_size = output_resampler_.GetOutputSamples(frame_size);
                 std::vector<int16_t> resampled(target_size);
-                opus_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
+                output_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
                 packet->pcm = std::move(resampled);
             }
 
@@ -513,7 +562,6 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
         audio_device_.OutputData(packet->pcm);
 
         if (break_speaking_) {
-            break_speaking_ = false;
             skip_to_end_ = true;
             
             // Play a silence and skip to the end
@@ -525,12 +573,13 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
         break;
     }
     case kAudioPacketTypeStart:
+        break_speaking_ = false;
+        skip_to_end_ = false;
         Schedule([this]() {
             SetChatState(kChatStateSpeaking);
         });
         break;
     case kAudioPacketTypeStop:
-        skip_to_end_ = false;
         Schedule([this]() {
             SetChatState(kChatStateListening);
         });
@@ -558,6 +607,7 @@ void Application::AudioPlayTask() {
         });
         auto packet = std::move(audio_play_queue_.front());
         audio_play_queue_.pop_front();
+        cv_.notify_all();
         lock.unlock();
 
         HandleAudioPacket(packet);
@@ -574,7 +624,7 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
         ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
-        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
+        output_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
 }
 
@@ -607,7 +657,7 @@ void Application::StartWebSocketClient() {
         std::string message = "{";
         message += "\"type\":\"hello\",";
         message += "\"audio_params\":{";
-        message += "\"format\":\"opus\", \"sample_rate\":" + std::to_string(CONFIG_AUDIO_INPUT_SAMPLE_RATE) + ", \"channels\":1";
+        message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1";
         message += "}}";
         ws_client_->Send(message);
     });
@@ -640,6 +690,10 @@ void Application::StartWebSocketClient() {
                         if (sample_rate != NULL) {
                             SetDecodeSampleRate(sample_rate->valueint);
                         }
+
+                        // If the device is speaking, we need to break the speaking
+                        break_speaking_ = true;
+                        skip_to_end_ = true;
                     } else if (strcmp(state->valuestring, "stop") == 0) {
                         packet->type = kAudioPacketTypeStop;
                     } else if (strcmp(state->valuestring, "sentence_end") == 0) {

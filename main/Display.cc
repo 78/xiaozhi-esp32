@@ -17,7 +17,7 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
     ESP_LOGI(TAG, "Display Pins: %d, %d", sda_pin_, scl_pin_);
 
     i2c_master_bus_config_t bus_config = {
-        .i2c_port = I2C_NUM_0,
+        .i2c_port = I2C_NUM_1,
         .sda_io_num = (gpio_num_t)sda_pin_,
         .scl_io_num = (gpio_num_t)scl_pin_,
         .clk_source = I2C_CLK_SRC_DEFAULT,
