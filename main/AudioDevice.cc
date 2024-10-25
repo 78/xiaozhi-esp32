@@ -155,7 +155,14 @@ int AudioDevice::Write(const int16_t* data, int samples) {
     // volume_factor_: 0-65536
     int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
     for (int i = 0; i < samples; i++) {
-        buffer[i] = int32_t(data[i]) * volume_factor;
+        int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
+        if (temp > INT32_MAX) {
+            buffer[i] = INT32_MAX;
+        } else if (temp < INT32_MIN) {
+            buffer[i] = INT32_MIN;
+        } else {
+            buffer[i] = static_cast<int32_t>(temp);
+        }
     }
 
     size_t bytes_written;
