@@ -44,7 +44,6 @@ Application::Application()
 
     firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     firmware_upgrade_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    firmware_upgrade_.SetPostData(SystemInfo::GetJsonString());
 }
 
 Application::~Application() {
@@ -156,8 +155,10 @@ void Application::Start() {
     ml307_at_modem_.ResetConnections();
     ml307_at_modem_.WaitForNetworkReady();
 
-    ESP_LOGI(TAG, "ML307 IMEI: %s", ml307_at_modem_.GetImei().c_str());
-    ESP_LOGI(TAG, "ML307 ICCID: %s", ml307_at_modem_.GetIccid().c_str());
+    std::string imei = ml307_at_modem_.GetImei();
+    std::string iccid = ml307_at_modem_.GetIccid();
+    ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
+    ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
 
     // If low power, the material ready event will be triggered by the modem because of a reset
     ml307_at_modem_.OnMaterialReady([this]() {
@@ -166,6 +167,17 @@ void Application::Start() {
             SetChatState(kChatStateIdle);
         });
     });
+
+    // Set the board type for OTA
+    std::string carrier_name = ml307_at_modem_.GetCarrierName();
+    int csq = ml307_at_modem_.GetCsq();
+    std::string board_json = std::string("{\"type\":\"compact.4g\",");
+    board_json += "\"revision\":\"" + module_name + "\",";
+    board_json += "\"carrier\":\"" + carrier_name + "\",";
+    board_json += "\"csq\":\"" + std::to_string(csq) + "\",";
+    board_json += "\"imei\":\"" + imei + "\",";
+    board_json += "\"iccid\":\"" + iccid + "\"}";
+    firmware_upgrade_.SetBoardJson(board_json);
 #else
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto& wifi_station = WifiStation::GetInstance();    
@@ -186,6 +198,15 @@ void Application::Start() {
         wifi_ap.Start();
         return;
     }
+
+    // Set the board type for OTA
+    std::string board_json = std::string("{\"type\":\"compact.wifi\",");
+    board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
+    board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
+    board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
+    board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+    board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
+    firmware_upgrade_.SetBoardJson(board_json);
 #endif
 
     audio_device_.Initialize();
@@ -646,8 +667,8 @@ void Application::StartWebSocketClient() {
     }
 #endif
     ws_client_->SetHeader("Authorization", token.c_str());
-    ws_client_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ws_client_->SetHeader("Protocol-Version", std::to_string(PROTOCOL_VERSION).c_str());
+    ws_client_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 
     ws_client_->OnConnected([this]() {
         ESP_LOGI(TAG, "Websocket connected");
