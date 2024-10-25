@@ -57,12 +57,12 @@ def get_board_name(folder):
     basename = os.path.basename(folder)
     if basename.startswith("v0.2"):
         return "simple"
-    if basename.startswith("v0.3"):
+    if basename.startswith("v0.3") or basename.startswith("v0.4"):
         if "ML307" in basename:
             return "compact.4g"
         else:
             return "compact.wifi"
-    raise Exception("Unknown board name")
+    raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
