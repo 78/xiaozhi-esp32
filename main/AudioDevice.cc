@@ -174,7 +174,7 @@ int AudioDevice::Read(int16_t* dest, int samples) {
     size_t bytes_read;
 
     int32_t bit32_buffer_[samples];
-    if (i2s_channel_read(rx_handle, bit32_buffer_, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
+    if (i2s_channel_read(rx_handle_, bit32_buffer_, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
         ESP_LOGE(TAG, "Read Failed!");
         return 0;
     }

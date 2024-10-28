@@ -11,6 +11,7 @@ set(SOURCES "AudioDevice.cc"
             "avi_player.c"
             "file_manager.c"
             "img_src_mic_logo.c"
+            "esp_lvgl_port.c"
             )
 
 if(CONFIG_USE_AFE_SR)
