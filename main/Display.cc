@@ -1,6 +1,3 @@
-
-#include "Display.h"
-
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lcd_panel_ops.h>
@@ -9,11 +6,17 @@
 #include <string>
 #include <cstdlib>
 
+#include "Display.h"
+#include "Board.h"
+#include "Application.h"
+
 #define TAG "Display"
 
-#ifdef CONFIG_USE_DISPLAY
-
 Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin) {
+    if (sda_pin_ == GPIO_NUM_NC || scl_pin_ == GPIO_NUM_NC) {
+        ESP_LOGI(TAG, "Display not connected");
+        return;
+    }
     ESP_LOGI(TAG, "Display Pins: %d, %d", sda_pin_, scl_pin_);
 
     i2c_master_bus_config_t bus_config = {
@@ -55,7 +58,7 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
     panel_config.bits_per_pixel = 1;
 
     esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-        .height = CONFIG_DISPLAY_HEIGHT
+        .height = DISPLAY_HEIGHT
     };
     panel_config.vendor_config = &ssd1306_config;
 
@@ -68,56 +71,82 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         ESP_LOGE(TAG, "Failed to initialize display");
         return;
     }
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, true, true));
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     lvgl_port_init(&port_cfg);
 
-    const lvgl_port_display_cfg_t display_cfg = {
-        .io_handle = panel_io_,
-        .panel_handle = panel_,
-        .buffer_size = 128 * CONFIG_DISPLAY_HEIGHT,
-        .double_buffer = true,
-        .hres = 128,
-        .vres = CONFIG_DISPLAY_HEIGHT,
-        .monochrome = true,
-        .rotation = {
-            .swap_xy = 0,
-            .mirror_x = 0,
-            .mirror_y = 0,
-        },
-        .flags = {
-            .buff_dma = 0,
-            .buff_spiram = 0,
-        },
-    };
-    disp_ = lvgl_port_add_disp(&display_cfg);
-    lv_disp_set_rotation(disp_, LV_DISP_ROT_180);
-
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+    ESP_LOGI(TAG, "Adding LCD screen");
+    const lvgl_port_display_cfg_t display_cfg = {
+        .io_handle = panel_io_,
+        .panel_handle = panel_,
+        .control_handle = nullptr,
+        .buffer_size = DISPLAY_WIDTH * DISPLAY_HEIGHT,
+        .double_buffer = false,
+        .trans_size = 0,
+        .hres = DISPLAY_WIDTH,
+        .vres = DISPLAY_HEIGHT,
+        .monochrome = true,
+        .rotation = {
+            .swap_xy = false,
+            .mirror_x = true,
+            .mirror_y = true,
+        },
+        .flags = {
+            .buff_dma = 1,
+            .buff_spiram = 0,
+            .sw_rotate = 0,
+            .full_refresh = 0,
+            .direct_mode = 0,
+        },
+    };
+    disp_ = lvgl_port_add_disp(&display_cfg);;
     
     ESP_LOGI(TAG, "Display Loading...");
     if (lvgl_port_lock(0)) {
         label_ = lv_label_create(lv_disp_get_scr_act(disp_));
+        // lv_obj_set_style_text_font(label_, font_, 0);
         lv_label_set_text(label_, "Initializing...");
         lv_obj_set_width(label_, disp_->driver->hor_res);
         lv_obj_set_height(label_, disp_->driver->ver_res);
 
         notification_ = lv_label_create(lv_disp_get_scr_act(disp_));
+        // lv_obj_set_style_text_font(notification_, font_, 0);
         lv_label_set_text(notification_, "Notification\nTest");
         lv_obj_set_width(notification_, disp_->driver->hor_res);
         lv_obj_set_height(notification_, disp_->driver->ver_res);
         lv_obj_set_style_opa(notification_, LV_OPA_MIN, 0);
         lvgl_port_unlock();
     }
+
+    // Create a timer to update the display every 10 seconds
+    esp_timer_create_args_t update_display_timer_args = {
+        .callback = [](void *arg) {
+            Display* display = static_cast<Display*>(arg);
+            display->UpdateDisplay();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "UpdateDisplay",
+        .skip_unhandled_events = false,
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_display_timer_));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(update_display_timer_, 10 * 1000000));
 }
 
 Display::~Display() {
     if (notification_timer_ != nullptr) {
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
+    }
+    if (update_display_timer_ != nullptr) {
+        esp_timer_stop(update_display_timer_);
+        esp_timer_delete(update_display_timer_);
     }
 
     lvgl_port_lock(0);
@@ -126,6 +155,10 @@ Display::~Display() {
         lv_obj_del(notification_);
     }
     lvgl_port_unlock();
+
+    if (font_ != nullptr) {
+        lv_font_free(font_);
+    }
 
     if (disp_ != nullptr) {
         lvgl_port_deinit();
@@ -176,4 +209,20 @@ void Display::ShowNotification(const std::string &text) {
     }
 }
 
-#endif
+void Display::UpdateDisplay() {
+    auto chat_state = Application::GetInstance().GetChatState();
+    if (chat_state == kChatStateIdle || chat_state == kChatStateConnecting || chat_state == kChatStateListening) {
+        std::string text;
+        auto& board = Board::GetInstance();
+        std::string network_name;
+        int signal_quality;
+        std::string signal_quality_text;
+        if (!board.GetNetworkState(network_name, signal_quality, signal_quality_text)) {
+            text = "No network";
+        } else {
+            ESP_LOGI(TAG, "%s CSQ: %d", network_name.c_str(), signal_quality);
+            text = network_name + "\n" + signal_quality_text + " (" + std::to_string(signal_quality) + ")";
+        }
+        SetText(text);
+    }
+}

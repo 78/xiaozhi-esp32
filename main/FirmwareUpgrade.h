@@ -5,11 +5,9 @@
 #include <string>
 #include <map>
 
-#include <Http.h>
-
 class FirmwareUpgrade {
 public:
-    FirmwareUpgrade(Http& http);
+    FirmwareUpgrade();
     ~FirmwareUpgrade();
 
     void SetBoardJson(const std::string& board_json);
@@ -21,7 +19,6 @@ public:
     void MarkCurrentVersionValid();
 
 private:
-    Http& http_;
     std::string check_version_url_;
     bool has_new_version_ = false;
     std::string firmware_version_;

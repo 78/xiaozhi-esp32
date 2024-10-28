@@ -1,4 +1,6 @@
 #include "BoxAudioDevice.h"
+#include "Board.h"
+
 #include <esp_log.h>
 #include <cassert>
 
@@ -25,14 +27,14 @@ BoxAudioDevice::~BoxAudioDevice() {
 
 void BoxAudioDevice::Initialize() {
     duplex_ = true; // 是否双工
-    input_reference_ = CONFIG_AUDIO_CODEC_INPUT_REFERENCE; // 是否使用参考输入，实现回声消除
+    input_reference_ = AUDIO_INPUT_REFERENCE; // 是否使用参考输入，实现回声消除
     input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
 
     // Initialize I2C peripheral
     i2c_master_bus_config_t i2c_bus_cfg = {
         .i2c_port = I2C_NUM_0,
-        .sda_io_num = (gpio_num_t)CONFIG_AUDIO_CODEC_I2C_SDA_PIN,
-        .scl_io_num = (gpio_num_t)CONFIG_AUDIO_CODEC_I2C_SCL_PIN,
+        .sda_io_num = (gpio_num_t)AUDIO_CODEC_I2C_SDA_PIN,
+        .scl_io_num = (gpio_num_t)AUDIO_CODEC_I2C_SCL_PIN,
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
         .intr_priority = 0,
@@ -70,7 +72,7 @@ void BoxAudioDevice::Initialize() {
     es8311_cfg.ctrl_if = out_ctrl_if_;
     es8311_cfg.gpio_if = gpio_if_;
     es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;
-    es8311_cfg.pa_pin = CONFIG_AUDIO_CODEC_PA_PIN;
+    es8311_cfg.pa_pin = AUDIO_CODEC_PA_PIN;
     es8311_cfg.use_mclk = true;
     es8311_cfg.hw_gain.pa_voltage = 5.0;
     es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
@@ -160,10 +162,10 @@ void BoxAudioDevice::CreateDuplexChannels() {
             .bit_order_lsb = false
         },
         .gpio_cfg = {
-            .mclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_MCLK,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_LRCK,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
+            .mclk = (gpio_num_t)AUDIO_I2S_GPIO_MCLK,
+            .bclk = (gpio_num_t)AUDIO_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_GPIO_LRCK,
+            .dout = (gpio_num_t)AUDIO_I2S_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -196,11 +198,11 @@ void BoxAudioDevice::CreateDuplexChannels() {
             .total_slot = I2S_TDM_AUTO_SLOT_NUM
         },
         .gpio_cfg = {
-            .mclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_MCLK,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_LRCK,
+            .mclk = (gpio_num_t)AUDIO_I2S_GPIO_MCLK,
+            .bclk = (gpio_num_t)AUDIO_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_GPIO_LRCK,
             .dout = I2S_GPIO_UNUSED,
-            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN,
+            .din = (gpio_num_t)AUDIO_I2S_GPIO_DIN,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,

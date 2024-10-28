@@ -1,12 +1,15 @@
 #include "AudioDevice.h"
+#include "Board.h"
+
 #include <esp_log.h>
 #include <cstring>
 #include <cmath>
+
 #define TAG "AudioDevice"
 
 AudioDevice::AudioDevice()
-    : input_sample_rate_(CONFIG_AUDIO_INPUT_SAMPLE_RATE),
-      output_sample_rate_(CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+    : input_sample_rate_(AUDIO_INPUT_SAMPLE_RATE),
+      output_sample_rate_(AUDIO_OUTPUT_SAMPLE_RATE) {
 }
 
 AudioDevice::~AudioDevice() {
@@ -22,7 +25,7 @@ AudioDevice::~AudioDevice() {
 }
 
 void AudioDevice::Initialize() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_SIMPLEX
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
     CreateSimplexChannels();
 #else
     CreateDuplexChannels();
@@ -30,7 +33,7 @@ void AudioDevice::Initialize() {
 }
 
 void AudioDevice::CreateDuplexChannels() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_DUPLEX
+#ifndef AUDIO_I2S_METHOD_SIMPLEX
     duplex_ = true;
 
     i2s_chan_config_t chan_cfg = {
@@ -65,10 +68,10 @@ void AudioDevice::CreateDuplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_LRCK,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
-            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN,
+            .bclk = (gpio_num_t)AUDIO_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_GPIO_LRCK,
+            .dout = (gpio_num_t)AUDIO_I2S_GPIO_DOUT,
+            .din = (gpio_num_t)AUDIO_I2S_GPIO_DIN,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -85,7 +88,7 @@ void AudioDevice::CreateDuplexChannels() {
 }
 
 void AudioDevice::CreateSimplexChannels() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_SIMPLEX
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
@@ -119,9 +122,9 @@ void AudioDevice::CreateSimplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_LRCK,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_DOUT,
+            .bclk = (gpio_num_t)AUDIO_I2S_SPK_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_SPK_GPIO_LRCK,
+            .dout = (gpio_num_t)AUDIO_I2S_SPK_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -136,10 +139,10 @@ void AudioDevice::CreateSimplexChannels() {
     chan_cfg.id = I2S_NUM_1;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
-    std_cfg.gpio_cfg.bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_SCK;
-    std_cfg.gpio_cfg.ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS;
+    std_cfg.gpio_cfg.bclk = (gpio_num_t)AUDIO_I2S_MIC_GPIO_SCK;
+    std_cfg.gpio_cfg.ws = (gpio_num_t)AUDIO_I2S_MIC_GPIO_WS;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
-    std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN;
+    std_cfg.gpio_cfg.din = (gpio_num_t)AUDIO_I2S_MIC_GPIO_DIN;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));

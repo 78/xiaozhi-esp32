@@ -57,7 +57,7 @@ def get_board_name(folder):
     basename = os.path.basename(folder)
     if basename.startswith("v0.2"):
         return "simple"
-    if basename.startswith("v0.3") or basename.startswith("v0.4"):
+    if basename.startswith("v0.3") or basename.startswith("v0.4") or basename.startswith("v0.5"):
         if "ML307" in basename:
             return "compact.4g"
         else:

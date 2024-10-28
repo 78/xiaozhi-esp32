@@ -1,5 +1,6 @@
 #include <esp_log.h>
 #include <model_path.h>
+#include <arpa/inet.h>
 
 #include "WakeWordDetect.h"
 #include "Application.h"

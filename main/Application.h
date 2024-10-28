@@ -4,9 +4,6 @@
 #include <OpusEncoder.h>
 #include <OpusResampler.h>
 #include <WebSocket.h>
-#include <Ml307AtModem.h>
-#include <Ml307Http.h>
-#include <EspHttp.h>
 
 #include <opus.h>
 #include <resampler_structs.h>
@@ -16,8 +13,9 @@
 #include <list>
 #include <condition_variable>
 
-#include "BoxAudioDevice.h"
+#include "AudioDevice.h"
 #include "Display.h"
+#include "Board.h"
 #include "FirmwareUpgrade.h"
 
 #ifdef CONFIG_USE_AFE_SR
@@ -59,6 +57,7 @@ struct AudioPacket {
 
 
 enum ChatState {
+    kChatStateUnknown,
     kChatStateIdle,
     kChatStateConnecting,
     kChatStateListening,
@@ -75,6 +74,10 @@ public:
     }
 
     void Start();
+    ChatState GetChatState() const { return chat_state_; }
+    Display& GetDisplay() { return display_; }
+    void Schedule(std::function<void()> callback);
+    void SetChatState(ChatState state);
 
     // 删除拷贝构造函数和赋值运算符
     Application(const Application&) = delete;
@@ -87,23 +90,11 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-#ifdef CONFIG_AUDIO_CODEC_ES8311_ES7210
-    BoxAudioDevice audio_device_;
-#else
-    AudioDevice audio_device_;
-#endif
-#ifdef CONFIG_USE_DISPLAY
+    AudioDevice* audio_device_ = nullptr;
     Display display_;
-#endif
 #ifdef CONFIG_USE_AFE_SR
     WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
-#endif
-#ifdef CONFIG_USE_ML307
-    Ml307AtModem ml307_at_modem_;
-    Ml307Http http_;
-#else
-    EspHttp http_;
 #endif
     FirmwareUpgrade firmware_upgrade_;
     std::mutex mutex_;
@@ -111,9 +102,10 @@ private:
     std::list<std::function<void()>> main_tasks_;
     WebSocket* ws_client_ = nullptr;
     EventGroupHandle_t event_group_;
-    volatile ChatState chat_state_ = kChatStateIdle;
+    volatile ChatState chat_state_ = kChatStateUnknown;
     volatile bool break_speaking_ = false;
     bool skip_to_end_ = false;
+    esp_timer_handle_t update_display_timer_ = nullptr;
 
     // Audio encode / decode
     TaskHandle_t audio_encode_task_ = nullptr;
@@ -127,7 +119,7 @@ private:
     OpusDecoder* opus_decoder_ = nullptr;
 
     int opus_duration_ms_ = 60;
-    int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
+    int opus_decode_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
     OpusResampler input_resampler_;
     OpusResampler output_resampler_;
 
@@ -136,13 +128,10 @@ private:
     StackType_t* check_new_version_task_stack_ = nullptr;
 
     void MainLoop();
-    void Schedule(std::function<void()> callback);
     BinaryProtocol* AllocateBinaryProtocol(const uint8_t* payload, size_t payload_size);
     void SetDecodeSampleRate(int sample_rate);
-    void SetChatState(ChatState state);
     void StartWebSocketClient();
     void CheckNewVersion();
-    void UpdateDisplay();
 
     void AudioEncodeTask();
     void AudioPlayTask();
