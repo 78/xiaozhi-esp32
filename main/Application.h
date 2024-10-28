@@ -1,7 +1,6 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
-#include "AudioDevice.h"
 #include <OpusEncoder.h>
 #include <OpusResampler.h>
 #include <WebSocket.h>
@@ -17,6 +16,7 @@
 #include <list>
 #include <condition_variable>
 
+#include "BoxAudioDevice.h"
 #include "Display.h"
 #include "FirmwareUpgrade.h"
 
@@ -85,8 +85,17 @@ private:
     Application();
     ~Application();
 
-    Button button_;
+    Button boot_button_;
+    Button volume_up_button_;
+    Button volume_down_button_;
+#ifdef CONFIG_AUDIO_CODEC_ES8311_ES7210
+    BoxAudioDevice audio_device_;
+#else
     AudioDevice audio_device_;
+#endif
+#ifdef CONFIG_USE_DISPLAY
+    Display display_;
+#endif
 #ifdef CONFIG_USE_AFE_SR
     WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
@@ -98,9 +107,6 @@ private:
     EspHttp http_;
 #endif
     FirmwareUpgrade firmware_upgrade_;
-#ifdef CONFIG_USE_DISPLAY
-    Display display_;
-#endif
     std::mutex mutex_;
     std::condition_variable_any cv_;
     std::list<std::function<void()>> main_tasks_;
@@ -123,7 +129,8 @@ private:
 
     int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = CONFIG_AUDIO_OUTPUT_SAMPLE_RATE;
-    OpusResampler opus_resampler_;
+    OpusResampler input_resampler_;
+    OpusResampler output_resampler_;
 
     TaskHandle_t check_new_version_task_ = nullptr;
     StaticTask_t check_new_version_task_buffer_;

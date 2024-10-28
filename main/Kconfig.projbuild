@@ -30,55 +30,154 @@ config AUDIO_OUTPUT_SAMPLE_RATE
     help
         Audio output sample rate.
 
-config AUDIO_DEVICE_I2S_MIC_GPIO_WS
-    int "I2S GPIO WS"
-    default 4
+choice AUDIO_CODEC
+    prompt "Audio Codec"
+    default AUDIO_CODEC_NONE
     help
-        GPIO number of the I2S WS.
+        Audio codec.
+    config AUDIO_CODEC_ES8311_ES7210
+        bool "Box: ES8311 + ES7210"
+    config AUDIO_CODEC_NONE
+        bool "None"
+endchoice
 
-config AUDIO_DEVICE_I2S_MIC_GPIO_BCLK
-    int "I2S GPIO BCLK"
-    default 5
-    help
-        GPIO number of the I2S BCLK.
+menu "Box Audio Codec I2C and PA Control"
+    depends on AUDIO_CODEC_ES8311_ES7210
+    
+    config AUDIO_CODEC_I2C_SDA_PIN
+        int "Audio Codec I2C SDA Pin"
+        default 39
+        help
+            Audio codec I2C SDA pin.
 
-config AUDIO_DEVICE_I2S_MIC_GPIO_DIN
-    int "I2S GPIO DIN"
-    default 6
-    help
-        GPIO number of the I2S DIN.
+    config AUDIO_CODEC_I2C_SCL_PIN
+        int "Audio Codec I2C SCL Pin"
+        default 38
+        help
+            Audio codec I2C SCL pin.
+    
+    config AUDIO_CODEC_PA_PIN
+        int "Audio Codec PA Pin"
+        default 40
+        help
+            Audio codec PA pin.
+    
+    config AUDIO_CODEC_INPUT_REFERENCE
+        bool "Audio Codec Input Reference"
+        default y
+        help
+            Audio codec input reference.
+endmenu
 
-config AUDIO_DEVICE_I2S_SPK_GPIO_DOUT
-    int "I2S GPIO DOUT"
-    default 7
+choice AUDIO_I2S_METHOD
+    prompt "Audio I2S Method"
+    default AUDIO_I2S_METHOD_SIMPLEX if AUDIO_CODEC_NONE
+    default AUDIO_I2S_METHOD_DUPLEX if AUDIO_CODEC_ES8311_ES7210
     help
-        GPIO number of the I2S DOUT.
-    
-config AUDIO_DEVICE_I2S_SIMPLEX
-    bool "I2S Simplex"
-    default y
-    help
-        Enable I2S Simplex mode.
-    
-config AUDIO_DEVICE_I2S_SPK_GPIO_BCLK
-    int "I2S SPK GPIO BCLK"
-    default 15
-    depends on AUDIO_DEVICE_I2S_SIMPLEX
-    help
-        GPIO number of the I2S MIC BCLK.
-    
-config AUDIO_DEVICE_I2S_SPK_GPIO_WS
-    int "I2S SPK GPIO WS"
-    default 16
-    depends on AUDIO_DEVICE_I2S_SIMPLEX
-    help
-        GPIO number of the I2S MIC WS.
+        Audio I2S method.
+    config AUDIO_I2S_METHOD_SIMPLEX
+        bool "Simplex"
+        help
+            Use I2S 0 as the audio input and I2S 1 as the audio output.
+    config AUDIO_I2S_METHOD_DUPLEX
+        bool "Duplex"
+        help
+            Use I2S 0 as the audio input and audio output.
+endchoice
+
+menu "Audio I2S Simplex"
+    depends on AUDIO_I2S_METHOD_SIMPLEX
+
+    config AUDIO_DEVICE_I2S_MIC_GPIO_WS
+        int "I2S MIC GPIO WS"
+        default 4
+        help
+            GPIO number of the I2S MIC WS.
+
+    config AUDIO_DEVICE_I2S_MIC_GPIO_SCK
+        int "I2S MIC GPIO BCLK"
+        default 5
+        help
+            GPIO number of the I2S MIC SCK.
+
+    config AUDIO_DEVICE_I2S_MIC_GPIO_DIN
+        int "I2S MIC GPIO DIN"
+        default 6
+        help
+            GPIO number of the I2S MIC DIN.
+
+    config AUDIO_DEVICE_I2S_SPK_GPIO_DOUT
+        int "I2S SPK GPIO DOUT"
+        default 7
+        help
+            GPIO number of the I2S SPK DOUT.
+        
+    config AUDIO_DEVICE_I2S_SPK_GPIO_BCLK
+        int "I2S SPK GPIO BCLK"
+        default 15
+        help
+            GPIO number of the I2S SPK BCLK.
+        
+    config AUDIO_DEVICE_I2S_SPK_GPIO_LRCK
+        int "I2S SPK GPIO WS"
+        default 16
+        help
+            GPIO number of the I2S SPK LRCK.
+
+endmenu
+
+menu "Audio I2S Duplex"
+    depends on AUDIO_I2S_METHOD_DUPLEX
+
+    config AUDIO_DEVICE_I2S_GPIO_MCLK
+        int "I2S GPIO MCLK"
+        default -1
+        help
+            GPIO number of the I2S WS.
+
+    config AUDIO_DEVICE_I2S_GPIO_LRCK
+        int "I2S GPIO LRCK"
+        default 4
+        help
+            GPIO number of the I2S LRCK.
+
+    config AUDIO_DEVICE_I2S_GPIO_BCLK
+        int "I2S GPIO BCLK / SCLK"
+        default 5
+        help
+            GPIO number of the I2S BCLK.
+
+    config AUDIO_DEVICE_I2S_GPIO_DIN
+        int "I2S GPIO DIN"
+        default 6
+        help
+            GPIO number of the I2S DIN.
+
+    config AUDIO_DEVICE_I2S_GPIO_DOUT
+        int "I2S GPIO DOUT"
+        default 7
+        help
+            GPIO number of the I2S DOUT.
+
+endmenu
 
 config BOOT_BUTTON_GPIO
     int "Boot Button GPIO"
     default 0
     help
         GPIO number of the boot button.
+
+config VOLUME_UP_BUTTON_GPIO
+    int "Volume Up Button GPIO"
+    default 40
+    help
+        GPIO number of the volume up button.
+
+config VOLUME_DOWN_BUTTON_GPIO
+    int "Volume Down Button GPIO"
+    default 39
+    help
+        GPIO number of the volume down button.
 
 config USE_AFE_SR
     bool "Use Espressif AFE SR"

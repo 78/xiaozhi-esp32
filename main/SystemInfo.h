@@ -13,7 +13,6 @@ public:
     static size_t GetFreeHeapSize();
     static std::string GetMacAddress();
     static std::string GetChipModelName();
-    static std::string GetJsonString();
     static esp_err_t PrintRealTimeStats(TickType_t xTicksToWait);
 };
 

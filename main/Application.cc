@@ -1,4 +1,5 @@
 #include <BuiltinLed.h>
+#include <TcpTransport.h>
 #include <TlsTransport.h>
 #include <Ml307SslTransport.h>
 #include <WifiConfigurationAp.h>
@@ -22,34 +23,33 @@ int answer_flag = 0;
 extern lv_obj_t *label1;
 extern lv_obj_t *label_reply;
 Application::Application()
-    : button_((gpio_num_t)CONFIG_BOOT_BUTTON_GPIO)
+    : boot_button_((gpio_num_t)CONFIG_BOOT_BUTTON_GPIO),
+      volume_up_button_((gpio_num_t)CONFIG_VOLUME_UP_BUTTON_GPIO),
+      volume_down_button_((gpio_num_t)CONFIG_VOLUME_DOWN_BUTTON_GPIO),
+#ifdef CONFIG_USE_DISPLAY
+      display_(CONFIG_DISPLAY_SDA_PIN, CONFIG_DISPLAY_SCL_PIN),
+#endif
 #ifdef CONFIG_USE_ML307
-      ,
       ml307_at_modem_(CONFIG_ML307_TX_PIN, CONFIG_ML307_RX_PIN, 4096),
       http_(ml307_at_modem_),
-      firmware_upgrade_(http_)
 #else
-      ,
       http_(),
+#endif
       firmware_upgrade_(http_)
-#endif
-#ifdef CONFIG_USE_DISPLAY
-      ,
-      display_(CONFIG_DISPLAY_SDA_PIN, CONFIG_DISPLAY_SCL_PIN)
-#endif
 {
     event_group_ = xEventGroupCreate();
 
-    opus_encoder_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 1);
+    opus_encoder_.Configure(16000, 1);
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
-    if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE)
-    {
-        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
+    if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+        output_resampler_.Configure(CONFIG_AUDIO_OUTPUT_SAMPLE_RATE, opus_decode_sample_rate_);
+    }
+    if (16000 != CONFIG_AUDIO_INPUT_SAMPLE_RATE) {
+        input_resampler_.Configure(CONFIG_AUDIO_INPUT_SAMPLE_RATE, 16000);
     }
 
     firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     firmware_upgrade_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    firmware_upgrade_.SetPostData(SystemInfo::GetJsonString());
 }
 
 Application::~Application()
@@ -199,8 +199,29 @@ void Application::Start()
     ml307_at_modem_.ResetConnections();
     ml307_at_modem_.WaitForNetworkReady();
 
-    ESP_LOGI(TAG, "ML307 IMEI: %s", ml307_at_modem_.GetImei().c_str());
-    ESP_LOGI(TAG, "ML307 ICCID: %s", ml307_at_modem_.GetIccid().c_str());
+    std::string imei = ml307_at_modem_.GetImei();
+    std::string iccid = ml307_at_modem_.GetIccid();
+    ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
+    ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
+
+    // If low power, the material ready event will be triggered by the modem because of a reset
+    ml307_at_modem_.OnMaterialReady([this]() {
+        ESP_LOGI(TAG, "ML307 material ready");
+        Schedule([this]() {
+            SetChatState(kChatStateIdle);
+        });
+    });
+
+    // Set the board type for OTA
+    std::string carrier_name = ml307_at_modem_.GetCarrierName();
+    int csq = ml307_at_modem_.GetCsq();
+    std::string board_json = std::string("{\"type\":\"compact.4g\",");
+    board_json += "\"revision\":\"" + module_name + "\",";
+    board_json += "\"carrier\":\"" + carrier_name + "\",";
+    board_json += "\"csq\":\"" + std::to_string(csq) + "\",";
+    board_json += "\"imei\":\"" + imei + "\",";
+    board_json += "\"iccid\":\"" + iccid + "\"}";
+    firmware_upgrade_.SetBoardJson(board_json);
 #else
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto &wifi_station = WifiStation::GetInstance();
@@ -224,33 +245,58 @@ void Application::Start()
         wifi_ap.Start();
         return;
     }
+
+    // Set the board type for OTA
+    std::string board_json = std::string("{\"type\":\"compact.wifi\",");
+    board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
+    board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
+    board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
+    board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+    board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
+    firmware_upgrade_.SetBoardJson(board_json);
 #endif
     label_ask_set_text("网络连接成功");
-    audio_device_.OnInputData([this](const int16_t *data, int size)
-                              {
+    audio_device_.Initialize();
+    audio_device_.OnInputData([this](std::vector<int16_t>&& data) {
+        if (16000 != CONFIG_AUDIO_INPUT_SAMPLE_RATE) {
+            if (audio_device_.input_channels() == 2) {
+                auto left_channel = std::vector<int16_t>(data.size() / 2);
+                auto right_channel = std::vector<int16_t>(data.size() / 2);
+                for (size_t i = 0, j = 0; i < left_channel.size(); ++i, j += 2) {
+                    left_channel[i] = data[j];
+                    right_channel[i] = data[j + 1];
+                }
+                auto resampled_left = std::vector<int16_t>(input_resampler_.GetOutputSamples(left_channel.size()));
+                auto resampled_right = std::vector<int16_t>(input_resampler_.GetOutputSamples(right_channel.size()));
+                input_resampler_.Process(left_channel.data(), left_channel.size(), resampled_left.data());
+                input_resampler_.Process(right_channel.data(), right_channel.size(), resampled_right.data());
+                data.resize(resampled_left.size() + resampled_right.size());
+                for (size_t i = 0, j = 0; i < resampled_left.size(); ++i, j += 2) {
+                    data[j] = resampled_left[i];
+                    data[j + 1] = resampled_right[i];
+                }
+            } else {
+                auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
+                input_resampler_.Process(data.data(), data.size(), resampled.data());
+                data = std::move(resampled);
+            }
+        }
 #ifdef CONFIG_USE_AFE_SR
-                                  if (audio_processor_.IsRunning())
-                                  {
-                                      audio_processor_.Input(data, size);
-                                  }
-                                  if (wake_word_detect_.IsDetectionRunning())
-                                  {
-                                      wake_word_detect_.Feed(data, size);
-                                  }
+        if (audio_processor_.IsRunning()) {
+            audio_processor_.Input(data);
+        }
+        if (wake_word_detect_.IsDetectionRunning()) {
+            wake_word_detect_.Feed(data);
+        }
 #else
-                                  std::vector<int16_t> pcm(data, data + size);
-                                  Schedule([this, pcm = std::move(pcm)]()
-                                           {
+        Schedule([this, data = std::move(data)]() {
             if (chat_state_ == kChatStateListening) {
                 std::lock_guard<std::mutex> lock(mutex_);
-                audio_encode_queue_.emplace_back(std::move(pcm));
+                audio_encode_queue_.emplace_back(std::move(data));
                 cv_.notify_all();
             } });
 #endif
                               });
-
-    // Initialize the audio device
-    audio_device_.Start(CONFIG_AUDIO_INPUT_SAMPLE_RATE, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
 
     // OPUS encoder / decoder use a lot of stack memory
     const size_t opus_stack_size = 4096 * 8;
@@ -265,12 +311,13 @@ void Application::Start()
                 {
         Application* app = (Application*)arg;
         app->AudioPlayTask();
-        vTaskDelete(NULL); }, "play_audio", 4096 * 2, this, 5, NULL);
+        vTaskDelete(NULL);
+    }, "play_audio", 4096 * 4, this, 4, NULL);
 
 #ifdef CONFIG_USE_AFE_SR
-    wake_word_detect_.OnVadStateChange([this](bool speaking)
-                                       { Schedule([this, speaking]()
-                                                  {
+    wake_word_detect_.Initialize(audio_device_.input_channels(), audio_device_.input_reference());
+    wake_word_detect_.OnVadStateChange([this](bool speaking) {
+        Schedule([this, speaking]() {
             auto& builtin_led = BuiltinLed::GetInstance();
             if (chat_state_ == kChatStateListening) {
                 if (speaking) {
@@ -314,9 +361,9 @@ void Application::Start()
             wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
 
-    audio_processor_.OnOutput([this](std::vector<int16_t> &&data)
-                              { Schedule([this, data = std::move(data)]()
-                                         {
+    audio_processor_.Initialize(audio_device_.input_channels(), audio_device_.input_reference());
+    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
+        Schedule([this, data = std::move(data)]() {
             if (chat_state_ == kChatStateListening) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 audio_encode_queue_.emplace_back(std::move(data));
@@ -328,9 +375,8 @@ void Application::Start()
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
 
-    button_.OnClick([this]()
-                    { Schedule([this]()
-                               {
+    boot_button_.OnClick([this]() {
+        Schedule([this]() {
             if (chat_state_ == kChatStateIdle) {
                 SetChatState(kChatStateConnecting);
                 StartWebSocketClient();
@@ -354,8 +400,51 @@ void Application::Start()
                 }
             } }); });
 
-    xTaskCreate([](void *arg)
-                {
+    volume_up_button_.OnClick([this]() {
+        Schedule([this]() {
+            auto volume = audio_device_.output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
+            }
+            audio_device_.SetOutputVolume(volume);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n" + std::to_string(volume));
+#endif
+        });
+    });
+
+    volume_up_button_.OnLongPress([this]() {
+        Schedule([this]() {
+            audio_device_.SetOutputVolume(100);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n100");
+#endif
+        });
+    });
+
+    volume_down_button_.OnClick([this]() {
+        Schedule([this]() {
+            auto volume = audio_device_.output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            audio_device_.SetOutputVolume(volume);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n" + std::to_string(volume));
+#endif
+        });
+    });
+
+    volume_down_button_.OnLongPress([this]() {
+        Schedule([this]() {
+            audio_device_.SetOutputVolume(0);
+#ifdef CONFIG_USE_DISPLAY
+            display_.ShowNotification("Volume\n0");
+#endif
+        });
+    });
+
+    xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL); }, "main_loop", 4096 * 2, this, 5, NULL);
@@ -482,11 +571,13 @@ BinaryProtocol *Application::AllocateBinaryProtocol(const uint8_t *payload, size
 void Application::AudioEncodeTask()
 {
     ESP_LOGI(TAG, "Audio encode task started");
-    while (true)
-    {
+    const int max_audio_play_queue_size_ = 2;
+
+    while (true) {
         std::unique_lock<std::mutex> lock(mutex_);
-        cv_.wait(lock, [this]()
-                 { return !audio_encode_queue_.empty() || !audio_decode_queue_.empty(); });
+        cv_.wait(lock, [this]() {
+            return !audio_encode_queue_.empty() || (!audio_decode_queue_.empty() && audio_play_queue_.size() < max_audio_play_queue_size_);
+        });
 
         if (!audio_encode_queue_.empty())
         {
@@ -500,7 +591,9 @@ void Application::AudioEncodeTask()
                 auto protocol = AllocateBinaryProtocol(opus, opus_size);
                 Schedule([this, protocol, opus_size]() {
                     if (ws_client_ && ws_client_->IsConnected()) {
-                        ws_client_->Send(protocol, sizeof(BinaryProtocol) + opus_size, true);
+                        if (!ws_client_->Send(protocol, sizeof(BinaryProtocol) + opus_size, true)) {
+                            ESP_LOGE(TAG, "Failed to send audio data");
+                        }
                     }
                     heap_caps_free(protocol);
                 }); });
@@ -522,11 +615,10 @@ void Application::AudioEncodeTask()
                 continue;
             }
 
-            if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE)
-            {
-                int target_size = opus_resampler_.GetOutputSamples(frame_size);
+            if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+                int target_size = output_resampler_.GetOutputSamples(frame_size);
                 std::vector<int16_t> resampled(target_size);
-                opus_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
+                output_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
                 packet->pcm = std::move(resampled);
             }
 
@@ -551,9 +643,7 @@ void Application::HandleAudioPacket(AudioPacket *packet)
         // This will block until the audio device has finished playing the audio
         audio_device_.OutputData(packet->pcm);
 
-        if (break_speaking_)
-        {
-            break_speaking_ = false;
+        if (break_speaking_) {
             skip_to_end_ = true;
 
             // Play a silence and skip to the end
@@ -565,13 +655,16 @@ void Application::HandleAudioPacket(AudioPacket *packet)
         break;
     }
     case kAudioPacketTypeStart:
-        Schedule([this]()
-                 { SetChatState(kChatStateSpeaking); });
+        break_speaking_ = false;
+        skip_to_end_ = false;
+        Schedule([this]() {
+            SetChatState(kChatStateSpeaking);
+        });
         break;
     case kAudioPacketTypeStop:
-        skip_to_end_ = false;
-        Schedule([this]()
-                 { SetChatState(kChatStateListening); });
+        Schedule([this]() {
+            SetChatState(kChatStateListening);
+        });
         break;
     case kAudioPacketTypeSentenceStart:
         ESP_LOGI(TAG, "<< %s", packet->text.c_str());
@@ -606,6 +699,7 @@ void Application::AudioPlayTask()
                  { return !audio_play_queue_.empty(); });
         auto packet = std::move(audio_play_queue_.front());
         audio_play_queue_.pop_front();
+        cv_.notify_all();
         lock.unlock();
 
         HandleAudioPacket(packet);
@@ -625,7 +719,7 @@ void Application::SetDecodeSampleRate(int sample_rate)
     if (opus_decode_sample_rate_ != CONFIG_AUDIO_OUTPUT_SAMPLE_RATE)
     {
         ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
-        opus_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
+        output_resampler_.Configure(opus_decode_sample_rate_, CONFIG_AUDIO_OUTPUT_SAMPLE_RATE);
     }
 }
 
@@ -637,15 +731,20 @@ void Application::StartWebSocketClient()
         delete ws_client_;
     }
 
+    std::string url = CONFIG_WEBSOCKET_URL;
     std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
 #ifdef CONFIG_USE_ML307
     ws_client_ = new WebSocket(new Ml307SslTransport(ml307_at_modem_, 0));
 #else
-    ws_client_ = new WebSocket(new TlsTransport());
+    if (url.find("wss://") == 0) {
+        ws_client_ = new WebSocket(new TlsTransport());
+    } else {
+        ws_client_ = new WebSocket(new TcpTransport());
+    }
 #endif
     ws_client_->SetHeader("Authorization", token.c_str());
-    ws_client_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ws_client_->SetHeader("Protocol-Version", std::to_string(PROTOCOL_VERSION).c_str());
+    ws_client_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 
     ws_client_->OnConnected([this]()
                             {
@@ -656,7 +755,7 @@ void Application::StartWebSocketClient()
         std::string message = "{";
         message += "\"type\":\"hello\",";
         message += "\"audio_params\":{";
-        message += "\"format\":\"opus\", \"sample_rate\":" + std::to_string(CONFIG_AUDIO_INPUT_SAMPLE_RATE) + ", \"channels\":1";
+        message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1";
         message += "}}";
         ws_client_->Send(message); });
 
@@ -689,6 +788,10 @@ void Application::StartWebSocketClient()
                         if (sample_rate != NULL) {
                             SetDecodeSampleRate(sample_rate->valueint);
                         }
+
+                        // If the device is speaking, we need to break the speaking
+                        break_speaking_ = true;
+                        skip_to_end_ = true;
                     } else if (strcmp(state->valuestring, "stop") == 0) {
                         packet->type = kAudioPacketTypeStop;
                     } else if (strcmp(state->valuestring, "sentence_end") == 0) {
@@ -711,7 +814,16 @@ memset(minimax_content, 0, sizeof(minimax_content));
         ESP_LOGI(TAG, "minimax_content: %s", minimax_content);
         label_ask_set_text(minimax_content);
                     }
+                } else if (strcmp(type->valuestring, "llm") == 0) {
+                    auto emotion = cJSON_GetObjectItem(root, "emotion");
+                    if (emotion != NULL) {
+                        ESP_LOGD(TAG, "EMOTION: %s", emotion->valuestring);
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
                 }
+            } else {
+                ESP_LOGE(TAG, "Missing message type, data: %s", data);
             }
             cJSON_Delete(root);
         } });
@@ -731,8 +843,7 @@ memset(minimax_content, 0, sizeof(minimax_content));
             SetChatState(kChatStateIdle);
         }); });
 
-    if (!ws_client_->Connect(CONFIG_WEBSOCKET_URL))
-    {
+    if (!ws_client_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         return;
     }

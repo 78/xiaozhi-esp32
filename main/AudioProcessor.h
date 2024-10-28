@@ -15,7 +15,8 @@ public:
     AudioProcessor();
     ~AudioProcessor();
 
-    void Input(const int16_t* data, int size);
+    void Initialize(int channels, bool reference);
+    void Input(std::vector<int16_t>& data);
     void Start();
     void Stop();
     bool IsRunning();
@@ -26,6 +27,8 @@ private:
     esp_afe_sr_data_t* afe_communication_data_ = nullptr;
     std::vector<int16_t> input_buffer_;
     std::function<void(std::vector<int16_t>&& data)> output_callback_;
+    int channels_;
+    bool reference_;
 
     void AudioProcessorTask();
 };

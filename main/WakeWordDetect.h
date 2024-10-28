@@ -19,7 +19,8 @@ public:
     WakeWordDetect();
     ~WakeWordDetect();
 
-    void Feed(const int16_t* data, int size);
+    void Initialize(int channels, bool reference);
+    void Feed(std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void()> callback);
     void OnVadStateChange(std::function<void(bool speaking)> callback);
     void StartDetection();
@@ -36,6 +37,8 @@ private:
     std::function<void()> wake_word_detected_callback_;
     std::function<void(bool speaking)> vad_state_change_callback_;
     bool is_speaking_ = false;
+    int channels_;
+    bool reference_;
 
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t wake_word_encode_task_buffer_;

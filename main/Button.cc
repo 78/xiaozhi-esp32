@@ -6,8 +6,8 @@ static const char* TAG = "Button";
 Button::Button(gpio_num_t gpio_num) : gpio_num_(gpio_num) {
     button_config_t button_config = {
         .type = BUTTON_TYPE_GPIO,
-        .long_press_time = 3000,
-        .short_press_time = 100,
+        .long_press_time = 1000,
+        .short_press_time = 50,
         .gpio_button_config = {
             .gpio_num = gpio_num,
             .active_level = 0
