@@ -221,7 +221,7 @@ void lv_main_page(void)
     // ESP_LOGI(TAG, "sr animation initialize");
 
     label_ask = lv_label_create(lv_scr_act());
-    lv_obj_set_width(label_ask, 260);
+    lv_obj_set_width(label_ask, 230);
     lv_label_set_long_mode(label_ask, LV_LABEL_LONG_SCROLL_CIRCULAR); /*Circular scroll*/
     lv_obj_align(label_ask, LV_ALIGN_BOTTOM_LEFT, 10, -10);
     lv_obj_set_style_text_font(label_ask, &font_alipuhui20, LV_STATE_DEFAULT);
@@ -232,7 +232,7 @@ void lv_main_page(void)
     lv_obj_move_foreground(label_ask);
 
     label_reply = lv_label_create(lv_scr_act());
-    lv_obj_set_width(label_reply, 260);
+    lv_obj_set_width(label_reply, 230);
     // lv_obj_set_height(label_reply, 200);
     // lv_label_set_long_mode(label_ask, LV_LABEL_LONG_SCROLL_CIRCULAR); /*Circular scroll*/
     lv_obj_align(label_reply, LV_ALIGN_TOP_LEFT, 10, 10);
