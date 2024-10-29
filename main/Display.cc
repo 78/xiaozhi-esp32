@@ -220,8 +220,15 @@ void Display::UpdateDisplay() {
         if (!board.GetNetworkState(network_name, signal_quality, signal_quality_text)) {
             text = "No network";
         } else {
-            ESP_LOGI(TAG, "%s CSQ: %d", network_name.c_str(), signal_quality);
-            text = network_name + "\n" + signal_quality_text + " (" + std::to_string(signal_quality) + ")";
+            text = network_name + "\n" + signal_quality_text;
+            if (std::abs(signal_quality) != 99) {
+                text += " (" + std::to_string(signal_quality) + ")";
+            }
+        }
+
+        int battery_voltage;
+        if (board.GetBatteryVoltage(battery_voltage)) {
+            text += "\n" + std::to_string(battery_voltage) + "mV";
         }
         SetText(text);
     }

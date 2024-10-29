@@ -5,6 +5,7 @@
 
 class WifiBoard : public Board {
 protected:
+    bool wifi_config_mode_ = false;
     virtual void StartWifi();
 
 public:

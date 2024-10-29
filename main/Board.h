@@ -25,6 +25,7 @@ public:
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;
+    virtual bool GetBatteryVoltage(int &voltage);
     virtual std::string GetJson() = 0;
 
 protected:

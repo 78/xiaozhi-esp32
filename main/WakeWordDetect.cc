@@ -180,14 +180,12 @@ void WakeWordDetect::EncodeWakeWordData() {
 
         for (auto& pcm: this_->wake_word_pcm_) {
             encoder->Encode(pcm, [this_, &offset](const uint8_t* opus, size_t opus_size) {
-                size_t protocol_size = sizeof(BinaryProtocol) + opus_size;
+                size_t protocol_size = sizeof(BinaryProtocol3) + opus_size;
                 if (offset + protocol_size < this_->wake_word_opus_.size()) {
-                    auto protocol = (BinaryProtocol*)(&this_->wake_word_opus_[offset]);
-                    protocol->version = htons(PROTOCOL_VERSION);
-                    protocol->type = htons(0);
+                    auto protocol = (BinaryProtocol3*)(&this_->wake_word_opus_[offset]);
+                    protocol->type = 0;
                     protocol->reserved = 0;
-                    protocol->timestamp = 0;
-                    protocol->payload_size = htonl(opus_size);
+                    protocol->payload_size = htons(opus_size);
                     memcpy(protocol->payload, opus, opus_size);
                     offset += protocol_size;
                 }

@@ -28,13 +28,11 @@
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
 
-#define PROTOCOL_VERSION 2
-struct BinaryProtocol {
-    uint16_t version;
-    uint16_t type;
-    uint32_t reserved;
-    uint32_t timestamp;
-    uint32_t payload_size;
+#define PROTOCOL_VERSION 3
+struct BinaryProtocol3 {
+    uint8_t type;
+    uint8_t reserved;
+    uint16_t payload_size;
     uint8_t payload[];
 } __attribute__((packed));
 
@@ -78,6 +76,7 @@ public:
     Display& GetDisplay() { return display_; }
     void Schedule(std::function<void()> callback);
     void SetChatState(ChatState state);
+    void Alert(const std::string&& title, const std::string&& message);
 
     // 删除拷贝构造函数和赋值运算符
     Application(const Application&) = delete;
@@ -128,7 +127,8 @@ private:
     StackType_t* check_new_version_task_stack_ = nullptr;
 
     void MainLoop();
-    BinaryProtocol* AllocateBinaryProtocol(const uint8_t* payload, size_t payload_size);
+    BinaryProtocol3* AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size);
+    void ParseBinaryProtocol3(const char* data, size_t size);
     void SetDecodeSampleRate(int sample_rate);
     void StartWebSocketClient();
     void CheckNewVersion();
@@ -136,6 +136,7 @@ private:
     void AudioEncodeTask();
     void AudioPlayTask();
     void HandleAudioPacket(AudioPacket* packet);
+    void PlayLocalFile(const char* data, size_t size);
 };
 
 #endif // _APPLICATION_H_

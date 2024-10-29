@@ -39,16 +39,13 @@ void WifiBoard::StartWifi() {
     display.SetText(std::string("Connect to WiFi\n") + wifi_station.GetSsid());
     wifi_station.Start();
     if (!wifi_station.IsConnected()) {
+        application.Alert("Info", "Configuring WiFi");
         builtin_led.SetBlue();
         builtin_led.Blink(1000, 500);
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
-        display.SetText(wifi_ap.GetSsid() + "\n" + wifi_ap.GetWebServerUrl());
         wifi_ap.Start();
-        // Wait until the WiFi configuration is finished
-        while (true) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        wifi_config_mode_ = true;
     }
 }
 
@@ -71,6 +68,13 @@ WebSocket* WifiBoard::CreateWebSocket() {
 }
 
 bool WifiBoard::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
+    if (wifi_config_mode_) {
+        auto& wifi_ap = WifiConfigurationAp::GetInstance();
+        network_name = wifi_ap.GetSsid();
+        signal_quality = -99;
+        signal_quality_text = wifi_ap.GetWebServerUrl();
+        return true;
+    }
     auto& wifi_station = WifiStation::GetInstance();
     if (!wifi_station.IsConnected()) {
         return false;

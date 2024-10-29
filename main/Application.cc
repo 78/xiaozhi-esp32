@@ -14,6 +14,13 @@
 
 #define TAG "Application"
 
+extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
+extern const char p3_err_reg_end[] asm("_binary_err_reg_p3_end");
+extern const char p3_err_pin_start[] asm("_binary_err_pin_p3_start");
+extern const char p3_err_pin_end[] asm("_binary_err_pin_p3_end");
+extern const char p3_err_wificonfig_start[] asm("_binary_err_wificonfig_p3_start");
+extern const char p3_err_wificonfig_end[] asm("_binary_err_wificonfig_p3_end");
+
 
 Application::Application()
     : boot_button_((gpio_num_t)BOOT_BUTTON_GPIO),
@@ -77,6 +84,41 @@ void Application::CheckNewVersion() {
         SetChatState(kChatStateIdle);
     } else {
         firmware_upgrade_.MarkCurrentVersionValid();
+    }
+}
+
+void Application::Alert(const std::string&& title, const std::string&& message) {
+    ESP_LOGE(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
+    display_.ShowNotification(std::string(title + "\n" + message));
+
+    if (message == "PIN is not ready") {
+        PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
+    } else if (message == "Configuring WiFi") {
+        PlayLocalFile(p3_err_wificonfig_start, p3_err_wificonfig_end - p3_err_wificonfig_start);
+    } else if (message == "Registration denied") {
+        PlayLocalFile(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start);
+    }
+}
+
+void Application::PlayLocalFile(const char* data, size_t size) {
+    ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
+    SetDecodeSampleRate(16000);
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto packet = new AudioPacket();
+        packet->type = kAudioPacketTypeStart;
+        audio_decode_queue_.push_back(packet);
+    }
+
+    ParseBinaryProtocol3(data, size);
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto packet = new AudioPacket();
+        packet->type = kAudioPacketTypeStop;
+        audio_decode_queue_.push_back(packet);
+        cv_.notify_all();
     }
 }
 
@@ -370,15 +412,12 @@ void Application::SetChatState(ChatState state) {
     }
 }
 
-BinaryProtocol* Application::AllocateBinaryProtocol(const uint8_t* payload, size_t payload_size) {
-    auto last_timestamp = 0;
-    auto protocol = (BinaryProtocol*)heap_caps_malloc(sizeof(BinaryProtocol) + payload_size, MALLOC_CAP_SPIRAM);
-    protocol->version = htons(PROTOCOL_VERSION);
-    protocol->type = htons(0);
+BinaryProtocol3* Application::AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size) {
+    auto protocol = (BinaryProtocol3*)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
+    protocol->type = 0;
     protocol->reserved = 0;
-    protocol->timestamp = htonl(last_timestamp);
-    protocol->payload_size = htonl(payload_size);
-    assert(sizeof(BinaryProtocol) == 16);
+    protocol->payload_size = htons(payload_size);
+    assert(sizeof(BinaryProtocol3) == 4UL);
     memcpy(protocol->payload, payload, payload_size);
     return protocol;
 }
@@ -400,10 +439,10 @@ void Application::AudioEncodeTask() {
 
             // Encode audio data
             opus_encoder_.Encode(pcm, [this](const uint8_t* opus, size_t opus_size) {
-                auto protocol = AllocateBinaryProtocol(opus, opus_size);
+                auto protocol = AllocateBinaryProtocol3(opus, opus_size);
                 Schedule([this, protocol, opus_size]() {
                     if (ws_client_ && ws_client_->IsConnected()) {
-                        if (!ws_client_->Send(protocol, sizeof(BinaryProtocol) + opus_size, true)) {
+                        if (!ws_client_->Send(protocol, sizeof(BinaryProtocol3) + opus_size, true)) {
                             ESP_LOGE(TAG, "Failed to send audio data");
                         }
                     }
@@ -470,7 +509,11 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
         break;
     case kAudioPacketTypeStop:
         Schedule([this]() {
-            SetChatState(kChatStateListening);
+            if (ws_client_ && ws_client_->IsConnected()) {
+                SetChatState(kChatStateListening);
+            } else {
+                SetChatState(kChatStateIdle);
+            }
         });
         break;
     case kAudioPacketTypeSentenceStart:
@@ -517,6 +560,23 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     }
 }
 
+void Application::ParseBinaryProtocol3(const char* data, size_t size) {
+    for (const char* p = data; p < data + size; ) {
+        auto protocol = (BinaryProtocol3*)p;
+        p += sizeof(BinaryProtocol3);
+
+        auto packet = new AudioPacket();
+        packet->type = kAudioPacketTypeData;
+        auto payload_size = ntohs(protocol->payload_size);
+        packet->opus.resize(payload_size);
+        memcpy(packet->opus.data(), protocol->payload, payload_size);
+        p += payload_size;
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        audio_decode_queue_.push_back(packet);
+    }
+}
+
 void Application::StartWebSocketClient() {
     if (ws_client_ != nullptr) {
         ESP_LOGW(TAG, "WebSocket client already exists");
@@ -545,17 +605,7 @@ void Application::StartWebSocketClient() {
 
     ws_client_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
-            auto protocol = (BinaryProtocol*)data;
-
-            auto packet = new AudioPacket();
-            packet->type = kAudioPacketTypeData;
-            packet->timestamp = ntohl(protocol->timestamp);
-            auto payload_size = ntohl(protocol->payload_size);
-            packet->opus.resize(payload_size);
-            memcpy(packet->opus.data(), protocol->payload, payload_size);
-
-            std::lock_guard<std::mutex> lock(mutex_);
-            audio_decode_queue_.push_back(packet);
+            ParseBinaryProtocol3(data, len);
             cv_.notify_all();
         } else {
             // Parse JSON data

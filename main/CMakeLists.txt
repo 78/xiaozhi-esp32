@@ -45,6 +45,7 @@ if(CONFIG_USE_AFE_SR)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
+                    EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     )
 

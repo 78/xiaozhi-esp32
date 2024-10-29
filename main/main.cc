@@ -7,15 +7,11 @@
 
 #include "Application.h"
 #include "SystemInfo.h"
-#include "SystemReset.h"
 
 #define TAG "main"
 
 extern "C" void app_main(void)
 {
-    // Check if the reset button is pressed
-    SystemReset::GetInstance().CheckButtons();
-
     // Initialize the default event loop
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 

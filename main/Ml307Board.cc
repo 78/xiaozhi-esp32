@@ -30,28 +30,38 @@ static std::string csq_to_string(int csq) {
 Ml307Board::Ml307Board() : modem_(ML307_TX_PIN, ML307_RX_PIN, 4096) {
 }
 
-void Ml307Board::StartModem() {
+void Ml307Board::StartNetwork() {
     auto& application = Application::GetInstance();
     auto& display = application.GetDisplay();
-    modem_.SetDebug(false);
-    modem_.SetBaudRate(921600);
+    display.SetText(std::string("Wait for network\n"));
+    int result = modem_.WaitForNetworkReady();
+    if (result == -1) {
+        application.Alert("Error", "PIN is not ready");
+    } else if (result == -2) {
+        application.Alert("Error", "Registration denied");
+    }
+
     // Print the ML307 modem information
     std::string module_name = modem_.GetModuleName();
-    ESP_LOGI(TAG, "ML307 Module: %s", module_name.c_str());
-    display.SetText(std::string("Wait for network\n") + module_name);
-    modem_.ResetConnections();
-    modem_.WaitForNetworkReady();
-
     std::string imei = modem_.GetImei();
     std::string iccid = modem_.GetIccid();
+    ESP_LOGI(TAG, "ML307 Module: %s", module_name.c_str());
     ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
     ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
+}
 
+void Ml307Board::StartModem() {
+    modem_.SetDebug(false);
+    modem_.SetBaudRate(921600);
+    StartNetwork();
+
+    auto& application = Application::GetInstance();
     // If low power, the material ready event will be triggered by the modem because of a reset
-    modem_.OnMaterialReady([&application]() {
+    modem_.OnMaterialReady([this, &application]() {
         ESP_LOGI(TAG, "ML307 material ready");
-        application.Schedule([&application]() {
+        application.Schedule([this, &application]() {
             application.SetChatState(kChatStateIdle);
+            StartNetwork();
         });
     });
 }
@@ -74,6 +84,9 @@ WebSocket* Ml307Board::CreateWebSocket() {
 }
 
 bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
+    if (!modem_.network_ready()) {
+        return false;
+    }
     network_name = modem_.GetCarrierName();
     signal_quality = modem_.GetCsq();
     signal_quality_text = csq_to_string(signal_quality);
