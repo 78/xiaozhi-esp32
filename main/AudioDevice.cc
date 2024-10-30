@@ -95,7 +95,7 @@ void AudioDevice::CreateSimplexChannels() {
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = 6,
         .dma_frame_num = 240,
-        .auto_clear_after_cb = false,
+        .auto_clear_after_cb = true,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
     };

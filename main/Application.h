@@ -77,7 +77,7 @@ public:
     void Schedule(std::function<void()> callback);
     void SetChatState(ChatState state);
     void Alert(const std::string&& title, const std::string&& message);
-
+    void AbortSpeaking();
     // 删除拷贝构造函数和赋值运算符
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;

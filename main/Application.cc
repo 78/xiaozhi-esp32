@@ -230,7 +230,7 @@ void Application::Start() {
                     SetChatState(kChatStateIdle);
                 }
             } else if (chat_state_ == kChatStateSpeaking) {
-                break_speaking_ = true;
+                AbortSpeaking();
             }
 
             // Resume detection
@@ -272,7 +272,7 @@ void Application::Start() {
                     SetChatState(kChatStateIdle);
                 }
             } else if (chat_state_ == kChatStateSpeaking) {
-                break_speaking_ = true;
+                AbortSpeaking();
             } else if (chat_state_ == kChatStateListening) {
                 if (ws_client_ && ws_client_->IsConnected()) {
                     ws_client_->Close();
@@ -356,6 +356,22 @@ void Application::MainLoop() {
     }
 }
 
+void Application::AbortSpeaking() {
+    ESP_LOGI(TAG, "Abort speaking");
+    skip_to_end_ = true;
+
+    if (ws_client_ && ws_client_->IsConnected()) {
+        cJSON* root = cJSON_CreateObject();
+        cJSON_AddStringToObject(root, "type", "abort");
+        char* json = cJSON_PrintUnformatted(root);
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        ws_client_->Send(json);
+        cJSON_Delete(root);
+        free(json);
+    }
+}
+
 void Application::SetChatState(ChatState state) {
     const char* state_str[] = {
         "unknown",
@@ -368,6 +384,10 @@ void Application::SetChatState(ChatState state) {
         "upgrading",
         "invalid_state"
     };
+    if (chat_state_ == state) {
+        // No need to update the state
+        return;
+    }
     chat_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", state_str[chat_state_]);
 
@@ -488,16 +508,6 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
 
         // This will block until the audio device has finished playing the audio
         audio_device_->OutputData(packet->pcm);
-
-        if (break_speaking_) {
-            skip_to_end_ = true;
-            
-            // Play a silence and skip to the end
-            int frame_size = opus_decode_sample_rate_ / 1000 * opus_duration_ms_;
-            std::vector<int16_t> silence(frame_size);
-            bzero(silence.data(), silence.size() * sizeof(int16_t));
-            audio_device_->OutputData(silence);
-        }
         break;
     }
     case kAudioPacketTypeStart:
@@ -520,6 +530,9 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
         ESP_LOGI(TAG, "<< %s", packet->text.c_str());
         break;
     case kAudioPacketTypeSentenceEnd:
+        if (break_speaking_) {
+            skip_to_end_ = true;
+        }
         break;
     default:
         ESP_LOGI(TAG, "Unknown packet type: %d", packet->type);
@@ -622,8 +635,7 @@ void Application::StartWebSocketClient() {
                             SetDecodeSampleRate(sample_rate->valueint);
                         }
 
-                        // If the device is speaking, we need to break the speaking
-                        break_speaking_ = true;
+                        // If the device is speaking, we need to skip the last session
                         skip_to_end_ = true;
                     } else if (strcmp(state->valuestring, "stop") == 0) {
                         packet->type = kAudioPacketTypeStop;
