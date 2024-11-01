@@ -32,7 +32,7 @@ void BoxAudioDevice::Initialize() {
 
     // Initialize I2C peripheral
     i2c_master_bus_config_t i2c_bus_cfg = {
-        .i2c_port = I2C_NUM_0,
+        .i2c_port = I2C_NUM_1,
         .sda_io_num = (gpio_num_t)AUDIO_CODEC_I2C_SDA_PIN,
         .scl_io_num = (gpio_num_t)AUDIO_CODEC_I2C_SCL_PIN,
         .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -47,6 +47,28 @@ void BoxAudioDevice::Initialize() {
 
     CreateDuplexChannels();
 
+#ifdef AUDIO_CODEC_USE_PCA9557
+    // Initialize PCA9557
+    i2c_device_config_t pca9557_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = 0x19,
+        .scl_speed_hz = 400000,
+        .scl_wait_us = 0,
+        .flags = {
+            .disable_ack_check = 0,
+        },
+    };
+    i2c_master_dev_handle_t pca9557_handle;
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_master_handle_, &pca9557_cfg, &pca9557_handle));
+    assert(pca9557_handle != NULL);
+    auto pca9557_set_register = [](i2c_master_dev_handle_t pca9557_handle, uint8_t data_addr, uint8_t data) {
+        uint8_t data_[2] = {data_addr, data};
+        ESP_ERROR_CHECK(i2c_master_transmit(pca9557_handle, data_, 2, 50));
+    };
+    pca9557_set_register(pca9557_handle, 0x03, 0xfd);
+    pca9557_set_register(pca9557_handle, 0x01, 0x02);
+#endif
+
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
         .port = I2S_NUM_0,
@@ -58,8 +80,8 @@ void BoxAudioDevice::Initialize() {
 
     // Output
     audio_codec_i2c_cfg_t i2c_cfg = {
-        .port = I2C_NUM_0,
-        .addr = ES8311_CODEC_DEFAULT_ADDR,
+        .port = I2C_NUM_1,
+        .addr = AUDIO_CODEC_ES8311_ADDR,
         .bus_handle = i2c_master_handle_,
     };
     out_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
@@ -87,20 +109,8 @@ void BoxAudioDevice::Initialize() {
     output_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(output_dev_ != NULL);
 
-    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-
-    // Play 16bit 1 channel
-    esp_codec_dev_sample_info_t fs = {
-        .bits_per_sample = 16,
-        .channel = 1,
-        .channel_mask = 0,
-        .sample_rate = (uint32_t)output_sample_rate_,
-        .mclk_multiple = 0,
-    };
-    ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
-
     // Input
-    i2c_cfg.addr = ES7210_CODEC_DEFAULT_ADDR;
+    i2c_cfg.addr = AUDIO_CODEC_ES7210_ADDR;
     in_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
     assert(in_ctrl_if_ != NULL);
 
@@ -114,16 +124,6 @@ void BoxAudioDevice::Initialize() {
     dev_cfg.codec_if = in_codec_if_;
     input_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(input_dev_ != NULL);
-
-    fs.channel = 4;
-    if (input_channels_ == 1) {
-        fs.channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0);
-    } else {
-        fs.channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0) | ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
-    }
-    ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-
-    ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 30.0));
 
     ESP_LOGI(TAG, "BoxAudioDevice initialized");
 }
@@ -219,16 +219,60 @@ void BoxAudioDevice::CreateDuplexChannels() {
 }
 
 int BoxAudioDevice::Read(int16_t *buffer, int samples) {
-    ESP_ERROR_CHECK(esp_codec_dev_read(input_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)buffer, samples * sizeof(int16_t)));
     return samples;
 }
 
 int BoxAudioDevice::Write(const int16_t *buffer, int samples) {
-    ESP_ERROR_CHECK(esp_codec_dev_write(output_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)buffer, samples * sizeof(int16_t)));
     return samples;
 }
 
 void BoxAudioDevice::SetOutputVolume(int volume) {
     ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, volume));
     AudioDevice::SetOutputVolume(volume);
+}
+
+void BoxAudioDevice::EnableInput(bool enable) {
+    if (enable == input_enabled_) {
+        return;
+    }
+    if (enable) {
+        esp_codec_dev_sample_info_t fs = {
+            .bits_per_sample = 16,
+            .channel = 4,
+            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+            .sample_rate = (uint32_t)output_sample_rate_,
+            .mclk_multiple = 0,
+        };
+        if (input_reference_) {
+            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+        }
+        ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 30.0));
+    } else {
+        ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+    }
+    AudioDevice::EnableInput(enable);
+}
+
+void BoxAudioDevice::EnableOutput(bool enable) {
+    if (enable == output_enabled_) {
+        return;
+    }
+    if (enable) {
+        // Play 16bit 1 channel
+        esp_codec_dev_sample_info_t fs = {
+            .bits_per_sample = 16,
+            .channel = 1,
+            .channel_mask = 0,
+            .sample_rate = (uint32_t)output_sample_rate_,
+            .mclk_multiple = 0,
+        };
+        ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+    } else {
+        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+    }
+    AudioDevice::EnableOutput(enable);
 }

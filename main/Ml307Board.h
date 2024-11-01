@@ -9,11 +9,11 @@ protected:
     Ml307AtModem modem_;
 
     void StartModem();
-    void StartNetwork();
 
 public:
     Ml307Board();
     virtual void Initialize() override;
+    virtual void StartNetwork() override;
     virtual AudioDevice* CreateAudioDevice() override;
     virtual Http* CreateHttp() override;
     virtual WebSocket* CreateWebSocket() override;

@@ -122,9 +122,9 @@ private:
     OpusResampler input_resampler_;
     OpusResampler output_resampler_;
 
-    TaskHandle_t check_new_version_task_ = nullptr;
-    StaticTask_t check_new_version_task_buffer_;
-    StackType_t* check_new_version_task_stack_ = nullptr;
+    TaskHandle_t main_loop_task_ = nullptr;
+    StaticTask_t main_loop_task_buffer_;
+    StackType_t* main_loop_task_stack_ = nullptr;
 
     void MainLoop();
     BinaryProtocol3* AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size);

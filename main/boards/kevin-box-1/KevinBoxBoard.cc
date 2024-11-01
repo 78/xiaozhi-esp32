@@ -65,6 +65,16 @@ public:
         InitializeADC();
         MountStorage();
         Enable4GModule();
+
+        gpio_config_t charging_io = {
+            .pin_bit_mask = (1ULL << 2),
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&charging_io);
+
         Ml307Board::Initialize();
     }
 
@@ -73,10 +83,9 @@ public:
     }
 
     virtual bool GetBatteryVoltage(int &voltage, bool& charging) override {
-        int adc_reading;
-        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle_, ADC_CHANNEL_0, &adc_reading));
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle_, adc_reading, &voltage));
-        charging = false;
+        ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(adc1_handle_, adc1_cali_handle_, ADC_CHANNEL_0, &voltage));
+        charging = gpio_get_level(GPIO_NUM_2) == 0;
+        ESP_LOGI(TAG, "Battery voltage: %d, Charging: %d", voltage, charging);
         return true;
     }
 };

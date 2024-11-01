@@ -17,15 +17,14 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         ESP_LOGI(TAG, "Display not connected");
         return;
     }
-    ESP_LOGI(TAG, "Display Pins: %d, %d", sda_pin_, scl_pin_);
 
     i2c_master_bus_config_t bus_config = {
-        .i2c_port = I2C_NUM_1,
+        .i2c_port = I2C_NUM_0,
         .sda_io_num = (gpio_num_t)sda_pin_,
         .scl_io_num = (gpio_num_t)scl_pin_,
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
-        .intr_priority = 1,
+        .intr_priority = 0,
         .trans_queue_depth = 0,
         .flags = {
             .enable_internal_pullup = 1,
@@ -47,7 +46,7 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
             .dc_low_on_data = 0,
             .disable_control_phase = 0,
         },
-        .scl_speed_hz = 400 * 1000,
+        .scl_speed_hz = 100 * 1000,
     };
 
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(i2c_bus_, &io_config, &panel_io_));
@@ -71,7 +70,6 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         ESP_LOGE(TAG, "Failed to initialize display");
         return;
     }
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, true, true));
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
@@ -94,8 +92,8 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         .monochrome = true,
         .rotation = {
             .swap_xy = false,
-            .mirror_x = true,
-            .mirror_y = true,
+            .mirror_x = DISPLAY_MIRROR_X,
+            .mirror_y = DISPLAY_MIRROR_Y,
         },
         .flags = {
             .buff_dma = 1,
@@ -227,8 +225,12 @@ void Display::UpdateDisplay() {
         }
 
         int battery_voltage;
-        if (board.GetBatteryVoltage(battery_voltage)) {
+        bool charging;
+        if (board.GetBatteryVoltage(battery_voltage, charging)) {
             text += "\n" + std::to_string(battery_voltage) + "mV";
+            if (charging) {
+                text += " (Charging)";
+            }
         }
         SetText(text);
     }

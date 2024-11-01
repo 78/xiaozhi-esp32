@@ -12,8 +12,10 @@ class BoxAudioDevice : public AudioDevice {
 public:
     BoxAudioDevice();
     virtual ~BoxAudioDevice();
-    void Initialize() override;
-    void SetOutputVolume(int volume) override;
+    virtual void Initialize() override;
+    virtual void SetOutputVolume(int volume) override;
+    virtual void EnableInput(bool enable) override;
+    virtual void EnableOutput(bool enable) override;
 
 private:
     i2c_master_bus_handle_t i2c_master_handle_ = nullptr;

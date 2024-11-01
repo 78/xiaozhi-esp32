@@ -55,7 +55,10 @@ Application::~Application() {
         opus_decoder_destroy(opus_decoder_);
     }
     if (audio_encode_task_stack_ != nullptr) {
-        free(audio_encode_task_stack_);
+        heap_caps_free(audio_encode_task_stack_);
+    }
+    if (main_loop_task_stack_ != nullptr) {
+        heap_caps_free(main_loop_task_stack_);
     }
     if (audio_device_ != nullptr) {
         delete audio_device_;
@@ -132,6 +135,8 @@ void Application::Start() {
 
     audio_device_ = board.CreateAudioDevice();
     audio_device_->Initialize();
+    audio_device_->EnableOutput(true);
+    audio_device_->EnableInput(true);
     audio_device_->OnInputData([this](std::vector<int16_t>&& data) {
         if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
             if (audio_device_->input_channels() == 2) {
@@ -176,7 +181,7 @@ void Application::Start() {
 
     // OPUS encoder / decoder use a lot of stack memory
     const size_t opus_stack_size = 4096 * 8;
-    audio_encode_task_stack_ = (StackType_t*)malloc(opus_stack_size);
+    audio_encode_task_stack_ = (StackType_t*)heap_caps_malloc(opus_stack_size, MALLOC_CAP_SPIRAM);
     audio_encode_task_ = xTaskCreateStatic([](void* arg) {
         Application* app = (Application*)arg;
         app->AudioEncodeTask();
@@ -189,68 +194,7 @@ void Application::Start() {
         vTaskDelete(NULL);
     }, "play_audio", 4096 * 4, this, 4, NULL);
 
-#ifdef CONFIG_USE_AFE_SR
-    wake_word_detect_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
-    wake_word_detect_.OnVadStateChange([this](bool speaking) {
-        Schedule([this, speaking]() {
-            auto& builtin_led = BuiltinLed::GetInstance();
-            if (chat_state_ == kChatStateListening) {
-                if (speaking) {
-                    builtin_led.SetRed(32);
-                } else {
-                    builtin_led.SetRed(8);
-                }
-                builtin_led.TurnOn();
-            }
-        });
-    });
-
-    wake_word_detect_.OnWakeWordDetected([this]() {
-        Schedule([this]() {
-            if (chat_state_ == kChatStateIdle) {
-                // Encode the wake word data and start websocket client at the same time
-                // They both consume a lot of time (700ms), so we can do them in parallel
-                wake_word_detect_.EncodeWakeWordData();
-
-                SetChatState(kChatStateConnecting);
-                if (ws_client_ == nullptr) {
-                    StartWebSocketClient();
-                }
-                if (ws_client_ && ws_client_->IsConnected()) {
-                    auto encoded = wake_word_detect_.GetWakeWordStream();
-                    // Send the wake word data to the server
-                    ws_client_->Send(encoded.data(), encoded.size(), true);
-                    opus_encoder_.ResetState();
-                    // Send a ready message to indicate the server that the wake word data is sent
-                    SetChatState(kChatStateWakeWordDetected);
-                    // If connected, the hello message is already sent, so we can start communication
-                    audio_processor_.Start();
-                    ESP_LOGI(TAG, "Audio processor started");
-                } else {
-                    SetChatState(kChatStateIdle);
-                }
-            } else if (chat_state_ == kChatStateSpeaking) {
-                AbortSpeaking();
-            }
-
-            // Resume detection
-            wake_word_detect_.StartDetection();
-        });
-    });
-    wake_word_detect_.StartDetection();
-
-    audio_processor_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
-    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        Schedule([this, data = std::move(data)]() {
-            if (chat_state_ == kChatStateListening) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                audio_encode_queue_.emplace_back(std::move(data));
-                cv_.notify_all();
-            }
-        });
-    });
-#endif
-
+    board.StartNetwork();
     // Blink the LED to indicate the device is running
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
@@ -317,11 +261,13 @@ void Application::Start() {
         });
     });
 
-    xTaskCreate([](void* arg) {
+    const size_t main_loop_stack_size = 4096 * 2;
+    main_loop_task_stack_ = (StackType_t*)heap_caps_malloc(main_loop_stack_size, MALLOC_CAP_SPIRAM);
+    xTaskCreateStatic([](void* arg) {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL);
-    }, "main_loop", 4096 * 2, this, 5, NULL);
+    }, "main_loop", main_loop_stack_size, this, 1, main_loop_task_stack_, &main_loop_task_buffer_);
 
     // Launch a task to check for new firmware version
     xTaskCreate([](void* arg) {
@@ -330,7 +276,69 @@ void Application::Start() {
         vTaskDelete(NULL);
     }, "check_new_version", 4096 * 2, this, 1, NULL);
 
-    chat_state_ = kChatStateIdle;
+#ifdef CONFIG_USE_AFE_SR
+    wake_word_detect_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
+    wake_word_detect_.OnVadStateChange([this](bool speaking) {
+        Schedule([this, speaking]() {
+            auto& builtin_led = BuiltinLed::GetInstance();
+            if (chat_state_ == kChatStateListening) {
+                if (speaking) {
+                    builtin_led.SetRed(32);
+                } else {
+                    builtin_led.SetRed(8);
+                }
+                builtin_led.TurnOn();
+            }
+        });
+    });
+
+    wake_word_detect_.OnWakeWordDetected([this]() {
+        Schedule([this]() {
+            if (chat_state_ == kChatStateIdle) {
+                // Encode the wake word data and start websocket client at the same time
+                // They both consume a lot of time (700ms), so we can do them in parallel
+                wake_word_detect_.EncodeWakeWordData();
+
+                SetChatState(kChatStateConnecting);
+                if (ws_client_ == nullptr) {
+                    StartWebSocketClient();
+                }
+                if (ws_client_ && ws_client_->IsConnected()) {
+                    auto encoded = wake_word_detect_.GetWakeWordStream();
+                    // Send the wake word data to the server
+                    ws_client_->Send(encoded.data(), encoded.size(), true);
+                    opus_encoder_.ResetState();
+                    // Send a ready message to indicate the server that the wake word data is sent
+                    SetChatState(kChatStateWakeWordDetected);
+                    // If connected, the hello message is already sent, so we can start communication
+                    audio_processor_.Start();
+                    ESP_LOGI(TAG, "Audio processor started");
+                } else {
+                    SetChatState(kChatStateIdle);
+                }
+            } else if (chat_state_ == kChatStateSpeaking) {
+                AbortSpeaking();
+            }
+
+            // Resume detection
+            wake_word_detect_.StartDetection();
+        });
+    });
+    wake_word_detect_.StartDetection();
+
+    audio_processor_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
+    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
+        Schedule([this, data = std::move(data)]() {
+            if (chat_state_ == kChatStateListening) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                audio_encode_queue_.emplace_back(std::move(data));
+                cv_.notify_all();
+            }
+        });
+    });
+#endif
+
+    SetChatState(kChatStateIdle);
     display_.UpdateDisplay();
 }
 
@@ -396,6 +404,7 @@ void Application::SetChatState(ChatState state) {
         case kChatStateUnknown:
         case kChatStateIdle:
             builtin_led.TurnOff();
+            audio_device_->EnableOutput(false);
             break;
         case kChatStateConnecting:
             builtin_led.SetBlue();
@@ -408,6 +417,7 @@ void Application::SetChatState(ChatState state) {
         case kChatStateSpeaking:
             builtin_led.SetGreen();
             builtin_led.TurnOn();
+            audio_device_->EnableOutput(true);
             break;
         case kChatStateWakeWordDetected:
             builtin_led.SetBlue();
@@ -474,21 +484,23 @@ void Application::AudioEncodeTask() {
             audio_decode_queue_.pop_front();
             lock.unlock();
 
-            int frame_size = opus_decode_sample_rate_ * opus_duration_ms_ / 1000;
-            packet->pcm.resize(frame_size);
+            if (packet->type == kAudioPacketTypeData && !skip_to_end_) {
+                int frame_size = opus_decode_sample_rate_ * opus_duration_ms_ / 1000;
+                packet->pcm.resize(frame_size);
 
-            int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
-            if (ret < 0) {
-                ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
-                delete packet;
-                continue;
-            }
+                int ret = opus_decode(opus_decoder_, packet->opus.data(), packet->opus.size(), packet->pcm.data(), frame_size, 0);
+                if (ret < 0) {
+                    ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
+                    delete packet;
+                    continue;
+                }
 
-            if (opus_decode_sample_rate_ != AUDIO_OUTPUT_SAMPLE_RATE) {
-                int target_size = output_resampler_.GetOutputSamples(frame_size);
-                std::vector<int16_t> resampled(target_size);
-                output_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
-                packet->pcm = std::move(resampled);
+                if (opus_decode_sample_rate_ != AUDIO_OUTPUT_SAMPLE_RATE) {
+                    int target_size = output_resampler_.GetOutputSamples(frame_size);
+                    std::vector<int16_t> resampled(target_size);
+                    output_resampler_.Process(packet->pcm.data(), frame_size, resampled.data());
+                    packet->pcm = std::move(resampled);
+                }
             }
 
             std::lock_guard<std::mutex> lock(mutex_);

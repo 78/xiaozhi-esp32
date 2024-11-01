@@ -176,15 +176,15 @@ int AudioDevice::Write(const int16_t* data, int samples) {
 int AudioDevice::Read(int16_t* dest, int samples) {
     size_t bytes_read;
 
-    int32_t bit32_buffer_[samples];
-    if (i2s_channel_read(rx_handle_, bit32_buffer_, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
+    int32_t bit32_buffer[samples];
+    if (i2s_channel_read(rx_handle_, bit32_buffer, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
         ESP_LOGE(TAG, "Read Failed!");
         return 0;
     }
 
     samples = bytes_read / sizeof(int32_t);
     for (int i = 0; i < samples; i++) {
-        int32_t value = bit32_buffer_[i] >> 12;
+        int32_t value = bit32_buffer[i] >> 12;
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
     return samples;
@@ -223,4 +223,20 @@ void AudioDevice::InputTask() {
 void AudioDevice::SetOutputVolume(int volume) {
     output_volume_ = volume;
     ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
+}
+
+void AudioDevice::EnableInput(bool enable) {
+    if (enable == input_enabled_) {
+        return;
+    }
+    input_enabled_ = enable;
+    ESP_LOGI(TAG, "Set input enable to %s", enable ? "true" : "false");
+}
+
+void AudioDevice::EnableOutput(bool enable) {
+    if (enable == output_enabled_) {
+        return;
+    }
+    output_enabled_ = enable;
+    ESP_LOGI(TAG, "Set output enable to %s", enable ? "true" : "false");
 }

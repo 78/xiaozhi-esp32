@@ -17,6 +17,8 @@ public:
     void OnInputData(std::function<void(std::vector<int16_t>&& data)> callback);
     void OutputData(std::vector<int16_t>& data);
     virtual void SetOutputVolume(int volume);
+    virtual void EnableInput(bool enable);
+    virtual void EnableOutput(bool enable);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -36,6 +38,8 @@ private:
 protected:
     bool duplex_ = false;
     bool input_reference_ = false;
+    bool input_enabled_ = false;
+    bool output_enabled_ = false;
     int input_sample_rate_ = 0;
     int output_sample_rate_ = 0;
     int input_channels_ = 1;

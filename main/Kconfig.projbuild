@@ -31,6 +31,10 @@ choice BOARD_TYPE
         bool "ESP BOX 3"
     config BOARD_TYPE_KEVIN_BOX_0
         bool "Kevin Box 0"
+    config BOARD_TYPE_KEVIN_BOX_1
+        bool "Kevin Box 1"
+    config BOARD_TYPE_LICHUANG_DEV
+        bool "立创开发板"
 endchoice
 
 config USE_AFE_SR

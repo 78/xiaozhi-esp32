@@ -29,7 +29,7 @@ static std::string rssi_to_string(int rssi) {
     }
 }
 
-void WifiBoard::StartWifi() {
+void WifiBoard::StartNetwork() {
     auto& application = Application::GetInstance();
     auto& display = application.GetDisplay();
     auto& builtin_led = BuiltinLed::GetInstance();
@@ -45,13 +45,15 @@ void WifiBoard::StartWifi() {
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();
-        wifi_config_mode_ = true;
+        // Wait forever until reset after configuration
+        while (true) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
 }
 
 void WifiBoard::Initialize() {
     ESP_LOGI(TAG, "Initializing WifiBoard");
-    StartWifi();
 }
 
 Http* WifiBoard::CreateHttp() {
@@ -90,10 +92,12 @@ std::string WifiBoard::GetJson() {
     auto& wifi_station = WifiStation::GetInstance();
     std::string board_type = BOARD_TYPE;
     std::string board_json = std::string("{\"type\":\"" + board_type + "\",");
-    board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
-    board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
-    board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
-    board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+    if (!wifi_config_mode_) {
+        board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
+        board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
+        board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
+        board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+    }
     board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
     return board_json;
 }

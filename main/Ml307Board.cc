@@ -51,9 +51,10 @@ void Ml307Board::StartNetwork() {
 }
 
 void Ml307Board::StartModem() {
+    auto& display = Application::GetInstance().GetDisplay();
+    display.SetText(std::string("Starting modem"));
     modem_.SetDebug(false);
     modem_.SetBaudRate(921600);
-    StartNetwork();
 
     auto& application = Application::GetInstance();
     // If low power, the material ready event will be triggered by the modem because of a reset
