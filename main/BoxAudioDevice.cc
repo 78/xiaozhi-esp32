@@ -219,12 +219,16 @@ void BoxAudioDevice::CreateDuplexChannels() {
 }
 
 int BoxAudioDevice::Read(int16_t *buffer, int samples) {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    if (input_enabled_) {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    }
     return samples;
 }
 
 int BoxAudioDevice::Write(const int16_t *buffer, int samples) {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    if (output_enabled_) {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)buffer, samples * sizeof(int16_t)));
+    }
     return samples;
 }
 
