@@ -41,6 +41,10 @@ void SystemReset::ResetNvsFlash() {
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to erase NVS flash");
     }
+    ret = nvs_flash_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize NVS flash");
+    }
 }
 
 void SystemReset::ResetToFactory() {

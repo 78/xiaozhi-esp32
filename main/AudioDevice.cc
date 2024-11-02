@@ -1,12 +1,15 @@
 #include "AudioDevice.h"
+#include "Board.h"
+
 #include <esp_log.h>
 #include <cstring>
 #include <cmath>
+
 #define TAG "AudioDevice"
 
 AudioDevice::AudioDevice()
-    : input_sample_rate_(CONFIG_AUDIO_INPUT_SAMPLE_RATE),
-      output_sample_rate_(CONFIG_AUDIO_OUTPUT_SAMPLE_RATE) {
+    : input_sample_rate_(AUDIO_INPUT_SAMPLE_RATE),
+      output_sample_rate_(AUDIO_OUTPUT_SAMPLE_RATE) {
 }
 
 AudioDevice::~AudioDevice() {
@@ -22,7 +25,7 @@ AudioDevice::~AudioDevice() {
 }
 
 void AudioDevice::Initialize() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_SIMPLEX
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
     CreateSimplexChannels();
 #else
     CreateDuplexChannels();
@@ -30,7 +33,7 @@ void AudioDevice::Initialize() {
 }
 
 void AudioDevice::CreateDuplexChannels() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_DUPLEX
+#ifndef AUDIO_I2S_METHOD_SIMPLEX
     duplex_ = true;
 
     i2s_chan_config_t chan_cfg = {
@@ -65,10 +68,10 @@ void AudioDevice::CreateDuplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_LRCK,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DOUT,
-            .din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_GPIO_DIN,
+            .bclk = (gpio_num_t)AUDIO_I2S_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_GPIO_LRCK,
+            .dout = (gpio_num_t)AUDIO_I2S_GPIO_DOUT,
+            .din = (gpio_num_t)AUDIO_I2S_GPIO_DIN,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -85,14 +88,14 @@ void AudioDevice::CreateDuplexChannels() {
 }
 
 void AudioDevice::CreateSimplexChannels() {
-#ifdef CONFIG_AUDIO_I2S_METHOD_SIMPLEX
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = 6,
         .dma_frame_num = 240,
-        .auto_clear_after_cb = false,
+        .auto_clear_after_cb = true,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
     };
@@ -119,9 +122,9 @@ void AudioDevice::CreateSimplexChannels() {
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
-            .bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_BCLK,
-            .ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_LRCK,
-            .dout = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_DOUT,
+            .bclk = (gpio_num_t)AUDIO_I2S_SPK_GPIO_BCLK,
+            .ws = (gpio_num_t)AUDIO_I2S_SPK_GPIO_LRCK,
+            .dout = (gpio_num_t)AUDIO_I2S_SPK_GPIO_DOUT,
             .din = I2S_GPIO_UNUSED,
             .invert_flags = {
                 .mclk_inv = false,
@@ -136,10 +139,10 @@ void AudioDevice::CreateSimplexChannels() {
     chan_cfg.id = I2S_NUM_1;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
-    std_cfg.gpio_cfg.bclk = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_SCK;
-    std_cfg.gpio_cfg.ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS;
+    std_cfg.gpio_cfg.bclk = (gpio_num_t)AUDIO_I2S_MIC_GPIO_SCK;
+    std_cfg.gpio_cfg.ws = (gpio_num_t)AUDIO_I2S_MIC_GPIO_WS;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
-    std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN;
+    std_cfg.gpio_cfg.din = (gpio_num_t)AUDIO_I2S_MIC_GPIO_DIN;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
@@ -173,15 +176,15 @@ int AudioDevice::Write(const int16_t* data, int samples) {
 int AudioDevice::Read(int16_t* dest, int samples) {
     size_t bytes_read;
 
-    int32_t bit32_buffer_[samples];
-    if (i2s_channel_read(rx_handle_, bit32_buffer_, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
+    int32_t bit32_buffer[samples];
+    if (i2s_channel_read(rx_handle_, bit32_buffer, samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
         ESP_LOGE(TAG, "Read Failed!");
         return 0;
     }
 
     samples = bytes_read / sizeof(int32_t);
     for (int i = 0; i < samples; i++) {
-        int32_t value = bit32_buffer_[i] >> 12;
+        int32_t value = bit32_buffer[i] >> 12;
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
     return samples;
@@ -220,4 +223,20 @@ void AudioDevice::InputTask() {
 void AudioDevice::SetOutputVolume(int volume) {
     output_volume_ = volume;
     ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
+}
+
+void AudioDevice::EnableInput(bool enable) {
+    if (enable == input_enabled_) {
+        return;
+    }
+    input_enabled_ = enable;
+    ESP_LOGI(TAG, "Set input enable to %s", enable ? "true" : "false");
+}
+
+void AudioDevice::EnableOutput(bool enable) {
+    if (enable == output_enabled_) {
+        return;
+    }
+    output_enabled_ = enable;
+    ESP_LOGI(TAG, "Set output enable to %s", enable ? "true" : "false");
 }
