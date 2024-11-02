@@ -20,10 +20,9 @@
 #include "esp_freertos_hooks.h"
 #include "avi_player.h"
 #include "lv_demos.h"
-#include "usbh_modem_board.h"
 #include "esp_netif.h"
 #include "file_manager.h"
-#include "esp_lvgl_port.h"
+#include "my_esp_lvgl_port.h"
 
 #define TAG "main"
 
@@ -48,7 +47,7 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    tfcard_ret = fm_sdcard_init();
+    // tfcard_ret = fm_sdcard_init();
 
     xTaskCreatePinnedToCore(&esp_lvgl_adapter_init, "esp_lvgl_adapter_init task", 1024 * 5, NULL, 15, NULL, 1);
     vTaskDelay(1000);

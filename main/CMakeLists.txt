@@ -13,7 +13,7 @@ set(SOURCES "AudioDevice.cc"
             "avi_player.c"
             "file_manager.c"
             "img_src_mic_logo.c"
-            "esp_lvgl_port.c"
+            "my_esp_lvgl_port.c"
             )
 set(INCLUDE_DIRS ".")
 
@@ -58,6 +58,14 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     list(APPEND SOURCES ${BOARD_SOURCES} "WifiBoard.cc")
     list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
     list(APPEND SOURCES "BoxAudioDevice.cc")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
+    # add all files from boards/esp32s3_korvo2_v3
+    set(BOARD_TYPE "esp32s3_korvo2_v3")
+    file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
+    list(APPEND SOURCES ${BOARD_SOURCES} "WifiBoard.cc")
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
+    list(APPEND SOURCES "BoxAudioDevice.cc")
+    
 endif()
 
 if(CONFIG_USE_AFE_SR)

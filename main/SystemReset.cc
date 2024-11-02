@@ -1,3 +1,11 @@
+/*
+ * @Author: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @Date: 2024-10-31 18:23:07
+ * @LastEditors: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @LastEditTime: 2024-11-02 16:47:01
+ * @FilePath: \xiaozhi-esp32\main\SystemReset.cc
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #include "SystemReset.h"
 #include <esp_log.h>
 #include <nvs_flash.h>
@@ -15,7 +23,7 @@ SystemReset::SystemReset() {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << GPIO_NUM_1) | (1ULL << GPIO_NUM_2);
+    io_conf.pin_bit_mask = (1ULL << GPIO_NUM_41) | (1ULL << GPIO_NUM_39);
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
@@ -23,13 +31,13 @@ SystemReset::SystemReset() {
 
 
 void SystemReset::CheckButtons() {
-    if (gpio_get_level(GPIO_NUM_2) == 0) {
+    if (gpio_get_level(GPIO_NUM_41) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset to factory");
         ResetNvsFlash();
         ResetToFactory();
     }
 
-    if (gpio_get_level(GPIO_NUM_1) == 0) {
+    if (gpio_get_level(GPIO_NUM_39) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset NVS flash");
         ResetNvsFlash();
     }

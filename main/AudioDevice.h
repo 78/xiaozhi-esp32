@@ -1,3 +1,11 @@
+/*
+ * @Author: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @Date: 2024-10-31 18:23:07
+ * @LastEditors: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @LastEditTime: 2024-11-02 16:53:42
+ * @FilePath: \xiaozhi-esp32\main\AudioDevice.h
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #ifndef _AUDIO_DEVICE_H
 #define _AUDIO_DEVICE_H
 
@@ -44,7 +52,7 @@ protected:
     int output_sample_rate_ = 0;
     int input_channels_ = 1;
     int output_channels_ = 1;
-    int output_volume_ = 70;
+    int output_volume_ = 90;
     i2s_chan_handle_t tx_handle_ = nullptr;
     i2s_chan_handle_t rx_handle_ = nullptr;
 
