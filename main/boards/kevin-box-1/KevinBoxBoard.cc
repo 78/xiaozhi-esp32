@@ -29,7 +29,7 @@ private:
     void Enable4GModule() {
         // Make GPIO15 HIGH to enable the 4G module
         gpio_config_t ml307_enable_config = {
-            .pin_bit_mask = (1ULL << 15),
+            .pin_bit_mask = (1ULL << 15) | (1ULL << 18),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -37,6 +37,7 @@ private:
         };
         gpio_config(&ml307_enable_config);
         gpio_set_level(GPIO_NUM_15, 1);
+        gpio_set_level(GPIO_NUM_18, 1);
     }
 
     virtual void InitializeADC() {

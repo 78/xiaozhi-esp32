@@ -27,7 +27,7 @@ Display::Display(int sda_pin, int scl_pin) : sda_pin_(sda_pin), scl_pin_(scl_pin
         .intr_priority = 0,
         .trans_queue_depth = 0,
         .flags = {
-            .enable_internal_pullup = 1,
+            .enable_internal_pullup = 0,
         },
     };
 

@@ -87,7 +87,7 @@ bool WifiBoard::GetNetworkState(std::string& network_name, int& signal_quality, 
     return signal_quality != -1;
 }
 
-std::string WifiBoard::GetJson() {
+std::string WifiBoard::GetBoardJson() {
     // Set the board type for OTA
     auto& wifi_station = WifiStation::GetInstance();
     std::string board_type = BOARD_TYPE;

@@ -40,7 +40,7 @@ void BoxAudioDevice::Initialize() {
         .intr_priority = 0,
         .trans_queue_depth = 0,
         .flags = {
-            .enable_internal_pullup = 1,
+            .enable_internal_pullup = 0,
         },
     };
     ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_master_handle_));

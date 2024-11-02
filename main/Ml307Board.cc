@@ -94,7 +94,7 @@ bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality,
     return signal_quality != -1;
 }
 
-std::string Ml307Board::GetJson() {
+std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
     std::string board_type = BOARD_TYPE;
     std::string module_name = modem_.GetModuleName();

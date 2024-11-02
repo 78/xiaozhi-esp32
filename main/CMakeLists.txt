@@ -64,4 +64,6 @@ idf_component_register(SRCS ${SOURCES}
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE
-target_compile_definitions(${COMPONENT_LIB} PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\")
+target_compile_definitions(${COMPONENT_LIB}
+                    PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\"
+                    )

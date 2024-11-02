@@ -70,7 +70,6 @@ Application::~Application() {
 
 void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
-    firmware_upgrade_.SetBoardJson(Board::GetInstance().GetJson());
     firmware_upgrade_.CheckVersion();
     if (firmware_upgrade_.HasNewVersion()) {
         // Wait for the chat state to be idle
@@ -196,6 +195,7 @@ void Application::Start() {
     }, "play_audio", 4096 * 4, this, 4, NULL);
 
     board.StartNetwork();
+    firmware_upgrade_.SetPostData(board.GetJson());
     // Blink the LED to indicate the device is running
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
@@ -445,6 +445,7 @@ void Application::SetChatState(ChatState state) {
 
 BinaryProtocol3* Application::AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size) {
     auto protocol = (BinaryProtocol3*)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
+    assert(protocol != nullptr);
     protocol->type = 0;
     protocol->reserved = 0;
     protocol->payload_size = htons(payload_size);
