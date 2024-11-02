@@ -37,6 +37,7 @@ Application::Application()
     }
     if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
         input_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
+        reference_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
     }
 
     firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
@@ -140,20 +141,20 @@ void Application::Start() {
     audio_device_->OnInputData([this](std::vector<int16_t>&& data) {
         if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
             if (audio_device_->input_channels() == 2) {
-                auto left_channel = std::vector<int16_t>(data.size() / 2);
-                auto right_channel = std::vector<int16_t>(data.size() / 2);
-                for (size_t i = 0, j = 0; i < left_channel.size(); ++i, j += 2) {
-                    left_channel[i] = data[j];
-                    right_channel[i] = data[j + 1];
+                auto mic_channel = std::vector<int16_t>(data.size() / 2);
+                auto reference_channel = std::vector<int16_t>(data.size() / 2);
+                for (size_t i = 0, j = 0; i < mic_channel.size(); ++i, j += 2) {
+                    mic_channel[i] = data[j];
+                    reference_channel[i] = data[j + 1];
                 }
-                auto resampled_left = std::vector<int16_t>(input_resampler_.GetOutputSamples(left_channel.size()));
-                auto resampled_right = std::vector<int16_t>(input_resampler_.GetOutputSamples(right_channel.size()));
-                input_resampler_.Process(left_channel.data(), left_channel.size(), resampled_left.data());
-                input_resampler_.Process(right_channel.data(), right_channel.size(), resampled_right.data());
-                data.resize(resampled_left.size() + resampled_right.size());
-                for (size_t i = 0, j = 0; i < resampled_left.size(); ++i, j += 2) {
-                    data[j] = resampled_left[i];
-                    data[j + 1] = resampled_right[i];
+                auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
+                auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+                input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
+                reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+                data.resize(resampled_mic.size() + resampled_reference.size());
+                for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
+                    data[j] = resampled_mic[i];
+                    data[j + 1] = resampled_reference[i];
                 }
             } else {
                 auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
@@ -454,7 +455,7 @@ BinaryProtocol3* Application::AllocateBinaryProtocol3(const uint8_t* payload, si
 
 void Application::AudioEncodeTask() {
     ESP_LOGI(TAG, "Audio encode task started");
-    const int max_audio_play_queue_size_ = 2;
+    const int max_audio_play_queue_size_ = 2; // avoid decoding too fast
 
     while (true) {
         std::unique_lock<std::mutex> lock(mutex_);

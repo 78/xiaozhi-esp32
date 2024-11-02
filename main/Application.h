@@ -120,6 +120,7 @@ private:
     int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
     OpusResampler input_resampler_;
+    OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
     TaskHandle_t main_loop_task_ = nullptr;
