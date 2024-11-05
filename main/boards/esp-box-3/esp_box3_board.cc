@@ -12,8 +12,9 @@ public:
         WifiBoard::Initialize();
     }
 
-    virtual AudioDevice* CreateAudioDevice() override {
-        return new BoxAudioDevice();
+    virtual AudioDevice* GetAudioDevice() override {
+        static BoxAudioDevice audio_device;
+        return &audio_device;
     }
 };
 

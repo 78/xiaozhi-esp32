@@ -74,10 +74,6 @@ void Ml307Board::Initialize() {
     StartModem();
 }
 
-AudioDevice* Ml307Board::CreateAudioDevice() {
-    return new AudioDevice();
-}
-
 Http* Ml307Board::CreateHttp() {
     return new Ml307Http(modem_);
 }

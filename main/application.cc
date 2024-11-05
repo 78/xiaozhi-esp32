@@ -132,7 +132,7 @@ void Application::Start() {
     auto& board = Board::GetInstance();
     board.Initialize();
 
-    audio_device_ = board.CreateAudioDevice();
+    audio_device_ = board.GetAudioDevice();
     audio_device_->Initialize();
     audio_device_->EnableInput(true);
     audio_device_->EnableOutput(true);
