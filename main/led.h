@@ -1,5 +1,5 @@
-#ifndef _BUILTIN_LED_H_
-#define _BUILTIN_LED_H_
+#ifndef _LED_H_
+#define _LED_H_
 
 #include <led_strip.h>
 #include <freertos/semphr.h>
@@ -13,9 +13,10 @@
 
 #define DEFAULT_BRIGHTNESS 16
 
-class BuiltinLed {
+class Led {
 public:
-    static BuiltinLed& GetInstance();
+    Led(gpio_num_t gpio);
+    ~Led();
 
     void BlinkOnce();
     void Blink(int times, int interval_ms);
@@ -30,11 +31,6 @@ public:
     void SetBlue(uint8_t brightness = DEFAULT_BRIGHTNESS) { SetColor(0, 0, brightness); }
 
 private:
-    BuiltinLed();
-    ~BuiltinLed();
-    BuiltinLed(const BuiltinLed&) = delete;
-    BuiltinLed& operator=(const BuiltinLed&) = delete;
-
     SemaphoreHandle_t mutex_;
     EventGroupHandle_t blink_event_group_;
     TaskHandle_t blink_task_ = nullptr;
@@ -44,9 +40,8 @@ private:
     int blink_interval_ms_ = 0;
     std::atomic<bool> should_blink_{false};
 
-    void Initialize();
     void StartBlinkTask(int times, int interval_ms);
     void StopBlinkInternal();
 };
 
-#endif // _BUILTIN_LED_H_
+#endif // _LED_H_

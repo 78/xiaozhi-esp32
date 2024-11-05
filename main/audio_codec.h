@@ -1,8 +1,8 @@
-#ifndef _AUDIO_DEVICE_H
-#define _AUDIO_DEVICE_H
+#ifndef _AUDIO_CODEC_H
+#define _AUDIO_CODEC_H
 
 #include <freertos/FreeRTOS.h>
-#include <driver/i2s_std.h>
+#include <freertos/task.h>
 
 #include <vector>
 #include <string>
@@ -10,17 +10,17 @@
 
 #include "board.h"
 
-class AudioDevice {
+class AudioCodec {
 public:
-    AudioDevice();
-    virtual ~AudioDevice();
-    virtual void Initialize();
-
-    void OnInputData(std::function<void(std::vector<int16_t>&& data)> callback);
-    void OutputData(std::vector<int16_t>& data);
+    AudioCodec();
+    virtual ~AudioCodec();
+    
     virtual void SetOutputVolume(int volume);
     virtual void EnableInput(bool enable);
     virtual void EnableOutput(bool enable);
+
+    void OnInputData(std::function<void(std::vector<int16_t>&& data)> callback);
+    void OutputData(std::vector<int16_t>& data);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -35,7 +35,6 @@ private:
     std::function<void(std::vector<int16_t>&& data)> on_input_data_; 
 
     void InputTask();
-    void CreateSimplexChannels();
 
 protected:
     bool duplex_ = false;
@@ -46,13 +45,10 @@ protected:
     int output_sample_rate_ = 0;
     int input_channels_ = 1;
     int output_channels_ = 1;
-    int output_volume_ = AUDIO_DEFAULT_OUTPUT_VOLUME;
-    i2s_chan_handle_t tx_handle_ = nullptr;
-    i2s_chan_handle_t rx_handle_ = nullptr;
+    int output_volume_ = 70;
 
-    virtual void CreateDuplexChannels();
-    virtual int Read(int16_t* dest, int samples);
-    virtual int Write(const int16_t* data, int samples);
+    virtual int Read(int16_t* dest, int samples) = 0;
+    virtual int Write(const int16_t* data, int samples) = 0;
 };
 
-#endif // _AUDIO_DEVICE_H
+#endif // _AUDIO_CODEC_H

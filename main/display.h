@@ -1,9 +1,6 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <driver/i2c_master.h>
-#include <esp_lcd_panel_io.h>
-#include <esp_lcd_panel_ops.h>
 #include <lvgl.h>
 #include <esp_timer.h>
 
@@ -11,22 +8,18 @@
 
 class Display {
 public:
-    Display(int sda_pin, int scl_pin);
-    ~Display();
+    virtual ~Display();
 
+    void SetupUI();
     void SetText(const std::string &text);
     void ShowNotification(const std::string &text);
 
     void UpdateDisplay();
 
-private:
-    int sda_pin_;
-    int scl_pin_;
+    int width() const { return width_; }
+    int height() const { return height_; }
 
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;
-
-    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-    esp_lcd_panel_handle_t panel_ = nullptr;
+protected:
     lv_disp_t *disp_ = nullptr;
     lv_font_t *font_ = nullptr;
     lv_obj_t *label_ = nullptr;
@@ -34,7 +27,13 @@ private:
     esp_timer_handle_t notification_timer_ = nullptr;
     esp_timer_handle_t update_display_timer_ = nullptr;
 
+    int width_ = 0;
+    int height_ = 0;
+
     std::string text_;
+
+    virtual void Lock() = 0;
+    virtual void Unlock() = 0;
 };
 
 #endif

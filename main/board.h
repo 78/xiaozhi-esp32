@@ -1,16 +1,15 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include "config.h"
-
 #include <http.h>
 #include <web_socket.h>
 #include <string>
 
-void* create_board();
-class AudioDevice;
-class Display;
+#include "led.h"
 
+void* create_board();
+class AudioCodec;
+class Display;
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
@@ -32,7 +31,9 @@ public:
     virtual void Initialize() = 0;
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
-    virtual AudioDevice* GetAudioDevice() = 0;
+    virtual Led* GetBuiltinLed() = 0;
+    virtual AudioCodec* GetAudioCodec() = 0;
+    virtual Display* GetDisplay() = 0;
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;

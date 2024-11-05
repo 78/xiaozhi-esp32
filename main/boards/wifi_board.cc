@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "application.h"
 #include "system_info.h"
-#include "builtin_led.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -32,17 +31,17 @@ static std::string rssi_to_string(int rssi) {
 
 void WifiBoard::StartNetwork() {
     auto& application = Application::GetInstance();
-    auto& display = application.GetDisplay();
-    auto& builtin_led = BuiltinLed::GetInstance();
+    auto display = Board::GetInstance().GetDisplay();
+    auto builtin_led = Board::GetInstance().GetBuiltinLed();
 
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto& wifi_station = WifiStation::GetInstance();
-    display.SetText(std::string("Connect to WiFi\n") + wifi_station.GetSsid());
+    display->SetText(std::string("Connect to WiFi\n") + wifi_station.GetSsid());
     wifi_station.Start();
     if (!wifi_station.IsConnected()) {
         application.Alert("Info", "Configuring WiFi");
-        builtin_led.SetBlue();
-        builtin_led.Blink(1000, 500);
+        builtin_led->SetBlue();
+        builtin_led->Blink(1000, 500);
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();

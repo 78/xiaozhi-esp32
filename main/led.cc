@@ -1,25 +1,37 @@
-#include "builtin_led.h"
+#include "led.h"
 #include "board.h"
 
 #include <cstring>
 #include <esp_log.h>
 
-#define TAG "builtin_led"
+#define TAG "Led"
 
-BuiltinLed::BuiltinLed() {
+Led::Led(gpio_num_t gpio) {
     mutex_ = xSemaphoreCreateMutex();
     blink_event_group_ = xEventGroupCreate();
     xEventGroupSetBits(blink_event_group_, BLINK_TASK_STOPPED_BIT);
 
-    if (BUILTIN_LED_GPIO == GPIO_NUM_NC) {
+    if (gpio == GPIO_NUM_NC) {
         ESP_LOGI(TAG, "Builtin LED not connected");
         return;
     }
-    Initialize();
+    
+    led_strip_config_t strip_config = {};
+    strip_config.strip_gpio_num = gpio;
+    strip_config.max_leds = 1;
+    strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
+    strip_config.led_model = LED_MODEL_WS2812;
+
+    led_strip_rmt_config_t rmt_config = {};
+    rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
+
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip_));
+    led_strip_clear(led_strip_);
+
     SetGrey();
 }
 
-BuiltinLed::~BuiltinLed() {
+Led::~Led() {
     StopBlinkInternal();
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
@@ -32,32 +44,13 @@ BuiltinLed::~BuiltinLed() {
     }
 }
 
-BuiltinLed& BuiltinLed::GetInstance() {
-    static BuiltinLed instance;
-    return instance;
-}
-
-void BuiltinLed::Initialize() {
-    led_strip_config_t strip_config = {};
-    strip_config.strip_gpio_num = BUILTIN_LED_GPIO;
-    strip_config.max_leds = 1;
-    strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
-    strip_config.led_model = LED_MODEL_WS2812;
-
-    led_strip_rmt_config_t rmt_config = {};
-    rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
-
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip_));
-    led_strip_clear(led_strip_);
-}
-
-void BuiltinLed::SetColor(uint8_t r, uint8_t g, uint8_t b) {
+void Led::SetColor(uint8_t r, uint8_t g, uint8_t b) {
     r_ = r;
     g_ = g;
     b_ = b;
 }
 
-void BuiltinLed::TurnOn() {
+void Led::TurnOn() {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -68,7 +61,7 @@ void BuiltinLed::TurnOn() {
     xSemaphoreGive(mutex_);
 }
 
-void BuiltinLed::TurnOff() {
+void Led::TurnOff() {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -78,19 +71,19 @@ void BuiltinLed::TurnOff() {
     xSemaphoreGive(mutex_);
 }
 
-void BuiltinLed::BlinkOnce() {
+void Led::BlinkOnce() {
     Blink(1, 100);
 }
 
-void BuiltinLed::Blink(int times, int interval_ms) {
+void Led::Blink(int times, int interval_ms) {
     StartBlinkTask(times, interval_ms);
 }
 
-void BuiltinLed::StartContinuousBlink(int interval_ms) {
+void Led::StartContinuousBlink(int interval_ms) {
     StartBlinkTask(BLINK_INFINITE, interval_ms);
 }
 
-void BuiltinLed::StartBlinkTask(int times, int interval_ms) {
+void Led::StartBlinkTask(int times, int interval_ms) {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -105,7 +98,7 @@ void BuiltinLed::StartBlinkTask(int times, int interval_ms) {
     xEventGroupSetBits(blink_event_group_, BLINK_TASK_RUNNING_BIT);
 
     xTaskCreate([](void* obj) {
-        auto this_ = static_cast<BuiltinLed*>(obj);
+        auto this_ = static_cast<Led*>(obj);
         int count = 0;
         while (this_->should_blink_ && (this_->blink_times_ == BLINK_INFINITE || count < this_->blink_times_)) {
             xSemaphoreTake(this_->mutex_, portMAX_DELAY);
@@ -132,7 +125,7 @@ void BuiltinLed::StartBlinkTask(int times, int interval_ms) {
     xSemaphoreGive(mutex_);
 }
 
-void BuiltinLed::StopBlinkInternal() {
+void Led::StopBlinkInternal() {
     should_blink_ = false;
     xEventGroupWaitBits(blink_event_group_, BLINK_TASK_STOPPED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 }

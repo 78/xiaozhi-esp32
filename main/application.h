@@ -13,7 +13,6 @@
 #include "opus_resampler.h"
 #include <web_socket.h>
 
-#include "audio_device.h"
 #include "display.h"
 #include "board.h"
 #include "ota.h"
@@ -22,8 +21,6 @@
 #include "wake_word_detect.h"
 #include "audio_processor.h"
 #endif
-
-#include "button.h"
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
@@ -73,11 +70,11 @@ public:
 
     void Start();
     ChatState GetChatState() const { return chat_state_; }
-    Display& GetDisplay() { return display_; }
     void Schedule(std::function<void()> callback);
     void SetChatState(ChatState state);
     void Alert(const std::string&& title, const std::string&& message);
     void AbortSpeaking();
+    void ToggleChatState();
     // 删除拷贝构造函数和赋值运算符
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
@@ -86,11 +83,6 @@ private:
     Application();
     ~Application();
 
-    Button boot_button_;
-    Button volume_up_button_;
-    Button volume_down_button_;
-    AudioDevice* audio_device_ = nullptr;
-    Display display_;
 #ifdef CONFIG_USE_AFE_SR
     WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
@@ -118,7 +110,7 @@ private:
     OpusDecoder* opus_decoder_ = nullptr;
 
     int opus_duration_ms_ = 60;
-    int opus_decode_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
+    int opus_decode_sample_rate_ = -1;
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
