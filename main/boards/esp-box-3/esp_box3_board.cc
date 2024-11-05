@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "boards/wifi_board.h"
 #include "box_audio_device.h"
 
 #include <esp_log.h>

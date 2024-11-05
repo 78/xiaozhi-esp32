@@ -1,4 +1,4 @@
-#include "ml307_board.h"
+#include "boards/ml307_board.h"
 #include "system_reset.h"
 #include "audio_device.h"
 

@@ -9,6 +9,7 @@
 
 void* create_board();
 class AudioDevice;
+class Display;
 
 class Board {
 private:

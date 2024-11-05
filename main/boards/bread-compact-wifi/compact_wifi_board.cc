@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "boards/wifi_board.h"
 #include "system_reset.h"
 #include "audio_device.h"
 

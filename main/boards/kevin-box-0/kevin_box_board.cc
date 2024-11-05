@@ -1,4 +1,4 @@
-#include "ml307_board.h"
+#include "boards/ml307_board.h"
 #include "box_audio_device.h"
 
 #include <esp_log.h>
