@@ -8,6 +8,8 @@
 #include <string>
 #include <functional>
 
+#include "Board.h"
+
 class AudioDevice {
 public:
     AudioDevice();
@@ -44,7 +46,7 @@ protected:
     int output_sample_rate_ = 0;
     int input_channels_ = 1;
     int output_channels_ = 1;
-    int output_volume_ = 70;
+    int output_volume_ = AUDIO_DEFAULT_OUTPUT_VOLUME;
     i2s_chan_handle_t tx_handle_ = nullptr;
     i2s_chan_handle_t rx_handle_ = nullptr;
 

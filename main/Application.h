@@ -1,17 +1,17 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
-#include <OpusEncoder.h>
-#include <OpusResampler.h>
-#include <WebSocket.h>
-
-#include <opus.h>
-#include <resampler_structs.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
+#include <opus.h>
 #include <mutex>
 #include <list>
 #include <condition_variable>
+
+#include <OpusEncoder.h>
+#include <OpusResampler.h>
+#include <WebSocket.h>
 
 #include "AudioDevice.h"
 #include "Display.h"

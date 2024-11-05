@@ -70,6 +70,7 @@ Application::~Application() {
 
 void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
+    firmware_upgrade_.SetPostData(Board::GetInstance().GetJson());
     firmware_upgrade_.CheckVersion();
     if (firmware_upgrade_.HasNewVersion()) {
         // Wait for the chat state to be idle
@@ -106,6 +107,7 @@ void Application::Alert(const std::string&& title, const std::string&& message) 
 void Application::PlayLocalFile(const char* data, size_t size) {
     ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
     SetDecodeSampleRate(16000);
+    audio_device_->EnableOutput(true);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -135,8 +137,9 @@ void Application::Start() {
 
     audio_device_ = board.CreateAudioDevice();
     audio_device_->Initialize();
-    audio_device_->EnableOutput(true);
     audio_device_->EnableInput(true);
+    audio_device_->EnableOutput(true);
+    audio_device_->EnableOutput(false);
     audio_device_->OnInputData([this](std::vector<int16_t>&& data) {
         if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
             if (audio_device_->input_channels() == 2) {
@@ -195,7 +198,6 @@ void Application::Start() {
     }, "play_audio", 4096 * 4, this, 4, NULL);
 
     board.StartNetwork();
-    firmware_upgrade_.SetPostData(board.GetJson());
     // Blink the LED to indicate the device is running
     builtin_led.SetGreen();
     builtin_led.BlinkOnce();
@@ -339,7 +341,7 @@ void Application::Start() {
     });
 #endif
 
-    SetChatState(kChatStateIdle);
+    chat_state_ = kChatStateIdle;
     display_.UpdateDisplay();
 }
 
@@ -403,7 +405,6 @@ void Application::SetChatState(ChatState state) {
         case kChatStateUnknown:
         case kChatStateIdle:
             builtin_led.TurnOff();
-            audio_device_->EnableOutput(false);
             break;
         case kChatStateConnecting:
             builtin_led.SetBlue();
@@ -416,7 +417,6 @@ void Application::SetChatState(ChatState state) {
         case kChatStateSpeaking:
             builtin_led.SetGreen();
             builtin_led.TurnOn();
-            audio_device_->EnableOutput(true);
             break;
         case kChatStateWakeWordDetected:
             builtin_led.SetBlue();
@@ -686,6 +686,7 @@ void Application::StartWebSocketClient() {
     ws_client_->OnDisconnected([this]() {
         ESP_LOGI(TAG, "Websocket disconnected");
         Schedule([this]() {
+            audio_device_->EnableOutput(false);
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Stop();
 #endif
@@ -699,4 +700,7 @@ void Application::StartWebSocketClient() {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         return;
     }
+
+    // 建立语音通道后打开音频输出，避免待机时喇叭底噪
+    audio_device_->EnableOutput(true);
 }

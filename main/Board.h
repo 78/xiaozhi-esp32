@@ -4,10 +4,10 @@
 #include "config.h"
 #include <Http.h>
 #include <WebSocket.h>
-#include <AudioDevice.h>
 #include <string>
 
 void* create_board();
+class AudioDevice;
 
 class Board {
 public:

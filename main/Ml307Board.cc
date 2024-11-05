@@ -37,8 +37,10 @@ void Ml307Board::StartNetwork() {
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
         application.Alert("Error", "PIN is not ready");
+        return;
     } else if (result == -2) {
         application.Alert("Error", "Registration denied");
+        return;
     }
 
     // Print the ML307 modem information
