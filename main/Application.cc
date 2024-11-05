@@ -373,8 +373,6 @@ void Application::AbortSpeaking() {
         cJSON* root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "abort");
         char* json = cJSON_PrintUnformatted(root);
-
-        std::lock_guard<std::mutex> lock(mutex_);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
@@ -435,8 +433,6 @@ void Application::SetChatState(ChatState state) {
         cJSON_AddStringToObject(root, "type", "state");
         cJSON_AddStringToObject(root, "state", state_str[chat_state_]);
         char* json = cJSON_PrintUnformatted(root);
-
-        std::lock_guard<std::mutex> lock(mutex_);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
