@@ -1,5 +1,5 @@
-#include "Ml307Board.h"
-#include "BoxAudioDevice.h"
+#include "ml307_board.h"
+#include "box_audio_device.h"
 
 #include <esp_log.h>
 #include <esp_spiffs.h>

@@ -1,14 +1,14 @@
-#ifndef _FIRMWARE_UPGRADE_H
-#define _FIRMWARE_UPGRADE_H
+#ifndef _OTA_H
+#define _OTA_H
 
 #include <functional>
 #include <string>
 #include <map>
 
-class FirmwareUpgrade {
+class Ota {
 public:
-    FirmwareUpgrade();
-    ~FirmwareUpgrade();
+    Ota();
+    ~Ota();
 
     void SetCheckVersionUrl(std::string check_version_url);
     void SetHeader(const std::string& key, const std::string& value);
@@ -32,4 +32,4 @@ private:
     bool IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion);
 };
 
-#endif // _FIRMWARE_UPGRADE_H
+#endif // _OTA_H

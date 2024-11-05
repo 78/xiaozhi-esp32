@@ -1,17 +1,18 @@
-#include "WifiBoard.h"
-#include "Application.h"
-#include "WifiStation.h"
-#include "WifiConfigurationAp.h"
-#include "SystemInfo.h"
-#include "BuiltinLed.h"
+#include "wifi_board.h"
+#include "application.h"
+#include "system_info.h"
+#include "builtin_led.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <EspHttp.h>
-#include <TcpTransport.h>
-#include <TlsTransport.h>
-#include <WebSocket.h>
+#include <esp_http.h>
+#include <tcp_transport.h>
+#include <tls_transport.h>
+#include <web_socket.h>
 #include <esp_log.h>
+
+#include <wifi_station.h>
+#include <wifi_configuration_ap.h>
 
 static const char *TAG = "WifiBoard";
 

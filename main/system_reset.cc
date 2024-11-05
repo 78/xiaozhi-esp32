@@ -1,4 +1,5 @@
-#include "SystemReset.h"
+#include "system_reset.h"
+
 #include <esp_log.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>

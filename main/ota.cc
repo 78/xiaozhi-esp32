@@ -1,6 +1,6 @@
-#include "FirmwareUpgrade.h"
-#include "SystemInfo.h"
-#include "Board.h"
+#include "ota.h"
+#include "system_info.h"
+#include "board.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
@@ -13,28 +13,28 @@
 #include <sstream>
 #include <algorithm>
 
-#define TAG "FirmwareUpgrade"
+#define TAG "Ota"
 
 
-FirmwareUpgrade::FirmwareUpgrade() {
+Ota::Ota() {
 }
 
-FirmwareUpgrade::~FirmwareUpgrade() {
+Ota::~Ota() {
 }
 
-void FirmwareUpgrade::SetCheckVersionUrl(std::string check_version_url) {
+void Ota::SetCheckVersionUrl(std::string check_version_url) {
     check_version_url_ = check_version_url;
 }
 
-void FirmwareUpgrade::SetHeader(const std::string& key, const std::string& value) {
+void Ota::SetHeader(const std::string& key, const std::string& value) {
     headers_[key] = value;
 }
 
-void FirmwareUpgrade::SetPostData(const std::string& post_data) {
+void Ota::SetPostData(const std::string& post_data) {
     post_data_ = post_data;
 }
 
-void FirmwareUpgrade::CheckVersion() {
+void Ota::CheckVersion() {
     std::string current_version = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version.c_str());
 
@@ -101,7 +101,7 @@ void FirmwareUpgrade::CheckVersion() {
     }
 }
 
-void FirmwareUpgrade::MarkCurrentVersionValid() {
+void Ota::MarkCurrentVersionValid() {
     auto partition = esp_ota_get_running_partition();
     if (strcmp(partition->label, "factory") == 0) {
         ESP_LOGI(TAG, "Running from factory partition, skipping");
@@ -121,7 +121,7 @@ void FirmwareUpgrade::MarkCurrentVersionValid() {
     }
 }
 
-void FirmwareUpgrade::Upgrade(const std::string& firmware_url) {
+void Ota::Upgrade(const std::string& firmware_url) {
     ESP_LOGI(TAG, "Upgrading firmware from %s", firmware_url.c_str());
     esp_ota_handle_t update_handle = 0;
     auto update_partition = esp_ota_get_next_update_partition(NULL);
@@ -232,12 +232,12 @@ void FirmwareUpgrade::Upgrade(const std::string& firmware_url) {
     esp_restart();
 }
 
-void FirmwareUpgrade::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
+void Ota::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
     upgrade_callback_ = callback;
     Upgrade(firmware_url_);
 }
 
-std::vector<int> FirmwareUpgrade::ParseVersion(const std::string& version) {
+std::vector<int> Ota::ParseVersion(const std::string& version) {
     std::vector<int> versionNumbers;
     std::stringstream ss(version);
     std::string segment;
@@ -249,7 +249,7 @@ std::vector<int> FirmwareUpgrade::ParseVersion(const std::string& version) {
     return versionNumbers;
 }
 
-bool FirmwareUpgrade::IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion) {
+bool Ota::IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion) {
     std::vector<int> current = ParseVersion(currentVersion);
     std::vector<int> newer = ParseVersion(newVersion);
     

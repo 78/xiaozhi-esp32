@@ -1,11 +1,11 @@
-#include "Ml307Board.h"
-#include "Application.h"
+#include "ml307_board.h"
+#include "application.h"
 
 #include <esp_log.h>
-#include <Ml307Http.h>
-#include <Ml307SslTransport.h>
-#include <WebSocket.h>
 #include <esp_timer.h>
+#include <ml307_http.h>
+#include <ml307_ssl_transport.h>
+#include <web_socket.h>
 
 static const char *TAG = "Ml307Board";
 

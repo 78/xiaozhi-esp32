@@ -5,8 +5,8 @@
 #include <driver/gpio.h>
 #include <esp_event.h>
 
-#include "Application.h"
-#include "SystemInfo.h"
+#include "application.h"
+#include "system_info.h"
 
 #define TAG "main"
 

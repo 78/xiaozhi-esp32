@@ -1,5 +1,5 @@
-#include "AudioDevice.h"
-#include "Board.h"
+#include "audio_device.h"
+#include "board.h"
 
 #include <esp_log.h>
 #include <cstring>

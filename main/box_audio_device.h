@@ -1,7 +1,8 @@
 #ifndef _BOX_AUDIO_DEVICE_H
 #define _BOX_AUDIO_DEVICE_H
 
-#include "AudioDevice.h"
+#include "audio_device.h"
+
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 #include <esp_codec_dev.h>

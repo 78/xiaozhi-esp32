@@ -1,4 +1,5 @@
-#include "SystemInfo.h"
+#include "system_info.h"
+
 #include <freertos/task.h>
 #include <esp_log.h>
 #include <esp_flash.h>

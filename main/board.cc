@@ -1,5 +1,5 @@
-#include "Board.h"
-#include "SystemInfo.h"
+#include "board.h"
+#include "system_info.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>

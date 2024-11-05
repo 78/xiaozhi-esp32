@@ -2,8 +2,9 @@
 #define BOARD_H
 
 #include "config.h"
-#include <Http.h>
-#include <WebSocket.h>
+
+#include <http.h>
+#include <web_socket.h>
 #include <string>
 
 void* create_board();

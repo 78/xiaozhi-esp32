@@ -6,9 +6,9 @@
 #include <string>
 #include <cstdlib>
 
-#include "Display.h"
-#include "Board.h"
-#include "Application.h"
+#include "display.h"
+#include "board.h"
+#include "application.h"
 
 #define TAG "Display"
 

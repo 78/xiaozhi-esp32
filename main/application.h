@@ -9,21 +9,21 @@
 #include <list>
 #include <condition_variable>
 
-#include <OpusEncoder.h>
-#include <OpusResampler.h>
-#include <WebSocket.h>
+#include "opus_encoder.h"
+#include "opus_resampler.h"
+#include <web_socket.h>
 
-#include "AudioDevice.h"
-#include "Display.h"
-#include "Board.h"
-#include "FirmwareUpgrade.h"
+#include "audio_device.h"
+#include "display.h"
+#include "board.h"
+#include "ota.h"
 
 #ifdef CONFIG_USE_AFE_SR
-#include "WakeWordDetect.h"
-#include "AudioProcessor.h"
+#include "wake_word_detect.h"
+#include "audio_processor.h"
 #endif
 
-#include "Button.h"
+#include "button.h"
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
@@ -95,7 +95,7 @@ private:
     WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
 #endif
-    FirmwareUpgrade firmware_upgrade_;
+    Ota ota_;
     std::mutex mutex_;
     std::condition_variable_any cv_;
     std::list<std::function<void()>> main_tasks_;

@@ -1,16 +1,13 @@
-#include <BuiltinLed.h>
-#include <Ml307SslTransport.h>
-#include <WifiConfigurationAp.h>
-#include <WifiStation.h>
-#include <SystemInfo.h>
+#include "builtin_led.h"
+#include "system_info.h"
+#include "ml307_ssl_transport.h"
+#include "application.h"
 
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
-
-#include "Application.h"
 
 #define TAG "Application"
 
@@ -40,8 +37,8 @@ Application::Application()
         reference_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
     }
 
-    firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
-    firmware_upgrade_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application() {
@@ -70,15 +67,15 @@ Application::~Application() {
 
 void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
-    firmware_upgrade_.SetPostData(Board::GetInstance().GetJson());
-    firmware_upgrade_.CheckVersion();
-    if (firmware_upgrade_.HasNewVersion()) {
+    ota_.SetPostData(Board::GetInstance().GetJson());
+    ota_.CheckVersion();
+    if (ota_.HasNewVersion()) {
         // Wait for the chat state to be idle
         while (chat_state_ != kChatStateIdle) {
             vTaskDelay(100);
         }
         SetChatState(kChatStateUpgrading);
-        firmware_upgrade_.StartUpgrade([this](int progress, size_t speed) {
+        ota_.StartUpgrade([this](int progress, size_t speed) {
             char buffer[64];
             snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
             display_.SetText(buffer);
@@ -87,7 +84,7 @@ void Application::CheckNewVersion() {
         ESP_LOGI(TAG, "Firmware upgrade failed...");
         SetChatState(kChatStateIdle);
     } else {
-        firmware_upgrade_.MarkCurrentVersionValid();
+        ota_.MarkCurrentVersionValid();
     }
 }
 

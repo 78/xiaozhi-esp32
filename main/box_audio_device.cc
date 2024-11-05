@@ -1,5 +1,5 @@
-#include "BoxAudioDevice.h"
-#include "Board.h"
+#include "box_audio_device.h"
+#include "board.h"
 
 #include <esp_log.h>
 #include <cassert>

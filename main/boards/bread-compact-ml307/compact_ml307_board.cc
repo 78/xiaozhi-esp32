@@ -1,5 +1,7 @@
-#include "Ml307Board.h"
-#include "SystemReset.h"
+#include "ml307_board.h"
+#include "system_reset.h"
+#include "audio_device.h"
+
 #include <esp_log.h>
 
 #define TAG "CompactMl307Board"
