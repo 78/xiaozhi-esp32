@@ -149,7 +149,7 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     opus_decode_sample_rate_ = codec->output_sample_rate();
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
-    opus_encoder_.Configure(codec->input_sample_rate(), 1);
+    opus_encoder_.Configure(16000, 1);
     if (codec->input_sample_rate() != 16000) {
         input_resampler_.Configure(codec->input_sample_rate(), 16000);
         reference_resampler_.Configure(codec->input_sample_rate(), 16000);
@@ -236,6 +236,17 @@ void Application::Start() {
     }, "check_new_version", 4096 * 2, this, 1, NULL);
 
 #ifdef CONFIG_USE_AFE_SR
+    audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
+    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
+        Schedule([this, data = std::move(data)]() {
+            if (chat_state_ == kChatStateListening) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                audio_encode_queue_.emplace_back(std::move(data));
+                cv_.notify_all();
+            }
+        });
+    });
+
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
@@ -284,17 +295,6 @@ void Application::Start() {
         });
     });
     wake_word_detect_.StartDetection();
-
-    audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
-    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        Schedule([this, data = std::move(data)]() {
-            if (chat_state_ == kChatStateListening) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                audio_encode_queue_.emplace_back(std::move(data));
-                cv_.notify_all();
-            }
-        });
-    });
 #endif
 
     chat_state_ = kChatStateIdle;

@@ -152,6 +152,7 @@ void Ota::Upgrade(const std::string& firmware_url) {
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
+        taskYIELD(); // Avoid watchdog timeout
         int ret = http->Read(buffer, sizeof(buffer));
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));

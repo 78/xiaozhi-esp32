@@ -48,8 +48,8 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
             .mirror_y = mirror_y_,
         },
         .flags = {
-            .buff_dma = 0,
-            .buff_spiram = 1,
+            .buff_dma = 1,
+            .buff_spiram = 0,
             .sw_rotate = 0,
             .full_refresh = 0,
             .direct_mode = 0,
