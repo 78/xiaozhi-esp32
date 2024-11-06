@@ -1,0 +1,11 @@
+dependencies:
+  idf: ^5.3
+description: ESP32 ML307R/ML307A Cat.1 Cellular Module
+files:
+  exclude:
+  - .git
+  - dist
+license: MIT
+repository: git://github.com/78/esp-ml307.git
+url: https://github.com/78/esp-ml307.git
+version: 1.4.0

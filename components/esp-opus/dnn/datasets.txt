@@ -1,0 +1,173 @@
+The following datasets can be used to train a language-independent LPCNet model.
+A good choice is to include all the data from these datasets, except for
+hi_fi_tts for which only a small subset is recommended (since it's very large
+but has few speakers). Note that this data typically needs to be resampled
+before it can be used.
+
+https://www.openslr.org/resources/30/si_lk.tar.gz
+https://www.openslr.org/resources/32/af_za.tar.gz
+https://www.openslr.org/resources/32/st_za.tar.gz
+https://www.openslr.org/resources/32/tn_za.tar.gz
+https://www.openslr.org/resources/32/xh_za.tar.gz
+https://www.openslr.org/resources/37/bn_bd.zip
+https://www.openslr.org/resources/37/bn_in.zip
+https://www.openslr.org/resources/41/jv_id_female.zip
+https://www.openslr.org/resources/41/jv_id_male.zip
+https://www.openslr.org/resources/42/km_kh_male.zip
+https://www.openslr.org/resources/43/ne_np_female.zip
+https://www.openslr.org/resources/44/su_id_female.zip
+https://www.openslr.org/resources/44/su_id_male.zip
+https://www.openslr.org/resources/61/es_ar_female.zip
+https://www.openslr.org/resources/61/es_ar_male.zip
+https://www.openslr.org/resources/63/ml_in_female.zip
+https://www.openslr.org/resources/63/ml_in_male.zip
+https://www.openslr.org/resources/64/mr_in_female.zip
+https://www.openslr.org/resources/65/ta_in_female.zip
+https://www.openslr.org/resources/65/ta_in_male.zip
+https://www.openslr.org/resources/66/te_in_female.zip
+https://www.openslr.org/resources/66/te_in_male.zip
+https://www.openslr.org/resources/69/ca_es_female.zip
+https://www.openslr.org/resources/69/ca_es_male.zip
+https://www.openslr.org/resources/70/en_ng_female.zip
+https://www.openslr.org/resources/70/en_ng_male.zip
+https://www.openslr.org/resources/71/es_cl_female.zip
+https://www.openslr.org/resources/71/es_cl_male.zip
+https://www.openslr.org/resources/72/es_co_female.zip
+https://www.openslr.org/resources/72/es_co_male.zip
+https://www.openslr.org/resources/73/es_pe_female.zip
+https://www.openslr.org/resources/73/es_pe_male.zip
+https://www.openslr.org/resources/74/es_pr_female.zip
+https://www.openslr.org/resources/75/es_ve_female.zip
+https://www.openslr.org/resources/75/es_ve_male.zip
+https://www.openslr.org/resources/76/eu_es_female.zip
+https://www.openslr.org/resources/76/eu_es_male.zip
+https://www.openslr.org/resources/77/gl_es_female.zip
+https://www.openslr.org/resources/77/gl_es_male.zip
+https://www.openslr.org/resources/78/gu_in_female.zip
+https://www.openslr.org/resources/78/gu_in_male.zip
+https://www.openslr.org/resources/79/kn_in_female.zip
+https://www.openslr.org/resources/79/kn_in_male.zip
+https://www.openslr.org/resources/80/my_mm_female.zip
+https://www.openslr.org/resources/83/irish_english_male.zip
+https://www.openslr.org/resources/83/midlands_english_female.zip
+https://www.openslr.org/resources/83/midlands_english_male.zip
+https://www.openslr.org/resources/83/northern_english_female.zip
+https://www.openslr.org/resources/83/northern_english_male.zip
+https://www.openslr.org/resources/83/scottish_english_female.zip
+https://www.openslr.org/resources/83/scottish_english_male.zip
+https://www.openslr.org/resources/83/southern_english_female.zip
+https://www.openslr.org/resources/83/southern_english_male.zip
+https://www.openslr.org/resources/83/welsh_english_female.zip
+https://www.openslr.org/resources/83/welsh_english_male.zip
+https://www.openslr.org/resources/86/yo_ng_female.zip
+https://www.openslr.org/resources/86/yo_ng_male.zip
+https://www.openslr.org/resources/109/hi_fi_tts_v0.tar.gz
+
+The corresponding citations for all these datasets are:
+
+  @inproceedings{demirsahin-etal-2020-open,
+    title = {{Open-source Multi-speaker Corpora of the English Accents in the British Isles}},
+    author = {Demirsahin, Isin and Kjartansson, Oddur and Gutkin, Alexander and Rivera, Clara},
+    booktitle = {Proceedings of The 12th Language Resources and Evaluation Conference (LREC)},
+    month = may,
+    year = {2020},
+    pages = {6532--6541},
+    address = {Marseille, France},
+    publisher = {European Language Resources Association (ELRA)},
+    url = {https://www.aclweb.org/anthology/2020.lrec-1.804},
+    ISBN = {979-10-95546-34-4},
+  }
+  @inproceedings{kjartansson-etal-2020-open,
+    title = {{Open-Source High Quality Speech Datasets for Basque, Catalan and Galician}},
+    author = {Kjartansson, Oddur and Gutkin, Alexander and Butryna, Alena and Demirsahin, Isin and Rivera, Clara},
+    booktitle = {Proceedings of the 1st Joint Workshop on Spoken Language Technologies for Under-resourced languages (SLTU) and Collaboration and Computing for Under-Resourced Languages (CCURL)},
+    year = {2020},
+    pages = {21--27},
+    month = may,
+    address = {Marseille, France},
+    publisher = {European Language Resources association (ELRA)},
+    url = {https://www.aclweb.org/anthology/2020.sltu-1.3},
+    ISBN = {979-10-95546-35-1},
+  }
+
+
+  @inproceedings{guevara-rukoz-etal-2020-crowdsourcing,
+    title = {{Crowdsourcing Latin American Spanish for Low-Resource Text-to-Speech}},
+    author = {Guevara-Rukoz, Adriana and Demirsahin, Isin and He, Fei and Chu, Shan-Hui Cathy and Sarin, Supheakmungkol and Pipatsrisawat, Knot and Gutkin, Alexander and Butryna, Alena and Kjartansson, Oddur},
+    booktitle = {Proceedings of The 12th Language Resources and Evaluation Conference (LREC)},
+    year = {2020},
+    month = may,
+    address = {Marseille, France},
+    publisher = {European Language Resources Association (ELRA)},
+    url = {https://www.aclweb.org/anthology/2020.lrec-1.801},
+    pages = {6504--6513},
+    ISBN = {979-10-95546-34-4},
+  }
+  @inproceedings{he-etal-2020-open,
+    title = {{Open-source Multi-speaker Speech Corpora for Building Gujarati, Kannada, Malayalam, Marathi, Tamil and Telugu Speech Synthesis Systems}},
+    author = {He, Fei and Chu, Shan-Hui Cathy and Kjartansson, Oddur and Rivera, Clara and Katanova, Anna and Gutkin, Alexander and Demirsahin, Isin and Johny, Cibu and Jansche, Martin and Sarin, Supheakmungkol and Pipatsrisawat, Knot},
+    booktitle = {Proceedings of The 12th Language Resources and Evaluation Conference (LREC)},
+    month = may,
+    year = {2020},
+    address = {Marseille, France},
+    publisher = {European Language Resources Association (ELRA)},
+    pages = {6494--6503},
+    url = {https://www.aclweb.org/anthology/2020.lrec-1.800},
+    ISBN = "{979-10-95546-34-4}",
+  }
+
+
+  @inproceedings{kjartansson-etal-tts-sltu2018,
+    title = {{A Step-by-Step Process for Building TTS Voices Using Open Source Data and Framework for Bangla, Javanese, Khmer, Nepali, Sinhala, and Sundanese}},
+    author = {Keshan Sodimana and Knot Pipatsrisawat and Linne Ha and Martin Jansche and Oddur Kjartansson and Pasindu De Silva and Supheakmungkol Sarin},
+    booktitle = {Proc. The 6th Intl. Workshop on Spoken Language Technologies for Under-Resourced Languages (SLTU)},
+    year  = {2018},
+    address = {Gurugram, India},
+    month = aug,
+    pages = {66--70},
+    URL   = {http://dx.doi.org/10.21437/SLTU.2018-14}
+  }
+
+
+  @inproceedings{oo-etal-2020-burmese,
+    title = {{Burmese Speech Corpus, Finite-State Text Normalization and Pronunciation Grammars with an Application to Text-to-Speech}},
+    author = {Oo, Yin May and Wattanavekin, Theeraphol and Li, Chenfang and De Silva, Pasindu and Sarin, Supheakmungkol and Pipatsrisawat, Knot and Jansche, Martin and Kjartansson, Oddur and Gutkin, Alexander},
+    booktitle = {Proceedings of The 12th Language Resources and Evaluation Conference (LREC)},
+    month = may,
+    year = {2020},
+    pages = "6328--6339",
+    address = {Marseille, France},
+    publisher = {European Language Resources Association (ELRA)},
+    url = {https://www.aclweb.org/anthology/2020.lrec-1.777},
+    ISBN = {979-10-95546-34-4},
+  }
+  @inproceedings{van-niekerk-etal-2017,
+    title = {{Rapid development of TTS corpora for four South African languages}},
+    author = {Daniel van Niekerk and Charl van Heerden and Marelie Davel and Neil Kleynhans and Oddur Kjartansson and Martin Jansche and Linne Ha},
+    booktitle = {Proc. Interspeech 2017},
+    pages = {2178--2182},
+    address = {Stockholm, Sweden},
+    month = aug,
+    year  = {2017},
+    URL   = {http://dx.doi.org/10.21437/Interspeech.2017-1139}
+  }
+
+  @inproceedings{gutkin-et-al-yoruba2020,
+    title = {{Developing an Open-Source Corpus of Yoruba Speech}},
+    author = {Alexander Gutkin and I{\c{s}}{\i}n Demir{\c{s}}ahin and Oddur Kjartansson and Clara Rivera and K\d{\'o}lá Túb\d{\`o}sún},
+    booktitle = {Proceedings of Interspeech 2020},
+    pages = {404--408},
+    month = {October},
+    year = {2020},
+    address = {Shanghai, China},
+    publisher = {International Speech and Communication Association (ISCA)},
+    doi = {10.21437/Interspeech.2020-1096},
+    url = {http://dx.doi.org/10.21437/Interspeech.2020-1096},
+  }
+
+@article{bakhturina2021hi,
+  title={{Hi-Fi Multi-Speaker English TTS Dataset}},
+  author={Bakhturina, Evelina and Lavrukhin, Vitaly and Ginsburg, Boris and Zhang, Yang},
+  journal={arXiv preprint arXiv:2104.01497},
+  year={2021}
+}

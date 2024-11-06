@@ -1,0 +1,15 @@
+dependencies:
+  idf: '>=5.0'
+description: OPUS for ESP32
+files:
+  exclude:
+  - .github
+  - doc/**/*
+  - tests/**/*
+license: MIT
+repository: git://github.com/78/esp-opus.git
+repository_info:
+  commit_sha: 5854a9f7de06ab3505b8fe6e8943db581c2cbe70
+  path: .
+url: https://github.com/78/esp-opus.git
+version: 1.0.4

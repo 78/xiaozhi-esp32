@@ -1,0 +1,5 @@
+test: "no noise test"
+processing:
+  - "sox {INPUT} {INPUT}.raw"
+  - "/home/ubuntu/bin/lpcnet_dump_data_v2 -test {INPUT}.raw {INPUT}.features.f32"
+  - "/home/ubuntu/opt/miniconda3/envs/torch/bin/python /local/code/lpcnext/test_lpcnet.py {INPUT}.features.f32 /local/experiments/noise_augmentation/output/lpcnet_384_2/checkpoints/checkpoint_epoch_20.pth {OUTPUT}"

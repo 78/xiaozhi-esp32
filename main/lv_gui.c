@@ -7,7 +7,7 @@ lv_obj_t *label_reply;
 lv_obj_t *label_wifi_info;
 
 // LV_IMG_DECLARE(img_bilibili120);
-LV_FONT_DECLARE(font_alipuhui20);
+LV_FONT_DECLARE(font_dingdingjinbuti);
 
 static lv_timer_t *timer = NULL;
 
@@ -167,7 +167,7 @@ void lv_gui_start(void)
     // 显示wifi连接信息
     label_wifi_info = lv_label_create(lv_scr_act());
     lv_obj_align(label_wifi_info, LV_ALIGN_BOTTOM_MID, 0, -35);
-    lv_obj_set_style_text_font(label_wifi_info, &font_alipuhui20, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(label_wifi_info, &font_dingdingjinbuti, LV_STATE_DEFAULT);
     lv_label_set_text(label_wifi_info, "正在连接wifi...");
 }
 void label_ask_set_text(char *text)
@@ -224,7 +224,7 @@ void lv_main_page(void)
     lv_obj_set_width(label_ask, 260);
     lv_label_set_long_mode(label_ask, LV_LABEL_LONG_SCROLL_CIRCULAR); /*Circular scroll*/
     lv_obj_align(label_ask, LV_ALIGN_BOTTOM_LEFT, 10, -10);
-    lv_obj_set_style_text_font(label_ask, &font_alipuhui20, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(label_ask, &font_dingdingjinbuti, LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(label_ask, lv_palette_main(LV_PALETTE_GREEN), 0);
 
     lv_label_set_text(label_ask, "");
@@ -236,7 +236,7 @@ void lv_main_page(void)
     // lv_obj_set_height(label_reply, 200);
     // lv_label_set_long_mode(label_ask, LV_LABEL_LONG_SCROLL_CIRCULAR); /*Circular scroll*/
     lv_obj_align(label_reply, LV_ALIGN_TOP_LEFT, 10, 10);
-    lv_obj_set_style_text_font(label_reply, &font_alipuhui20, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(label_reply, &font_dingdingjinbuti, LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(label_reply, lv_palette_main(LV_PALETTE_RED), 0);
 
     lv_label_set_text(label_reply, "AI:");

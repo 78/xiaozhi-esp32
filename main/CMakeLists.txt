@@ -8,12 +8,7 @@ set(SOURCES "audio_device.cc"
             "board.cc"
             "ota.cc"
             "main.cc"
-            "lv_gui.c"
-            "font_alipuhui20.c"
-            "avi_player.c"
-            "file_manager.c"
-            "img_src_mic_logo.c"
-            "my_esp_lvgl_port.c"
+            
             )
 set(INCLUDE_DIRS ".")
 
@@ -64,7 +59,13 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
     list(APPEND SOURCES ${BOARD_SOURCES} "wifi_board.cc")
     list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
-    list(APPEND SOURCES "box_audio_device.cc")
+    list(APPEND SOURCES "box_audio_device.cc"
+            "lv_gui.c"
+            "font_dingdingjinbuti.c"
+            "avi_player.c"
+            "file_manager.c"
+            "img_src_mic_logo.c"
+            "my_esp_lvgl_port.c")
     
 endif()
 

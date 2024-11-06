@@ -1,0 +1,12 @@
+scipy
+librosa
+numpy
+scikit-image
+pyvad
+speechpy
+soundfile
+pyyaml
+pesq
+AMFM_decompy
+matplotlib
+multiprocess
