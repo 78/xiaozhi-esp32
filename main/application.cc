@@ -27,10 +27,6 @@ Application::Application() {
 }
 
 Application::~Application() {
-    if (update_display_timer_ != nullptr) {
-        esp_timer_stop(update_display_timer_);
-        esp_timer_delete(update_display_timer_);
-    }
     if (ws_client_ != nullptr) {
         delete ws_client_;
     }
