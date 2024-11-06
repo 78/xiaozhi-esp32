@@ -191,6 +191,7 @@ public:
 
     virtual bool GetBatteryVoltage(int &voltage, bool& charging) override {
         ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(adc1_handle_, adc1_cali_handle_, ADC_CHANNEL_0, &voltage));
+        voltage *= 3;
         charging = gpio_get_level(GPIO_NUM_2) == 0;
         ESP_LOGI(TAG, "Battery voltage: %d, Charging: %d", voltage, charging);
         return true;

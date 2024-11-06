@@ -356,23 +356,28 @@ void Application::SetChatState(ChatState state) {
     chat_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", state_str[chat_state_]);
 
+    auto display = Board::GetInstance().GetDisplay();
     auto builtin_led = Board::GetInstance().GetBuiltinLed();
     switch (chat_state_) {
         case kChatStateUnknown:
         case kChatStateIdle:
             builtin_led->TurnOff();
+            display->SetText("I'm\nIdle.");
             break;
         case kChatStateConnecting:
             builtin_led->SetBlue();
             builtin_led->TurnOn();
+            display->SetText("I'm\nConnecting...");
             break;
         case kChatStateListening:
             builtin_led->SetRed();
             builtin_led->TurnOn();
+            display->SetText("I'm\nListening...");
             break;
         case kChatStateSpeaking:
             builtin_led->SetGreen();
             builtin_led->TurnOn();
+            display->SetText("I'm\nSpeaking...");
             break;
         case kChatStateWakeWordDetected:
             builtin_led->SetBlue();
