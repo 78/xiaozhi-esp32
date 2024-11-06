@@ -1,12 +1,5 @@
-/*
- * @Author: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
- * @Date: 2024-10-31 18:23:07
- * @LastEditors: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
- * @LastEditTime: 2024-11-02 16:47:01
- * @FilePath: \xiaozhi-esp32\main\SystemReset.cc
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
-#include "SystemReset.h"
+#include "system_reset.h"
+
 #include <esp_log.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>

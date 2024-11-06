@@ -5,9 +5,8 @@
 #include <driver/gpio.h>
 #include <esp_event.h>
 
-#include "Application.h"
-#include "SystemInfo.h"
-#include "SystemReset.h"
+#include "application.h"
+#include "system_info.h"
 #include "lvgl.h"
 #include "lv_gui.h"
 #include "esp_lcd_touch_cst816s.h"

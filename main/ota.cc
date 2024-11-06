@@ -1,37 +1,40 @@
-#include "FirmwareUpgrade.h"
-#include "SystemInfo.h"
-#include "Board.h"
+#include "ota.h"
+#include "system_info.h"
+#include "board.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
 #include <esp_partition.h>
-#include <esp_http_client.h>
 #include <esp_ota_ops.h>
 #include <esp_app_format.h>
-#include <esp_chip_info.h>
 
+#include <cstring>
 #include <vector>
 #include <sstream>
 #include <algorithm>
 
-#define TAG "FirmwareUpgrade"
+#define TAG "Ota"
 
 
-FirmwareUpgrade::FirmwareUpgrade() {
+Ota::Ota() {
 }
 
-FirmwareUpgrade::~FirmwareUpgrade() {
+Ota::~Ota() {
 }
 
-void FirmwareUpgrade::SetCheckVersionUrl(std::string check_version_url) {
+void Ota::SetCheckVersionUrl(std::string check_version_url) {
     check_version_url_ = check_version_url;
 }
 
-void FirmwareUpgrade::SetHeader(const std::string& key, const std::string& value) {
+void Ota::SetHeader(const std::string& key, const std::string& value) {
     headers_[key] = value;
 }
 
-void FirmwareUpgrade::CheckVersion() {
+void Ota::SetPostData(const std::string& post_data) {
+    post_data_ = post_data;
+}
+
+void Ota::CheckVersion() {
     std::string current_version = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version.c_str());
 
@@ -46,8 +49,12 @@ void FirmwareUpgrade::CheckVersion() {
     }
 
     http->SetHeader("Content-Type", "application/json");
-    http->SetContent(GetPostData());
-    http->Open("POST", check_version_url_);
+    if (post_data_.length() > 0) {
+        http->SetContent(post_data_);
+        http->Open("POST", check_version_url_);
+    } else {
+        http->Open("GET", check_version_url_);
+    }
 
     auto response = http->GetBody();
     http->Close();
@@ -94,7 +101,7 @@ void FirmwareUpgrade::CheckVersion() {
     }
 }
 
-void FirmwareUpgrade::MarkCurrentVersionValid() {
+void Ota::MarkCurrentVersionValid() {
     auto partition = esp_ota_get_running_partition();
     if (strcmp(partition->label, "factory") == 0) {
         ESP_LOGI(TAG, "Running from factory partition, skipping");
@@ -114,7 +121,7 @@ void FirmwareUpgrade::MarkCurrentVersionValid() {
     }
 }
 
-void FirmwareUpgrade::Upgrade(const std::string& firmware_url) {
+void Ota::Upgrade(const std::string& firmware_url) {
     ESP_LOGI(TAG, "Upgrading firmware from %s", firmware_url.c_str());
     esp_ota_handle_t update_handle = 0;
     auto update_partition = esp_ota_get_next_update_partition(NULL);
@@ -225,12 +232,12 @@ void FirmwareUpgrade::Upgrade(const std::string& firmware_url) {
     esp_restart();
 }
 
-void FirmwareUpgrade::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
+void Ota::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
     upgrade_callback_ = callback;
     Upgrade(firmware_url_);
 }
 
-std::vector<int> FirmwareUpgrade::ParseVersion(const std::string& version) {
+std::vector<int> Ota::ParseVersion(const std::string& version) {
     std::vector<int> versionNumbers;
     std::stringstream ss(version);
     std::string segment;
@@ -242,7 +249,7 @@ std::vector<int> FirmwareUpgrade::ParseVersion(const std::string& version) {
     return versionNumbers;
 }
 
-bool FirmwareUpgrade::IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion) {
+bool Ota::IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion) {
     std::vector<int> current = ParseVersion(currentVersion);
     std::vector<int> newer = ParseVersion(newVersion);
     
@@ -255,100 +262,4 @@ bool FirmwareUpgrade::IsNewVersionAvailable(const std::string& currentVersion, c
     }
     
     return newer.size() > current.size();
-}
-
-void FirmwareUpgrade::SetBoardJson(const std::string& board_json) {
-    board_json_ = board_json;
-}
-
-std::string FirmwareUpgrade::GetPostData() {
-    /* 
-        {
-            "flash_size": 4194304,
-            "psram_size": 0,
-            "minimum_free_heap_size": 123456,
-            "mac_address": "00:00:00:00:00:00",
-            "chip_model_name": "esp32s3",
-            "chip_info": {
-                "model": 1,
-                "cores": 2,
-                "revision": 0,
-                "features": 0
-            },
-            "application": {
-                "name": "my-app",
-                "version": "1.0.0",
-                "compile_time": "2021-01-01T00:00:00Z"
-                "idf_version": "4.2-dev"
-                "elf_sha256": ""
-            },
-            "partition_table": [
-                "app": {
-                    "label": "app",
-                    "type": 1,
-                    "subtype": 2,
-                    "address": 0x10000,
-                    "size": 0x100000
-                }
-            ],
-            "ota": {
-                "label": "ota_0"
-            }
-        }
-    */
-    std::string json = "{";
-    json += "\"flash_size\":" + std::to_string(SystemInfo::GetFlashSize()) + ",";
-    json += "\"minimum_free_heap_size\":" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) + ",";
-    json += "\"mac_address\":\"" + SystemInfo::GetMacAddress() + "\",";
-    json += "\"chip_model_name\":\"" + SystemInfo::GetChipModelName() + "\",";
-    json += "\"chip_info\":{";
-
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-    json += "\"model\":" + std::to_string(chip_info.model) + ",";
-    json += "\"cores\":" + std::to_string(chip_info.cores) + ",";
-    json += "\"revision\":" + std::to_string(chip_info.revision) + ",";
-    json += "\"features\":" + std::to_string(chip_info.features);
-    json += "},";
-
-    json += "\"application\":{";
-    auto app_desc = esp_app_get_description();
-    json += "\"name\":\"" + std::string(app_desc->project_name) + "\",";
-    json += "\"version\":\"" + std::string(app_desc->version) + "\",";
-    json += "\"compile_time\":\"" + std::string(app_desc->date) + "T" + std::string(app_desc->time) + "Z\",";
-    json += "\"idf_version\":\"" + std::string(app_desc->idf_ver) + "\",";
-
-    char sha256_str[65];
-    for (int i = 0; i < 32; i++) {
-        snprintf(sha256_str + i * 2, sizeof(sha256_str) - i * 2, "%02x", app_desc->app_elf_sha256[i]);
-    }
-    json += "\"elf_sha256\":\"" + std::string(sha256_str) + "\"";
-    json += "},";
-
-    json += "\"partition_table\": [";
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
-    while (it) {
-        const esp_partition_t *partition = esp_partition_get(it);
-        json += "{";
-        json += "\"label\":\"" + std::string(partition->label) + "\",";
-        json += "\"type\":" + std::to_string(partition->type) + ",";
-        json += "\"subtype\":" + std::to_string(partition->subtype) + ",";
-        json += "\"address\":" + std::to_string(partition->address) + ",";
-        json += "\"size\":" + std::to_string(partition->size);
-        json += "},";
-        it = esp_partition_next(it);
-    }
-    json.pop_back(); // Remove the last comma
-    json += "],";
-
-    json += "\"ota\":{";
-    auto ota_partition = esp_ota_get_running_partition();
-    json += "\"label\":\"" + std::string(ota_partition->label) + "\"";
-    json += "},";
-
-    json += "\"board\":" + board_json_;
-
-    // Close the JSON object
-    json += "}";
-    return json;
 }

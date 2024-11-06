@@ -1,11 +1,11 @@
-#include "Ml307Board.h"
-#include "Application.h"
+#include "ml307_board.h"
+#include "application.h"
 
 #include <esp_log.h>
-#include <Ml307Http.h>
-#include <Ml307SslTransport.h>
-#include <WebSocket.h>
 #include <esp_timer.h>
+#include <ml307_http.h>
+#include <ml307_ssl_transport.h>
+#include <web_socket.h>
 
 static const char *TAG = "Ml307Board";
 
@@ -37,8 +37,10 @@ void Ml307Board::StartNetwork() {
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
         application.Alert("Error", "PIN is not ready");
+        return;
     } else if (result == -2) {
         application.Alert("Error", "Registration denied");
+        return;
     }
 
     // Print the ML307 modem information
@@ -94,7 +96,7 @@ bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality,
     return signal_quality != -1;
 }
 
-std::string Ml307Board::GetJson() {
+std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
     std::string board_type = BOARD_TYPE;
     std::string module_name = modem_.GetModuleName();

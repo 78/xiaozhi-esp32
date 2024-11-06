@@ -2,12 +2,13 @@
 #define BOARD_H
 
 #include "config.h"
-#include <Http.h>
-#include <WebSocket.h>
-#include <AudioDevice.h>
+
+#include <http.h>
+#include <web_socket.h>
 #include <string>
 
 void* create_board();
+class AudioDevice;
 
 class Board {
 public:
@@ -27,7 +28,7 @@ public:
     virtual WebSocket* CreateWebSocket() = 0;
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;
     virtual bool GetBatteryVoltage(int &voltage, bool& charging);
-    virtual std::string GetJson() = 0;
+    virtual std::string GetJson();
 
 protected:
     Board() = default;
@@ -35,6 +36,7 @@ protected:
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
     Board& operator=(const Board&) = delete; // 禁用赋值操作
+    virtual std::string GetBoardJson() = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

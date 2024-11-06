@@ -1,14 +1,14 @@
-#include "WifiBoard.h"
-#include "BoxAudioDevice.h"
+#include "wifi_board.h"
+#include "box_audio_device.h"
 
 #include <esp_log.h>
 
-#define TAG "LiChuangDevBoard"
+#define TAG "EspBox3Board"
 
-class LiChuangDevBoard : public WifiBoard {
+class EspBox3Board : public WifiBoard {
 public:
     virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing LiChuangDevBoard");
+        ESP_LOGI(TAG, "Initializing EspBox3Board");
         WifiBoard::Initialize();
     }
 
@@ -17,4 +17,4 @@ public:
     }
 };
 
-DECLARE_BOARD(LiChuangDevBoard);
+DECLARE_BOARD(EspBox3Board);

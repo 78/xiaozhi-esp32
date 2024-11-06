@@ -1,18 +1,14 @@
-#include <BuiltinLed.h>
-#include <Ml307SslTransport.h>
-#include <WifiConfigurationAp.h>
-#include <WifiStation.h>
-#include <SystemInfo.h>
+#include "builtin_led.h"
+#include "system_info.h"
+#include "ml307_ssl_transport.h"
+#include "application.h"
 
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
-
-#include "Application.h"
 #include "lv_gui.h"
-
 #define TAG "Application"
 
 extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
@@ -41,10 +37,11 @@ Application::Application()
     if (16000 != AUDIO_INPUT_SAMPLE_RATE)
     {
         input_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
+        reference_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
     }
 
-    firmware_upgrade_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
-    firmware_upgrade_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application()
@@ -81,28 +78,24 @@ Application::~Application()
 void Application::CheckNewVersion()
 {
     // Check if there is a new firmware version available
-    firmware_upgrade_.SetBoardJson(Board::GetInstance().GetJson());
-    firmware_upgrade_.CheckVersion();
-    if (firmware_upgrade_.HasNewVersion())
-    {
+    ota_.SetPostData(Board::GetInstance().GetJson());
+    ota_.CheckVersion();
+    if (ota_.HasNewVersion()) {
         // Wait for the chat state to be idle
         while (chat_state_ != kChatStateIdle)
         {
             vTaskDelay(100);
         }
         SetChatState(kChatStateUpgrading);
-        firmware_upgrade_.StartUpgrade([this](int progress, size_t speed)
-                                       {
+        ota_.StartUpgrade([this](int progress, size_t speed) {
             char buffer[64];
             snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
             display_.SetText(buffer); });
         // If upgrade success, the device will reboot and never reach here
         ESP_LOGI(TAG, "Firmware upgrade failed...");
         SetChatState(kChatStateIdle);
-    }
-    else
-    {
-        firmware_upgrade_.MarkCurrentVersionValid();
+    } else {
+        ota_.MarkCurrentVersionValid();
     }
 }
 
@@ -129,6 +122,7 @@ void Application::PlayLocalFile(const char *data, size_t size)
 {
     ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
     SetDecodeSampleRate(16000);
+    audio_device_->EnableOutput(true);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -159,39 +153,33 @@ void Application::Start()
 
     audio_device_ = board.CreateAudioDevice();
     audio_device_->Initialize();
-    audio_device_->EnableOutput(true);
     audio_device_->EnableInput(true);
-    audio_device_->OnInputData([this](std::vector<int16_t> &&data)
-                               {
-                                   if (16000 != AUDIO_INPUT_SAMPLE_RATE)
-                                   {
-                                       if (audio_device_->input_channels() == 2)
-                                       {
-                                           auto left_channel = std::vector<int16_t>(data.size() / 2);
-                                           auto right_channel = std::vector<int16_t>(data.size() / 2);
-                                           for (size_t i = 0, j = 0; i < left_channel.size(); ++i, j += 2)
-                                           {
-                                               left_channel[i] = data[j];
-                                               right_channel[i] = data[j + 1];
-                                           }
-                                           auto resampled_left = std::vector<int16_t>(input_resampler_.GetOutputSamples(left_channel.size()));
-                                           auto resampled_right = std::vector<int16_t>(input_resampler_.GetOutputSamples(right_channel.size()));
-                                           input_resampler_.Process(left_channel.data(), left_channel.size(), resampled_left.data());
-                                           input_resampler_.Process(right_channel.data(), right_channel.size(), resampled_right.data());
-                                           data.resize(resampled_left.size() + resampled_right.size());
-                                           for (size_t i = 0, j = 0; i < resampled_left.size(); ++i, j += 2)
-                                           {
-                                               data[j] = resampled_left[i];
-                                               data[j + 1] = resampled_right[i];
-                                           }
-                                       }
-                                       else
-                                       {
-                                           auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
-                                           input_resampler_.Process(data.data(), data.size(), resampled.data());
-                                           data = std::move(resampled);
-                                       }
-                                   }
+    audio_device_->EnableOutput(true);
+    audio_device_->EnableOutput(false);
+    audio_device_->OnInputData([this](std::vector<int16_t>&& data) {
+        if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
+            if (audio_device_->input_channels() == 2) {
+                auto mic_channel = std::vector<int16_t>(data.size() / 2);
+                auto reference_channel = std::vector<int16_t>(data.size() / 2);
+                for (size_t i = 0, j = 0; i < mic_channel.size(); ++i, j += 2) {
+                    mic_channel[i] = data[j];
+                    reference_channel[i] = data[j + 1];
+                }
+                auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
+                auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+                input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
+                reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+                data.resize(resampled_mic.size() + resampled_reference.size());
+                for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
+                    data[j] = resampled_mic[i];
+                    data[j + 1] = resampled_reference[i];
+                }
+            } else {
+                auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
+                input_resampler_.Process(data.data(), data.size(), resampled.data());
+                data = std::move(resampled);
+            }
+        }
 #ifdef CONFIG_USE_AFE_SR
                                    if (audio_processor_.IsRunning())
                                    {
@@ -363,7 +351,7 @@ void Application::Start()
             } }); });
 #endif
 
-    SetChatState(kChatStateIdle);
+    chat_state_ = kChatStateIdle;
     display_.UpdateDisplay();
 }
 
@@ -400,9 +388,7 @@ void Application::AbortSpeaking()
     {
         cJSON *root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "abort");
-        char *json = cJSON_PrintUnformatted(root);
-
-        std::lock_guard<std::mutex> lock(mutex_);
+        char* json = cJSON_PrintUnformatted(root);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
@@ -471,18 +457,16 @@ void Application::SetChatState(ChatState state)
         cJSON *root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "state");
         cJSON_AddStringToObject(root, "state", state_str[chat_state_]);
-        char *json = cJSON_PrintUnformatted(root);
-
-        std::lock_guard<std::mutex> lock(mutex_);
+        char* json = cJSON_PrintUnformatted(root);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
     }
 }
 
-BinaryProtocol3 *Application::AllocateBinaryProtocol3(const uint8_t *payload, size_t payload_size)
-{
-    auto protocol = (BinaryProtocol3 *)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
+BinaryProtocol3* Application::AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size) {
+    auto protocol = (BinaryProtocol3*)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
+    assert(protocol != nullptr);
     protocol->type = 0;
     protocol->reserved = 0;
     protocol->payload_size = htons(payload_size);
@@ -494,7 +478,7 @@ BinaryProtocol3 *Application::AllocateBinaryProtocol3(const uint8_t *payload, si
 void Application::AudioEncodeTask()
 {
     ESP_LOGI(TAG, "Audio encode task started");
-    const int max_audio_play_queue_size_ = 2;
+    const int max_audio_play_queue_size_ = 2; // avoid decoding too fast
 
     while (true)
     {
@@ -759,6 +743,7 @@ memset(minimax_content, 0, sizeof(minimax_content));
                                {
         ESP_LOGI(TAG, "Websocket disconnected");
         Schedule([this]() {
+            audio_device_->EnableOutput(false);
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Stop();
 #endif
@@ -772,4 +757,7 @@ memset(minimax_content, 0, sizeof(minimax_content));
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         return;
     }
+
+    // 建立语音通道后打开音频输出，避免待机时喇叭底噪
+    audio_device_->EnableOutput(true);
 }

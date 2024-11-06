@@ -1,9 +1,9 @@
+#include "wake_word_detect.h"
+#include "application.h"
+
 #include <esp_log.h>
 #include <model_path.h>
 #include <arpa/inet.h>
-
-#include "WakeWordDetect.h"
-#include "Application.h"
 
 #define DETECTION_RUNNING_EVENT 1
 #define WAKE_WORD_ENCODED_EVENT 2

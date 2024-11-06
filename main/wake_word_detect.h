@@ -1,12 +1,12 @@
 #ifndef WAKE_WORD_DETECT_H
 #define WAKE_WORD_DETECT_H
 
-#include <esp_afe_sr_models.h>
-#include <esp_nsn_models.h>
-
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
+
+#include <esp_afe_sr_models.h>
+#include <esp_nsn_models.h>
 
 #include <list>
 #include <string>

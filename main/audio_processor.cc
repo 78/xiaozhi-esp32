@@ -1,4 +1,4 @@
-#include "AudioProcessor.h"
+#include "audio_processor.h"
 #include <esp_log.h>
 
 #define PROCESSOR_RUNNING 0x01

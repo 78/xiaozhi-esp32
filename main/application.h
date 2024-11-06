@@ -1,29 +1,29 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
-#include <OpusEncoder.h>
-#include <OpusResampler.h>
-#include <WebSocket.h>
-
-#include <opus.h>
-#include <resampler_structs.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
+#include <opus.h>
 #include <mutex>
 #include <list>
 #include <condition_variable>
 
-#include "AudioDevice.h"
-#include "Display.h"
-#include "Board.h"
-#include "FirmwareUpgrade.h"
+#include "opus_encoder.h"
+#include "opus_resampler.h"
+#include <web_socket.h>
+
+#include "audio_device.h"
+#include "display.h"
+#include "board.h"
+#include "ota.h"
 
 #ifdef CONFIG_USE_AFE_SR
-#include "WakeWordDetect.h"
-#include "AudioProcessor.h"
+#include "wake_word_detect.h"
+#include "audio_processor.h"
 #endif
 
-#include "Button.h"
+#include "button.h"
 
 #define DETECTION_RUNNING 1
 #define COMMUNICATION_RUNNING 2
@@ -95,7 +95,7 @@ private:
     WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
 #endif
-    FirmwareUpgrade firmware_upgrade_;
+    Ota ota_;
     std::mutex mutex_;
     std::condition_variable_any cv_;
     std::list<std::function<void()>> main_tasks_;
@@ -120,6 +120,7 @@ private:
     int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
     OpusResampler input_resampler_;
+    OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
     TaskHandle_t main_loop_task_ = nullptr;
