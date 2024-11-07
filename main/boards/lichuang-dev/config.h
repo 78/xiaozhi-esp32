@@ -30,6 +30,6 @@
 #define DISPLAY_HEIGHT  240
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y false
-
+#define BACKLIGHT_INVERT true
 
 #endif // _BOARD_CONFIG_H_

@@ -24,6 +24,7 @@ void Display::SetupUI()
     // lv_obj_set_style_text_font(label_, font_, 0);
     lv_obj_set_style_text_font(label_, &font_dingding, LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(label_, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_obj_align(label_, LV_ALIGN_BOTTOM_LEFT, 10, 20);
 
     // lv_obj_set_style_text_color(label_, lv_color_black(), 0);
     lv_label_set_text(label_, "Initializing...");
@@ -33,6 +34,7 @@ void Display::SetupUI()
     notification_ = lv_label_create(lv_disp_get_scr_act(disp_));
     lv_obj_set_style_text_font(notification_, &font_dingding, LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(notification_, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_align(notification_, LV_ALIGN_TOP_LEFT, 10, 40);
 
     // lv_obj_set_style_text_font(notification_, font_, 0);
     // lv_obj_set_style_text_color(notification_, lv_color_black(), 0);

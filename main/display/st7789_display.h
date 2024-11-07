@@ -13,6 +13,7 @@ private:
     esp_lcd_panel_handle_t panel_ = nullptr;
     bool mirror_x_ = false;
     bool mirror_y_ = false;
+    bool bl_output_invert_ = false;
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
@@ -22,7 +23,7 @@ private:
 
 public:
     St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, gpio_num_t backlight_pin,
-                  int width, int height, bool mirror_x, bool mirror_y);
+                  int width, int height, bool mirror_x, bool mirror_y, bool bl_output_invert);
     ~St7789Display();
 };
 

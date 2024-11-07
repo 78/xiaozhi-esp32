@@ -97,11 +97,11 @@ public:
             ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
             ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
             ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
-            // ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, false));
-            // ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, false, false));
+            ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, false));
+            ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
             ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
-            display = new St7789Display(panel_io, panel, GPIO_NUM_48, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+            display = new St7789Display(panel_io, panel, GPIO_NUM_48, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, BACKLIGHT_INVERT);
         }
         return display;
     }

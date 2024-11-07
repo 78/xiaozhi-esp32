@@ -10,8 +10,8 @@
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
 St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, gpio_num_t backlight_pin,
-                             int width, int height, bool mirror_x, bool mirror_y)
-    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y)
+                             int width, int height, bool mirror_x, bool mirror_y, bool bl_output_invert)
+    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y), bl_output_invert_(bl_output_invert)
 {
     width_ = width;
     height_ = height;
@@ -44,11 +44,6 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
-        .rotation = {
-            .swap_xy = false,
-            .mirror_x = mirror_x_,
-            .mirror_y = mirror_y_,
-        },
         .flags = {
             .buff_dma = 1,
             .buff_spiram = 0,
@@ -93,7 +88,7 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
         .duty = 0,
         .hpoint = 0,
         .flags = {
-            .output_invert = false}};
+            .output_invert = bl_output_invert_}};
     const ledc_timer_config_t backlight_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
