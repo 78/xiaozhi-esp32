@@ -56,12 +56,14 @@ def get_app_desc(data):
 def get_board_name(folder):
     basename = os.path.basename(folder)
     if basename.startswith("v0.2"):
-        return "simple"
-    if basename.startswith("v0.3") or basename.startswith("v0.4"):
+        return "bread-simple"
+    if basename.startswith("v0.3") or basename.startswith("v0.4") or basename.startswith("v0.5") or basename.startswith("v0.6"):
         if "ML307" in basename:
-            return "compact.4g"
-        else:
-            return "compact.wifi"
+            return "bread-compact-ml307"
+        elif "WiFi" in basename:
+            return "bread-compact-wifi"
+        elif "KevinBox1" in basename:
+            return "kevin-box-1"
     raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):

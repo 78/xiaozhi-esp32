@@ -18,218 +18,29 @@ config WEBSOCKET_ACCESS_TOKEN
     help
         Access token for websocket communication.
 
-config AUDIO_INPUT_SAMPLE_RATE
-    int "Audio Input Sample Rate"
-    default 16000
+choice BOARD_TYPE
+    prompt "Board Type"
+    default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
-        Audio input sample rate.
-
-config AUDIO_OUTPUT_SAMPLE_RATE
-    int "Audio Output Sample Rate"
-    default 24000
-    help
-        Audio output sample rate.
-
-choice AUDIO_CODEC
-    prompt "Audio Codec"
-    default AUDIO_CODEC_NONE
-    help
-        Audio codec.
-    config AUDIO_CODEC_ES8311_ES7210
-        bool "Box: ES8311 + ES7210"
-    config AUDIO_CODEC_NONE
-        bool "None"
+        Board type. 开发板类型
+    config BOARD_TYPE_BREAD_COMPACT_WIFI
+        bool "面包板新版接线（WiFi）"
+    config BOARD_TYPE_BREAD_COMPACT_ML307
+        bool "面包板新版接线（ML307 AT）"
+    config BOARD_TYPE_ESP_BOX_3
+        bool "ESP BOX 3"
+    config BOARD_TYPE_KEVIN_BOX_0
+        bool "Kevin Box 0"
+    config BOARD_TYPE_KEVIN_BOX_1
+        bool "Kevin Box 1"
+    config BOARD_TYPE_LICHUANG_DEV
+        bool "立创开发板"
 endchoice
-
-menu "Box Audio Codec I2C and PA Control"
-    depends on AUDIO_CODEC_ES8311_ES7210
-    
-    config AUDIO_CODEC_I2C_SDA_PIN
-        int "Audio Codec I2C SDA Pin"
-        default 39
-        help
-            Audio codec I2C SDA pin.
-
-    config AUDIO_CODEC_I2C_SCL_PIN
-        int "Audio Codec I2C SCL Pin"
-        default 38
-        help
-            Audio codec I2C SCL pin.
-    
-    config AUDIO_CODEC_PA_PIN
-        int "Audio Codec PA Pin"
-        default 40
-        help
-            Audio codec PA pin.
-    
-    config AUDIO_CODEC_INPUT_REFERENCE
-        bool "Audio Codec Input Reference"
-        default y
-        help
-            Audio codec input reference.
-endmenu
-
-choice AUDIO_I2S_METHOD
-    prompt "Audio I2S Method"
-    default AUDIO_I2S_METHOD_SIMPLEX if AUDIO_CODEC_NONE
-    default AUDIO_I2S_METHOD_DUPLEX if AUDIO_CODEC_ES8311_ES7210
-    help
-        Audio I2S method.
-    config AUDIO_I2S_METHOD_SIMPLEX
-        bool "Simplex"
-        help
-            Use I2S 0 as the audio input and I2S 1 as the audio output.
-    config AUDIO_I2S_METHOD_DUPLEX
-        bool "Duplex"
-        help
-            Use I2S 0 as the audio input and audio output.
-endchoice
-
-menu "Audio I2S Simplex"
-    depends on AUDIO_I2S_METHOD_SIMPLEX
-
-    config AUDIO_DEVICE_I2S_MIC_GPIO_WS
-        int "I2S MIC GPIO WS"
-        default 4
-        help
-            GPIO number of the I2S MIC WS.
-
-    config AUDIO_DEVICE_I2S_MIC_GPIO_SCK
-        int "I2S MIC GPIO BCLK"
-        default 5
-        help
-            GPIO number of the I2S MIC SCK.
-
-    config AUDIO_DEVICE_I2S_MIC_GPIO_DIN
-        int "I2S MIC GPIO DIN"
-        default 6
-        help
-            GPIO number of the I2S MIC DIN.
-
-    config AUDIO_DEVICE_I2S_SPK_GPIO_DOUT
-        int "I2S SPK GPIO DOUT"
-        default 7
-        help
-            GPIO number of the I2S SPK DOUT.
-        
-    config AUDIO_DEVICE_I2S_SPK_GPIO_BCLK
-        int "I2S SPK GPIO BCLK"
-        default 15
-        help
-            GPIO number of the I2S SPK BCLK.
-        
-    config AUDIO_DEVICE_I2S_SPK_GPIO_LRCK
-        int "I2S SPK GPIO WS"
-        default 16
-        help
-            GPIO number of the I2S SPK LRCK.
-
-endmenu
-
-menu "Audio I2S Duplex"
-    depends on AUDIO_I2S_METHOD_DUPLEX
-
-    config AUDIO_DEVICE_I2S_GPIO_MCLK
-        int "I2S GPIO MCLK"
-        default -1
-        help
-            GPIO number of the I2S WS.
-
-    config AUDIO_DEVICE_I2S_GPIO_LRCK
-        int "I2S GPIO LRCK"
-        default 4
-        help
-            GPIO number of the I2S LRCK.
-
-    config AUDIO_DEVICE_I2S_GPIO_BCLK
-        int "I2S GPIO BCLK / SCLK"
-        default 5
-        help
-            GPIO number of the I2S BCLK.
-
-    config AUDIO_DEVICE_I2S_GPIO_DIN
-        int "I2S GPIO DIN"
-        default 6
-        help
-            GPIO number of the I2S DIN.
-
-    config AUDIO_DEVICE_I2S_GPIO_DOUT
-        int "I2S GPIO DOUT"
-        default 7
-        help
-            GPIO number of the I2S DOUT.
-
-endmenu
-
-config BOOT_BUTTON_GPIO
-    int "Boot Button GPIO"
-    default 0
-    help
-        GPIO number of the boot button.
-
-config VOLUME_UP_BUTTON_GPIO
-    int "Volume Up Button GPIO"
-    default 40
-    help
-        GPIO number of the volume up button.
-
-config VOLUME_DOWN_BUTTON_GPIO
-    int "Volume Down Button GPIO"
-    default 39
-    help
-        GPIO number of the volume down button.
 
 config USE_AFE_SR
     bool "Use Espressif AFE SR"
     default y
     help
         Use AFE SR for wake word detection.
-
-config USE_ML307
-    bool "Use ML307"
-    default n
-    help
-        Use ML307 as the modem.
-
-config ML307_RX_PIN
-    int "ML307 RX Pin"
-    default 11
-    depends on USE_ML307
-    help
-        GPIO number of the ML307 RX.
-
-config ML307_TX_PIN
-    int "ML307 TX Pin"
-    default 12
-    depends on USE_ML307
-    help
-        GPIO number of the ML307 TX.
-
-config USE_DISPLAY
-    bool "Use Display"
-    default n
-    help
-        Use Display.
-
-config DISPLAY_HEIGHT
-    int "Display Height"
-    default 32
-    depends on USE_DISPLAY
-    help
-        Display height in pixels.
-
-config DISPLAY_SDA_PIN
-    int "Display SDA Pin"
-    default 41
-    depends on USE_DISPLAY
-    help
-        GPIO number of the Display SDA.
-
-config DISPLAY_SCL_PIN
-    int "Display SCL Pin"
-    default 42
-    depends on USE_DISPLAY
-    help
-        GPIO number of the Display SCL.
 
 endmenu

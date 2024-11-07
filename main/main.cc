@@ -5,54 +5,16 @@
 #include <driver/gpio.h>
 #include <esp_event.h>
 
-#include "Application.h"
-#include "SystemInfo.h"
-#include "SystemReset.h"
-#include "lvgl.h"
-#include "lv_gui.h"
-#include "esp_lcd_touch_cst816s.h"
-
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_io_expander_tca9554.h"
-#include "esp_freertos_hooks.h"
-#include "avi_player.h"
-#include "lv_demos.h"
-#include "usbh_modem_board.h"
-#include "esp_netif.h"
-#include "file_manager.h"
-#include "esp_lvgl_port.h"
+#include "application.h"
+#include "system_info.h"
 
 #define TAG "main"
 
-#define BSP_IO_EXPANDER_I2C_ADDRESS_TCA9554A (ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000)
-#define BSP_IO_EXPANDER_I2C_ADDRESS_TCA9554 (ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000)
 
-#define I2C_SCL_IO (GPIO_NUM_18)
-#define I2C_SDA_IO (GPIO_NUM_17)
 esp_err_t tfcard_ret = ESP_FAIL;
 
 extern "C" void app_main(void)
 {
-#ifdef CONFIG_AUDIO_CODEC_ES8311_ES7210
-    // Make GPIO15 HIGH to enable the 4G module
-    gpio_config_t ml307_enable_config = {
-        .pin_bit_mask = (1ULL << 15),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&ml307_enable_config);
-    gpio_set_level(GPIO_NUM_15, 1);
-#endif
-
-    // Check if the reset button is pressed
-    SystemReset system_reset;
-    system_reset.CheckButtons();
-
     // Initialize the default event loop
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
