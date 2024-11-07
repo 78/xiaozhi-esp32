@@ -1,1 +1,0 @@
-#cmakedefine PACKAGE_VERSION "@PACKAGE_VERSION@"

@@ -1,14 +1,14 @@
-#include "builtin_led.h"
+#include "application.h"
 #include "system_info.h"
 #include "ml307_ssl_transport.h"
-#include "application.h"
+#include "audio_codec.h"
 
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
-#include "lv_gui.h"
+
 #define TAG "Application"
 
 extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
@@ -17,42 +17,18 @@ extern const char p3_err_pin_start[] asm("_binary_err_pin_p3_start");
 extern const char p3_err_pin_end[] asm("_binary_err_pin_p3_end");
 extern const char p3_err_wificonfig_start[] asm("_binary_err_wificonfig_p3_start");
 extern const char p3_err_wificonfig_end[] asm("_binary_err_wificonfig_p3_end");
-char ask_text[256] = {0}; // 存储提问的文字
-char minimax_content[2048] = {0};
+
 
 Application::Application()
-    : boot_button_((gpio_num_t)BOOT_BUTTON_GPIO),
-      volume_up_button_((gpio_num_t)VOLUME_UP_BUTTON_GPIO),
-      volume_down_button_((gpio_num_t)VOLUME_DOWN_BUTTON_GPIO),
-      display_(DISPLAY_SDA_PIN, DISPLAY_SCL_PIN)
 {
     event_group_ = xEventGroupCreate();
-
-    opus_encoder_.Configure(16000, 1);
-    opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
-    if (opus_decode_sample_rate_ != AUDIO_OUTPUT_SAMPLE_RATE)
-    {
-        output_resampler_.Configure(AUDIO_OUTPUT_SAMPLE_RATE, opus_decode_sample_rate_);
-    }
-    if (16000 != AUDIO_INPUT_SAMPLE_RATE)
-    {
-        input_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
-        reference_resampler_.Configure(AUDIO_INPUT_SAMPLE_RATE, 16000);
-    }
 
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
-Application::~Application()
-{
-    if (update_display_timer_ != nullptr)
-    {
-        esp_timer_stop(update_display_timer_);
-        esp_timer_delete(update_display_timer_);
-    }
-    if (ws_client_ != nullptr)
-    {
+Application::~Application() {
+    if (ws_client_ != nullptr) {
         delete ws_client_;
     }
     if (opus_decoder_ != nullptr)
@@ -67,10 +43,6 @@ Application::~Application()
     {
         heap_caps_free(main_loop_task_stack_);
     }
-    if (audio_device_ != nullptr)
-    {
-        delete audio_device_;
-    }
 
     vEventGroupDelete(event_group_);
 }
@@ -80,21 +52,26 @@ void Application::CheckNewVersion()
     // Check if there is a new firmware version available
     ota_.SetPostData(Board::GetInstance().GetJson());
     ota_.CheckVersion();
-    if (ota_.HasNewVersion()) {
+    if (ota_.HasNewVersion())
+    {
         // Wait for the chat state to be idle
         while (chat_state_ != kChatStateIdle)
         {
             vTaskDelay(100);
         }
         SetChatState(kChatStateUpgrading);
-        ota_.StartUpgrade([this](int progress, size_t speed) {
+        ota_.StartUpgrade([](int progress, size_t speed)
+                          {
             char buffer[64];
             snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
-            display_.SetText(buffer); });
+            auto display = Board::GetInstance().GetDisplay();
+            display->SetText(buffer); });
         // If upgrade success, the device will reboot and never reach here
         ESP_LOGI(TAG, "Firmware upgrade failed...");
         SetChatState(kChatStateIdle);
-    } else {
+    }
+    else
+    {
         ota_.MarkCurrentVersionValid();
     }
 }
@@ -102,7 +79,8 @@ void Application::CheckNewVersion()
 void Application::Alert(const std::string &&title, const std::string &&message)
 {
     ESP_LOGE(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
-    display_.ShowNotification(std::string(title + "\n" + message));
+    auto display = Board::GetInstance().GetDisplay();
+    display->ShowNotification(std::string(title + "\n" + message));
 
     if (message == "PIN is not ready")
     {
@@ -122,7 +100,8 @@ void Application::PlayLocalFile(const char *data, size_t size)
 {
     ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
     SetDecodeSampleRate(16000);
-    audio_device_->EnableOutput(true);
+    auto codec = Board::GetInstance().GetAudioCodec();
+    codec->EnableOutput(true);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -142,63 +121,107 @@ void Application::PlayLocalFile(const char *data, size_t size)
     }
 }
 
+void Application::ToggleChatState()
+{
+    Schedule([this]()
+             {
+        if (chat_state_ == kChatStateIdle) {
+            SetChatState(kChatStateConnecting);
+            StartWebSocketClient();
+
+            if (ws_client_ && ws_client_->IsConnected()) {
+                opus_encoder_.ResetState();
+#ifdef CONFIG_USE_AFE_SR
+                audio_processor_.Start();
+#endif
+                SetChatState(kChatStateListening);
+                ESP_LOGI(TAG, "Communication started");
+            } else {
+                SetChatState(kChatStateIdle);
+            }
+        } else if (chat_state_ == kChatStateSpeaking) {
+            AbortSpeaking();
+        } else if (chat_state_ == kChatStateListening) {
+            if (ws_client_ && ws_client_->IsConnected()) {
+                ws_client_->Close();
+            }
+        } });
+}
+
 void Application::Start()
 {
-    auto &builtin_led = BuiltinLed::GetInstance();
-    builtin_led.SetBlue();
-    builtin_led.StartContinuousBlink(100);
-
     auto &board = Board::GetInstance();
     board.Initialize();
 
-    audio_device_ = board.CreateAudioDevice();
-    audio_device_->Initialize();
-    audio_device_->EnableInput(true);
-    audio_device_->EnableOutput(true);
-    audio_device_->EnableOutput(false);
-    audio_device_->OnInputData([this](std::vector<int16_t>&& data) {
-        if (16000 != AUDIO_INPUT_SAMPLE_RATE) {
-            if (audio_device_->input_channels() == 2) {
-                auto mic_channel = std::vector<int16_t>(data.size() / 2);
-                auto reference_channel = std::vector<int16_t>(data.size() / 2);
-                for (size_t i = 0, j = 0; i < mic_channel.size(); ++i, j += 2) {
-                    mic_channel[i] = data[j];
-                    reference_channel[i] = data[j + 1];
-                }
-                auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
-                auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
-                input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
-                reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
-                data.resize(resampled_mic.size() + resampled_reference.size());
-                for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
-                    data[j] = resampled_mic[i];
-                    data[j + 1] = resampled_reference[i];
-                }
-            } else {
-                auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
-                input_resampler_.Process(data.data(), data.size(), resampled.data());
-                data = std::move(resampled);
-            }
-        }
+    auto builtin_led = board.GetBuiltinLed();
+    builtin_led->SetBlue();
+    builtin_led->StartContinuousBlink(100);
+
+    auto display = board.GetDisplay();
+    display->SetupUI();
+
+    auto codec = board.GetAudioCodec();
+    opus_decode_sample_rate_ = codec->output_sample_rate();
+    opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
+    opus_encoder_.Configure(16000, 1);
+    if (codec->input_sample_rate() != 16000) {
+        input_resampler_.Configure(codec->input_sample_rate(), 16000);
+        reference_resampler_.Configure(codec->input_sample_rate(), 16000);
+    }
+
+    codec->EnableInput(true);
+    codec->EnableOutput(true);
+    codec->EnableOutput(false);
+    codec->OnInputData([this, codec](std::vector<int16_t> &&data)
+                       {
+                           if (codec->input_sample_rate() != 16000)
+                           {
+                               if (codec->input_channels() == 2)
+                               {
+                                   auto mic_channel = std::vector<int16_t>(data.size() / 2);
+                                   auto reference_channel = std::vector<int16_t>(data.size() / 2);
+                                   for (size_t i = 0, j = 0; i < mic_channel.size(); ++i, j += 2)
+                                   {
+                                       mic_channel[i] = data[j];
+                                       reference_channel[i] = data[j + 1];
+                                   }
+                                   auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
+                                   auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+                                   input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
+                                   reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+                                   data.resize(resampled_mic.size() + resampled_reference.size());
+                                   for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2)
+                                   {
+                                       data[j] = resampled_mic[i];
+                                       data[j + 1] = resampled_reference[i];
+                                   }
+                               }
+                               else
+                               {
+                                   auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
+                                   input_resampler_.Process(data.data(), data.size(), resampled.data());
+                                   data = std::move(resampled);
+                               }
+                           }
 #ifdef CONFIG_USE_AFE_SR
-                                   if (audio_processor_.IsRunning())
-                                   {
-                                       audio_processor_.Input(data);
-                                   }
-                                   if (wake_word_detect_.IsDetectionRunning())
-                                   {
-                                       wake_word_detect_.Feed(data);
-                                   }
+                           if (audio_processor_.IsRunning())
+                           {
+                               audio_processor_.Input(data);
+                           }
+                           if (wake_word_detect_.IsDetectionRunning())
+                           {
+                               wake_word_detect_.Feed(data);
+                           }
 #else
-                                   Schedule([this, data = std::move(data)]()
-                                            {
+                           Schedule([this, data = std::move(data)]()
+                                    {
             if (chat_state_ == kChatStateListening) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 audio_encode_queue_.emplace_back(std::move(data));
                 cv_.notify_all();
             } });
 #endif
-                               });
+                       });
 
     // OPUS encoder / decoder use a lot of stack memory
     const size_t opus_stack_size = 4096 * 8;
@@ -217,65 +240,8 @@ void Application::Start()
 
     board.StartNetwork();
     // Blink the LED to indicate the device is running
-    builtin_led.SetGreen();
-    builtin_led.BlinkOnce();
-
-    boot_button_.OnClick([this]()
-                         { Schedule([this]()
-                                    {
-            if (chat_state_ == kChatStateIdle) {
-                SetChatState(kChatStateConnecting);
-                StartWebSocketClient();
-
-                if (ws_client_ && ws_client_->IsConnected()) {
-                    opus_encoder_.ResetState();
-#ifdef CONFIG_USE_AFE_SR
-                    audio_processor_.Start();
-#endif
-                    SetChatState(kChatStateListening);
-                    ESP_LOGI(TAG, "Communication started");
-                } else {
-                    SetChatState(kChatStateIdle);
-                }
-            } else if (chat_state_ == kChatStateSpeaking) {
-                AbortSpeaking();
-            } else if (chat_state_ == kChatStateListening) {
-                if (ws_client_ && ws_client_->IsConnected()) {
-                    ws_client_->Close();
-                }
-            } }); });
-
-    volume_up_button_.OnClick([this]()
-                              { Schedule([this]()
-                                         {
-            auto volume = audio_device_->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            audio_device_->SetOutputVolume(volume);
-            display_.ShowNotification("Volume\n" + std::to_string(volume)); }); });
-
-    volume_up_button_.OnLongPress([this]()
-                                  { Schedule([this]()
-                                             {
-            audio_device_->SetOutputVolume(100);
-            display_.ShowNotification("Volume\n100"); }); });
-
-    volume_down_button_.OnClick([this]()
-                                { Schedule([this]()
-                                           {
-            auto volume = audio_device_->output_volume() - 10;
-            if (volume < 0) {
-                volume = 0;
-            }
-            audio_device_->SetOutputVolume(volume);
-            display_.ShowNotification("Volume\n" + std::to_string(volume)); }); });
-
-    volume_down_button_.OnLongPress([this]()
-                                    { Schedule([this]()
-                                               {
-            audio_device_->SetOutputVolume(0);
-            display_.ShowNotification("Volume\n0"); }); });
+    builtin_led->SetGreen();
+    builtin_led->BlinkOnce();
 
     const size_t main_loop_stack_size = 4096 * 2;
     main_loop_task_stack_ = (StackType_t *)heap_caps_malloc(main_loop_stack_size, MALLOC_CAP_SPIRAM);
@@ -293,18 +259,29 @@ void Application::Start()
         vTaskDelete(NULL); }, "check_new_version", 4096 * 2, this, 1, NULL);
 
 #ifdef CONFIG_USE_AFE_SR
-    wake_word_detect_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
+    audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
+    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
+        Schedule([this, data = std::move(data)]() {
+            if (chat_state_ == kChatStateListening) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                audio_encode_queue_.emplace_back(std::move(data));
+                cv_.notify_all();
+            }
+        });
+    });
+
+    wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking)
                                        { Schedule([this, speaking]()
                                                   {
-            auto& builtin_led = BuiltinLed::GetInstance();
+            auto builtin_led = Board::GetInstance().GetBuiltinLed();
             if (chat_state_ == kChatStateListening) {
                 if (speaking) {
-                    builtin_led.SetRed(32);
+                    builtin_led->SetRed(32);
                 } else {
-                    builtin_led.SetRed(8);
+                    builtin_led->SetRed(8);
                 }
-                builtin_led.TurnOn();
+                builtin_led->TurnOn();
             } }); });
 
     wake_word_detect_.OnWakeWordDetected([this]()
@@ -339,20 +316,10 @@ void Application::Start()
             // Resume detection
             wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
-
-    audio_processor_.Initialize(audio_device_->input_channels(), audio_device_->input_reference());
-    audio_processor_.OnOutput([this](std::vector<int16_t> &&data)
-                              { Schedule([this, data = std::move(data)]()
-                                         {
-            if (chat_state_ == kChatStateListening) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                audio_encode_queue_.emplace_back(std::move(data));
-                cv_.notify_all();
-            } }); });
 #endif
 
     chat_state_ = kChatStateIdle;
-    display_.UpdateDisplay();
+    display->UpdateDisplay();
 }
 
 void Application::Schedule(std::function<void()> callback)
@@ -388,7 +355,7 @@ void Application::AbortSpeaking()
     {
         cJSON *root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "abort");
-        char* json = cJSON_PrintUnformatted(root);
+        char *json = cJSON_PrintUnformatted(root);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
@@ -415,40 +382,37 @@ void Application::SetChatState(ChatState state)
     chat_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", state_str[chat_state_]);
 
-    auto &builtin_led = BuiltinLed::GetInstance();
+    auto display = Board::GetInstance().GetDisplay();
+    auto builtin_led = Board::GetInstance().GetBuiltinLed();
     switch (chat_state_)
     {
     case kChatStateUnknown:
     case kChatStateIdle:
-        builtin_led.TurnOff();
-        sr_anim_stop();
-        label_ask_set_text("可以唤醒我啦");
-        label_reply_set_text("");
-        audio_device_->EnableOutput(false);
+        builtin_led->TurnOff();
+        display->SetText("I'm\nIdle.");
         break;
     case kChatStateConnecting:
-        builtin_led.SetBlue();
-        builtin_led.TurnOn();
+        builtin_led->SetBlue();
+        builtin_led->TurnOn();
+        display->SetText("I'm\nConnecting...");
         break;
     case kChatStateListening:
-        builtin_led.SetRed();
-        builtin_led.TurnOn();
-        sr_anim_start();
-        label_ask_set_text("聆听中...");
+        builtin_led->SetRed();
+        builtin_led->TurnOn();
+        display->SetText("I'm\nListening...");
         break;
     case kChatStateSpeaking:
-        builtin_led.SetGreen();
-        builtin_led.TurnOn();
-        audio_device_->EnableOutput(true);
-        sr_anim_stop();
+        builtin_led->SetGreen();
+        builtin_led->TurnOn();
+        display->SetText("I'm\nSpeaking...");
         break;
     case kChatStateWakeWordDetected:
-        builtin_led.SetBlue();
-        builtin_led.TurnOn();
+        builtin_led->SetBlue();
+        builtin_led->TurnOn();
         break;
     case kChatStateUpgrading:
-        builtin_led.SetGreen();
-        builtin_led.StartContinuousBlink(100);
+        builtin_led->SetGreen();
+        builtin_led->StartContinuousBlink(100);
         break;
     }
 
@@ -457,15 +421,16 @@ void Application::SetChatState(ChatState state)
         cJSON *root = cJSON_CreateObject();
         cJSON_AddStringToObject(root, "type", "state");
         cJSON_AddStringToObject(root, "state", state_str[chat_state_]);
-        char* json = cJSON_PrintUnformatted(root);
+        char *json = cJSON_PrintUnformatted(root);
         ws_client_->Send(json);
         cJSON_Delete(root);
         free(json);
     }
 }
 
-BinaryProtocol3* Application::AllocateBinaryProtocol3(const uint8_t* payload, size_t payload_size) {
-    auto protocol = (BinaryProtocol3*)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
+BinaryProtocol3 *Application::AllocateBinaryProtocol3(const uint8_t *payload, size_t payload_size)
+{
+    auto protocol = (BinaryProtocol3 *)heap_caps_malloc(sizeof(BinaryProtocol3) + payload_size, MALLOC_CAP_SPIRAM);
     assert(protocol != nullptr);
     protocol->type = 0;
     protocol->reserved = 0;
@@ -479,6 +444,7 @@ void Application::AudioEncodeTask()
 {
     ESP_LOGI(TAG, "Audio encode task started");
     const int max_audio_play_queue_size_ = 2; // avoid decoding too fast
+    auto codec = Board::GetInstance().GetAudioCodec();
 
     while (true)
     {
@@ -524,7 +490,7 @@ void Application::AudioEncodeTask()
                     continue;
                 }
 
-                if (opus_decode_sample_rate_ != AUDIO_OUTPUT_SAMPLE_RATE)
+                if (opus_decode_sample_rate_ != codec->output_sample_rate())
                 {
                     int target_size = output_resampler_.GetOutputSamples(frame_size);
                     std::vector<int16_t> resampled(target_size);
@@ -552,7 +518,8 @@ void Application::HandleAudioPacket(AudioPacket *packet)
         }
 
         // This will block until the audio device has finished playing the audio
-        audio_device_->OutputData(packet->pcm);
+        auto codec = Board::GetInstance().GetAudioCodec();
+        codec->OutputData(packet->pcm);
         break;
     }
     case kAudioPacketTypeStart:
@@ -571,16 +538,11 @@ void Application::HandleAudioPacket(AudioPacket *packet)
             } });
         break;
     case kAudioPacketTypeSentenceStart:
-        ESP_LOGI(TAG, "<< %s", packet->text.c_str());
-        // strcpy(ask_text, packet->text.c_str());
-        memset(ask_text, 0, sizeof(ask_text));
-        strcpy(ask_text, packet->text.c_str());
-        biaoqing = Get_Set_Random(6);
-
-        ESP_LOGI(TAG, "ask_text: %s biaoqing:%d", ask_text, biaoqing);
-        // lv_label_set_text(label1, packet->text.c_str());
-        label_reply_set_text(ask_text);
-        // lv_label_set_text_fmt(label1, "我:%s", packet->text.c_str());
+        {
+            ESP_LOGI(TAG, "<< %s", packet->text.c_str());
+            auto display = Board::GetInstance().GetDisplay();
+            display->SetText(packet->text.c_str());
+        } 
         break;
     case kAudioPacketTypeSentenceEnd:
         if (break_speaking_)
@@ -624,10 +586,12 @@ void Application::SetDecodeSampleRate(int sample_rate)
     opus_decoder_destroy(opus_decoder_);
     opus_decode_sample_rate_ = sample_rate;
     opus_decoder_ = opus_decoder_create(opus_decode_sample_rate_, 1, NULL);
-    if (opus_decode_sample_rate_ != AUDIO_OUTPUT_SAMPLE_RATE)
+
+    auto codec = Board::GetInstance().GetAudioCodec();
+    if (opus_decode_sample_rate_ != codec->output_sample_rate())
     {
-        ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, AUDIO_OUTPUT_SAMPLE_RATE);
-        output_resampler_.Configure(opus_decode_sample_rate_, AUDIO_OUTPUT_SAMPLE_RATE);
+        ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, codec->output_sample_rate());
+        output_resampler_.Configure(opus_decode_sample_rate_, codec->output_sample_rate());
     }
 }
 
@@ -716,11 +680,6 @@ void Application::StartWebSocketClient()
                     auto text = cJSON_GetObjectItem(root, "text");
                     if (text != NULL) {
                         ESP_LOGI(TAG, ">> %s", text->valuestring);
-                        // lv_label_set_text_fmt(label_reply, "AI:%s", text->valuestring);
-memset(minimax_content, 0, sizeof(minimax_content));
-        strcpy(minimax_content, text->valuestring);
-        ESP_LOGI(TAG, "minimax_content: %s", minimax_content);
-        label_ask_set_text(minimax_content);
                     }
                 } else if (strcmp(type->valuestring, "llm") == 0) {
                     auto emotion = cJSON_GetObjectItem(root, "emotion");
@@ -743,7 +702,8 @@ memset(minimax_content, 0, sizeof(minimax_content));
                                {
         ESP_LOGI(TAG, "Websocket disconnected");
         Schedule([this]() {
-            audio_device_->EnableOutput(false);
+            auto codec = Board::GetInstance().GetAudioCodec();
+            codec->EnableOutput(false);
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Stop();
 #endif
@@ -759,5 +719,6 @@ memset(minimax_content, 0, sizeof(minimax_content));
     }
 
     // 建立语音通道后打开音频输出，避免待机时喇叭底噪
-    audio_device_->EnableOutput(true);
+    auto codec = Board::GetInstance().GetAudioCodec();
+    codec->EnableOutput(true);
 }

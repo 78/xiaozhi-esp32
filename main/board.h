@@ -1,16 +1,24 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include "config.h"
-
 #include <http.h>
 #include <web_socket.h>
 #include <string>
 
-void* create_board();
-class AudioDevice;
+#include "led.h"
 
+void* create_board();
+class AudioCodec;
+class Display;
 class Board {
+private:
+    Board(const Board&) = delete; // 禁用拷贝构造函数
+    Board& operator=(const Board&) = delete; // 禁用赋值操作
+    virtual std::string GetBoardJson() = 0;
+
+protected:
+    Board() = default;
+
 public:
     static Board& GetInstance() {
         static Board* instance = nullptr;
@@ -23,20 +31,14 @@ public:
     virtual void Initialize() = 0;
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
-    virtual AudioDevice* CreateAudioDevice() = 0;
+    virtual Led* GetBuiltinLed() = 0;
+    virtual AudioCodec* GetAudioCodec() = 0;
+    virtual Display* GetDisplay() = 0;
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;
     virtual bool GetBatteryVoltage(int &voltage, bool& charging);
     virtual std::string GetJson();
-
-protected:
-    Board() = default;
-
-private:
-    Board(const Board&) = delete; // 禁用拷贝构造函数
-    Board& operator=(const Board&) = delete; // 禁用赋值操作
-    virtual std::string GetBoardJson() = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

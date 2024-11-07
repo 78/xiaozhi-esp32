@@ -1,6 +1,0 @@
-test: "LPCNet reference test"
-processing:
-  - "sox {INPUT} {INPUT}.raw"
-  - "/local/code/LPCNet/lpcnet_demo -features {INPUT}.raw {INPUT}.features.f32"
-  - "/local/code/LPCNet/lpcnet_demo -synthesis {INPUT}.features.f32 {INPUT}.decoded.raw"
-  - "sox -r 16000 -L -e signed-integer -b 16 -c 1 {INPUT}.decoded.raw {OUTPUT} trim 0.015"

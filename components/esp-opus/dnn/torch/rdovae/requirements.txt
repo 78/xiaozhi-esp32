@@ -1,4 +1,0 @@
-numpy
-scipy
-torch
-tqdm

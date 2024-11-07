@@ -1,5 +1,0 @@
-test: "LPCNet reference test"
-processing:
-  - "sox {INPUT} {INPUT}.raw"
-  - "/local/code/LPCNet/lpcnet_demo -plc_file causal {PLCFILE} {INPUT}.raw {INPUT}.decoded.raw"
-  - "sox -r 16000 -L -e signed-integer -b 16 -c 1 {INPUT}.decoded.raw {OUTPUT}"
