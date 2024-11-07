@@ -109,7 +109,7 @@ public:
             audio_codec = new BoxAudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                 AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
                 GPIO_NUM_NC, AUDIO_CODEC_ES8311_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-            // audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);
+            audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);
         }
         return audio_codec;
     }
@@ -146,7 +146,7 @@ public:
             esp_lcd_panel_invert_color(panel, true);
             esp_lcd_panel_swap_xy(panel, true);
             esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-            display = new St7789Display(panel_io, panel, GPIO_NUM_42, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+            display = new St7789Display(panel_io, panel, GPIO_NUM_42, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_SWAP_XY, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, BACKLIGHT_INVERT);
         }
         return display;
     }

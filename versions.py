@@ -64,6 +64,8 @@ def get_board_name(folder):
             return "bread-compact-wifi"
         elif "KevinBox1" in basename:
             return "kevin-box-1"
+    if basename.startswith("v0.7"):
+        return basename.split("_")[1]
     raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):

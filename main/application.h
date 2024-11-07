@@ -96,7 +96,6 @@ private:
     volatile ChatState chat_state_ = kChatStateUnknown;
     volatile bool break_speaking_ = false;
     bool skip_to_end_ = false;
-    esp_timer_handle_t update_display_timer_ = nullptr;
 
     // Audio encode / decode
     TaskHandle_t audio_encode_task_ = nullptr;
