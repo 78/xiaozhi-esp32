@@ -45,6 +45,8 @@ void WifiBoard::StartNetwork() {
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();
+        display->SetText("请用手机连接Xiaozhi开头Wifi,连接成功后进入192.168.4.1进行配网,配网完成进入https://xiaozhi.me/注册后输入验证码配置");
+
         // Wait forever until reset after configuration
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));

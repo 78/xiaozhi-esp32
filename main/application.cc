@@ -496,7 +496,11 @@ void Application::HandleAudioPacket(AudioPacket* packet) {
         });
         break;
     case kAudioPacketTypeSentenceStart:
+    {
         ESP_LOGI(TAG, "<< %s", packet->text.c_str());
+        auto display = Board::GetInstance().GetDisplay();
+        display->SetText(packet->text.c_str());
+    }
         break;
     case kAudioPacketTypeSentenceEnd:
         if (break_speaking_) {
