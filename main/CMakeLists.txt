@@ -5,6 +5,8 @@ set(SOURCES "audio_codec.cc"
             "display/no_display.cc"
             "display/st7789_display.cc"
             "display/ssd1306_display.cc"
+            "display/font_dingding.c"
+            "display/img_src_mic_logo.c"
             "board.cc"
             "boards/wifi_board.cc"
             "boards/ml307_board.cc"
@@ -15,12 +17,7 @@ set(SOURCES "audio_codec.cc"
             "led.cc"
             "ota.cc"
             "main.cc"
-            "lv_gui.c"
-            "font_alipuhui20.c"
-            "avi_player.c"
-            "file_manager.c"
-            "img_src_mic_logo.c"
-            "esp_lvgl_port.c"
+
             )
 set(INCLUDE_DIRS ".")
 
@@ -37,9 +34,12 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
+    set(BOARD_TYPE "kevin-sp-v3-dev")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
+list(APPEND INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
 
 if(CONFIG_USE_AFE_SR)
     list(APPEND SOURCES "audio_processor.cc" "wake_word_detect.cc")
@@ -47,7 +47,7 @@ endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
-                    INCLUDE_DIRS ${INCLUDE_DIRS}
+                    INCLUDE_DIRS ${INCLUDE_DIRS} ${INCLUDES} 
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE

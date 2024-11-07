@@ -1,4 +1,0 @@
-LIBJPEG_9.0 {
-  global:
-    *;
-};

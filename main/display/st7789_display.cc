@@ -10,8 +10,9 @@
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
 St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, gpio_num_t backlight_pin,
-                           int width, int height, bool mirror_x, bool mirror_y)
-    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y) {
+                             int width, int height, bool mirror_x, bool mirror_y)
+    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y)
+{
     width_ = width;
     height_ = height;
 
@@ -23,7 +24,8 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
-    for (int y = 0; y < height_; y++) {
+    for (int y = 0; y < height_; y++)
+    {
         esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
     }
 
@@ -36,20 +38,20 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 20),
+        .buffer_size = static_cast<uint32_t>(width_ * 10),
         .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
         .rotation = {
-            .swap_xy = true,
+            .swap_xy = false,
             .mirror_x = mirror_x_,
             .mirror_y = mirror_y_,
         },
         .flags = {
-            .buff_dma = 0,
-            .buff_spiram = 1,
+            .buff_dma = 1,
+            .buff_spiram = 0,
             .sw_rotate = 0,
             .full_refresh = 0,
             .direct_mode = 0,
@@ -61,18 +63,23 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     SetBacklight(100);
 }
 
-St7789Display::~St7789Display() {
-    if (panel_ != nullptr) {
+St7789Display::~St7789Display()
+{
+    if (panel_ != nullptr)
+    {
         esp_lcd_panel_del(panel_);
     }
-    if (panel_io_ != nullptr) {
+    if (panel_io_ != nullptr)
+    {
         esp_lcd_panel_io_del(panel_io_);
     }
     lvgl_port_deinit();
 }
 
-void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
-    if (backlight_pin == GPIO_NUM_NC) {
+void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
+{
+    if (backlight_pin == GPIO_NUM_NC)
+    {
         return;
     }
 
@@ -86,24 +93,23 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
         .duty = 0,
         .hpoint = 0,
         .flags = {
-            .output_invert = true
-        }
-    };
+            .output_invert = false}};
     const ledc_timer_config_t backlight_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = LEDC_TIMER_0,
         .freq_hz = 5000,
         .clk_cfg = LEDC_AUTO_CLK,
-        .deconfigure = false
-    };
+        .deconfigure = false};
 
     ESP_ERROR_CHECK(ledc_timer_config(&backlight_timer));
     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 }
 
-void St7789Display::SetBacklight(uint8_t brightness) {
-    if (brightness > 100) {
+void St7789Display::SetBacklight(uint8_t brightness)
+{
+    if (brightness > 100)
+    {
         brightness = 100;
     }
 
@@ -114,10 +120,12 @@ void St7789Display::SetBacklight(uint8_t brightness) {
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
 }
 
-void St7789Display::Lock() {
+void St7789Display::Lock()
+{
     lvgl_port_lock(0);
 }
 
-void St7789Display::Unlock() {
+void St7789Display::Unlock()
+{
     lvgl_port_unlock();
 }

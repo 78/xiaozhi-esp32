@@ -10,9 +10,6 @@
 
 #define TAG "main"
 
-
-esp_err_t tfcard_ret = ESP_FAIL;
-
 extern "C" void app_main(void)
 {
     // Initialize the default event loop
@@ -26,55 +23,12 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    tfcard_ret = fm_sdcard_init();
-
-    xTaskCreatePinnedToCore(&esp_lvgl_adapter_init, "esp_lvgl_adapter_init task", 1024 * 5, NULL, 15, NULL, 1);
-    vTaskDelay(1000);
-    // label_ask_set_text("可以唤醒我啦");
     Application::GetInstance().Start();
-    // if (tfcard_ret == ESP_OK)
-    // {
-    //     while (1)
-    //     {
-    //         switch (biaoqing)
-    //         {
-    //         case 0:
-    //             play_change(FACE_STATIC);
-    //             break;
 
-    //         case 1:
-    //             play_change(FACE_HAPPY);
-
-    //             break;
-    //         case 2:
-    //             play_change(FACE_ANGRY);
-
-    //             break;
-    //         case 3:
-    //             play_change(FACE_BAD);
-
-    //             break;
-    //         case 4:
-    //             play_change(FACE_FEAR);
-
-    //             break;
-    //         case 5:
-    //             play_change(FACE_NOGOOD);
-
-    //             break;
-    //         default:
-    //             break;
-    //         }
-    //         biaoqing = 0;
-    //         vTaskDelay(100 / portTICK_PERIOD_MS);
-    //     }
-    // }
     // Dump CPU usage every 10 second
     while (true)
     {
-
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
