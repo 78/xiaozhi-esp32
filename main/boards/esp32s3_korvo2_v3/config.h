@@ -33,6 +33,7 @@
 #define DISPLAY_SCL_PIN GPIO_NUM_NC
 #define DISPLAY_WIDTH   280
 #define DISPLAY_HEIGHT  240
+#define DISPLAY_SWAP_XY true
 #define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y true
 #define BACKLIGHT_INVERT false

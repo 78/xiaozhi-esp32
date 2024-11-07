@@ -10,8 +10,8 @@
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
 St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, gpio_num_t backlight_pin,
-                             int width, int height, bool mirror_x, bool mirror_y, bool bl_output_invert)
-    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y), bl_output_invert_(bl_output_invert)
+                             int width, int height, bool swap_xy, bool mirror_x, bool mirror_y, bool bl_output_invert)
+    : panel_io_(panel_io), panel_(panel), swap_xy_(swap_xy), mirror_x_(mirror_x), mirror_y_(mirror_y), bl_output_invert_(bl_output_invert)
 {
     width_ = width;
     height_ = height;
@@ -45,7 +45,7 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
         .rotation = {
-            .swap_xy = true,
+            .swap_xy = swap_xy_,
             .mirror_x = mirror_x_,
             .mirror_y = mirror_y_,
         },

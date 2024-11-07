@@ -114,7 +114,7 @@ public:
             ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
             ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
-            display = new St7789Display(panel_io, panel, GPIO_NUM_NC, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, BACKLIGHT_INVERT);
+            display = new St7789Display(panel_io, panel, GPIO_NUM_NC, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_SWAP_XY, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, BACKLIGHT_INVERT);
         }
         return display;
     }
