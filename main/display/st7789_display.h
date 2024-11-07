@@ -14,6 +14,7 @@ private:
     bool mirror_x_ = false;
     bool mirror_y_ = false;
     bool bl_output_invert_ = false;
+    bool bl_set = false;
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);

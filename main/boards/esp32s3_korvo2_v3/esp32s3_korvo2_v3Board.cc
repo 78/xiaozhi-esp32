@@ -37,6 +37,22 @@ private:
                              { Application::GetInstance().ToggleChatState(); });
     }
 
+    void InitializeCodecI2c() {
+        // Initialize I2C peripheral
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = I2C_NUM_1,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+    }
 public:
     esp32s3_korvo2_v3Board() : boot_button_(BOOT_BUTTON_GPIO)
     {
@@ -44,7 +60,8 @@ public:
 
     virtual void Initialize() override
     {
-        ESP_LOGI(TAG, "Initializing KEVIN_SP_V3 Board");
+        ESP_LOGI(TAG, "Initializing esp32s3_korvo2_v3 Board");
+        InitializeCodecI2c();
 
         InitializeSpi();
         InitializeButtons();
@@ -77,8 +94,8 @@ public:
             esp_lcd_panel_io_spi_config_t io_config = {};
             io_config.cs_gpio_num = GPIO_NUM_46;
             io_config.dc_gpio_num = GPIO_NUM_2;
-            io_config.spi_mode = 0;
-            io_config.pclk_hz = 80 * 1000 * 1000;
+            io_config.spi_mode = 2;
+            io_config.pclk_hz = 60 * 1000 * 1000;
             io_config.trans_queue_depth = 10;
             io_config.lcd_cmd_bits = 8;
             io_config.lcd_param_bits = 8;
@@ -93,7 +110,7 @@ public:
             ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
             ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
             ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
-            ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, false));
+            ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, true));
             ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
             ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 

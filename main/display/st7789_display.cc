@@ -44,6 +44,11 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
+        .rotation = {
+            .swap_xy = true,
+            .mirror_x = mirror_x_,
+            .mirror_y = mirror_y_,
+        },
         .flags = {
             .buff_dma = 1,
             .buff_spiram = 0,
@@ -75,8 +80,10 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
 {
     if (backlight_pin == GPIO_NUM_NC)
     {
+        bl_set = false;
         return;
     }
+    bl_set = true;
 
     // Setup LEDC peripheral for PWM backlight control
     const ledc_channel_config_t backlight_channel = {
@@ -103,6 +110,11 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
 
 void St7789Display::SetBacklight(uint8_t brightness)
 {
+    if (bl_set == false)
+    {
+        return;
+    }
+
     if (brightness > 100)
     {
         brightness = 100;
