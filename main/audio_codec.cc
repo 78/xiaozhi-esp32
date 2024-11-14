@@ -1,5 +1,6 @@
 #include "audio_codec.h"
 #include "board.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <cstring>
@@ -40,6 +41,9 @@ IRAM_ATTR bool AudioCodec::on_sent(i2s_chan_handle_t handle, i2s_event_data_t *e
 }
 
 void AudioCodec::Start() {
+    Settings settings("audio", false);
+    output_volume_ = settings.GetInt("output_volume", output_volume_);
+
     // 注册音频输出回调
     i2s_event_callbacks_t callbacks = {};
     callbacks.on_sent = on_sent;
@@ -124,6 +128,9 @@ void AudioCodec::ClearOutputQueue() {
 void AudioCodec::SetOutputVolume(int volume) {
     output_volume_ = volume;
     ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
+    
+    Settings settings("audio", true);
+    settings.SetInt("output_volume", output_volume_);
 }
 
 void AudioCodec::EnableInput(bool enable) {

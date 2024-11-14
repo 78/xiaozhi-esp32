@@ -1,5 +1,7 @@
 #include "mqtt_protocol.h"
 #include "board.h"
+#include "application.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <ml307_mqtt.h>
@@ -9,15 +11,8 @@
 
 #define TAG "MQTT"
 
-MqttProtocol::MqttProtocol(std::map<std::string, std::string>& config) {
+MqttProtocol::MqttProtocol() {
     event_group_handle_ = xEventGroupCreate();
-
-    endpoint_ = config["endpoint"];
-    client_id_ = config["client_id"];
-    username_ = config["username"];
-    password_ = config["password"];
-    subscribe_topic_ = config["subscribe_topic"];
-    publish_topic_ = config["publish_topic"];
 
     StartMqttClient();
 }
@@ -39,6 +34,19 @@ bool MqttProtocol::StartMqttClient() {
         delete mqtt_;
     }
 
+    Settings settings("mqtt", false);
+    endpoint_ = settings.GetString("endpoint");
+    client_id_ = settings.GetString("client_id");
+    username_ = settings.GetString("username");
+    password_ = settings.GetString("password");
+    subscribe_topic_ = settings.GetString("subscribe_topic");
+    publish_topic_ = settings.GetString("publish_topic");
+
+    if (endpoint_.empty()) {
+        ESP_LOGE(TAG, "MQTT endpoint is not specified");
+        return false;
+    }
+
     mqtt_ = Board::GetInstance().CreateMqtt();
     mqtt_->SetKeepAlive(90);
 
@@ -58,9 +66,7 @@ bool MqttProtocol::StartMqttClient() {
             cJSON_Delete(root);
             return;
         }
-        if (on_incoming_json_ != nullptr) {
-            on_incoming_json_(root);
-        }
+
         if (strcmp(type->valuestring, "hello") == 0) {
             ParseServerHello(root);
         } else if (strcmp(type->valuestring, "goodbye") == 0) {
@@ -70,6 +76,8 @@ bool MqttProtocol::StartMqttClient() {
                     on_audio_channel_closed_();
                 }
             }
+        } else if (on_incoming_json_ != nullptr) {
+            on_incoming_json_(root);
         }
         cJSON_Delete(root);
     });
@@ -89,13 +97,17 @@ bool MqttProtocol::StartMqttClient() {
 
 void MqttProtocol::SendText(const std::string& text) {
     if (publish_topic_.empty()) {
-        ESP_LOGE(TAG, "Publish topic is not specified");
         return;
     }
     mqtt_->Publish(publish_topic_, text);
 }
 
 void MqttProtocol::SendAudio(const std::string& data) {
+    std::lock_guard<std::mutex> lock(channel_mutex_);
+    if (udp_ == nullptr) {
+        return;
+    }
+
     std::string nonce(aes_nonce_);
     *(uint16_t*)&nonce[2] = htons(data.size());
     *(uint32_t*)&nonce[12] = htonl(++local_sequence_);
@@ -111,12 +123,24 @@ void MqttProtocol::SendAudio(const std::string& data) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
         return;
     }
-
-    std::lock_guard<std::mutex> lock(channel_mutex_);
-    if (udp_ == nullptr) {
-        return;
-    }
     udp_->Send(encrypted);
+}
+
+void MqttProtocol::SendState(const std::string& state) {
+    std::string message = "{";
+    message += "\"session_id\":\"" + session_id_ + "\",";
+    message += "\"type\":\"state\",";
+    message += "\"state\":\"" + state + "\"";
+    message += "}";
+    SendText(message);
+}
+
+void MqttProtocol::SendAbort() {
+    std::string message = "{";
+    message += "\"session_id\":\"" + session_id_ + "\",";
+    message += "\"type\":\"abort\"";
+    message += "}";
+    SendText(message);
 }
 
 void MqttProtocol::CloseAudioChannel() {
@@ -129,6 +153,7 @@ void MqttProtocol::CloseAudioChannel() {
     }
 
     std::string message = "{";
+    message += "\"session_id\":\"" + session_id_ + "\",";
     message += "\"type\":\"goodbye\"";
     message += "}";
     SendText(message);
@@ -139,8 +164,8 @@ void MqttProtocol::CloseAudioChannel() {
 }
 
 bool MqttProtocol::OpenAudioChannel() {
-    if (!mqtt_->IsConnected()) {
-        ESP_LOGE(TAG, "MQTT is not connected, try to connect now");
+    if (mqtt_ == nullptr || !mqtt_->IsConnected()) {
+        ESP_LOGI(TAG, "MQTT is not connected, try to connect now");
         if (!StartMqttClient()) {
             ESP_LOGE(TAG, "Failed to connect to MQTT");
             return false;
@@ -155,7 +180,7 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"version\": 3,";
     message += "\"transport\":\"udp\",";
     message += "\"audio_params\":{";
-    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":60";
+    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
     SendText(message);
 
@@ -184,6 +209,9 @@ bool MqttProtocol::OpenAudioChannel() {
         if (sequence < remote_sequence_) {
             ESP_LOGW(TAG, "Received audio packet with old sequence: %lu, expected: %lu", sequence, remote_sequence_);
             return;
+        }
+        if (sequence != remote_sequence_ + 1) {
+            ESP_LOGW(TAG, "Received audio packet with wrong sequence: %lu, expected: %lu", sequence, remote_sequence_ + 1);
         }
 
         std::string decrypted;
@@ -240,6 +268,15 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         session_id_ = session_id->valuestring;
     }
 
+    // Get sample rate from hello message
+    auto audio_params = cJSON_GetObjectItem(root, "audio_params");
+    if (audio_params != NULL) {
+        auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
+        if (sample_rate != NULL) {
+            server_sample_rate_ = sample_rate->valueint;
+        }
+    }
+
     auto udp = cJSON_GetObjectItem(root, "udp");
     if (udp == nullptr) {
         ESP_LOGE(TAG, "UDP is not specified");
@@ -260,6 +297,10 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     xEventGroupSetBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 }
 
+int MqttProtocol::GetServerSampleRate() const {
+    return server_sample_rate_;
+}
+
 
 static const char hex_chars[] = "0123456789ABCDEF";
 // 辅助函数，将单个十六进制字符转换为对应的数值
@@ -278,4 +319,8 @@ std::string MqttProtocol::DecodeHexString(const std::string& hex_string) {
         decoded.push_back(byte);
     }
     return decoded;
+}
+
+bool MqttProtocol::IsAudioChannelOpened() const {
+    return udp_ != nullptr;
 }
