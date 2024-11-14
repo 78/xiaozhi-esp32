@@ -170,6 +170,7 @@ void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
 }
 
 void WakeWordDetect::EncodeWakeWordData() {
+    wake_word_opus_.clear();
     if (wake_word_encode_task_stack_ == nullptr) {
         wake_word_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
     }
@@ -180,34 +181,34 @@ void WakeWordDetect::EncodeWakeWordData() {
         OpusEncoder* encoder = new OpusEncoder();
         encoder->Configure(16000, 1, 60);
         encoder->SetComplexity(0);
-        this_->wake_word_opus_.resize(4096 * 4);
-        size_t offset = 0;
 
         for (auto& pcm: this_->wake_word_pcm_) {
-            encoder->Encode(pcm, [this_, &offset](const uint8_t* opus, size_t opus_size) {
-                size_t protocol_size = sizeof(BinaryProtocol3) + opus_size;
-                if (offset + protocol_size < this_->wake_word_opus_.size()) {
-                    auto protocol = (BinaryProtocol3*)(&this_->wake_word_opus_[offset]);
-                    protocol->type = 0;
-                    protocol->reserved = 0;
-                    protocol->payload_size = htons(opus_size);
-                    memcpy(protocol->payload, opus, opus_size);
-                    offset += protocol_size;
-                }
+            encoder->Encode(pcm, [this_](const uint8_t* opus, size_t opus_size) {
+                std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
+                this_->wake_word_opus_.emplace_back(std::string(reinterpret_cast<const char*>(opus), opus_size));
+                this_->wake_word_cv_.notify_one();
             });
         }
         this_->wake_word_pcm_.clear();
-        this_->wake_word_opus_.resize(offset);
 
         auto end_time = esp_timer_get_time();
         ESP_LOGI(TAG, "Encode wake word opus: %zu bytes in %lld ms", this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
         xEventGroupSetBits(this_->event_group_, WAKE_WORD_ENCODED_EVENT);
+        this_->wake_word_cv_.notify_one();
         delete encoder;
         vTaskDelete(NULL);
     }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
 
-const std::string&& WakeWordDetect::GetWakeWordStream() {
-    xEventGroupWaitBits(event_group_, WAKE_WORD_ENCODED_EVENT, pdTRUE, pdTRUE, portMAX_DELAY);
-    return std::move(wake_word_opus_);
+bool WakeWordDetect::GetWakeWordOpus(std::string& opus) {
+    std::unique_lock<std::mutex> lock(wake_word_mutex_);
+    wake_word_cv_.wait(lock, [this]() {
+        return !wake_word_opus_.empty() || (xEventGroupGetBits(event_group_) & WAKE_WORD_ENCODED_EVENT);
+    });
+    if (wake_word_opus_.empty()) {
+        return false;
+    }
+    opus.swap(wake_word_opus_.front());
+    wake_word_opus_.pop_front();
+    return true;
 }

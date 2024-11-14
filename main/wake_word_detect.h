@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <mutex>
+#include <condition_variable>
 
 
 class WakeWordDetect {
@@ -27,7 +29,7 @@ public:
     void StopDetection();
     bool IsDetectionRunning();
     void EncodeWakeWordData();
-    const std::string&& GetWakeWordStream();
+    bool GetWakeWordOpus(std::string& opus);
 
 private:
     esp_afe_sr_data_t* afe_detection_data_ = nullptr;
@@ -48,7 +50,9 @@ private:
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
     std::list<std::vector<int16_t>> wake_word_pcm_;
-    std::string wake_word_opus_;
+    std::list<std::string> wake_word_opus_;
+    std::mutex wake_word_mutex_;
+    std::condition_variable wake_word_cv_;
 
     void StoreWakeWordData(uint16_t* data, size_t size);
     void AudioDetectionTask();

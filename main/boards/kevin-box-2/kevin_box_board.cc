@@ -5,6 +5,7 @@
 #include "button.h"
 #include "led.h"
 #include "config.h"
+#include "axp2101.h"
 
 #include <esp_log.h>
 #include <esp_spiffs.h>
@@ -17,9 +18,11 @@ class KevinBoxBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     i2c_master_bus_handle_t codec_i2c_bus_;
+    Axp2101 axp2101_;
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    uint8_t _data_buffer[2];
 
     void MountStorage() {
         // Mount the storage partition
@@ -33,17 +36,16 @@ private:
     }
 
     void Enable4GModule() {
-        // Make GPIO15 HIGH to enable the 4G module
+        // Make GPIO HIGH to enable the 4G module
         gpio_config_t ml307_enable_config = {
-            .pin_bit_mask = (1ULL << 15) | (1ULL << 18),
+            .pin_bit_mask = (1ULL << 4),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
             .intr_type = GPIO_INTR_DISABLE,
         };
         gpio_config(&ml307_enable_config);
-        gpio_set_level(GPIO_NUM_15, 1);
-        gpio_set_level(GPIO_NUM_18, 1);
+        gpio_set_level(GPIO_NUM_4, 1);
     }
 
     void InitializeDisplayI2c() {
@@ -128,6 +130,8 @@ public:
         ESP_LOGI(TAG, "Initializing KevinBoxBoard");
         InitializeDisplayI2c();
         InitializeCodecI2c();
+        axp2101_.Initialize(codec_i2c_bus_, AXP2101_I2C_ADDR);
+
         MountStorage();
         Enable4GModule();
 
@@ -151,6 +155,13 @@ public:
     virtual Display* GetDisplay() override {
         static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         return &display;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging) override {
+        level = axp2101_.GetBatteryLevel();
+        charging = axp2101_.IsCharging();
+        ESP_LOGI(TAG, "Battery level: %d, Charging: %d", level, charging);
+        return true;
     }
 };
 

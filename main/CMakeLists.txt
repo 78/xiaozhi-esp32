@@ -8,6 +8,8 @@ set(SOURCES "audio_codec.cc"
             "board.cc"
             "boards/wifi_board.cc"
             "boards/ml307_board.cc"
+            "protocol.cc"
+            "protocols/mqtt_protocol.cc"
             "system_info.cc"
             "system_reset.cc"
             "application.cc"
@@ -29,6 +31,8 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_0)
     set(BOARD_TYPE "kevin-box-0")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
+elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
+    set(BOARD_TYPE "kevin-box-2")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
 endif()
