@@ -16,6 +16,7 @@ set(SOURCES "audio_codec.cc"
             "button.cc"
             "led.cc"
             "ota.cc"
+            "settings.cc"
             "main.cc"
             )
 set(INCLUDE_DIRS ".")

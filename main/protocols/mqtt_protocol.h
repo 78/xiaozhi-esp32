@@ -21,17 +21,21 @@
 
 class MqttProtocol : public Protocol {
 public:
-    MqttProtocol(std::map<std::string, std::string>& config);
+    MqttProtocol();
     ~MqttProtocol();
 
     void OnIncomingAudio(std::function<void(const std::string& data)> callback);
     void OnIncomingJson(std::function<void(const cJSON* root)> callback);
     void SendAudio(const std::string& data);
     void SendText(const std::string& text);
+    void SendState(const std::string& state);
+    void SendAbort();
     bool OpenAudioChannel();
     void CloseAudioChannel();
     void OnAudioChannelOpened(std::function<void()> callback);
     void OnAudioChannelClosed(std::function<void()> callback);
+    bool IsAudioChannelOpened() const;
+    int GetServerSampleRate() const;
 
 private:
     EventGroupHandle_t event_group_handle_;
@@ -58,6 +62,7 @@ private:
     uint32_t local_sequence_;
     uint32_t remote_sequence_;
     std::string session_id_;
+    int server_sample_rate_ = 16000;
 
     bool StartMqttClient();
     void ParseServerHello(const cJSON* root);

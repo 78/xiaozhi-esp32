@@ -170,6 +170,7 @@ void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
 }
 
 void WakeWordDetect::EncodeWakeWordData() {
+    xEventGroupClearBits(event_group_, WAKE_WORD_ENCODED_EVENT);
     wake_word_opus_.clear();
     if (wake_word_encode_task_stack_ == nullptr) {
         wake_word_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
@@ -192,7 +193,7 @@ void WakeWordDetect::EncodeWakeWordData() {
         this_->wake_word_pcm_.clear();
 
         auto end_time = esp_timer_get_time();
-        ESP_LOGI(TAG, "Encode wake word opus: %zu bytes in %lld ms", this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
+        ESP_LOGI(TAG, "Encode wake word opus %zu packets in %lld ms", this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
         xEventGroupSetBits(this_->event_group_, WAKE_WORD_ENCODED_EVENT);
         this_->wake_word_cv_.notify_one();
         delete encoder;

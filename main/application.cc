@@ -37,9 +37,6 @@ Application::~Application() {
     if (audio_encode_task_stack_ != nullptr) {
         heap_caps_free(audio_encode_task_stack_);
     }
-    if (main_loop_task_stack_ != nullptr) {
-        heap_caps_free(main_loop_task_stack_);
-    }
 
     vEventGroupDelete(event_group_);
 }
@@ -47,20 +44,34 @@ Application::~Application() {
 void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
     ota_.SetPostData(Board::GetInstance().GetJson());
-    ota_.CheckVersion();
-    if (ota_.HasNewVersion()) {
-        SetChatState(kChatStateUpgrading);
-        ota_.StartUpgrade([](int progress, size_t speed) {
-            char buffer[64];
-            snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
-            auto display = Board::GetInstance().GetDisplay();
-            display->SetText(buffer);
-        });
-        // If upgrade success, the device will reboot and never reach here
-        ESP_LOGI(TAG, "Firmware upgrade failed...");
-        SetChatState(kChatStateIdle);
-    } else {
-        ota_.MarkCurrentVersionValid();
+
+    while (true) {
+        if (ota_.CheckVersion()) {
+            if (ota_.HasNewVersion()) {
+                // Wait for the chat state to be idle
+                while (chat_state_ != kChatStateIdle) {
+                    vTaskDelay(100);
+                }
+
+                SetChatState(kChatStateUpgrading);
+                ota_.StartUpgrade([](int progress, size_t speed) {
+                    char buffer[64];
+                    snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
+                    auto display = Board::GetInstance().GetDisplay();
+                    display->SetText(buffer);
+                });
+
+                // If upgrade success, the device will reboot and never reach here
+                ESP_LOGI(TAG, "Firmware upgrade failed...");
+                SetChatState(kChatStateIdle);
+            } else {
+                ota_.MarkCurrentVersionValid();
+            }
+            return;
+        }
+
+        // Check again in 60 seconds
+        vTaskDelay(pdMS_TO_TICKS(60000));
     }
 }
 
@@ -191,24 +202,18 @@ void Application::Start() {
     /* Wait for the network to be ready */
     board.StartNetwork();
 
-    const size_t main_loop_stack_size = 4096 * 8;
-    main_loop_task_stack_ = (StackType_t*)heap_caps_malloc(main_loop_stack_size, MALLOC_CAP_SPIRAM);
-    xTaskCreateStatic([](void* arg) {
+    xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL);
-    }, "main_loop", main_loop_stack_size, this, 1, main_loop_task_stack_, &main_loop_task_buffer_);
+    }, "main_loop", 4096 * 2, this, 1, nullptr);
 
     // Check for new firmware version or get the MQTT broker address
-    while (true) {
-        CheckNewVersion();
-
-        if (ota_.HasMqttConfig()) {
-            break;
-        }
-        Alert("Error", "Missing MQTT config");
-        vTaskDelay(pdMS_TO_TICKS(10000));
-    }
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->CheckNewVersion();
+        vTaskDelete(NULL);
+    }, "check_new_version", 4096 * 2, this, 1, nullptr);
 
 #ifdef CONFIG_USE_AFE_SR
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
@@ -264,11 +269,18 @@ void Application::Start() {
 
     // Initialize the protocol
     display->SetText("Starting\nProtocol...");
-    protocol_ = new MqttProtocol(ota_.GetMqttConfig());
+    protocol_ = new MqttProtocol();
     protocol_->OnIncomingAudio([this](const std::string& data) {
         std::lock_guard<std::mutex> lock(mutex_);
         audio_decode_queue_.emplace_back(std::move(data));
         cv_.notify_all();
+    });
+    protocol_->OnAudioChannelOpened([this, codec]() {
+        if (protocol_->GetServerSampleRate() != codec->output_sample_rate()) {
+            ESP_LOGW(TAG, "服务器的音频采样率 %d 与设备输出的采样率 %d 不一致，重采样后可能会失真",
+                protocol_->GetServerSampleRate(), codec->output_sample_rate());
+        }
+        SetDecodeSampleRate(protocol_->GetServerSampleRate());
     });
     protocol_->OnAudioChannelClosed([this]() {
         Schedule([this]() {
@@ -289,7 +301,9 @@ void Application::Start() {
                 Schedule([this]() {
                     auto codec = Board::GetInstance().GetAudioCodec();
                     codec->WaitForOutputDone();
-                    SetChatState(kChatStateListening);
+                    if (chat_state_ == kChatStateSpeaking) {
+                        SetChatState(kChatStateListening);
+                    }
                 });
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
                 auto text = cJSON_GetObjectItem(root, "text");
@@ -306,15 +320,6 @@ void Application::Start() {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
                 ESP_LOGD(TAG, "EMOTION: %s", emotion->valuestring);
-            }
-        } else if (strcmp(type->valuestring, "hello") == 0) {
-            // Get sample rate from hello message
-            auto audio_params = cJSON_GetObjectItem(root, "audio_params");
-            if (audio_params != NULL) {
-                auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
-                if (sample_rate != NULL) {
-                    SetDecodeSampleRate(sample_rate->valueint);
-                }
             }
         }
     });
@@ -351,8 +356,7 @@ void Application::MainLoop() {
 
 void Application::AbortSpeaking() {
     ESP_LOGI(TAG, "Abort speaking");
-    std::string json = "{\"type\":\"abort\"}";
-    protocol_->SendText(json);
+    protocol_->SendAbort();
 
     skip_to_end_ = true;
     auto codec = Board::GetInstance().GetAudioCodec();
@@ -420,10 +424,7 @@ void Application::SetChatState(ChatState state) {
             break;
     }
 
-    std::string json = "{\"type\":\"state\",\"state\":\"";
-    json += state_str[chat_state_];
-    json += "\"}";
-    protocol_->SendText(json);
+    protocol_->SendState(state_str[chat_state_]);
 }
 
 void Application::AudioEncodeTask() {
@@ -455,7 +456,7 @@ void Application::AudioEncodeTask() {
                 continue;
             }
 
-            int frame_size = opus_decode_sample_rate_ * opus_duration_ms_ / 1000;
+            int frame_size = opus_decode_sample_rate_ * OPUS_FRAME_DURATION_MS / 1000;
             std::vector<int16_t> pcm(frame_size);
 
             int ret = opus_decode(opus_decoder_, (const unsigned char*)opus.data(), opus.size(), pcm.data(), frame_size, 0);

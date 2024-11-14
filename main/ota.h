@@ -13,13 +13,11 @@ public:
     void SetCheckVersionUrl(std::string check_version_url);
     void SetHeader(const std::string& key, const std::string& value);
     void SetPostData(const std::string& post_data);
-    void CheckVersion();
+    bool CheckVersion();
     bool HasNewVersion() { return has_new_version_; }
     bool HasMqttConfig() { return has_mqtt_config_; }
     void StartUpgrade(std::function<void(int progress, size_t speed)> callback);
     void MarkCurrentVersionValid();
-
-    std::map<std::string, std::string>& GetMqttConfig() { return mqtt_config_; }
 
 private:
     std::string check_version_url_;
@@ -29,7 +27,6 @@ private:
     std::string firmware_url_;
     std::string post_data_;
     std::map<std::string, std::string> headers_;
-    std::map<std::string, std::string> mqtt_config_;
 
     void Upgrade(const std::string& firmware_url);
     std::function<void(int progress, size_t speed)> upgrade_callback_;

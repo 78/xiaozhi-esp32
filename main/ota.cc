@@ -1,6 +1,7 @@
 #include "ota.h"
 #include "system_info.h"
 #include "board.h"
+#include "settings.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
@@ -34,13 +35,13 @@ void Ota::SetPostData(const std::string& post_data) {
     post_data_ = post_data;
 }
 
-void Ota::CheckVersion() {
+bool Ota::CheckVersion() {
     std::string current_version = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version.c_str());
 
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
-        return;
+        return false;
     }
 
     auto http = Board::GetInstance().CreateHttp();
@@ -67,16 +68,18 @@ void Ota::CheckVersion() {
     cJSON *root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
-        return;
+        return false;
     }
 
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
     if (mqtt != NULL) {
+        Settings settings("mqtt", true);
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, mqtt) {
             if (item->type == cJSON_String) {
-                mqtt_config_[item->string] = item->valuestring;
-                ESP_LOGI(TAG, "MQTT config: %s = %s", item->string, item->valuestring);
+                if (settings.GetString(item->string) != item->valuestring) {
+                    settings.SetString(item->string, item->valuestring);
+                }
             }
         }
         has_mqtt_config_ = true;
@@ -86,19 +89,19 @@ void Ota::CheckVersion() {
     if (firmware == NULL) {
         ESP_LOGE(TAG, "Failed to get firmware object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
     cJSON *version = cJSON_GetObjectItem(firmware, "version");
     if (version == NULL) {
         ESP_LOGE(TAG, "Failed to get version object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
     cJSON *url = cJSON_GetObjectItem(firmware, "url");
     if (url == NULL) {
         ESP_LOGE(TAG, "Failed to get url object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
 
     firmware_version_ = version->valuestring;
@@ -112,6 +115,7 @@ void Ota::CheckVersion() {
     } else {
         ESP_LOGI(TAG, "Current is the latest version");
     }
+    return true;
 }
 
 void Ota::MarkCurrentVersionValid() {

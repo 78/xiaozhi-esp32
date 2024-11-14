@@ -39,6 +39,8 @@ enum ChatState {
     kChatStateUpgrading
 };
 
+#define OPUS_FRAME_DURATION_MS 60
+
 class Application {
 public:
     static Application& GetInstance() {
@@ -84,15 +86,10 @@ private:
     OpusEncoder opus_encoder_;
     OpusDecoder* opus_decoder_ = nullptr;
 
-    int opus_duration_ms_ = 60;
     int opus_decode_sample_rate_ = -1;
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
-
-    TaskHandle_t main_loop_task_ = nullptr;
-    StaticTask_t main_loop_task_buffer_;
-    StackType_t* main_loop_task_stack_ = nullptr;
 
     void MainLoop();
     void SetDecodeSampleRate(int sample_rate);
