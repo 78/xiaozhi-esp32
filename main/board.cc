@@ -7,7 +7,7 @@
 
 // static const char *TAG = "Board";
 
-bool Board::GetBatteryVoltage(int &voltage, bool& charging) {
+bool Board::GetBatteryLevel(int &level, bool& charging) {
     return false;
 }
 

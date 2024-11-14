@@ -6,6 +6,8 @@
 #include <ml307_http.h>
 #include <ml307_ssl_transport.h>
 #include <web_socket.h>
+#include <ml307_mqtt.h>
+#include <ml307_udp.h>
 
 static const char *TAG = "Ml307Board";
 
@@ -83,6 +85,14 @@ WebSocket* Ml307Board::CreateWebSocket() {
     return new WebSocket(new Ml307SslTransport(modem_, 0));
 }
 
+Mqtt* Ml307Board::CreateMqtt() {
+    return new Ml307Mqtt(modem_, 0);
+}
+
+Udp* Ml307Board::CreateUdp() {
+    return new Ml307Udp(modem_, 0);
+}
+
 bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
     if (!modem_.network_ready()) {
         return false;
@@ -96,16 +106,11 @@ bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality,
 std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
     std::string board_type = BOARD_TYPE;
-    std::string module_name = modem_.GetModuleName();
-    std::string carrier_name = modem_.GetCarrierName();
-    std::string imei = modem_.GetImei();
-    std::string iccid = modem_.GetIccid();
-    int csq = modem_.GetCsq();
     std::string board_json = std::string("{\"type\":\"" + board_type + "\",");
-    board_json += "\"revision\":\"" + module_name + "\",";
-    board_json += "\"carrier\":\"" + carrier_name + "\",";
-    board_json += "\"csq\":\"" + std::to_string(csq) + "\",";
-    board_json += "\"imei\":\"" + imei + "\",";
-    board_json += "\"iccid\":\"" + iccid + "\"}";
+    board_json += "\"revision\":\"" + modem_.GetModuleName() + "\",";
+    board_json += "\"carrier\":\"" + modem_.GetCarrierName() + "\",";
+    board_json += "\"csq\":\"" + std::to_string(modem_.GetCsq()) + "\",";
+    board_json += "\"imei\":\"" + modem_.GetImei() + "\",";
+    board_json += "\"iccid\":\"" + modem_.GetIccid() + "\"}";
     return board_json;
 }
