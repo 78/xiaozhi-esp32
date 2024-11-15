@@ -114,3 +114,8 @@ std::string WifiBoard::GetBoardJson() {
     board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
     return board_json;
 }
+
+void WifiBoard::SetPowerSaveMode(bool enabled) {
+    auto& wifi_station = WifiStation::GetInstance();
+    wifi_station.SetPowerSaveMode(enabled);
+}

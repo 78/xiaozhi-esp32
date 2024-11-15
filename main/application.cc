@@ -275,17 +275,19 @@ void Application::Start() {
         audio_decode_queue_.emplace_back(std::move(data));
         cv_.notify_all();
     });
-    protocol_->OnAudioChannelOpened([this, codec]() {
+    protocol_->OnAudioChannelOpened([this, codec, &board]() {
         if (protocol_->GetServerSampleRate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG, "服务器的音频采样率 %d 与设备输出的采样率 %d 不一致，重采样后可能会失真",
                 protocol_->GetServerSampleRate(), codec->output_sample_rate());
         }
         SetDecodeSampleRate(protocol_->GetServerSampleRate());
+        board.SetPowerSaveMode(false);
     });
-    protocol_->OnAudioChannelClosed([this]() {
+    protocol_->OnAudioChannelClosed([this, &board]() {
         Schedule([this]() {
             SetChatState(kChatStateIdle);
         });
+        board.SetPowerSaveMode(true);
     });
     protocol_->OnIncomingJson([this](const cJSON* root) {
         // Parse JSON data
