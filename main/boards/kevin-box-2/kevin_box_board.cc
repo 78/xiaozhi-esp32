@@ -1,4 +1,4 @@
-#include "boards/ml307_board.h"
+#include "ml307_board.h"
 #include "audio_codecs/box_audio_codec.h"
 #include "display/ssd1306_display.h"
 #include "application.h"
@@ -18,7 +18,7 @@ class KevinBoxBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Axp2101 axp2101_;
+    Axp2101* axp2101_ = nullptr;
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -130,7 +130,7 @@ public:
         ESP_LOGI(TAG, "Initializing KevinBoxBoard");
         InitializeDisplayI2c();
         InitializeCodecI2c();
-        axp2101_.Initialize(codec_i2c_bus_, AXP2101_I2C_ADDR);
+        axp2101_ = new Axp2101(codec_i2c_bus_, AXP2101_I2C_ADDR);
 
         MountStorage();
         Enable4GModule();
@@ -158,8 +158,8 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        level = axp2101_.GetBatteryLevel();
-        charging = axp2101_.IsCharging();
+        level = axp2101_->GetBatteryLevel();
+        charging = axp2101_->IsCharging();
         ESP_LOGI(TAG, "Battery level: %d, Charging: %d", level, charging);
         return true;
     }

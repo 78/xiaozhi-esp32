@@ -6,12 +6,9 @@ set(SOURCES "audio_codec.cc"
             "display/st7789_display.cc"
             "display/ssd1306_display.cc"
             "board.cc"
-            "boards/wifi_board.cc"
-            "boards/ml307_board.cc"
             "protocol.cc"
             "protocols/mqtt_protocol.cc"
             "system_info.cc"
-            "system_reset.cc"
             "application.cc"
             "button.cc"
             "led.cc"
@@ -21,6 +18,11 @@ set(SOURCES "audio_codec.cc"
             )
 set(INCLUDE_DIRS ".")
 
+# 添加板级公共文件
+file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
+list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
 # 根据 BOARD_TYPE 配置添加对应的板级文件
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
@@ -28,8 +30,6 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
-elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_0)
-    set(BOARD_TYPE "kevin-box-0")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)

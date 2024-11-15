@@ -30,6 +30,10 @@
 #define DISPLAY_HEIGHT  240
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY true
+
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT true
 
 
 #endif // _BOARD_CONFIG_H_

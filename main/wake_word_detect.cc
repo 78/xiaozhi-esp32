@@ -24,10 +24,7 @@ WakeWordDetect::~WakeWordDetect() {
     }
 
     if (wake_word_encode_task_stack_ != nullptr) {
-        free(wake_word_encode_task_stack_);
-    }
-    if (audio_detection_task_stack_ != nullptr) {
-        heap_caps_free(audio_detection_task_stack_);
+        heap_caps_free(wake_word_encode_task_stack_);
     }
 
     vEventGroupDelete(event_group_);
@@ -80,13 +77,11 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
 
     afe_detection_data_ = esp_afe_sr_v1.create_from_config(&afe_config);
 
-    const size_t audio_detection_task_stack_size = 4096 * 2;
-    audio_detection_task_stack_ = (StackType_t*)heap_caps_malloc(audio_detection_task_stack_size, MALLOC_CAP_SPIRAM);
-    xTaskCreateStatic([](void* arg) {
+    xTaskCreate([](void* arg) {
         auto this_ = (WakeWordDetect*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", audio_detection_task_stack_size, this, 1, audio_detection_task_stack_, &audio_detection_task_buffer_);
+    }, "audio_detection", 4096 * 2, this, 1, nullptr);
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void()> callback) {
@@ -173,7 +168,7 @@ void WakeWordDetect::EncodeWakeWordData() {
     xEventGroupClearBits(event_group_, WAKE_WORD_ENCODED_EVENT);
     wake_word_opus_.clear();
     if (wake_word_encode_task_stack_ == nullptr) {
-        wake_word_encode_task_stack_ = (StackType_t*)malloc(4096 * 8);
+        wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(4096 * 8, MALLOC_CAP_SPIRAM);
     }
     wake_word_encode_task_ = xTaskCreateStatic([](void* arg) {
         auto this_ = (WakeWordDetect*)arg;

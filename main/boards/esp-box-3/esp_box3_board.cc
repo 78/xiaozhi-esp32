@@ -1,4 +1,4 @@
-#include "boards/wifi_board.h"
+#include "wifi_board.h"
 #include "audio_codecs/box_audio_codec.h"
 #include "display/no_display.h"
 #include "application.h"
