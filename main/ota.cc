@@ -1,6 +1,7 @@
 #include "ota.h"
 #include "system_info.h"
 #include "board.h"
+#include "settings.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
@@ -34,13 +35,13 @@ void Ota::SetPostData(const std::string& post_data) {
     post_data_ = post_data;
 }
 
-void Ota::CheckVersion() {
+bool Ota::CheckVersion() {
     std::string current_version = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version.c_str());
 
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
-        return;
+        return false;
     }
 
     auto http = Board::GetInstance().CreateHttp();
@@ -67,25 +68,40 @@ void Ota::CheckVersion() {
     cJSON *root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
-        return;
+        return false;
     }
+
+    cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
+    if (mqtt != NULL) {
+        Settings settings("mqtt", true);
+        cJSON *item = NULL;
+        cJSON_ArrayForEach(item, mqtt) {
+            if (item->type == cJSON_String) {
+                if (settings.GetString(item->string) != item->valuestring) {
+                    settings.SetString(item->string, item->valuestring);
+                }
+            }
+        }
+        has_mqtt_config_ = true;
+    }
+
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware == NULL) {
         ESP_LOGE(TAG, "Failed to get firmware object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
     cJSON *version = cJSON_GetObjectItem(firmware, "version");
     if (version == NULL) {
         ESP_LOGE(TAG, "Failed to get version object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
     cJSON *url = cJSON_GetObjectItem(firmware, "url");
     if (url == NULL) {
         ESP_LOGE(TAG, "Failed to get url object");
         cJSON_Delete(root);
-        return;
+        return false;
     }
 
     firmware_version_ = version->valuestring;
@@ -99,6 +115,7 @@ void Ota::CheckVersion() {
     } else {
         ESP_LOGI(TAG, "Current is the latest version");
     }
+    return true;
 }
 
 void Ota::MarkCurrentVersionValid() {
@@ -148,12 +165,12 @@ void Ota::Upgrade(const std::string& firmware_url) {
         return;
     }
 
-    char buffer[4096];
+    std::vector<char> buffer(4096);
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
         taskYIELD(); // Avoid watchdog timeout
-        int ret = http->Read(buffer, sizeof(buffer));
+        int ret = http->Read(buffer.data(), buffer.size());
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
             delete http;
@@ -179,7 +196,7 @@ void Ota::Upgrade(const std::string& firmware_url) {
 
 
         if (!image_header_checked) {
-            image_header.append(buffer, ret);
+            image_header.append(buffer.data(), ret);
             if (image_header.size() >= sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
                 esp_app_desc_t new_app_info;
                 memcpy(&new_app_info, image_header.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(esp_app_desc_t));
@@ -202,7 +219,7 @@ void Ota::Upgrade(const std::string& firmware_url) {
                 image_header_checked = true;
             }
         }
-        auto err = esp_ota_write(update_handle, buffer, ret);
+        auto err = esp_ota_write(update_handle, buffer.data(), ret);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
             esp_ota_abort(update_handle);

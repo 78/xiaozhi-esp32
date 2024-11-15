@@ -153,13 +153,11 @@ void Display::UpdateDisplay()
             }
         }
 
-        int battery_voltage;
+        int battery_level;
         bool charging;
-        if (board.GetBatteryVoltage(battery_voltage, charging))
-        {
-            text += "\n" + std::to_string(battery_voltage) + "mV";
-            if (charging)
-            {
+        if (board.GetBatteryLevel(battery_level, charging)) {
+            text += "\nPower " + std::to_string(battery_level) + "%";
+            if (charging) {
                 text += " (Charging)";
             }
         }
