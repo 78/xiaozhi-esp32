@@ -3,6 +3,7 @@
 #include "ml307_ssl_transport.h"
 #include "audio_codec.h"
 #include "protocols/mqtt_protocol.h"
+#include "protocols/websocket_protocol.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -268,19 +269,23 @@ void Application::Start() {
 #endif
 
     // Initialize the protocol
-    display->SetText("Starting\nProtocol...");
+    display->SetText("Starting protocol...");
+#ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
+    protocol_ = new WebsocketProtocol();
+#else
     protocol_ = new MqttProtocol();
+#endif
     protocol_->OnIncomingAudio([this](const std::string& data) {
         std::lock_guard<std::mutex> lock(mutex_);
         audio_decode_queue_.emplace_back(std::move(data));
         cv_.notify_all();
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
-        if (protocol_->GetServerSampleRate() != codec->output_sample_rate()) {
+        if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG, "服务器的音频采样率 %d 与设备输出的采样率 %d 不一致，重采样后可能会失真",
-                protocol_->GetServerSampleRate(), codec->output_sample_rate());
+                protocol_->server_sample_rate(), codec->output_sample_rate());
         }
-        SetDecodeSampleRate(protocol_->GetServerSampleRate());
+        SetDecodeSampleRate(protocol_->server_sample_rate());
         board.SetPowerSaveMode(false);
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
