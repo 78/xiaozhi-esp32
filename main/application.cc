@@ -76,7 +76,7 @@ void Application::CheckNewVersion() {
 }
 
 void Application::Alert(const std::string&& title, const std::string&& message) {
-    ESP_LOGE(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
+    ESP_LOGW(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
     auto display = Board::GetInstance().GetDisplay();
     display->ShowNotification(std::string(title + "\n" + message));
 
@@ -373,7 +373,6 @@ void Application::SetChatState(ChatState state) {
         "listening",
         "speaking",
         "wake_word_detected",
-        "testing",
         "upgrading",
         "invalid_state"
     };

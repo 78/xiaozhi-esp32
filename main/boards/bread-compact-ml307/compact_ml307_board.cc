@@ -1,4 +1,4 @@
-#include "boards/ml307_board.h"
+#include "ml307_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/ssd1306_display.h"
 #include "system_reset.h"
@@ -18,6 +18,7 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    SystemReset system_reset_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -77,13 +78,14 @@ public:
     CompactMl307Board() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
+        system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
     }
 
     virtual void Initialize() override {
         ESP_LOGI(TAG, "Initializing CompactMl307Board");
         // Check if the reset button is pressed
-        SystemReset::GetInstance().CheckButtons();
+        system_reset_.CheckButtons();
 
         InitializeDisplayI2c();
         InitializeButtons();

@@ -1,4 +1,4 @@
-#include "boards/ml307_board.h"
+#include "ml307_board.h"
 #include "audio_codecs/box_audio_codec.h"
 #include "display/ssd1306_display.h"
 #include "application.h"

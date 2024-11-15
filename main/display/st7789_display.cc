@@ -9,9 +9,11 @@
 #define TAG "St7789Display"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
-St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, gpio_num_t backlight_pin,
-                           int width, int height, bool mirror_x, bool mirror_y)
-    : panel_io_(panel_io), panel_(panel), mirror_x_(mirror_x), mirror_y_(mirror_y) {
+St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                           gpio_num_t backlight_pin, bool backlight_output_invert,
+                           int width, int height, bool mirror_x, bool mirror_y, bool swap_xy)
+    : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
+      mirror_x_(mirror_x), mirror_y_(mirror_y), swap_xy_(swap_xy) {
     width_ = width;
     height_ = height;
 
@@ -43,7 +45,7 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
         .rotation = {
-            .swap_xy = true,
+            .swap_xy = swap_xy_,
             .mirror_x = mirror_x_,
             .mirror_y = mirror_y_,
         },
@@ -86,7 +88,7 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
         .duty = 0,
         .hpoint = 0,
         .flags = {
-            .output_invert = true
+            .output_invert = backlight_output_invert_,
         }
     };
     const ledc_timer_config_t backlight_timer = {
@@ -103,6 +105,10 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
 }
 
 void St7789Display::SetBacklight(uint8_t brightness) {
+    if (backlight_pin_ == GPIO_NUM_NC) {
+        return;
+    }
+
     if (brightness > 100) {
         brightness = 100;
     }

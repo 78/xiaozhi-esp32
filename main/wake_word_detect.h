@@ -42,10 +42,6 @@ private:
     int channels_;
     bool reference_;
 
-    TaskHandle_t audio_detection_task_ = nullptr;
-    StaticTask_t audio_detection_task_buffer_;
-    StackType_t* audio_detection_task_stack_ = nullptr;
-
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;

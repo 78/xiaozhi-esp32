@@ -11,12 +11,12 @@
 #define TAG "SystemReset"
 
 
-SystemReset::SystemReset() {
+SystemReset::SystemReset(gpio_num_t reset_nvs_pin, gpio_num_t reset_factory_pin) : reset_nvs_pin_(reset_nvs_pin), reset_factory_pin_(reset_factory_pin) {
     // Configure GPIO1, GPIO2 as INPUT, reset NVS flash if the button is pressed
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << GPIO_NUM_1) | (1ULL << GPIO_NUM_2);
+    io_conf.pin_bit_mask = (1ULL << reset_nvs_pin_) | (1ULL << reset_factory_pin_);
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
@@ -24,13 +24,13 @@ SystemReset::SystemReset() {
 
 
 void SystemReset::CheckButtons() {
-    if (gpio_get_level(GPIO_NUM_2) == 0) {
+    if (gpio_get_level(reset_factory_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset to factory");
         ResetNvsFlash();
         ResetToFactory();
     }
 
-    if (gpio_get_level(GPIO_NUM_1) == 0) {
+    if (gpio_get_level(reset_nvs_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset NVS flash");
         ResetNvsFlash();
     }
