@@ -14,6 +14,7 @@
 #include <string>
 #include <map>
 #include <mutex>
+
 #define MQTT_PING_INTERVAL_SECONDS 90
 #define MQTT_RECONNECT_INTERVAL_MS 10000
 
@@ -24,26 +25,16 @@ public:
     MqttProtocol();
     ~MqttProtocol();
 
-    void OnIncomingAudio(std::function<void(const std::string& data)> callback);
-    void OnIncomingJson(std::function<void(const cJSON* root)> callback);
-    void SendAudio(const std::string& data);
-    void SendText(const std::string& text);
-    void SendState(const std::string& state);
-    void SendAbort();
-    bool OpenAudioChannel();
-    void CloseAudioChannel();
-    void OnAudioChannelOpened(std::function<void()> callback);
-    void OnAudioChannelClosed(std::function<void()> callback);
-    bool IsAudioChannelOpened() const;
-    int GetServerSampleRate() const;
+    void SendAudio(const std::string& data) override;
+    void SendText(const std::string& text) override;
+    void SendState(const std::string& state) override;
+    void SendAbort() override;
+    bool OpenAudioChannel() override;
+    void CloseAudioChannel() override;
+    bool IsAudioChannelOpened() const override;
 
 private:
     EventGroupHandle_t event_group_handle_;
-
-    std::function<void(const cJSON* root)> on_incoming_json_;
-    std::function<void(const std::string& data)> on_incoming_audio_;
-    std::function<void()> on_audio_channel_opened_;
-    std::function<void()> on_audio_channel_closed_;
 
     std::string endpoint_;
     std::string client_id_;
@@ -62,7 +53,6 @@ private:
     uint32_t local_sequence_;
     uint32_t remote_sequence_;
     std::string session_id_;
-    int server_sample_rate_ = 16000;
 
     bool StartMqttClient();
     void ParseServerHello(const cJSON* root);

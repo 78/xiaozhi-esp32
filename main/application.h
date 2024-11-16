@@ -22,12 +22,6 @@
 #include "audio_processor.h"
 #endif
 
-struct BinaryProtocol3 {
-    uint8_t type;
-    uint8_t reserved;
-    uint16_t payload_size;
-    uint8_t payload[];
-} __attribute__((packed));
 
 enum ChatState {
     kChatStateUnknown,

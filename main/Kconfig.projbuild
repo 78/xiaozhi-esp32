@@ -6,13 +6,26 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+choice CONNECTION_TYPE
+    prompt "Connection Type"
+    default CONNECTION_TYPE_MQTT_UDP
+    help
+        网络数据传输协议
+    config CONNECTION_TYPE_MQTT_UDP
+        bool "MQTT + UDP"
+    config CONNECTION_TYPE_WEBSOCKET
+        bool "Websocket"
+endchoice
+
 config WEBSOCKET_URL
+    depends on CONNECTION_TYPE_WEBSOCKET
     string "Websocket URL"
     default "wss://api.tenclass.net/xiaozhi/v1/"
     help
         Communication with the server through websocket after wake up.
 
 config WEBSOCKET_ACCESS_TOKEN
+    depends on CONNECTION_TYPE_WEBSOCKET
     string "Websocket Access Token"
     default "test-token"
     help
@@ -29,8 +42,6 @@ choice BOARD_TYPE
         bool "面包板新版接线（ML307 AT）"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
-    config BOARD_TYPE_KEVIN_BOX_0
-        bool "Kevin Box 0"
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2

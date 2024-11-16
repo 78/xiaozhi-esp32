@@ -114,3 +114,7 @@ std::string Ml307Board::GetBoardJson() {
     board_json += "\"iccid\":\"" + modem_.GetIccid() + "\"}";
     return board_json;
 }
+
+void Ml307Board::SetPowerSaveMode(bool enabled) {
+    // TODO: Implement power save mode for ML307
+}

@@ -1,3 +1,11 @@
+/*
+ * @Author: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @Date: 2024-11-16 09:17:57
+ * @LastEditors: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @LastEditTime: 2024-11-16 09:18:48
+ * @FilePath: \xiaozhi-esp32\main\boards\common\system_reset.cc
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #include "system_reset.h"
 
 #include <esp_log.h>
@@ -10,32 +18,27 @@
 
 #define TAG "SystemReset"
 
-SystemReset::SystemReset()
-{
+
+SystemReset::SystemReset(gpio_num_t reset_nvs_pin, gpio_num_t reset_factory_pin) : reset_nvs_pin_(reset_nvs_pin), reset_factory_pin_(reset_factory_pin) {
     // Configure GPIO1, GPIO2 as INPUT, reset NVS flash if the button is pressed
-    if (RESET_NVS_BUTTON_GPIO > 0 && RESET_FACTORY_BUTTON_GPIO > 0)
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pin_bit_mask = (1ULL << RESET_NVS_BUTTON_GPIO) | (1ULL << RESET_FACTORY_BUTTON_GPIO);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-        gpio_config(&io_conf);
-    }
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << reset_nvs_pin_) | (1ULL << reset_factory_pin_);
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_conf);
 }
 
-void SystemReset::CheckButtons()
-{
-    if (gpio_get_level(RESET_FACTORY_BUTTON_GPIO) == 0)
-    {
+
+void SystemReset::CheckButtons() {
+    if (gpio_get_level(reset_factory_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset to factory");
         ResetNvsFlash();
         ResetToFactory();
     }
 
-    if (gpio_get_level(RESET_NVS_BUTTON_GPIO) == 0)
-    {
+    if (gpio_get_level(reset_nvs_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset NVS flash");
         ResetNvsFlash();
     }

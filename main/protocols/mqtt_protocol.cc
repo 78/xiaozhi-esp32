@@ -240,22 +240,6 @@ bool MqttProtocol::OpenAudioChannel() {
     return true;
 }
 
-void MqttProtocol::OnIncomingJson(std::function<void(const cJSON* root)> callback) {
-    on_incoming_json_ = callback;
-}
-
-void MqttProtocol::OnIncomingAudio(std::function<void(const std::string& data)> callback) {
-    on_incoming_audio_ = callback;
-}
-
-void MqttProtocol::OnAudioChannelOpened(std::function<void()> callback) {
-    on_audio_channel_opened_ = callback;
-}
-
-void MqttProtocol::OnAudioChannelClosed(std::function<void()> callback) {
-    on_audio_channel_closed_ = callback;
-}
-
 void MqttProtocol::ParseServerHello(const cJSON* root) {
     auto transport = cJSON_GetObjectItem(root, "transport");
     if (transport == nullptr || strcmp(transport->valuestring, "udp") != 0) {
@@ -296,11 +280,6 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     remote_sequence_ = 0;
     xEventGroupSetBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 }
-
-int MqttProtocol::GetServerSampleRate() const {
-    return server_sample_rate_;
-}
-
 
 static const char hex_chars[] = "0123456789ABCDEF";
 // 辅助函数，将单个十六进制字符转换为对应的数值

@@ -67,12 +67,15 @@ Http* WifiBoard::CreateHttp() {
 }
 
 WebSocket* WifiBoard::CreateWebSocket() {
+#ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
     std::string url = CONFIG_WEBSOCKET_URL;
     if (url.find("wss://") == 0) {
-            return new WebSocket(new TlsTransport());
-        } else {
-            return new WebSocket(new TcpTransport());
-        }
+        return new WebSocket(new TlsTransport());
+    } else {
+        return new WebSocket(new TcpTransport());
+    }
+#endif
+    return nullptr;
 }
 
 Mqtt* WifiBoard::CreateMqtt() {
@@ -114,4 +117,9 @@ std::string WifiBoard::GetBoardJson() {
     }
     board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
     return board_json;
+}
+
+void WifiBoard::SetPowerSaveMode(bool enabled) {
+    auto& wifi_station = WifiStation::GetInstance();
+    wifi_station.SetPowerSaveMode(enabled);
 }

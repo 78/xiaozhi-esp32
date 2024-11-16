@@ -43,6 +43,7 @@ public:
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging);
     virtual std::string GetJson();
+    virtual void SetPowerSaveMode(bool enabled) = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \
