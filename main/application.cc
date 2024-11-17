@@ -2,8 +2,9 @@
 #include "system_info.h"
 #include "ml307_ssl_transport.h"
 #include "audio_codec.h"
-#include "protocols/mqtt_protocol.h"
-#include "protocols/websocket_protocol.h"
+#include "mqtt_protocol.h"
+#include "websocket_protocol.h"
+#include "font_awesome_symbols.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -43,23 +44,29 @@ Application::~Application() {
 }
 
 void Application::CheckNewVersion() {
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
     // Check if there is a new firmware version available
-    ota_.SetPostData(Board::GetInstance().GetJson());
+    ota_.SetPostData(board.GetJson());
 
     while (true) {
         if (ota_.CheckVersion()) {
             if (ota_.HasNewVersion()) {
                 // Wait for the chat state to be idle
-                while (chat_state_ != kChatStateIdle) {
-                    vTaskDelay(100);
-                }
+                do {
+                    vTaskDelay(pdMS_TO_TICKS(3000));
+                } while (GetChatState() != kChatStateIdle);
 
                 SetChatState(kChatStateUpgrading);
-                ota_.StartUpgrade([](int progress, size_t speed) {
+                
+                display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
+                board.GetAudioCodec()->EnableOutput(false);
+
+                ota_.StartUpgrade([display](int progress, size_t speed) {
                     char buffer[64];
-                    snprintf(buffer, sizeof(buffer), "Upgrading...\n %d%% %zuKB/s", progress, speed / 1024);
-                    auto display = Board::GetInstance().GetDisplay();
-                    display->SetText(buffer);
+                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                    display->SetStatus(buffer);
                 });
 
                 // If upgrade success, the device will reboot and never reach here
@@ -67,6 +74,7 @@ void Application::CheckNewVersion() {
                 SetChatState(kChatStateIdle);
             } else {
                 ota_.MarkCurrentVersionValid();
+                display->ShowNotification("版本 " + ota_.GetCurrentVersion());
             }
             return;
         }
@@ -79,7 +87,7 @@ void Application::CheckNewVersion() {
 void Application::Alert(const std::string&& title, const std::string&& message) {
     ESP_LOGW(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
     auto display = Board::GetInstance().GetDisplay();
-    display->ShowNotification(std::string(title + "\n" + message));
+    display->ShowNotification(message);
 
     if (message == "PIN is not ready") {
         PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
@@ -137,7 +145,6 @@ void Application::Start() {
 
     /* Setup the display */
     auto display = board.GetDisplay();
-    display->SetupUI();
 
     /* Setup the audio codec */
     auto codec = board.GetAudioCodec();
@@ -230,9 +237,9 @@ void Application::Start() {
             auto builtin_led = Board::GetInstance().GetBuiltinLed();
             if (chat_state_ == kChatStateListening) {
                 if (speaking) {
-                    builtin_led->SetRed(32);
+                    builtin_led->SetRed(HIGH_BRIGHTNESS);
                 } else {
-                    builtin_led->SetRed(8);
+                    builtin_led->SetRed(LOW_BRIGHTNESS);
                 }
                 builtin_led->TurnOn();
             }
@@ -269,7 +276,7 @@ void Application::Start() {
 #endif
 
     // Initialize the protocol
-    display->SetText("Starting protocol...");
+    display->SetStatus("初始化协议");
 #ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
     protocol_ = new WebsocketProtocol();
 #else
@@ -294,7 +301,7 @@ void Application::Start() {
         });
         board.SetPowerSaveMode(true);
     });
-    protocol_->OnIncomingJson([this](const cJSON* root) {
+    protocol_->OnIncomingJson([this, display](const cJSON* root) {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
         if (strcmp(type->valuestring, "tts") == 0) {
@@ -315,28 +322,30 @@ void Application::Start() {
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (text != NULL) {
-                    ESP_LOGI(TAG, ">> %s", text->valuestring);
+                    ESP_LOGI(TAG, "<< %s", text->valuestring);
+                    display->SetChatMessage("assistant", text->valuestring);
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (text != NULL) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
+                display->SetChatMessage("user", text->valuestring);
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
-                ESP_LOGD(TAG, "EMOTION: %s", emotion->valuestring);
+                display->SetEmotion(emotion->valuestring);
             }
         }
     });
 
     // Blink the LED to indicate the device is running
+    display->SetStatus("待命");
     builtin_led->SetGreen();
     builtin_led->BlinkOnce();
 
     SetChatState(kChatStateIdle);
-    display->UpdateDisplay();
 }
 
 void Application::Schedule(std::function<void()> callback) {
@@ -394,7 +403,8 @@ void Application::SetChatState(ChatState state) {
         case kChatStateUnknown:
         case kChatStateIdle:
             builtin_led->TurnOff();
-            display->SetText("I'm\nIdle.");
+            display->SetStatus("待命");
+            display->SetEmotion("neutral");
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Stop();
 #endif
@@ -402,12 +412,13 @@ void Application::SetChatState(ChatState state) {
         case kChatStateConnecting:
             builtin_led->SetBlue();
             builtin_led->TurnOn();
-            display->SetText("I'm\nConnecting...");
+            display->SetStatus("连接中...");
             break;
         case kChatStateListening:
             builtin_led->SetRed();
             builtin_led->TurnOn();
-            display->SetText("I'm\nListening...");
+            display->SetStatus("聆听中...");
+            display->SetEmotion("neutral");
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Start();
 #endif
@@ -415,7 +426,7 @@ void Application::SetChatState(ChatState state) {
         case kChatStateSpeaking:
             builtin_led->SetGreen();
             builtin_led->TurnOn();
-            display->SetText("I'm\nSpeaking...");
+            display->SetStatus("说话中...");
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Stop();
 #endif

@@ -1,23 +1,26 @@
-set(SOURCES "audio_codec.cc"
+set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
-            "display.cc"
+            "display/display.cc"
             "display/no_display.cc"
             "display/st7789_display.cc"
             "display/ssd1306_display.cc"
-            "board.cc"
-            "protocol.cc"
+            "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
             "system_info.cc"
             "application.cc"
-            "button.cc"
-            "led.cc"
             "ota.cc"
             "settings.cc"
             "main.cc"
             )
-set(INCLUDE_DIRS ".")
+
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols")
+
+# 字体
+file(GLOB FONT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fonts/*.c)
+list(APPEND SOURCES ${FONT_SOURCES})
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/fonts)
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)

@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "application.h"
 #include "system_info.h"
+#include "font_awesome_symbols.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -38,7 +39,7 @@ void WifiBoard::StartNetwork() {
 
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto& wifi_station = WifiStation::GetInstance();
-    display->SetText(std::string("Connect to WiFi\n") + wifi_station.GetSsid());
+    display->SetStatus(std::string("正在连接 ") + wifi_station.GetSsid());
     wifi_station.Start();
     if (!wifi_station.IsConnected()) {
         builtin_led->SetBlue();
@@ -46,10 +47,18 @@ void WifiBoard::StartNetwork() {
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();
+        
         // 播报配置 WiFi 的提示
         application.Alert("Info", "Configuring WiFi");
+
         // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-        display->SetText(wifi_ap.GetSsid() + "\n" + wifi_ap.GetWebServerUrl());
+        std::string hint = "请在手机上连接热点 ";
+        hint += wifi_ap.GetSsid();
+        hint += "，然后打开浏览器访问 ";
+        hint += wifi_ap.GetWebServerUrl();
+
+        display->SetStatus(hint);
+        
         // Wait forever until reset after configuration
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));
@@ -101,6 +110,24 @@ bool WifiBoard::GetNetworkState(std::string& network_name, int& signal_quality, 
     signal_quality = wifi_station.GetRssi();
     signal_quality_text = rssi_to_string(signal_quality);
     return signal_quality != -1;
+}
+
+const char* WifiBoard::GetNetworkStateIcon() {
+    if (wifi_config_mode_) {
+        return FONT_AWESOME_WIFI;
+    }
+    auto& wifi_station = WifiStation::GetInstance();
+    if (!wifi_station.IsConnected()) {
+        return FONT_AWESOME_WIFI_OFF;
+    }
+    int8_t rssi = wifi_station.GetRssi();
+    if (rssi >= -55) {
+        return FONT_AWESOME_WIFI;
+    } else if (rssi >= -65) {
+        return FONT_AWESOME_WIFI_FAIR;
+    } else {
+        return FONT_AWESOME_WIFI_WEAK;
+    }
 }
 
 std::string WifiBoard::GetBoardJson() {
