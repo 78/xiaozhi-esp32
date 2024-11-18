@@ -79,12 +79,6 @@ St7789Display::~St7789Display()
 
 void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
 {
-    if (backlight_pin == GPIO_NUM_NC)
-    {
-        bl_set = false;
-        return;
-    }
-    bl_set = true;
 
     // Setup LEDC peripheral for PWM backlight control
     const ledc_channel_config_t backlight_channel = {

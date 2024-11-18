@@ -328,12 +328,15 @@ void Application::Start()
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (text != NULL) {
                     ESP_LOGI(TAG, ">> %s", text->valuestring);
+                    auto display = Board::GetInstance().GetDisplay();
+                    display->SetText(text->valuestring);
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (text != NULL) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
+                
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
