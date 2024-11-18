@@ -23,6 +23,8 @@ public:
     virtual ~AudioCodec();
     
     virtual void SetOutputVolume(int volume);
+    virtual void EnableInput(bool enable);
+    virtual void EnableOutput(bool enable);
 
     void Start();
     void OnInputData(std::function<void(std::vector<int16_t>&& data)> callback);
@@ -67,8 +69,6 @@ protected:
 
     virtual int Read(int16_t* dest, int samples) = 0;
     virtual int Write(const int16_t* data, int samples) = 0;
-    virtual void EnableInput(bool enable);
-    virtual void EnableOutput(bool enable);
 };
 
 #endif // _AUDIO_CODEC_H

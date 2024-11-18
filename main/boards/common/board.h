@@ -41,6 +41,7 @@ public:
     virtual Mqtt* CreateMqtt() = 0;
     virtual Udp* CreateUdp() = 0;
     virtual bool GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) = 0;
+    virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;

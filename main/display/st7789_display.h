@@ -16,9 +16,15 @@ private:
     bool mirror_x_ = false;
     bool mirror_y_ = false;
     bool swap_xy_ = false;
+    
+    lv_obj_t* status_bar_ = nullptr;
+    lv_obj_t* content_ = nullptr;
+    lv_obj_t* container_ = nullptr;
+    lv_obj_t* side_bar_ = nullptr;
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
+    void SetupUI();
 
     virtual void Lock() override;
     virtual void Unlock() override;

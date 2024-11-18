@@ -91,13 +91,13 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("Volume\n" + std::to_string(volume));
+            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             auto codec = GetAudioCodec();
             codec->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("Volume\n100");
+            GetDisplay()->ShowNotification("最大音量");
         });
 
         volume_down_button_.OnClick([this]() {
@@ -107,13 +107,13 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("Volume\n" + std::to_string(volume));
+            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             auto codec = GetAudioCodec();
             codec->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("Volume\n0");
+            GetDisplay()->ShowNotification("已静音");
         });
     }
 
