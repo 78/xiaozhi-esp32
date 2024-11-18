@@ -21,7 +21,7 @@
 - Wi-Fi 配网
 - 支持 BOOT 键唤醒和打断
 - 离线语音唤醒（乐鑫方案）
-- 流式语音对话（WebSocket 协议）
+- 流式语音对话（WebSocket 或 UDP 协议）
 - 支持国语、粤语、英语、日语、韩语 5 种语言识别（SenseVoice 方案）
 - 声纹识别（识别是谁在喊 AI 的名字，[3D Speaker 项目](https://github.com/modelscope/3D-Speaker)）
 - 使用大模型 TTS（火山引擎与 CosyVoice 方案）

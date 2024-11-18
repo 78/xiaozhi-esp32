@@ -36,8 +36,8 @@ void Ota::SetPostData(const std::string& post_data) {
 }
 
 bool Ota::CheckVersion() {
-    std::string current_version = esp_app_get_description()->version;
-    ESP_LOGI(TAG, "Current version: %s", current_version.c_str());
+    current_version_ = esp_app_get_description()->version;
+    ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
@@ -109,7 +109,7 @@ bool Ota::CheckVersion() {
     cJSON_Delete(root);
 
     // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-    has_new_version_ = IsNewVersionAvailable(current_version, firmware_version_);
+    has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
     if (has_new_version_) {
         ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
     } else {

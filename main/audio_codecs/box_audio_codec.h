@@ -22,8 +22,6 @@ private:
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
-    virtual void EnableInput(bool enable) override;
-    virtual void EnableOutput(bool enable) override;
 
 public:
     BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
@@ -32,6 +30,8 @@ public:
     virtual ~BoxAudioCodec();
 
     virtual void SetOutputVolume(int volume) override;
+    virtual void EnableInput(bool enable) override;
+    virtual void EnableOutput(bool enable) override;
 };
 
 #endif // _BOX_AUDIO_CODEC_H

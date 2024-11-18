@@ -1,5 +1,6 @@
 #include "ml307_board.h"
 #include "application.h"
+#include "font_awesome_symbols.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -34,7 +35,7 @@ Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, size_t rx_buffer_si
 
 void Ml307Board::StartNetwork() {
     auto display = Board::GetInstance().GetDisplay();
-    display->SetText(std::string("Starting modem"));
+    display->SetStatus("初始化模块");
     modem_.SetDebug(false);
     modem_.SetBaudRate(921600);
 
@@ -54,7 +55,7 @@ void Ml307Board::StartNetwork() {
 void Ml307Board::WaitForNetworkReady() {
     auto& application = Application::GetInstance();
     auto display = Board::GetInstance().GetDisplay();
-    display->SetText(std::string("Wait for network\n"));
+    display->SetStatus("等待网络...");
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
         application.Alert("Error", "PIN is not ready");
@@ -101,6 +102,29 @@ bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality,
     signal_quality = modem_.GetCsq();
     signal_quality_text = csq_to_string(signal_quality);
     return signal_quality != -1;
+}
+
+const char* Ml307Board::GetNetworkStateIcon() {
+    if (!modem_.network_ready()) {
+        return FONT_AWESOME_SIGNAL_OFF;
+    }
+    int csq = modem_.GetCsq();
+    if (csq == -1) {
+        return FONT_AWESOME_SIGNAL_OFF;
+    } else if (csq >= 0 && csq <= 9) {
+        return FONT_AWESOME_SIGNAL_1;
+    } else if (csq >= 10 && csq <= 14) {
+        return FONT_AWESOME_SIGNAL_2;
+    } else if (csq >= 15 && csq <= 19) {
+        return FONT_AWESOME_SIGNAL_3;
+    } else if (csq >= 20 && csq <= 24) {
+        return FONT_AWESOME_SIGNAL_4;
+    } else if (csq >= 25 && csq <= 31) {
+        return FONT_AWESOME_SIGNAL_FULL;
+    }
+
+    ESP_LOGW(TAG, "Invalid CSQ: %d", csq);
+    return FONT_AWESOME_SIGNAL_OFF;
 }
 
 std::string Ml307Board::GetBoardJson() {
