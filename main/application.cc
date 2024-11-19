@@ -284,6 +284,9 @@ void Application::Start() {
 #else
     protocol_ = new MqttProtocol();
 #endif
+    protocol_->OnNetworkError([this](const std::string& message) {
+        Alert("Error", std::move(message));
+    });
     protocol_->OnIncomingAudio([this](const std::string& data) {
         std::lock_guard<std::mutex> lock(mutex_);
         audio_decode_queue_.emplace_back(std::move(data));

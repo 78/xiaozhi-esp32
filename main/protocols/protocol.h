@@ -25,6 +25,7 @@ public:
     void OnIncomingJson(std::function<void(const cJSON* root)> callback);
     void OnAudioChannelOpened(std::function<void()> callback);
     void OnAudioChannelClosed(std::function<void()> callback);
+    void OnNetworkError(std::function<void(const std::string& message)> callback);
 
     virtual void SendAudio(const std::string& data) = 0;
     virtual void SendText(const std::string& text) = 0;
@@ -39,6 +40,7 @@ protected:
     std::function<void(const std::string& data)> on_incoming_audio_;
     std::function<void()> on_audio_channel_opened_;
     std::function<void()> on_audio_channel_closed_;
+    std::function<void(const std::string& message)> on_network_error_;
 
     int server_sample_rate_ = 16000;
 };

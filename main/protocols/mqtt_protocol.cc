@@ -85,6 +85,9 @@ bool MqttProtocol::StartMqttClient() {
     ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint_.c_str());
     if (!mqtt_->Connect(endpoint_, 8883, client_id_, username_, password_)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("无法连接服务");
+        }
         return false;
     }
 
@@ -167,7 +170,6 @@ bool MqttProtocol::OpenAudioChannel() {
     if (mqtt_ == nullptr || !mqtt_->IsConnected()) {
         ESP_LOGI(TAG, "MQTT is not connected, try to connect now");
         if (!StartMqttClient()) {
-            ESP_LOGE(TAG, "Failed to connect to MQTT");
             return false;
         }
     }
@@ -188,6 +190,9 @@ bool MqttProtocol::OpenAudioChannel() {
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & MQTT_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("等待响应超时");
+        }
         return false;
     }
 

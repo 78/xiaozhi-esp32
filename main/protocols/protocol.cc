@@ -19,3 +19,7 @@ void Protocol::OnAudioChannelOpened(std::function<void()> callback) {
 void Protocol::OnAudioChannelClosed(std::function<void()> callback) {
     on_audio_channel_closed_ = callback;
 }
+
+void Protocol::OnNetworkError(std::function<void(const std::string& message)> callback) {
+    on_network_error_ = callback;
+}
