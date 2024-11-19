@@ -61,6 +61,8 @@ void Application::CheckNewVersion() {
                 
                 display->SetIcon(FONT_AWESOME_DOWNLOAD);
                 display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
+
+                // 预先关闭音频输出，避免升级过程有音频操作
                 board.GetAudioCodec()->EnableOutput(false);
 
                 ota_.StartUpgrade([display](int progress, size_t speed) {
