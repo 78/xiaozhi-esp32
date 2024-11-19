@@ -64,6 +64,13 @@ void Display::SetStatus(const std::string &status) {
     DisplayLockGuard lock(this);
     lv_label_set_text(status_label_, status.c_str());
 }
+void Display::SetReply(const std::string &text) {
+    if (reply_label_ == nullptr) {
+        return;
+    }
+    DisplayLockGuard lock(this);
+    lv_label_set_text(reply_label_, text.c_str());
+}
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
     if (notification_label_ == nullptr) {
@@ -189,4 +196,5 @@ void Display::SetIcon(const char* icon) {
 }
 
 void Display::SetChatMessage(const std::string &role, const std::string &content) {
+    
 }

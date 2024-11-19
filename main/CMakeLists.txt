@@ -13,7 +13,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "main.cc"
-            "display/font_dingding.c"
+            "fonts/font_dingding.c"
             )
 
 set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols")
