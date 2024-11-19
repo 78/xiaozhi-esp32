@@ -110,6 +110,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     if (!websocket_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("无法连接服务");
+        }
         return false;
     }
 
@@ -128,6 +131,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("等待响应超时");
+        }
         return false;
     }
 

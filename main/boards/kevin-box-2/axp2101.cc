@@ -4,7 +4,7 @@
 
 #include <esp_log.h>
 
-static const char *TAG = "Axp2101";
+#define TAG "Axp2101"
 
 Axp2101::Axp2101(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
     // ** EFUSE defaults **
