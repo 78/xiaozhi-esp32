@@ -17,6 +17,9 @@
 #include "board.h"
 #include "ota.h"
 
+#include <nvs.h>
+#include <nvs_flash.h>
+
 #ifdef CONFIG_USE_AFE_SR
 #include "wake_word_detect.h"
 #include "audio_processor.h"

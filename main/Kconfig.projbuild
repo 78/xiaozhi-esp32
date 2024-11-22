@@ -50,6 +50,19 @@ choice BOARD_TYPE
         bool "立创开发板"
 endchoice
 
+if BOARD_TYPE_LICHUANG_DEV
+choice BOOT_BUTTON_FUNCTION
+    prompt "boot按键功能"
+    default BOOT_BUTTON_FUNCTION_AWAKEN
+    help 
+        boot按键功能
+    config BOOT_BUTTON_FUNCTION_AWAKEN
+        bool "唤醒"
+    config BOOT_BUTTON_FUNCTION_RENET
+        bool "配网"
+endchoice
+endif
+
 config USE_AFE_SR
     bool "Use Espressif AFE SR"
     default y
