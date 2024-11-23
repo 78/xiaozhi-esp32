@@ -10,7 +10,8 @@ public:
     Button(gpio_num_t gpio_num);
     ~Button();
 
-    void OnPress(std::function<void()> callback);
+    void OnPressDown(std::function<void()> callback);
+    void OnPressUp(std::function<void()> callback);
     void OnLongPress(std::function<void()> callback);
     void OnClick(std::function<void()> callback);
     void OnDoubleClick(std::function<void()> callback);
@@ -19,7 +20,8 @@ private:
     button_handle_t button_handle_;
 
 
-    std::function<void()> on_press_;
+    std::function<void()> on_press_down_;
+    std::function<void()> on_press_up_;
     std::function<void()> on_long_press_;
     std::function<void()> on_click_;
     std::function<void()> on_double_click_;
