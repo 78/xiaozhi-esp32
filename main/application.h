@@ -29,7 +29,6 @@ enum ChatState {
     kChatStateConnecting,
     kChatStateListening,
     kChatStateSpeaking,
-    kChatStateWakeWordDetected,
     kChatStateUpgrading
 };
 
@@ -41,17 +40,19 @@ public:
         static Application instance;
         return instance;
     }
+    // 删除拷贝构造函数和赋值运算符
+    Application(const Application&) = delete;
+    Application& operator=(const Application&) = delete;
 
     void Start();
     ChatState GetChatState() const { return chat_state_; }
     void Schedule(std::function<void()> callback);
     void SetChatState(ChatState state);
     void Alert(const std::string&& title, const std::string&& message);
-    void AbortSpeaking();
+    void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
-    // 删除拷贝构造函数和赋值运算符
-    Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
+    void StartListening();
+    void StopListening();
 
 private:
     Application();
@@ -68,6 +69,7 @@ private:
     Protocol* protocol_ = nullptr;
     EventGroupHandle_t event_group_;
     volatile ChatState chat_state_ = kChatStateUnknown;
+    bool keep_listening_ = false;
     bool skip_to_end_ = false;
 
     // Audio encode / decode

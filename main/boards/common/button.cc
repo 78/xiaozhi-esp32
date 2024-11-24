@@ -30,15 +30,28 @@ Button::~Button() {
     }
 }
 
-void Button::OnPress(std::function<void()> callback) {
+void Button::OnPressDown(std::function<void()> callback) {
     if (button_handle_ == nullptr) {
         return;
     }
-    on_press_ = callback;
+    on_press_down_ = callback;
     iot_button_register_cb(button_handle_, BUTTON_PRESS_DOWN, [](void* handle, void* usr_data) {
         Button* button = static_cast<Button*>(usr_data);
-        if (button->on_press_) {
-            button->on_press_();
+        if (button->on_press_down_) {
+            button->on_press_down_();
+        }
+    }, this);
+}
+
+void Button::OnPressUp(std::function<void()> callback) {
+    if (button_handle_ == nullptr) {
+        return;
+    }
+    on_press_up_ = callback;
+    iot_button_register_cb(button_handle_, BUTTON_PRESS_UP, [](void* handle, void* usr_data) {
+        Button* button = static_cast<Button*>(usr_data);
+        if (button->on_press_up_) {
+            button->on_press_up_();
         }
     }, this);
 }

@@ -7,6 +7,7 @@
 #include "led.h"
 #include "config.h"
 
+#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
@@ -38,7 +39,11 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
         });
 
         volume_up_button_.OnClick([this]() {

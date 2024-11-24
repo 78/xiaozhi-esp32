@@ -20,7 +20,7 @@ Axp2101::Axp2101(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_
     WriteReg(0x64, 0x03); // CV charger voltage setting to 4.2V
     
     WriteReg(0x61, 0x05); // set Main battery precharge current to 125mA
-    WriteReg(0x62, 0x10); // set Main battery charger current to 1000mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+    WriteReg(0x62, 0x0A); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
     WriteReg(0x63, 0x15); // set Main battery term charge current to 125mA
 
     WriteReg(0x14, 0x00); // set minimum system voltage to 4.1V (default 4.7V), for poor USB cables

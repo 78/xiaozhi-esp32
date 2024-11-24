@@ -39,21 +39,6 @@ void WebsocketProtocol::SendText(const std::string& text) {
     websocket_->Send(text);
 }
 
-void WebsocketProtocol::SendState(const std::string& state) {
-    std::string message = "{";
-    message += "\"type\":\"state\",";
-    message += "\"state\":\"" + state + "\"";
-    message += "}";
-    SendText(message);
-}
-
-void WebsocketProtocol::SendAbort() {
-    std::string message = "{";
-    message += "\"type\":\"abort\"";
-    message += "}";
-    SendText(message);
-}
-
 bool WebsocketProtocol::IsAudioChannelOpened() const {
     return websocket_ != nullptr;
 }

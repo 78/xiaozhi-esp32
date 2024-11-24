@@ -4,9 +4,9 @@
 #include <esp_log.h>
 #include <model_path.h>
 #include <arpa/inet.h>
+#include <sstream>
 
 #define DETECTION_RUNNING_EVENT 1
-#define WAKE_WORD_ENCODED_EVENT 2
 
 static const char* TAG = "WakeWordDetect";
 
@@ -40,6 +40,13 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
         ESP_LOGI(TAG, "Model %d: %s", i, models->model_name[i]);
         if (strstr(models->model_name[i], ESP_WN_PREFIX) != NULL) {
             wakenet_model_ = models->model_name[i];
+            auto words = esp_srmodel_get_wake_words(models, wakenet_model_);
+            // split by ";" to get all wake words
+            std::stringstream ss(words);
+            std::string word;
+            while (std::getline(ss, word, ';')) {
+                wake_words_.push_back(word);
+            }
         }
     }
 
@@ -84,7 +91,7 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
     }, "audio_detection", 4096 * 2, this, 1, nullptr);
 }
 
-void WakeWordDetect::OnWakeWordDetected(std::function<void()> callback) {
+void WakeWordDetect::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
     wake_word_detected_callback_ = callback;
 }
 
@@ -144,11 +151,11 @@ void WakeWordDetect::AudioDetectionTask() {
         }
 
         if (res->wakeup_state == WAKENET_DETECTED) {
-            ESP_LOGI(TAG, "Wake word detected");
             StopDetection();
+            last_detected_wake_word_ = wake_words_[res->wake_word_index - 1];
 
             if (wake_word_detected_callback_) {
-                wake_word_detected_callback_();
+                wake_word_detected_callback_(last_detected_wake_word_);
             }
         }
     }
@@ -165,7 +172,6 @@ void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
 }
 
 void WakeWordDetect::EncodeWakeWordData() {
-    xEventGroupClearBits(event_group_, WAKE_WORD_ENCODED_EVENT);
     wake_word_opus_.clear();
     if (wake_word_encode_task_stack_ == nullptr) {
         wake_word_encode_task_stack_ = (StackType_t*)heap_caps_malloc(4096 * 8, MALLOC_CAP_SPIRAM);
@@ -182,15 +188,18 @@ void WakeWordDetect::EncodeWakeWordData() {
             encoder->Encode(pcm, [this_](const uint8_t* opus, size_t opus_size) {
                 std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
                 this_->wake_word_opus_.emplace_back(std::string(reinterpret_cast<const char*>(opus), opus_size));
-                this_->wake_word_cv_.notify_one();
+                this_->wake_word_cv_.notify_all();
             });
         }
         this_->wake_word_pcm_.clear();
 
         auto end_time = esp_timer_get_time();
         ESP_LOGI(TAG, "Encode wake word opus %zu packets in %lld ms", this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
-        xEventGroupSetBits(this_->event_group_, WAKE_WORD_ENCODED_EVENT);
-        this_->wake_word_cv_.notify_one();
+        {
+            std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
+            this_->wake_word_opus_.push_back("");
+            this_->wake_word_cv_.notify_all();
+        }
         delete encoder;
         vTaskDelete(NULL);
     }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
@@ -199,12 +208,9 @@ void WakeWordDetect::EncodeWakeWordData() {
 bool WakeWordDetect::GetWakeWordOpus(std::string& opus) {
     std::unique_lock<std::mutex> lock(wake_word_mutex_);
     wake_word_cv_.wait(lock, [this]() {
-        return !wake_word_opus_.empty() || (xEventGroupGetBits(event_group_) & WAKE_WORD_ENCODED_EVENT);
+        return !wake_word_opus_.empty();
     });
-    if (wake_word_opus_.empty()) {
-        return false;
-    }
     opus.swap(wake_word_opus_.front());
     wake_word_opus_.pop_front();
-    return true;
+    return !opus.empty();
 }
