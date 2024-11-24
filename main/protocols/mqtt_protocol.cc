@@ -72,9 +72,9 @@ bool MqttProtocol::StartMqttClient() {
         } else if (strcmp(type->valuestring, "goodbye") == 0) {
             auto session_id = cJSON_GetObjectItem(root, "session_id");
             if (session_id == nullptr || session_id_ == session_id->valuestring) {
-                if (on_audio_channel_closed_ != nullptr) {
-                    on_audio_channel_closed_();
-                }
+                Application::GetInstance().Schedule([this]() {
+                    CloseAudioChannel();
+                });
             }
         } else if (on_incoming_json_ != nullptr) {
             on_incoming_json_(root);
@@ -127,23 +127,6 @@ void MqttProtocol::SendAudio(const std::string& data) {
         return;
     }
     udp_->Send(encrypted);
-}
-
-void MqttProtocol::SendState(const std::string& state) {
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"state\",";
-    message += "\"state\":\"" + state + "\"";
-    message += "}";
-    SendText(message);
-}
-
-void MqttProtocol::SendAbort() {
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"abort\"";
-    message += "}";
-    SendText(message);
 }
 
 void MqttProtocol::CloseAudioChannel() {

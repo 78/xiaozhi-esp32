@@ -123,17 +123,49 @@ void Application::ToggleChatState() {
     Schedule([this]() {
         if (chat_state_ == kChatStateIdle) {
             SetChatState(kChatStateConnecting);
-            if (protocol_->OpenAudioChannel()) {
-                opus_encoder_.ResetState();
-                SetChatState(kChatStateListening);
-            } else {
+            if (!protocol_->OpenAudioChannel()) {
+                ESP_LOGE(TAG, "Failed to open audio channel");
                 SetChatState(kChatStateIdle);
+                return;
             }
+
+            keep_listening_ = true;
+            protocol_->SendStartListening(kListeningModeAutoStop);
+            SetChatState(kChatStateListening);
         } else if (chat_state_ == kChatStateSpeaking) {
-            AbortSpeaking();
+            AbortSpeaking(kAbortReasonNone);
         } else if (chat_state_ == kChatStateListening) {
             protocol_->CloseAudioChannel();
         }
+    });
+}
+
+void Application::StartListening() {
+    Schedule([this]() {
+        keep_listening_ = false;
+        if (chat_state_ == kChatStateIdle) {
+            if (!protocol_->IsAudioChannelOpened()) {
+                SetChatState(kChatStateConnecting);
+                if (!protocol_->OpenAudioChannel()) {
+                    SetChatState(kChatStateIdle);
+                    ESP_LOGE(TAG, "Failed to open audio channel");
+                    return;
+                }
+            }
+            protocol_->SendStartListening(kListeningModeManualStop);
+            SetChatState(kChatStateListening);
+        } else if (chat_state_ == kChatStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+            protocol_->SendStartListening(kListeningModeManualStop);
+            SetChatState(kChatStateListening);
+        }
+    });
+}
+
+void Application::StopListening() {
+    Schedule([this]() {
+        protocol_->SendStopListening();
+        SetChatState(kChatStateIdle);
     });
 }
 
@@ -248,26 +280,31 @@ void Application::Start() {
         });
     });
 
-    wake_word_detect_.OnWakeWordDetected([this]() {
-        Schedule([this]() {
+    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
+        Schedule([this, &wake_word]() {
             if (chat_state_ == kChatStateIdle) {
                 SetChatState(kChatStateConnecting);
                 wake_word_detect_.EncodeWakeWordData();
 
-                if (protocol_->OpenAudioChannel()) {
-                    std::string opus;
-                    // Encode and send the wake word data to the server
-                    while (wake_word_detect_.GetWakeWordOpus(opus)) {
-                        protocol_->SendAudio(opus);
-                    }
-                    opus_encoder_.ResetState();
-                    // Send a ready message to indicate the server that the wake word data is sent
-                    SetChatState(kChatStateWakeWordDetected);
-                } else {
+                if (!protocol_->OpenAudioChannel()) {
+                    ESP_LOGE(TAG, "Failed to open audio channel");
                     SetChatState(kChatStateIdle);
+                    wake_word_detect_.StartDetection();
+                    return;
                 }
+                
+                std::string opus;
+                // Encode and send the wake word data to the server
+                while (wake_word_detect_.GetWakeWordOpus(opus)) {
+                    protocol_->SendAudio(opus);
+                }
+                // Set the chat state to wake word detected
+                protocol_->SendWakeWordDetected(wake_word);
+                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+                keep_listening_ = true;
+                SetChatState(kChatStateListening);
             } else if (chat_state_ == kChatStateSpeaking) {
-                AbortSpeaking();
+                AbortSpeaking(kAbortReasonWakeWordDetected);
             }
 
             // Resume detection
@@ -313,15 +350,23 @@ void Application::Start() {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
-                    skip_to_end_ = false;
-                    SetChatState(kChatStateSpeaking);
+                    if (chat_state_ == kChatStateIdle || chat_state_ == kChatStateListening) {
+                        skip_to_end_ = false;
+                        opus_decoder_ctl(opus_decoder_, OPUS_RESET_STATE);
+                        SetChatState(kChatStateSpeaking);
+                    }
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     auto codec = Board::GetInstance().GetAudioCodec();
                     codec->WaitForOutputDone();
                     if (chat_state_ == kChatStateSpeaking) {
-                        SetChatState(kChatStateListening);
+                        if (keep_listening_) {
+                            protocol_->SendStartListening(kListeningModeAutoStop);
+                            SetChatState(kChatStateListening);
+                        } else {
+                            SetChatState(kChatStateIdle);
+                        }
                     }
                 });
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
@@ -375,9 +420,9 @@ void Application::MainLoop() {
     }
 }
 
-void Application::AbortSpeaking() {
+void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
-    protocol_->SendAbort();
+    protocol_->SendAbortSpeaking(reason);
 
     skip_to_end_ = true;
     auto codec = Board::GetInstance().GetAudioCodec();
@@ -391,7 +436,6 @@ void Application::SetChatState(ChatState state) {
         "connecting",
         "listening",
         "speaking",
-        "wake_word_detected",
         "upgrading",
         "invalid_state"
     };
@@ -399,12 +443,10 @@ void Application::SetChatState(ChatState state) {
         // No need to update the state
         return;
     }
-    chat_state_ = state;
-    ESP_LOGI(TAG, "STATE: %s", state_str[chat_state_]);
 
     auto display = Board::GetInstance().GetDisplay();
     auto builtin_led = Board::GetInstance().GetBuiltinLed();
-    switch (chat_state_) {
+    switch (state) {
         case kChatStateUnknown:
         case kChatStateIdle:
             builtin_led->TurnOff();
@@ -424,6 +466,7 @@ void Application::SetChatState(ChatState state) {
             builtin_led->TurnOn();
             display->SetStatus("聆听中...");
             display->SetEmotion("neutral");
+            opus_encoder_.ResetState();
 #ifdef CONFIG_USE_AFE_SR
             audio_processor_.Start();
 #endif
@@ -436,17 +479,17 @@ void Application::SetChatState(ChatState state) {
             audio_processor_.Stop();
 #endif
             break;
-        case kChatStateWakeWordDetected:
-            builtin_led->SetBlue();
-            builtin_led->TurnOn();
-            break;
         case kChatStateUpgrading:
             builtin_led->SetGreen();
             builtin_led->StartContinuousBlink(100);
             break;
+        default:
+            ESP_LOGE(TAG, "Invalid chat state: %d", chat_state_);
+            return;
     }
 
-    protocol_->SendState(state_str[chat_state_]);
+    chat_state_ = state;
+    ESP_LOGI(TAG, "STATE: %s", state_str[chat_state_]);
 }
 
 void Application::AudioEncodeTask() {
@@ -474,7 +517,7 @@ void Application::AudioEncodeTask() {
             audio_decode_queue_.pop_front();
             lock.unlock();
 
-            if (skip_to_end_) {
+            if (skip_to_end_ || chat_state_ != kChatStateSpeaking) {
                 continue;
             }
 
