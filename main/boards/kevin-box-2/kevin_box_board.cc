@@ -118,8 +118,15 @@ private:
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+        // 测试按住说话
+        // boot_button_.OnClick([this]() {
+        //     Application::GetInstance().ToggleChatState();
+        // });
+        boot_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        boot_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
         });
 
         volume_up_button_.OnClick([this]() {
