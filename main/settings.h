@@ -13,6 +13,8 @@ public:
     void SetString(const std::string& key, const std::string& value);
     int32_t GetInt(const std::string& key, int32_t default_value = 0);
     void SetInt(const std::string& key, int32_t value);
+    void EraseKey(const std::string& key);
+    void EraseAll();
 
 private:
     std::string ns_;

@@ -2,6 +2,7 @@
 #include "application.h"
 #include "system_info.h"
 #include "font_awesome_symbols.h"
+#include "settings.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -148,4 +149,16 @@ std::string WifiBoard::GetBoardJson() {
 void WifiBoard::SetPowerSaveMode(bool enabled) {
     auto& wifi_station = WifiStation::GetInstance();
     wifi_station.SetPowerSaveMode(enabled);
+}
+
+void WifiBoard::ResetWifiConfiguration() {
+    // Reset the wifi station
+    {
+        Settings settings("wifi", true);
+        settings.EraseAll();
+    }
+    GetDisplay()->ShowNotification("已重置 WiFi...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    // Reboot the device
+    esp_restart();
 }

@@ -198,7 +198,6 @@ void St7789Display::SetupUI() {
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(status_label_, "正在初始化");
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
 

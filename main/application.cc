@@ -517,7 +517,7 @@ void Application::AudioEncodeTask() {
             audio_decode_queue_.pop_front();
             lock.unlock();
 
-            if (skip_to_end_ || chat_state_ != kChatStateSpeaking) {
+            if (skip_to_end_) {
                 continue;
             }
 

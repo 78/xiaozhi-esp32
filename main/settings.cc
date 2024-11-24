@@ -63,3 +63,19 @@ void Settings::SetInt(const std::string& key, int32_t value) {
         ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
     }
 }
+
+void Settings::EraseKey(const std::string& key) {
+    if (read_write_) {
+        ESP_ERROR_CHECK(nvs_erase_key(nvs_handle_, key.c_str()));
+    } else {
+        ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
+    }
+}
+
+void Settings::EraseAll() {
+    if (read_write_) {
+        ESP_ERROR_CHECK(nvs_erase_all(nvs_handle_));
+    } else {
+        ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
+    }
+}
