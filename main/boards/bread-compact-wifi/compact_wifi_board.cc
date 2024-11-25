@@ -1,4 +1,4 @@
-#include "boards/wifi_board.h"
+#include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/ssd1306_display.h"
 #include "system_reset.h"
@@ -7,6 +7,7 @@
 #include "led.h"
 #include "config.h"
 
+#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
@@ -18,6 +19,7 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    SystemReset system_reset_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -37,7 +39,11 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
         });
 
         volume_up_button_.OnClick([this]() {
@@ -47,13 +53,13 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("Volume\n" + std::to_string(volume));
+            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             auto codec = GetAudioCodec();
             codec->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("Volume\n100");
+            GetDisplay()->ShowNotification("最大音量");
         });
 
         volume_down_button_.OnClick([this]() {
@@ -63,13 +69,13 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("Volume\n" + std::to_string(volume));
+            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             auto codec = GetAudioCodec();
             codec->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("Volume\n0");
+            GetDisplay()->ShowNotification("已静音");
         });
     }
 
@@ -77,13 +83,14 @@ public:
     CompactWifiBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
+        system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
     }
 
     virtual void Initialize() override {
         ESP_LOGI(TAG, "Initializing CompactWifiBoard");
         // Check if the reset button is pressed
-        SystemReset::GetInstance().CheckButtons();
+        system_reset_.CheckButtons();
 
         InitializeDisplayI2c();
         InitializeButtons();

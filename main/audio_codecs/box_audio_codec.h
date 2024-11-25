@@ -3,16 +3,11 @@
 
 #include "audio_codec.h"
 
-#include <driver/i2s_std.h>
-#include <driver/i2s_tdm.h>
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
 class BoxAudioCodec : public AudioCodec {
 private:
-    i2s_chan_handle_t tx_handle_ = nullptr;
-    i2s_chan_handle_t rx_handle_ = nullptr;
-
     const audio_codec_data_if_t* data_if_ = nullptr;
     const audio_codec_ctrl_if_t* out_ctrl_if_ = nullptr;
     const audio_codec_if_t* out_codec_if_ = nullptr;

@@ -3,14 +3,10 @@
 
 #include "audio_codec.h"
 
-#include <driver/i2s_std.h>
 #include <driver/gpio.h>
 
 class NoAudioCodec : public AudioCodec {
 private:
-    i2s_chan_handle_t tx_handle_ = nullptr;
-    i2s_chan_handle_t rx_handle_ = nullptr;
-
     virtual int Write(const int16_t* data, int samples) override;
     virtual int Read(int16_t* dest, int samples) override;
 
