@@ -184,7 +184,6 @@ void Ssd1306Display::SetupUI_128x64() {
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(status_label_, "正在初始化");
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -255,11 +254,14 @@ void Ssd1306Display::SetupUI_128x32() {
 
     status_label_ = lv_label_create(side_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
+    lv_obj_set_width(status_label_, width_ - 32);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(status_label_, "正在初始化");
 
     notification_label_ = lv_label_create(side_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
+    lv_obj_set_width(notification_label_, width_ - 32);
+    lv_label_set_long_mode(notification_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(notification_label_, "通知");
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }

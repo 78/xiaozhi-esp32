@@ -127,7 +127,7 @@ void Display::Update() {
         }
     }
 
-    // 仅在聊天状态为空闲时，更新网络图标
+    // 仅在聊天状态为空闲时，读取网络状态（避免升级时占用 UART 资源）
     auto chat_state = Application::GetInstance().GetChatState();
     if (chat_state == kChatStateIdle || chat_state == kChatStateUnknown) {
         icon = board.GetNetworkStateIcon();

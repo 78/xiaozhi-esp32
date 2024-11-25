@@ -72,9 +72,9 @@ bool MqttProtocol::StartMqttClient() {
         } else if (strcmp(type->valuestring, "goodbye") == 0) {
             auto session_id = cJSON_GetObjectItem(root, "session_id");
             if (session_id == nullptr || session_id_ == session_id->valuestring) {
-                if (on_audio_channel_closed_ != nullptr) {
-                    on_audio_channel_closed_();
-                }
+                Application::GetInstance().Schedule([this]() {
+                    CloseAudioChannel();
+                });
             }
         } else if (on_incoming_json_ != nullptr) {
             on_incoming_json_(root);
@@ -85,6 +85,9 @@ bool MqttProtocol::StartMqttClient() {
     ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint_.c_str());
     if (!mqtt_->Connect(endpoint_, 8883, client_id_, username_, password_)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("无法连接服务");
+        }
         return false;
     }
 
@@ -126,23 +129,6 @@ void MqttProtocol::SendAudio(const std::string& data) {
     udp_->Send(encrypted);
 }
 
-void MqttProtocol::SendState(const std::string& state) {
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"state\",";
-    message += "\"state\":\"" + state + "\"";
-    message += "}";
-    SendText(message);
-}
-
-void MqttProtocol::SendAbort() {
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"abort\"";
-    message += "}";
-    SendText(message);
-}
-
 void MqttProtocol::CloseAudioChannel() {
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
@@ -167,7 +153,6 @@ bool MqttProtocol::OpenAudioChannel() {
     if (mqtt_ == nullptr || !mqtt_->IsConnected()) {
         ESP_LOGI(TAG, "MQTT is not connected, try to connect now");
         if (!StartMqttClient()) {
-            ESP_LOGE(TAG, "Failed to connect to MQTT");
             return false;
         }
     }
@@ -188,6 +173,9 @@ bool MqttProtocol::OpenAudioChannel() {
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & MQTT_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("等待响应超时");
+        }
         return false;
     }
 

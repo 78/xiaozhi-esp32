@@ -11,6 +11,7 @@
 #include <esp_spiffs.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
+#include <esp_timer.h>
 
 static const char *TAG = "KevinBoxBoard";
 
@@ -23,6 +24,41 @@ private:
     Button volume_up_button_;
     Button volume_down_button_;
     uint8_t _data_buffer[2];
+    esp_timer_handle_t power_save_timer_ = nullptr;
+
+    void InitializePowerSaveTimer() {
+        esp_timer_create_args_t power_save_timer_args = {
+            .callback = [](void *arg) {
+                auto board = static_cast<KevinBoxBoard*>(arg);
+                board->PowerSaveCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "Power Save Timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
+    }
+
+    void PowerSaveCheck() {
+        // 电池放电模式下，如果待机超过一定时间，则自动关机
+        const int seconds_to_shutdown = 600;
+        static int seconds = 0;
+        if (Application::GetInstance().GetChatState() != kChatStateIdle) {
+            seconds = 0;
+            return;
+        }
+        if (!axp2101_->IsDischarging()) {
+            seconds = 0;
+            return;
+        }
+        
+        seconds++;
+        if (seconds >= seconds_to_shutdown) {
+            axp2101_->PowerOff();
+        }
+    }
 
     void MountStorage() {
         // Mount the storage partition
@@ -82,12 +118,15 @@ private:
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+        // 测试按住说话
+        // boot_button_.OnClick([this]() {
+        //     Application::GetInstance().ToggleChatState();
+        // });
+        boot_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
         });
-
-        boot_button_.OnLongPress([this]() {
-            axp2101_->PowerOff();
+        boot_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
         });
 
         volume_up_button_.OnClick([this]() {
@@ -140,6 +179,7 @@ public:
         Enable4GModule();
 
         InitializeButtons();
+        InitializePowerSaveTimer();
 
         Ml307Board::Initialize();
     }
@@ -162,8 +202,15 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
+        static int last_level = 0;
+        static bool last_charging = false;
         level = axp2101_->GetBatteryLevel();
         charging = axp2101_->IsCharging();
+        if (level != last_level || charging != last_charging) {
+            last_level = level;
+            last_charging = charging;
+            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
         return true;
     }
 };
