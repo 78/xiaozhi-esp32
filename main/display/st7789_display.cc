@@ -104,7 +104,10 @@ St7789Display::~St7789Display()
 
 void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
 {
-
+    if (backlight_pin == GPIO_NUM_NC)
+    {
+        return;
+    }
     // Setup LEDC peripheral for PWM backlight control
     const ledc_channel_config_t backlight_channel = {
         .gpio_num = backlight_pin,
@@ -182,9 +185,9 @@ void St7789Display::SetupUI()
 
     /* Status bar */
     status_bar_ = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(status_bar_, LV_HOR_RES, 40);
+    lv_obj_set_size(status_bar_, LV_HOR_RES-40, 40);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_x(status_bar_, 0);
+    // lv_obj_set_x(status_bar_, 5);
     lv_obj_set_y(status_bar_, 30);
     lv_obj_set_align(status_bar_, LV_ALIGN_TOP_MID);
     lv_obj_set_style_bg_color(status_bar_, lv_color_hex(0x000000), 0);
@@ -204,7 +207,7 @@ void St7789Display::SetupUI()
     lv_obj_set_style_align(emotion_label_, LV_ALIGN_CENTER, 0);
 
     /* Status bar */
-    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
@@ -212,6 +215,8 @@ void St7789Display::SetupUI()
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+        lv_obj_set_style_text_color(network_label_, lv_palette_main(LV_PALETTE_GREEN), 0);
+
     // lv_obj_set_x(network_label_, 30);
     // lv_obj_set_y(network_label_, 30);
     // lv_obj_set_align(network_label_, LV_ALIGN_TOP_LEFT);
@@ -220,6 +225,8 @@ void St7789Display::SetupUI()
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(notification_label_, "通知");
+    lv_label_set_long_mode(notification_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_text_font(notification_label_, &font_dingding, 0);
     lv_obj_set_style_text_color(notification_label_, lv_palette_main(LV_PALETTE_GREEN), 0);
@@ -230,6 +237,14 @@ void St7789Display::SetupUI()
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(status_label_, &font_dingding, 0);
     lv_obj_set_style_text_color(status_label_, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+    battery_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(battery_label_, "");
+    lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+    // lv_obj_set_x(battery_label_, 220);
+    // lv_obj_set_y(battery_label_, 30);
+    lv_obj_set_align(battery_label_, LV_ALIGN_TOP_RIGHT);
 
     reply_label_ = lv_label_create(lv_scr_act());
     lv_obj_set_width(reply_label_, LV_HOR_RES);
@@ -247,10 +262,5 @@ void St7789Display::SetupUI()
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
 
-    battery_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
-    // lv_obj_set_x(battery_label_, 220);
-    // lv_obj_set_y(battery_label_, 30);
-    // lv_obj_set_align(battery_label_, LV_ALIGN_TOP_RIGHT);
+
 }

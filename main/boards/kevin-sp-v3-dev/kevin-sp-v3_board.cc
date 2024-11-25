@@ -33,8 +33,16 @@ private:
 
     void InitializeButtons()
     {
-        boot_button_.OnClick([this]()
-                             { Application::GetInstance().ToggleChatState(); });
+        // boot_button_.OnClick([this]()
+        //                      { Application::GetInstance().ToggleChatState(); });
+
+
+        boot_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        boot_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
+        });
     }
 
 public:
