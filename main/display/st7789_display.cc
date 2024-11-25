@@ -188,7 +188,7 @@ void St7789Display::SetupUI()
     lv_obj_set_size(status_bar_, LV_HOR_RES-40, 40);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     // lv_obj_set_x(status_bar_, 5);
-    lv_obj_set_y(status_bar_, 30);
+    lv_obj_set_y(status_bar_, 20);
     lv_obj_set_align(status_bar_, LV_ALIGN_TOP_MID);
     lv_obj_set_style_bg_color(status_bar_, lv_color_hex(0x000000), 0);
 
@@ -215,7 +215,7 @@ void St7789Display::SetupUI()
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
-        lv_obj_set_style_text_color(network_label_, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_obj_set_style_text_color(network_label_, lv_palette_main(LV_PALETTE_GREEN), 0);
 
     // lv_obj_set_x(network_label_, 30);
     // lv_obj_set_y(network_label_, 30);
@@ -248,7 +248,7 @@ void St7789Display::SetupUI()
 
     reply_label_ = lv_label_create(lv_scr_act());
     lv_obj_set_width(reply_label_, LV_HOR_RES);
-    lv_obj_set_height(reply_label_, 120);
+    lv_obj_set_height(reply_label_, 100);
     lv_obj_set_flex_grow(reply_label_, 2);
     // lv_label_set_long_mode(reply_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(reply_label_, "XiaoZhi AI");
