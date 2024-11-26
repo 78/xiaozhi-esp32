@@ -63,6 +63,19 @@ choice BOOT_BUTTON_FUNCTION
 endchoice
 endif
 
+if !BOARD_TYPE_BREAD_COMPACT_ML307
+choice DISTRIBUTION_NETWORK_MODE
+    prompt "配网方式"
+    default DISTRIBUTION_NETWORK_MODE_SOFTAP
+    help
+        wifi配网方式
+    config DISTRIBUTION_NETWORK_MODE_SOFTAP
+        bool "SoftAP"
+    config DISTRIBUTION_NETWORK_MODE_SMARTCONFIG
+        bool "SmartConfig/AirKiss"
+endchoice
+endif
+
 config USE_AFE_SR
     bool "Use Espressif AFE SR"
     default y

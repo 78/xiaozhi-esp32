@@ -16,6 +16,8 @@
 #include <wifi_station.h>
 #include <wifi_configuration_ap.h>
 
+#include "wifi_Smart_config.h"
+
 static const char *TAG = "WifiBoard";
 
 static std::string rssi_to_string(int rssi) {
@@ -44,6 +46,8 @@ void WifiBoard::StartNetwork() {
     if (!wifi_station.IsConnected()) {
         builtin_led->SetBlue();
         builtin_led->Blink(1000, 500);
+#ifdef CONFIG_DISTRIBUTION_NETWORK_MODE_SOFTAP
+        //softAP配网
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();
@@ -58,7 +62,17 @@ void WifiBoard::StartNetwork() {
         hint += wifi_ap.GetWebServerUrl();
 
         display->SetStatus(hint);
-        
+#elif CONFIG_DISTRIBUTION_NETWORK_MODE_SMARTCONFIG
+        // SmartConfig/AirKiss配网
+        auto& wifi_config = WifiSmartConfig::GetInstance();
+        wifi_config.initialise_wifi();
+
+        // 播报配置 WiFi 的提示
+        application.Alert("Info", "Configuring WiFi");
+
+        std::string hint = "已经进入SmartConfig/AirKiss配网模式…… ";
+        display->SetStatus(hint);
+#endif
         // Wait forever until reset after configuration
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1000));

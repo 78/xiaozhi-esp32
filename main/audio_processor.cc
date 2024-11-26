@@ -27,7 +27,7 @@ void AudioProcessor::Initialize(int channels, bool reference) {
         .wakenet_model_name = NULL,
         .wakenet_model_name_2 = NULL,
         .wakenet_mode = DET_MODE_90,
-        .afe_mode = SR_MODE_HIGH_PERF,
+        .afe_mode = SR_MODE_LOW_COST ,
         .afe_perferred_core = 1,
         .afe_perferred_priority = 1,
         .afe_ringbuf_size = 50,
