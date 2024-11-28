@@ -64,7 +64,7 @@ void WifiBoard::StartNetwork() {
         display->SetStatus(hint);
 #elif CONFIG_DISTRIBUTION_NETWORK_MODE_SMARTCONFIG
         // SmartConfig/AirKiss配网
-        auto& wifi_config = WifiSmartConfig::GetInstance();
+        WiFiSmartConfig& wifi_config = WiFiSmartConfig::GetInstance();
         wifi_config.initialise_wifi();
 
         // 播报配置 WiFi 的提示
