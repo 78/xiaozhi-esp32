@@ -29,6 +29,7 @@ Application::Application() {
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
+
 Application::~Application() {
     if (protocol_ != nullptr) {
         delete protocol_;
@@ -121,6 +122,9 @@ void Application::PlayLocalFile(const char* data, size_t size) {
 
 void Application::ToggleChatState() {
     Schedule([this]() {
+
+#ifdef CONFIG_BOOT_BUTTON_FUNCTION_AWAKEN
+        //唤醒
         if (chat_state_ == kChatStateIdle) {
             SetChatState(kChatStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
@@ -137,6 +141,29 @@ void Application::ToggleChatState() {
         } else if (chat_state_ == kChatStateListening) {
             protocol_->CloseAudioChannel();
         }
+#elif CONFIG_BOOT_BUTTON_FUNCTION_RENET
+        //配网
+        nvs_handle_t nvs_handle;
+        // 打开 NVS 分区
+        ESP_ERROR_CHECK(nvs_open("wifi", NVS_READWRITE, &nvs_handle));
+
+        // 删除 SSID、删除密码
+        ESP_ERROR_CHECK(nvs_set_str(nvs_handle, "ssid",""));
+        ESP_ERROR_CHECK(nvs_set_str(nvs_handle, "password",""));
+
+        // 提交更改
+        ESP_ERROR_CHECK(nvs_commit(nvs_handle));
+
+        // 关闭 NVS 句柄
+        nvs_close(nvs_handle);
+
+        auto& board = Board::GetInstance();
+        board.StartNetwork();
+#else 
+
+
+#endif
+
     });
 }
 

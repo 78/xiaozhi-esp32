@@ -50,6 +50,32 @@ choice BOARD_TYPE
         bool "立创开发板"
 endchoice
 
+if BOARD_TYPE_LICHUANG_DEV
+choice BOOT_BUTTON_FUNCTION
+    prompt "boot按键功能"
+    default BOOT_BUTTON_FUNCTION_AWAKEN
+    help 
+        boot按键功能
+    config BOOT_BUTTON_FUNCTION_AWAKEN
+        bool "唤醒"
+    config BOOT_BUTTON_FUNCTION_RENET
+        bool "配网"
+endchoice
+endif
+
+if !BOARD_TYPE_BREAD_COMPACT_ML307
+choice DISTRIBUTION_NETWORK_MODE
+    prompt "配网方式"
+    default DISTRIBUTION_NETWORK_MODE_SOFTAP
+    help
+        wifi配网方式
+    config DISTRIBUTION_NETWORK_MODE_SOFTAP
+        bool "SoftAP"
+    config DISTRIBUTION_NETWORK_MODE_SMARTCONFIG
+        bool "SmartConfig/AirKiss"
+endchoice
+endif
+
 config USE_AFE_SR
     bool "Use Espressif AFE SR"
     default y
