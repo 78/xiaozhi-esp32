@@ -1,5 +1,6 @@
 #include "board.h"
 #include "system_info.h"
+#include "display/no_display.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -10,6 +11,12 @@
 bool Board::GetBatteryLevel(int &level, bool& charging) {
     return false;
 }
+
+Display* Board::GetDisplay() {
+    static NoDisplay display;
+    return &display;
+}
+
 
 std::string Board::GetJson() {
     /* 

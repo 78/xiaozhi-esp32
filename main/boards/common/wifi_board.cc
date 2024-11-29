@@ -62,7 +62,10 @@ void WifiBoard::StartNetwork() {
         
         // Wait forever until reset after configuration
         while (true) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+            int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+            ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
+            vTaskDelay(pdMS_TO_TICKS(10000));
         }
     }
 }

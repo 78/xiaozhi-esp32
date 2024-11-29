@@ -7,10 +7,6 @@
 #define TAG "Led"
 
 Led::Led(gpio_num_t gpio) {
-    mutex_ = xSemaphoreCreateMutex();
-    blink_event_group_ = xEventGroupCreate();
-    xEventGroupSetBits(blink_event_group_, BLINK_TASK_STOPPED_BIT);
-
     if (gpio == GPIO_NUM_NC) {
         ESP_LOGI(TAG, "Builtin LED not connected");
         return;
@@ -29,18 +25,24 @@ Led::Led(gpio_num_t gpio) {
     led_strip_clear(led_strip_);
 
     SetGrey();
+
+    esp_timer_create_args_t blink_timer_args = {
+        .callback = [](void *arg) {
+            auto led = static_cast<Led*>(arg);
+            led->OnBlinkTimer();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "Blink Timer",
+        .skip_unhandled_events = false,
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));
 }
 
 Led::~Led() {
-    StopBlinkInternal();
+    esp_timer_stop(blink_timer_);
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
-    }
-    if (mutex_ != nullptr) {
-        vSemaphoreDelete(mutex_);
-    }
-    if (blink_event_group_ != nullptr) {
-        vEventGroupDelete(blink_event_group_);
     }
 }
 
@@ -54,21 +56,21 @@ void Led::TurnOn() {
     if (led_strip_ == nullptr) {
         return;
     }
-    StopBlinkInternal();
-    xSemaphoreTake(mutex_, portMAX_DELAY);
+    
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(blink_timer_);
     led_strip_set_pixel(led_strip_, 0, r_, g_, b_);
     led_strip_refresh(led_strip_);
-    xSemaphoreGive(mutex_);
 }
 
 void Led::TurnOff() {
     if (led_strip_ == nullptr) {
         return;
     }
-    StopBlinkInternal();
-    xSemaphoreTake(mutex_, portMAX_DELAY);
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(blink_timer_);
     led_strip_clear(led_strip_);
-    xSemaphoreGive(mutex_);
 }
 
 void Led::BlinkOnce() {
@@ -87,45 +89,27 @@ void Led::StartBlinkTask(int times, int interval_ms) {
     if (led_strip_ == nullptr) {
         return;
     }
-    StopBlinkInternal();
-    xSemaphoreTake(mutex_, portMAX_DELAY);
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(blink_timer_);
     
-    blink_times_ = times;
+    led_strip_clear(led_strip_);
+    blink_counter_ = times * 2;
     blink_interval_ms_ = interval_ms;
-    should_blink_ = true;
-
-    xEventGroupClearBits(blink_event_group_, BLINK_TASK_STOPPED_BIT);
-    xEventGroupSetBits(blink_event_group_, BLINK_TASK_RUNNING_BIT);
-
-    xTaskCreate([](void* obj) {
-        auto this_ = static_cast<Led*>(obj);
-        int count = 0;
-        while (this_->should_blink_ && (this_->blink_times_ == BLINK_INFINITE || count < this_->blink_times_)) {
-            xSemaphoreTake(this_->mutex_, portMAX_DELAY);
-            led_strip_set_pixel(this_->led_strip_, 0, this_->r_, this_->g_, this_->b_);
-            led_strip_refresh(this_->led_strip_);
-            xSemaphoreGive(this_->mutex_);
-
-            vTaskDelay(this_->blink_interval_ms_ / portTICK_PERIOD_MS);
-            if (!this_->should_blink_) break;
-
-            xSemaphoreTake(this_->mutex_, portMAX_DELAY);
-            led_strip_clear(this_->led_strip_);
-            xSemaphoreGive(this_->mutex_);
-
-            vTaskDelay(this_->blink_interval_ms_ / portTICK_PERIOD_MS);
-            if (this_->blink_times_ != BLINK_INFINITE) count++;
-        }
-        this_->blink_task_ = nullptr;
-        xEventGroupClearBits(this_->blink_event_group_, BLINK_TASK_RUNNING_BIT);
-        xEventGroupSetBits(this_->blink_event_group_, BLINK_TASK_STOPPED_BIT);
-        vTaskDelete(NULL);
-    }, "blink", 2048, this, tskIDLE_PRIORITY, &blink_task_);
-
-    xSemaphoreGive(mutex_);
+    esp_timer_start_periodic(blink_timer_, interval_ms * 1000);
 }
 
-void Led::StopBlinkInternal() {
-    should_blink_ = false;
-    xEventGroupWaitBits(blink_event_group_, BLINK_TASK_STOPPED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+void Led::OnBlinkTimer() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    blink_counter_--;
+    if (blink_counter_ & 1) {
+        led_strip_set_pixel(led_strip_, 0, r_, g_, b_);
+        led_strip_refresh(led_strip_);
+    } else {
+        led_strip_clear(led_strip_);
+
+        if (blink_counter_ == 0) {
+            esp_timer_stop(blink_timer_);
+        }
+    }
 }
