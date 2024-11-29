@@ -23,8 +23,8 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
-        .dma_desc_num = 6,
-        .dma_frame_num = 240,
+        .dma_desc_num = 2,
+        .dma_frame_num = 240 * 3,
         .auto_clear_after_cb = false,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
@@ -75,7 +75,7 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
 
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
-        .id = I2S_NUM_0,
+        .id = (i2s_port_t)0,
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = 6,
         .dma_frame_num = 240,
@@ -120,7 +120,7 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
 
     // Create a new channel for MIC
-    chan_cfg.id = I2S_NUM_1;
+    chan_cfg.id = (i2s_port_t)1;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
     std_cfg.gpio_cfg.bclk = mic_sck;

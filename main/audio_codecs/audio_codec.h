@@ -2,20 +2,14 @@
 #define _AUDIO_CODEC_H
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <driver/i2s_std.h>
 
 #include <vector>
 #include <string>
 #include <functional>
-#include <list>
-#include <mutex>
-#include <condition_variable>
 
 #include "board.h"
-
-#define AUDIO_EVENT_OUTPUT_DONE (1 << 0)
 
 class AudioCodec {
 public:
@@ -27,10 +21,10 @@ public:
     virtual void EnableOutput(bool enable);
 
     void Start();
-    void OnInputData(std::function<void(std::vector<int16_t>&& data)> callback);
     void OutputData(std::vector<int16_t>& data);
-    void WaitForOutputDone();
-    void ClearOutputQueue();
+    bool InputData(std::vector<int16_t>& data);
+    void OnOutputReady(std::function<bool()> callback);
+    void OnInputReady(std::function<bool()> callback);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -41,17 +35,11 @@ public:
     inline int output_volume() const { return output_volume_; }
 
 private:
-    TaskHandle_t audio_input_task_ = nullptr;
-    TaskHandle_t audio_output_task_ = nullptr;
-    std::function<void(std::vector<int16_t>&& data)> on_input_data_; 
-    std::list<std::vector<int16_t>> audio_output_queue_;
-    std::mutex audio_output_queue_mutex_;
-    std::condition_variable audio_output_queue_cv_;
-    EventGroupHandle_t audio_event_group_ = nullptr;
+    std::function<bool()> on_input_ready_;
+    std::function<bool()> on_output_ready_;
+    
+    IRAM_ATTR static bool on_recv(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
     IRAM_ATTR static bool on_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-
-    void InputTask();
-    void OutputTask();
 
 protected:
     i2s_chan_handle_t tx_handle_ = nullptr;

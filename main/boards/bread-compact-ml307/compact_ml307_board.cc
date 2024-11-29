@@ -22,7 +22,7 @@ private:
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
-            .i2c_port = I2C_NUM_0,
+            .i2c_port = (i2c_port_t)0,
             .sda_io_num = DISPLAY_SDA_PIN,
             .scl_io_num = DISPLAY_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
