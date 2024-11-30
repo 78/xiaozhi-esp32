@@ -1,6 +1,7 @@
 set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
+            "audio_codecs/es8311_audio_codec.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/st7789_display.cc"
@@ -12,11 +13,12 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "application.cc"
             "ota.cc"
             "settings.cc"
+            "background_task.cc"
             "main.cc"
             "fonts/font_dingding.c"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 
 # 字体
 file(GLOB FONT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fonts/*.c)
@@ -39,6 +41,8 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
     set(BOARD_TYPE "kevin-box-2")
+elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
+    set(BOARD_TYPE "kevin-c3")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
 elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
@@ -50,8 +54,8 @@ file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
 list(APPEND INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
 
-if(CONFIG_USE_AFE_SR)
-    list(APPEND SOURCES "audio_processor.cc" "wake_word_detect.cc")
+if(CONFIG_IDF_TARGET_ESP32S3)
+    list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}
