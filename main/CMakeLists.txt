@@ -15,6 +15,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "settings.cc"
             "background_task.cc"
             "main.cc"
+            "fonts/font_dingding.c"
             )
 
 set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
@@ -44,9 +45,14 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
     set(BOARD_TYPE "kevin-c3")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
+    set(BOARD_TYPE "kevin-sp-v3-dev")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
+    set(BOARD_TYPE "esp32s3_korvo2_v3")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
+list(APPEND INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE})
 
 if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
@@ -54,7 +60,7 @@ endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
-                    INCLUDE_DIRS ${INCLUDE_DIRS}
+                    INCLUDE_DIRS ${INCLUDE_DIRS} ${INCLUDES} 
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE

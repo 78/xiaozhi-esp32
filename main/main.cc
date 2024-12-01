@@ -23,12 +23,11 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // Otherwise, launch the application
     Application::GetInstance().Start();
 
     // Dump CPU usage every 10 second
-    while (true) {
+    while (true)
+    {
         vTaskDelay(10000 / portTICK_PERIOD_MS);
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
