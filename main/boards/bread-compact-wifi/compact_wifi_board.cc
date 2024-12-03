@@ -17,6 +17,7 @@ class CompactWifiBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
+    Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
     SystemReset system_reset_;
@@ -43,7 +44,12 @@ private:
             if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            app.ToggleChatState();
+        });
+        touch_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        touch_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
         });
 
         volume_up_button_.OnClick([this]() {
@@ -82,6 +88,7 @@ private:
 public:
     CompactWifiBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
+        touch_button_(TOUCH_BUTTON_GPIO, 1),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
         system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
