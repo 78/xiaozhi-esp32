@@ -22,14 +22,14 @@ public:
     ~WakeWordDetect();
 
     void Initialize(int channels, bool reference);
-    void Feed(std::vector<int16_t>& data);
+    void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
     void OnVadStateChange(std::function<void(bool speaking)> callback);
     void StartDetection();
     void StopDetection();
     bool IsDetectionRunning();
     void EncodeWakeWordData();
-    bool GetWakeWordOpus(std::string& opus);
+    bool GetWakeWordOpus(std::vector<uint8_t>& opus);
     const std::string& GetLastDetectedWakeWord() const { return last_detected_wake_word_; }
 
 private:
@@ -49,7 +49,7 @@ private:
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
     std::list<std::vector<int16_t>> wake_word_pcm_;
-    std::list<std::string> wake_word_opus_;
+    std::list<std::vector<uint8_t>> wake_word_opus_;
     std::mutex wake_word_mutex_;
     std::condition_variable wake_word_cv_;
 

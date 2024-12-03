@@ -23,7 +23,7 @@ WebsocketProtocol::~WebsocketProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
-void WebsocketProtocol::SendAudio(const std::string& data) {
+void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
     if (websocket_ == nullptr) {
         return;
     }
@@ -65,7 +65,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
             if (on_incoming_audio_ != nullptr) {
-                on_incoming_audio_(std::string(data, len));
+                on_incoming_audio_(std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len));
             }
         } else {
             // Parse JSON data

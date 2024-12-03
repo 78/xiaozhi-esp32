@@ -25,7 +25,7 @@ public:
     MqttProtocol();
     ~MqttProtocol();
 
-    void SendAudio(const std::string& data) override;
+    void SendAudio(const std::vector<uint8_t>& data) override;
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;
     bool IsAudioChannelOpened() const override;

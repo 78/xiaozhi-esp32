@@ -63,7 +63,7 @@ AudioProcessor::~AudioProcessor() {
     vEventGroupDelete(event_group_);
 }
 
-void AudioProcessor::Input(std::vector<int16_t>& data) {
+void AudioProcessor::Input(const std::vector<int16_t>& data) {
     input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
 
     auto chunk_size = esp_afe_vc_v1.get_feed_chunksize(afe_communication_data_) * channels_;
