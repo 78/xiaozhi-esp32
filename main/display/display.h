@@ -24,8 +24,6 @@ public:
 protected:
     int width_ = 0;
     int height_ = 0;
-    int offset_x_ = 0;
-    int offset_y_ = 0;
 
     lv_disp_t *disp_ = nullptr;
 
@@ -43,7 +41,7 @@ protected:
     esp_timer_handle_t update_timer_ = nullptr;
 
     friend class DisplayLockGuard;
-    virtual void Lock() = 0;
+    virtual bool Lock(int timeout_ms = 0) = 0;
     virtual void Unlock() = 0;
 
     virtual void Update();

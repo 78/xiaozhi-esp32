@@ -18,7 +18,7 @@ private:
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
 
-    virtual void Lock() override;
+    virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
     void SetupUI_128x64();

@@ -5,7 +5,7 @@
 
 class NoDisplay : public Display {
 private:
-    virtual void Lock() override;
+    virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
 public:
