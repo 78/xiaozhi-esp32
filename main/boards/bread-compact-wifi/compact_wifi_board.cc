@@ -44,6 +44,7 @@ private:
             if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            app.ToggleChatState();
         });
         touch_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
