@@ -7,7 +7,7 @@
 
 class Button {
 public:
-    Button(gpio_num_t gpio_num);
+    Button(gpio_num_t gpio_num, bool active_high = false);
     ~Button();
 
     void OnPressDown(std::function<void()> callback);

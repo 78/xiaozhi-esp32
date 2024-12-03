@@ -52,10 +52,4 @@ choice BOARD_TYPE
         bool "立创开发板"
 endchoice
 
-config USE_AFE_SR
-    bool "Use Espressif AFE SR"
-    default y
-    help
-        Use AFE SR for wake word detection.
-
 endmenu
