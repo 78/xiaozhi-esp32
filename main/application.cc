@@ -411,9 +411,11 @@ void Application::OutputAudio() {
     std::unique_lock<std::mutex> lock(mutex_);
     if (audio_decode_queue_.empty()) {
         // Disable the output if there is no audio data for a long time
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
-        if (duration > max_silence_seconds) {
-            codec->EnableOutput(false);
+        if (chat_state_ == kChatStateIdle) {
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
+            if (duration > max_silence_seconds) {
+                codec->EnableOutput(false);
+            }
         }
         return;
     }
