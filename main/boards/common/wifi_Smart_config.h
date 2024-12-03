@@ -13,6 +13,7 @@
 #include <esp_netif.h>
 #include <esp_smartconfig.h>
 
+
 class WiFiSmartConfig {
 public:
     static WiFiSmartConfig& GetInstance() {
@@ -33,7 +34,8 @@ private:
 
     static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
     static void smartconfig_example_task(void * parm);
-
+    
+    
     EventGroupHandle_t s_wifi_event_group;
     static const int CONNECTED_BIT = BIT0;
     static const int ESPTOUCH_DONE_BIT = BIT1;

@@ -1,4 +1,5 @@
 #include "wifi_Smart_config.h"
+#include "wifi_station.h"
 #include <cstring>  // 包含 memcpy
 #include <strings.h>  // 包含 bzero
 
@@ -79,14 +80,19 @@ void WiFiSmartConfig::event_handler(void* arg, esp_event_base_t event_base, int3
             }
             printf("\n");
         }
+        // 使用 std::string 构造函数将 uint8_t 数组转换为 std::string
+        std::string ssid_str(reinterpret_cast<const char*>(ssid));
+        std::string password_str(reinterpret_cast<const char*>(password));
 
-        // ESP_ERROR_CHECK(esp_wifi_disconnect());
-        // ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        // 保存数据
+        self->Save(ssid_str, password_str);
+
+        //连接网络
+        // ESP_ERROR_CHECK( esp_wifi_disconnect() );
+        // ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
         // esp_wifi_connect();
-        //保存Wi-Fi信息并重启
-        
-        // Save(ssid,password);
-
+        // auto& wifi_station = WifiStation::GetInstance();
+        // wifi_station.Start();
 
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_SEND_ACK_DONE) {
         xEventGroupSetBits(self->s_wifi_event_group, ESPTOUCH_DONE_BIT);
