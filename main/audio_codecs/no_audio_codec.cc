@@ -137,7 +137,7 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     output_sample_rate_ = output_sample_rate;
 
     // Create a new channel for speaker
-    i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
+    i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)1, I2S_ROLE_MASTER);
     tx_chan_cfg.dma_desc_num = 6;
     tx_chan_cfg.dma_frame_num = 240;
     tx_chan_cfg.auto_clear_after_cb = true;
@@ -147,7 +147,12 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
 
 
     i2s_std_config_t tx_std_cfg = {
-        .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG((uint32_t)output_sample_rate_),
+        .clk_cfg = {
+            .sample_rate_hz = (uint32_t)output_sample_rate_,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .ext_clk_freq_hz = 0,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256
+        },
         .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
@@ -163,9 +168,9 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
         },
     };
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &tx_std_cfg));
-
+#if SOC_I2S_SUPPORTS_PDM_RX
     // Create a new channel for MIC in PDM mode
-    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)0, I2S_ROLE_MASTER);
     ESP_ERROR_CHECK(i2s_new_channel(&rx_chan_cfg, NULL, &rx_handle_));
     i2s_pdm_rx_config_t pdm_rx_cfg = {
         .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG((uint32_t)input_sample_rate_),
@@ -181,6 +186,9 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
         },
     };
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle_, &pdm_rx_cfg));
+#else
+    ESP_LOGE(TAG, "PDM is not supported");
+#endif
     ESP_LOGI(TAG, "Simplex channels created");
 }
 

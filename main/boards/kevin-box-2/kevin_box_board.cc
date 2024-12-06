@@ -6,6 +6,7 @@
 #include "led.h"
 #include "config.h"
 #include "axp2101.h"
+#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_spiffs.h>
@@ -13,7 +14,7 @@
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
 
-static const char *TAG = "KevinBoxBoard";
+#define TAG "KevinBoxBoard"
 
 class KevinBoxBoard : public Ml307Board {
 private:
@@ -136,8 +137,7 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
-            auto codec = GetAudioCodec();
-            codec->SetOutputVolume(100);
+            GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification("最大音量");
         });
 
@@ -152,10 +152,15 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
-            auto codec = GetAudioCodec();
-            codec->SetOutputVolume(0);
+            GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification("已静音");
         });
+    }
+
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
 public:
@@ -172,6 +177,7 @@ public:
 
         InitializeButtons();
         InitializePowerSaveTimer();
+        InitializeIot();
     }
 
     virtual Led* GetBuiltinLed() override {
