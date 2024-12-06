@@ -163,10 +163,6 @@ public:
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
-    }
-
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing KevinBoxBoard");
         InitializeDisplayI2c();
         InitializeCodecI2c();
         axp2101_ = new Axp2101(codec_i2c_bus_, AXP2101_I2C_ADDR);
@@ -176,8 +172,6 @@ public:
 
         InitializeButtons();
         InitializePowerSaveTimer();
-
-        Ml307Board::Initialize();
     }
 
     virtual Led* GetBuiltinLed() override {

@@ -1,10 +1,13 @@
 #include "application.h"
+#include "board.h"
+#include "display.h"
 #include "system_info.h"
 #include "ml307_ssl_transport.h"
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
 #include "font_awesome_symbols.h"
+#include "iot/thing_manager.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -183,8 +186,6 @@ void Application::StopListening() {
 
 void Application::Start() {
     auto& board = Board::GetInstance();
-    board.Initialize();
-
     auto builtin_led = board.GetBuiltinLed();
     builtin_led->SetBlue();
     builtin_led->StartContinuousBlink(100);
@@ -308,18 +309,22 @@ void Application::Start() {
         }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
+        board.SetPowerSaveMode(false);
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG, "服务器的音频采样率 %d 与设备输出的采样率 %d 不一致，重采样后可能会失真",
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
         SetDecodeSampleRate(protocol_->server_sample_rate());
-        board.SetPowerSaveMode(false);
+        // 物联网设备描述符
+        last_iot_states_.clear();
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        protocol_->SendIotDescriptors(thing_manager.GetDescriptorsJson());
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
+        board.SetPowerSaveMode(true);
         Schedule([this]() {
             SetChatState(kChatStateIdle);
         });
-        board.SetPowerSaveMode(true);
     });
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
         // Parse JSON data
@@ -362,6 +367,15 @@ void Application::Start() {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
                 display->SetEmotion(emotion->valuestring);
+            }
+        } else if (strcmp(type->valuestring, "iot") == 0) {
+            auto commands = cJSON_GetObjectItem(root, "commands");
+            if (commands != NULL) {
+                auto& thing_manager = iot::ThingManager::GetInstance();
+                for (int i = 0; i < cJSON_GetArraySize(commands); ++i) {
+                    auto command = cJSON_GetArrayItem(commands, i);
+                    thing_manager.Invoke(command);
+                }
             }
         }
     });
@@ -557,6 +571,7 @@ void Application::SetChatState(ChatState state) {
 #if CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Start();
 #endif
+            UpdateIotStates();
             break;
         case kChatStateSpeaking:
             builtin_led->SetGreen();
@@ -589,5 +604,14 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     if (opus_decode_sample_rate_ != codec->output_sample_rate()) {
         ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, codec->output_sample_rate());
         output_resampler_.Configure(opus_decode_sample_rate_, codec->output_sample_rate());
+    }
+}
+
+void Application::UpdateIotStates() {
+    auto& thing_manager = iot::ThingManager::GetInstance();
+    auto states = thing_manager.GetStatesJson();
+    if (states != last_iot_states_) {
+        last_iot_states_ = states;
+        protocol_->SendIotStates(states);
     }
 }

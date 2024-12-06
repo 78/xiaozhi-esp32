@@ -41,13 +41,8 @@ private:
 
 public:
     EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
-    }
-
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing EspBox3Board");
         InitializeI2c();
         InitializeButtons();
-        WifiBoard::Initialize();
     }
 
     virtual Led* GetBuiltinLed() override {

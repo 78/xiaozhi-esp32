@@ -49,17 +49,9 @@ private:
     }
 
 public:
-    KevinBoxBoard() :
-        boot_button_(BOOT_BUTTON_GPIO) {
-    }
-
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing KevinBoxBoard");
-
+    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-
-        WifiBoard::Initialize();
     }
 
     virtual Led* GetBuiltinLed() override {

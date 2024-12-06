@@ -57,3 +57,14 @@ void Protocol::SendStopListening() {
     std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"listen\",\"state\":\"stop\"}";
     SendText(message);
 }
+
+void Protocol::SendIotDescriptors(const std::string& descriptors) {
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"descriptors\":" + descriptors + "}";
+    SendText(message);
+}
+
+void Protocol::SendIotStates(const std::string& states) {
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"states\":" + states + "}";
+    SendText(message);
+}
+

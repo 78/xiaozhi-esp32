@@ -19,7 +19,7 @@ private:
     virtual std::string GetBoardJson() = 0;
 
 protected:
-    Board() = default;
+    Board();
 
 public:
     static Board& GetInstance() {
@@ -30,7 +30,6 @@ public:
         return *instance;
     }
 
-    virtual void Initialize() = 0;
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
     virtual Led* GetBuiltinLed() = 0;

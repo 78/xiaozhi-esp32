@@ -121,15 +121,10 @@ private:
 
 public:
     LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
-    }
-
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing LichuangDevBoard");
         InitializeI2c();
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        WifiBoard::Initialize();
     }
 
     virtual Led* GetBuiltinLed() override {

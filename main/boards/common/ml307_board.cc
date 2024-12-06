@@ -1,5 +1,7 @@
 #include "ml307_board.h"
+
 #include "application.h"
+#include "display.h"
 #include "font_awesome_symbols.h"
 
 #include <esp_log.h>
@@ -72,10 +74,9 @@ void Ml307Board::WaitForNetworkReady() {
     ESP_LOGI(TAG, "ML307 Module: %s", module_name.c_str());
     ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
     ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
-}
 
-void Ml307Board::Initialize() {
-    ESP_LOGI(TAG, "Initializing Ml307Board");
+    // Close all previous connections
+    modem_.ResetConnections();
 }
 
 Http* Ml307Board::CreateHttp() {

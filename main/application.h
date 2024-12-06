@@ -4,18 +4,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
-#include <opus.h>
+
+#include <string>
 #include <mutex>
 #include <list>
-#include <condition_variable>
 
-#include "opus_encoder.h"
-#include "opus_decoder.h"
-#include "opus_resampler.h"
+#include <opus_encoder.h>
+#include <opus_decoder.h>
+#include <opus_resampler.h>
 
 #include "protocol.h"
-#include "display.h"
-#include "board.h"
 #include "ota.h"
 #include "background_task.h"
 
@@ -58,6 +56,7 @@ public:
     void ToggleChatState();
     void StartListening();
     void StopListening();
+    void UpdateIotStates();
 
 private:
     Application();
@@ -75,6 +74,7 @@ private:
     volatile ChatState chat_state_ = kChatStateUnknown;
     bool keep_listening_ = false;
     bool aborted_ = false;
+    std::string last_iot_states_;
 
     // Audio encode / decode
     BackgroundTask background_task_;

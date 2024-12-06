@@ -6,6 +6,7 @@
 #include "button.h"
 #include "led.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -64,8 +65,7 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
-            auto codec = GetAudioCodec();
-            codec->SetOutputVolume(100);
+            GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification("最大音量");
         });
 
@@ -80,30 +80,31 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
-            auto codec = GetAudioCodec();
-            codec->SetOutputVolume(0);
+            GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification("已静音");
         });
+    }
+
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
 
 public:
     CompactWifiBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO, 1),
+        touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
         system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
-    }
-
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing CompactWifiBoard");
         // Check if the reset button is pressed
         system_reset_.CheckButtons();
 
         InitializeDisplayI2c();
         InitializeButtons();
-
-        WifiBoard::Initialize();
+        InitializeIot();
     }
 
     virtual Led* GetBuiltinLed() override {

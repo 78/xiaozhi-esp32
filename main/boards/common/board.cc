@@ -6,7 +6,10 @@
 #include <esp_ota_ops.h>
 #include <esp_chip_info.h>
 
-// static const char *TAG = "Board";
+#define TAG "Board"
+
+Board::Board() {
+}
 
 bool Board::GetBatteryLevel(int &level, bool& charging) {
     return false;
