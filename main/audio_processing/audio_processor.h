@@ -16,7 +16,7 @@ public:
     ~AudioProcessor();
 
     void Initialize(int channels, bool reference);
-    void Input(std::vector<int16_t>& data);
+    void Input(const std::vector<int16_t>& data);
     void Start();
     void Stop();
     bool IsRunning();

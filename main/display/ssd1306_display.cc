@@ -126,8 +126,8 @@ Ssd1306Display::~Ssd1306Display() {
     lvgl_port_deinit();
 }
 
-void Ssd1306Display::Lock() {
-    lvgl_port_lock(0);
+bool Ssd1306Display::Lock(int timeout_ms) {
+    return lvgl_port_lock(timeout_ms);
 }
 
 void Ssd1306Display::Unlock() {

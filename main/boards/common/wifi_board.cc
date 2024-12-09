@@ -1,4 +1,6 @@
 #include "wifi_board.h"
+
+#include "display.h"
 #include "application.h"
 #include "system_info.h"
 #include "font_awesome_symbols.h"
@@ -68,10 +70,6 @@ void WifiBoard::StartNetwork() {
             vTaskDelay(pdMS_TO_TICKS(10000));
         }
     }
-}
-
-void WifiBoard::Initialize() {
-    ESP_LOGI(TAG, "Initializing WifiBoard");
 }
 
 Http* WifiBoard::CreateHttp() {

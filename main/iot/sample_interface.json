@@ -1,0 +1,38 @@
+[
+    {
+        "name": "lamp",
+        "description": "A lamp",
+        "properties": {
+            "power": {
+                "type": "boolean",
+                "description": "Whether the lamp is on or off"
+            }
+        },
+        "methods": {
+            "TurnOn": {
+                "description": "Turns the lamp on"
+            }
+        }
+    },
+    {
+        "name": "speaker",
+        "description": "当前 AI 机器人的扬声器",
+        "properties": {
+            "volume": {
+                "type": "number",
+                "description": "当前扬声器的音量（0-100）"
+            }
+        },
+        "methods": {
+            "SetVolume": {
+                "description": "设置当前扬声器的音量",
+                "parameters": {
+                    "volume": {
+                        "type": "number",
+                        "description": "The volume of the speaker (0-100)"
+                    }
+                }
+            }
+        }
+    }
+]

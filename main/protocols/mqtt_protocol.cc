@@ -105,7 +105,7 @@ void MqttProtocol::SendText(const std::string& text) {
     mqtt_->Publish(publish_topic_, text);
 }
 
-void MqttProtocol::SendAudio(const std::string& data) {
+void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {
     std::lock_guard<std::mutex> lock(channel_mutex_);
     if (udp_ == nullptr) {
         return;
@@ -202,7 +202,7 @@ bool MqttProtocol::OpenAudioChannel() {
             ESP_LOGW(TAG, "Received audio packet with wrong sequence: %lu, expected: %lu", sequence, remote_sequence_ + 1);
         }
 
-        std::string decrypted;
+        std::vector<uint8_t> decrypted;
         size_t decrypted_size = data.size() - aes_nonce_.size();
         size_t nc_off = 0;
         uint8_t stream_block[16] = {0};
@@ -215,7 +215,7 @@ bool MqttProtocol::OpenAudioChannel() {
             return;
         }
         if (on_incoming_audio_ != nullptr) {
-            on_incoming_audio_(decrypted);
+            on_incoming_audio_(std::move(decrypted));
         }
         remote_sequence_ = sequence;
     });

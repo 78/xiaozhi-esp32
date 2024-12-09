@@ -6,6 +6,7 @@
 #include "led.h"
 #include "config.h"
 #include "i2c_device.h"
+#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -119,17 +120,19 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-public:
-    LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
-    virtual void Initialize() override {
-        ESP_LOGI(TAG, "Initializing LichuangDevBoard");
+public:
+    LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        WifiBoard::Initialize();
+        InitializeIot();
     }
 
     virtual Led* GetBuiltinLed() override {

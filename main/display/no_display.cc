@@ -4,6 +4,8 @@ NoDisplay::NoDisplay() {}
 
 NoDisplay::~NoDisplay() {}
 
-void NoDisplay::Lock() {}
+bool NoDisplay::Lock(int timeout_ms) {
+    return true;
+}
 
 void NoDisplay::Unlock() {}

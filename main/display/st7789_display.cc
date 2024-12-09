@@ -3,7 +3,6 @@
 
 #include <esp_log.h>
 #include <esp_err.h>
-#include <esp_lvgl_port.h>
 #include <driver/ledc.h>
 #include <vector>
 
@@ -20,7 +19,6 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_30_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-static SemaphoreHandle_t lvgl_mux = NULL;
 static lv_disp_drv_t disp_drv;
 static void st7789_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
@@ -83,36 +81,17 @@ static void st7789_lvgl_port_update_callback(lv_disp_drv_t *drv)
         break;
     }
 }
-static void st7789_increase_lvgl_tick(void *arg)
-{
-    /* Tell LVGL how many milliseconds has elapsed */
-    lv_tick_inc(ST7789_LVGL_TICK_PERIOD_MS);
-}
-static bool st7789_lvgl_lock(int timeout_ms)
-{
-    // Convert timeout in milliseconds to FreeRTOS ticks
-    // If `timeout_ms` is set to -1, the program will block until the condition is met
-    const TickType_t timeout_ticks = (timeout_ms == -1) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-    return xSemaphoreTakeRecursive(lvgl_mux, timeout_ticks) == pdTRUE;
-}
 
-static void st7789_lvgl_unlock(void)
-{
-    xSemaphoreGiveRecursive(lvgl_mux);
-}
-
-static void st7789_lvgl_port_task(void *arg)
-{
+void St7789Display::LvglTask() {
     ESP_LOGI(TAG, "Starting LVGL task");
     uint32_t task_delay_ms = ST7789_LVGL_TASK_MAX_DELAY_MS;
     while (1)
     {
         // Lock the mutex due to the LVGL APIs are not thread-safe
-        if (st7789_lvgl_lock(-1))
+        if (Lock())
         {
             task_delay_ms = lv_timer_handler();
-            // Release the mutex
-            st7789_lvgl_unlock();
+            Unlock();
         }
         if (task_delay_ms > ST7789_LVGL_TASK_MAX_DELAY_MS)
         {
@@ -175,31 +154,40 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     disp_drv.draw_buf = &disp_buf;
     disp_drv.user_data = panel_;
 
-    lv_disp_t *disp = lv_disp_drv_register(&disp_drv);
+    lv_disp_drv_register(&disp_drv);
 
     ESP_LOGI(TAG, "Install LVGL tick timer");
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
     const esp_timer_create_args_t lvgl_tick_timer_args = {
-        .callback = &st7789_increase_lvgl_tick,
-        .name = "lvgl_tick"};
-    esp_timer_handle_t lvgl_tick_timer = NULL;
-    ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, ST7789_LVGL_TICK_PERIOD_MS * 1000));
+        .callback = [](void* arg) {
+            lv_tick_inc(ST7789_LVGL_TICK_PERIOD_MS);
+        },
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "LVGL Tick Timer",
+        .skip_unhandled_events = false
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer_));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer_, ST7789_LVGL_TICK_PERIOD_MS * 1000));
 
-    lvgl_mux = xSemaphoreCreateRecursiveMutex();
-    assert(lvgl_mux);
+    lvgl_mutex_ = xSemaphoreCreateRecursiveMutex();
+    assert(lvgl_mutex_ != nullptr);
     ESP_LOGI(TAG, "Create LVGL task");
-    xTaskCreate(st7789_lvgl_port_task, "LVGL", ST7789_LVGL_TASK_STACK_SIZE, NULL, ST7789_LVGL_TASK_PRIORITY, NULL);
+    xTaskCreate([](void *arg) {
+        static_cast<St7789Display*>(arg)->LvglTask();
+        vTaskDelete(NULL);
+    }, "LVGL", ST7789_LVGL_TASK_STACK_SIZE, this, ST7789_LVGL_TASK_PRIORITY, NULL);
 
     SetBacklight(100);
 
     SetupUI();
 }
 
-St7789Display::~St7789Display()
-{
-    if (content_ != nullptr)
-    {
+St7789Display::~St7789Display() {
+    ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
+    ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
+
+    if (content_ != nullptr) {
         lv_obj_del(content_);
     }
     if (status_bar_ != nullptr)
@@ -223,7 +211,7 @@ St7789Display::~St7789Display()
     {
         esp_lcd_panel_io_del(panel_io_);
     }
-    lvgl_port_deinit();
+    vSemaphoreDelete(lvgl_mutex_);
 }
 
 void St7789Display::InitializeBacklight(gpio_num_t backlight_pin)
@@ -275,14 +263,15 @@ void St7789Display::SetBacklight(uint8_t brightness)
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
 }
 
-void St7789Display::Lock() {
-    // lvgl_port_lock(0);
-    st7789_lvgl_lock(0);
+bool St7789Display::Lock(int timeout_ms) {
+    // Convert timeout in milliseconds to FreeRTOS ticks
+    // If `timeout_ms` is set to 0, the program will block until the condition is met
+    const TickType_t timeout_ticks = (timeout_ms == 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+    return xSemaphoreTakeRecursive(lvgl_mutex_, timeout_ticks) == pdTRUE;
 }
 
 void St7789Display::Unlock() {
-    // lvgl_port_unlock();
-    st7789_lvgl_unlock();
+    xSemaphoreGiveRecursive(lvgl_mutex_);
 }
 
 void St7789Display::SetupUI()
@@ -290,7 +279,6 @@ void St7789Display::SetupUI()
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(lv_disp_get_default());
-    // auto screen = lv_scr_act();
     lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 

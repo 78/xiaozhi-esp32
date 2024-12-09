@@ -9,6 +9,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
+            "iot/thing.cc"
+            "iot/thing_manager.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
@@ -19,6 +21,10 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
+
+# 添加 IOT 相关文件
+file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
+list(APPEND SOURCES ${IOT_SOURCES})
 
 # 字体
 file(GLOB FONT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fonts/*.c)
@@ -49,6 +55,8 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
     set(BOARD_TYPE "kevin-sp-v3-dev")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     set(BOARD_TYPE "esp32s3_korvo2_v3")
+elseif(CONFIG_BOARD_TYPE_TERRENCE_C3_DEV)
+    set(BOARD_TYPE "terrence-c3-dev")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
@@ -60,7 +68,8 @@ endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
-                    INCLUDE_DIRS ${INCLUDE_DIRS} ${INCLUDES} 
+                    INCLUDE_DIRS ${INCLUDE_DIRS}
+                    WHOLE_ARCHIVE
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE

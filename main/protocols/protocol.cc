@@ -8,7 +8,7 @@ void Protocol::OnIncomingJson(std::function<void(const cJSON* root)> callback) {
     on_incoming_json_ = callback;
 }
 
-void Protocol::OnIncomingAudio(std::function<void(const std::string& data)> callback) {
+void Protocol::OnIncomingAudio(std::function<void(std::vector<uint8_t>&& data)> callback) {
     on_incoming_audio_ = callback;
 }
 
@@ -57,3 +57,14 @@ void Protocol::SendStopListening() {
     std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"listen\",\"state\":\"stop\"}";
     SendText(message);
 }
+
+void Protocol::SendIotDescriptors(const std::string& descriptors) {
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"descriptors\":" + descriptors + "}";
+    SendText(message);
+}
+
+void Protocol::SendIotStates(const std::string& states) {
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"states\":" + states + "}";
+    SendText(message);
+}
+

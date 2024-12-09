@@ -10,7 +10,6 @@ protected:
     virtual std::string GetBoardJson() override;
 
 public:
-    virtual void Initialize() override;
     virtual void StartNetwork() override;
     virtual Http* CreateHttp() override;
     virtual WebSocket* CreateWebSocket() override;

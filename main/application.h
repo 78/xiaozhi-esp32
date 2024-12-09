@@ -4,17 +4,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
-#include <opus.h>
+
+#include <string>
 #include <mutex>
 #include <list>
-#include <condition_variable>
 
-#include "opus_encoder.h"
-#include "opus_resampler.h"
+#include <opus_encoder.h>
+#include <opus_decoder.h>
+#include <opus_resampler.h>
 
 #include "protocol.h"
-#include "display.h"
-#include "board.h"
 #include "ota.h"
 #include "background_task.h"
 
@@ -52,11 +51,12 @@ public:
     ChatState GetChatState() const { return chat_state_; }
     void Schedule(std::function<void()> callback);
     void SetChatState(ChatState state);
-    void Alert(const std::string&& title, const std::string&& message);
+    void Alert(const std::string& title, const std::string& message);
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
     void StopListening();
+    void UpdateIotStates();
 
 private:
     Application();
@@ -69,19 +69,20 @@ private:
     Ota ota_;
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
-    Protocol* protocol_ = nullptr;
+    std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_;
     volatile ChatState chat_state_ = kChatStateUnknown;
     bool keep_listening_ = false;
     bool aborted_ = false;
+    std::string last_iot_states_;
 
     // Audio encode / decode
     BackgroundTask background_task_;
     std::chrono::steady_clock::time_point last_output_time_;
-    std::list<std::string> audio_decode_queue_;
+    std::list<std::vector<uint8_t>> audio_decode_queue_;
 
-    OpusEncoder opus_encoder_;
-    OpusDecoder* opus_decoder_ = nullptr;
+    std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
+    std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
 
     int opus_decode_sample_rate_ = -1;
     OpusResampler input_resampler_;

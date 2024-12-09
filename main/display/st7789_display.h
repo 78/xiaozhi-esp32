@@ -3,9 +3,12 @@
 
 #include "display.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
+#include <esp_timer.h>
 
 class St7789Display : public Display {
 private:
@@ -16,6 +19,10 @@ private:
     bool mirror_x_ = false;
     bool mirror_y_ = false;
     bool swap_xy_ = false;
+    int offset_x_ = 0;
+    int offset_y_ = 0;
+    SemaphoreHandle_t lvgl_mutex_ = nullptr;
+    esp_timer_handle_t lvgl_tick_timer_ = nullptr;
     
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;
@@ -25,8 +32,9 @@ private:
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
     void SetupUI();
+    void LvglTask();
 
-    virtual void Lock() override;
+    virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
 public:
