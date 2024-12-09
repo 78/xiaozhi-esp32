@@ -20,7 +20,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "fonts/font_dingding.c"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
+set(INCLUDE_DIRS "." "iot" "display" "audio_codecs" "protocols" "audio_processing")
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
@@ -68,7 +68,7 @@ endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
-                    INCLUDE_DIRS ${INCLUDE_DIRS}
+                    INCLUDE_DIRS ${INCLUDE_DIRS} ${INCLUDES}
                     WHOLE_ARCHIVE
                     )
 

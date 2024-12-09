@@ -6,6 +6,7 @@
 #include "button.h"
 #include "led.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -44,11 +45,6 @@ private:
             Application::GetInstance().StopListening();
         });
     }
-
-public:
-    KEVIN_SP_V3Board() : boot_button_(BOOT_BUTTON_GPIO)
-    {
-    }
     void InitializeSt7789Display()
     {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
@@ -81,15 +77,24 @@ public:
         display_ = new St7789Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                      DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
-    virtual void Initialize() override
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Lamp"));
+    }
+
+public:
+    KEVIN_SP_V3Board() : boot_button_(BOOT_BUTTON_GPIO)
     {
         ESP_LOGI(TAG, "Initializing KEVIN_SP_V3 Board");
 
         InitializeSpi();
         InitializeButtons();
         InitializeSt7789Display();  
-        WifiBoard::Initialize();
+        InitializeIot();
     }
+    
 
     virtual Led *GetBuiltinLed() override
     {

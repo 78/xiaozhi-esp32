@@ -4,7 +4,7 @@ dependencies:
   78/esp-opus-encoder: "~2.0.0"
   78/esp-ml307: "~1.7.0"
   espressif/led_strip: "^2.4.1"
-  espressif/esp_codec_dev: "^1.3.1"
+  espressif/esp_codec_dev: "1.3.1"
   espressif/esp-sr: "^1.9.0"
   espressif/button: "^3.3.1"
   lvgl/lvgl: "~8.4.0"
