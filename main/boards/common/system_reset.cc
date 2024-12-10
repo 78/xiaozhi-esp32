@@ -1,3 +1,11 @@
+/*
+ * @Author: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @Date: 2024-11-16 09:17:57
+ * @LastEditors: Kevincoooool 33611679+Kevincoooool@users.noreply.github.com
+ * @LastEditTime: 2024-11-16 09:18:48
+ * @FilePath: \xiaozhi-esp32\main\boards\common\system_reset.cc
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #include "system_reset.h"
 
 #include <esp_log.h>
@@ -6,7 +14,7 @@
 #include <esp_partition.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
-
+#include "config.h"
 
 #define TAG "SystemReset"
 
@@ -36,23 +44,28 @@ void SystemReset::CheckButtons() {
     }
 }
 
-void SystemReset::ResetNvsFlash() {
+void SystemReset::ResetNvsFlash()
+{
     ESP_LOGI(TAG, "Resetting NVS flash");
     esp_err_t ret = nvs_flash_erase();
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to erase NVS flash");
     }
     ret = nvs_flash_init();
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to initialize NVS flash");
     }
 }
 
-void SystemReset::ResetToFactory() {
+void SystemReset::ResetToFactory()
+{
     ESP_LOGI(TAG, "Resetting to factory");
     // Erase otadata partition
-    const esp_partition_t* partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
-    if (partition == NULL) {
+    const esp_partition_t *partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
+    if (partition == NULL)
+    {
         ESP_LOGE(TAG, "Failed to find otadata partition");
         return;
     }
@@ -63,8 +76,10 @@ void SystemReset::ResetToFactory() {
     RestartInSeconds(3);
 }
 
-void SystemReset::RestartInSeconds(int seconds) {
-    for (int i = seconds; i > 0; i--) {
+void SystemReset::RestartInSeconds(int seconds)
+{
+    for (int i = seconds; i > 0; i--)
+    {
         ESP_LOGI(TAG, "Resetting in %d seconds", i);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }

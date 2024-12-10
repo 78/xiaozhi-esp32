@@ -93,16 +93,22 @@ void Application::Alert(const std::string& title, const std::string& message) {
     auto display = Board::GetInstance().GetDisplay();
     display->ShowNotification(message);
 
-    if (message == "PIN is not ready") {
+    if (message == "PIN is not ready")
+    {
         PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
-    } else if (message == "Configuring WiFi") {
+    }
+    else if (message == "Configuring WiFi")
+    {
         PlayLocalFile(p3_err_wificonfig_start, p3_err_wificonfig_end - p3_err_wificonfig_start);
-    } else if (message == "Registration denied") {
+    }
+    else if (message == "Registration denied")
+    {
         PlayLocalFile(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start);
     }
 }
 
-void Application::PlayLocalFile(const char* data, size_t size) {
+void Application::PlayLocalFile(const char *data, size_t size)
+{
     ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
     SetDecodeSampleRate(16000);
     for (const char* p = data; p < data + size; ) {
@@ -244,8 +250,9 @@ void Application::Start() {
     });
 
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
-    wake_word_detect_.OnVadStateChange([this](bool speaking) {
-        Schedule([this, speaking]() {
+    wake_word_detect_.OnVadStateChange([this](bool speaking)
+                                       { Schedule([this, speaking]()
+                                                  {
             auto builtin_led = Board::GetInstance().GetBuiltinLed();
             if (chat_state_ == kChatStateListening) {
                 if (speaking) {
@@ -254,9 +261,7 @@ void Application::Start() {
                     builtin_led->SetRed(LOW_BRIGHTNESS);
                 }
                 builtin_led->TurnOn();
-            }
-        });
-    });
+            } }); });
 
     wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
         Schedule([this, &wake_word]() {
@@ -286,9 +291,7 @@ void Application::Start() {
             }
 
             // Resume detection
-            wake_word_detect_.StartDetection();
-        });
-    });
+            wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
 #endif
 
@@ -355,6 +358,7 @@ void Application::Start() {
                 if (text != NULL) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     display->SetChatMessage("assistant", text->valuestring);
+                    display->SetReply(text->valuestring);
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
@@ -592,8 +596,10 @@ void Application::SetChatState(ChatState state) {
     }
 }
 
-void Application::SetDecodeSampleRate(int sample_rate) {
-    if (opus_decode_sample_rate_ == sample_rate) {
+void Application::SetDecodeSampleRate(int sample_rate)
+{
+    if (opus_decode_sample_rate_ == sample_rate)
+    {
         return;
     }
 
@@ -601,7 +607,8 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(opus_decode_sample_rate_, 1);
 
     auto codec = Board::GetInstance().GetAudioCodec();
-    if (opus_decode_sample_rate_ != codec->output_sample_rate()) {
+    if (opus_decode_sample_rate_ != codec->output_sample_rate())
+    {
         ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decode_sample_rate_, codec->output_sample_rate());
         output_resampler_.Configure(opus_decode_sample_rate_, codec->output_sample_rate());
     }
