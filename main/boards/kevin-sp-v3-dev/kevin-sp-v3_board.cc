@@ -1,4 +1,6 @@
 #include "wifi_board.h"
+#include "ml307_board.h"
+
 #include "audio_codecs/no_audio_codec.h"
 #include "display/st7789_display.h"
 #include "system_reset.h"
@@ -12,9 +14,9 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #define TAG "kevin-sp-v3"
+// class KEVIN_SP_V3Board : public Ml307Board {
+class KEVIN_SP_V3Board : public WifiBoard {
 
-class KEVIN_SP_V3Board : public WifiBoard
-{
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
@@ -85,7 +87,9 @@ private:
     }
 
 public:
-    KEVIN_SP_V3Board() : boot_button_(BOOT_BUTTON_GPIO)
+    KEVIN_SP_V3Board() : 
+    // Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    boot_button_(BOOT_BUTTON_GPIO)
     {
         ESP_LOGI(TAG, "Initializing KEVIN_SP_V3 Board");
 
