@@ -8,6 +8,7 @@
 
 #include <wifi_station.h>
 #include <esp_log.h>
+#include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
 
 #define TAG "KevinBoxBoard"
@@ -56,7 +57,10 @@ private:
     }
 
 public:
-    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {
+    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
+
         InitializeCodecI2c();
         InitializeButtons();
         InitializeIot();
