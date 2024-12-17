@@ -186,9 +186,8 @@ void Application::StopListening() {
 
 void Application::Start() {
     auto& board = Board::GetInstance();
-    auto builtin_led = board.GetBuiltinLed();
-    builtin_led->SetBlue();
-    builtin_led->StartContinuousBlink(100);
+    auto led_strip = board.GetLedStrip();
+    led_strip->LightOn(kStartup);
 
     /* Setup the display */
     auto display = board.GetDisplay();
@@ -246,14 +245,13 @@ void Application::Start() {
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
-            auto builtin_led = Board::GetInstance().GetBuiltinLed();
+            auto led_strip = Board::GetInstance().GetLedStrip();
             if (chat_state_ == kChatStateListening) {
                 if (speaking) {
-                    builtin_led->SetRed(HIGH_BRIGHTNESS);
+                    led_strip->LightOn(kListeningAndSpeaking);
                 } else {
-                    builtin_led->SetRed(LOW_BRIGHTNESS);
+                    led_strip->LightOn(kListening);
                 }
-                builtin_led->TurnOn();
             }
         });
     });
@@ -382,8 +380,7 @@ void Application::Start() {
 
     // Blink the LED to indicate the device is running
     display->SetStatus("待命");
-    builtin_led->SetGreen();
-    builtin_led->BlinkOnce();
+    led_strip->LightOn(kStandby);
 
     SetChatState(kChatStateIdle);
 }
@@ -545,11 +542,11 @@ void Application::SetChatState(ChatState state) {
     background_task_.WaitForCompletion();
 
     auto display = Board::GetInstance().GetDisplay();
-    auto builtin_led = Board::GetInstance().GetBuiltinLed();
+    auto led_strip = Board::GetInstance().GetLedStrip();
     switch (state) {
         case kChatStateUnknown:
         case kChatStateIdle:
-            builtin_led->TurnOff();
+            led_strip->LightOff();
             display->SetStatus("待命");
             display->SetEmotion("neutral");
 #ifdef CONFIG_IDF_TARGET_ESP32S3
@@ -557,13 +554,11 @@ void Application::SetChatState(ChatState state) {
 #endif
             break;
         case kChatStateConnecting:
-            builtin_led->SetBlue();
-            builtin_led->TurnOn();
+            led_strip->LightOn(kConnecting);
             display->SetStatus("连接中...");
             break;
         case kChatStateListening:
-            builtin_led->SetRed();
-            builtin_led->TurnOn();
+            led_strip->LightOn(kListening);
             display->SetStatus("聆听中...");
             display->SetEmotion("neutral");
             ResetDecoder();
@@ -574,8 +569,7 @@ void Application::SetChatState(ChatState state) {
             UpdateIotStates();
             break;
         case kChatStateSpeaking:
-            builtin_led->SetGreen();
-            builtin_led->TurnOn();
+            led_strip->LightOn(kSpeaking);
             display->SetStatus("说话中...");
             ResetDecoder();
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -583,8 +577,7 @@ void Application::SetChatState(ChatState state) {
 #endif
             break;
         case kChatStateUpgrading:
-            builtin_led->SetGreen();
-            builtin_led->StartContinuousBlink(100);
+            led_strip->LightOn(kUpgrading);
             break;
         default:
             ESP_LOGE(TAG, "Invalid chat state: %d", chat_state_);
