@@ -3,9 +3,9 @@
 #include "display/no_display.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led_strip/single_led.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -52,10 +52,10 @@ public:
         InitializeButtons();
         InitializeIot();
     }
-
-    virtual Led* GetBuiltinLed() override {
-        static Led led(GPIO_NUM_NC);
-        return &led;
+    
+    virtual LedStripWrapper* GetLedStrip() override {
+        static SingleLed led_strip(GPIO_NUM_NC);
+        return &led_strip;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
