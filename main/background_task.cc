@@ -1,6 +1,14 @@
+/*
+ * @Author: BS_AJi
+ * @Date: 2024-12-18 11:04:39
+ * @Description: 
+ * 
+ * Copyright (c) 2024 by $zx1048313827@gmail.com, All Rights Reserved. 
+ */
 #include "background_task.h"
 
 #include <esp_log.h>
+#include "string.h"
 
 #define TAG "BackgroundTask"
 
