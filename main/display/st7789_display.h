@@ -28,6 +28,7 @@ private:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* chat_message_label_ = nullptr;
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
@@ -42,6 +43,8 @@ public:
                   gpio_num_t backlight_pin, bool backlight_output_invert,
                   int width, int height,  int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy);
     ~St7789Display();
+
+    void SetChatMessage(const std::string &role, const std::string &content) override;
 };
 
 #endif // ST7789_DISPLAY_H
