@@ -28,7 +28,7 @@ CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rat
     data_if_ = audio_codec_new_i2s_data(&i2s_cfg);
     assert(data_if_ != NULL);
 
-    // Output
+    // Audio Output(Speaker)
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = (i2c_port_t)1,
         .addr = aw88298_addr,
@@ -58,7 +58,7 @@ CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rat
     output_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(output_dev_ != NULL);
 
-    // Input
+    // Audio Input(Microphone)
     i2c_cfg.addr = es7210_addr;
     in_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
     assert(in_ctrl_if_ != NULL);

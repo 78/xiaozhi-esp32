@@ -18,6 +18,7 @@
 
 class Axp2101 : public I2cDevice {
 public:
+    // Power Init
     Axp2101(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         uint8_t data = ReadReg(0x90);
         data |= 0b10110100;
@@ -26,7 +27,6 @@ public:
         WriteReg(0x97, (0b11110 - 2));
         WriteReg(0x69, 0b00110101);
         WriteReg(0x30, 0b111111);
-
         WriteReg(0x90, 0xBF);
         WriteReg(0x94, 33 - 5);
         WriteReg(0x95, 33 - 5);
@@ -35,11 +35,9 @@ public:
 
 class Aw9523 : public I2cDevice {
 public:
+    // Exanpd IO Init
     Aw9523(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
-        // WriteReg(0x02, 0b00000101);  // P0
-        // WriteReg(0x03, 0b00000011);  // P1
         WriteReg(0x02, 0b00000111);  // P0
-        // WriteReg(0x03, 0b10000011);  // P1
         WriteReg(0x03, 0b10001111);  // P1
         WriteReg(0x04, 0b00011000);  // CONFIG_P0
         WriteReg(0x05, 0b00001100);  // CONFIG_P1
@@ -247,7 +245,6 @@ private:
 
 public:
     M5StackCoreS3Board() : boot_button_(GPIO_NUM_1) {
-    // M5StackCoreS3Board() {
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
