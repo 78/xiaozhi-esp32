@@ -2,9 +2,9 @@
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led_strip/multiple_led.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -60,15 +60,15 @@ public:
     KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-
+        
         InitializeCodecI2c();
         InitializeButtons();
         InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        static Led led(BUILTIN_LED_GPIO);
-        return &led;
+    virtual LedStripWrapper* GetLedStrip() override {
+        static MultipleLed led_strip(BUILTIN_LED_GPIO, 8);
+        return &led_strip;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
