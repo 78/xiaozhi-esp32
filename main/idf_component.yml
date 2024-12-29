@@ -1,6 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  espressif/esp_lcd_ili9341: "==1.0.0"
+  espressif/esp_lcd_ili9341: "==1.2.0"
   78/esp-wifi-connect: "~1.4.1"
   78/esp-opus-encoder: "~2.0.0"
   78/esp-ml307: "~1.7.0"
