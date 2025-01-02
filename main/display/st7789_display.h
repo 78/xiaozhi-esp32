@@ -11,7 +11,7 @@
 #include <esp_timer.h>
 
 class St7789Display : public Display {
-private:
+protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     gpio_num_t backlight_pin_ = GPIO_NUM_NC;
@@ -32,9 +32,9 @@ private:
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
-    void SetupUI();
     void LvglTask();
 
+    virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
