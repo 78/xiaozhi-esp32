@@ -238,7 +238,7 @@ public:
     virtual bool GetBatteryLevel(int &level, bool& charging) override
     {
         charging = false;
-        level =60;
+        level = 60;
         return true;
     };
 };
