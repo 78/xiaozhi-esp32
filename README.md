@@ -63,3 +63,12 @@
 
 详细的使用说明以及测试服的注意事项，请参考 [小智测试服的帮助说明](https://xiaozhi.me/help)。
 
+## Star History
+
+<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+ </picture>
+</a>
