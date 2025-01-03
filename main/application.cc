@@ -511,9 +511,11 @@ void Application::InputAudio() {
 #if CONFIG_IDF_TARGET_ESP32S3
     if (audio_processor_.IsRunning()) {
         audio_processor_.Input(data);
+       // ESP_LOGI(TAG, "audio_processor_: %s", STATE_STRINGS[chat_state_]);
     }
     if (wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
+      //  ESP_LOGI(TAG, "wake_word_detect_: %s", STATE_STRINGS[chat_state_]);
     }
 #else
     if (chat_state_ == kChatStateListening) {
