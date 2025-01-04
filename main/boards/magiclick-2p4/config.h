@@ -23,6 +23,7 @@
 
 #define BUILTIN_LED_NUM 2
 #define BUILTIN_LED_GPIO GPIO_NUM_38
+
 #define BOOT_BUTTON_GPIO GPIO_NUM_21
 
 // display
@@ -35,7 +36,7 @@
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
 #define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
+#define DISPLAY_MIRROR_Y true
 #define DISPLAY_SWAP_XY false
 
 #define DISPLAY_OFFSET_X 0
