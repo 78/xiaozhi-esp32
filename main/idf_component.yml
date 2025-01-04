@@ -10,6 +10,8 @@ dependencies:
   espressif/button: "^3.3.1"
   lvgl/lvgl: "~8.4.0"
   esp_lvgl_port: "~2.4.1"
+  MakerM0/esp_lcd_nv3023:  
+    git: https://github.com/MakerM0/esp_lcd_nv3023.git
   ## Required IDF version
   idf:
     version: ">=5.3"
