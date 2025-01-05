@@ -4,6 +4,7 @@
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
+#include "iot/thing_manager.h"
 #include "config.h"
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
@@ -104,6 +105,12 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+    }
+
 public:
     magiclick_2p4() :
         boot_button_(BOOT_BUTTON_GPIO) {
@@ -112,6 +119,7 @@ public:
         InitializeLedPower();
         InitializeSpi();
         InitializeNv3023Display();
+        InitializeIot();
     }
 
     virtual Led* GetLed() override {
@@ -124,6 +132,10 @@ public:
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
+    }
+
+    virtual Display* GetDisplay() override {
+        return display_;
     }
 };
 
