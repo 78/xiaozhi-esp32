@@ -1,9 +1,10 @@
 #include "wifi_board.h"
-#include "display/st7789_display.h"
+#include "display/lcd_display.h"
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
+#include "led/single_led.h"
+#include "iot/thing_manager.h"
 #include "config.h"
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
@@ -17,7 +18,7 @@ class magiclick_2p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
-    St7789Display* display_;
+    LcdDisplay* display_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -39,7 +40,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateUnknown && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
@@ -57,6 +58,7 @@ private:
         gpio_set_direction(BUILTIN_LED_POWER, GPIO_MODE_OUTPUT);
         gpio_set_level(BUILTIN_LED_POWER, BUILTIN_LED_POWER_OUTPUT_INVERT ? 0 : 1);
     }
+
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = DISPLAY_SDA_PIN;
@@ -68,7 +70,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeSt7789Display(){
+    void InitializeNv3023Display(){
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -83,7 +85,7 @@ private:
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
-        // 初始化液晶屏驱动芯片ST7789
+        // 初始化液晶屏驱动芯片NV3023
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
@@ -99,8 +101,14 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new St7789Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+    }
+
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
 public:
@@ -110,13 +118,12 @@ public:
         InitializeButtons();
         InitializeLedPower();
         InitializeSpi();
-        InitializeSt7789Display();
+        InitializeNv3023Display();
+        InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        // static Led led(BUILTIN_LED_GPIO,BUILTIN_LED_NUM);
-        static Led led(BUILTIN_LED_GPIO);
-
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
 
@@ -125,6 +132,10 @@ public:
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
+    }
+
+    virtual Display* GetDisplay() override {
+        return display_;
     }
 };
 

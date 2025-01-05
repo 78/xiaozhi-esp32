@@ -1,5 +1,5 @@
-#ifndef ST7789_DISPLAY_H
-#define ST7789_DISPLAY_H
+#ifndef LCD_DISPLAY_H
+#define LCD_DISPLAY_H
 
 #include "display.h"
 
@@ -10,7 +10,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_timer.h>
 
-class St7789Display : public Display {
+class LcdDisplay : public Display {
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
@@ -39,12 +39,12 @@ protected:
     virtual void Unlock() override;
 
 public:
-    St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                   gpio_num_t backlight_pin, bool backlight_output_invert,
                   int width, int height,  int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy);
-    ~St7789Display();
+    ~LcdDisplay();
 
     void SetChatMessage(const std::string &role, const std::string &content) override;
 };
 
-#endif // ST7789_DISPLAY_H
+#endif // LCD_DISPLAY_H
