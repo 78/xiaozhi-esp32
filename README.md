@@ -52,19 +52,19 @@
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
-    <img src="docs/lichuang-s3.jpg" width="320" />
+    <img src="docs/lichuang-s3.jpg" width="240" />
   </a>
   <a href="docs/esp32s3-box3.jpg" target="_blank" title="乐鑫 ESP32-S3-BOX3">
-    <img src="docs/esp32s3-box3.jpg" width="320" />
+    <img src="docs/esp32s3-box3.jpg" width="240" />
   </a>
   <a href="docs/m5stack-cores3.jpg" target="_blank" title="M5Stack CoreS3">
-    <img src="docs/m5stack-cores3.jpg" width="320" />
+    <img src="docs/m5stack-cores3.jpg" width="240" />
   </a>
   <a href="docs/magiclick-2p4.jpg" target="_blank" title="神奇按钮 2.4">
-    <img src="docs/magiclick-2p4.jpg" width="320" />
+    <img src="docs/magiclick-2p4.jpg" width="240" />
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥定制版 Mini C3">
-    <img src="docs/xmini-c3.jpg" width="320" />
+    <img src="docs/xmini-c3.jpg" width="240" />
   </a>
 </div>
 
