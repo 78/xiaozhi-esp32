@@ -6,7 +6,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
-#include "led_strip/single_led.h"
+#include "led/single_led.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -42,7 +42,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
@@ -107,9 +107,9 @@ public:
         InitializeIot();
     }
 
-    virtual LedStripWrapper* GetLedStrip() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

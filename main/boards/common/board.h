@@ -7,7 +7,7 @@
 #include <udp.h>
 #include <string>
 
-#include "led_strip/led_strip_wrapper.h"
+#include "led/led.h"
 
 void* create_board();
 class AudioCodec;
@@ -32,7 +32,7 @@ public:
 
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
-    virtual LedStripWrapper* GetLedStrip() = 0;
+    virtual Led* GetLed() = 0;
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();
     virtual Http* CreateHttp() = 0;

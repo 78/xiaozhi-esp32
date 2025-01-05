@@ -7,7 +7,6 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
-#include "led_strip/single_led.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -213,11 +212,6 @@ public:
         InitializeIli9341Display();
         InitializeButtons();
         InitializeIot();
-    }
-    
-    virtual LedStripWrapper* GetLedStrip() override {
-        static SingleLed led_strip(GPIO_NUM_NC);
-        return &led_strip;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

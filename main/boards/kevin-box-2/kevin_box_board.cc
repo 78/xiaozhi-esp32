@@ -6,7 +6,7 @@
 #include "config.h"
 #include "axp2101.h"
 #include "iot/thing_manager.h"
-#include "led_strip/single_led.h"
+#include "led/single_led.h"
 
 #include <esp_log.h>
 #include <esp_spiffs.h>
@@ -46,7 +46,7 @@ private:
         // 电池放电模式下，如果待机超过一定时间，则自动关机
         const int seconds_to_shutdown = 600;
         static int seconds = 0;
-        if (Application::GetInstance().GetChatState() != kChatStateIdle) {
+        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
             seconds = 0;
             return;
         }
@@ -180,9 +180,9 @@ public:
         InitializeIot();
     }
     
-    virtual LedStripWrapper* GetLedStrip() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

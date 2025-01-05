@@ -38,14 +38,14 @@ static std::string rssi_to_string(int rssi) {
 void WifiBoard::StartNetwork() {
     auto& application = Application::GetInstance();
     auto display = Board::GetInstance().GetDisplay();
-    auto led_strip = Board::GetInstance().GetLedStrip();
 
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     auto& wifi_station = WifiStation::GetInstance();
     display->SetStatus(std::string("正在连接 ") + wifi_station.GetSsid());
     wifi_station.Start();
     if (!wifi_station.IsConnected()) {
-        led_strip->LightOn(kConnecting);
+        application.SetDeviceState(kDeviceStateWifiConfiguring);
+
         auto& wifi_ap = WifiConfigurationAp::GetInstance();
         wifi_ap.SetSsidPrefix("Xiaozhi");
         wifi_ap.Start();

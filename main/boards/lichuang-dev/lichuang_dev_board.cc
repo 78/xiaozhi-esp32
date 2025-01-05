@@ -6,7 +6,6 @@
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
-#include "led_strip/single_led.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -74,7 +73,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateUnknown && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
@@ -133,11 +132,6 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeIot();
-    }
-
-    virtual LedStripWrapper* GetLedStrip() override {
-        static SingleLed led_strip(GPIO_NUM_NC);
-        return &led_strip;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

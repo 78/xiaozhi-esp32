@@ -1,13 +1,13 @@
-#include "led_strip_wrapper.h"
+#include "led.h"
 #include "board.h"
 
 #include <cstring>
 #include <cmath>
 #include <esp_log.h>
 
-#define TAG "LedStripWrapper"
+#define TAG "Led"
 
-LedStripWrapper::LedStripWrapper(gpio_num_t gpio, uint8_t max_leds) {
+Led::Led(gpio_num_t gpio, uint8_t max_leds) {
     if (gpio == GPIO_NUM_NC) {
         ESP_LOGI(TAG, "Builtin LED not connected");
         return;
@@ -198,9 +198,9 @@ void LedStripWrapper::BreathLight(LedBasicColor color, uint32_t interval_ms) {
         }
 
         if (increase) {
-            brightness += 2;
+            brightness += 1;
         } else {
-            brightness -= 2;
+            brightness -= 1;
         }
     };
     esp_timer_start_periodic(led_strip_timer_, interval_ms * 1000);

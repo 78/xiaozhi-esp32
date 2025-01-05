@@ -136,9 +136,9 @@ public:
         InitializeIot();
     }
     
-    virtual LedStripWrapper* GetLedStrip() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
