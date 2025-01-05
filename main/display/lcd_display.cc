@@ -1,4 +1,4 @@
-#include "st7789_display.h"
+#include "lcd_display.h"
 #include "font_awesome_symbols.h"
 
 #include <esp_log.h>
@@ -6,21 +6,21 @@
 #include <driver/ledc.h>
 #include <vector>
 
-#define TAG "St7789Display"
+#define TAG "LcdDisplay"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
-#define ST7789_LVGL_TICK_PERIOD_MS 2
-#define ST7789_LVGL_TASK_MAX_DELAY_MS 20
-#define ST7789_LVGL_TASK_MIN_DELAY_MS 1
-#define ST7789_LVGL_TASK_STACK_SIZE (4 * 1024)
-#define ST7789_LVGL_TASK_PRIORITY 10
+#define LCD_LVGL_TICK_PERIOD_MS 2
+#define LCD_LVGL_TASK_MAX_DELAY_MS 20
+#define LCD_LVGL_TASK_MIN_DELAY_MS 1
+#define LCD_LVGL_TASK_STACK_SIZE (4 * 1024)
+#define LCD_LVGL_TASK_PRIORITY 10
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_30_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 static lv_disp_drv_t disp_drv;
-static void st7789_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
+static void lcd_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
     int offsetx1 = area->x1;
@@ -33,7 +33,7 @@ static void st7789_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_c
 }
 
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
-static void st7789_lvgl_port_update_callback(lv_disp_drv_t *drv)
+static void lcd_lvgl_port_update_callback(lv_disp_drv_t *drv)
 {
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
 
@@ -43,48 +43,28 @@ static void st7789_lvgl_port_update_callback(lv_disp_drv_t *drv)
         // Rotate LCD display
         esp_lcd_panel_swap_xy(panel_handle, false);
         esp_lcd_panel_mirror(panel_handle, true, false);
-#if CONFIG_ST7789_LCD_TOUCH_ENABLED
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-#endif
         break;
     case LV_DISP_ROT_90:
         // Rotate LCD display
         esp_lcd_panel_swap_xy(panel_handle, true);
         esp_lcd_panel_mirror(panel_handle, true, true);
-#if CONFIG_ST7789_LCD_TOUCH_ENABLED
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-#endif
         break;
     case LV_DISP_ROT_180:
         // Rotate LCD display
         esp_lcd_panel_swap_xy(panel_handle, false);
         esp_lcd_panel_mirror(panel_handle, false, true);
-#if CONFIG_ST7789_LCD_TOUCH_ENABLED
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-#endif
         break;
     case LV_DISP_ROT_270:
         // Rotate LCD display
         esp_lcd_panel_swap_xy(panel_handle, true);
         esp_lcd_panel_mirror(panel_handle, false, false);
-#if CONFIG_ST7789_LCD_TOUCH_ENABLED
-        // Rotate LCD touch
-        esp_lcd_touch_set_mirror_y(tp, false);
-        esp_lcd_touch_set_mirror_x(tp, false);
-#endif
         break;
     }
 }
 
-void St7789Display::LvglTask() {
+void LcdDisplay::LvglTask() {
     ESP_LOGI(TAG, "Starting LVGL task");
-    uint32_t task_delay_ms = ST7789_LVGL_TASK_MAX_DELAY_MS;
+    uint32_t task_delay_ms = LCD_LVGL_TASK_MAX_DELAY_MS;
     while (1)
     {
         // Lock the mutex due to the LVGL APIs are not thread-safe
@@ -93,20 +73,20 @@ void St7789Display::LvglTask() {
             task_delay_ms = lv_timer_handler();
             Unlock();
         }
-        if (task_delay_ms > ST7789_LVGL_TASK_MAX_DELAY_MS)
+        if (task_delay_ms > LCD_LVGL_TASK_MAX_DELAY_MS)
         {
-            task_delay_ms = ST7789_LVGL_TASK_MAX_DELAY_MS;
+            task_delay_ms = LCD_LVGL_TASK_MAX_DELAY_MS;
         }
-        else if (task_delay_ms < ST7789_LVGL_TASK_MIN_DELAY_MS)
+        else if (task_delay_ms < LCD_LVGL_TASK_MIN_DELAY_MS)
         {
-            task_delay_ms = ST7789_LVGL_TASK_MIN_DELAY_MS;
+            task_delay_ms = LCD_LVGL_TASK_MIN_DELAY_MS;
         }
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
 }
 
 
-St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            gpio_num_t backlight_pin, bool backlight_output_invert,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
     : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
@@ -147,8 +127,8 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     disp_drv.ver_res = height_;
     disp_drv.offset_x = offset_x_;
     disp_drv.offset_y = offset_y_;
-    disp_drv.flush_cb = st7789_lvgl_flush_cb;
-    disp_drv.drv_update_cb = st7789_lvgl_port_update_callback;
+    disp_drv.flush_cb = lcd_lvgl_flush_cb;
+    disp_drv.drv_update_cb = lcd_lvgl_port_update_callback;
     disp_drv.draw_buf = &disp_buf;
     disp_drv.user_data = panel_;
 
@@ -158,7 +138,7 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
     const esp_timer_create_args_t lvgl_tick_timer_args = {
         .callback = [](void* arg) {
-            lv_tick_inc(ST7789_LVGL_TICK_PERIOD_MS);
+            lv_tick_inc(LCD_LVGL_TICK_PERIOD_MS);
         },
         .arg = NULL,
         .dispatch_method = ESP_TIMER_TASK,
@@ -166,22 +146,22 @@ St7789Display::St7789Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .skip_unhandled_events = false
     };
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer_, ST7789_LVGL_TICK_PERIOD_MS * 1000));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer_, LCD_LVGL_TICK_PERIOD_MS * 1000));
 
     lvgl_mutex_ = xSemaphoreCreateRecursiveMutex();
     assert(lvgl_mutex_ != nullptr);
     ESP_LOGI(TAG, "Create LVGL task");
     xTaskCreate([](void *arg) {
-        static_cast<St7789Display*>(arg)->LvglTask();
+        static_cast<LcdDisplay*>(arg)->LvglTask();
         vTaskDelete(NULL);
-    }, "LVGL", ST7789_LVGL_TASK_STACK_SIZE, this, ST7789_LVGL_TASK_PRIORITY, NULL);
+    }, "LVGL", LCD_LVGL_TASK_STACK_SIZE, this, LCD_LVGL_TASK_PRIORITY, NULL);
 
     SetBacklight(100);
 
     SetupUI();
 }
 
-St7789Display::~St7789Display() {
+LcdDisplay::~LcdDisplay() {
     ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
     ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
 
@@ -207,7 +187,7 @@ St7789Display::~St7789Display() {
     vSemaphoreDelete(lvgl_mutex_);
 }
 
-void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
+void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
     if (backlight_pin == GPIO_NUM_NC) {
         return;
     }
@@ -238,7 +218,7 @@ void St7789Display::InitializeBacklight(gpio_num_t backlight_pin) {
     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 }
 
-void St7789Display::SetBacklight(uint8_t brightness) {
+void LcdDisplay::SetBacklight(uint8_t brightness) {
     if (backlight_pin_ == GPIO_NUM_NC) {
         return;
     }
@@ -254,18 +234,18 @@ void St7789Display::SetBacklight(uint8_t brightness) {
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
 }
 
-bool St7789Display::Lock(int timeout_ms) {
+bool LcdDisplay::Lock(int timeout_ms) {
     // Convert timeout in milliseconds to FreeRTOS ticks
     // If `timeout_ms` is set to 0, the program will block until the condition is met
     const TickType_t timeout_ticks = (timeout_ms == 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
     return xSemaphoreTakeRecursive(lvgl_mutex_, timeout_ticks) == pdTRUE;
 }
 
-void St7789Display::Unlock() {
+void LcdDisplay::Unlock() {
     xSemaphoreGiveRecursive(lvgl_mutex_);
 }
 
-void St7789Display::SetupUI() {
+void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(lv_disp_get_default());
@@ -336,7 +316,7 @@ void St7789Display::SetupUI() {
     lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
 }
 
-void St7789Display::SetChatMessage(const std::string &role, const std::string &content) {
+void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content) {
     if (chat_message_label_ == nullptr) {
         return;
     }

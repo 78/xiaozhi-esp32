@@ -32,7 +32,7 @@ public:
 
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
-    virtual Led* GetLed() = 0;
+    virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();
     virtual Http* CreateHttp() = 0;
