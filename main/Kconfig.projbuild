@@ -54,6 +54,8 @@ choice BOARD_TYPE
         bool "神奇按钮Magiclick_2.4"  
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
+    config BOARD_TYPE_TERRENCE_C3
+        bool "Terrence C3"
 endchoice
 
 endmenu
