@@ -48,7 +48,7 @@
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - 神奇按钮 2.4
-- 虾哥定制版 Mini C3
+- 虾哥 Mini C3
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
@@ -63,7 +63,7 @@
   <a href="docs/magiclick-2p4.jpg" target="_blank" title="神奇按钮 2.4">
     <img src="docs/magiclick-2p4.jpg" width="240" />
   </a>
-  <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥定制版 Mini C3">
+  <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
 </div>

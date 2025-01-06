@@ -12,9 +12,9 @@
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
 
-#define TAG "TerrenceC3Board"
+#define TAG "XminiC3Board"
 
-class TerrenceC3Board : public WifiBoard {
+class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -58,7 +58,7 @@ private:
     }
 
 public:
-    TerrenceC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
 
@@ -85,4 +85,4 @@ public:
     }
 };
 
-DECLARE_BOARD(TerrenceC3Board);
+DECLARE_BOARD(XminiC3Board);
