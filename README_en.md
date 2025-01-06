@@ -1,5 +1,7 @@
 # XiaoZhi AI Chatbot
 
+（[中文](README.md) | English）
+
 This is Terrence's first hardware project.
 
 👉 [Build your AI chat companion with ESP32+SenseVoice+Qwen72B! [bilibili]](https://www.bilibili.com/video/BV11msTenEH3/?share_source=copy_web&vd_source=ee1aafe19d6e60cf22e60a93881faeba)
