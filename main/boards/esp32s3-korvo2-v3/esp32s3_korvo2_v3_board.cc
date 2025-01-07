@@ -22,6 +22,7 @@ private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
+
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -37,10 +38,9 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-
     }
-    void InitializeSpi()
-    {
+
+    void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_0;
         buscfg.miso_io_num = GPIO_NUM_NC;
@@ -50,7 +50,8 @@ private:
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
-        void InitializeButtons() {
+
+    void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -64,8 +65,8 @@ private:
             Application::GetInstance().StopListening();
         });
     }
-    void InitializeSt7789Display()
-    {
+
+    void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -96,7 +97,8 @@ private:
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                      DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
-   // 物联网初始化，添加对 AI 可见设备
+
+    // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
@@ -113,11 +115,6 @@ public:
         InitializeSt7789Display();  
         InitializeIot();
     }
-
-    // virtual Led* GetBuiltinLed() override {
-    //     static Led led(GPIO_NUM_NC);
-    //     return &led;
-    // }
 
     virtual AudioCodec* GetAudioCodec() override {
         static BoxAudioCodec* audio_codec = nullptr;
