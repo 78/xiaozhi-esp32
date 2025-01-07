@@ -72,6 +72,12 @@
 
 ## 固件部分
 
+### EspLaunchpad在线烧入
+
+<a href="https://iot.diybyte.com:52088/esp_launchpad/?flashConfigURL=https://github.com/whble/xiaozhi-esp32/blob/main/images/config.toml">
+    <img alt="Try it with ESP Launchpad" src="https://espressif.github.io/esp-launchpad/assets/try_with_launchpad.png" width="250" height="70">
+</a>
+
 ### 免开发环境烧录
 
 新手第一次操作建议先不要搭建开发环境，直接使用免开发环境烧录的固件。固件使用的是作者友情提供的测试服，目前开放免费使用，请勿用于商业用途。
