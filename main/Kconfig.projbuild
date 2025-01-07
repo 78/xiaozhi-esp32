@@ -55,7 +55,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
     config BOARD_TYPE_XMINI_C3
-        bool "虾哥 Mini C3"
+        bool "虾哥 Mini C3"    
+    config BOARD_TYPE_ESP32S3_KORVO2_V3
+        bool "ESP32S3_KORVO2_V3开发板"
 endchoice
 
 endmenu
