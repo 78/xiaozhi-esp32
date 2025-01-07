@@ -2,8 +2,6 @@ esp_toml_version = 1.0
 firmware_images_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images"
 config_readme_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/cfg.md"
 
-supported_apps = ["xiaozhi_esp-box-3_v0.9.8"]
-
 supported_apps = ["xiaozhi_rtc-01_v1_0_0","xiaozhi_esp-box-3_v1_0_0","factory_test_fw-ESP-BOX-3",
 "esp_sparkdot_factory_demo"]
 
