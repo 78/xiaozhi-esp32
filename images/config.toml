@@ -9,5 +9,5 @@ chipsets = ["ESP32S3"]
 image.esp32s3 = "xiaozhi_esp-box-3_v0.9.8.bin"
 ios_app_url = ""
 android_app_url = ""
-readme.text = "https://github.com/78/xiaozhi-esp32/blob/main/README.md"
+readme.text = ""
 
