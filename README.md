@@ -74,7 +74,7 @@
 
 ### EspLaunchpad在线烧入
 
-<a href="https://iot.diybyte.com:52088/esp_launchpad/?flashConfigURL=https://github.com/whble/xiaozhi-esp32/blob/main/images/config.toml">
+<a href="https://iot.diybyte.com:52088/esp_launchpad/?flashConfigURL=https://github.com/whble/xiaozhi-esp32/blob/main/images/config.toml" target="_blank">
     <img alt="Try it with ESP Launchpad" src="https://espressif.github.io/esp-launchpad/assets/try_with_launchpad.png" width="250" height="70">
 </a>
 
