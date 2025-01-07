@@ -2,34 +2,12 @@ esp_toml_version = 1.0
 firmware_images_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images"
 config_readme_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/cfg.md"
 
-supported_apps = ["xiaozhi_rtc-01_v1_0_0","xiaozhi_esp-box-3_v1_0_0","factory_test_fw-ESP-BOX-3",
-"esp_sparkdot_factory_demo"]
-
-[xiaozhi_rtc-01_v1_0_0]
-chipsets = ["ESP32S3"]
-image.esp32s3 = "xiaozhi_rtc-01_v1_0_0.bin"
-ios_app_url = "https://apps.apple.com/app/esp-rainmaker/id1497491540"
-android_app_url = "https://play.google.com/store/apps/details?id=com.espressif.rainmaker"
-readme.text = "https://raw.githubusercontent.com/espressif/esp-rainmaker/master/tools/launchpad/app_link_guide.md"
+supported_apps = ["xiaozhi_esp-box-3_v1_0_0"]
 
 [xiaozhi_esp-box-3_v1_0_0]
 chipsets = ["ESP32S3"]
 image.esp32s3 = "xiaozhi_esp-box-3_v1_0_0.bin"
 ios_app_url = ""
 android_app_url = ""
-readme.text = "xiaozhi.md"
-
-[factory_test_fw-ESP-BOX-3]
-chipsets = ["ESP32S3"]
-image.esp32s3 = "factory_test_fw-ESP-BOX-3.bin"
-ios_app_url = ""
-android_app_url = ""
-readme.text = ""
-
-[esp_sparkdot_factory_demo]
-chipsets = ["ESP32S3"]
-image.esp32s3 = "esp_sparkdot_factory_demo.bin"
-ios_app_url = ""
-android_app_url = ""
-readme.text = "https://gitee.com/esp-friends/esp_sparkbot/raw/master/README.md"
+readme.text = "https://raw.githubusercontent.com/78/xiaozhi-esp32/refs/heads/main/README.md"
 
