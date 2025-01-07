@@ -136,7 +136,11 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
         });
     }
 
