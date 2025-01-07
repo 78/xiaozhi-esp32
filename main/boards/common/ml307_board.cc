@@ -46,7 +46,7 @@ void Ml307Board::StartNetwork() {
     modem_.OnMaterialReady([this, &application]() {
         ESP_LOGI(TAG, "ML307 material ready");
         application.Schedule([this, &application]() {
-            application.SetChatState(kChatStateIdle);
+            application.SetDeviceState(kDeviceStateIdle);
             WaitForNetworkReady();
         });
     });

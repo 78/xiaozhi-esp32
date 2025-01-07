@@ -1,19 +1,20 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
+#include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led/single_led.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
 
-#define TAG "KevinBoxBoard"
+#define TAG "XminiC3Board"
 
-class KevinBoxBoard : public WifiBoard {
+class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -38,7 +39,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
@@ -57,7 +58,7 @@ private:
     }
 
 public:
-    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
 
@@ -66,9 +67,14 @@ public:
         InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        static Led led(BUILTIN_LED_GPIO);
-        return &led;
+    virtual Led* GetLed() override {
+        static SingleLed led_strip(BUILTIN_LED_GPIO);
+        return &led_strip;
+    }
+
+    virtual Display* GetDisplay() override {
+        static Ssd1306Display display(codec_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        return &display;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -79,4 +85,4 @@ public:
     }
 };
 
-DECLARE_BOARD(KevinBoxBoard);
+DECLARE_BOARD(XminiC3Board);

@@ -1,11 +1,10 @@
 #include "wifi_board.h"
 #include "audio_codecs/box_audio_codec.h"
-#include "display/st7789_display.h"
+#include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
 #include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
 
@@ -43,7 +42,7 @@ static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
 };
 
 // Example Display and UI overwrite in different board
-class Ili9341Display : public St7789Display {
+class Ili9341Display : public LcdDisplay {
 private:    
     lv_obj_t *user_messge_label_ = nullptr;
     lv_obj_t *ai_messge_label_ = nullptr;
@@ -51,44 +50,27 @@ public:
     Ili9341Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                          gpio_num_t backlight_pin, bool backlight_output_invert,
                          int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : St7789Display(panel_io, panel, backlight_pin, backlight_output_invert, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {}
-
-    void SetStatus(const std::string &status) override
-    {
-        if (status_label_ == nullptr) {
-            return;
-        }
-        if(status=="待命")
-        {
-            SetChatMessage(" "," ");
-        }
-        DisplayLockGuard lock(this);
-        lv_label_set_text(status_label_, status.c_str());
-    }
+        : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {}
 
     void SetChatMessage(const std::string &role, const std::string &content) override {
         if (ai_messge_label_== nullptr || user_messge_label_== nullptr) {
             return;
         }
+
         DisplayLockGuard lock(this);
-        ESP_LOGI(TAG,"role:%s",role.c_str());
-        if(role=="assistant")
-        {
-            std::string new_content = "AI:" + content;
+        ESP_LOGI(TAG, "role:%s", role.c_str());
+        if(role == "assistant") {
+            std::string new_content = "AI: " + content;
             lv_label_set_text(ai_messge_label_, new_content.c_str());
-        }
-        else if(role=="user")
-        {
-            std::string new_content = "User:" + content;
+        } else if(role == "user") {
+            std::string new_content = "User: " + content;
             lv_label_set_text(user_messge_label_, new_content.c_str());
-        }
-        else{
-            std::string new_content = "AI:";
-            lv_label_set_text(ai_messge_label_, new_content.c_str());
-            new_content="User:";
-            lv_label_set_text(user_messge_label_, new_content.c_str());
+        } else{
+            lv_label_set_text(ai_messge_label_, "AI: ");
+            lv_label_set_text(user_messge_label_, "User: ");
         }
     }
+
     void SetupUI() override {
         DisplayLockGuard lock(this);
 
@@ -98,23 +80,23 @@ public:
 
         lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
         lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-        lv_obj_align(emotion_label_,LV_ALIGN_TOP_MID, 0, -10); // 左侧居中，向右偏移10个单位
+        lv_obj_align(emotion_label_, LV_ALIGN_TOP_MID, 0, -10); // 左侧居中，向右偏移10个单位
 
         static lv_style_t style_msg;
         lv_style_init(&style_msg);
-        lv_style_set_width(&style_msg, LV_HOR_RES-25);
+        lv_style_set_width(&style_msg, LV_HOR_RES - 25);
 
         user_messge_label_ = lv_label_create(content_);
         lv_obj_set_style_text_font(user_messge_label_, &font_puhui_14_1, 0);
-        lv_label_set_text(user_messge_label_, "User:");
+        lv_label_set_text(user_messge_label_, "User: ");
         lv_obj_add_style(user_messge_label_, &style_msg, 0);
-        lv_obj_align(user_messge_label_,LV_ALIGN_TOP_LEFT, 2, 25);
+        lv_obj_align(user_messge_label_, LV_ALIGN_TOP_LEFT, 2, 25);
 
         ai_messge_label_ = lv_label_create(content_);
         lv_obj_set_style_text_font(ai_messge_label_, &font_puhui_14_1, 0);
-        lv_label_set_text(ai_messge_label_, "AI:");
+        lv_label_set_text(ai_messge_label_, "AI: ");
         lv_obj_add_style(ai_messge_label_, &style_msg, 0);
-        lv_obj_align(ai_messge_label_,LV_ALIGN_TOP_LEFT, 2, 77);
+        lv_obj_align(ai_messge_label_, LV_ALIGN_TOP_LEFT, 2, 77);
     }
 };
 
@@ -215,11 +197,6 @@ public:
         InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        static Led led(GPIO_NUM_NC);
-        return &led;
-    }
-
     virtual AudioCodec* GetAudioCodec() override {
         static BoxAudioCodec* audio_codec = nullptr;
         if (audio_codec == nullptr) {
@@ -234,13 +211,6 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
-
-    virtual bool GetBatteryLevel(int &level, bool& charging) override
-    {
-        charging = false;
-        level = 60;
-        return true;
-    };
 };
 
 DECLARE_BOARD(EspBox3Board);

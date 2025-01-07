@@ -1,9 +1,8 @@
 #include "wifi_board.h"
 #include "audio_codecs/cores3_audio_codec.h"
-#include "display/st7789_display.h"
+#include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -30,6 +29,18 @@ public:
         WriteReg(0x90, 0xBF);
         WriteReg(0x94, 33 - 5);
         WriteReg(0x95, 33 - 5);
+    }
+
+    int GetBatteryCurrentDirection() {
+        return (ReadReg(0x01) & 0b01100000) >> 5;
+    }
+
+    bool IsCharging() {
+        return GetBatteryCurrentDirection() == 1;
+    }
+
+    int GetBatteryLevel() {
+        return ReadReg(0xA4);
     }
 };
 
@@ -103,7 +114,7 @@ private:
     Axp2101* axp2101_;
     Aw9523* aw9523_;
     Ft6336* ft6336_;
-    St7789Display* display_;
+    LcdDisplay* display_;
     Button boot_button_;
 
     void InitializeI2c() {
@@ -227,7 +238,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new St7789Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -256,11 +267,6 @@ public:
         InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        static Led led(GPIO_NUM_NC);
-        return &led;
-    }
-
     virtual AudioCodec* GetAudioCodec() override {
         static CoreS3AudioCodec* audio_codec = nullptr;
         if (audio_codec == nullptr) {
@@ -274,6 +280,19 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging) override {
+        static int last_level = 0;
+        static bool last_charging = false;
+        level = axp2101_->GetBatteryLevel();
+        charging = axp2101_->IsCharging();
+        if (level != last_level || charging != last_charging) {
+            last_level = level;
+            last_charging = charging;
+            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+        return true;
     }
 
     Ft6336* GetTouchpad() {

@@ -3,9 +3,11 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
+            "led/single_led.cc"
+            "led/circular_strip.cc"
             "display/display.cc"
             "display/no_display.cc"
-            "display/st7789_display.cc"
+            "display/lcd_display.cc"
             "display/ssd1306_display.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
@@ -51,10 +53,12 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
     set(BOARD_TYPE "kevin-c3")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
-elseif(CONFIG_BOARD_TYPE_TERRENCE_C3_DEV)
-    set(BOARD_TYPE "terrence-c3-dev")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P4)
+    set(BOARD_TYPE "magiclick-2p4")
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
+elseif(CONFIG_BOARD_TYPE_XMINI_C3)
+    set(BOARD_TYPE "xmini-c3")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
