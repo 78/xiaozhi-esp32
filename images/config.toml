@@ -1,5 +1,5 @@
 esp_toml_version = 1.0
-firmware_images_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images"
+firmware_images_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/"
 config_readme_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/cfg.md"
 
 supported_apps = ["xiaozhi_esp-box-3_v0_9_8"]
