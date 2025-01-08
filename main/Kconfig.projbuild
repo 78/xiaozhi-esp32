@@ -49,7 +49,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_KEVIN_C3
         bool "Kevin C3"
     config BOARD_TYPE_LICHUANG_DEV
-        bool "立创开发板"
+        bool "立创·实战派ESP32-S3开发板"
+    config BOARD_TYPE_LICHUANG_C3_DEV
+        bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"  
     config BOARD_TYPE_M5STACK_CORE_S3
