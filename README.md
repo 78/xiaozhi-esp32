@@ -1,6 +1,6 @@
 # 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
 
-（中文 | [English](README_en.md)）
+（中文 | [English](README_en.md) | [日本語](README_ja.md)）
 
 这是虾哥的第一个硬件作品。
 
