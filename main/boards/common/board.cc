@@ -20,6 +20,10 @@ Display* Board::GetDisplay() {
     return &display;
 }
 
+Led* Board::GetLed() {
+    static NoLed led;
+    return &led;
+}
 
 std::string Board::GetJson() {
     /* 

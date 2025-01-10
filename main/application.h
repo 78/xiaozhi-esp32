@@ -26,13 +26,16 @@
 #define AUDIO_INPUT_READY_EVENT (1 << 1)
 #define AUDIO_OUTPUT_READY_EVENT (1 << 2)
 
-enum ChatState {
-    kChatStateUnknown,
-    kChatStateIdle,
-    kChatStateConnecting,
-    kChatStateListening,
-    kChatStateSpeaking,
-    kChatStateUpgrading
+enum DeviceState {
+    kDeviceStateUnknown,
+    kDeviceStateStarting,
+    kDeviceStateWifiConfiguring,
+    kDeviceStateIdle,
+    kDeviceStateConnecting,
+    kDeviceStateListening,
+    kDeviceStateSpeaking,
+    kDeviceStateUpgrading,
+    kDeviceStateFatalError
 };
 
 #define OPUS_FRAME_DURATION_MS 60
@@ -48,9 +51,10 @@ public:
     Application& operator=(const Application&) = delete;
 
     void Start();
-    ChatState GetChatState() const { return chat_state_; }
+    DeviceState GetDeviceState() const { return device_state_; }
+    bool IsVoiceDetected() const { return voice_detected_; }
     void Schedule(std::function<void()> callback);
-    void SetChatState(ChatState state);
+    void SetDeviceState(DeviceState state);
     void Alert(const std::string& title, const std::string& message);
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
@@ -71,9 +75,10 @@ private:
     std::list<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_;
-    volatile ChatState chat_state_ = kChatStateUnknown;
+    volatile DeviceState device_state_ = kDeviceStateUnknown;
     bool keep_listening_ = false;
     bool aborted_ = false;
+    bool voice_detected_ = false;
     std::string last_iot_states_;
 
     // Audio encode / decode

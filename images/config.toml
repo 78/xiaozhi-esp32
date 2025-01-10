@@ -1,0 +1,56 @@
+esp_toml_version = 1.0
+firmware_images_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/"
+config_readme_url = "https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/cfg.md"
+
+supported_apps = ["bread-compact-ml307_v0_9_8","bread-compact-wifi_v0_9_8",
+"esp-box-3_v0_9_8","kevin-box-2_v0_9_8","lichuang-dev_v0_9_8","m5static-core-s3_v9_0_8","magiclick-2p4_v0_9_8"]
+
+[bread-compact-ml307_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "bread-compact-ml307_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[bread-compact-wifi_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "bread-compact-wifi_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[esp-box-3_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "esp-box-3_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[kevin-box-2_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "kevin-box-2_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[lichuang-dev_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "lichuang-dev_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[m5static-core-s3_v9_0_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "m5static-core-s3_v9_0_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+
+[magiclick-2p4_v0_9_8]
+chipsets = ["ESP32S3"]
+image.esp32s3 = "magiclick-2p4_v0_9_8.bin"
+ios_app_url = ""
+android_app_url = ""
+readme.text = ""
+

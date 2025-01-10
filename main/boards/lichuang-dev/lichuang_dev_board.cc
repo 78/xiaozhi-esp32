@@ -1,9 +1,8 @@
 #include "wifi_board.h"
 #include "audio_codecs/box_audio_codec.h"
-#include "display/st7789_display.h"
+#include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -37,7 +36,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     i2c_master_dev_handle_t pca9557_handle_;
     Button boot_button_;
-    St7789Display* display_;
+    LcdDisplay* display_;
     Pca9557* pca9557_;
 
     void InitializeI2c() {
@@ -74,7 +73,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
@@ -116,7 +115,7 @@ private:
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new St7789Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -133,11 +132,6 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeIot();
-    }
-
-    virtual Led* GetBuiltinLed() override {
-        static Led led(GPIO_NUM_NC);
-        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
