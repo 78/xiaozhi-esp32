@@ -37,14 +37,18 @@ static const char* const STATE_STRINGS[] = {
     "invalid_state"
 };
 
-Application::Application() : background_task_(4096 * 8) {
+Application::Application() {
     event_group_ = xEventGroupCreate();
+    background_task_ = new BackgroundTask(4096 * 8);
 
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application() {
+    if (background_task_ != nullptr) {
+        delete background_task_;
+    }
     vEventGroupDelete(event_group_);
 }
 
@@ -62,7 +66,7 @@ void Application::CheckNewVersion() {
                     vTaskDelay(pdMS_TO_TICKS(3000));
                 } while (GetDeviceState() != kDeviceStateIdle);
 
-                // Use main task to do the upgrade
+                // Use main task to do the upgrade, not cancelable
                 Schedule([this, &board, display]() {
                     SetDeviceState(kDeviceStateUpgrading);
                     
@@ -71,6 +75,13 @@ void Application::CheckNewVersion() {
 
                     // 预先关闭音频输出，避免升级过程有音频操作
                     board.GetAudioCodec()->EnableOutput(false);
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_);
+                        audio_decode_queue_.clear();
+                    }
+                    background_task_->WaitForCompletion();
+                    delete background_task_;
+                    background_task_ = nullptr;
                     vTaskDelay(pdMS_TO_TICKS(1000));
 
                     ota_.StartUpgrade([display](int progress, size_t speed) {
@@ -80,8 +91,10 @@ void Application::CheckNewVersion() {
                     });
 
                     // If upgrade success, the device will reboot and never reach here
+                    display->SetStatus("更新失败");
                     ESP_LOGI(TAG, "Firmware upgrade failed...");
-                    SetDeviceState(kDeviceStateIdle);
+                    vTaskDelay(pdMS_TO_TICKS(3000));
+                    esp_restart();
                 });
             } else {
                 ota_.MarkCurrentVersionValid();
@@ -239,7 +252,7 @@ void Application::Start() {
 #if CONFIG_IDF_TARGET_ESP32S3
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -348,7 +361,7 @@ void Application::Start() {
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (device_state_ == kDeviceStateSpeaking) {
-                        background_task_.WaitForCompletion();
+                        background_task_->WaitForCompletion();
                         if (keep_listening_) {
                             protocol_->SendStartListening(kListeningModeAutoStop);
                             SetDeviceState(kDeviceStateListening);
@@ -457,7 +470,7 @@ void Application::OutputAudio() {
     audio_decode_queue_.pop_front();
     lock.unlock();
 
-    background_task_.Schedule([this, codec, opus = std::move(opus)]() mutable {
+    background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
         if (aborted_) {
             return;
         }
@@ -519,7 +532,7 @@ void Application::InputAudio() {
     }
 #else
     if (device_state_ == kDeviceStateListening) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -544,7 +557,7 @@ void Application::SetDeviceState(DeviceState state) {
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
-    background_task_.WaitForCompletion();
+    background_task_->WaitForCompletion();
 
     auto display = Board::GetInstance().GetDisplay();
     auto led = Board::GetInstance().GetLed();

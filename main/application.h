@@ -82,7 +82,7 @@ private:
     std::string last_iot_states_;
 
     // Audio encode / decode
-    BackgroundTask background_task_;
+    BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<std::vector<uint8_t>> audio_decode_queue_;
 
