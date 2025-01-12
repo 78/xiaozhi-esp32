@@ -50,7 +50,7 @@ Breadboard setup shown below:
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="Espressif ESP32-S3-BOX3">Espressif ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - MagiClick 2.4
-- Xmini C3
+- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xmini C3">Xmini C3</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
