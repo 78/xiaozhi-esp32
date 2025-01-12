@@ -62,23 +62,27 @@ void Application::CheckNewVersion() {
                     vTaskDelay(pdMS_TO_TICKS(3000));
                 } while (GetDeviceState() != kDeviceStateIdle);
 
-                SetDeviceState(kDeviceStateUpgrading);
-                
-                display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
+                // Use main task to do the upgrade
+                Schedule([this, &board, display]() {
+                    SetDeviceState(kDeviceStateUpgrading);
+                    
+                    display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                    display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
-                // 预先关闭音频输出，避免升级过程有音频操作
-                board.GetAudioCodec()->EnableOutput(false);
+                    // 预先关闭音频输出，避免升级过程有音频操作
+                    board.GetAudioCodec()->EnableOutput(false);
+                    vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota_.StartUpgrade([display](int progress, size_t speed) {
-                    char buffer[64];
-                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                    display->SetStatus(buffer);
+                    ota_.StartUpgrade([display](int progress, size_t speed) {
+                        char buffer[64];
+                        snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                        display->SetStatus(buffer);
+                    });
+
+                    // If upgrade success, the device will reboot and never reach here
+                    ESP_LOGI(TAG, "Firmware upgrade failed...");
+                    SetDeviceState(kDeviceStateIdle);
                 });
-
-                // If upgrade success, the device will reboot and never reach here
-                ESP_LOGI(TAG, "Firmware upgrade failed...");
-                SetDeviceState(kDeviceStateIdle);
             } else {
                 ota_.MarkCurrentVersionValid();
                 display->ShowNotification("版本 " + ota_.GetCurrentVersion());

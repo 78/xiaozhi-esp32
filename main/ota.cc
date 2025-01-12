@@ -165,7 +165,7 @@ void Ota::Upgrade(const std::string& firmware_url) {
         return;
     }
 
-    std::vector<char> buffer(4096);
+    std::vector<char> buffer(512);
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
