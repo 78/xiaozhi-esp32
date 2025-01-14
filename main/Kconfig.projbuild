@@ -50,6 +50,8 @@ choice BOARD_TYPE
         bool "Kevin C3"
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创开发板"
+    config BOARD_TYPE_LILYGO_AMOLED
+        bool "LilyGo Amoled extend"
 endchoice
 
 endmenu

@@ -23,10 +23,10 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
-        .dma_desc_num = 2,
-        .dma_frame_num = 240 * 3,
-        .auto_clear_after_cb = false,
-        .auto_clear_before_cb = false,
+        .dma_desc_num = 6,
+        .dma_frame_num = 240,
+        .auto_clear_after_cb = true,
+        .auto_clear_before_cb = true,
         .intr_priority = 0,
     };
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));

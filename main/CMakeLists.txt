@@ -5,6 +5,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/st7789_display.cc"
+            "display/rm67162_display.cc"
             "display/ssd1306_display.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
@@ -52,6 +53,8 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
 elseif(CONFIG_BOARD_TYPE_TERRENCE_C3_DEV)
     set(BOARD_TYPE "terrence-c3-dev")
+elseif(CONFIG_BOARD_TYPE_LILYGO_AMOLED)
+    set(BOARD_TYPE "lilygo-amoled-extend")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
