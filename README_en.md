@@ -70,7 +70,7 @@ Breadboard setup shown below:
     <img src="docs/xmini-c3.jpg" />
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
-    <img src="docs/waveshare-esp32-s3-touch-amoled-1.8.png"/>
+    <img src="docs/waveshare-esp32-s3-touch-amoled-1.8.jpg"/>
   </a>
 </div>
 
