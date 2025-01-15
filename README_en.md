@@ -76,16 +76,6 @@ Breadboard setup shown below:
 
 ## Firmware Section
 
-### Esp Launchpad在线烧入
-<a href="https://iot.diybyte.com:52088/esp_launchpad/?flashConfigURL=https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/config.toml" target="_blank">
-    <img alt="Try it with ESP Launchpad" src="docs/try_with_launchpad.png" width="250" height="70">
-</a>
-
-1. Click the Menu Bar Connect button
-2. Select the operation port corresponding to the device
-3. Select the application firmware you want to download
-4. Perform burn-in
-
 ### Flashing Without Development Environment
 
 For beginners, it's recommended to first try flashing the firmware without setting up a development environment. The firmware uses a test server provided by the author, currently available for free use (not for commercial purposes).

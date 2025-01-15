@@ -76,17 +76,6 @@
 
 ## 固件部分
 
-### Esp Launchpad在线烧入
-
-<a href="https://iot.diybyte.com:52088/esp_launchpad/?flashConfigURL=https://raw.githubusercontent.com/whble/xiaozhi-esp32/refs/heads/main/images/config.toml" target="_blank">
-    <img alt="Try it with ESP Launchpad" src="docs/try_with_launchpad.png" width="250" height="70">
-</a>
-
-1. 点击菜单栏链接按钮
-2. 选择设备对应的操作端口
-3. 选择需要下载的应用固件
-4. 执行烧入
-
 ### 免开发环境烧录
 
 新手第一次操作建议先不要搭建开发环境，直接使用免开发环境烧录的固件。固件使用的是作者友情提供的测试服，目前开放免费使用，请勿用于商业用途。
