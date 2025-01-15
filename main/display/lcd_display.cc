@@ -1,10 +1,12 @@
 #include "lcd_display.h"
 #include "font_awesome_symbols.h"
 
+#include "board.h"
 #include <esp_log.h>
 #include <esp_err.h>
 #include <driver/ledc.h>
 #include <vector>
+#include "emoji.h"
 
 #define TAG "LcdDisplay"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
@@ -98,6 +100,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     
     InitializeBacklight(backlight_pin);
+    emoji_font_init();
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -322,4 +325,56 @@ void LcdDisplay::SetChatMessage(const std::string &role, const std::string &cont
         return;
     }
     lv_label_set_text(chat_message_label_, content.c_str());
+}
+
+extern lv_font_t *imgfont;
+void LcdDisplay::SetEmotion(const std::string &emotion) {
+    if (emotion_label_ == nullptr) {
+        return;
+    }
+
+    struct Emotion {
+        const char* icon;
+        const char* text;
+    };
+
+    static const std::vector<Emotion> emotions = {
+        {"😶", "neutral"},
+        {"😊", "happy"},
+        {"😆", "laughing"},
+        {"😂", "funny"},
+        {"😔", "sad"},
+        {"😠", "angry"},
+        {"😭", "crying"},
+        {"😍", "loving"},
+        {"😳", "embarrassed"},
+        {"😲", "surprised"},
+        {"😲", "shocked"},
+        {"🤔", "thinking"},
+        {"😉", "winking"},
+        {"😎", "cool"},
+        {"😌", "relaxed"},
+        {"😋", "delicious"},
+        {"😘", "kissy"},
+        {"😏", "confident"},
+        {"😴", "sleepy"},
+        {"🤪", "silly"},
+        {"😕", "confused"}
+    };
+
+    DisplayLockGuard lock(this);
+    
+    // 查找匹配的表情
+    auto it = std::find_if(emotions.begin(), emotions.end(),
+        [&emotion](const Emotion& e) { return e.text == emotion; });
+
+ 
+    lv_obj_set_style_text_font(emotion_label_, imgfont, 0);
+
+    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
+    if (it != emotions.end()) {
+        lv_label_set_text(emotion_label_, it->icon);
+    } else {
+        lv_label_set_text(emotion_label_, "😶");
+    }
 }
