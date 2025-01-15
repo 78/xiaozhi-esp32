@@ -20,10 +20,6 @@
 
 #include "esp_lcd_sh8601.h"
 
-#define LCD_OPCODE_WRITE_CMD (0x02ULL)
-#define LCD_OPCODE_READ_CMD (0x03ULL)
-#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
-
 static const char *TAG = "sh8601";
 
 static esp_err_t panel_sh8601_del(esp_lcd_panel_t *panel);

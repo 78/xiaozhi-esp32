@@ -14,6 +14,12 @@
 extern "C" {
 #endif
 
+#define LCD_BIT_PER_PIXEL (16)
+
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
+#define LCD_OPCODE_READ_CMD (0x03ULL)
+#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
+
 /**
  * @brief LCD panel initialization commands.
  *
@@ -94,6 +100,7 @@ esp_err_t esp_lcd_new_panel_sh8601(const esp_lcd_panel_io_handle_t io, const esp
         .lcd_cmd_bits = 8,                                      \
         .lcd_param_bits = 8,                                    \
     }
+
 #define SH8601_PANEL_IO_QSPI_CONFIG(cs, cb, cb_ctx)             \
     {                                                           \
         .cs_gpio_num = cs,                                      \

@@ -10,12 +10,9 @@
 namespace iot {
 
 #define CONST_PF 0.1902630958	                                               //(1/5.25588f) Pressure factor
-#define FIX_TEMP 25				                                               // Fixed Temperature. ASL is a function of pressure and temperature, but as the temperature changes so much (blow a little towards the flie and watch it drop 5 degrees) it corrupts the ASL estimates.
 
-double pressureToAltitude(double pressure) {
-    // 海拔计算公式
-    double altitude = ((std::pow((1015.7f / pressure), CONST_PF) - 1.0f) * (FIX_TEMP + 273.15f)) / 0.0065f;
-    return altitude;
+float pressureToAltitude(float pressure, float temperature) {
+    return ((pow((1015.7f / pressure), CONST_PF) - 1.0f) * (temperature + 273.15f)) / 0.0065f;
 }
 
 // 这里仅定义 Barometer 的属性和方法，不包含具体的实现
@@ -30,7 +27,13 @@ public:
         // 定义设备的属性
         properties_.AddNumberProperty("altitude", "当前海拔", [this]() -> int {
             auto pressure = Board::GetInstance().GetBarometer();
-            return (int)pressureToAltitude(pressure);
+            auto temperature = Board::GetInstance().GetTemperature();
+            return (int)pressureToAltitude(pressure, temperature);
+        });
+        // 定义设备的属性
+        properties_.AddNumberProperty("temperature", "当前温度", [this]() -> int {
+            auto temperature = Board::GetInstance().GetTemperature();
+            return (int)temperature;
         });
     }
 };

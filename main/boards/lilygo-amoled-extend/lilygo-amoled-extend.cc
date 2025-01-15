@@ -1,6 +1,5 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "esp_lcd_sh8601.c"
 #include <esp_sleep.h>
 
 #include "display/rm67162_display.h"
@@ -24,20 +23,6 @@
 #include "bmp280.h"
 
 #define TAG "LilyGoAmoled"
-
-static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
-
-    {0x11, (uint8_t[]){0x00}, 0, 120},
-    // {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
-    // {0x35, (uint8_t []){0x00}, 1, 0},
-    {0x36, (uint8_t[]){0xF0}, 1, 0},
-    {0x3A, (uint8_t[]){0x55}, 1, 0}, // 16bits-RGB565
-    {0x2A, (uint8_t[]){0x00, 0x00, 0x02, 0x17}, 4, 0},
-    {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
-    {0x51, (uint8_t[]){0x00}, 1, 10},
-    {0x29, (uint8_t[]){0x00}, 0, 10},
-    {0x51, (uint8_t[]){0xDF}, 1, 0},
-};
 
 class LilyGoAmoled : public WifiBoard
 {
@@ -98,9 +83,9 @@ private:
         boot_button_.OnLongPress([]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
-        gpio_set_level(PIN_NUM_LCD_POWER, 0);
-        esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
-        esp_deep_sleep_start(); });
+            gpio_set_level(PIN_NUM_LCD_POWER, 0);
+            esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+            esp_deep_sleep_start(); });
 
         touch_button_.OnPressDown([this]()
                                   { Application::GetInstance().StartListening(); });
@@ -133,6 +118,15 @@ private:
             GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
     }
 
+#define SH8601_PANEL_BUS_QSPI_CONFIG(sclk, d0, d1, d2, d3, max_trans_sz) \
+    {                                                                    \
+        .data0_io_num = d0,                                              \
+        .data1_io_num = d1,                                              \
+        .sclk_io_num = sclk,                                             \
+        .data2_io_num = d2,                                              \
+        .data3_io_num = d3,                                              \
+        .max_transfer_sz = max_trans_sz,                                 \
+    }
     void InitializeSpi()
     {
         ESP_LOGI(TAG, "Enable amoled power");
@@ -144,7 +138,7 @@ private:
                                                                      PIN_NUM_LCD_DATA1,
                                                                      PIN_NUM_LCD_DATA2,
                                                                      PIN_NUM_LCD_DATA3,
-                                                                     DISPLAY_WIDTH * DISPLAY_HEIGHT * LCD_BIT_PER_PIXEL / 8);
+                                                                     DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t));
         ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
         ESP_LOGI(TAG, "Install panel IO");
@@ -152,36 +146,7 @@ private:
 
     void InitializeRm67162Display()
     {
-        esp_lcd_panel_io_handle_t io_handle = NULL;
-        esp_lcd_panel_handle_t panel_handle = nullptr;
-        // 液晶屏控制IO初始化
-        ESP_LOGD(TAG, "Install panel IO");
-
-        const esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(PIN_NUM_LCD_CS,
-                                                                                    NULL,
-                                                                                    NULL);
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &io_handle));
-        sh8601_vendor_config_t vendor_config = {
-            .init_cmds = lcd_init_cmds,
-            .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(lcd_init_cmds[0]),
-            .flags = {
-                .use_qspi_interface = 1,
-            },
-        };
-        // 初始化液晶屏驱动芯片
-        ESP_LOGD(TAG, "Install LCD driver");
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            .bits_per_pixel = LCD_BIT_PER_PIXEL,
-            .vendor_config = &vendor_config,
-        };
-        ESP_LOGI(TAG, "Install SH8601 panel driver");
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(io_handle, &panel_config, &panel_handle));
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
-        ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
-
-        display_ = new Rm67162Display(io_handle, panel_handle,
+        display_ = new Rm67162Display(LCD_HOST, (int)PIN_NUM_LCD_CS, (int)PIN_NUM_LCD_RST,
                                       DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -191,8 +156,10 @@ private:
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Barometer"));
+        thing_manager.AddThing(iot::CreateThing("Displayer"));
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
+
     void InitializeAdc()
     {
         adc_oneshot_unit_init_cfg_t init_config1 = {
@@ -255,6 +222,17 @@ public:
         return 0;
     }
 
+    virtual float GetTemperature() override
+    {
+        float temperature = 0.0f;
+        if (ESP_OK == bmp280_read_temperature(bmp280, &temperature))
+        {
+            ESP_LOGI(TAG, "temperature:%f ", temperature);
+            return temperature;
+        }
+        return 0;
+    }
+
     virtual AudioCodec *GetAudioCodec() override
     {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
@@ -272,11 +250,11 @@ public:
         return display_;
     }
 
-#define VCHARGE 4100
-#define V1 4000
-#define V2 3800
-#define V3 3600
-#define V4 3400
+#define VCHARGE 4050
+#define V1 3800
+#define V2 3500
+#define V3 3300
+#define V4 3100
 
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
@@ -290,7 +268,7 @@ public:
         // ESP_LOGI(TAG, "adc_value: %d, v1: %d", adc_value, v1);
         if (v1 >= VCHARGE)
         {
-            level = last_charging;
+            level = last_level;
             charging = true;
         }
         else if (v1 >= V1)

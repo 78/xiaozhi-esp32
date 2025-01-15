@@ -1,6 +1,7 @@
 #include "rm67162_display.h"
 #include "font_awesome_symbols.h"
 
+#include "esp_lcd_sh8601.c"
 #include <esp_log.h>
 #include <esp_err.h>
 #include <driver/ledc.h>
@@ -19,7 +20,12 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_30_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-static lv_disp_drv_t disp_drv;
+static bool notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
+{
+    lv_disp_drv_t *disp_driver = (lv_disp_drv_t *)user_ctx;
+    lv_disp_flush_ready(disp_driver);
+    return false;
+}
 static void rm67162_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
@@ -29,7 +35,6 @@ static void rm67162_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
     int offsety2 = area->y2;
     // copy a buffer's content to a specific area of the display
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, color_map);
-    lv_disp_flush_ready(&disp_drv);
 }
 
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
@@ -40,43 +45,45 @@ static void rm67162_lvgl_port_update_callback(lv_disp_drv_t *drv)
     switch (drv->rotated)
     {
     case LV_DISP_ROT_NONE:
-      // Rotate LCD display
-      esp_lcd_panel_swap_xy(panel_handle, true);
-      esp_lcd_panel_mirror(panel_handle, true, true);
-      break;
+        // Rotate LCD display
+        esp_lcd_panel_swap_xy(panel_handle, true);
+        esp_lcd_panel_mirror(panel_handle, true, true);
+        break;
     case LV_DISP_ROT_90:
-      // Rotate LCD display
-      esp_lcd_panel_swap_xy(panel_handle, false);
-      esp_lcd_panel_mirror(panel_handle, false, true);
-      break;
+        // Rotate LCD display
+        esp_lcd_panel_swap_xy(panel_handle, false);
+        esp_lcd_panel_mirror(panel_handle, false, true);
+        break;
     case LV_DISP_ROT_180:
-      // Rotate LCD display
-      esp_lcd_panel_swap_xy(panel_handle, true);
-      esp_lcd_panel_mirror(panel_handle, false, false);
-      break;
+        // Rotate LCD display
+        esp_lcd_panel_swap_xy(panel_handle, true);
+        esp_lcd_panel_mirror(panel_handle, false, false);
+        break;
     case LV_DISP_ROT_270:
-      // Rotate LCD display
-      esp_lcd_panel_swap_xy(panel_handle, false);
-      esp_lcd_panel_mirror(panel_handle, true, false);
-      break;
+        // Rotate LCD display
+        esp_lcd_panel_swap_xy(panel_handle, false);
+        esp_lcd_panel_mirror(panel_handle, true, false);
+        break;
     }
 }
-static void rm67162_lvgl_rounder_cb(struct _lv_disp_drv_t *disp_drv, lv_area_t *area) {
-  uint16_t x1 = area->x1;
-  uint16_t x2 = area->x2;
+static void rm67162_lvgl_rounder_cb(struct _lv_disp_drv_t *disp_drv, lv_area_t *area)
+{
+    uint16_t x1 = area->x1;
+    uint16_t x2 = area->x2;
 
-  uint16_t y1 = area->y1;
-  uint16_t y2 = area->y2;
+    uint16_t y1 = area->y1;
+    uint16_t y2 = area->y2;
 
-  // round the start of coordinate down to the nearest 2M number
-  area->x1 = (x1 >> 1) << 1;
-  area->y1 = (y1 >> 1) << 1;
-  // round the end of coordinate up to the nearest 2N+1 number
-  area->x2 = ((x2 >> 1) << 1) + 1;
-  area->y2 = ((y2 >> 1) << 1) + 1;
+    // round the start of coordinate down to the nearest 2M number
+    area->x1 = (x1 >> 1) << 1;
+    area->y1 = (y1 >> 1) << 1;
+    // round the end of coordinate up to the nearest 2N+1 number
+    area->x2 = ((x2 >> 1) << 1) + 1;
+    area->y2 = ((y2 >> 1) << 1) + 1;
 }
 
-void Rm67162Display::LvglTask() {
+void Rm67162Display::LvglTask()
+{
     ESP_LOGI(TAG, "Starting LVGL task");
     uint32_t task_delay_ms = RM67162_LVGL_TASK_MAX_DELAY_MS;
     while (1)
@@ -99,21 +106,52 @@ void Rm67162Display::LvglTask() {
     }
 }
 
+static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
 
-Rm67162Display::Rm67162Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-    : panel_io_(panel_io), panel_(panel), 
-      mirror_x_(mirror_x), mirror_y_(mirror_y), swap_xy_(swap_xy) {
+    {0x11, (uint8_t[]){0x00}, 0, 120},
+    // {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
+    // {0x35, (uint8_t []){0x00}, 1, 0},
+    {0x36, (uint8_t[]){0xF0}, 1, 0},
+    {0x3A, (uint8_t[]){0x55}, 1, 0}, // 16bits-RGB565
+    {0x2A, (uint8_t[]){0x00, 0x00, 0x02, 0x17}, 4, 0},
+    {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 10},
+    // {0x51, (uint8_t[]){0xDF}, 1, 0},
+};
+Rm67162Display::Rm67162Display(esp_lcd_spi_bus_handle_t spi_bus, int cs, int rst,
+                               int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+    : mirror_x_(mirror_x), mirror_y_(mirror_y), swap_xy_(swap_xy)
+{
+    static lv_disp_drv_t disp_drv;
     width_ = width;
     height_ = height;
     offset_x_ = offset_x;
     offset_y_ = offset_y;
 
-    // draw white
-    // std::vector<uint16_t> buffer(width_, 0xF00F);
-    // for (int y = 0; y < height_; y++) {
-    //     esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
-    // }
+    // 液晶屏控制IO初始化
+    ESP_LOGD(TAG, "Install panel IO");
+
+    const esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(cs, notify_lvgl_flush_ready, &disp_drv);
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(spi_bus, &io_config, &panel_io_));
+    sh8601_vendor_config_t vendor_config = {
+        .init_cmds = lcd_init_cmds,
+        .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(lcd_init_cmds[0]),
+        .flags = {
+            .use_qspi_interface = 1,
+        },
+    };
+    // 初始化液晶屏驱动芯片
+    ESP_LOGD(TAG, "Install LCD driver");
+    const esp_lcd_panel_dev_config_t panel_config = {
+        .reset_gpio_num = rst,
+        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        .bits_per_pixel = LCD_BIT_PER_PIXEL,
+        .vendor_config = &vendor_config,
+    };
+    ESP_LOGI(TAG, "Install SH8601 panel driver");
+    ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io_, &panel_config, &panel_));
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
 
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
@@ -148,49 +186,62 @@ Rm67162Display::Rm67162Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     ESP_LOGI(TAG, "Install LVGL tick timer");
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
     const esp_timer_create_args_t lvgl_tick_timer_args = {
-        .callback = [](void* arg) {
+        .callback = [](void *arg)
+        {
             lv_tick_inc(RM67162_LVGL_TICK_PERIOD_MS);
         },
         .arg = NULL,
         .dispatch_method = ESP_TIMER_TASK,
         .name = "LVGL Tick Timer",
-        .skip_unhandled_events = false
-    };
+        .skip_unhandled_events = false};
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer_, RM67162_LVGL_TICK_PERIOD_MS * 1000));
-
     lvgl_mutex_ = xSemaphoreCreateRecursiveMutex();
     assert(lvgl_mutex_ != nullptr);
     ESP_LOGI(TAG, "Create LVGL task");
-    xTaskCreate([](void *arg) {
+    xTaskCreate([](void *arg)
+                {
         static_cast<Rm67162Display*>(arg)->LvglTask();
-        vTaskDelete(NULL);
-    }, "LVGL", RM67162_LVGL_TASK_STACK_SIZE, this, RM67162_LVGL_TASK_PRIORITY, NULL);
+        vTaskDelete(NULL); }, "LVGL", RM67162_LVGL_TASK_STACK_SIZE, this, RM67162_LVGL_TASK_PRIORITY, NULL);
 
     SetupUI();
+    InitBrightness();
+    SetBacklight(brightness_);
+}
+void Rm67162Display::InitBrightness()
+{
+    Settings settings("display", false);
+    brightness_ = settings.GetInt("bright", 80);
 }
 
-Rm67162Display::~Rm67162Display() {
+Rm67162Display::~Rm67162Display()
+{
     ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
     ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
 
-    if (content_ != nullptr) {
+    if (content_ != nullptr)
+    {
         lv_obj_del(content_);
     }
-    if (status_bar_ != nullptr) {
+    if (status_bar_ != nullptr)
+    {
         lv_obj_del(status_bar_);
     }
-    if (side_bar_ != nullptr) {
+    if (side_bar_ != nullptr)
+    {
         lv_obj_del(side_bar_);
     }
-    if (container_ != nullptr) {
+    if (container_ != nullptr)
+    {
         lv_obj_del(container_);
     }
 
-    if (panel_ != nullptr) {
+    if (panel_ != nullptr)
+    {
         esp_lcd_panel_del(panel_);
     }
-    if (panel_io_ != nullptr) {
+    if (panel_io_ != nullptr)
+    {
         esp_lcd_panel_io_del(panel_io_);
     }
     vSemaphoreDelete(lvgl_mutex_);
@@ -227,34 +278,21 @@ Rm67162Display::~Rm67162Display() {
 //     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 // }
 
-// void Rm67162Display::SetBacklight(uint8_t brightness) {
-//     if (backlight_pin_ == GPIO_NUM_NC) {
-//         return;
-//     }
-
-//     if (brightness > 100) {
-//         brightness = 100;
-//     }
-
-//     ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
-//     // LEDC resolution set to 10bits, thus: 100% = 1023
-//     uint32_t duty_cycle = (1023 * brightness) / 100;
-//     ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH, duty_cycle));
-//     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
-// }
-
-bool Rm67162Display::Lock(int timeout_ms) {
+bool Rm67162Display::Lock(int timeout_ms)
+{
     // Convert timeout in milliseconds to FreeRTOS ticks
     // If `timeout_ms` is set to 0, the program will block until the condition is met
     const TickType_t timeout_ticks = (timeout_ms == 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
     return xSemaphoreTakeRecursive(lvgl_mutex_, timeout_ticks) == pdTRUE;
 }
 
-void Rm67162Display::Unlock() {
+void Rm67162Display::Unlock()
+{
     xSemaphoreGiveRecursive(lvgl_mutex_);
 }
 
-void Rm67162Display::SetupUI() {
+void Rm67162Display::SetupUI()
+{
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(lv_disp_get_default());
@@ -279,8 +317,8 @@ void Rm67162Display::SetupUI() {
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 2, 0); 
-    
+    lv_obj_set_style_pad_column(status_bar_, 2, 0);
+
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);

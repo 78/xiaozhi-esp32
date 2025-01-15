@@ -47,8 +47,6 @@
 
 #define LCD_HOST SPI2_HOST
 
-#define LCD_BIT_PER_PIXEL (16)
-
 #define DISPLAY_WIDTH   536
 #define DISPLAY_HEIGHT  240
 #define DISPLAY_MIRROR_X true
