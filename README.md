@@ -1,6 +1,6 @@
 # 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
 
-（中文 | [English](README_en.md)）
+（中文 | [English](README_en.md) | [日本語](README_ja.md)）
 
 这是虾哥的第一个硬件作品。
 
@@ -50,7 +50,8 @@
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - 神奇按钮 2.4
-- 虾哥 Mini C3
+- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
@@ -67,6 +68,9 @@
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
+  </a>
+  <a href="docs/xmini-c3.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
+    <img src="docs/waveshare-esp32-s3-touch-amoled-1.8.jpg" width="240" />
   </a>
 </div>
 
