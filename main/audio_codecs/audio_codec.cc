@@ -24,6 +24,7 @@ void AudioCodec::OnOutputReady(std::function<bool()> callback) {
 
 void AudioCodec::OutputData(std::vector<int16_t>& data) {
     Write(data.data(), data.size());
+    // ESP_LOGI(TAG, "OutputData: %d", data.size());
 }
 
 bool AudioCodec::InputData(std::vector<int16_t>& data) {
@@ -33,6 +34,7 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
     data.resize(input_frame_size);
     int samples = Read(data.data(), data.size());
     if (samples > 0) {
+        // ESP_LOGI(TAG, "InputData: %d", samples);
         return true;
     }
     return false;

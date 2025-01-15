@@ -268,6 +268,7 @@ void Rm67162Display::SetupUI() {
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 10, 0); 
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
@@ -280,11 +281,6 @@ void Rm67162Display::SetupUI() {
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
-
-    emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    lv_obj_center(emotion_label_);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -306,6 +302,11 @@ void Rm67162Display::SetupUI() {
     lv_obj_set_flex_grow(status_label_, 1);
     lv_label_set_text(status_label_, "正在初始化");
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
+
+    emotion_label_ = lv_label_create(status_bar_);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_14_1, 0);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_obj_center(emotion_label_);
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");

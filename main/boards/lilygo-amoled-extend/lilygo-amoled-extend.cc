@@ -15,6 +15,8 @@
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
+// #include "driver/adc.h"
+// #include "esp_adc_cal.h"
 
 #define TAG "LilyGoAmoled"
 
@@ -39,24 +41,25 @@ private:
     Button boot_button_;
     Button touch_button_;
     Encoder volume_encoder_;
-    SystemReset system_reset_;
+    // SystemReset system_reset_;
     Rm67162Display *display_;
+    // esp_adc_cal_characteristics_t adc_chars;
 
     void InitializeDisplayI2c()
     {
-        // i2c_master_bus_config_t bus_config = {
-        //     .i2c_port = (i2c_port_t)0,
-        //     .sda_io_num = DISPLAY_SDA_PIN,
-        //     .scl_io_num = DISPLAY_SCL_PIN,
-        //     .clk_source = I2C_CLK_SRC_DEFAULT,
-        //     .glitch_ignore_cnt = 7,
-        //     .intr_priority = 0,
-        //     .trans_queue_depth = 0,
-        //     .flags = {
-        //         .enable_internal_pullup = 1,
-        //     },
-        // };
-        // ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+        i2c_master_bus_config_t bus_config = {
+            .i2c_port = (i2c_port_t)0,
+            .sda_io_num = IIC_SDA_NUM,
+            .scl_io_num = IIC_SCL_NUM,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
     }
 
     void InitializeButtons()
@@ -158,16 +161,23 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
+    void InitializeAdc()
+    {
+        // adc1_config_width(ADC_WIDTH_BIT_12);
+        // adc1_config_channel_atten(BAT_DETECT_CH, ADC_ATTEN_DB_12);
+        // esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, DEFAULT_VREF, &adc_chars);
+    }
 
 public:
     LilyGoAmoled() : boot_button_(BOOT_BUTTON_GPIO),
                      touch_button_(TOUCH_BUTTON_GPIO),
-                     volume_encoder_(VOLUME_ENCODER1_GPIO, VOLUME_ENCODER2_GPIO),
-                     system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO)
+                     volume_encoder_(VOLUME_ENCODER1_GPIO, VOLUME_ENCODER2_GPIO)
+    // ,
+    // system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO)
     {
         // Check if the reset button is pressed
-        system_reset_.CheckButtons();
-
+        // system_reset_.CheckButtons();
+        InitializeAdc();
         InitializeDisplayI2c();
         InitializeSpi();
         InitializeRm67162Display();
@@ -197,6 +207,61 @@ public:
     virtual Display *GetDisplay() override
     {
         return display_;
+    }
+
+#define VCHARGE 4100
+#define V1 4000
+#define V2 3800
+#define V3 3600
+#define V4 3400
+
+    virtual bool GetBatteryLevel(int &level, bool &charging) override
+    {
+        static int last_level = 0;
+        static bool last_charging = false;
+        // level = axp2101_->GetBatteryLevel();
+        // charging = axp2101_->IsCharging();
+        // uint16_t adc_val = adc1_get_raw(BAT_DETECT_CH);
+        // 使用 esp_adc_cal_raw_to_volt 函数将 ADC 原始值转换为电压
+        uint32_t v1 = 0;
+        //esp_adc_cal_raw_to_voltage(adc_val, &adc_chars) * 2;
+        if (v1 >= VCHARGE)
+        {
+            charging = true;
+        }
+        else if (v1 >= V1)
+        {
+            level = 100;
+            charging = false;
+        }
+        else if (v1 >= V2)
+        {
+            level = 75;
+            charging = false;
+        }
+        else if (v1 >= V3)
+        {
+            level = 50;
+            charging = false;
+        }
+        else if (v1 >= V4)
+        {
+            level = 25;
+            charging = false;
+        }
+        else
+        {
+            level = 0;
+            charging = false;
+        }
+
+        if (level != last_level || charging != last_charging)
+        {
+            last_level = level;
+            last_charging = charging;
+            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+        return true;
     }
 };
 

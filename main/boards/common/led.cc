@@ -14,9 +14,9 @@ Led::Led(gpio_num_t gpio) {
     
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
-    strip_config.max_leds = 1;
-    strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
-    strip_config.led_model = LED_MODEL_WS2812;
+    strip_config.max_leds = 2;
+    strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRBW;
+    strip_config.led_model = LED_MODEL_SK6812;
 
     led_strip_rmt_config_t rmt_config = {};
     rmt_config.resolution_hz = 10 * 1000 * 1000; // 10MHz
