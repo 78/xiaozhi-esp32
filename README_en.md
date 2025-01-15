@@ -49,28 +49,29 @@ Breadboard setup shown below:
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="LiChuang ESP32-S3 Development Board">LiChuang ESP32-S3 Development Board</a>
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="Espressif ESP32-S3-BOX3">Espressif ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
+- <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">AtomS3R + Echo Base</a>
 - MagiClick 2.4
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xmini C3">Xmini C3</a>
 - <a href="https://www.waveshare.com/esp32-s3-touch-amoled-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
-    <img src="docs/lichuang-s3.jpg" />
+    <img src="docs/lichuang-s3.jpg" width="240" />
   </a>
   <a href="docs/esp32s3-box3.jpg" target="_blank" title="Espressif ESP32-S3-BOX3">
-    <img src="docs/esp32s3-box3.jpg" />
+    <img src="docs/esp32s3-box3.jpg" width="240" />
   </a>
   <a href="docs/m5stack-cores3.jpg" target="_blank" title="M5Stack CoreS3">
-    <img src="docs/m5stack-cores3.jpg" />
+    <img src="docs/m5stack-cores3.jpg" width="240" />
+  </a>
+  <a href="docs/atoms3r-echo-base.jpg" target="_blank" title="AtomS3R + Echo Base">
+    <img src="docs/atoms3r-echo-base.jpg" width="240" />
   </a>
   <a href="docs/magiclick-2p4.jpg" target="_blank" title="MagiClick 2.4">
-    <img src="docs/magiclick-2p4.jpg" />
+    <img src="docs/magiclick-2p4.jpg" width="240" />
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
-    <img src="docs/xmini-c3.jpg" />
-  </a>
-  <a href="docs/xmini-c3.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
-    <img src="docs/waveshare-esp32-s3-touch-amoled-1.8.jpg"/>
+    <img src="docs/xmini-c3.jpg" width="240" />
   </a>
 </div>
 
