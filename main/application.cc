@@ -37,14 +37,18 @@ static const char* const STATE_STRINGS[] = {
     "invalid_state"
 };
 
-Application::Application() : background_task_(4096 * 8) {
+Application::Application() {
     event_group_ = xEventGroupCreate();
+    background_task_ = new BackgroundTask(4096 * 8);
 
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application() {
+    if (background_task_ != nullptr) {
+        delete background_task_;
+    }
     vEventGroupDelete(event_group_);
 }
 
@@ -62,23 +66,36 @@ void Application::CheckNewVersion() {
                     vTaskDelay(pdMS_TO_TICKS(3000));
                 } while (GetDeviceState() != kDeviceStateIdle);
 
-                SetDeviceState(kDeviceStateUpgrading);
-                
-                display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
+                // Use main task to do the upgrade, not cancelable
+                Schedule([this, &board, display]() {
+                    SetDeviceState(kDeviceStateUpgrading);
+                    
+                    display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                    display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
-                // 预先关闭音频输出，避免升级过程有音频操作
-                board.GetAudioCodec()->EnableOutput(false);
+                    // 预先关闭音频输出，避免升级过程有音频操作
+                    board.GetAudioCodec()->EnableOutput(false);
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_);
+                        audio_decode_queue_.clear();
+                    }
+                    background_task_->WaitForCompletion();
+                    delete background_task_;
+                    background_task_ = nullptr;
+                    vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota_.StartUpgrade([display](int progress, size_t speed) {
-                    char buffer[64];
-                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                    display->SetStatus(buffer);
+                    ota_.StartUpgrade([display](int progress, size_t speed) {
+                        char buffer[64];
+                        snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                        display->SetStatus(buffer);
+                    });
+
+                    // If upgrade success, the device will reboot and never reach here
+                    display->SetStatus("更新失败");
+                    ESP_LOGI(TAG, "Firmware upgrade failed...");
+                    vTaskDelay(pdMS_TO_TICKS(3000));
+                    esp_restart();
                 });
-
-                // If upgrade success, the device will reboot and never reach here
-                ESP_LOGI(TAG, "Firmware upgrade failed...");
-                SetDeviceState(kDeviceStateIdle);
             } else {
                 ota_.MarkCurrentVersionValid();
                 display->ShowNotification("版本 " + ota_.GetCurrentVersion());
@@ -235,7 +252,7 @@ void Application::Start() {
 #if CONFIG_IDF_TARGET_ESP32S3
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -324,6 +341,8 @@ void Application::Start() {
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
+            auto display = Board::GetInstance().GetDisplay();
+            display->SetChatMessage("", "");
             SetDeviceState(kDeviceStateIdle);
         });
     });
@@ -342,7 +361,7 @@ void Application::Start() {
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (device_state_ == kDeviceStateSpeaking) {
-                        background_task_.WaitForCompletion();
+                        background_task_->WaitForCompletion();
                         if (keep_listening_) {
                             protocol_->SendStartListening(kListeningModeAutoStop);
                             SetDeviceState(kDeviceStateListening);
@@ -456,7 +475,7 @@ void Application::OutputAudio() {
     audio_decode_queue_.pop_front();
     lock.unlock();
 
-    background_task_.Schedule([this, codec, opus = std::move(opus)]() mutable {
+    background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
         if (aborted_) {
             return;
         }
@@ -520,7 +539,7 @@ void Application::InputAudio() {
     }
 #else
     if (device_state_ == kDeviceStateListening) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -545,7 +564,7 @@ void Application::SetDeviceState(DeviceState state) {
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
-    background_task_.WaitForCompletion();
+    background_task_->WaitForCompletion();
 
     auto display = Board::GetInstance().GetDisplay();
     auto led = Board::GetInstance().GetLed();
@@ -555,7 +574,6 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus("待命");
             display->SetEmotion("neutral");
-            display->SetChatMessage("", "");
 #ifdef CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Stop();
 #endif

@@ -9,6 +9,7 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
+#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include "esp_lcd_ili9341.h"

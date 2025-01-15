@@ -66,11 +66,11 @@ AudioProcessor::~AudioProcessor() {
 void AudioProcessor::Input(const std::vector<int16_t>& data) {
     input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
 
-    auto chunk_size = esp_afe_vc_v1.get_feed_chunksize(afe_communication_data_) * channels_;
-    while (input_buffer_.size() >= chunk_size) {
+    auto feed_size = esp_afe_vc_v1.get_feed_chunksize(afe_communication_data_) * channels_;
+    while (input_buffer_.size() >= feed_size) {
         auto chunk = input_buffer_.data();
         esp_afe_vc_v1.feed(afe_communication_data_, chunk);
-        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + feed_size);
     }
 }
 
@@ -91,8 +91,10 @@ void AudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> c
 }
 
 void AudioProcessor::AudioProcessorTask() {
-    int chunk_size = esp_afe_vc_v1.get_fetch_chunksize(afe_communication_data_);
-    ESP_LOGI(TAG, "Audio communication task started, chunk size: %d", chunk_size);
+    auto fetch_size = esp_afe_sr_v1.get_fetch_chunksize(afe_communication_data_);
+    auto feed_size = esp_afe_sr_v1.get_feed_chunksize(afe_communication_data_);
+    ESP_LOGI(TAG, "Audio communication task started, feed size: %d fetch size: %d",
+        feed_size, fetch_size);
 
     while (true) {
         xEventGroupWaitBits(event_group_, PROCESSOR_RUNNING, pdFALSE, pdTRUE, portMAX_DELAY);

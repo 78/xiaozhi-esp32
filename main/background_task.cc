@@ -23,6 +23,9 @@ BackgroundTask::~BackgroundTask() {
     if (background_task_handle_ != nullptr) {
         vTaskDelete(background_task_handle_);
     }
+    if (task_stack_ != nullptr) {
+        heap_caps_free(task_stack_);
+    }
 }
 
 void BackgroundTask::Schedule(std::function<void()> callback) {
