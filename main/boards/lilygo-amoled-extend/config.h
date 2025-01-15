@@ -30,8 +30,11 @@
 #define ADC_CHANNEL ADC_CHANNEL_3 //GPIO_NUM_4
 #define DEFAULT_VREF 1100 // 参考电压，单位为 mV，可根据实际情况调整
 
+#define IIC_MASTER_NUM I2C_NUM_0
 #define IIC_SDA_NUM             GPIO_NUM_3
 #define IIC_SCL_NUM             GPIO_NUM_2
+#define I2C_MASTER_TX_BUF_DISABLE   0                    /*!< I2C master do not need buffer */
+#define I2C_MASTER_RX_BUF_DISABLE   0                    /*!< I2C master do not need buffer */
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_1   //以适配
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0   //以适配

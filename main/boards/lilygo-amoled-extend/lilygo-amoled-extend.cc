@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "esp_lcd_sh8601.c"
+#include <esp_sleep.h>
 
 #include "display/rm67162_display.h"
 #include "system_reset.h"
@@ -20,6 +21,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "bmp280.h"
 
 #define TAG "LilyGoAmoled"
 
@@ -34,7 +36,7 @@ static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
     {0x51, (uint8_t[]){0x00}, 1, 10},
     {0x29, (uint8_t[]){0x00}, 0, 10},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    {0x51, (uint8_t[]){0xDF}, 1, 0},
 };
 
 class LilyGoAmoled : public WifiBoard
@@ -48,23 +50,39 @@ private:
     Rm67162Display *display_;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t adc_cali_handle;
+    i2c_bus_handle_t i2c_bus = NULL;
+    bmp280_handle_t bmp280 = NULL;
+
     // esp_adc_cal_characteristics_t adc_chars;
 
-    void InitializeDisplayI2c()
+    void InitializeI2c()
     {
-        i2c_master_bus_config_t bus_config = {
-            .i2c_port = (i2c_port_t)0,
+        // i2c_master_bus_config_t bus_config = {
+        //     .i2c_port = (i2c_port_t)0,
+        //     .sda_io_num = IIC_SDA_NUM,
+        //     .scl_io_num = IIC_SCL_NUM,
+        //     .clk_source = I2C_CLK_SRC_DEFAULT,
+        //     .glitch_ignore_cnt = 7,
+        //     .intr_priority = 0,
+        //     .trans_queue_depth = 0,
+        //     .flags = {
+        //         .enable_internal_pullup = 1,
+        //     },
+        // };
+        // ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+
+        i2c_config_t conf = {
+            .mode = I2C_MODE_MASTER,
             .sda_io_num = IIC_SDA_NUM,
             .scl_io_num = IIC_SCL_NUM,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
+            .sda_pullup_en = GPIO_PULLUP_ENABLE,
+            .scl_pullup_en = GPIO_PULLUP_ENABLE,
+
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+        conf.master.clk_speed = 400000,
+        i2c_bus = i2c_bus_create(IIC_MASTER_NUM, &conf);
+        bmp280 = bmp280_create(i2c_bus, BMP280_I2C_ADDRESS_DEFAULT);
+        ESP_LOGI(TAG, "bmp280_default_init:%d", bmp280_default_init(bmp280));
     }
 
     void InitializeButtons()
@@ -76,6 +94,14 @@ private:
                 ResetWifiConfiguration();
             }
             app.ToggleChatState(); });
+
+        boot_button_.OnLongPress([]
+                                 {
+            ESP_LOGI(TAG, "System Sleeped");
+        gpio_set_level(PIN_NUM_LCD_POWER, 0);
+        esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+        esp_deep_sleep_start(); });
+
         touch_button_.OnPressDown([this]()
                                   { Application::GetInstance().StartListening(); });
         touch_button_.OnPressUp([this]()
@@ -164,6 +190,7 @@ private:
     {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Barometer"));
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
     void InitializeAdc()
@@ -203,7 +230,7 @@ public:
         // Check if the reset button is pressed
         // system_reset_.CheckButtons();
         InitializeAdc();
-        InitializeDisplayI2c();
+        InitializeI2c();
         InitializeSpi();
         InitializeRm67162Display();
         InitializeButtons();
@@ -215,6 +242,17 @@ public:
     {
         static Led led(BUILTIN_LED_GPIO);
         return &led;
+    }
+
+    virtual float GetBarometer() override
+    {
+        float pressure = 0.0f;
+        if (ESP_OK == bmp280_read_pressure(bmp280, &pressure))
+        {
+            ESP_LOGI(TAG, "pressure:%f ", pressure);
+            return pressure;
+        }
+        return 0;
     }
 
     virtual AudioCodec *GetAudioCodec() override
@@ -252,6 +290,7 @@ public:
         // ESP_LOGI(TAG, "adc_value: %d, v1: %d", adc_value, v1);
         if (v1 >= VCHARGE)
         {
+            level = last_charging;
             charging = true;
         }
         else if (v1 >= V1)

@@ -15,11 +15,11 @@ bool Board::GetBatteryLevel(int &level, bool& charging) {
     return false;
 }
 
-Display* Board::GetDisplay() {
+Display *Board::GetDisplay()
+{
     static NoDisplay display;
     return &display;
 }
-
 
 std::string Board::GetJson() {
     /* 

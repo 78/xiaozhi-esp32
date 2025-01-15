@@ -231,6 +231,8 @@ void Display::SetChatMessage(const std::string &role, const std::string &content
     else
         lv_obj_set_style_bg_color(label, lv_color_hex(0x00B050), LV_PART_MAIN);
 
+    if (lv_obj_get_width(label) >= LV_HOR_RES)
+        lv_obj_set_width(label, LV_HOR_RES);
     lv_obj_update_layout(label);
     lv_obj_scroll_to_view(label, LV_ANIM_ON);
 }

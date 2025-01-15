@@ -110,10 +110,10 @@ Rm67162Display::Rm67162Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     offset_y_ = offset_y;
 
     // draw white
-    std::vector<uint16_t> buffer(width_, 0xF00F);
-    for (int y = 0; y < height_; y++) {
-        esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
-    }
+    // std::vector<uint16_t> buffer(width_, 0xF00F);
+    // for (int y = 0; y < height_; y++) {
+    //     esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
+    // }
 
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
@@ -258,8 +258,9 @@ void Rm67162Display::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(lv_disp_get_default());
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
     lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
-    lv_obj_set_style_text_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_text_color(screen, lv_color_white(), 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -282,15 +283,15 @@ void Rm67162Display::SetupUI() {
     
     /* Content */
     content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
 
     /* Content */
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(content_, 5, 0);
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_all(content_, 0, 0);
     lv_obj_set_style_border_width(content_, 1, 0);
 
     network_label_ = lv_label_create(status_bar_);

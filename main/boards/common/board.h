@@ -34,6 +34,7 @@ public:
     virtual ~Board() = default;
     virtual Led* GetBuiltinLed() = 0;
     virtual AudioCodec* GetAudioCodec() = 0;
+    virtual float GetBarometer() = 0;
     virtual Display* GetDisplay();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;

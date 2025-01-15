@@ -14,7 +14,7 @@ Led::Led(gpio_num_t gpio) {
     
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
-    strip_config.max_leds = 2;
+    strip_config.max_leds = 1;
     strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRBW;
     strip_config.led_model = LED_MODEL_SK6812;
 
