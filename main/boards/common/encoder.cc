@@ -8,7 +8,7 @@
 
 static const char *TAG = "Encoder";
 
-Encoder::Encoder(int gpio_pcnt1, int gpio_pcnt2, int _low_limit, int _high_limit) : gpio_pcnt1_(gpio_pcnt1), gpio_pcnt2_(gpio_pcnt2)
+Encoder::Encoder(gpio_num_t gpio_pcnt1, gpio_num_t gpio_pcnt2, int _low_limit, int _high_limit) : gpio_pcnt1_(gpio_pcnt1), gpio_pcnt2_(gpio_pcnt2)
 {
     if (gpio_pcnt1 == -1 || gpio_pcnt2 == -1)
     {

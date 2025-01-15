@@ -268,25 +268,30 @@ void Rm67162Display::SetupUI() {
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 10, 0); 
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, 18);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    
-    /* Content */
-    content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
-    lv_obj_set_flex_grow(content_, 1);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 2, 0); 
+    
+    /* Content */
+    content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_flex_grow(content_, 1);
+
+    /* Content */
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(content_, 5, 0);
+    lv_obj_set_style_border_width(content_, 1, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");

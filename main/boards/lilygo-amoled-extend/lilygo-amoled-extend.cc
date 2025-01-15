@@ -17,6 +17,9 @@
 #include <driver/i2c_master.h>
 // #include "driver/adc.h"
 // #include "esp_adc_cal.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 #define TAG "LilyGoAmoled"
 
@@ -43,6 +46,8 @@ private:
     Encoder volume_encoder_;
     // SystemReset system_reset_;
     Rm67162Display *display_;
+    adc_oneshot_unit_handle_t adc_handle;
+    adc_cali_handle_t adc_cali_handle;
     // esp_adc_cal_characteristics_t adc_chars;
 
     void InitializeDisplayI2c()
@@ -163,6 +168,26 @@ private:
     }
     void InitializeAdc()
     {
+        adc_oneshot_unit_init_cfg_t init_config1 = {
+            .unit_id = ADC_UNIT,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc_handle));
+
+        adc_oneshot_chan_cfg_t config = {
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_12,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, ADC_CHANNEL, &config));
+
+        adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = ADC_UNIT,
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_12,
+        };
+
+        // 创建并初始化校准句柄
+        ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle));
+
         // adc1_config_width(ADC_WIDTH_BIT_12);
         // adc1_config_channel_atten(BAT_DETECT_CH, ADC_ATTEN_DB_12);
         // esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, DEFAULT_VREF, &adc_chars);
@@ -219,12 +244,12 @@ public:
     {
         static int last_level = 0;
         static bool last_charging = false;
-        // level = axp2101_->GetBatteryLevel();
-        // charging = axp2101_->IsCharging();
-        // uint16_t adc_val = adc1_get_raw(BAT_DETECT_CH);
-        // 使用 esp_adc_cal_raw_to_volt 函数将 ADC 原始值转换为电压
-        uint32_t v1 = 0;
-        //esp_adc_cal_raw_to_voltage(adc_val, &adc_chars) * 2;
+        int adc_value;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, ADC_CHANNEL, &adc_value));
+        int v1 = 0;
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_value, &v1));
+        v1 *= 2;
+        // ESP_LOGI(TAG, "adc_value: %d, v1: %d", adc_value, v1);
         if (v1 >= VCHARGE)
         {
             charging = true;

@@ -26,9 +26,9 @@
 #define AUDIO_I2S_GPIO_DOUT GPIO_NUM_12   //以适配
 
 #endif
-#define DEFAULT_VREF 1100 // 默认参考电压，单位 mV
-#define BAT_DETECT_GPIO         GPIO_NUM_4   //以适配
-#define BAT_DETECT_CH           ADC1_CHANNEL_3   //以适配
+#define ADC_UNIT ADC_UNIT_1
+#define ADC_CHANNEL ADC_CHANNEL_3 //GPIO_NUM_4
+#define DEFAULT_VREF 1100 // 参考电压，单位为 mV，可根据实际情况调整
 
 #define IIC_SDA_NUM             GPIO_NUM_3
 #define IIC_SCL_NUM             GPIO_NUM_2
@@ -39,8 +39,8 @@
 // #define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_4
 
 #define TOUCH_BUTTON_GPIO       GPIO_NUM_15   //以适配-encoder
-#define VOLUME_ENCODER1_GPIO   14    //以适配-encoder
-#define VOLUME_ENCODER2_GPIO   16  //以适配-encoder
+#define VOLUME_ENCODER1_GPIO   GPIO_NUM_14    //以适配-encoder
+#define VOLUME_ENCODER2_GPIO   GPIO_NUM_16  //以适配-encoder
 
 #define LCD_HOST SPI2_HOST
 
@@ -62,7 +62,7 @@
 #define PIN_NUM_LCD_DATA2 (GPIO_NUM_48)
 #define PIN_NUM_LCD_DATA3 (GPIO_NUM_5)
 #define PIN_NUM_LCD_RST (GPIO_NUM_17)
-#define PIN_NUM_BK_LIGHT (-1)
+#define PIN_NUM_BK_LIGHT (GPIO_NUM_NC)
 
 #define PIN_NUM_LCD_POWER (GPIO_NUM_38)
 

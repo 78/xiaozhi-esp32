@@ -11,11 +11,13 @@
 
 #define TAG "Display"
 
-Display::Display() {
+Display::Display()
+{
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
+        .callback = [](void *arg)
+        {
+            Display *display = static_cast<Display *>(arg);
             DisplayLockGuard lock(display);
             lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
@@ -29,8 +31,9 @@ Display::Display() {
 
     // Update display timer
     esp_timer_create_args_t update_display_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
+        .callback = [](void *arg)
+        {
+            Display *display = static_cast<Display *>(arg);
             display->Update();
         },
         .arg = this,
@@ -42,13 +45,15 @@ Display::Display() {
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
 }
 
-Display::~Display() {
+Display::~Display()
+{
     esp_timer_stop(notification_timer_);
     esp_timer_stop(update_timer_);
     esp_timer_delete(notification_timer_);
     esp_timer_delete(update_timer_);
 
-    if (network_label_ != nullptr) {
+    if (network_label_ != nullptr)
+    {
         lv_obj_del(network_label_);
         lv_obj_del(notification_label_);
         lv_obj_del(status_label_);
@@ -57,16 +62,20 @@ Display::~Display() {
     }
 }
 
-void Display::SetStatus(const std::string &status) {
-    if (status_label_ == nullptr) {
+void Display::SetStatus(const std::string &status)
+{
+    if (status_label_ == nullptr)
+    {
         return;
     }
     DisplayLockGuard lock(this);
     lv_label_set_text(status_label_, status.c_str());
 }
 
-void Display::ShowNotification(const std::string &notification, int duration_ms) {
-    if (notification_label_ == nullptr) {
+void Display::ShowNotification(const std::string &notification, int duration_ms)
+{
+    if (notification_label_ == nullptr)
+    {
         return;
     }
     DisplayLockGuard lock(this);
@@ -78,20 +87,25 @@ void Display::ShowNotification(const std::string &notification, int duration_ms)
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::Update() {
-    if (mute_label_ == nullptr) {
+void Display::Update()
+{
+    if (mute_label_ == nullptr)
+    {
         return;
     }
 
-    auto& board = Board::GetInstance();
+    auto &board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
     DisplayLockGuard lock(this);
     // 如果静音状态改变，则更新图标
-    if (codec->output_volume() == 0 && !muted_) {
+    if (codec->output_volume() == 0 && !muted_)
+    {
         muted_ = true;
         lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
-    } else if (codec->output_volume() > 0 && muted_) {
+    }
+    else if (codec->output_volume() > 0 && muted_)
+    {
         muted_ = false;
         lv_label_set_text(mute_label_, "");
     }
@@ -99,22 +113,27 @@ void Display::Update() {
     // 更新电池图标
     int battery_level;
     bool charging;
-    const char* icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging)) {
-        if (charging) {
+    const char *icon = nullptr;
+    if (board.GetBatteryLevel(battery_level, charging))
+    {
+        if (charging)
+        {
             icon = FONT_AWESOME_BATTERY_CHARGING;
-        } else {
-            const char* levels[] = {
+        }
+        else
+        {
+            const char *levels[] = {
                 FONT_AWESOME_BATTERY_EMPTY, // 0-19%
-                FONT_AWESOME_BATTERY_1,    // 20-39%
-                FONT_AWESOME_BATTERY_2,    // 40-59%
-                FONT_AWESOME_BATTERY_3,    // 60-79%
-                FONT_AWESOME_BATTERY_FULL, // 80-99%
-                FONT_AWESOME_BATTERY_FULL, // 100%
+                FONT_AWESOME_BATTERY_1,     // 20-39%
+                FONT_AWESOME_BATTERY_2,     // 40-59%
+                FONT_AWESOME_BATTERY_3,     // 60-79%
+                FONT_AWESOME_BATTERY_FULL,  // 80-99%
+                FONT_AWESOME_BATTERY_FULL,  // 100%
             };
             icon = levels[battery_level / 20];
         }
-        if (battery_icon_ != icon) {
+        if (battery_icon_ != icon)
+        {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
@@ -122,24 +141,28 @@ void Display::Update() {
 
     // 仅在聊天状态为空闲时，读取网络状态（避免升级时占用 UART 资源）
     auto chat_state = Application::GetInstance().GetChatState();
-    if (chat_state == kChatStateIdle || chat_state == kChatStateUnknown) {
+    if (chat_state == kChatStateIdle || chat_state == kChatStateUnknown)
+    {
         icon = board.GetNetworkStateIcon();
-        if (network_icon_ != icon) {
+        if (network_icon_ != icon)
+        {
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
         }
     }
 }
 
-
-void Display::SetEmotion(const std::string &emotion) {
-    if (emotion_label_ == nullptr) {
+void Display::SetEmotion(const std::string &emotion)
+{
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
 
-    struct Emotion {
-        const char* icon;
-        const char* text;
+    struct Emotion
+    {
+        const char *icon;
+        const char *text;
     };
 
     static const std::vector<Emotion> emotions = {
@@ -163,30 +186,51 @@ void Display::SetEmotion(const std::string &emotion) {
         {FONT_AWESOME_EMOJI_CONFIDENT, "confident"},
         {FONT_AWESOME_EMOJI_SLEEPY, "sleepy"},
         {FONT_AWESOME_EMOJI_SILLY, "silly"},
-        {FONT_AWESOME_EMOJI_CONFUSED, "confused"}
-    };
+        {FONT_AWESOME_EMOJI_CONFUSED, "confused"}};
 
     DisplayLockGuard lock(this);
-    
+
     // 查找匹配的表情
     auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion](const Emotion& e) { return e.text == emotion; });
-    
+                           [&emotion](const Emotion &e)
+                           { return e.text == emotion; });
+
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    if (it != emotions.end()) {
+    if (it != emotions.end())
+    {
         lv_label_set_text(emotion_label_, it->icon);
-    } else {
+    }
+    else
+    {
         lv_label_set_text(emotion_label_, FONT_AWESOME_EMOJI_NEUTRAL);
     }
 }
 
-void Display::SetIcon(const char* icon) {
-    if (emotion_label_ == nullptr) {
+void Display::SetIcon(const char *icon)
+{
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
     DisplayLockGuard lock(this);
     lv_label_set_text(emotion_label_, icon);
 }
 
-void Display::SetChatMessage(const std::string &role, const std::string &content) {
+void Display::SetChatMessage(const std::string &role, const std::string &content)
+{
+    ESP_LOGI(TAG, "role: %s, content: %s", role.c_str(), content.c_str());
+    // DisplayLockGuard lock(this);
+    lv_obj_t *label = lv_label_create(content_);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(label, content.c_str());
+    lv_obj_center(label);
+
+    lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
+    if (role == "user")
+        lv_obj_set_style_bg_color(label, lv_color_hex(0xE0E0E0), LV_PART_MAIN);
+    else
+        lv_obj_set_style_bg_color(label, lv_color_hex(0x00B050), LV_PART_MAIN);
+
+    lv_obj_update_layout(label);
+    lv_obj_scroll_to_view(label, LV_ANIM_ON);
 }

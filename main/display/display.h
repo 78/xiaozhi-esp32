@@ -27,6 +27,7 @@ protected:
 
     lv_disp_t *disp_ = nullptr;
 
+    lv_obj_t* content_ = nullptr;
     lv_obj_t *emotion_label_ = nullptr;
     lv_obj_t *network_label_ = nullptr;
     lv_obj_t *status_label_ = nullptr;
