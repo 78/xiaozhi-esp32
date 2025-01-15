@@ -1,7 +1,6 @@
 #include "wifi_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "audio_codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "esp_lcd_ili9341.h"
 #include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
@@ -12,9 +11,8 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 
-#define TAG "EspBox3Board"
+#define TAG "esp_sparkbot"
 
 // Can move to display/st7789_display.h
 LV_FONT_DECLARE(font_puhui_14_1);
@@ -101,11 +99,11 @@ public:
     }
 };
 
-class EspBox3Board : public WifiBoard {
+class EspSparkBot : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
-    Ili9341Display* display_;
+    Display* display_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -126,9 +124,9 @@ private:
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = GPIO_NUM_6;
+        buscfg.mosi_io_num = DISPLAY_MOSI_GPIO;
         buscfg.miso_io_num = GPIO_NUM_NC;
-        buscfg.sclk_io_num = GPIO_NUM_7;
+        buscfg.sclk_io_num = DISPLAY_CLK_GPIO;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
@@ -152,8 +150,8 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_5;
-        io_config.dc_gpio_num = GPIO_NUM_4;
+        io_config.cs_gpio_num = DISPLAY_CS_GPIO;
+        io_config.dc_gpio_num = DISPLAY_DC_GPIO;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
@@ -163,18 +161,18 @@ private:
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
-        const ili9341_vendor_config_t vendor_config = {
-            .init_cmds = &vendor_specific_init[0],
-            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(ili9341_lcd_init_cmd_t),
-        };
+        // const ili9341_vendor_config_t vendor_config = {
+        //     .init_cmds = &vendor_specific_init[0],
+        //     .init_cmds_size = sizeof(vendor_specific_init) / sizeof(ili9341_lcd_init_cmd_t),
+        // };
 
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_48;
-        panel_config.flags.reset_active_high = 1,
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+       // panel_config.flags.reset_active_high = 1,
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = (void *)&vendor_config;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(panel_io, &panel_config, &panel));
+        // panel_config.vendor_config = (void *)&vendor_config;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
         
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
@@ -182,7 +180,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new Ili9341Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         display_->SetupUI();
     }
@@ -194,7 +192,7 @@ private:
     }
 
 public:
-    EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    EspSparkBot() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeIli9341Display();
@@ -202,20 +200,28 @@ public:
         InitializeIot();
     }
 
-    virtual AudioCodec* GetAudioCodec() override {
-        static BoxAudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            audio_codec = new BoxAudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-            audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);
-        }
-        return audio_codec;
-    }
+    // virtual AudioCodec* GetAudioCodec() override {
+    //     // static Es8311AudioCodec* audio_codec = nullptr;
+    //     // if (audio_codec == nullptr) {
+    //     //     // audio_codec = new BoxAudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+    //     //     //     AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+    //     //     //     AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
+    //     //     audio_codec(i2c_bus_, I2C_NUM_1, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+    //     //     AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+    //     //     AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+    //     //     audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);
+    //     // }
+    //     // return audio_codec;
+
+    //      static Es8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_1, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+    //         AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+    //         AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+    //     return &audio_codec;
+    // }
 
     virtual Display* GetDisplay() override {
         return display_;
     }
 };
 
-DECLARE_BOARD(EspBox3Board);
+DECLARE_BOARD(EspSparkBot);
