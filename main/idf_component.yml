@@ -13,6 +13,5 @@ dependencies:
   idf:
     version: '>=5.3'
 
-  espressif/bme280: =*
   i2c_bus:
     public: true

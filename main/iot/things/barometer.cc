@@ -10,7 +10,7 @@
 namespace iot {
 
 #define CONST_PF 0.1902630958	                                               //(1/5.25588f) Pressure factor
-#define FIX_TEMP 25				                                               // Fixed Temperature. ASL is a function of pressure and temperature, but as the temperature changes so much (blow a little towards the flie and watch it drop 5 degrees) it corrupts the ASL estimates.
+#define FIX_TEMP 10				                                               // Fixed Temperature. ASL is a function of pressure and temperature, but as the temperature changes so much (blow a little towards the flie and watch it drop 5 degrees) it corrupts the ASL estimates.
 
 double pressureToAltitude(double pressure) {
     // 海拔计算公式

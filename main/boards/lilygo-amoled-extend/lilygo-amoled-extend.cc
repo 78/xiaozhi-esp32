@@ -98,9 +98,9 @@ private:
         boot_button_.OnLongPress([]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
-        gpio_set_level(PIN_NUM_LCD_POWER, 0);
-        esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
-        esp_deep_sleep_start(); });
+            gpio_set_level(PIN_NUM_LCD_POWER, 0);
+            esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+            esp_deep_sleep_start(); });
 
         touch_button_.OnPressDown([this]()
                                   { Application::GetInstance().StartListening(); });
@@ -290,7 +290,7 @@ public:
         // ESP_LOGI(TAG, "adc_value: %d, v1: %d", adc_value, v1);
         if (v1 >= VCHARGE)
         {
-            level = last_charging;
+            level = last_level;
             charging = true;
         }
         else if (v1 >= V1)
