@@ -11,6 +11,7 @@
 #include "esp_lcd_panel_interface.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
+#include <vector>
 
 class Rm67162Display : public Display
 {
@@ -33,7 +34,15 @@ private:
     lv_obj_t *side_bar_ = nullptr;
     lv_style_t style_user;
     lv_style_t style_assistant;
+    std::vector<lv_obj_t*> labelContainer; // 存储 label 指针的容器
 
+    void RemoveOldestLabel() {
+        if (!labelContainer.empty()) {
+            lv_obj_t* oldestLabel = labelContainer.front();
+            labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
+            lv_obj_del(oldestLabel); // 删除 lvgl 对象
+        }
+    }
     // void InitializeBacklight(gpio_num_t backlight_pin);
     void SetupUI();
     void LvglTask();

@@ -148,7 +148,11 @@ Rm67162Display::Rm67162Display(esp_lcd_spi_bus_handle_t spi_bus, int cs, int rst
     const esp_lcd_panel_dev_config_t panel_config = {
         .reset_gpio_num = rst,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
+        .flags = {
+            .reset_active_high = 0,
+        },
         .vendor_config = &vendor_config,
     };
     ESP_LOGI(TAG, "Install SH8601 panel driver");
@@ -248,7 +252,13 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
     auto sdcard = Board::GetInstance().GetSdcard();
     sdcard->Write("/sdcard/log.txt", logMessage.c_str());
     ESP_LOGI(TAG, "%s", logMessage.c_str());
-    // DisplayLockGuard lock(this);
+
+    DisplayLockGuard lock(this);
+    if (labelContainer.size() >= 10)
+    {
+        RemoveOldestLabel(); // 当 label 数量达到 10 时移除最早的
+    }
+
     lv_obj_t *label = lv_label_create(content_);
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
 
@@ -270,6 +280,8 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
         lv_obj_set_width(label, LV_HOR_RES);
     lv_obj_update_layout(label);
     lv_obj_scroll_to_view(label, LV_ANIM_ON);
+
+    labelContainer.push_back(label); // 将新创建的 label 加入容器
 }
 
 Rm67162Display::~Rm67162Display()

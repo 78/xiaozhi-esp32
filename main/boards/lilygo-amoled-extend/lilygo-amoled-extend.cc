@@ -68,7 +68,8 @@ private:
             .scl_io_num = IIC_SCL_NUM,
             .sda_pullup_en = GPIO_PULLUP_ENABLE,
             .scl_pullup_en = GPIO_PULLUP_ENABLE,
-
+            .master = {0},
+            .clk_flags = 0,
         };
         conf.master.clk_speed = 400000,
         i2c_bus = i2c_bus_create(IIC_MASTER_NUM, &conf);
@@ -88,10 +89,10 @@ private:
                 rx8900_write_time(_rx8900, &tm_info);
             });
             esp_netif_init();
-            sntp_setoperatingmode(SNTP_OPMODE_POLL);
-            sntp_setservername(0, (char*)NTP_SERVER1);
-            sntp_setservername(1, (char*)NTP_SERVER2);
-            sntp_init();
+            esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+            esp_sntp_setservername(0, (char*)NTP_SERVER1);
+            esp_sntp_setservername(1, (char*)NTP_SERVER2);
+            esp_sntp_init();
             setenv("TZ", DEFAULT_TIMEZONE, 1);
             tzset();
         // configTzTime(DEFAULT_TIMEZONE, NTP_SERVER1, NTP_SERVER2);
@@ -154,7 +155,15 @@ private:
         .sclk_io_num = sclk,                                             \
         .data2_io_num = d2,                                              \
         .data3_io_num = d3,                                              \
+        .data4_io_num = GPIO_NUM_NC,                                     \
+        .data5_io_num = GPIO_NUM_NC,                                     \
+        .data6_io_num = GPIO_NUM_NC,                                     \
+        .data7_io_num = GPIO_NUM_NC,                                     \
+        .data_io_default_level = 0,                                      \
         .max_transfer_sz = max_trans_sz,                                 \
+        .flags = 0,                                                      \
+        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,                                                 \
+        .intr_flags = 0                                                  \
     }
     void InitializeSpi()
     {
