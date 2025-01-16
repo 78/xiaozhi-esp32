@@ -22,8 +22,12 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include "bmp280.h"
 #include <esp_wifi.h>
+#include "rx8900.h"
+#include "esp_sntp.h"
 
 #define TAG "LilyGoAmoled"
+
+static rx8900_handle_t _rx8900 = NULL;
 
 class LilyGoAmoled : public WifiBoard
 {
@@ -38,6 +42,7 @@ private:
     adc_cali_handle_t adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
     bmp280_handle_t bmp280 = NULL;
+    rx8900_handle_t rx8900 = NULL;
 
     // esp_adc_cal_characteristics_t adc_chars;
 
@@ -69,6 +74,28 @@ private:
         i2c_bus = i2c_bus_create(IIC_MASTER_NUM, &conf);
         bmp280 = bmp280_create(i2c_bus, BMP280_I2C_ADDRESS_DEFAULT);
         ESP_LOGI(TAG, "bmp280_default_init:%d", bmp280_default_init(bmp280));
+        rx8900 = rx8900_create(i2c_bus, RX8900_I2C_ADDRESS_DEFAULT);
+        ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
+        _rx8900 = rx8900;
+        xTaskCreate([](void *arg) {
+            sntp_set_time_sync_notification_cb([](struct timeval *t){
+                struct tm tm_info;
+                localtime_r(&t->tv_sec, &tm_info);
+                char time_str[50];
+                strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &tm_info);
+
+                ESP_LOGW(TAG, "The net time is: %s", time_str);
+                rx8900_write_time(_rx8900, &tm_info);
+            });
+            esp_netif_init();
+            sntp_setoperatingmode(SNTP_OPMODE_POLL);
+            sntp_setservername(0, (char*)NTP_SERVER1);
+            sntp_setservername(1, (char*)NTP_SERVER2);
+            sntp_init();
+            setenv("TZ", DEFAULT_TIMEZONE, 1);
+            tzset();
+        // configTzTime(DEFAULT_TIMEZONE, NTP_SERVER1, NTP_SERVER2);
+        vTaskDelete(NULL); }, "timesync", 4096, NULL, 4, nullptr);
     }
 
     void InitializeButtons()
@@ -81,7 +108,7 @@ private:
             }
             app.ToggleChatState(); });
 
-        boot_button_.OnLongPress([]
+        boot_button_.OnLongPress([this]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
             esp_wifi_stop();
@@ -311,6 +338,13 @@ public:
             last_charging = charging;
             ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
+        static struct tm time_user;
+        rx8900_read_time(rx8900, &time_user);
+
+        char time_str[50];
+        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
+
+        ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }
 };

@@ -20,6 +20,10 @@
 
 #else
 
+#define NTP_SERVER1           "pool.ntp.org"
+#define NTP_SERVER2           "time.nist.gov"
+#define DEFAULT_TIMEZONE      "CST-8"     
+
 #define AUDIO_I2S_GPIO_WS GPIO_NUM_10   //以适配
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_11   //以适配
 #define AUDIO_I2S_GPIO_DIN  GPIO_NUM_13   //以适配
