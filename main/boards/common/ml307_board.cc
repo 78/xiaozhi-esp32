@@ -60,10 +60,10 @@ void Ml307Board::WaitForNetworkReady() {
     display->SetStatus("等待网络...");
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
-        application.Alert("Error", "PIN is not ready");
+        application.Alert("Error", "请插入SIM卡");
         return;
     } else if (result == -2) {
-        application.Alert("Error", "Registration denied");
+        application.Alert("Error", "无法接入网络，请检查流量卡状态");
         return;
     }
 

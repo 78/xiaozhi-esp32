@@ -53,9 +53,6 @@ void WifiBoard::EnterWifiConfigMode() {
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
-    
-    // 播报配置 WiFi 的提示
-    application.Alert("Info", "Configuring WiFi");
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = "请在手机上连接热点 ";
@@ -64,6 +61,9 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += wifi_ap.GetWebServerUrl();
 
     display->SetStatus(hint);
+    
+    // 播报配置 WiFi 的提示
+    application.Alert("Info", "进入配网模式");
     
     // Wait forever until reset after configuration
     while (true) {

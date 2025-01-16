@@ -21,8 +21,10 @@ extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
 extern const char p3_err_reg_end[] asm("_binary_err_reg_p3_end");
 extern const char p3_err_pin_start[] asm("_binary_err_pin_p3_start");
 extern const char p3_err_pin_end[] asm("_binary_err_pin_p3_end");
-extern const char p3_err_wificonfig_start[] asm("_binary_err_wificonfig_p3_start");
-extern const char p3_err_wificonfig_end[] asm("_binary_err_wificonfig_p3_end");
+extern const char p3_wificonfig_start[] asm("_binary_wificonfig_p3_start");
+extern const char p3_wificonfig_end[] asm("_binary_wificonfig_p3_end");
+extern const char p3_upgrade_start[] asm("_binary_upgrade_p3_start");
+extern const char p3_upgrade_end[] asm("_binary_upgrade_p3_end");
 
 static const char* const STATE_STRINGS[] = {
     "unknown",
@@ -61,6 +63,7 @@ void Application::CheckNewVersion() {
     while (true) {
         if (ota_.CheckVersion()) {
             if (ota_.HasNewVersion()) {
+                Alert("Info", "正在升级固件");
                 // Wait for the chat state to be idle
                 do {
                     vTaskDelay(pdMS_TO_TICKS(3000));
@@ -73,6 +76,7 @@ void Application::CheckNewVersion() {
                     display->SetIcon(FONT_AWESOME_DOWNLOAD);
                     display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
+                    board.SetPowerSaveMode(false);
                     // 预先关闭音频输出，避免升级过程有音频操作
                     board.GetAudioCodec()->EnableOutput(false);
                     {
@@ -113,11 +117,13 @@ void Application::Alert(const std::string& title, const std::string& message) {
     auto display = Board::GetInstance().GetDisplay();
     display->ShowNotification(message);
 
-    if (message == "PIN is not ready") {
+    if (message == "进入配网模式") {
+        PlayLocalFile(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start);
+    } else if (message == "正在升级固件") {
+        PlayLocalFile(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start);
+    } else if (message == "请插入SIM卡") {
         PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
-    } else if (message == "Configuring WiFi") {
-        PlayLocalFile(p3_err_wificonfig_start, p3_err_wificonfig_end - p3_err_wificonfig_start);
-    } else if (message == "Registration denied") {
+    } else if (message == "无法接入网络，请检查流量卡状态") {
         PlayLocalFile(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start);
     }
 }
