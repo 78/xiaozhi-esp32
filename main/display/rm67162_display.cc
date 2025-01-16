@@ -6,7 +6,10 @@
 #include <esp_err.h>
 #include <driver/ledc.h>
 #include <vector>
+#include "board.h"
 
+#include <sstream>
+#include <string>
 #define TAG "Rm67162Display"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
@@ -162,11 +165,15 @@ Rm67162Display::Rm67162Display(esp_lcd_spi_bus_handle_t spi_bus, int cs, int rst
     // alloc draw buffers used by LVGL
     static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
     // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
+
     lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    // lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf1);
     lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    // lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf2);
     // initialize LVGL draw buffers
+    // lv_disp_draw_buf_init(&disp_buf, buf1, buf2, width_ * 10);
     lv_disp_draw_buf_init(&disp_buf, buf1, buf2, width_ * 10);
 
     ESP_LOGI(TAG, "Register display driver to LVGL");
@@ -235,7 +242,12 @@ void Rm67162Display::SetBacklight(uint8_t brightness)
 
 void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
 {
-    ESP_LOGI(TAG, "role: %s, content: %s", role.c_str(), content.c_str());
+    std::stringstream ss;
+    ss << "role: " << role << ", content: " << content << std::endl;
+    std::string logMessage = ss.str();
+    auto sdcard = Board::GetInstance().GetSdcard();
+    sdcard->Write("/sdcard/log.txt", logMessage.c_str());
+    ESP_LOGI(TAG, "%s", logMessage.c_str());
     // DisplayLockGuard lock(this);
     lv_obj_t *label = lv_label_create(content_);
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
@@ -403,7 +415,7 @@ void Rm67162Display::SetupUI()
     lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
 
     battery_label_ = lv_label_create(status_bar_);
-    
+
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
 

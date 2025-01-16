@@ -21,6 +21,11 @@ Display *Board::GetDisplay()
     return &display;
 }
 
+Sdcard *Board::GetSdcard()
+{
+    return NULL;
+}
+
 std::string Board::GetJson() {
     /* 
         {

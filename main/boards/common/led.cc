@@ -14,7 +14,7 @@ Led::Led(gpio_num_t gpio) {
     
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
-    strip_config.max_leds = 1;
+    strip_config.max_leds = 2;
     strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRBW;
     strip_config.led_model = LED_MODEL_SK6812;
 
@@ -60,6 +60,7 @@ void Led::TurnOn() {
     std::lock_guard<std::mutex> lock(mutex_);
     esp_timer_stop(blink_timer_);
     led_strip_set_pixel(led_strip_, 0, r_, g_, b_);
+    led_strip_set_pixel(led_strip_, 1, r_, g_, b_);
     led_strip_refresh(led_strip_);
 }
 
@@ -104,6 +105,7 @@ void Led::OnBlinkTimer() {
     blink_counter_--;
     if (blink_counter_ & 1) {
         led_strip_set_pixel(led_strip_, 0, r_, g_, b_);
+        led_strip_set_pixel(led_strip_, 1, r_, g_, b_);
         led_strip_refresh(led_strip_);
     } else {
         led_strip_clear(led_strip_);

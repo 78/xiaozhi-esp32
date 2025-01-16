@@ -31,6 +31,8 @@ private:
     lv_obj_t *status_bar_ = nullptr;
     lv_obj_t *container_ = nullptr;
     lv_obj_t *side_bar_ = nullptr;
+    lv_style_t style_user;
+    lv_style_t style_assistant;
 
     // void InitializeBacklight(gpio_num_t backlight_pin);
     void SetupUI();
@@ -40,8 +42,6 @@ private:
     virtual void Unlock() override;
 
     void InitBrightness();
-    lv_style_t style_user;
-    lv_style_t style_assistant;
 
 public:
     Rm67162Display(esp_lcd_spi_bus_handle_t spi_bus, int cs, int rst,

@@ -8,6 +8,7 @@
 #include <string>
 
 #include "led.h"
+#include "sdcard.h"
 
 void* create_board();
 class AudioCodec;
@@ -37,6 +38,7 @@ public:
     virtual float GetBarometer() = 0;
     virtual float GetTemperature() = 0;
     virtual Display* GetDisplay();
+    virtual Sdcard* GetSdcard();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual Mqtt* CreateMqtt() = 0;

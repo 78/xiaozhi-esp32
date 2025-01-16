@@ -21,6 +21,7 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "bmp280.h"
+#include <esp_wifi.h>
 
 #define TAG "LilyGoAmoled"
 
@@ -83,6 +84,7 @@ private:
         boot_button_.OnLongPress([]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
+            esp_wifi_stop();
             gpio_set_level(PIN_NUM_LCD_POWER, 0);
             esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
             esp_deep_sleep_start(); });
@@ -248,6 +250,12 @@ public:
     virtual Display *GetDisplay() override
     {
         return display_;
+    }
+
+    virtual Sdcard *GetSdcard() override
+    {
+        static Sdcard sd_card(PIN_NUM_SD_CMD, PIN_NUM_SD_CLK, PIN_NUM_SD_D0, PIN_NUM_SD_D1, PIN_NUM_SD_D2, PIN_NUM_SD_D3);
+        return &sd_card;
     }
 
 #define VCHARGE 4050
