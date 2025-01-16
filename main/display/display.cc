@@ -218,30 +218,6 @@ void Display::SetIcon(const char *icon)
 
 void Display::SetChatMessage(const std::string &role, const std::string &content)
 {
-    ESP_LOGI(TAG, "role: %s, content: %s", role.c_str(), content.c_str());
-    // DisplayLockGuard lock(this);
-    lv_obj_t *label = lv_label_create(content_);
-    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(label, content.c_str());
-    lv_obj_center(label);
-
-    lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
-
-    if (role == "user")
-    {
-        lv_obj_set_style_bg_color(label, lv_color_hex(0xE0E0E0), LV_PART_MAIN);
-
-    }
-    else
-    {
-        lv_obj_set_style_bg_color(label, lv_color_hex(0x00B050), LV_PART_MAIN);
-
-    }
-
-    if (lv_obj_get_width(label) >= LV_HOR_RES)
-        lv_obj_set_width(label, LV_HOR_RES);
-    lv_obj_update_layout(label);
-    lv_obj_scroll_to_view(label, LV_ANIM_ON);
 }
 
 void Display::SetBacklight(uint8_t brightness) {}

@@ -16,7 +16,7 @@ namespace iot
         Displayer() : Thing("Displayer", "当前 AI 机器人的显示器")
         {
             // 定义设备的属性
-            properties_.AddNumberProperty("Brightness", "当前亮度值", [this]() -> int {
+            properties_.AddNumberProperty("brightness", "当前亮度值", [this]() -> int {
                 auto display = Board::GetInstance().GetDisplay();
             return display->GetBacklight(); });
 

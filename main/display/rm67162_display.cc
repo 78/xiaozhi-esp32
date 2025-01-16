@@ -213,6 +213,52 @@ void Rm67162Display::InitBrightness()
     Settings settings("display", false);
     brightness_ = settings.GetInt("bright", 80);
 }
+void Rm67162Display::SetBacklight(uint8_t brightness)
+{
+    brightness_ = brightness;
+    if (brightness > 100)
+    {
+        brightness = 100;
+    }
+    Settings settings("display", true);
+    settings.SetInt("bright", brightness_);
+
+    ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
+    // LEDC resolution set to 10bits, thus: 100% = 255
+    uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
+    int lcd_cmd = 0x51;
+    lcd_cmd &= 0xff;
+    lcd_cmd <<= 8;
+    lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+    esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+}
+
+void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
+{
+    ESP_LOGI(TAG, "role: %s, content: %s", role.c_str(), content.c_str());
+    // DisplayLockGuard lock(this);
+    lv_obj_t *label = lv_label_create(content_);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+
+    if (role == "user")
+    {
+        lv_obj_add_style(label, &style_user, 0);
+    }
+    else
+    {
+        lv_obj_add_style(label, &style_assistant, 0);
+    }
+    lv_obj_set_style_text_font(label, &font_puhui_14_1, 0);
+    lv_label_set_text(label, content.c_str());
+    lv_obj_center(label);
+
+    lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
+
+    if (lv_obj_get_width(label) >= LV_HOR_RES)
+        lv_obj_set_width(label, LV_HOR_RES);
+    lv_obj_update_layout(label);
+    lv_obj_scroll_to_view(label, LV_ANIM_ON);
+}
 
 Rm67162Display::~Rm67162Display()
 {
@@ -357,6 +403,27 @@ void Rm67162Display::SetupUI()
     lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
 
     battery_label_ = lv_label_create(status_bar_);
+    
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+
+    lv_style_init(&style_user);
+    lv_style_set_radius(&style_user, 5);
+    lv_style_set_bg_opa(&style_user, LV_OPA_COVER);
+    lv_style_set_border_width(&style_user, 2);
+    lv_style_set_border_color(&style_user, lv_color_hex(0));
+    lv_style_set_pad_all(&style_user, 10);
+
+    lv_style_set_text_color(&style_user, lv_color_hex(0));
+    lv_style_set_bg_color(&style_user, lv_color_hex(0xE0E0E0));
+
+    lv_style_init(&style_assistant);
+    lv_style_set_radius(&style_assistant, 5);
+    lv_style_set_bg_opa(&style_assistant, LV_OPA_COVER);
+    lv_style_set_border_width(&style_assistant, 2);
+    lv_style_set_border_color(&style_assistant, lv_color_hex(0));
+    lv_style_set_pad_all(&style_assistant, 10);
+
+    lv_style_set_text_color(&style_assistant, lv_color_hex(0xffffff));
+    lv_style_set_bg_color(&style_assistant, lv_color_hex(0x00B050));
 }
