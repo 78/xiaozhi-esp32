@@ -454,12 +454,7 @@ void Application::OutputAudio() {
         if (device_state_ == kDeviceStateIdle) {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
             if (duration > max_silence_seconds) {
-                #ifdef CONFIG_BOARD_TYPE_ESP_SPARKBOT
-                // Nothing todo, because display io and PA enable io conflict
-                #else
                 codec->EnableOutput(false);
-                #endif
-                
             }
         }
         return;
