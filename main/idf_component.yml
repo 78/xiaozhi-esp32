@@ -2,7 +2,7 @@
 dependencies:
   espressif/esp_lcd_ili9341: "==1.2.0"
   waveshare/esp_lcd_sh8601:
-    version: "1.0.1"
+    version: "1.0.2"
     public: true
   78/esp_lcd_nv3023: "~1.0.0"
   78/esp-wifi-connect: "~2.0.1"
