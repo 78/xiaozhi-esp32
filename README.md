@@ -73,9 +73,6 @@
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
-  <a href="docs/xmini-c3.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
-    <img src="docs/waveshare-esp32-s3-touch-amoled-1.8.jpg" width="240" />
-  </a>
 </div>
 
 ## 固件部分
