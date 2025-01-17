@@ -76,5 +76,6 @@
 #define PIN_NUM_SD_D1 (GPIO_NUM_40)
 #define PIN_NUM_SD_D2 (GPIO_NUM_45)
 #define PIN_NUM_SD_D3 (GPIO_NUM_44)
+#define PIN_NUM_SD_CDZ (GPIO_NUM_39)
 
 #endif // _BOARD_CONFIG_H_

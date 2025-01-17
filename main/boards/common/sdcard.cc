@@ -2,21 +2,22 @@
 
 static const char *TAG = "Sdcard";
 
-Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpio_num_t d2, gpio_num_t d3) : cmd(cmd), clk(clk), d0(d0), d1(d1), d2(d2), d3(d3), card(nullptr)
+Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpio_num_t d2, gpio_num_t d3, gpio_num_t cdz) : cmd(cmd), clk(clk), d0(d0), d1(d1), d2(d2), d3(d3), cdz(cdz), card(nullptr)
 {
     Init();
 }
 
 Sdcard::~Sdcard()
 {
-    if (card != nullptr)
-    {
-        Unmount();
-    }
+    if (card == nullptr)
+        return;
+    Unmount();
 }
 
 void Sdcard::Init()
 {
+    if (!isSdCardInserted())
+        return;
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 
     // 提高 SD 卡频率，可根据实际情况调整
@@ -47,13 +48,15 @@ void Sdcard::Init()
 
 void Sdcard::Unmount()
 {
-    ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_unmount());
+    ESP_ERROR_CHECK(esp_vfs_fat_sdcard_unmount("/sdcard", card));
     card = nullptr;
     ESP_LOGI(TAG, "SD card unmounted");
 }
 
 void Sdcard::Write(const char *filename, const char *data)
 {
+    if (card == nullptr)
+        return;
     FILE *file = fopen(filename, "a"); // 以追加模式打开文件
     if (file == NULL)
     {
@@ -77,6 +80,8 @@ void Sdcard::Write(const char *filename, const char *data)
 
 void Sdcard::Read(const char *filename, char *buffer, size_t buffer_size)
 {
+    if (card == nullptr)
+        return;
     FILE *file = fopen(filename, "r");
     if (file == NULL)
     {

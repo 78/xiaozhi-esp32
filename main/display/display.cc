@@ -70,6 +70,7 @@ void Display::SetStatus(const std::string &status)
     }
     DisplayLockGuard lock(this);
     lv_label_set_text(status_label_, status.c_str());
+    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
