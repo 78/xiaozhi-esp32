@@ -1,12 +1,12 @@
 ## IDF Component Manager Manifest File
 dependencies:
   waveshare/esp_lcd_sh8601:
-    version: "1.0.1"
+    version: "1.0.2"
     public: true
   espressif/esp_lcd_ili9341: "==1.2.0"
   espressif/esp_lcd_gc9a01: "^2.0.1"
   78/esp_lcd_nv3023: "~1.0.0"
-  78/esp-wifi-connect: "~2.0.1"
+  78/esp-wifi-connect: "~2.0.2"
   78/esp-opus-encoder: "~2.1.0"
   78/esp-ml307: "~1.7.1"
   espressif/led_strip: "^2.4.1"
