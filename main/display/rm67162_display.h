@@ -70,7 +70,9 @@ public:
 
     virtual void SetBacklight(uint8_t brightness) override;
     virtual void SetChatMessage(const std::string &role, const std::string &content) override;
+    
     void UpdateTime(struct tm *time);
+    void Sleep();
 };
 
 #endif // RM67162_DISPLAY_H

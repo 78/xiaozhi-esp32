@@ -219,11 +219,13 @@ Rm67162Display::Rm67162Display(esp_lcd_spi_bus_handle_t spi_bus, int cs, int rst
     InitBrightness();
     SetBacklight(brightness_);
 }
+
 void Rm67162Display::InitBrightness()
 {
     Settings settings("display", false);
     brightness_ = settings.GetInt("bright", 80);
 }
+
 void Rm67162Display::SetBacklight(uint8_t brightness)
 {
     brightness_ = brightness;
@@ -238,6 +240,17 @@ void Rm67162Display::SetBacklight(uint8_t brightness)
     // LEDC resolution set to 10bits, thus: 100% = 255
     uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
     int lcd_cmd = 0x51;
+    lcd_cmd &= 0xff;
+    lcd_cmd <<= 8;
+    lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+    esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+}
+
+void Rm67162Display::Sleep()
+{
+    ESP_LOGI(TAG, "LCD sleep");
+    uint8_t data[1] = {1};
+    int lcd_cmd = 0x10;
     lcd_cmd &= 0xff;
     lcd_cmd <<= 8;
     lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;

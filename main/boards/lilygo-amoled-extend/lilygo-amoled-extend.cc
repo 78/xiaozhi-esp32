@@ -28,7 +28,6 @@
 #define TAG "LilyGoAmoled"
 
 static rx8900_handle_t _rx8900 = NULL;
-
 class LilyGoAmoled : public WifiBoard
 {
 private:
@@ -113,9 +112,10 @@ private:
         boot_button_.OnLongPress([this]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
-            esp_wifi_stop();
+            ((Rm67162Display *)GetDisplay())->Sleep();
             gpio_set_level(PIN_NUM_LCD_POWER, 0);
-            esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+            // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+            i2c_bus_delete(&i2c_bus);
             esp_deep_sleep_start(); });
 
         touch_button_.OnPressDown([this]()
@@ -123,6 +123,7 @@ private:
         touch_button_.OnPressUp([this]()
                                 { Application::GetInstance().StopListening(); });
     }
+
     void InitializeEncoder()
     {
         volume_encoder_.OnPcntReach([this](int value)
@@ -225,6 +226,46 @@ private:
         // adc1_config_channel_atten(BAT_DETECT_CH, ADC_ATTEN_DB_12);
         // esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, DEFAULT_VREF, &adc_chars);
     }
+    void GetWakeupCause(void)
+    {
+        esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
+        switch (wakeup_cause)
+        {
+        case ESP_SLEEP_WAKEUP_UNDEFINED:
+            ESP_LOGI(TAG, "Wakeup cause: Undefined");
+            break;
+        case ESP_SLEEP_WAKEUP_EXT0:
+            ESP_LOGI(TAG, "Wakeup cause: External source 0");
+            break;
+        case ESP_SLEEP_WAKEUP_EXT1:
+            ESP_LOGI(TAG, "Wakeup cause: External source 1");
+            break;
+        case ESP_SLEEP_WAKEUP_TIMER:
+            ESP_LOGI(TAG, "Wakeup cause: Timer");
+            break;
+        case ESP_SLEEP_WAKEUP_TOUCHPAD:
+            ESP_LOGI(TAG, "Wakeup cause: Touchpad");
+            break;
+        case ESP_SLEEP_WAKEUP_ULP:
+            ESP_LOGI(TAG, "Wakeup cause: ULP");
+            break;
+        case ESP_SLEEP_WAKEUP_GPIO:
+            ESP_LOGI(TAG, "Wakeup cause: GPIO");
+            break;
+        case ESP_SLEEP_WAKEUP_UART:
+            ESP_LOGI(TAG, "Wakeup cause: UART");
+            break;
+        case ESP_SLEEP_WAKEUP_WIFI:
+            ESP_LOGI(TAG, "Wakeup cause: WiFi");
+            break;
+        case ESP_SLEEP_WAKEUP_COCPU:
+            ESP_LOGI(TAG, "Wakeup cause: Co-processor");
+            break;
+        default:
+            ESP_LOGI(TAG, "Wakeup cause: Unknown");
+            break;
+        }
+    }
 
 public:
     LilyGoAmoled() : boot_button_(BOOT_BUTTON_GPIO),
@@ -242,6 +283,7 @@ public:
         InitializeButtons();
         InitializeEncoder();
         InitializeIot();
+        GetWakeupCause();
     }
 
     virtual Led *GetLed() override
@@ -279,7 +321,7 @@ public:
                                            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
 #else
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                                        AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
+                                              AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
 #endif
         return &audio_codec;
     }
@@ -350,8 +392,8 @@ public:
         }
         static struct tm time_user;
         rx8900_read_time(rx8900, &time_user);
-       ((Rm67162Display*) GetDisplay())->UpdateTime(&time_user);
-        
+        ((Rm67162Display *)GetDisplay())->UpdateTime(&time_user);
+
         // char time_str[50];
         // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
         // ESP_LOGI(TAG, "The time is: %s", time_str);
