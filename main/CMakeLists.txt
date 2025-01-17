@@ -2,10 +2,13 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/cores3_audio_codec.cc"
+            "led/single_led.cc"
+            "led/circular_strip.cc"
             "display/display.cc"
             "display/no_display.cc"
-            "display/st7789_display.cc"
             "display/rm67162_display.cc"
+            "display/lcd_display.cc"
             "display/ssd1306_display.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
@@ -55,6 +58,22 @@ elseif(CONFIG_BOARD_TYPE_TERRENCE_C3_DEV)
     set(BOARD_TYPE "terrence-c3-dev")
 elseif(CONFIG_BOARD_TYPE_LILYGO_AMOLED)
     set(BOARD_TYPE "lilygo-amoled-extend")
+elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
+    set(BOARD_TYPE "lichuang-c3-dev")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P4)
+    set(BOARD_TYPE "magiclick-2p4")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
+    set(BOARD_TYPE "m5stack-core-s3")
+elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
+    set(BOARD_TYPE "atoms3r-echo-base")
+elseif(CONFIG_BOARD_TYPE_XMINI_C3)
+    set(BOARD_TYPE "xmini-c3")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
+    set(BOARD_TYPE "esp32s3-korvo2-v3")
+elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
+    set(BOARD_TYPE "esp-sparkbot")    
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
+    set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
@@ -64,7 +83,7 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/err_wificonfig.p3"
+                    EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/wificonfig.p3" "assets/upgrade.p3"
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )

@@ -3,9 +3,9 @@
 #include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led_strip/single_led.h"
 
 #include <esp_log.h>
 #include <esp_spiffs.h>
@@ -135,9 +135,9 @@ public:
         InitializeButtons();
         InitializeIot();
     }
-
-    virtual Led* GetBuiltinLed() override {
-        static Led led(BUILTIN_LED_GPIO);
+    
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
 

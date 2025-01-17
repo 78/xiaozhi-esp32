@@ -21,27 +21,36 @@ extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
 extern const char p3_err_reg_end[] asm("_binary_err_reg_p3_end");
 extern const char p3_err_pin_start[] asm("_binary_err_pin_p3_start");
 extern const char p3_err_pin_end[] asm("_binary_err_pin_p3_end");
-extern const char p3_err_wificonfig_start[] asm("_binary_err_wificonfig_p3_start");
-extern const char p3_err_wificonfig_end[] asm("_binary_err_wificonfig_p3_end");
+extern const char p3_wificonfig_start[] asm("_binary_wificonfig_p3_start");
+extern const char p3_wificonfig_end[] asm("_binary_wificonfig_p3_end");
+extern const char p3_upgrade_start[] asm("_binary_upgrade_p3_start");
+extern const char p3_upgrade_end[] asm("_binary_upgrade_p3_end");
 
 static const char* const STATE_STRINGS[] = {
     "unknown",
+    "starting",
+    "configuring",
     "idle",
     "connecting",
     "listening",
     "speaking",
     "upgrading",
+    "fatal_error",
     "invalid_state"
 };
 
-Application::Application() : background_task_(4096 * 8) {
+Application::Application() {
     event_group_ = xEventGroupCreate();
+    background_task_ = new BackgroundTask(4096 * 8);
 
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application() {
+    if (background_task_ != nullptr) {
+        delete background_task_;
+    }
     vEventGroupDelete(event_group_);
 }
 
@@ -54,28 +63,43 @@ void Application::CheckNewVersion() {
     while (true) {
         if (ota_.CheckVersion()) {
             if (ota_.HasNewVersion()) {
+                Alert("Info", "正在升级固件");
                 // Wait for the chat state to be idle
                 do {
                     vTaskDelay(pdMS_TO_TICKS(3000));
-                } while (GetChatState() != kChatStateIdle);
+                } while (GetDeviceState() != kDeviceStateIdle);
 
-                SetChatState(kChatStateUpgrading);
-                
-                display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
+                // Use main task to do the upgrade, not cancelable
+                Schedule([this, &board, display]() {
+                    SetDeviceState(kDeviceStateUpgrading);
+                    
+                    display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                    display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
-                // 预先关闭音频输出，避免升级过程有音频操作
-                board.GetAudioCodec()->EnableOutput(false);
+                    board.SetPowerSaveMode(false);
+                    // 预先关闭音频输出，避免升级过程有音频操作
+                    board.GetAudioCodec()->EnableOutput(false);
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_);
+                        audio_decode_queue_.clear();
+                    }
+                    background_task_->WaitForCompletion();
+                    delete background_task_;
+                    background_task_ = nullptr;
+                    vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota_.StartUpgrade([display](int progress, size_t speed) {
-                    char buffer[64];
-                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                    display->SetStatus(buffer);
+                    ota_.StartUpgrade([display](int progress, size_t speed) {
+                        char buffer[64];
+                        snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                        display->SetStatus(buffer);
+                    });
+
+                    // If upgrade success, the device will reboot and never reach here
+                    display->SetStatus("更新失败");
+                    ESP_LOGI(TAG, "Firmware upgrade failed...");
+                    vTaskDelay(pdMS_TO_TICKS(3000));
+                    esp_restart();
                 });
-
-                // If upgrade success, the device will reboot and never reach here
-                ESP_LOGI(TAG, "Firmware upgrade failed...");
-                SetChatState(kChatStateIdle);
             } else {
                 ota_.MarkCurrentVersionValid();
                 display->ShowNotification("版本 " + ota_.GetCurrentVersion());
@@ -93,11 +117,13 @@ void Application::Alert(const std::string& title, const std::string& message) {
     auto display = Board::GetInstance().GetDisplay();
     display->ShowNotification(message);
 
-    if (message == "PIN is not ready") {
+    if (message == "进入配网模式") {
+        PlayLocalFile(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start);
+    } else if (message == "正在升级固件") {
+        PlayLocalFile(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start);
+    } else if (message == "请插入SIM卡") {
         PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
-    } else if (message == "Configuring WiFi") {
-        PlayLocalFile(p3_err_wificonfig_start, p3_err_wificonfig_end - p3_err_wificonfig_start);
-    } else if (message == "Registration denied") {
+    } else if (message == "无法接入网络，请检查流量卡状态") {
         PlayLocalFile(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start);
     }
 }
@@ -127,20 +153,20 @@ void Application::ToggleChatState() {
             return;
         }
 
-        if (chat_state_ == kChatStateIdle) {
-            SetChatState(kChatStateConnecting);
+        if (device_state_ == kDeviceStateIdle) {
+            SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
                 Alert("Error", "Failed to open audio channel");
-                SetChatState(kChatStateIdle);
+                SetDeviceState(kDeviceStateIdle);
                 return;
             }
 
             keep_listening_ = true;
             protocol_->SendStartListening(kListeningModeAutoStop);
-            SetChatState(kChatStateListening);
-        } else if (chat_state_ == kChatStateSpeaking) {
+            SetDeviceState(kDeviceStateListening);
+        } else if (device_state_ == kDeviceStateSpeaking) {
             AbortSpeaking(kAbortReasonNone);
-        } else if (chat_state_ == kChatStateListening) {
+        } else if (device_state_ == kDeviceStateListening) {
             protocol_->CloseAudioChannel();
         }
     });
@@ -154,41 +180,39 @@ void Application::StartListening() {
         }
         
         keep_listening_ = false;
-        if (chat_state_ == kChatStateIdle) {
+        if (device_state_ == kDeviceStateIdle) {
             if (!protocol_->IsAudioChannelOpened()) {
-                SetChatState(kChatStateConnecting);
+                SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
-                    SetChatState(kChatStateIdle);
+                    SetDeviceState(kDeviceStateIdle);
                     Alert("Error", "Failed to open audio channel");
                     return;
                 }
             }
             protocol_->SendStartListening(kListeningModeManualStop);
-            SetChatState(kChatStateListening);
-        } else if (chat_state_ == kChatStateSpeaking) {
+            SetDeviceState(kDeviceStateListening);
+        } else if (device_state_ == kDeviceStateSpeaking) {
             AbortSpeaking(kAbortReasonNone);
             protocol_->SendStartListening(kListeningModeManualStop);
             // FIXME: Wait for the speaker to empty the buffer
             vTaskDelay(pdMS_TO_TICKS(120));
-            SetChatState(kChatStateListening);
+            SetDeviceState(kDeviceStateListening);
         }
     });
 }
 
 void Application::StopListening() {
     Schedule([this]() {
-        if (chat_state_ == kChatStateListening) {
+        if (device_state_ == kDeviceStateListening) {
             protocol_->SendStopListening();
-            SetChatState(kChatStateIdle);
+            SetDeviceState(kDeviceStateIdle);
         }
     });
 }
 
 void Application::Start() {
     auto& board = Board::GetInstance();
-    auto builtin_led = board.GetBuiltinLed();
-    builtin_led->SetBlue();
-    builtin_led->StartContinuousBlink(100);
+    SetDeviceState(kDeviceStateStarting);
 
     /* Setup the display */
     auto display = board.GetDisplay();
@@ -234,7 +258,7 @@ void Application::Start() {
 #if CONFIG_IDF_TARGET_ESP32S3
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -246,27 +270,27 @@ void Application::Start() {
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
-            auto builtin_led = Board::GetInstance().GetBuiltinLed();
-            if (chat_state_ == kChatStateListening) {
+            if (device_state_ == kDeviceStateListening) {
                 if (speaking) {
-                    builtin_led->SetRed(HIGH_BRIGHTNESS);
+                    voice_detected_ = true;
                 } else {
-                    builtin_led->SetRed(LOW_BRIGHTNESS);
+                    voice_detected_ = false;
                 }
-                builtin_led->TurnOn();
+                auto led = Board::GetInstance().GetLed();
+                led->OnStateChanged();
             }
         });
     });
 
     wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
         Schedule([this, &wake_word]() {
-            if (chat_state_ == kChatStateIdle) {
-                SetChatState(kChatStateConnecting);
+            if (device_state_ == kDeviceStateIdle) {
+                SetDeviceState(kDeviceStateConnecting);
                 wake_word_detect_.EncodeWakeWordData();
 
                 if (!protocol_->OpenAudioChannel()) {
                     ESP_LOGE(TAG, "Failed to open audio channel");
-                    SetChatState(kChatStateIdle);
+                    SetDeviceState(kDeviceStateIdle);
                     wake_word_detect_.StartDetection();
                     return;
                 }
@@ -280,8 +304,8 @@ void Application::Start() {
                 protocol_->SendWakeWordDetected(wake_word);
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
                 keep_listening_ = true;
-                SetChatState(kChatStateListening);
-            } else if (chat_state_ == kChatStateSpeaking) {
+                SetDeviceState(kDeviceStateListening);
+            } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
             }
 
@@ -304,7 +328,7 @@ void Application::Start() {
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (chat_state_ == kChatStateSpeaking) {
+        if (device_state_ == kDeviceStateSpeaking) {
             audio_decode_queue_.emplace_back(std::move(data));
         }
     });
@@ -323,7 +347,9 @@ void Application::Start() {
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
-            SetChatState(kChatStateIdle);
+            auto display = Board::GetInstance().GetDisplay();
+            display->SetChatMessage("", "");
+            SetDeviceState(kDeviceStateIdle);
         });
     });
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
@@ -334,19 +360,19 @@ void Application::Start() {
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
                     aborted_ = false;
-                    if (chat_state_ == kChatStateIdle || chat_state_ == kChatStateListening) {
-                        SetChatState(kChatStateSpeaking);
+                    if (device_state_ == kDeviceStateIdle || device_state_ == kDeviceStateListening) {
+                        SetDeviceState(kDeviceStateSpeaking);
                     }
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
-                    if (chat_state_ == kChatStateSpeaking) {
-                        background_task_.WaitForCompletion();
+                    if (device_state_ == kDeviceStateSpeaking) {
+                        background_task_->WaitForCompletion();
                         if (keep_listening_) {
                             protocol_->SendStartListening(kListeningModeAutoStop);
-                            SetChatState(kChatStateListening);
+                            SetDeviceState(kDeviceStateListening);
                         } else {
-                            SetChatState(kChatStateIdle);
+                            SetDeviceState(kDeviceStateIdle);
                         }
                     }
                 });
@@ -380,12 +406,7 @@ void Application::Start() {
         }
     });
 
-    // Blink the LED to indicate the device is running
-    display->SetStatus("待命");
-    builtin_led->SetGreen();
-    builtin_led->BlinkOnce();
-
-    SetChatState(kChatStateIdle);
+    SetDeviceState(kDeviceStateIdle);
 }
 
 void Application::Schedule(std::function<void()> callback) {
@@ -436,7 +457,7 @@ void Application::OutputAudio() {
     std::unique_lock<std::mutex> lock(mutex_);
     if (audio_decode_queue_.empty()) {
         // Disable the output if there is no audio data for a long time
-        if (chat_state_ == kChatStateIdle) {
+        if (device_state_ == kDeviceStateIdle) {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
             if (duration > max_silence_seconds) {
                 codec->EnableOutput(false);
@@ -445,7 +466,7 @@ void Application::OutputAudio() {
         return;
     }
 
-    if (chat_state_ == kChatStateListening) {
+    if (device_state_ == kDeviceStateListening) {
         audio_decode_queue_.clear();
         return;
     }
@@ -455,7 +476,7 @@ void Application::OutputAudio() {
     audio_decode_queue_.pop_front();
     lock.unlock();
 
-    background_task_.Schedule([this, codec, opus = std::move(opus)]() mutable {
+    background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
         if (aborted_) {
             return;
         }
@@ -516,8 +537,8 @@ void Application::InputAudio() {
         wake_word_detect_.Feed(data);
     }
 #else
-    if (chat_state_ == kChatStateListening) {
-        background_task_.Schedule([this, data = std::move(data)]() mutable {
+    if (device_state_ == kDeviceStateListening) {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -534,36 +555,32 @@ void Application::AbortSpeaking(AbortReason reason) {
     protocol_->SendAbortSpeaking(reason);
 }
 
-void Application::SetChatState(ChatState state) {
-    if (chat_state_ == state) {
+void Application::SetDeviceState(DeviceState state) {
+    if (device_state_ == state) {
         return;
     }
     
-    chat_state_ = state;
-    ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[chat_state_]);
+    device_state_ = state;
+    ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
-    background_task_.WaitForCompletion();
+    background_task_->WaitForCompletion();
 
     auto display = Board::GetInstance().GetDisplay();
-    auto builtin_led = Board::GetInstance().GetBuiltinLed();
+    auto led = Board::GetInstance().GetLed();
+    led->OnStateChanged();
     switch (state) {
-        case kChatStateUnknown:
-        case kChatStateIdle:
-            builtin_led->TurnOff();
+        case kDeviceStateUnknown:
+        case kDeviceStateIdle:
             display->SetStatus("待命");
             display->SetEmotion("neutral");
 #ifdef CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Stop();
 #endif
             break;
-        case kChatStateConnecting:
-            builtin_led->SetBlue();
-            builtin_led->TurnOn();
+        case kDeviceStateConnecting:
             display->SetStatus("连接中...");
             break;
-        case kChatStateListening:
-            builtin_led->SetRed();
-            builtin_led->TurnOn();
+        case kDeviceStateListening:
             display->SetStatus("聆听中...");
             display->SetEmotion("neutral");
             ResetDecoder();
@@ -573,22 +590,16 @@ void Application::SetChatState(ChatState state) {
 #endif
             UpdateIotStates();
             break;
-        case kChatStateSpeaking:
-            builtin_led->SetGreen();
-            builtin_led->TurnOn();
+        case kDeviceStateSpeaking:
             display->SetStatus("说话中...");
             ResetDecoder();
 #if CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Stop();
 #endif
             break;
-        case kChatStateUpgrading:
-            builtin_led->SetGreen();
-            builtin_led->StartContinuousBlink(100);
-            break;
         default:
-            ESP_LOGE(TAG, "Invalid chat state: %d", chat_state_);
-            return;
+            // Do nothing
+            break;
     }
 }
 

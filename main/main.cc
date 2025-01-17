@@ -24,7 +24,7 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    // Otherwise, launch the application
+    // Launch the application
     Application::GetInstance().Start();
 
     // Dump CPU usage every 10 second

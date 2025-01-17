@@ -7,8 +7,8 @@
 #include <udp.h>
 #include <string>
 
-#include "led.h"
 #include "sdcard.h"
+#include "led/led.h"
 
 void* create_board();
 class AudioCodec;
@@ -33,7 +33,7 @@ public:
 
     virtual void StartNetwork() = 0;
     virtual ~Board() = default;
-    virtual Led* GetBuiltinLed() = 0;
+    virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual float GetBarometer() = 0;
     virtual float GetTemperature() = 0;

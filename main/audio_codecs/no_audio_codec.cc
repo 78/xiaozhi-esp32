@@ -15,7 +15,7 @@ NoAudioCodec::~NoAudioCodec() {
 }
 
 
-NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
     duplex_ = true;
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
@@ -68,7 +68,7 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
-NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din) {
+NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din) {
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
@@ -131,7 +131,7 @@ NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_n
     ESP_LOGI(TAG, "Simplex channels created");
 }
 
-NoAudioCodec::NoAudioCodec(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_din) {
+NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_din) {
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;

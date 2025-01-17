@@ -4,9 +4,9 @@
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-#include "led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led/single_led.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -42,7 +42,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetChatState() == kChatStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
@@ -107,17 +107,17 @@ public:
         InitializeIot();
     }
 
-    virtual Led* GetBuiltinLed() override {
-        static Led led(BUILTIN_LED_GPIO);
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
-        static NoAudioCodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+        static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
 #else
-        static NoAudioCodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
 #endif
         return &audio_codec;

@@ -1,17 +1,20 @@
-#include "led.h"
-#include "board.h"
+#include "single_led.h"
+#include "application.h"
+#include <esp_log.h> 
 
-#include <cstring>
-#include <esp_log.h>
+#define TAG "SingleLed"
 
-#define TAG "Led"
+#define DEFAULT_BRIGHTNESS 4
+#define HIGH_BRIGHTNESS 16
+#define LOW_BRIGHTNESS 2
 
-Led::Led(gpio_num_t gpio) {
-    if (gpio == GPIO_NUM_NC) {
-        ESP_LOGI(TAG, "Builtin LED not connected");
-        return;
-    }
-    
+#define BLINK_INFINITE -1
+
+
+SingleLed::SingleLed(gpio_num_t gpio) {
+    // If the gpio is not connected, you should use NoLed class
+    assert(gpio != GPIO_NUM_NC);
+
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
     strip_config.max_leds = 2;
@@ -24,11 +27,9 @@ Led::Led(gpio_num_t gpio) {
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip_));
     led_strip_clear(led_strip_);
 
-    SetGrey();
-
     esp_timer_create_args_t blink_timer_args = {
         .callback = [](void *arg) {
-            auto led = static_cast<Led*>(arg);
+            auto led = static_cast<SingleLed*>(arg);
             led->OnBlinkTimer();
         },
         .arg = this,
@@ -39,20 +40,21 @@ Led::Led(gpio_num_t gpio) {
     ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));
 }
 
-Led::~Led() {
+SingleLed::~SingleLed() {
     esp_timer_stop(blink_timer_);
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
     }
 }
 
-void Led::SetColor(uint8_t r, uint8_t g, uint8_t b) {
+
+void SingleLed::SetColor(uint8_t r, uint8_t g, uint8_t b) {
     r_ = r;
     g_ = g;
     b_ = b;
 }
 
-void Led::TurnOn() {
+void SingleLed::TurnOn() {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -64,7 +66,7 @@ void Led::TurnOn() {
     led_strip_refresh(led_strip_);
 }
 
-void Led::TurnOff() {
+void SingleLed::TurnOff() {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -74,19 +76,19 @@ void Led::TurnOff() {
     led_strip_clear(led_strip_);
 }
 
-void Led::BlinkOnce() {
+void SingleLed::BlinkOnce() {
     Blink(1, 100);
 }
 
-void Led::Blink(int times, int interval_ms) {
+void SingleLed::Blink(int times, int interval_ms) {
     StartBlinkTask(times, interval_ms);
 }
 
-void Led::StartContinuousBlink(int interval_ms) {
+void SingleLed::StartContinuousBlink(int interval_ms) {
     StartBlinkTask(BLINK_INFINITE, interval_ms);
 }
 
-void Led::StartBlinkTask(int times, int interval_ms) {
+void SingleLed::StartBlinkTask(int times, int interval_ms) {
     if (led_strip_ == nullptr) {
         return;
     }
@@ -94,13 +96,12 @@ void Led::StartBlinkTask(int times, int interval_ms) {
     std::lock_guard<std::mutex> lock(mutex_);
     esp_timer_stop(blink_timer_);
     
-    led_strip_clear(led_strip_);
     blink_counter_ = times * 2;
     blink_interval_ms_ = interval_ms;
     esp_timer_start_periodic(blink_timer_, interval_ms * 1000);
 }
 
-void Led::OnBlinkTimer() {
+void SingleLed::OnBlinkTimer() {
     std::lock_guard<std::mutex> lock(mutex_);
     blink_counter_--;
     if (blink_counter_ & 1) {
@@ -113,5 +114,47 @@ void Led::OnBlinkTimer() {
         if (blink_counter_ == 0) {
             esp_timer_stop(blink_timer_);
         }
+    }
+}
+
+
+void SingleLed::OnStateChanged() {
+    auto& app = Application::GetInstance();
+    auto device_state = app.GetDeviceState();
+    switch (device_state) {
+        case kDeviceStateStarting:
+            SetColor(0, 0, DEFAULT_BRIGHTNESS);
+            StartContinuousBlink(100);
+            break;
+        case kDeviceStateWifiConfiguring:
+            SetColor(0, 0, DEFAULT_BRIGHTNESS);
+            StartContinuousBlink(500);
+            break;
+        case kDeviceStateIdle:
+            TurnOff();
+            break;
+        case kDeviceStateConnecting:
+            SetColor(0, 0, DEFAULT_BRIGHTNESS);
+            TurnOn();
+            break;
+        case kDeviceStateListening:
+            if (app.IsVoiceDetected()) {
+                SetColor(HIGH_BRIGHTNESS, 0, 0);
+            } else {
+                SetColor(LOW_BRIGHTNESS, 0, 0);
+            }
+            TurnOn();
+            break;
+        case kDeviceStateSpeaking:
+            SetColor(0, DEFAULT_BRIGHTNESS, 0);
+            TurnOn();
+            break;
+        case kDeviceStateUpgrading:
+            SetColor(0, DEFAULT_BRIGHTNESS, 0);
+            StartContinuousBlink(100);
+            break;
+        default:
+            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            return;
     }
 }

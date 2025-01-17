@@ -70,6 +70,8 @@ void Display::SetStatus(const std::string &status)
     }
     DisplayLockGuard lock(this);
     lv_label_set_text(status_label_, status.c_str());
+    lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms)
@@ -140,9 +142,8 @@ void Display::Update()
     }
 
     // 仅在聊天状态为空闲时，读取网络状态（避免升级时占用 UART 资源）
-    auto chat_state = Application::GetInstance().GetChatState();
-    if (chat_state == kChatStateIdle || chat_state == kChatStateUnknown)
-    {
+    auto device_state = Application::GetInstance().GetDeviceState();
+    if (device_state == kDeviceStateIdle || device_state == kDeviceStateStarting) {
         icon = board.GetNetworkStateIcon();
         if (network_icon_ != icon)
         {

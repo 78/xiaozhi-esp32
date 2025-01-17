@@ -165,11 +165,11 @@ void Ota::Upgrade(const std::string& firmware_url) {
         return;
     }
 
-    std::vector<char> buffer(4096);
+    char buffer[512];
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
-        int ret = http->Read(buffer.data(), buffer.size());
+        int ret = http->Read(buffer, sizeof(buffer));
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
             delete http;
@@ -193,9 +193,8 @@ void Ota::Upgrade(const std::string& firmware_url) {
             break;
         }
 
-
         if (!image_header_checked) {
-            image_header.append(buffer.data(), ret);
+            image_header.append(buffer, ret);
             if (image_header.size() >= sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
                 esp_app_desc_t new_app_info;
                 memcpy(&new_app_info, image_header.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(esp_app_desc_t));
@@ -216,9 +215,10 @@ void Ota::Upgrade(const std::string& firmware_url) {
                 }
 
                 image_header_checked = true;
+                std::string().swap(image_header);
             }
         }
-        auto err = esp_ota_write(update_handle, buffer.data(), ret);
+        auto err = esp_ota_write(update_handle, buffer, ret);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
             esp_ota_abort(update_handle);
