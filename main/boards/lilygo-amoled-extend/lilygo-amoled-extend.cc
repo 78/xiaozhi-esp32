@@ -78,7 +78,8 @@ private:
         rx8900 = rx8900_create(i2c_bus, RX8900_I2C_ADDRESS_DEFAULT);
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
         _rx8900 = rx8900;
-        xTaskCreate([](void *arg) {
+        xTaskCreate([](void *arg)
+                    {
             sntp_set_time_sync_notification_cb([](struct timeval *t){
                 struct tm tm_info;
                 localtime_r(&t->tv_sec, &tm_info);
@@ -162,7 +163,7 @@ private:
         .data_io_default_level = 0,                                      \
         .max_transfer_sz = max_trans_sz,                                 \
         .flags = 0,                                                      \
-        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,                                                 \
+        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,                        \
         .intr_flags = 0                                                  \
     }
     void InitializeSpi()
@@ -349,11 +350,11 @@ public:
         }
         static struct tm time_user;
         rx8900_read_time(rx8900, &time_user);
-
-        char time_str[50];
-        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
-
-        ESP_LOGI(TAG, "The time is: %s", time_str);
+       ((Rm67162Display*) GetDisplay())->UpdateTime(&time_user);
+        
+        // char time_str[50];
+        // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
+        // ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }
 };

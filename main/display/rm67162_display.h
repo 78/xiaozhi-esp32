@@ -12,6 +12,7 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include <vector>
+#include <time.h>
 
 class Rm67162Display : public Display
 {
@@ -30,17 +31,22 @@ private:
     esp_timer_handle_t lvgl_tick_timer_ = nullptr;
 
     lv_obj_t *status_bar_ = nullptr;
+    lv_obj_t *content_ = nullptr;
     lv_obj_t *container_ = nullptr;
     lv_obj_t *side_bar_ = nullptr;
+    lv_obj_t *time_label_ = nullptr;
     lv_style_t style_user;
     lv_style_t style_assistant;
-    std::vector<lv_obj_t*> labelContainer; // 存储 label 指针的容器
+    std::vector<lv_obj_t *> labelContainer; // 存储 label 指针的容器
+    lv_anim_t anim[2];
 
-    void RemoveOldestLabel() {
-        if (!labelContainer.empty()) {
-            lv_obj_t* oldestLabel = labelContainer.front();
+    void RemoveOldestLabel()
+    {
+        if (!labelContainer.empty())
+        {
+            lv_obj_t *oldestLabel = labelContainer.front();
             labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
-            lv_obj_del(oldestLabel); // 删除 lvgl 对象
+            lv_obj_del(oldestLabel);                      // 删除 lvgl 对象
         }
     }
     // void InitializeBacklight(gpio_num_t backlight_pin);
@@ -64,6 +70,7 @@ public:
 
     virtual void SetBacklight(uint8_t brightness) override;
     virtual void SetChatMessage(const std::string &role, const std::string &content) override;
+    void UpdateTime(struct tm *time);
 };
 
 #endif // RM67162_DISPLAY_H

@@ -244,6 +244,24 @@ void Rm67162Display::SetBacklight(uint8_t brightness)
     esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
 }
 
+void Rm67162Display::UpdateTime(struct tm *time)
+{
+    char time_str[6];
+    strftime(time_str, sizeof(time_str), "%H:%M", time);
+    DisplayLockGuard lock(this);
+    lv_label_set_text(time_label_, time_str);
+}
+
+static void set_width(void *var, int32_t v)
+{
+    lv_obj_set_width((lv_obj_t *)var, v);
+}
+
+static void set_height(void *var, int32_t v)
+{
+    lv_obj_set_height((lv_obj_t *)var, v);
+}
+
 void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
 {
     std::stringstream ss;
@@ -276,10 +294,27 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
 
     lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
 
-    if (lv_obj_get_width(label) >= LV_HOR_RES)
-        lv_obj_set_width(label, LV_HOR_RES);
     lv_obj_update_layout(label);
+    ESP_LOGI(TAG, "Label Width: %d-%d", lv_obj_get_width(label), (LV_HOR_RES - 2));
+    if (lv_obj_get_width(label) >= (LV_HOR_RES - 2))
+        lv_obj_set_width(label, (LV_HOR_RES - 2));
     lv_obj_scroll_to_view(label, LV_ANIM_ON);
+
+    for (size_t i = 0; i < 2; i++)
+    {
+        lv_anim_init(&anim[i]);
+        lv_anim_set_var(&anim[i], label);
+        lv_anim_set_early_apply(&anim[i], false);
+        lv_anim_set_path_cb(&anim[i], lv_anim_path_overshoot);
+        lv_anim_set_time(&anim[i], 300);
+    }
+    lv_anim_set_values(&anim[0], 0, lv_obj_get_width(label));
+    lv_anim_set_exec_cb(&anim[0], (lv_anim_exec_xcb_t)set_width);
+    lv_anim_start(&anim[0]);
+
+    lv_anim_set_values(&anim[1], 0, lv_obj_get_height(label));
+    lv_anim_set_exec_cb(&anim[1], (lv_anim_exec_xcb_t)set_height);
+    lv_anim_start(&anim[1]);
 
     labelContainer.push_back(label); // 将新创建的 label 加入容器
 }
@@ -387,7 +422,7 @@ void Rm67162Display::SetupUI()
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 2, 0);
+    lv_obj_set_style_pad_column(status_bar_, 4, 0);
 
     /* Content */
     content_ = lv_obj_create(container_);
@@ -405,6 +440,10 @@ void Rm67162Display::SetupUI()
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+
+    time_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(time_label_, "");
+    lv_obj_set_style_text_font(time_label_, &font_puhui_14_1, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
