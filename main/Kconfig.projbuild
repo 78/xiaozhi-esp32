@@ -64,6 +64,10 @@ choice BOARD_TYPE
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_ESP_BOX_3_NEW
+        bool "ESP BOX 3 new"
+    config BOARD_TYPE_YANGHE_BOX
+        bool "yanghe box"
 endchoice
 
 endmenu
