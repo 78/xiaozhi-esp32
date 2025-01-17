@@ -348,7 +348,7 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         {"😍", "loving"},
         {"😳", "embarrassed"},
         {"😲", "surprised"},
-        {"😲", "shocked"},
+        {"😨", "shocked"},
         {"🤔", "thinking"},
         {"😉", "winking"},
         {"😎", "cool"},
