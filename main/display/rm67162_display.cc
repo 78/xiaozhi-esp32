@@ -289,21 +289,29 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
     {
         RemoveOldestLabel(); // 当 label 数量达到 10 时移除最早的
     }
+    lv_obj_t *container = lv_obj_create(content_);
+    lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_radius(container, 0, 0);
+    lv_obj_set_style_border_width(container, 0, 0);
+    lv_obj_set_width(container, LV_HOR_RES - 2);
+    lv_obj_set_style_pad_all(container, 0, 0);
 
-    lv_obj_t *label = lv_label_create(content_);
+    lv_obj_t *label = lv_label_create(container);
     lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
 
     if (role == "user")
     {
         lv_obj_add_style(label, &style_user, 0);
+        lv_obj_align(label, LV_ALIGN_RIGHT_MID, 0, 0);
     }
     else
     {
         lv_obj_add_style(label, &style_assistant, 0);
+        lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
     }
     lv_obj_set_style_text_font(label, &font_puhui_14_1, 0);
     lv_label_set_text(label, content.c_str());
-    lv_obj_center(label);
+    // lv_obj_center(label);
 
     lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
 
@@ -311,7 +319,7 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
     ESP_LOGI(TAG, "Label Width: %d-%d", lv_obj_get_width(label), (LV_HOR_RES - 2));
     if (lv_obj_get_width(label) >= (LV_HOR_RES - 2))
         lv_obj_set_width(label, (LV_HOR_RES - 2));
-    lv_obj_scroll_to_view(label, LV_ANIM_ON);
+    lv_obj_scroll_to_view(container, LV_ANIM_ON);
 
     for (size_t i = 0; i < 2; i++)
     {
@@ -320,6 +328,7 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
         lv_anim_set_early_apply(&anim[i], false);
         lv_anim_set_path_cb(&anim[i], lv_anim_path_overshoot);
         lv_anim_set_time(&anim[i], 300);
+        lv_anim_set_delay(&anim[i], 200);
     }
     lv_anim_set_values(&anim[0], 0, lv_obj_get_width(label));
     lv_anim_set_exec_cb(&anim[0], (lv_anim_exec_xcb_t)set_width);
@@ -329,7 +338,19 @@ void Rm67162Display::SetChatMessage(const std::string &role, const std::string &
     lv_anim_set_exec_cb(&anim[1], (lv_anim_exec_xcb_t)set_height);
     lv_anim_start(&anim[1]);
 
-    labelContainer.push_back(label); // 将新创建的 label 加入容器
+    lv_obj_set_width(label, 0);
+    lv_obj_set_height(label, 0);
+
+    lv_anim_init(&anim[2]);
+    lv_anim_set_var(&anim[2], container);
+    lv_anim_set_early_apply(&anim[2], true);
+    lv_anim_set_path_cb(&anim[2], lv_anim_path_overshoot);
+    lv_anim_set_time(&anim[2], 200);
+    lv_anim_set_values(&anim[2], 0, lv_obj_get_height(label));
+    lv_anim_set_exec_cb(&anim[2], (lv_anim_exec_xcb_t)set_height);
+    lv_anim_start(&anim[2]);
+
+    labelContainer.push_back(container); // 将新创建的 container 加入容器
 }
 
 Rm67162Display::~Rm67162Display()
@@ -490,8 +511,8 @@ void Rm67162Display::SetupUI()
     lv_style_set_border_color(&style_user, lv_color_hex(0));
     lv_style_set_pad_all(&style_user, 10);
 
-    lv_style_set_text_color(&style_user, lv_color_hex(0));
-    lv_style_set_bg_color(&style_user, lv_color_hex(0xE0E0E0));
+    lv_style_set_text_color(&style_user, lv_color_hex(0xffffff));
+    lv_style_set_bg_color(&style_user, lv_color_hex(0x00B050));
 
     lv_style_init(&style_assistant);
     lv_style_set_radius(&style_assistant, 5);
@@ -500,6 +521,6 @@ void Rm67162Display::SetupUI()
     lv_style_set_border_color(&style_assistant, lv_color_hex(0));
     lv_style_set_pad_all(&style_assistant, 10);
 
-    lv_style_set_text_color(&style_assistant, lv_color_hex(0xffffff));
-    lv_style_set_bg_color(&style_assistant, lv_color_hex(0x00B050));
+    lv_style_set_text_color(&style_assistant, lv_color_hex(0));
+    lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
 }

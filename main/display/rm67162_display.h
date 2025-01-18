@@ -38,7 +38,7 @@ private:
     lv_style_t style_user;
     lv_style_t style_assistant;
     std::vector<lv_obj_t *> labelContainer; // 存储 label 指针的容器
-    lv_anim_t anim[2];
+    lv_anim_t anim[3];
 
     void RemoveOldestLabel()
     {
@@ -46,7 +46,10 @@ private:
         {
             lv_obj_t *oldestLabel = labelContainer.front();
             labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
-            lv_obj_del(oldestLabel);                      // 删除 lvgl 对象
+
+            lv_obj_t *label = lv_obj_get_child(oldestLabel, 0);
+            lv_obj_del(label);      
+            lv_obj_del(oldestLabel); // 删除 lvgl 对象
         }
     }
     // void InitializeBacklight(gpio_num_t backlight_pin);
@@ -70,7 +73,7 @@ public:
 
     virtual void SetBacklight(uint8_t brightness) override;
     virtual void SetChatMessage(const std::string &role, const std::string &content) override;
-    
+
     void UpdateTime(struct tm *time);
     void Sleep();
 };
