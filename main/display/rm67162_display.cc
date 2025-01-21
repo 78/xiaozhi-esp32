@@ -277,6 +277,8 @@ static void set_height(void *var, int32_t v)
 
 void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
 {
+    if (role == "")
+        return;
     std::stringstream ss;
     ss << "role: " << role << ", content: " << content << std::endl;
     std::string logMessage = ss.str();
