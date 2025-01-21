@@ -39,7 +39,6 @@ bool MqttProtocol::StartMqttClient() {
     client_id_ = settings.GetString("client_id");
     username_ = settings.GetString("username");
     password_ = settings.GetString("password");
-    subscribe_topic_ = settings.GetString("subscribe_topic");
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint_.empty()) {
@@ -92,9 +91,6 @@ bool MqttProtocol::StartMqttClient() {
     }
 
     ESP_LOGI(TAG, "Connected to endpoint");
-    if (!subscribe_topic_.empty()) {
-        mqtt_->Subscribe(subscribe_topic_, 2);
-    }
     return true;
 }
 
