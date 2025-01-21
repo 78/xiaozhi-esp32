@@ -3,12 +3,14 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
+            "audio_codecs/t_circle_s3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/lcd_display.cc"
             "display/ssd1306_display.cc"
+            "boards/lilygo-t-circle-s3/esp_lcd_gc9d01n.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -71,6 +73,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")    
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
+    set(BOARD_TYPE "lilygo-t-circle-s3")    
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})

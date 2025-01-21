@@ -68,6 +68,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
          bool "面包板新版接线（WiFi）+ LCD"
+    config BOARD_TYPE_LILYGO_T_CIRCLE_S3
+         bool "LILYGO T-Circle-S3"
 endchoice
 
 choice DISPLAY_LCD_TYPE
