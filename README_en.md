@@ -53,6 +53,7 @@ Breadboard setup shown below:
 - MagiClick 2.4
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xmini C3">Xmini C3</a>
 - <a href="https://www.waveshare.com/esp32-s3-touch-amoled-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
@@ -72,6 +73,9 @@ Breadboard setup shown below:
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
+  </a>
+  <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
+    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
   </a>
 </div>
 
