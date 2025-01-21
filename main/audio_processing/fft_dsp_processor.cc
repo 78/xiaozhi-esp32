@@ -14,7 +14,7 @@ FFTDspProcessor::FFTDspProcessor()
 void FFTDspProcessor::Initialize()
 {
     // Init esp-dsp library to use fft functionality
-    esp_err_t ret = dsps_fft2r_init_sc16(NULL, CONFIG_DSP_MAX_FFT_SIZE);
+    esp_err_t ret = dsps_fft2r_init_fc32(NULL, CONFIG_DSP_MAX_FFT_SIZE);
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Not possible to initialize FFT esp-dsp from library!");
@@ -71,43 +71,31 @@ void FFTDspProcessor::FFTDspProcessorTask()
                     free(wind_buffer);
                 audio_chunksize = data.size();
                 // Allocate audio buffer and check for result
-                audio_buffer = (int16_t *)memalign(16, (audio_chunksize + 16) * sizeof(int16_t) * I2S_CHANNEL_NUM);
+                audio_buffer = (float *)memalign(16, (audio_chunksize + 16) * sizeof(float) * I2S_CHANNEL_NUM);
                 // Allocate buffer for window
-                wind_buffer = (int16_t *)memalign(16, (audio_chunksize + 16) * sizeof(int16_t) * I2S_CHANNEL_NUM);
+                wind_buffer = (float *)memalign(16, (audio_chunksize + 16) * sizeof(float));
                 // Generate window and convert it to int16_t
-                dsps_wind_hann_f32(result_data, audio_chunksize);
-                for (int i = 0; i < audio_chunksize; i++)
-                {
-                    wind_buffer[i * 2 + 0] = (int16_t)(result_data[i] * 32767);
-                    wind_buffer[i * 2 + 1] = wind_buffer[i * 2 + 0];
-                }
+                dsps_wind_hann_f32(wind_buffer, audio_chunksize);
             }
-
-            auto rawData = data.data();
+            auto raw_buffer = data.data();
             for (size_t i = 0; i < audio_chunksize; i++)
             {
-                audio_buffer[2 * i + 0] = rawData[i];
-                audio_buffer[2 * i + 1] = audio_buffer[2 * i + 0];
+                audio_buffer[2 * i + 0] = raw_buffer[i] * wind_buffer[i];
+                audio_buffer[2 * i + 1] = 0;
             }
 
-            dsps_mul_s16_ansi(audio_buffer, wind_buffer, audio_buffer, audio_chunksize * 2, 1, 1, 1, 15);
-
             // Call FFT bit reverse
-            dsps_fft2r_sc16_ae32(audio_buffer, audio_chunksize);
-            dsps_bit_rev_sc16_ansi(audio_buffer, audio_chunksize);
+            dsps_fft2r_fc32(audio_buffer, audio_chunksize);
+            dsps_bit_rev_fc32(audio_buffer, audio_chunksize);
             // Convert spectrum from two input channels to two
             // spectrums for two channels.
-            dsps_cplx2reC_sc16(audio_buffer, audio_chunksize);
+            dsps_cplx2reC_fc32(audio_buffer, audio_chunksize);
 
             // The output data array presented as moving average for input in dB
             for (int i = 0; i < audio_chunksize; i++)
             {
                 float spectrum_sqr = audio_buffer[i * 2 + 0] * audio_buffer[i * 2 + 0] + audio_buffer[i * 2 + 1] * audio_buffer[i * 2 + 1];
                 float spectrum_dB = 10 * log10f(0.1 + spectrum_sqr);
-                // Multiply with sime coefficient for better view data on screen
-                spectrum_dB = 4 * spectrum_dB;
-                // Apply moving average of spectrum
-                // result_data[i] = 0.8 * result_data[i] + 0.2 * spectrum_dB;
                 result_data[i] = spectrum_dB;
             }
             if (output_callback_)

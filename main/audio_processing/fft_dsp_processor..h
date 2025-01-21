@@ -34,8 +34,8 @@ public:
 private:
     QueueHandle_t inputQueue;  // RTOS 队列句柄
     int audio_chunksize = 0;
-    int16_t *audio_buffer;
-    int16_t *wind_buffer;
+    float *audio_buffer;
+    float *wind_buffer;
     // Buffer to process output spectrum
     float result_data[BUFFER_PROCESS_SIZE];
     std::vector<int16_t> input_buffer_;

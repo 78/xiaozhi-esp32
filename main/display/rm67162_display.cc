@@ -275,20 +275,20 @@ static void set_height(void *var, int32_t v)
     lv_obj_set_height((lv_obj_t *)var, v);
 }
 // Screen image width
-#define X_AXIS_SIZE (240)
+#define X_AXIS_SIZE (32)
 // Screen image height
-#define Y_AXIS_SIZE (64)
+#define Y_AXIS_SIZE (32)
 
-static uint8_t screen_rgb_data[(X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8];
+static uint8_t screen_rgb_data[X_AXIS_SIZE * Y_AXIS_SIZE * 3];
 
 static const lv_img_dsc_t img_screen_rgb = {
     .header = {
-        .cf = LV_IMG_CF_INDEXED_1BIT,
+        .cf = LV_IMG_CF_TRUE_COLOR_ALPHA,
         .always_zero = 0,
         .w = X_AXIS_SIZE,
         .h = Y_AXIS_SIZE,
     },
-    .data_size =(X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8,
+    .data_size = X_AXIS_SIZE * Y_AXIS_SIZE * 3,
     .data = screen_rgb_data,
 };
 // Init screen with blue values
@@ -296,31 +296,76 @@ static void spectrum2d_picture_init()
 {
 }
 
+double fft_data[32];
+double fft_add(float *fft_bin, int from, int to)
+{
+    int i = from;
+    double result = 0;
+    while (i <= to)
+    {
+        result += fft_bin[i++];
+    }
+    return result;
+}
+#define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 // Add spectrum data to the screen
 void Rm67162Display::spectrum2d_picture(float *result_data, int size)
 {
+    fft_data[0] = (fft_add(result_data, 3, 4)) / 2;       // 60-100Hz
+    fft_data[1] = (fft_add(result_data, 4, 5)) / 2;       // 80-120Hz
+    fft_data[2] = (fft_add(result_data, 5, 6)) / 2;       // 100-140Hz
+    fft_data[3] = (fft_add(result_data, 6, 7)) / 2;       // 120-160Hz
+    fft_data[4] = (fft_add(result_data, 7, 8)) / 2;       // 140-180Hz
+    fft_data[5] = (fft_add(result_data, 8, 9)) / 2;       // 160-200Hz
+    fft_data[6] = (fft_add(result_data, 9, 10)) / 2;      // 180-220Hz
+    fft_data[7] = (fft_add(result_data, 10, 11)) / 2;     // 200-240Hz
+    fft_data[8] = (fft_add(result_data, 11, 12)) / 2;     // 220-260Hz
+    fft_data[9] = (fft_add(result_data, 12, 13)) / 2;     // 240-280Hz
+    fft_data[10] = (fft_add(result_data, 13, 14)) / 2;    // 260-300Hz
+    fft_data[11] = (fft_add(result_data, 14, 16)) / 3;    // 280-340Hz
+    fft_data[12] = (fft_add(result_data, 16, 18)) / 3;    // 320-380Hz
+    fft_data[13] = (fft_add(result_data, 18, 20)) / 3;    // 360-420Hz
+    fft_data[14] = (fft_add(result_data, 20, 24)) / 5;    // 400-500Hz
+    fft_data[15] = (fft_add(result_data, 24, 28)) / 5;    // 480-580Hz
+    fft_data[16] = (fft_add(result_data, 28, 32)) / 5;    // 560-660Hz
+    fft_data[17] = (fft_add(result_data, 32, 36)) / 5;    // 640-740Hz
+    fft_data[18] = (fft_add(result_data, 36, 42)) / 7;    // 720-860Hz
+    fft_data[19] = (fft_add(result_data, 42, 48)) / 7;    // 840-980Hz
+    fft_data[20] = (fft_add(result_data, 48, 56)) / 9;    // 960-1140Hz
+    fft_data[21] = (fft_add(result_data, 56, 64)) / 9;    // 1120-1300Hz
+    fft_data[22] = (fft_add(result_data, 64, 74)) / 11;   // 1280-1500Hz
+    fft_data[23] = (fft_add(result_data, 74, 84)) / 11;   // 1480-1700Hz
+    fft_data[24] = (fft_add(result_data, 84, 97)) / 14;   // 1680-1960Hz
+    fft_data[25] = (fft_add(result_data, 97, 110)) / 14;  // 1940-2240Hz
+    fft_data[26] = (fft_add(result_data, 110, 128)) / 19; // 2200-2580Hz
+    fft_data[27] = (fft_add(result_data, 128, 146)) / 19; // 2560-2940Hz
+    fft_data[28] = (fft_add(result_data, 146, 170)) / 25; // 2920-3420Hz
+    fft_data[29] = (fft_add(result_data, 170, 194)) / 25; // 3400-3900Hz
+    fft_data[30] = (fft_add(result_data, 194, 224)) / 31; // 3880-4500Hz
+    fft_data[31] = (fft_add(result_data, 224, 255)) / 32; // 4520-5120Hz
 
-        memset(screen_rgb_data, 0, (X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8);
+    memset(screen_rgb_data, 0, X_AXIS_SIZE * Y_AXIS_SIZE * 2);
 
+    for (int i = 0; i < 32; i++)
+    {
+        fft_data[i] /= 16;
+        fft_data[i] = constrain((int)fft_data[i], 0, Y_AXIS_SIZE);
+    }
 
-        for (int x = 0; x < X_AXIS_SIZE; ++x)
+    for (int x = 0; x < X_AXIS_SIZE; ++x)
+    {
+        int mapped_int = fft_data[x];
+        // ESP_LOGI(TAG, "%d: %d-%.1f", x, mapped_int, fft_data[x]);
+        for (int y = 0; y < Y_AXIS_SIZE; ++y)
         {
-            float mapped_value = lv_map(result_data[x * (size) / X_AXIS_SIZE], 0, 128, 0, Y_AXIS_SIZE);
-            int mapped_int = static_cast<int>(mapped_value);
-
-
-            for (int y = 0; y < Y_AXIS_SIZE; ++y)
+            if (mapped_int > (Y_AXIS_SIZE - 1 - y))
             {
-                if (mapped_int > (Y_AXIS_SIZE - 1 - y))
-                {
-                    // Set the bit corresponding to the pixel to 1 (white)
-                    int byte_index = (y * X_AXIS_SIZE + x) / 8;
-                    int bit_index = (y * X_AXIS_SIZE + x) % 8;
-                    screen_rgb_data[byte_index] |= (1 << bit_index);
-                }
+                screen_rgb_data[(x * img_screen_rgb.header.w + y) * LV_IMG_PX_SIZE_ALPHA_BYTE + 0] = 0xff;
+                screen_rgb_data[(x * img_screen_rgb.header.w + y) * LV_IMG_PX_SIZE_ALPHA_BYTE + 1] = 0xff;
+                screen_rgb_data[(x * img_screen_rgb.header.w + y) * LV_IMG_PX_SIZE_ALPHA_BYTE + 2] = 0xff;
             }
         }
-
+    }
 
     DisplayLockGuard lock(this);
     lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
