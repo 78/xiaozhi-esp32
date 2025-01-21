@@ -55,6 +55,7 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            app.ToggleChatState();
         });
         boot_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
