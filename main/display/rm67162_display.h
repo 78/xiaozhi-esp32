@@ -30,6 +30,7 @@ private:
     SemaphoreHandle_t lvgl_mutex_ = nullptr;
     esp_timer_handle_t lvgl_tick_timer_ = nullptr;
 
+    lv_obj_t *img1 = nullptr;
     lv_obj_t *status_bar_ = nullptr;
     lv_obj_t *content_ = nullptr;
     lv_obj_t *container_ = nullptr;
@@ -48,7 +49,7 @@ private:
             labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
 
             lv_obj_t *label = lv_obj_get_child(oldestLabel, 0);
-            lv_obj_del(label);      
+            lv_obj_del(label);
             lv_obj_del(oldestLabel); // 删除 lvgl 对象
         }
     }
@@ -76,6 +77,8 @@ public:
 
     void UpdateTime(struct tm *time);
     void Sleep();
+
+    void spectrum2d_picture(float *result_data, int size);
 };
 
 #endif // RM67162_DISPLAY_H

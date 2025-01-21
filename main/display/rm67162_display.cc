@@ -274,6 +274,57 @@ static void set_height(void *var, int32_t v)
 {
     lv_obj_set_height((lv_obj_t *)var, v);
 }
+// Screen image width
+#define X_AXIS_SIZE (240)
+// Screen image height
+#define Y_AXIS_SIZE (64)
+
+static uint8_t screen_rgb_data[(X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8];
+
+static const lv_img_dsc_t img_screen_rgb = {
+    .header = {
+        .cf = LV_IMG_CF_INDEXED_1BIT,
+        .always_zero = 0,
+        .w = X_AXIS_SIZE,
+        .h = Y_AXIS_SIZE,
+    },
+    .data_size =(X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8,
+    .data = screen_rgb_data,
+};
+// Init screen with blue values
+static void spectrum2d_picture_init()
+{
+}
+
+// Add spectrum data to the screen
+void Rm67162Display::spectrum2d_picture(float *result_data, int size)
+{
+
+        memset(screen_rgb_data, 0, (X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8);
+
+
+        for (int x = 0; x < X_AXIS_SIZE; ++x)
+        {
+            float mapped_value = lv_map(result_data[x * (size) / X_AXIS_SIZE], 0, 128, 0, Y_AXIS_SIZE);
+            int mapped_int = static_cast<int>(mapped_value);
+
+
+            for (int y = 0; y < Y_AXIS_SIZE; ++y)
+            {
+                if (mapped_int > (Y_AXIS_SIZE - 1 - y))
+                {
+                    // Set the bit corresponding to the pixel to 1 (white)
+                    int byte_index = (y * X_AXIS_SIZE + x) / 8;
+                    int bit_index = (y * X_AXIS_SIZE + x) % 8;
+                    screen_rgb_data[byte_index] |= (1 << bit_index);
+                }
+            }
+        }
+
+
+    DisplayLockGuard lock(this);
+    lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
+}
 
 void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
 {
@@ -523,4 +574,9 @@ void Rm67162Display::SetupUI()
 
     lv_style_set_text_color(&style_assistant, lv_color_hex(0));
     lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
+
+    img1 = lv_img_create(lv_scr_act());
+    lv_img_set_src(img1, &img_screen_rgb);
+    spectrum2d_picture_init();
+    lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
 }
