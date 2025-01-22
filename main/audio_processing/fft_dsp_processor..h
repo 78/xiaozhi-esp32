@@ -26,18 +26,14 @@ public:
 
     void Initialize();
     void Input(const std::vector<int16_t> &data);
-    void Start();
-    void Stop();
-    bool IsRunning();
     void OnOutput(std::function<void(std::vector<float> &&data)> callback);
 
 private:
-    QueueHandle_t inputQueue;  // RTOS 队列句柄
-    int audio_chunksize = 0;
-    float *audio_buffer;
-    float *wind_buffer;
-    // Buffer to process output spectrum
-    float result_data[BUFFER_PROCESS_SIZE];
+    QueueHandle_t inputQueue; // RTOS 队列句柄
+    int audio_chunksize = BUFFER_PROCESS_SIZE;
+    __attribute__((aligned(16))) int16_t audio_buffer[BUFFER_PROCESS_SIZE * I2S_CHANNEL_NUM];
+    __attribute__((aligned(16))) int16_t wind_buffer[BUFFER_PROCESS_SIZE * I2S_CHANNEL_NUM];
+    __attribute__((aligned(16))) float result_data[BUFFER_PROCESS_SIZE];
     std::vector<int16_t> input_buffer_;
     std::function<void(std::vector<float> &&data)> output_callback_;
 

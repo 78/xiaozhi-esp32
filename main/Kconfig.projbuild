@@ -49,10 +49,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_KEVIN_C3
         bool "Kevin C3"
     config BOARD_TYPE_LICHUANG_DEV
-        bool "立创开发板"
+        bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LILYGO_AMOLED
         bool "LilyGo Amoled extend"
-        bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LICHUANG_C3_DEV
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_MAGICLICK_2P4
@@ -67,6 +66,8 @@ choice BOARD_TYPE
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP_SPARKBOT
         bool "ESP-SparkBot开发板"    
+    config BOARD_TYPE_ESP32C3_VFD_SPECTRUM
+        bool "VFD ESP32C3 PT6324"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
 endchoice
