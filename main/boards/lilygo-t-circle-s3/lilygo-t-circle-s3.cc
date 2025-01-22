@@ -244,7 +244,6 @@ public:
         static T_Circle_S3_Audio_Codec *audio_codec = nullptr;
         if (audio_codec == nullptr)
         {
-            // aw9523_->ResetAw88298();
             audio_codec = new T_Circle_S3_Audio_Codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                                                       AUDIO_MIC_I2S_GPIO_BCLK, AUDIO_MIC_I2S_GPIO_WS, AUDIO_MIC_I2S_GPIO_DATA,
                                                       AUDIO_SPKR_I2S_GPIO_BCLK, AUDIO_SPKR_I2S_GPIO_LRCLK, AUDIO_SPKR_I2S_GPIO_DATA,
@@ -257,21 +256,6 @@ public:
     {
         return display_;
     }
-
-    // virtual bool GetBatteryLevel(int &level, bool &charging) override
-    // {
-    //     static int last_level = 0;
-    //     static bool last_charging = false;
-    //     level = axp2101_->GetBatteryLevel();
-    //     charging = axp2101_->IsCharging();
-    //     if (level != last_level || charging != last_charging)
-    //     {
-    //         last_level = level;
-    //         last_charging = charging;
-    //         ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
-    //     }
-    //     return true;
-    // }
 
     CST816x *GetTouchpad()
     {
