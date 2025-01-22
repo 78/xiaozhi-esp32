@@ -72,7 +72,7 @@ elseif(CONFIG_BOARD_TYPE_XMINI_C3)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     set(BOARD_TYPE "esp32s3-korvo2-v3")
 elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
-    set(BOARD_TYPE "esp-sparkbot")    
+    set(BOARD_TYPE "esp-sparkbot")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -114,6 +114,8 @@ endif()
 if(CONFIG_USE_AUDIO_PROCESSING)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
+
+list(APPEND SOURCES "audio_processing/opus_decoder.cc" "audio_processing/opus_encoder.cc"  "audio_processing/opus_resampler.cc")
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
