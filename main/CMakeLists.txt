@@ -2,9 +2,11 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
+            "display/atk_st7789_80i.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/lcd_display.cc"
@@ -71,6 +73,10 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")    
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
+    set(BOARD_TYPE "atk-dnesp32s3")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
+    set(BOARD_TYPE "atk-dnesp32s3-box")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
