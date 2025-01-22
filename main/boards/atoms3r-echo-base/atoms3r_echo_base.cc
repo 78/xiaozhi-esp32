@@ -58,6 +58,7 @@ public:
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
+    {0x36, (uint8_t[]){0x08}, 1, 0},
     {0xfe, (uint8_t[]){0x00}, 0, 0},
     {0xef, (uint8_t[]){0x00}, 0, 0},
     {0xb0, (uint8_t[]){0xc0}, 1, 0},
