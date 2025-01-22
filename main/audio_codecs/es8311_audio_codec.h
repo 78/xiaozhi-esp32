@@ -7,6 +7,8 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+#define CONFIG_ES8311_WORK_BOTH             1
+
 class Es8311AudioCodec : public AudioCodec {
 private:
     const audio_codec_data_if_t* data_if_ = nullptr;

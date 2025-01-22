@@ -166,6 +166,10 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
     } else {
+#if CONFIG_ES8311_WORK_BOTH
+        return ;
+#endif
+        //codec关闭会让es8311进入supend,导致mic无响应
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
     }
     AudioCodec::EnableOutput(enable);
