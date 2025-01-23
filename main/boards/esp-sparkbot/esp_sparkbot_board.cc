@@ -15,8 +15,8 @@
 
 #define TAG "esp_sparkbot"
 
-DECLARE_FONT(font_puhui_16_4);
-DECLARE_FONT(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
 
 class SparkBotEs8311AudioCodec : public Es8311AudioCodec {
 private:    

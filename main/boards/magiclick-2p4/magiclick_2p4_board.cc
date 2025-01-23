@@ -14,8 +14,8 @@
 #include "esp_lcd_nv3023.h"
 #define TAG "magiclick_2p4"
 
-DECLARE_FONT(font_puhui_16_4);
-DECLARE_FONT(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
 
 class magiclick_2p4 : public WifiBoard {
 private:
