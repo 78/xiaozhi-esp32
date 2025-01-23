@@ -27,7 +27,11 @@ public:
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    &font_puhui_16_4, &font_awesome_16_4) {
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = emoji_font_init(),
+                    }) {
 
         DisplayLockGuard lock(this);
         // 只需要覆盖颜色相关的样式

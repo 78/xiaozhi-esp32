@@ -5,7 +5,6 @@
 #include <esp_err.h>
 #include <driver/ledc.h>
 #include <vector>
-#include <emoji_font.h>
 #include "board.h"
 
 #define TAG "LcdDisplay"
@@ -90,17 +89,15 @@ void LcdDisplay::LvglTask() {
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            gpio_num_t backlight_pin, bool backlight_output_invert,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           const lv_font_t* text_font, const lv_font_t* icon_font)
+                           DisplayFonts fonts)
     : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
       mirror_x_(mirror_x), mirror_y_(mirror_y), swap_xy_(swap_xy),
-      text_font_(text_font), icon_font_(icon_font) {
+      fonts_(fonts) {
     width_ = width;
     height_ = height;
     offset_x_ = offset_x;
     offset_y_ = offset_y;
 
-    
-    emoji_font_init();
     InitializeBacklight(backlight_pin);
 
     // draw white
@@ -253,7 +250,7 @@ void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(lv_disp_get_default());
-    lv_obj_set_style_text_font(screen, text_font_, 0);
+    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
     /* Container */
@@ -266,7 +263,7 @@ void LcdDisplay::SetupUI() {
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, text_font_->line_height);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     
     /* Content */
@@ -282,7 +279,6 @@ void LcdDisplay::SetupUI() {
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    // lv_obj_center(emotion_label_);
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
@@ -300,7 +296,7 @@ void LcdDisplay::SetupUI() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -316,17 +312,19 @@ void LcdDisplay::SetupUI() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
 }
 
 void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content) {
     if (chat_message_label_ == nullptr) {
         return;
     }
+
+    DisplayLockGuard lock(this);
     lv_label_set_text(chat_message_label_, content.c_str());
 }
 
@@ -371,7 +369,7 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         [&emotion](const Emotion& e) { return e.text == emotion; });
     
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    lv_obj_set_style_text_font(emotion_label_, emoji_font, 0);
+    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);
     } else {
