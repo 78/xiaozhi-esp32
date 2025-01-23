@@ -99,7 +99,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     offset_y_ = offset_y;
 
     
-    emoji_font_init();
+    emoji_font_64_lite_init();
     InitializeBacklight(backlight_pin);
 
     // draw white
@@ -368,7 +368,7 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         [&emotion](const Emotion& e) { return e.text == emotion; });
     
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    lv_obj_set_style_text_font(emotion_label_, emoji_font, 0);
+    lv_obj_set_style_text_font(emotion_label_, emoji_font_64_lite, 0);
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);
     } else {

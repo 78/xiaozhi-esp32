@@ -15,7 +15,7 @@ dependencies:
   espressif/button: "^3.3.1"
   lvgl/lvgl: "~8.4.0"
   esp_lvgl_port: "~2.4.1"
-  zhoukes/emoji_font: "~1.0.0"
+  zhoukes/emoji_font: "~1.0.1"
   ## Required IDF version
   idf:
     version: ">=5.3"
