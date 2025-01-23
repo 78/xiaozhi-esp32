@@ -72,7 +72,7 @@
   <a href="docs/v1/magiclick.jpg" target="_blank" title="神奇按钮 2.4">
     <img src="docs/v1/magiclick.jpg" width="240" />
   </a>
-  <a href="docs/v1/waveshare.jpg" target="_blank" title="神奇按钮 2.4">
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
     <img src="docs/v1/waveshare.jpg" width="240" />
   </a>
   <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
