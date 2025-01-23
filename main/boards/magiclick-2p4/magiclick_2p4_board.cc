@@ -14,6 +14,9 @@
 #include "esp_lcd_nv3023.h"
 #define TAG "magiclick_2p4"
 
+DECLARE_FONT(font_puhui_16_4);
+DECLARE_FONT(font_awesome_16_4);
+
 class magiclick_2p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
@@ -102,7 +105,8 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    &font_puhui_16_4, &font_awesome_16_4);
     }
 
     // 物联网初始化，添加对 AI 可见设备

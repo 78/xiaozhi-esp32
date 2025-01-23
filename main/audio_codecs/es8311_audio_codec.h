@@ -4,6 +4,7 @@
 #include "audio_codec.h"
 
 #include <driver/i2c.h>
+#include <driver/gpio.h>
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
@@ -16,6 +17,7 @@ private:
 
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
+    gpio_num_t pa_pin_ = GPIO_NUM_NC;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 
