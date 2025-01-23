@@ -16,6 +16,9 @@
 
 #define TAG "LilygoTCircleS3Board"
 
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
+
 class Cst816x : public I2cDevice {
 public:
     struct TouchPoint_t {
@@ -168,7 +171,8 @@ private:
 
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                  &font_puhui_16_4, &font_awesome_16_4);
 
         gpio_config_t config;
         config.pin_bit_mask = BIT64(DISPLAY_BL);
