@@ -30,11 +30,6 @@ set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
 list(APPEND SOURCES ${IOT_SOURCES})
 
-# 字体
-file(GLOB FONT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fonts/*.c)
-list(APPEND SOURCES ${FONT_SOURCES})
-list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/fonts)
-
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
@@ -59,6 +54,8 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
     set(BOARD_TYPE "lichuang-c3-dev")
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P4)
     set(BOARD_TYPE "magiclick-2p4")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3)
+    set(BOARD_TYPE "magiclick-c3")
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)

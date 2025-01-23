@@ -9,12 +9,11 @@
 
 #define TAG "Ssd1306Display"
 
-LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_30_1);
-LV_FONT_DECLARE(font_awesome_14_1);
 
-Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y)
-    : mirror_x_(mirror_x), mirror_y_(mirror_y) {
+Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
+                               const lv_font_t* text_font, const lv_font_t* icon_font)
+    : mirror_x_(mirror_x), mirror_y_(mirror_y), text_font_(text_font), icon_font_(icon_font) {
     width_ = width;
     height_ = height;
 
@@ -138,7 +137,7 @@ void Ssd1306Display::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(disp_);
-    lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
+    lv_obj_set_style_text_font(screen, text_font_, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
     /* Container */
@@ -174,7 +173,7 @@ void Ssd1306Display::SetupUI_128x64() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -189,18 +188,18 @@ void Ssd1306Display::SetupUI_128x64() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
 }
 
 void Ssd1306Display::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_disp_get_scr_act(disp_);
-    lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
+    lv_obj_set_style_text_font(screen, text_font_, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -242,15 +241,15 @@ void Ssd1306Display::SetupUI_128x32() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
 
     status_label_ = lv_label_create(side_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
