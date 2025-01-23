@@ -25,8 +25,7 @@ static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes);
 static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap);
 static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool off);
 
-typedef struct
-{
+typedef struct{
     esp_lcd_panel_t base;
     esp_lcd_panel_io_handle_t io;
     int reset_gpio_num;
@@ -56,8 +55,7 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     }
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    switch (panel_dev_config->color_space)
-    {
+    switch (panel_dev_config->color_space){
     case ESP_LCD_COLOR_SPACE_RGB:
         gc9d01n->madctl_val = 0;
         break;
