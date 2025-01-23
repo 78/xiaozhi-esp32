@@ -98,8 +98,7 @@ private:
                 ResetWifiConfiguration();
             } 
             app.ToggleChatState();
-            });
-        
+        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -118,7 +117,6 @@ public:
     }
 
     virtual Led* GetLed() override {
-
         static CircularStrip led(BUILTIN_LED_GPIO, 25);
         return &led;
     }

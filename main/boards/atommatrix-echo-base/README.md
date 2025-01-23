@@ -3,7 +3,7 @@
 **配置编译目标为 ESP32：**
 
 ```bash
-idf.py set-target esp32s3
+idf.py set-target esp32
 ```
 
 **打开 menuconfig：**
