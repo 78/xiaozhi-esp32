@@ -12,16 +12,59 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include "esp_lcd_nv3023.h"
+#include "font_awesome_symbols.h"
+
 #define TAG "magiclick_2p4"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
+class NV3023Display : public LcdDisplay {
+public:
+    NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                gpio_num_t backlight_pin, bool backlight_output_invert,
+                int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+        : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
+                    &font_puhui_16_4, &font_awesome_16_4) {}
+
+    void SetupUI() override {
+        DisplayLockGuard lock(this);
+        
+        // 调用父类的 SetupUI 来设置基本布局
+        LcdDisplay::SetupUI();
+
+        // 只需要覆盖颜色相关的样式
+        auto screen = lv_disp_get_scr_act(lv_disp_get_default());
+        lv_obj_set_style_text_color(screen, lv_color_black(), 0);
+
+        // 设置容器背景色
+        lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+
+        // 设置状态栏背景色和文本颜色
+        lv_obj_set_style_bg_color(status_bar_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(network_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(notification_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(status_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(mute_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(battery_label_, lv_color_black(), 0);
+
+        // 设置内容区背景色和文本颜色
+        lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
+        lv_obj_set_style_border_width(content_, 0, 0);
+        lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+
+        // 设置布局        
+        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象顶部对齐，左右居中对齐，等距分布
+    }
+};
+
 class magiclick_2p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
-    LcdDisplay* display_;
+    NV3023Display* display_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -82,7 +125,7 @@ private:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = 0;
-        io_config.pclk_hz = 20 * 1000 * 1000;
+        io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -92,21 +135,24 @@ private:
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_RGB;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_nv3023(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
 
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    &font_puhui_16_4, &font_awesome_16_4);
+        display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        if (display_) {
+            display_->SetupUI();
+        } else {
+            ESP_LOGE(TAG, "Display is not initialized!");
+        }
     }
 
     // 物联网初始化，添加对 AI 可见设备
