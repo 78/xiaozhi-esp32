@@ -40,8 +40,7 @@ typedef struct
     uint16_t init_cmds_size;
 } gc9d01n_panel_t;
 
-esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config, esp_lcd_panel_handle_t *ret_panel)
-{
+esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config, esp_lcd_panel_handle_t *ret_panel){
     esp_err_t ret = ESP_OK;
     gc9d01n_panel_t *gc9d01n = NULL;
     gpio_config_t io_conf = {0};
@@ -50,8 +49,7 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     gc9d01n = (gc9d01n_panel_t *)calloc(1, sizeof(gc9d01n_panel_t));
     ESP_GOTO_ON_FALSE(gc9d01n, ESP_ERR_NO_MEM, err, TAG, "no mem for gc9d01n panel");
 
-    if (panel_dev_config->reset_gpio_num >= 0)
-    {
+    if (panel_dev_config->reset_gpio_num >= 0){
         io_conf.mode = GPIO_MODE_OUTPUT;
         io_conf.pin_bit_mask = 1ULL << panel_dev_config->reset_gpio_num;
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
@@ -71,8 +69,7 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
         break;
     }
 #else
-    switch (panel_dev_config->rgb_endian)
-    {
+    switch (panel_dev_config->rgb_endian){
     case LCD_RGB_ENDIAN_RGB:
         gc9d01n->madctl_val = 0;
         break;
@@ -85,8 +82,7 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     }
 #endif
 
-    switch (panel_dev_config->bits_per_pixel)
-    {
+    switch (panel_dev_config->bits_per_pixel){
     case 16: // RGB565
         gc9d01n->colmod_val = 0x55;
         gc9d01n->fb_bits_per_pixel = 16;
@@ -104,8 +100,7 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     gc9d01n->io = io;
     gc9d01n->reset_gpio_num = panel_dev_config->reset_gpio_num;
     gc9d01n->reset_level = panel_dev_config->flags.reset_active_high;
-    if (panel_dev_config->vendor_config)
-    {
+    if (panel_dev_config->vendor_config){
         gc9d01n->init_cmds = ((gc9d01n_vendor_config_t *)panel_dev_config->vendor_config)->init_cmds;
         gc9d01n->init_cmds_size = ((gc9d01n_vendor_config_t *)panel_dev_config->vendor_config)->init_cmds_size;
     }
@@ -131,10 +126,8 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     return ESP_OK;
 
 err:
-    if (gc9d01n)
-    {
-        if (panel_dev_config->reset_gpio_num >= 0)
-        {
+    if (gc9d01n){
+        if (panel_dev_config->reset_gpio_num >= 0){
             gpio_reset_pin(panel_dev_config->reset_gpio_num);
         }
         free(gc9d01n);
@@ -142,12 +135,10 @@ err:
     return ret;
 }
 
-static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel)
-{
+static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
 
-    if (gc9d01n->reset_gpio_num >= 0)
-    {
+    if (gc9d01n->reset_gpio_num >= 0){
         gpio_reset_pin(gc9d01n->reset_gpio_num);
     }
     ESP_LOGD(TAG, "del gc9d01n panel @%p", gc9d01n);
@@ -155,21 +146,18 @@ static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel)
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_reset(esp_lcd_panel_t *panel)
-{
+static esp_err_t panel_gc9d01n_reset(esp_lcd_panel_t *panel){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
 
     // perform hardware reset
-    if (gc9d01n->reset_gpio_num >= 0)
-    {
+    if (gc9d01n->reset_gpio_num >= 0){
         gpio_set_level(gc9d01n->reset_gpio_num, gc9d01n->reset_level);
         vTaskDelay(pdMS_TO_TICKS(10));
         gpio_set_level(gc9d01n->reset_gpio_num, !gc9d01n->reset_level);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
-    else
-    { // perform software reset
+    else{ // perform software reset
         ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_SWRESET, NULL, 0), TAG, "send command failed");
         vTaskDelay(pdMS_TO_TICKS(20)); // spec, wait at least 5ms before sending new command
     }
@@ -230,44 +218,30 @@ static const gc9d01n_lcd_init_cmd_t vendor_specific_init_default[] = {
     {0x2C, (uint8_t[]){0x00}, 0, 20},
 };
 
-static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel)
-{
+static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
 
     // LCD goes into sleep mode and display will be turned off after power on reset, exit sleep mode first
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_SLPOUT, NULL, 0), TAG, "send command failed");
     vTaskDelay(pdMS_TO_TICKS(100));
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){
-                                                                          gc9d01n->madctl_val,
-                                                                      },
-                                                  1),
-                        TAG, "send command failed");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_COLMOD, (uint8_t[]){
-                                                                          gc9d01n->colmod_val,
-                                                                      },
-                                                  1),
-                        TAG, "send command failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val,},1),TAG, "send command failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_COLMOD, (uint8_t[]){gc9d01n->colmod_val,},1),TAG, "send command failed");
 
     const gc9d01n_lcd_init_cmd_t *init_cmds = NULL;
     uint16_t init_cmds_size = 0;
-    if (gc9d01n->init_cmds)
-    {
+    if (gc9d01n->init_cmds){
         init_cmds = gc9d01n->init_cmds;
         init_cmds_size = gc9d01n->init_cmds_size;
-    }
-    else
-    {
+    }else{
         init_cmds = vendor_specific_init_default;
         init_cmds_size = sizeof(vendor_specific_init_default) / sizeof(gc9d01n_lcd_init_cmd_t);
     }
 
     bool is_cmd_overwritten = false;
-    for (int i = 0; i < init_cmds_size; i++)
-    {
+    for (int i = 0; i < init_cmds_size; i++){
         // Check if the command has been used or conflicts with the internal
-        switch (init_cmds[i].cmd)
-        {
+        switch (init_cmds[i].cmd){
         case LCD_CMD_MADCTL:
             is_cmd_overwritten = true;
             gc9d01n->madctl_val = ((uint8_t *)init_cmds[i].data)[0];
@@ -281,8 +255,7 @@ static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel)
             break;
         }
 
-        if (is_cmd_overwritten)
-        {
+        if (is_cmd_overwritten){
             ESP_LOGW(TAG, "The %02Xh command has been used and will be overwritten by external initialization sequence", init_cmds[i].cmd);
         }
 
@@ -294,8 +267,7 @@ static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel)
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, int y_start, int x_end, int y_end, const void *color_data)
-{
+static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, int y_start, int x_end, int y_end, const void *color_data){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     assert((x_start < x_end) && (y_start < y_end) && "start position must be smaller than end position");
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
@@ -306,22 +278,8 @@ static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, 
     y_end += gc9d01n->y_gap;
 
     // define an area of frame memory where MCU can access
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_CASET, (uint8_t[]){
-                                                                         (x_start >> 8) & 0xFF,
-                                                                         x_start & 0xFF,
-                                                                         ((x_end - 1) >> 8) & 0xFF,
-                                                                         (x_end - 1) & 0xFF,
-                                                                     },
-                                                  4),
-                        TAG, "send command failed");
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_RASET, (uint8_t[]){
-                                                                         (y_start >> 8) & 0xFF,
-                                                                         y_start & 0xFF,
-                                                                         ((y_end - 1) >> 8) & 0xFF,
-                                                                         (y_end - 1) & 0xFF,
-                                                                     },
-                                                  4),
-                        TAG, "send command failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_CASET, (uint8_t[]){(x_start >> 8) & 0xFF,x_start & 0xFF,((x_end - 1) >> 8) & 0xFF,(x_end - 1) & 0xFF,},4),TAG, "send command failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_RASET, (uint8_t[]){(y_start >> 8) & 0xFF,y_start & 0xFF,((y_end - 1) >> 8) & 0xFF,(y_end - 1) & 0xFF,},4),TAG, "send command failed");
     // transfer frame buffer
     size_t len = (x_end - x_start) * (y_end - y_start) * gc9d01n->fb_bits_per_pixel / 8;
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_color(io, LCD_CMD_RAMWR, color_data, len), TAG, "send color failed");
@@ -329,73 +287,56 @@ static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, 
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_invert_color(esp_lcd_panel_t *panel, bool invert_color_data)
-{
+static esp_err_t panel_gc9d01n_invert_color(esp_lcd_panel_t *panel, bool invert_color_data){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
     int command = 0;
-    if (invert_color_data)
-    {
+    if (invert_color_data){
         command = LCD_CMD_INVON;
-    }
-    else
-    {
+    }else{
         command = LCD_CMD_INVOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y)
-{
+static esp_err_t panel_gc9d01n_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
-    if (mirror_x)
-    {
+    if (mirror_x){
         gc9d01n->madctl_val |= LCD_CMD_MX_BIT;
-    }
-    else
-    {
+    }else{
         gc9d01n->madctl_val &= ~LCD_CMD_MX_BIT;
     }
-    if (mirror_y)
-    {
+    if (mirror_y){
         gc9d01n->madctl_val |= LCD_CMD_MY_BIT;
-    }
-    else
-    {
+    }else{
         gc9d01n->madctl_val &= ~LCD_CMD_MY_BIT;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val}, 1), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes)
-{
+static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
-    if (swap_axes)
-    {
+    if (swap_axes){
         gc9d01n->madctl_val |= LCD_CMD_MV_BIT;
-    }
-    else
-    {
+    }else{
         gc9d01n->madctl_val &= ~LCD_CMD_MV_BIT;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val}, 1), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap)
-{
+static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     gc9d01n->x_gap = x_gap;
     gc9d01n->y_gap = y_gap;
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off)
-{
+static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off){
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
     int command = 0;
@@ -404,12 +345,9 @@ static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off)
     on_off = !on_off;
 #endif
 
-    if (on_off)
-    {
+    if (on_off){
         command = LCD_CMD_DISPON;
-    }
-    else
-    {
+    }else{
         command = LCD_CMD_DISPOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");
