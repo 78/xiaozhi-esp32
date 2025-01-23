@@ -69,7 +69,7 @@ void AudioCodec::Start() {
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
     ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
-
+    
     EnableInput(true);
     EnableOutput(true);
 }
