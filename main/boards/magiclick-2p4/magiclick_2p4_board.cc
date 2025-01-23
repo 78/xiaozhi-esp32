@@ -28,7 +28,7 @@ public:
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     &font_puhui_16_4, &font_awesome_16_4) {}
 
-    void SetupUI() override {
+    virtual void SetupUI() override {
         DisplayLockGuard lock(this);
         
         // 调用父类的 SetupUI 来设置基本布局

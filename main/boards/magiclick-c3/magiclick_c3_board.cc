@@ -29,7 +29,7 @@ public:
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     &font_puhui_16_4, &font_awesome_16_4) {}
 
-    void SetupUI() override {
+    virtual void SetupUI() override {
         DisplayLockGuard lock(this);
         
         // 调用父类的 SetupUI 来设置基本布局
@@ -139,13 +139,6 @@ private:
         esp_lcd_panel_disp_on_off(panel, true); 
         display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-        if (display_) {
-            display_->SetupUI();
-        } else {
-            ESP_LOGE(TAG, "Display is not initialized!");
-        }
-    
-    
     }
 
     // 物联网初始化，添加对 AI 可见设备
