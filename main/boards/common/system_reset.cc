@@ -16,7 +16,14 @@ SystemReset::SystemReset(gpio_num_t reset_nvs_pin, gpio_num_t reset_factory_pin)
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << reset_nvs_pin_) | (1ULL << reset_factory_pin_);
+    io_conf.pin_bit_mask = 0;
+    // io_conf.pin_bit_mask = (1ULL << reset_nvs_pin_) | (1ULL << reset_factory_pin_);
+    if(reset_nvs_pin_ != GPIO_NUM_NC) {
+        io_conf.pin_bit_mask |= (1ULL << reset_nvs_pin_);
+    }
+    if(reset_factory_pin_ != GPIO_NUM_NC) {
+        io_conf.pin_bit_mask |= (1ULL << reset_factory_pin_);
+    }
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
@@ -24,13 +31,13 @@ SystemReset::SystemReset(gpio_num_t reset_nvs_pin, gpio_num_t reset_factory_pin)
 
 
 void SystemReset::CheckButtons() {
-    if (gpio_get_level(reset_factory_pin_) == 0) {
+    if (reset_factory_pin_ != GPIO_NUM_NC && gpio_get_level(reset_factory_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset to factory");
         ResetNvsFlash();
         ResetToFactory();
     }
 
-    if (gpio_get_level(reset_nvs_pin_) == 0) {
+    if (reset_nvs_pin_ != GPIO_NUM_NC && gpio_get_level(reset_nvs_pin_) == 0) {
         ESP_LOGI(TAG, "Button is pressed, reset NVS flash");
         ResetNvsFlash();
     }
