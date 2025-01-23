@@ -8,6 +8,9 @@ import zipfile
 import oss2
 import json
 
+# 切换到项目根目录
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def get_chip_id_string(chip_id):
     return {
         0x0000: "esp32",
