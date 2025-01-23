@@ -20,8 +20,8 @@
  
 #define TAG "CompactWifiBoardLCD"
 
-DECLARE_FONT(font_puhui_20_4);
-DECLARE_FONT(font_awesome_20_4);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 class CompactWifiBoardLCD : public WifiBoard {
 private:

@@ -4,14 +4,13 @@
 #include <driver/i2c.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
-#include <driver/i2s.h>
 
 static const char TAG[] = "Tcircles3AudioCodec";
 
 Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sample_rate,
     gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
     gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data,
-    bool input_reference){
+    bool input_reference) {
     duplex_ = true;                             // 是否双工
     input_reference_ = input_reference;         // 是否使用参考输入，实现回声消除
     input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
@@ -21,7 +20,7 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     CreateVoiceHardware(mic_bclk, mic_ws, mic_data, spkr_bclk, spkr_lrclk, spkr_data);
 
     gpio_config_t config;
-    config.pin_bit_mask = BIT64(GPIO_NUM_45);
+    config.pin_bit_mask = BIT64(45);
     config.mode = GPIO_MODE_OUTPUT;
     config.pull_up_en = GPIO_PULLUP_DISABLE;
     config.pull_down_en = GPIO_PULLDOWN_ENABLE;
@@ -30,11 +29,11 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     config.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
 #endif
     gpio_config(&config);
-    gpio_set_level(GPIO_NUM_45, 0);
+    gpio_set_level(gpio_num_t(45), 0);
     ESP_LOGI(TAG, "Tcircles3AudioCodec initialized");
 }
 
-Tcircles3AudioCodec::~Tcircles3AudioCodec(){
+Tcircles3AudioCodec::~Tcircles3AudioCodec() {
     audio_codec_delete_codec_if(in_codec_if_);
     audio_codec_delete_ctrl_if(in_ctrl_if_);
     audio_codec_delete_codec_if(out_codec_if_);
@@ -44,17 +43,17 @@ Tcircles3AudioCodec::~Tcircles3AudioCodec(){
 }
 
 void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
-    gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data){
+    gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data) {
     
-    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(0), I2S_ROLE_MASTER);
     mic_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
-    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
+    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(1), I2S_ROLE_MASTER);
     spkr_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
 
     ESP_ERROR_CHECK(i2s_new_channel(&mic_chan_config, NULL, &rx_handle_));
     ESP_ERROR_CHECK(i2s_new_channel(&spkr_chan_config, &tx_handle_, NULL));
 
-    i2s_std_config_t mic_config ={
+    i2s_std_config_t mic_config = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(input_sample_rate_)),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg ={
@@ -63,7 +62,7 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
             .ws = mic_ws,
             .dout = I2S_GPIO_UNUSED,
             .din = mic_data,
-            .invert_flags ={
+            .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
                 .ws_inv = false,
@@ -71,7 +70,7 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
         }
     };
 
-    i2s_std_config_t spkr_config ={
+    i2s_std_config_t spkr_config = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(11025)),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg ={
@@ -80,7 +79,7 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
             .ws = spkr_lrclk,
             .dout = spkr_data,
             .din = I2S_GPIO_UNUSED,
-            .invert_flags ={
+            .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
                 .ws_inv = false
@@ -93,23 +92,20 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
     ESP_LOGI(TAG, "Voice hardware created");
 }
 
-void Tcircles3AudioCodec::SetOutputVolume(int volume){
+void Tcircles3AudioCodec::SetOutputVolume(int volume) {
     volume_ = volume;
     AudioCodec::SetOutputVolume(volume);
 }
 
-void Tcircles3AudioCodec::EnableInput(bool enable){
-    if (enable){
-    }else{
-    }
+void Tcircles3AudioCodec::EnableInput(bool enable) {
     AudioCodec::EnableInput(enable);
 }
 
-void Tcircles3AudioCodec::EnableOutput(bool enable){
+void Tcircles3AudioCodec::EnableOutput(bool enable) {
     if (enable){
-        gpio_set_level(GPIO_NUM_45, 1);
+        gpio_set_level(gpio_num_t(45), 1);
     }else{
-        gpio_set_level(GPIO_NUM_45, 0);
+        gpio_set_level(gpio_num_t(45), 0);
     }
     AudioCodec::EnableOutput(enable);
 }

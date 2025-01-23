@@ -14,8 +14,8 @@
 
 #define TAG "XminiC3Board"
 
-DECLARE_FONT(font_puhui_14_1);
-DECLARE_FONT(font_awesome_14_1);
+LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_awesome_14_1);
 
 class XminiC3Board : public WifiBoard {
 private:

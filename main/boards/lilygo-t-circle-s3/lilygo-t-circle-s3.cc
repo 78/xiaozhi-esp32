@@ -16,32 +16,35 @@
 
 #define TAG "LilygoTCircleS3Board"
 
-class Cst816x : public I2cDevice{
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
+
+class Cst816x : public I2cDevice {
 public:
-    struct TouchPoint_t{
+    struct TouchPoint_t {
         int num = 0;
         int x = -1;
         int y = -1;
     };
 
-    Cst816x(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr){
+    Cst816x(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         uint8_t chip_id = ReadReg(0xA7);
         ESP_LOGI(TAG, "Get chip ID: 0x%02X", chip_id);
         read_buffer_ = new uint8_t[6];
     }
 
-    ~Cst816x(){
+    ~Cst816x() {
         delete[] read_buffer_;
     }
 
-    void UpdateTouchPoint(){
+    void UpdateTouchPoint() {
         ReadRegs(0x02, read_buffer_, 6);
         tp_.num = read_buffer_[0] & 0x0F;
         tp_.x = ((read_buffer_[1] & 0x0F) << 8) | read_buffer_[2];
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
 
-    const TouchPoint_t &GetTouchPoint(){
+    const TouchPoint_t &GetTouchPoint() {
         return tp_;
     }
 
@@ -50,7 +53,7 @@ private:
     TouchPoint_t tp_;
 };
 
-class LilygoTCircleS3Board : public WifiBoard{
+class LilygoTCircleS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816x *cst816d_;
@@ -74,20 +77,20 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &i2c_bus_));
     }
 
-    void I2cDetect(){
+    void I2cDetect() {
         uint8_t address;
         printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
-        for (int i = 0; i < 128; i += 16){
+        for (int i = 0; i < 128; i += 16) {
             printf("%02x: ", i);
-            for (int j = 0; j < 16; j++){
+            for (int j = 0; j < 16; j++) {
                 fflush(stdout);
                 address = i + j;
                 esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(200));
-                if (ret == ESP_OK){
+                if (ret == ESP_OK) {
                     printf("%02x ", address);
-                }else if (ret == ESP_ERR_TIMEOUT){
+                } else if (ret == ESP_ERR_TIMEOUT) {
                     printf("UU ");
-                }else{
+                } else {
                     printf("-- ");
                 }
             }
@@ -95,22 +98,22 @@ private:
         }
     }
 
-    static void touchpad_daemon(void *param){
+    static void touchpad_daemon(void *param) {
         vTaskDelay(pdMS_TO_TICKS(2000));
         auto &board = (LilygoTCircleS3Board&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
         bool was_touched = false;
-        while (1){
+        while (1) {
             touchpad->UpdateTouchPoint();
             if (touchpad->GetTouchPoint().num > 0){
                 // On press
-                if (!was_touched){
+                if (!was_touched) {
                     was_touched = true;
                     Application::GetInstance().ToggleChatState();
                 }
             }
             // On release
-            else if (was_touched){
+            else if (was_touched) {
                 was_touched = false;
             }
             vTaskDelay(pdMS_TO_TICKS(50));
@@ -118,13 +121,13 @@ private:
         vTaskDelete(NULL);
     }
 
-    void InitCst816d(){
+    void InitCst816d() {
         ESP_LOGI(TAG, "Init CST816x");
         cst816d_ = new Cst816x(i2c_bus_, 0x15);
         xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
     }
 
-    void InitSpi(){
+    void InitSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = DISPLAY_MOSI;
         buscfg.miso_io_num = GPIO_NUM_NC;
@@ -135,7 +138,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitGc9d01nDisplay(){
+    void InitGc9d01nDisplay() {
         ESP_LOGI(TAG, "Init GC9D01N");
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
@@ -168,7 +171,8 @@ private:
 
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                  &font_puhui_16_4, &font_awesome_16_4);
 
         gpio_config_t config;
         config.pin_bit_mask = BIT64(DISPLAY_BL);
@@ -183,24 +187,24 @@ private:
         gpio_set_level(DISPLAY_BL, 0);
     }
 
-    void InitializeButtons(){
-        boot_button_.OnClick([this]()
-                             {
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            app.ToggleChatState(); });
+            app.ToggleChatState();
+        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot(){
+    void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
 public:
-    LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO){
+    LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitI2c();
         InitCst816d();
         I2cDetect();
@@ -210,7 +214,7 @@ public:
         InitializeIot();
     }
 
-    virtual AudioCodec *GetAudioCodec() override{
+    virtual AudioCodec *GetAudioCodec() override {
         static Tcircles3AudioCodec *audio_codec = nullptr;
         if (audio_codec == nullptr){
             audio_codec = new Tcircles3AudioCodec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
@@ -225,7 +229,7 @@ public:
         return display_;
     }
 
-    Cst816x *GetTouchpad(){
+    Cst816x *GetTouchpad() {
         return cst816d_;
     }
 };

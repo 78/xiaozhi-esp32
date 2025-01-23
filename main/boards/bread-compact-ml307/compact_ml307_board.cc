@@ -23,7 +23,6 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    SystemReset system_reset_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -95,10 +94,7 @@ public:
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
-        system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
-        // Check if the reset button is pressed
-        system_reset_.CheckButtons();
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
 
         InitializeDisplayI2c();
         InitializeButtons();
