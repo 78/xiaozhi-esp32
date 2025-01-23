@@ -166,10 +166,10 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-        gpio_set_level(pa_pin_, 1);
+        (pa_pin_ != GPIO_NUM_NC) ? (void)gpio_set_level(pa_pin_, 1) : (void)0;
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-        gpio_set_level(pa_pin_, 0);
+        (pa_pin_ != GPIO_NUM_NC) ? (void)gpio_set_level(pa_pin_, 0) : (void)0;
     }
     AudioCodec::EnableOutput(enable);
 }
