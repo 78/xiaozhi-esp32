@@ -12,7 +12,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     input_channels_ = 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
-
+    pa_pin_ = pa_pin;
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
@@ -57,7 +57,8 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_IN;
     input_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(input_dev_ != NULL);
-
+    esp_codec_set_disable_when_closed(output_dev_, false);
+    esp_codec_set_disable_when_closed(input_dev_, false);
     ESP_LOGI(TAG, "Es8311AudioCodec initialized");
 }
 
@@ -165,8 +166,10 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+        gpio_set_level(pa_pin_, 1);
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+        gpio_set_level(pa_pin_, 0);
     }
     AudioCodec::EnableOutput(enable);
 }
