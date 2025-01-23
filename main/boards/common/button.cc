@@ -6,6 +6,7 @@ static const char* TAG = "Button";
 
 Button::Button(gpio_num_t gpio_num, bool active_high) : gpio_num_(gpio_num) {
     if (gpio_num == GPIO_NUM_NC) {
+        button_handle_ = NULL;
         return;
     }
     button_config_t button_config = {
