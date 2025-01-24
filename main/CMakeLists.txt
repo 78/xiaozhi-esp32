@@ -2,10 +2,12 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
             "audio_codecs/tcircles3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
+            "display/atk_st7789_80i.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/lcd_display.cc"
@@ -75,7 +77,11 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_TYPE "lilygo-t-circle-s3") 
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
-    set(BOARD_TYPE "movecall-moji-esp32s3")   
+    set(BOARD_TYPE "movecall-moji-esp32s3") 
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
+    set(BOARD_TYPE "atk-dnesp32s3")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
+    set(BOARD_TYPE "atk-dnesp32s3-box") 
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
