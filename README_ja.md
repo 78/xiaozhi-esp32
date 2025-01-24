@@ -55,6 +55,7 @@
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xmini C3">Xmini C3</a>
+- <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Movecall Moji ESP32S3</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 開発ボード">
@@ -80,6 +81,9 @@
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
+  </a>
+  <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Moji">
+    <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
 </div>
 
