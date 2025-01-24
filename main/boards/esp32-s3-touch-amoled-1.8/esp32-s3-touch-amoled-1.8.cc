@@ -49,7 +49,13 @@ public:
                     bool swap_xy) 
         : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    &font_puhui_30_4, &font_awesome_30_4) {
+                    {
+                        .text_font = &font_puhui_30_4,
+                        .icon_font = &font_awesome_30_4,
+                        .emoji_font = emoji_font_64_lite_init(),
+                    }) {
+
+        DisplayLockGuard lock(this);
         // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);

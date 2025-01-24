@@ -26,14 +26,13 @@ public:
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    &font_puhui_16_4, &font_awesome_16_4) {}
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = emoji_font_init(),
+                    }) {
 
-    virtual void SetupUI() override {
         DisplayLockGuard lock(this);
-        
-        // 调用父类的 SetupUI 来设置基本布局
-        LcdDisplay::SetupUI();
-
         // 只需要覆盖颜色相关的样式
         auto screen = lv_disp_get_scr_act(lv_disp_get_default());
         lv_obj_set_style_text_color(screen, lv_color_black(), 0);
@@ -54,9 +53,6 @@ public:
         lv_obj_set_style_border_width(content_, 0, 0);
         lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-
-        // 设置布局        
-        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象顶部对齐，左右居中对齐，等距分布
     }
 };
 

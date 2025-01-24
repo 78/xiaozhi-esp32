@@ -27,14 +27,13 @@ public:
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    &font_puhui_16_4, &font_awesome_16_4) {}
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = emoji_font_init(),
+                    }) {
 
-    virtual void SetupUI() override {
         DisplayLockGuard lock(this);
-        
-        // 调用父类的 SetupUI 来设置基本布局
-        LcdDisplay::SetupUI();
-
         // 只需要覆盖颜色相关的样式
         auto screen = lv_disp_get_scr_act(lv_disp_get_default());
         lv_obj_set_style_text_color(screen, lv_color_black(), 0);
@@ -84,10 +83,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateUnknown && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            // app.ToggleChatState();
         });
         boot_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
@@ -95,7 +93,7 @@ private:
         boot_button_.OnPressUp([this]() {
             Application::GetInstance().StopListening();
         });
-    }    
+    }
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -106,7 +104,7 @@ private:
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
-    }    
+    }
 
     void InitializeNv3023Display(){
         esp_lcd_panel_io_handle_t panel_io = nullptr;
@@ -160,8 +158,8 @@ public:
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -173,10 +171,6 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
-    }
-
-    virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        return false;
     }
 };
 

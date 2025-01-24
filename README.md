@@ -31,6 +31,7 @@
 - 可配置的提示词和音色（自定义角色）
 - 短期记忆，每轮对话后自我总结
 - OLED / LCD 显示屏，显示信号强弱或对话内容
+- 支持 LCD 显示图片表情
 
 ## 硬件部分
 
@@ -51,31 +52,34 @@
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">AtomS3R + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
-- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
+- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
 
 <div style="display: flex; justify-content: space-between;">
-  <a href="docs/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
-    <img src="docs/lichuang-s3.jpg" width="240" />
+  <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
+    <img src="docs/v1/lichuang-s3.jpg" width="240" />
   </a>
-  <a href="docs/esp32s3-box3.jpg" target="_blank" title="乐鑫 ESP32-S3-BOX3">
-    <img src="docs/esp32s3-box3.jpg" width="240" />
+  <a href="docs/v1/espbox3.jpg" target="_blank" title="乐鑫 ESP32-S3-BOX3">
+    <img src="docs/v1/espbox3.jpg" width="240" />
   </a>
-  <a href="docs/m5stack-cores3.jpg" target="_blank" title="M5Stack CoreS3">
-    <img src="docs/m5stack-cores3.jpg" width="240" />
+  <a href="docs/v1/m5cores3.jpg" target="_blank" title="M5Stack CoreS3">
+    <img src="docs/v1/m5cores3.jpg" width="240" />
   </a>
-  <a href="docs/atoms3r-echo-base.jpg" target="_blank" title="AtomS3R + Echo Base">
-    <img src="docs/atoms3r-echo-base.jpg" width="240" />
+  <a href="docs/v1/atoms3r.jpg" target="_blank" title="AtomS3R + Echo Base">
+    <img src="docs/v1/atoms3r.jpg" width="240" />
   </a>
-  <a href="docs/magiclick-2p4.jpg" target="_blank" title="神奇按钮 2.4">
-    <img src="docs/magiclick-2p4.jpg" width="240" />
+  <a href="docs/v1/magiclick.jpg" target="_blank" title="神奇按钮 2.4">
+    <img src="docs/v1/magiclick.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
+    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
-  </a>
-    <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
-    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
   </a>
 </div>
 

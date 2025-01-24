@@ -22,8 +22,8 @@
 
 #define TAG "MovecallMojiESP32S3"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
@@ -77,6 +77,34 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     {0x29, (uint8_t[]){0x00}, 0, 20},
     // GC9A01_INVON 
     {0x21, (uint8_t[]){0x00}, 0, 20},
+};
+
+class CustomLcdDisplay : public LcdDisplay {
+public:
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
+                    esp_lcd_panel_handle_t panel_handle,
+                    gpio_num_t backlight_pin,
+                    bool backlight_output_invert,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy) 
+        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                    {
+                        .text_font = &font_puhui_20_4,
+                        .icon_font = &font_awesome_20_4,
+                        .emoji_font = emoji_font_64_lite_init(),
+                    }) {
+
+        DisplayLockGuard lock(this);
+        // 由于屏幕是圆的，所以状态栏需要增加左右内边距
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.33, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
+    }
 };
 
 class MovecallMojiESP32S3 : public WifiBoard {
@@ -150,7 +178,11 @@ private:
 
         display_ = new LcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    &font_puhui_16_4, &font_awesome_16_4);
+                                    {
+                                        .text_font = &font_puhui_20_4,
+                                        .icon_font = &font_awesome_20_4,
+                                        .emoji_font = emoji_font_64_lite_init(),
+                                    });
     }
 
     void InitializeButtons() {

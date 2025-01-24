@@ -62,6 +62,8 @@ choice BOARD_TYPE
         bool "M5Stack CoreS3"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
         bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
+        bool "AtomMatrix + Echo Base"
     config BOARD_TYPE_XMINI_C3
         bool "虾哥 Mini C3"
     config BOARD_TYPE_ESP32S3_KORVO2_V3

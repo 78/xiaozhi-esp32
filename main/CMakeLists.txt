@@ -60,6 +60,8 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-echo-base")
+elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
+    set(BOARD_TYPE "atommatrix-echo-base") 
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
@@ -80,6 +82,13 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
+endif()
+
+# 如果目标芯片是 ESP32，则排除特定文件
+if(CONFIG_IDF_TARGET_ESP32)
+    # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
+    list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                             "audio_codecs/cores3_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}
