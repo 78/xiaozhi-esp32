@@ -38,6 +38,8 @@ choice BOARD_TYPE
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "面包板新版接线（WiFi）"
+    config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+        bool "面包板新版接线（WiFi）+ LCD"
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
     config BOARD_TYPE_ESP_BOX_3
@@ -54,10 +56,14 @@ choice BOARD_TYPE
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"  
+    config BOARD_TYPE_MAGICLICK_C3
+        bool "神奇按钮 Magiclick_C3" 
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
         bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
+        bool "AtomMatrix + Echo Base"
     config BOARD_TYPE_XMINI_C3
         bool "虾哥 Mini C3"
     config BOARD_TYPE_ESP32S3_KORVO2_V3
@@ -66,10 +72,10 @@ choice BOARD_TYPE
         bool "ESP-SparkBot开发板"    
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
-    config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
-         bool "面包板新版接线（WiFi）+ LCD"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
          bool "LILYGO T-Circle-S3"
+    config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
+         bool "Movecall Moji 小智AI衍生版"  
 endchoice
 
 choice DISPLAY_LCD_TYPE

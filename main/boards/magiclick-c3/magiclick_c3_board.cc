@@ -13,8 +13,9 @@
 #include <driver/spi_common.h>
 #include "esp_lcd_nv3023.h"
 #include "font_awesome_symbols.h"
+#include <esp_efuse_table.h>
 
-#define TAG "magiclick_2p4"
+#define TAG "magiclick_c3"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
@@ -56,7 +57,7 @@ public:
     }
 };
 
-class magiclick_2p4 : public WifiBoard {
+class magiclick_c3 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -94,13 +95,6 @@ private:
         });
     }
 
-    void InitializeLedPower() {
-        // 设置GPIO模式
-        gpio_reset_pin(BUILTIN_LED_POWER);
-        gpio_set_direction(BUILTIN_LED_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(BUILTIN_LED_POWER, BUILTIN_LED_POWER_OUTPUT_INVERT ? 0 : 1);
-    }
-
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = DISPLAY_SDA_PIN;
@@ -109,7 +103,7 @@ private:
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
     void InitializeNv3023Display(){
@@ -125,7 +119,7 @@ private:
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片NV3023
         ESP_LOGD(TAG, "Install LCD driver");
@@ -136,12 +130,11 @@ private:
         ESP_ERROR_CHECK(esp_lcd_new_panel_nv3023(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
-
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
+        esp_lcd_panel_disp_on_off(panel, true); 
         display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
@@ -153,11 +146,12 @@ private:
     }
 
 public:
-    magiclick_2p4() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+    magiclick_c3() : boot_button_(BOOT_BUTTON_GPIO) {
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
+
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeLedPower();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
@@ -180,4 +174,4 @@ public:
     }
 };
 
-DECLARE_BOARD(magiclick_2p4);
+DECLARE_BOARD(magiclick_c3);

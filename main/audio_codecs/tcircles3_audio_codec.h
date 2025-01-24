@@ -6,8 +6,7 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
-class Tcircles3AudioCodec : public AudioCodec
-{
+class Tcircles3AudioCodec : public AudioCodec {
 private:
     const audio_codec_data_if_t *data_if_ = nullptr;
     const audio_codec_ctrl_if_t *out_ctrl_if_ = nullptr;
