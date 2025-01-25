@@ -53,8 +53,7 @@ private:
     LcdDisplay* display_;
     XL9555* xl9555_;
 
-    void InitializeI2c()
-    {
+    void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = (i2c_port_t)I2C_NUM_0,
@@ -75,8 +74,7 @@ private:
     }
 
     // Initialize spi peripheral
-    void InitializeSpi()
-    {
+    void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = LCD_MOSI_PIN;
         buscfg.miso_io_num = GPIO_NUM_NC;
@@ -87,27 +85,22 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeButtons()
-    {
-        boot_button_.OnClick([this]()
-        {
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()){
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
-        boot_button_.OnPressDown([this]()
-        {
+        boot_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
         });
-        boot_button_.OnPressUp([this]()
-        {
+        boot_button_.OnPressUp([this]() {
             Application::GetInstance().StopListening();
         });
     }
 
-    void InitializeSt7789Display()
-    {
+    void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         ESP_LOGD(TAG, "Install panel IO");
@@ -149,7 +142,7 @@ private:
     }
 
     // 物联网初始化，添加对 AI 可见设备 
-    void InitializeIot(){
+    void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
     }

@@ -12,8 +12,7 @@ Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     input_channels_ = 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
-
-    CreateDuplexChannels(mclk, bclk, ws, dout, din);
+    pa_pin_ = pa_pin;                                                                                                                                                                                     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
@@ -62,8 +61,9 @@ Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
         .data_if = data_if_,
     };
     input_dev_ = esp_codec_dev_new(&indev_cfg);
-    assert(input_dev_ != NULL);  
-
+    assert(input_dev_ != NULL);
+    esp_codec_set_disable_when_closed(output_dev_, false);
+    esp_codec_set_disable_when_closed(input_dev_, false);
     ESP_LOGI(TAG, "Es8388AudioCodec initialized");
 }
 
@@ -86,7 +86,7 @@ void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = 6,
-        .dma_frame_num = 240 * 3,
+        .dma_frame_num = 240,
         .auto_clear_after_cb = true,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
@@ -126,8 +126,8 @@ void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         }
     };
 
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
@@ -151,7 +151,7 @@ void Es8388AudioCodec::EnableInput(bool enable) {
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 40.0));
     } else {
-        // ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));     //输入输出共用的i2s，只关闭了输出后会把输入也关没了，所以得注释关闭
+        ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
     AudioCodec::EnableInput(enable);
 }
@@ -170,8 +170,14 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 1);
+        }
     } else {
-        // ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));   //输入输出共用的i2s，只关闭了输出后会把输入也关没了，所以得注释关闭
+        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 0);
+        }
     }
     AudioCodec::EnableOutput(enable);
 }
