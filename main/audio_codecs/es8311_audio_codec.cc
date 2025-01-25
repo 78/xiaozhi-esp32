@@ -144,7 +144,7 @@ void Es8311AudioCodec::EnableInput(bool enable) {
             .bits_per_sample = 16,
             .channel = 1,
             .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
+            .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));

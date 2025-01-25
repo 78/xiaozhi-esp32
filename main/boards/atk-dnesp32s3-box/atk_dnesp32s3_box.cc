@@ -1,19 +1,23 @@
 #include "wifi_board.h"
 #include "audio_codec.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "display/atk_st7789_80i.h"
+#include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
+#include "i2c_device.h"
+
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include "i2c_device.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/timers.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/timers.h>
+#include <esp_lcd_panel_io.h>
+#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_panel_ops.h>
 
 #define TAG "atk_dnesp32s3_box"
 
@@ -51,7 +55,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     i2c_master_dev_handle_t xl9555_handle_;
     Button boot_button_;
-    ATK_ST7789_80_Display* display_;
+    LcdDisplay* display_;
     XL9555* xl9555_;
     
     void InitializeI2c() {
@@ -75,17 +79,92 @@ private:
     }
 
     void InitializeATK_ST7789_80_Display() {
-        display_ = new ATK_ST7789_80_Display(DISPLAY_BACKLIGHT_PIN,DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, 
-                                                DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-        xl9555_->SetOutputState(5, 1);
-        xl9555_->SetOutputState(7, 1);
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+        /* 配置RD引脚 */
+        gpio_config_t gpio_init_struct;
+        gpio_init_struct.intr_type = GPIO_INTR_DISABLE;
+        gpio_init_struct.mode = GPIO_MODE_INPUT_OUTPUT;
+        gpio_init_struct.pin_bit_mask = 1ull << LCD_NUM_RD;
+        gpio_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        gpio_init_struct.pull_up_en = GPIO_PULLUP_ENABLE;
+        gpio_config(&gpio_init_struct);
+        gpio_set_level(LCD_NUM_RD, 1);
+
+        esp_lcd_i80_bus_handle_t i80_bus = NULL;
+        esp_lcd_i80_bus_config_t bus_config = {
+            .dc_gpio_num = LCD_NUM_DC,
+            .wr_gpio_num = LCD_NUM_WR,
+            .clk_src = LCD_CLK_SRC_DEFAULT,
+            .data_gpio_nums = {
+                GPIO_LCD_D0,
+                GPIO_LCD_D1,
+                GPIO_LCD_D2,
+                GPIO_LCD_D3,
+                GPIO_LCD_D4,
+                GPIO_LCD_D5,
+                GPIO_LCD_D6,
+                GPIO_LCD_D7,
+            },
+            .bus_width = 8,
+            .max_transfer_bytes = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t),
+            .psram_trans_align = 64,
+            .sram_trans_align = 4,
+        };
+        ESP_ERROR_CHECK(esp_lcd_new_i80_bus(&bus_config, &i80_bus));
+
+        esp_lcd_panel_io_i80_config_t io_config = {
+            .cs_gpio_num = LCD_NUM_CS,
+            .pclk_hz = (10 * 1000 * 1000),
+            .trans_queue_depth = 10,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 8,
+            .dc_levels = {
+                .dc_idle_level = 0,
+                .dc_cmd_level = 0,
+                .dc_dummy_level = 0,
+                .dc_data_level = 1,
+            },
+            .flags = {
+                .swap_color_bytes = 0,
+            },
+        };
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i80(i80_bus, &io_config, &panel_io));
+
+        esp_lcd_panel_dev_config_t panel_config = {
+            .reset_gpio_num = LCD_NUM_RST,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .bits_per_pixel = 16,
+        };
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+
+        esp_lcd_panel_reset(panel);
+        esp_lcd_panel_init(panel);
+        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_set_gap(panel, 0, 0);
+        uint8_t data0[] = {0x00};
+        uint8_t data1[] = {0x65};
+        esp_lcd_panel_io_tx_param(panel_io, 0x36, data0, 1);
+        esp_lcd_panel_io_tx_param(panel_io, 0x3A, data1, 1);
+        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
+
+        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    {
+                                        .text_font = &font_puhui_20_4,
+                                        .icon_font = &font_awesome_20_4,
+                                        .emoji_font = emoji_font_64_lite_init(),
+                                    });
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected())
-            {
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
         });
@@ -95,22 +174,20 @@ private:
         boot_button_.OnPressUp([this]() {
             Application::GetInstance().StopListening();
         });
-
-        auto codec = GetAudioCodec();
-        GetAudioCodec()->SetOutputVolume(50);
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
 
 public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
-        InitializeATK_ST7789_80_Display(); 
+        InitializeATK_ST7789_80_Display();
+        xl9555_->SetOutputState(5, 1);
+        xl9555_->SetOutputState(7, 1);
         InitializeButtons();
         InitializeIot();
     }
