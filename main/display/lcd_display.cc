@@ -377,3 +377,11 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
     }
 }
 
+void LcdDisplay::SetIcon(const char* icon) {
+    if (emotion_label_ == nullptr) {
+        return;
+    }
+    DisplayLockGuard lock(this);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_label_set_text(emotion_label_, icon);
+}
