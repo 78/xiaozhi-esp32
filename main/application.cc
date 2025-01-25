@@ -380,19 +380,25 @@ void Application::Start() {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (text != NULL) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    display->SetChatMessage("assistant", text->valuestring);
+                    Schedule([this, display, message = std::string(text->valuestring)]() {
+                        display->SetChatMessage("assistant", message);
+                    });
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (text != NULL) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                display->SetChatMessage("user", text->valuestring);
+                Schedule([this, display, message = std::string(text->valuestring)]() {
+                    display->SetChatMessage("user", message);
+                });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
-                display->SetEmotion(emotion->valuestring);
+                Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
+                    display->SetEmotion(emotion_str);
+                });
             }
         } else if (strcmp(type->valuestring, "iot") == 0) {
             auto commands = cJSON_GetObjectItem(root, "commands");

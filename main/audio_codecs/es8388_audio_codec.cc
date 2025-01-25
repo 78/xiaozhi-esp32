@@ -1,19 +1,18 @@
-#include "es8311_audio_codec.h"
+#include "es8388_audio_codec.h"
 
 #include <esp_log.h>
 
-static const char TAG[] = "Es8311AudioCodec";
+static const char TAG[] = "Es8388AudioCodec";
 
-Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
+Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk) {
+    gpio_num_t pa_pin, uint8_t es8388_addr) {
     duplex_ = true; // 是否双工
     input_reference_ = false; // 是否使用参考输入，实现回声消除
     input_channels_ = 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
-    pa_pin_ = pa_pin;
-    CreateDuplexChannels(mclk, bclk, ws, dout, din);
+    pa_pin_ = pa_pin;                                                                                                                                                                                     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
@@ -27,7 +26,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     // Output
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = i2c_port,
-        .addr = es8311_addr,
+        .addr = es8388_addr,
         .bus_handle = i2c_master_handle,
     };
     ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
@@ -36,33 +35,39 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     gpio_if_ = audio_codec_new_gpio();
     assert(gpio_if_ != NULL);
 
-    es8311_codec_cfg_t es8311_cfg = {};
-    es8311_cfg.ctrl_if = ctrl_if_;
-    es8311_cfg.gpio_if = gpio_if_;
-    es8311_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH;
-    es8311_cfg.pa_pin = pa_pin;
-    es8311_cfg.use_mclk = use_mclk;
-    es8311_cfg.hw_gain.pa_voltage = 5.0;
-    es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
-    codec_if_ = es8311_codec_new(&es8311_cfg);
+    es8388_codec_cfg_t es8388_cfg = {};
+    es8388_cfg.ctrl_if = ctrl_if_;
+    es8388_cfg.gpio_if = gpio_if_;
+    es8388_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH;
+    es8388_cfg.master_mode = true;
+    es8388_cfg.pa_pin = pa_pin;
+    es8388_cfg.pa_reverted = false;
+    es8388_cfg.hw_gain.pa_voltage = 5.0;
+    es8388_cfg.hw_gain.codec_dac_voltage = 3.3;
+    codec_if_ = es8388_codec_new(&es8388_cfg);
     assert(codec_if_ != NULL);
 
-    esp_codec_dev_cfg_t dev_cfg = {
+    esp_codec_dev_cfg_t outdev_cfg = {
         .dev_type = ESP_CODEC_DEV_TYPE_OUT,
         .codec_if = codec_if_,
         .data_if = data_if_,
     };
-    output_dev_ = esp_codec_dev_new(&dev_cfg);
+    output_dev_ = esp_codec_dev_new(&outdev_cfg);
     assert(output_dev_ != NULL);
-    dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_IN;
-    input_dev_ = esp_codec_dev_new(&dev_cfg);
+
+    esp_codec_dev_cfg_t indev_cfg = {
+        .dev_type = ESP_CODEC_DEV_TYPE_IN,
+        .codec_if = codec_if_,
+        .data_if = data_if_,
+    };
+    input_dev_ = esp_codec_dev_new(&indev_cfg);
     assert(input_dev_ != NULL);
     esp_codec_set_disable_when_closed(output_dev_, false);
     esp_codec_set_disable_when_closed(input_dev_, false);
-    ESP_LOGI(TAG, "Es8311AudioCodec initialized");
+    ESP_LOGI(TAG, "Es8388AudioCodec initialized");
 }
 
-Es8311AudioCodec::~Es8311AudioCodec() {
+Es8388AudioCodec::~Es8388AudioCodec() {
     ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
     esp_codec_dev_delete(output_dev_);
     ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
@@ -74,7 +79,7 @@ Es8311AudioCodec::~Es8311AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din){
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -92,10 +97,8 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
-				.ext_clk_freq_hz = 0,
-			#endif
+            .ext_clk_freq_hz = 0,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256
         },
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
@@ -105,11 +108,9 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false
         },
         .gpio_cfg = {
             .mclk = mclk,
@@ -130,12 +131,12 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
-void Es8311AudioCodec::SetOutputVolume(int volume) {
+void Es8388AudioCodec::SetOutputVolume(int volume) {
     ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, volume));
     AudioCodec::SetOutputVolume(volume);
 }
 
-void Es8311AudioCodec::EnableInput(bool enable) {
+void Es8388AudioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;
     }
@@ -155,12 +156,11 @@ void Es8311AudioCodec::EnableInput(bool enable) {
     AudioCodec::EnableInput(enable);
 }
 
-void Es8311AudioCodec::EnableOutput(bool enable) {
+void Es8388AudioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
     }
     if (enable) {
-        // Play 16bit 1 channel
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
             .channel = 1,
@@ -182,14 +182,14 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
     AudioCodec::EnableOutput(enable);
 }
 
-int Es8311AudioCodec::Read(int16_t* dest, int samples) {
+int Es8388AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
     }
     return samples;
 }
 
-int Es8311AudioCodec::Write(const int16_t* data, int samples) {
+int Es8388AudioCodec::Write(const int16_t* data, int samples) {
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }
