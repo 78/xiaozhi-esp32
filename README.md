@@ -45,12 +45,24 @@
 
 ![面包板效果图](docs/wiring2.jpg)
 
+
+### ESP32开发板系列-面包板制作教程
+
+详见飞书文档教程：
+
+👉 [《火星熊-ESP32开发板系列面包板制作》](https://hcngjtwigghb.feishu.cn/wiki/CmZxwV17miwpYHk46ZpcXutOnJ8?from=from_copylink)
+
+面包板效果图如下：
+
+![ESP32面包板效果图](docs/ESP32-BreadBoard.jpg)
+
 ### 已支持的开源硬件
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立创·实战派 ESP32-S3 开发板">立创·实战派 ESP32-S3 开发板</a>
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">AtomS3R + Echo Base</a>
+- <a href="https://docs.m5stack.com/en/core/ATOM%20Matrix" target="_blank" title="AtomMatrix + Echo Base">AtomMatrix + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
@@ -70,6 +82,9 @@
   <a href="docs/v1/atoms3r.jpg" target="_blank" title="AtomS3R + Echo Base">
     <img src="docs/v1/atoms3r.jpg" width="240" />
   </a>
+  <a href="docs/AtomMatrix-echo-base.jpg" target="_blank" title="AtomMatrix-echo-base + Echo Base">
+    <img src="docs/AtomMatrix-echo-base.jpg" width="240" />
+  </a>  
   <a href="docs/v1/magiclick.jpg" target="_blank" title="神奇按钮 2.4">
     <img src="docs/v1/magiclick.jpg" width="240" />
   </a>
