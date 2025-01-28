@@ -20,6 +20,9 @@
  
 #define TAG "CompactWifiBoardLCD"
 
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
+
 class CompactWifiBoardLCD : public WifiBoard {
 private:
  
@@ -72,7 +75,12 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    {
+                                        .text_font = &font_puhui_16_4,
+                                        .icon_font = &font_awesome_16_4,
+                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? emoji_font_64_lite_init() : emoji_font_init(),
+                                    });
     }
 
 
@@ -90,8 +98,7 @@ private:
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-        //thing_manager.AddThing(iot::CreateThing("Lamp"));
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
 public:

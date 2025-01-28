@@ -8,6 +8,9 @@ import zipfile
 import oss2
 import json
 
+# 切换到项目根目录
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def get_chip_id_string(chip_id):
     return {
         0x0000: "esp32",
@@ -64,13 +67,13 @@ def get_board_name(folder):
             return "bread-compact-wifi"
         elif "KevinBox1" in basename:
             return "kevin-box-1"
-    if basename.startswith("v0.7") or basename.startswith("v0.8") or basename.startswith("v0.9"):
+    if basename.startswith("v0.7") or basename.startswith("v0.8") or basename.startswith("v0.9") or basename.startswith("v1."):
         return basename.split("_")[1]
     raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
-    data = open(merged_bin_path, "rb").read()[0x200000:]
+    data = open(merged_bin_path, "rb").read()[0x100000:]
     if data[0] != 0xE9:
         print(dir_path, "is not a valid image")
         return
@@ -102,6 +105,7 @@ def read_binary(dir_path):
         "flash_size": flash_size,
         "board": get_board_name(dir_path),
         "application": desc,
+        "firmware_size": len(data),
     }
 
 def extract_zip(zip_path, extract_path):

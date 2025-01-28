@@ -2,13 +2,16 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
+            "audio_codecs/tcircles3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/lcd_display.cc"
             "display/ssd1306_display.cc"
+            "boards/lilygo-t-circle-s3/esp_lcd_gc9d01n.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -27,11 +30,6 @@ set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
 list(APPEND SOURCES ${IOT_SOURCES})
-
-# 字体
-file(GLOB FONT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/fonts/*.c)
-list(APPEND SOURCES ${FONT_SOURCES})
-list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/fonts)
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -57,10 +55,14 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
     set(BOARD_TYPE "lichuang-c3-dev")
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P4)
     set(BOARD_TYPE "magiclick-2p4")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3)
+    set(BOARD_TYPE "magiclick-c3")
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-echo-base")
+elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
+    set(BOARD_TYPE "atommatrix-echo-base") 
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
@@ -73,12 +75,27 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")    
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
     set(BOARD_TYPE "tudouzi") 
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
+    set(BOARD_TYPE "lilygo-t-circle-s3") 
+elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
+    set(BOARD_TYPE "movecall-moji-esp32s3") 
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
+    set(BOARD_TYPE "atk-dnesp32s3")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
+    set(BOARD_TYPE "atk-dnesp32s3-box") 
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
+endif()
+
+# 如果目标芯片是 ESP32，则排除特定文件
+if(CONFIG_IDF_TARGET_ESP32)
+    # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
+    list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                             "audio_codecs/cores3_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

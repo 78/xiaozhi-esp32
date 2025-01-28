@@ -18,6 +18,9 @@ private:
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
 
+    const lv_font_t* text_font_ = nullptr;
+    const lv_font_t* icon_font_ = nullptr;
+
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
@@ -25,7 +28,8 @@ private:
     void SetupUI_128x32();
 
 public:
-    Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x = false, bool mirror_y = false);
+    Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
+                   const lv_font_t* text_font, const lv_font_t* icon_font);
     ~Ssd1306Display();
 };
 
