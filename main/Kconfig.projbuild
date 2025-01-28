@@ -72,6 +72,8 @@ choice BOARD_TYPE
         bool "ESP-SparkBot开发板"    
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_TUDOUZI
+        bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
          bool "LILYGO T-Circle-S3"
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
