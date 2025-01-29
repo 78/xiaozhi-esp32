@@ -105,12 +105,6 @@ private:
             }
             app.ToggleChatState();
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
     }
 
     void InitializeSH8601Display() {

@@ -14,9 +14,12 @@
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
 
-#define TAG "Tudouzi"
+#define TAG "KevinBoxBoard"
 
-class Tudouzi : public Ml307Board {
+LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_awesome_14_1);
+
+class KevinBoxBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     i2c_master_bus_handle_t codec_i2c_bus_;
@@ -30,7 +33,7 @@ private:
     void InitializePowerSaveTimer() {
         esp_timer_create_args_t power_save_timer_args = {
             .callback = [](void *arg) {
-                auto board = static_cast<Tudouzi*>(arg);
+                auto board = static_cast<KevinBoxBoard*>(arg);
                 board->PowerSaveCheck();
             },
             .arg = this,
@@ -55,7 +58,6 @@ private:
             return;
         }
         
-        seconds++;
         if (seconds >= seconds_to_shutdown) {
             axp2101_->PowerOff();
         }
@@ -164,7 +166,7 @@ private:
     }
 
 public:
-    Tudouzi() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    KevinBoxBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -176,7 +178,7 @@ public:
         Enable4GModule();
 
         InitializeButtons();
-        // InitializePowerSaveTimer();
+        InitializePowerSaveTimer();
         InitializeIot();
     }
     
@@ -193,7 +195,8 @@ public:
     }
 
     virtual Display* GetDisplay() override {
-        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+                                    &font_puhui_14_1, &font_awesome_14_1);
         return &display;
     }
 
@@ -211,4 +214,4 @@ public:
     }
 };
 
-DECLARE_BOARD(Tudouzi);
+DECLARE_BOARD(KevinBoxBoard);

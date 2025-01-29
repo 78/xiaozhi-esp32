@@ -126,12 +126,6 @@ private:
             }
             app.ToggleChatState();
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
