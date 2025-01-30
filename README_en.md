@@ -45,17 +45,6 @@ Breadboard setup shown below:
 
 ![Breadboard Setup](docs/wiring2.jpg)
 
-
-### ESP32 Series DevBoard Breadboard Practice
-
-For detailed tutorial, see the Feishu document:
-
-👉 [MarsBear-ESP32DevBoard Breadboard Practice](https://hcngjtwigghb.feishu.cn/wiki/CmZxwV17miwpYHk46ZpcXutOnJ8?from=from_copylink)
-
-Breadboard setup shown below:
-
-![ESP32 Dev Breadboard Setup](docs/ESP32-BreadBoard.jpg)
-
 ### Supported Open-Source Hardware
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="LiChuang ESP32-S3 Development Board">LiChuang ESP32-S3 Development Board</a>

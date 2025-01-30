@@ -45,17 +45,6 @@
 
 ![面包板效果图](docs/wiring2.jpg)
 
-
-### ESP32开发板系列-面包板制作教程
-
-详见飞书文档教程：
-
-👉 [《火星熊-ESP32开发板系列面包板制作》](https://hcngjtwigghb.feishu.cn/wiki/CmZxwV17miwpYHk46ZpcXutOnJ8?from=from_copylink)
-
-面包板效果图如下：
-
-![ESP32面包板效果图](docs/ESP32-BreadBoard.jpg)
-
 ### 已支持的开源硬件
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立创·实战派 ESP32-S3 开发板">立创·实战派 ESP32-S3 开发板</a>
