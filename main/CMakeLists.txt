@@ -41,6 +41,8 @@ if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
+    set(BOARD_TYPE "bread-compact-esp32")    
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
@@ -95,7 +97,8 @@ endif()
 if(CONFIG_IDF_TARGET_ESP32)
     # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
-                             "audio_codecs/cores3_audio_codec.cc")
+                             "audio_codecs/cores3_audio_codec.cc"
+                             "audio_codecs/es8388_audio_codec.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

@@ -94,8 +94,10 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
-            .ext_clk_freq_hz = 0,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+			#ifdef   I2S_HW_VERSION_2    
+				.ext_clk_freq_hz = 0,
+			#endif
         },
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
@@ -105,9 +107,11 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
-            .left_align = true,
-            .big_endian = false,
-            .bit_order_lsb = false
+            #ifdef   I2S_HW_VERSION_2   
+                .left_align = true,
+                .big_endian = false,
+                .bit_order_lsb = false
+            #endif
         },
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
