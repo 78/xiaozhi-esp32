@@ -7,6 +7,8 @@ import struct
 import zipfile
 import oss2
 import json
+import requests
+from requests.exceptions import RequestException
 
 # 切换到项目根目录
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -123,45 +125,73 @@ def upload_dir_to_oss(source_dir, target_dir):
         print('uploading', oss_key)
         bucket.put_object(oss_key, open(os.path.join(source_dir, filename), 'rb'))
 
+def post_info_to_server(info):
+    """
+    将固件信息发送到服务器
+    
+    Args:
+        info: 包含固件信息的字典
+    """
+    try:
+        # 从环境变量获取服务器URL和token
+        server_url = os.environ.get('VERSIONS_SERVER_URL')
+        server_token = os.environ.get('VERSIONS_TOKEN')
+        
+        if not server_url or not server_token:
+            raise Exception("Missing SERVER_URL or TOKEN in environment variables")
+
+        # 准备请求头和数据
+        headers = {
+            'Authorization': f'Bearer {server_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        # 发送POST请求
+        response = requests.post(
+            server_url,
+            headers=headers,
+            json={'jsonData': json.dumps(info)}
+        )
+        
+        # 检查响应状态
+        response.raise_for_status()
+        
+        print(f"Successfully uploaded version info for tag: {info['tag']}")
+        
+    except RequestException as e:
+        if hasattr(e.response, 'json'):
+            error_msg = e.response.json().get('error', str(e))
+        else:
+            error_msg = str(e)
+        print(f"Failed to upload version info: {error_msg}")
+        raise
+    except Exception as e:
+        print(f"Error uploading version info: {str(e)}")
+        raise
+
 def main():
     release_dir = "releases"
-    versions = []
     # look for zip files startswith "v"
     for name in os.listdir(release_dir):
         if name.startswith("v") and name.endswith(".zip"):
             tag = name[:-4]
             folder = os.path.join(release_dir, tag)
-            if not os.path.exists(folder):
-                os.makedirs(folder)
-                extract_zip(os.path.join(release_dir, name), folder)
+            info_path = os.path.join(folder, "info.json")
+            if not os.path.exists(info_path):
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+                    extract_zip(os.path.join(release_dir, name), folder)
                 info = read_binary(folder)
                 target_dir = os.path.join("firmwares", tag)
                 info["tag"] = tag
                 info["url"] = os.path.join(os.environ['OSS_BUCKET_URL'], target_dir, "xiaozhi.bin")
-                open(os.path.join(folder, "info.json"), "w").write(json.dumps(info, indent=4))
+                open(info_path, "w").write(json.dumps(info, indent=4))
                 # upload all file to oss
                 upload_dir_to_oss(folder, target_dir)
-            # read info.json
-            info = json.load(open(os.path.join(folder, "info.json")))
-            versions.append(info)
-
-    # sort versions by version
-    versions.sort(key=lambda x: x["tag"], reverse=True)
-    # write versions to file
-    versions_path = os.path.join(release_dir, "versions.json")
-    open(versions_path, "w").write(json.dumps(versions, indent=4))
-    print(f"Versions written to {versions_path}")
-
-    # copy versions.json to server
-    versions_config_path = os.environ.get('VERSIONS_CONFIG_PATH')
-    if not versions_config_path:
-        print("VERSIONS_CONFIG_PATH is not set")
-        exit(1)
-    ret = os.system(f'scp {versions_path} {versions_config_path}')
-    if ret != 0:
-        print(f'Failed to copy versions.json to server')
-        exit(1)
-    print(f'Copied versions.json to server: {versions_config_path}')
+                # read info.json
+                info = json.load(open(info_path))
+                # post info.json to server
+                post_info_to_server(info)
 
 
 
