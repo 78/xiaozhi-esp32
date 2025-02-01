@@ -88,14 +88,16 @@ void Display::Update() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
-    DisplayLockGuard lock(this);
-    // 如果静音状态改变，则更新图标
-    if (codec->output_volume() == 0 && !muted_) {
-        muted_ = true;
-        lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
-    } else if (codec->output_volume() > 0 && muted_) {
-        muted_ = false;
-        lv_label_set_text(mute_label_, "");
+    {
+        DisplayLockGuard lock(this);
+        // 如果静音状态改变，则更新图标
+        if (codec->output_volume() == 0 && !muted_) {
+            muted_ = true;
+            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
+        } else if (codec->output_volume() > 0 && muted_) {
+            muted_ = false;
+            lv_label_set_text(mute_label_, "");
+        } 
     }
 
     // 更新电池图标
@@ -117,16 +119,24 @@ void Display::Update() {
             icon = levels[battery_level / 20];
         }
         if (battery_icon_ != icon) {
+            DisplayLockGuard lock(this);
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
     }
 
-    // 仅在聊天状态为空闲时，读取网络状态（避免升级时占用 UART 资源）
+    // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();
-    if (device_state == kDeviceStateIdle || device_state == kDeviceStateStarting) {
+    static const std::vector<DeviceState> allowed_states = {
+        kDeviceStateIdle,
+        kDeviceStateStarting,
+        kDeviceStateWifiConfiguring,
+        kDeviceStateListening,
+    };
+    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
         icon = board.GetNetworkStateIcon();
         if (network_icon_ != icon) {
+            DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
         }

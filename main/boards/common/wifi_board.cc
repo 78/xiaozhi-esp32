@@ -165,9 +165,9 @@ const char* WifiBoard::GetNetworkStateIcon() {
         return FONT_AWESOME_WIFI_OFF;
     }
     int8_t rssi = wifi_station.GetRssi();
-    if (rssi >= -55) {
+    if (rssi >= -60) {
         return FONT_AWESOME_WIFI;
-    } else if (rssi >= -65) {
+    } else if (rssi >= -70) {
         return FONT_AWESOME_WIFI_FAIR;
     } else {
         return FONT_AWESOME_WIFI_WEAK;
