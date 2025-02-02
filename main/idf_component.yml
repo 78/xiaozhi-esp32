@@ -6,7 +6,7 @@ dependencies:
   espressif/esp_lcd_ili9341: "==1.2.0"
   espressif/esp_lcd_gc9a01: "^2.0.1"
   78/esp_lcd_nv3023: "~1.0.0"
-  78/esp-wifi-connect: "~2.0.2"
+  78/esp-wifi-connect: "~2.1.0"
   78/esp-opus-encoder: "~2.1.0"
   78/esp-ml307: "~1.7.1"
   78/xiaozhi-fonts: "~1.2.0"
