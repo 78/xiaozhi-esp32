@@ -5,11 +5,14 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_timer.h>
-#include <emoji_font.h>
+#include <font_emoji.h>
+
+#include <atomic>
 
 class LcdDisplay : public Display {
 protected:
@@ -17,14 +20,8 @@ protected:
     esp_lcd_panel_handle_t panel_ = nullptr;
     gpio_num_t backlight_pin_ = GPIO_NUM_NC;
     bool backlight_output_invert_ = false;
-    bool mirror_x_ = false;
-    bool mirror_y_ = false;
-    bool swap_xy_ = false;
-    int offset_x_ = 0;
-    int offset_y_ = 0;
-    SemaphoreHandle_t lvgl_mutex_ = nullptr;
-    esp_timer_handle_t lvgl_tick_timer_ = nullptr;
     
+    lv_draw_buf_t draw_buf_;
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
@@ -35,7 +32,6 @@ protected:
 
     void InitializeBacklight(gpio_num_t backlight_pin);
     void SetBacklight(uint8_t brightness);
-    void LvglTask();
 
     virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;

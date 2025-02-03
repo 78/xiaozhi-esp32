@@ -10,8 +10,6 @@ class Ssd1306Display : public Display {
 private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    bool mirror_x_ = false;
-    bool mirror_y_ = false;
 
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;

@@ -30,7 +30,7 @@ public:
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
-                        .emoji_font = emoji_font_init(),
+                        .emoji_font = font_emoji_32_init(),
                     }) {
 
         DisplayLockGuard lock(this);

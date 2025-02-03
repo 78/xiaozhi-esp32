@@ -77,6 +77,7 @@ void Application::CheckNewVersion() {
                     display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
                     board.SetPowerSaveMode(false);
+                    wake_word_detect_.StopDetection();
                     // 预先关闭音频输出，避免升级过程有音频操作
                     board.GetAudioCodec()->EnableOutput(false);
                     {
@@ -416,8 +417,10 @@ void Application::Start() {
 }
 
 void Application::Schedule(std::function<void()> callback) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    main_tasks_.push_back(std::move(callback));
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        main_tasks_.push_back(std::move(callback));
+    }
     xEventGroupSetBits(event_group_, SCHEDULE_EVENT);
 }
 
@@ -437,9 +440,9 @@ void Application::MainLoop() {
             OutputAudio();
         }
         if (bits & SCHEDULE_EVENT) {
-            mutex_.lock();
+            std::unique_lock<std::mutex> lock(mutex_);
             std::list<std::function<void()>> tasks = std::move(main_tasks_);
-            mutex_.unlock();
+            lock.unlock();
             for (auto& task : tasks) {
                 task();
             }

@@ -40,7 +40,7 @@ void WebsocketProtocol::SendText(const std::string& text) {
 }
 
 bool WebsocketProtocol::IsAudioChannelOpened() const {
-    return websocket_ != nullptr;
+    return websocket_ != nullptr && websocket_->IsConnected();
 }
 
 void WebsocketProtocol::CloseAudioChannel() {
