@@ -118,6 +118,63 @@ bool Ota::CheckVersion() {
     return true;
 }
 
+int64_t Ota::GetServerTime() {
+    auto http = Board::GetInstance().CreateHttp();
+    for (const auto& header : headers_) {
+        http->SetHeader(header.first, header.second);
+    }
+
+    http->SetHeader("Content-Type", "application/json");
+    std::string method = post_data_.length() > 0 ? "POST" : "GET";
+    if (!http->Open(method, check_version_url_, post_data_)) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection");
+        delete http;
+        return 0;
+    }
+
+    auto response = http->GetBody();
+    http->Close();
+    delete http;
+
+    cJSON *root = cJSON_Parse(response.c_str());
+    if (root == NULL) {
+        ESP_LOGE(TAG, "Failed to parse JSON response");
+        return 0;
+    }
+
+    cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
+    if (server_time == NULL) {
+        ESP_LOGE(TAG, "Failed to get server_time object");
+        cJSON_Delete(root);
+        return 0;
+    }
+
+    cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
+    cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
+    
+    if (timestamp == NULL) {
+        ESP_LOGE(TAG, "Failed to get timestamp object");
+        cJSON_Delete(root);
+        return 0;
+    }
+
+    // 保存时区偏移量
+    if (timezone_offset != NULL && timezone_offset->type == cJSON_Number) {
+        timezone_offset_ = timezone_offset->valueint;
+    }
+
+    // 将毫秒级时间戳转换为秒级
+    int64_t server_timestamp = (int64_t)(timestamp->valuedouble / 1000);
+    
+    // 应用时区偏移
+    // server_timestamp += (timezone_offset_ * 60);  // 转换时区偏移量从分钟到秒
+    server_timestamp += (480 * 60);  // 东八区时区偏移量
+
+
+    cJSON_Delete(root);
+    return server_timestamp;
+}
+
 void Ota::MarkCurrentVersionValid() {
     auto partition = esp_ota_get_running_partition();
     if (strcmp(partition->label, "factory") == 0) {

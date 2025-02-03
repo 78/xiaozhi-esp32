@@ -13,6 +13,7 @@
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
+#include <esp_sleep.h>
 
 #define TAG "KevinBoxBoard"
 
@@ -121,6 +122,11 @@ private:
     }
 
     void InitializeButtons() {
+        gpio_wakeup_enable(BOOT_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
+        gpio_wakeup_enable(VOLUME_UP_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
+        gpio_wakeup_enable(VOLUME_DOWN_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+
         boot_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
         });

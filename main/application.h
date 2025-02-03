@@ -94,6 +94,10 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
+    time_t current_time_;
+    void UpdateTime();
+    void ShowTime();
+
     void MainLoop();
     void InputAudio();
     void OutputAudio();

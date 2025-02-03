@@ -14,6 +14,9 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
+#include <esp_sleep.h>
+#define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
+
 
 #define TAG "Application"
 
@@ -62,6 +65,7 @@ void Application::CheckNewVersion() {
 
     while (true) {
         if (ota_.CheckVersion()) {
+            UpdateTime();
             if (ota_.HasNewVersion()) {
                 Alert("Info", "正在升级固件");
                 // Wait for the chat state to be idle
@@ -473,6 +477,8 @@ void Application::OutputAudio() {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
             if (duration > max_silence_seconds) {
                 codec->EnableOutput(false);
+                // esp_sleep_enable_timer_wakeup(30 * uS_TO_S_FACTOR);
+                // esp_light_sleep_start();
             }
         }
         return;
@@ -583,7 +589,7 @@ void Application::SetDeviceState(DeviceState state) {
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
-            display->SetStatus("待命");
+            ShowTime();
             display->SetEmotion("neutral");
 #ifdef CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Stop();
@@ -637,5 +643,31 @@ void Application::UpdateIotStates() {
     if (states != last_iot_states_) {
         last_iot_states_ = states;
         protocol_->SendIotStates(states);
+    }
+}
+
+void Application::UpdateTime() {
+    time_t new_time = ota_.GetServerTime();
+    if (new_time > 0) {
+        current_time_ = new_time;
+        struct timeval tv = { .tv_sec = current_time_ };
+        settimeofday(&tv, NULL);
+        ESP_LOGI(TAG, "Update time: timestamp=%ld", (long)new_time);
+    }
+}
+
+void Application::ShowTime() {
+    char time_str[32];
+    time(&current_time_);
+    struct tm timeinfo;
+    localtime_r(&current_time_, &timeinfo);
+    // Use %l:%M to remove leading zero for hour
+    strftime(time_str, sizeof(time_str), "%l:%M", &timeinfo);
+    ESP_LOGI(TAG, "Show time: timestamp=%ld, time=%s", (long)current_time_, time_str);
+    // Remove leading space that %l may generate
+    if (time_str[0] == ' ') {
+        Board::GetInstance().GetDisplay()->SetStatus(time_str + 1);
+    } else {
+        Board::GetInstance().GetDisplay()->SetStatus(time_str);
     }
 }
