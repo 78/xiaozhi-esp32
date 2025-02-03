@@ -1,89 +1,17 @@
 #include "lcd_display.h"
-#include "font_awesome_symbols.h"
 
+#include <font_awesome_symbols.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <driver/ledc.h>
 #include <vector>
+#include <esp_lvgl_port.h>
 #include "board.h"
 
 #define TAG "LcdDisplay"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
-#define LCD_LVGL_TICK_PERIOD_MS 2
-#define LCD_LVGL_TASK_MAX_DELAY_MS 60
-#define LCD_LVGL_TASK_MIN_DELAY_MS 1
-#define LCD_LVGL_TASK_STACK_SIZE (4 * 1024)
-#define LCD_LVGL_TASK_PRIORITY 1
-
 LV_FONT_DECLARE(font_awesome_30_4);
-
-
-static lv_disp_drv_t disp_drv;
-static void lcd_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
-{
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
-    int offsetx1 = area->x1;
-    int offsetx2 = area->x2;
-    int offsety1 = area->y1;
-    int offsety2 = area->y2;
-    // copy a buffer's content to a specific area of the display
-    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, color_map);
-    lv_disp_flush_ready(&disp_drv);
-}
-
-/* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
-static void lcd_lvgl_port_update_callback(lv_disp_drv_t *drv)
-{
-    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)drv->user_data;
-
-    switch (drv->rotated)
-    {
-    case LV_DISP_ROT_NONE:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, false);
-        esp_lcd_panel_mirror(panel_handle, true, false);
-        break;
-    case LV_DISP_ROT_90:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, true);
-        esp_lcd_panel_mirror(panel_handle, true, true);
-        break;
-    case LV_DISP_ROT_180:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, false);
-        esp_lcd_panel_mirror(panel_handle, false, true);
-        break;
-    case LV_DISP_ROT_270:
-        // Rotate LCD display
-        esp_lcd_panel_swap_xy(panel_handle, true);
-        esp_lcd_panel_mirror(panel_handle, false, false);
-        break;
-    }
-}
-
-void LcdDisplay::LvglTask() {
-    ESP_LOGI(TAG, "Starting LVGL task");
-    uint32_t task_delay_ms = LCD_LVGL_TASK_MAX_DELAY_MS;
-    while (1)
-    {
-        // Lock the mutex due to the LVGL APIs are not thread-safe
-        if (Lock())
-        {
-            task_delay_ms = lv_timer_handler();
-            Unlock();
-        }
-        if (task_delay_ms > LCD_LVGL_TASK_MAX_DELAY_MS)
-        {
-            task_delay_ms = LCD_LVGL_TASK_MAX_DELAY_MS;
-        }
-        else if (task_delay_ms < LCD_LVGL_TASK_MIN_DELAY_MS)
-        {
-            task_delay_ms = LCD_LVGL_TASK_MIN_DELAY_MS;
-        }
-        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
-    }
-}
 
 
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -91,12 +19,9 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
     : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
-      mirror_x_(mirror_x), mirror_y_(mirror_y), swap_xy_(swap_xy),
       fonts_(fonts) {
     width_ = width;
     height_ = height;
-    offset_x_ = offset_x;
-    offset_y_ = offset_y;
 
     InitializeBacklight(backlight_pin);
 
@@ -112,50 +37,45 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
-    // alloc draw buffers used by LVGL
-    static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
-    // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
-    lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf1);
-    lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(width_ * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
-    assert(buf2);
-    // initialize LVGL draw buffers
-    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, width_ * 10);
 
-    ESP_LOGI(TAG, "Register display driver to LVGL");
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.hor_res = width_;
-    disp_drv.ver_res = height_;
-    disp_drv.offset_x = offset_x_;
-    disp_drv.offset_y = offset_y_;
-    disp_drv.flush_cb = lcd_lvgl_flush_cb;
-    disp_drv.drv_update_cb = lcd_lvgl_port_update_callback;
-    disp_drv.draw_buf = &disp_buf;
-    disp_drv.user_data = panel_;
+    ESP_LOGI(TAG, "Initialize LVGL port");
+    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_init(&port_cfg);
 
-    lv_disp_drv_register(&disp_drv);
-
-    ESP_LOGI(TAG, "Install LVGL tick timer");
-    // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
-    const esp_timer_create_args_t lvgl_tick_timer_args = {
-        .callback = [](void* arg) {
-            lv_tick_inc(LCD_LVGL_TICK_PERIOD_MS);
+    ESP_LOGI(TAG, "Adding LCD screen");
+    const lvgl_port_display_cfg_t display_cfg = {
+        .io_handle = panel_io_,
+        .panel_handle = panel_,
+        .control_handle = nullptr,
+        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .double_buffer = true,
+        .trans_size = 0,
+        .hres = static_cast<uint32_t>(width_),
+        .vres = static_cast<uint32_t>(height_),
+        .monochrome = false,
+        .rotation = {
+            .swap_xy = swap_xy,
+            .mirror_x = mirror_x,
+            .mirror_y = mirror_y,
         },
-        .arg = NULL,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "LVGL Tick Timer",
-        .skip_unhandled_events = false
+        .color_format = LV_COLOR_FORMAT_RGB565,
+        .flags = {
+            .buff_dma = 1,
+            .buff_spiram = 0,
+            .sw_rotate = 0,
+            .swap_bytes = 1,
+            .full_refresh = 0,
+            .direct_mode = 0,
+        },
     };
-    ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer_, LCD_LVGL_TICK_PERIOD_MS * 1000));
 
-    lvgl_mutex_ = xSemaphoreCreateRecursiveMutex();
-    assert(lvgl_mutex_ != nullptr);
-    ESP_LOGI(TAG, "Create LVGL task");
-    xTaskCreate([](void *arg) {
-        static_cast<LcdDisplay*>(arg)->LvglTask();
-        vTaskDelete(NULL);
-    }, "LVGL", LCD_LVGL_TASK_STACK_SIZE, this, LCD_LVGL_TASK_PRIORITY, NULL);
+    display_ = lvgl_port_add_disp(&display_cfg);
+    if (display_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to add display");
+        return;
+    }
+
+    lv_display_set_offset(display_, offset_x, offset_y);
 
     SetBacklight(100);
 
@@ -163,9 +83,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 }
 
 LcdDisplay::~LcdDisplay() {
-    ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
-    ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
-
+    // 然后再清理 LVGL 对象
     if (content_ != nullptr) {
         lv_obj_del(content_);
     }
@@ -178,6 +96,9 @@ LcdDisplay::~LcdDisplay() {
     if (container_ != nullptr) {
         lv_obj_del(container_);
     }
+    if (display_ != nullptr) {
+        lv_display_delete(display_);
+    }
 
     if (panel_ != nullptr) {
         esp_lcd_panel_del(panel_);
@@ -185,7 +106,6 @@ LcdDisplay::~LcdDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
-    vSemaphoreDelete(lvgl_mutex_);
 }
 
 void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
@@ -236,14 +156,11 @@ void LcdDisplay::SetBacklight(uint8_t brightness) {
 }
 
 bool LcdDisplay::Lock(int timeout_ms) {
-    // Convert timeout in milliseconds to FreeRTOS ticks
-    // If `timeout_ms` is set to 0, the program will block until the condition is met
-    const TickType_t timeout_ticks = (timeout_ms == 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-    return xSemaphoreTakeRecursive(lvgl_mutex_, timeout_ticks) == pdTRUE;
+    return lvgl_port_lock(timeout_ms);
 }
 
 void LcdDisplay::Unlock() {
-    xSemaphoreGiveRecursive(lvgl_mutex_);
+    lvgl_port_unlock();
 }
 
 void LcdDisplay::SetupUI() {
@@ -340,7 +257,7 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
 
     static const std::vector<Emotion> emotions = {
         {"😶", "neutral"},
-        {"😊", "happy"},
+        {"🙂", "happy"},
         {"😆", "laughing"},
         {"😂", "funny"},
         {"😔", "sad"},
@@ -349,31 +266,30 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         {"😍", "loving"},
         {"😳", "embarrassed"},
         {"😯", "surprised"},
-        {"😨", "shocked"},
+        {"😱", "shocked"},
         {"🤔", "thinking"},
         {"😉", "winking"},
         {"😎", "cool"},
         {"😌", "relaxed"},
-        {"😋", "delicious"},
+        {"🤤", "delicious"},
         {"😘", "kissy"},
         {"😏", "confident"},
         {"😴", "sleepy"},
-        {"🤪", "silly"},
-        {"😕", "confused"}
+        {"😜", "silly"},
+        {"🙄", "confused"}
     };
-
-    DisplayLockGuard lock(this);
     
     // 查找匹配的表情
     auto it = std::find_if(emotions.begin(), emotions.end(),
         [&emotion](const Emotion& e) { return e.text == emotion; });
-    
+
+    DisplayLockGuard lock(this);
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);
     } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_EMOJI_NEUTRAL);
+        lv_label_set_text(emotion_label_, "😶");
     }
 }
 

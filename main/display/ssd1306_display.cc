@@ -13,7 +13,7 @@ LV_FONT_DECLARE(font_awesome_30_1);
 
 Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
                                const lv_font_t* text_font, const lv_font_t* icon_font)
-    : mirror_x_(mirror_x), mirror_y_(mirror_y), text_font_(text_font), icon_font_(icon_font) {
+    : text_font_(text_font), icon_font_(icon_font) {
     width_ = width;
     height_ = height;
 
@@ -76,8 +76,8 @@ Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, b
         .monochrome = true,
         .rotation = {
             .swap_xy = false,
-            .mirror_x = mirror_x_,
-            .mirror_y = mirror_y_,
+            .mirror_x = mirror_x,
+            .mirror_y = mirror_y,
         },
         .flags = {
             .buff_dma = 1,
@@ -88,9 +88,8 @@ Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, b
         },
     };
 
-    disp_ = lvgl_port_add_disp(&display_cfg);
-
-    if (disp_ == nullptr) {
+    display_ = lvgl_port_add_disp(&display_cfg);
+    if (display_ == nullptr) {
         ESP_LOGE(TAG, "Failed to add display");
         return;
     }
@@ -136,7 +135,7 @@ void Ssd1306Display::Unlock() {
 void Ssd1306Display::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_disp_get_scr_act(disp_);
+    auto screen = lv_disp_get_scr_act(display_);
     lv_obj_set_style_text_font(screen, text_font_, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
@@ -198,7 +197,7 @@ void Ssd1306Display::SetupUI_128x64() {
 void Ssd1306Display::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_disp_get_scr_act(disp_);
+    auto screen = lv_disp_get_scr_act(display_);
     lv_obj_set_style_text_font(screen, text_font_, 0);
 
     /* Container */

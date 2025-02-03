@@ -44,7 +44,7 @@ public:
                     {
                         .text_font = &font_puhui_20_4,
                         .icon_font = &font_awesome_20_4,
-                        .emoji_font = emoji_font_64_lite_init(),
+                        .emoji_font = font_emoji_64_init(),
                     }) {
 
         DisplayLockGuard lock(this);
@@ -114,7 +114,7 @@ private:
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
-                                        .emoji_font = emoji_font_64_lite_init(),
+                                        .emoji_font = font_emoji_64_init(),
                                     });
     }
 
