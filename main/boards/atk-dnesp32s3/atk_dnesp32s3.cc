@@ -167,10 +167,6 @@ public:
             audio_codec = new Es8388AudioCodec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                 AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
                 GPIO_NUM_NC, AUDIO_CODEC_ES8388_ADDR);
-
-            audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);  //设置默认音量
-            audio_codec->WriteReg(0x30, AUDIO_ADD_OUTPUT_VOLUME);
-            audio_codec->WriteReg(0x31, AUDIO_ADD_OUTPUT_VOLUME);//音量增益设置
         }
         return audio_codec;
     }

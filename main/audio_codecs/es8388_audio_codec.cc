@@ -149,7 +149,7 @@ void Es8388AudioCodec::EnableInput(bool enable) {
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 40.0));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 24.0));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
@@ -170,6 +170,14 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+
+        // Set analog output volume to 0dB, default is -45dB
+        uint8_t reg_val = 30; // 0dB
+        uint8_t regs[] = { 46, 47, 48, 49 }; // HP_LVOL, HP_RVOL, SPK_LVOL, SPK_RVOL
+        for (uint8_t reg : regs) {
+            ctrl_if_->write_reg(ctrl_if_, reg, 1, &reg_val, 1);
+        }
+
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 1);
         }
@@ -194,12 +202,4 @@ int Es8388AudioCodec::Write(const int16_t* data, int samples) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }
     return samples;
-}
-
-void Es8388AudioCodec::WriteReg(uint8_t reg_addr, uint8_t data) {
-    if (ctrl_if_ != nullptr) {
-        ctrl_if_->write_reg(ctrl_if_, reg_addr, 1, &data, 1);
-    } else {
-        ESP_LOGE(TAG, "Control interface is not initialized");
-    }
 }

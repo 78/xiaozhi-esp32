@@ -32,8 +32,6 @@ public:
     virtual void SetOutputVolume(int volume) override;
     virtual void EnableInput(bool enable) override;
     virtual void EnableOutput(bool enable) override;
-
-    void WriteReg(uint8_t reg_addr, uint8_t data);
 };
 
 #endif // _ES8388_AUDIO_CODEC_H
