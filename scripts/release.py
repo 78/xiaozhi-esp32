@@ -2,6 +2,8 @@ import sys
 import os
 import json
 
+# 切换到项目根目录
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def get_board_type():
     with open("build/compile_commands.json") as f:

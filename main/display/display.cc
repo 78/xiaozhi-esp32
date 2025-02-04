@@ -36,17 +36,21 @@ Display::Display() {
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
         .name = "Update Display Timer",
-        .skip_unhandled_events = false,
+        .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
 }
 
 Display::~Display() {
-    esp_timer_stop(notification_timer_);
-    esp_timer_stop(update_timer_);
-    esp_timer_delete(notification_timer_);
-    esp_timer_delete(update_timer_);
+    if (notification_timer_ != nullptr) {
+        esp_timer_stop(notification_timer_);
+        esp_timer_delete(notification_timer_);
+    }
+    if (update_timer_ != nullptr) {
+        esp_timer_stop(update_timer_);
+        esp_timer_delete(update_timer_);
+    }
 
     if (network_label_ != nullptr) {
         lv_obj_del(network_label_);
@@ -54,6 +58,7 @@ Display::~Display() {
         lv_obj_del(status_label_);
         lv_obj_del(mute_label_);
         lv_obj_del(battery_label_);
+        lv_obj_del(emotion_label_);
     }
 }
 
@@ -88,14 +93,16 @@ void Display::Update() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
-    DisplayLockGuard lock(this);
-    // 如果静音状态改变，则更新图标
-    if (codec->output_volume() == 0 && !muted_) {
-        muted_ = true;
-        lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
-    } else if (codec->output_volume() > 0 && muted_) {
-        muted_ = false;
-        lv_label_set_text(mute_label_, "");
+    {
+        DisplayLockGuard lock(this);
+        // 如果静音状态改变，则更新图标
+        if (codec->output_volume() == 0 && !muted_) {
+            muted_ = true;
+            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
+        } else if (codec->output_volume() > 0 && muted_) {
+            muted_ = false;
+            lv_label_set_text(mute_label_, "");
+        }
     }
 
     // 更新电池图标
@@ -117,16 +124,24 @@ void Display::Update() {
             icon = levels[battery_level / 20];
         }
         if (battery_icon_ != icon) {
+            DisplayLockGuard lock(this);
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
     }
 
-    // 仅在聊天状态为空闲时，读取网络状态（避免升级时占用 UART 资源）
+    // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();
-    if (device_state == kDeviceStateIdle || device_state == kDeviceStateStarting) {
+    static const std::vector<DeviceState> allowed_states = {
+        kDeviceStateIdle,
+        kDeviceStateStarting,
+        kDeviceStateWifiConfiguring,
+        kDeviceStateListening,
+    };
+    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
         icon = board.GetNetworkStateIcon();
         if (network_icon_ != icon) {
+            DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
         }
@@ -167,13 +182,12 @@ void Display::SetEmotion(const std::string &emotion) {
         {FONT_AWESOME_EMOJI_SILLY, "silly"},
         {FONT_AWESOME_EMOJI_CONFUSED, "confused"}
     };
-
-    DisplayLockGuard lock(this);
     
     // 查找匹配的表情
     auto it = std::find_if(emotions.begin(), emotions.end(),
         [&emotion](const Emotion& e) { return e.text == emotion; });
     
+    DisplayLockGuard lock(this);
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);

@@ -112,16 +112,14 @@ const char* Ml307Board::GetNetworkStateIcon() {
     int csq = modem_.GetCsq();
     if (csq == -1) {
         return FONT_AWESOME_SIGNAL_OFF;
-    } else if (csq >= 0 && csq <= 9) {
+    } else if (csq >= 0 && csq <= 14) {
         return FONT_AWESOME_SIGNAL_1;
-    } else if (csq >= 10 && csq <= 14) {
-        return FONT_AWESOME_SIGNAL_2;
     } else if (csq >= 15 && csq <= 19) {
-        return FONT_AWESOME_SIGNAL_3;
+        return FONT_AWESOME_SIGNAL_2;
     } else if (csq >= 20 && csq <= 24) {
-        return FONT_AWESOME_SIGNAL_4;
+        return FONT_AWESOME_SIGNAL_3;
     } else if (csq >= 25 && csq <= 31) {
-        return FONT_AWESOME_SIGNAL_FULL;
+        return FONT_AWESOME_SIGNAL_4;
     }
 
     ESP_LOGW(TAG, "Invalid CSQ: %d", csq);

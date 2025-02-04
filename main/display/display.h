@@ -3,9 +3,15 @@
 
 #include <lvgl.h>
 #include <esp_timer.h>
+#include <esp_log.h>
 
 #include <string>
 
+struct DisplayFonts {
+    const lv_font_t* text_font = nullptr;
+    const lv_font_t* icon_font = nullptr;
+    const lv_font_t* emoji_font = nullptr;
+};
 
 class Display {
 public:
@@ -25,7 +31,7 @@ protected:
     int width_ = 0;
     int height_ = 0;
 
-    lv_disp_t *disp_ = nullptr;
+    lv_display_t *display_ = nullptr;
 
     lv_obj_t *emotion_label_ = nullptr;
     lv_obj_t *network_label_ = nullptr;
@@ -51,7 +57,9 @@ protected:
 class DisplayLockGuard {
 public:
     DisplayLockGuard(Display *display) : display_(display) {
-        display_->Lock();
+        if (!display_->Lock(3000)) {
+            ESP_LOGE("Display", "Failed to lock display");
+        }
     }
     ~DisplayLockGuard() {
         display_->Unlock();

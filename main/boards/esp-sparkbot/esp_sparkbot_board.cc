@@ -15,6 +15,9 @@
 
 #define TAG "esp_sparkbot"
 
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
+
 class SparkBotEs8311AudioCodec : public Es8311AudioCodec {
 private:    
 
@@ -111,7 +114,12 @@ private:
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    {
+                                        .text_font = &font_puhui_20_4,
+                                        .icon_font = &font_awesome_20_4,
+                                        .emoji_font = font_emoji_64_init(),
+                                    });
     }
 
     // 物联网初始化，添加对 AI 可见设备

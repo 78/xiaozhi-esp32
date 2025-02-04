@@ -31,7 +31,7 @@ std::string Settings::GetString(const std::string& key, const std::string& defau
     std::string value;
     value.resize(length);
     ESP_ERROR_CHECK(nvs_get_str(nvs_handle_, key.c_str(), value.data(), &length));
-    while (value.back() == '\0') {
+    while (!value.empty() && value.back() == '\0') {
         value.pop_back();
     }
     return value;

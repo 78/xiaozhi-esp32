@@ -17,7 +17,7 @@ public:
     void OnDoubleClick(std::function<void()> callback);
 private:
     gpio_num_t gpio_num_;
-    button_handle_t button_handle_;
+    button_handle_t button_handle_ = nullptr;
 
 
     std::function<void()> on_press_down_;

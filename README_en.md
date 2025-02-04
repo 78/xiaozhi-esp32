@@ -31,6 +31,7 @@ Learning & Discussion QQ Group: 946599635
 - Configurable prompts and voice tones (custom characters)
 - Short-term memory with self-summary after each conversation round
 - OLED / LCD display showing signal strength or conversation content
+- Support for displaying emoji images on LCD
 
 ## Hardware Section
 
@@ -50,28 +51,43 @@ Breadboard setup shown below:
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="Espressif ESP32-S3-BOX3">Espressif ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">AtomS3R + Echo Base</a>
-- MagiClick 2.4
+- <a href="https://docs.m5stack.com/en/core/ATOM%20Matrix" target="_blank" title="AtomMatrix + Echo Base">AtomMatrix + Echo Base</a>
+- <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="MagiClick 2.4">MagiClick 2.4</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xmini C3">Xmini C3</a>
-- <a href="https://www.waveshare.com/esp32-s3-touch-amoled-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Movecall Moji ESP32S3</a>
 
 <div style="display: flex; justify-content: space-between;">
-  <a href="docs/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
-    <img src="docs/lichuang-s3.jpg" width="240" />
+  <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
+    <img src="docs/v1/lichuang-s3.jpg" width="240" />
   </a>
-  <a href="docs/esp32s3-box3.jpg" target="_blank" title="Espressif ESP32-S3-BOX3">
-    <img src="docs/esp32s3-box3.jpg" width="240" />
+  <a href="docs/v1/espbox3.jpg" target="_blank" title="Espressif ESP32-S3-BOX3">
+    <img src="docs/v1/espbox3.jpg" width="240" />
   </a>
-  <a href="docs/m5stack-cores3.jpg" target="_blank" title="M5Stack CoreS3">
-    <img src="docs/m5stack-cores3.jpg" width="240" />
+  <a href="docs/v1/m5cores3.jpg" target="_blank" title="M5Stack CoreS3">
+    <img src="docs/v1/m5cores3.jpg" width="240" />
   </a>
-  <a href="docs/atoms3r-echo-base.jpg" target="_blank" title="AtomS3R + Echo Base">
-    <img src="docs/atoms3r-echo-base.jpg" width="240" />
+  <a href="docs/v1/atoms3r.jpg" target="_blank" title="AtomS3R + Echo Base">
+    <img src="docs/v1/atoms3r.jpg" width="240" />
   </a>
-  <a href="docs/magiclick-2p4.jpg" target="_blank" title="MagiClick 2.4">
-    <img src="docs/magiclick-2p4.jpg" width="240" />
+  <a href="docs/AtomMatrix-echo-base.jpg" target="_blank" title="AtomMatrix-echo-base + Echo Base">
+    <img src="docs/AtomMatrix-echo-base.jpg" width="240" />
+  </a>  
+  <a href="docs/v1/magiclick.jpg" target="_blank" title="MagiClick 2.4">
+    <img src="docs/v1/magiclick.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
+    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
   </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
+  </a>
+  <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Moji">
+    <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
 </div>
 
