@@ -48,9 +48,26 @@ Application::Application() {
 
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+
+    // 创建时间显示任务
+    xTaskCreate(
+        TimeDisplayTaskFunc,    // 任务函数
+        "time_display",        // 任务名称
+        2048,                  // 堆栈大小
+        this,                  // 传递this指针给任务
+        1,                     // 任务优先级
+        &time_display_task_    // 任务句柄
+    );
 }
 
 Application::~Application() {
+    // 停止时间显示任务
+    time_display_running_ = false;
+    if (time_display_task_ != nullptr) {
+        vTaskDelete(time_display_task_);
+        time_display_task_ = nullptr;
+    }
+    
     if (background_task_ != nullptr) {
         delete background_task_;
     }
@@ -477,7 +494,7 @@ void Application::OutputAudio() {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_output_time_).count();
             if (duration > max_silence_seconds) {
                 codec->EnableOutput(false);
-                // esp_sleep_enable_timer_wakeup(30 * uS_TO_S_FACTOR);
+                esp_sleep_enable_timer_wakeup(30 * uS_TO_S_FACTOR);
                 // esp_light_sleep_start();
             }
         }
@@ -580,7 +597,6 @@ void Application::SetDeviceState(DeviceState state) {
     
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
-    // The state is changed, wait for all background tasks to finish
     background_task_->WaitForCompletion();
 
     auto display = Board::GetInstance().GetDisplay();
@@ -589,7 +605,6 @@ void Application::SetDeviceState(DeviceState state) {
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
-            ShowTime();
             display->SetEmotion("neutral");
 #ifdef CONFIG_IDF_TARGET_ESP32S3
             audio_processor_.Stop();
@@ -656,18 +671,32 @@ void Application::UpdateTime() {
     }
 }
 
-void Application::ShowTime() {
-    char time_str[32];
-    time(&current_time_);
-    struct tm timeinfo;
-    localtime_r(&current_time_, &timeinfo);
-    // Use %l:%M to remove leading zero for hour
-    strftime(time_str, sizeof(time_str), "%l:%M", &timeinfo);
-    ESP_LOGI(TAG, "Show time: timestamp=%ld, time=%s", (long)current_time_, time_str);
-    // Remove leading space that %l may generate
-    if (time_str[0] == ' ') {
-        Board::GetInstance().GetDisplay()->SetStatus(time_str + 1);
-    } else {
-        Board::GetInstance().GetDisplay()->SetStatus(time_str);
+void Application::TimeDisplayTaskFunc(void* parameter) {
+    Application* app = static_cast<Application*>(parameter);
+    app->TimeDisplayTask();
+}
+
+void Application::TimeDisplayTask() {
+    while (time_display_running_) {
+        char time_str[32];
+        time(&current_time_);
+        struct tm timeinfo;
+        localtime_r(&current_time_, &timeinfo);
+        strftime(time_str, sizeof(time_str), "%l:%M", &timeinfo);
+        
+        if (GetDeviceState() == kDeviceStateIdle) {
+            auto display = Board::GetInstance().GetDisplay();
+            // Remove leading space that %l may generate
+            if (time_str[0] == ' ') {
+                display->SetStatus(time_str + 1);
+            } else {
+                display->SetStatus(time_str);
+            }
+        }
+        
+        // 每秒更新一次时间
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    
+    vTaskDelete(NULL);
 }
