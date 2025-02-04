@@ -169,6 +169,8 @@ public:
                 GPIO_NUM_NC, AUDIO_CODEC_ES8388_ADDR);
 
             audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);  //设置默认音量
+            audio_codec->WriteReg(0x30, AUDIO_ADD_OUTPUT_VOLUME);
+            audio_codec->WriteReg(0x31, AUDIO_ADD_OUTPUT_VOLUME);//音量增益设置
         }
         return audio_codec;
     }
