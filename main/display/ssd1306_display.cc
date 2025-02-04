@@ -135,7 +135,7 @@ void Ssd1306Display::Unlock() {
 void Ssd1306Display::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_disp_get_scr_act(display_);
+    auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font_, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
@@ -197,7 +197,7 @@ void Ssd1306Display::SetupUI_128x64() {
 void Ssd1306Display::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_disp_get_scr_act(display_);
+    auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font_, 0);
 
     /* Container */
