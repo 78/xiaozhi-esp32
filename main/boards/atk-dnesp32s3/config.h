@@ -1,6 +1,7 @@
 
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
+#define AUDIO_DEFAULT_OUTPUT_VOLUME         90
 
 #include <driver/gpio.h>
 
