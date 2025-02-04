@@ -195,3 +195,11 @@ int Es8388AudioCodec::Write(const int16_t* data, int samples) {
     }
     return samples;
 }
+
+void Es8388AudioCodec::WriteReg(uint8_t reg_addr, uint8_t data) {
+    if (ctrl_if_ != nullptr) {
+        ctrl_if_->write_reg(ctrl_if_, reg_addr, 1, &data, 1);
+    } else {
+        ESP_LOGE(TAG, "Control interface is not initialized");
+    }
+}
