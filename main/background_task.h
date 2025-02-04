@@ -23,10 +23,6 @@ private:
     TaskHandle_t background_task_handle_ = nullptr;
     std::atomic<size_t> active_tasks_{0};
 
-    TaskHandle_t task_ = nullptr;
-    StaticTask_t task_buffer_;
-    StackType_t* task_stack_ = nullptr;
-
     void BackgroundTaskLoop();
 };
 
