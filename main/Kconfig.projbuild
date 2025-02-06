@@ -89,7 +89,7 @@ choice BOARD_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD 
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
