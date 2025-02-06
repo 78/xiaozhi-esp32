@@ -84,10 +84,12 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
+    config BOARD_TYPE_DU_CHATX
+        bool "嘟嘟开发板CHATX(wifi)"       
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD 
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
