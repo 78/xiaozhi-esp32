@@ -108,6 +108,21 @@ LcdDisplay::~LcdDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
+    if (config_container_ != nullptr) {
+        lv_obj_del(config_container_);
+    }
+    if (config_text_panel_ != nullptr) {
+        lv_obj_del(config_text_panel_);
+    }
+    if (config_qrcode_panel_ != nullptr) {
+        lv_obj_del(config_qrcode_panel_);
+    }
+    if (qrcode_label_ != nullptr) {
+        lv_obj_del(qrcode_label_);
+    }
+    if (smartconfig_qrcode_ != nullptr) {
+        lv_obj_del(smartconfig_qrcode_);
+    }
 }
 
 void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
@@ -141,7 +156,7 @@ void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 }
 
-void LcdDisplay::SetBacklight(uint8_t brightness) {
+void LcdDisplay::SetBacklight(int brightness) {
     if (backlight_pin_ == GPIO_NUM_NC) {
         return;
     }
@@ -149,6 +164,7 @@ void LcdDisplay::SetBacklight(uint8_t brightness) {
     if (brightness > 100) {
         brightness = 100;
     }
+    backlight_brightness_ = brightness;
 
     ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
     // LEDC resolution set to 10bits, thus: 100% = 1023
@@ -185,26 +201,6 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     
-    /* Content */
-    content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
-    lv_obj_set_flex_grow(content_, 1);
-
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
-
-    emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-
-    chat_message_label_ = lv_label_create(content_);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
-
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
@@ -213,9 +209,15 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
     lv_obj_set_style_pad_right(status_bar_, 2, 0);
 
+#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
+    logo_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(logo_label_, "");
+    lv_obj_set_style_text_font(logo_label_, fonts_.text_font, 0);
+#else    
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+#endif
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -233,9 +235,75 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
 
+#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
+    network_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(network_label_, "");
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+#endif
+
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+
+    /* Content */
+    content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_flex_grow(content_, 1);
+
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+
+    // 创建配置页面
+    config_container_ = lv_obj_create(content_);
+    lv_obj_remove_style_all(config_container_); // 清除默认样式
+    lv_obj_set_size(config_container_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_flex_flow(config_container_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(config_container_, 10, 0); // 整体边距
+    lv_obj_set_style_pad_top(config_container_, 25, 0);  //顶部外边距加20像素
+    lv_obj_set_style_flex_main_place(config_container_, LV_FLEX_ALIGN_CENTER, 0); // 主轴居中
+    lv_obj_set_style_flex_cross_place(config_container_, LV_FLEX_ALIGN_CENTER, 0); // 交叉轴居中
+
+    // 左侧文本说明区
+    config_text_panel_ = lv_label_create(config_container_);
+    lv_obj_set_width(config_text_panel_, LV_HOR_RES - 150 - 20);
+    lv_label_set_text(config_text_panel_,"");
+    lv_obj_set_style_text_font(config_text_panel_, fonts_.text_font, 0);
+    lv_obj_set_style_text_line_space(config_text_panel_, 5, 0);
+    lv_label_set_long_mode(config_text_panel_, LV_LABEL_LONG_WRAP);
+
+    // 右侧二维码区
+    lv_obj_t* right_container = lv_obj_create(config_container_);
+    lv_obj_remove_style_all(right_container); // 清除默认样式
+    lv_obj_set_size(right_container, 140, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(right_container, LV_FLEX_FLOW_COLUMN); // 垂直布局
+    lv_obj_set_style_pad_gap(right_container, 5, 0); // 元素间距5像素
+    lv_obj_set_style_flex_main_place(right_container, LV_FLEX_ALIGN_CENTER, 0); // 主轴居中
+
+    qrcode_label_ = lv_label_create(right_container);
+    lv_label_set_text(qrcode_label_, "");
+    lv_obj_set_style_text_font(qrcode_label_, fonts_.text_font, 0);
+    lv_obj_set_style_text_line_space(qrcode_label_, 2, 0);
+    lv_obj_set_style_text_align(qrcode_label_, LV_TEXT_ALIGN_CENTER, 0);
+
+    config_qrcode_panel_ = lv_qrcode_create(right_container);
+    lv_qrcode_set_size(config_qrcode_panel_, 120);
+    lv_qrcode_set_dark_color(config_qrcode_panel_, lv_color_black());
+    lv_qrcode_set_light_color(config_qrcode_panel_, lv_color_white());
+
+    lv_obj_add_flag(config_container_, LV_OBJ_FLAG_HIDDEN);
+
+    // 对话区
+    emotion_label_ = lv_label_create(content_);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+
+    chat_message_label_ = lv_label_create(content_);
+    lv_label_set_text(chat_message_label_, "");
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
 }
 
 void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content) {
@@ -301,4 +369,58 @@ void LcdDisplay::SetIcon(const char* icon) {
     }
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, icon);
+}
+void LcdDisplay::lv_chat_page() {
+     // 隐藏配置页面元素
+    lv_obj_add_flag(config_container_, LV_OBJ_FLAG_HIDDEN);
+    lv_page_index = PageIndex::PAGE_CHAT;
+    // 显示表情标签和聊天消息标签
+    lv_obj_clear_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void LcdDisplay::lv_config_page() {
+    // 隐藏表情标签和聊天消息标签
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_page_index = PageIndex::PAGE_CONFIG;
+    // 显示配置页面元素
+    lv_obj_clear_flag(config_container_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void LcdDisplay::lv_switch_page() {
+    if (lv_page_index == PageIndex::PAGE_CHAT) {
+        lv_config_page();
+    } else {
+        lv_chat_page();
+    }
+}
+
+void LcdDisplay::SetConfigPage(const std::string& config_text, 
+                              const std::string& qrcode_label_text,
+                              const std::string& qrcode_content) {
+    DisplayLockGuard lock(this);
+    if (config_text_panel_) {
+        lv_label_set_text(config_text_panel_, config_text.c_str());
+    }
+    if (qrcode_label_) {
+        lv_label_set_text(qrcode_label_, qrcode_label_text.c_str());
+    }
+    if (config_qrcode_panel_) {
+        lv_qrcode_update(config_qrcode_panel_, qrcode_content.c_str(), qrcode_content.length());
+    }
+}
+
+void LcdDisplay::lv_smartconfig_page(const std::string& qrcode_content) {
+    DisplayLockGuard lock(this);
+    // 隐藏原页面元素
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+
+    // 创建智能配置二维码
+    smartconfig_qrcode_ = lv_qrcode_create(content_);
+    lv_qrcode_set_size(smartconfig_qrcode_, 120);
+    lv_qrcode_set_dark_color(smartconfig_qrcode_, lv_color_black());
+    lv_qrcode_set_light_color(smartconfig_qrcode_, lv_color_white());
+    lv_qrcode_update(smartconfig_qrcode_, qrcode_content.c_str(), qrcode_content.length());
 }

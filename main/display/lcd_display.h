@@ -15,6 +15,11 @@
 #include <atomic>
 
 class LcdDisplay : public Display {
+public:
+    enum class PageIndex {
+        PAGE_CHAT = 0,
+        PAGE_CONFIG = 1
+    };
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
@@ -27,11 +32,18 @@ protected:
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
+    lv_obj_t* emotion_label_ = nullptr;
+    lv_obj_t* config_container_ = nullptr;
+    lv_obj_t* config_text_panel_ = nullptr;
+    lv_obj_t* config_qrcode_panel_ = nullptr;
+    lv_obj_t* qrcode_label_ = nullptr;
+    lv_obj_t* smartconfig_qrcode_ = nullptr;
 
     DisplayFonts fonts_;
 
+    PageIndex lv_page_index = PageIndex::PAGE_CHAT;
+    int backlight_brightness_ = 100;
     void InitializeBacklight(gpio_num_t backlight_pin);
-    void SetBacklight(uint8_t brightness);
 
     virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
@@ -47,6 +59,17 @@ public:
     void SetChatMessage(const std::string &role, const std::string &content) override;
     void SetEmotion(const std::string &emotion) override;
     void SetIcon(const char* icon) override;
+    void SetBacklight(int brightness);
+    inline int backlight() const { return backlight_brightness_; }
+    void SetConfigPage(const std::string& config_text, 
+                      const std::string& qrcode_label_text,
+                      const std::string& qrcode_content);
+    void lv_chat_page();
+    void lv_config_page();
+    void lv_switch_page();
+    void lv_smartconfig_page(const std::string& qrcode_content);
+    PageIndex getlvpage() const { return lv_page_index; }
+    DisplayType GetType() const override { return DisplayType::LCD; }
 };
 
 #endif // LCD_DISPLAY_H
