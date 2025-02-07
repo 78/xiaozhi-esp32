@@ -11,6 +11,7 @@ private:
 public:
     NoDisplay();
     ~NoDisplay();
+    DisplayType GetType() const override { return DisplayType::NO_DISPLAY; }
 };
 
 #endif

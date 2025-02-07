@@ -29,6 +29,7 @@ public:
     Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
                    const lv_font_t* text_font, const lv_font_t* icon_font);
     ~Ssd1306Display();
+    DisplayType GetType() const override { return DisplayType::SSD1306; }
 };
 
 #endif // SSD1306_DISPLAY_H
