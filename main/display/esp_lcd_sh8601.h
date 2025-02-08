@@ -86,6 +86,7 @@ extern "C"
         .data2_io_num = d2,                                              \
         .data3_io_num = d3,                                              \
         .max_transfer_sz = max_trans_sz,                                 \
+        .flags = SPICOMMON_BUSFLAG_QUAD,                                 \
     }
 
 /**

@@ -11,7 +11,7 @@
 #define TAG "LcdDisplay"
 #define LCD_LEDC_CH LEDC_CHANNEL_0
 
-LV_FONT_DECLARE(font_awesome_30_4);
+LV_FONT_DECLARE(font_awesome_16_4);
 
 
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -196,7 +196,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
     emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_16_4, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
 
     chat_message_label_ = lv_label_create(content_);
@@ -299,6 +299,6 @@ void LcdDisplay::SetIcon(const char* icon) {
     if (emotion_label_ == nullptr) {
         return;
     }
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_16_4, 0);
     lv_label_set_text(emotion_label_, icon);
 }

@@ -4,12 +4,13 @@
 #include "font_awesome_symbols.h"
 #include "audio_codecs/no_audio_codec.h"
 #include <esp_sleep.h>
-
+#include <vector>
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "encoder.h"
-
+#include <sstream>
+#include <string>
 #include "led/single_led.h"
 #include "config.h"
 #include "iot/thing_manager.h"
@@ -30,8 +31,8 @@
 
 #define TAG "LilyGoAmoled"
 
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
+LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_16_4);
 
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
@@ -42,6 +43,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x2A, (uint8_t[]){0x00, 0x00, 0x02, 0x17}, 4, 0},
     {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
     {0x29, (uint8_t[]){0x00}, 0, 10},
+    {0x51, (uint8_t[]){0xFF}, 1, 0},
 };
 
 class CustomLcdDisplay : public LcdDisplay
@@ -62,10 +64,11 @@ private:
             labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
 
             lv_obj_t *label = lv_obj_get_child(oldestLabel, 0);
-            lv_obj_del(label);      
+            lv_obj_del(label);
             lv_obj_del(oldestLabel); // 删除 lvgl 对象
         }
     }
+
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                      esp_lcd_panel_handle_t panel_handle,
@@ -81,9 +84,9 @@ public:
         : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                      width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                      {
-                         .text_font = &font_puhui_30_4,
-                         .icon_font = &font_awesome_30_4,
-                         .emoji_font = font_emoji_64_init(),
+                         .text_font = &font_puhui_16_4,
+                         .icon_font = &font_awesome_16_4,
+                         .emoji_font = font_emoji_32_init(),
                      })
     {
 
@@ -93,44 +96,14 @@ public:
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
         InitBrightness();
+        SetupUI();
     }
 
-    ~CustomLcdDisplay()
-    {
-        ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
-        ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
-
-        if (content_ != nullptr)
-        {
-            lv_obj_del(content_);
-        }
-        if (status_bar_ != nullptr)
-        {
-            lv_obj_del(status_bar_);
-        }
-        if (side_bar_ != nullptr)
-        {
-            lv_obj_del(side_bar_);
-        }
-        if (container_ != nullptr)
-        {
-            lv_obj_del(container_);
-        }
-
-        if (panel_ != nullptr)
-        {
-            esp_lcd_panel_del(panel_);
-        }
-        if (panel_io_ != nullptr)
-        {
-            esp_lcd_panel_io_del(panel_io_);
-        }
-        vSemaphoreDelete(lvgl_mutex_);
-    }
     void InitBrightness()
     {
         Settings settings("display", false);
         brightness_ = settings.GetInt("bright", 80);
+        SetBacklight(brightness_);
     }
 
     void Sleep()
@@ -186,9 +159,10 @@ public:
     {
         DisplayLockGuard lock(this);
 
+        ESP_LOGI(TAG, "SetupUI");
         auto screen = lv_disp_get_scr_act(lv_disp_get_default());
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
-        // lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_font(screen, &font_puhui_16_4, 0);
         lv_obj_set_style_text_color(screen, lv_color_white(), 0);
 
         /* Container */
@@ -201,7 +175,7 @@ public:
 
         /* Status bar */
         status_bar_ = lv_obj_create(container_);
-        lv_obj_set_size(status_bar_, LV_HOR_RES, 18);
+        lv_obj_set_size(status_bar_, LV_HOR_RES, 18 + 2);
         lv_obj_set_style_radius(status_bar_, 0, 0);
 
         /* Status bar */
@@ -225,11 +199,11 @@ public:
 
         network_label_ = lv_label_create(status_bar_);
         lv_label_set_text(network_label_, "");
-        // lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+        lv_obj_set_style_text_font(network_label_, &font_awesome_16_4, 0);
 
         time_label_ = lv_label_create(status_bar_);
         lv_label_set_text(time_label_, "");
-        // lv_obj_set_style_text_font(time_label_, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_font(time_label_, &font_puhui_16_4, 0);
 
         notification_label_ = lv_label_create(status_bar_);
         lv_obj_set_flex_grow(notification_label_, 1);
@@ -243,18 +217,18 @@ public:
         lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
 
         emotion_label_ = lv_label_create(status_bar_);
-        // lv_obj_set_style_text_font(emotion_label_, &font_awesome_14_1, 0);
+        lv_obj_set_style_text_font(emotion_label_, &font_awesome_16_4, 0);
         lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
         lv_obj_center(emotion_label_);
 
         mute_label_ = lv_label_create(status_bar_);
         lv_label_set_text(mute_label_, "");
-        // lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
+        lv_obj_set_style_text_font(mute_label_, &font_awesome_16_4, 0);
 
         battery_label_ = lv_label_create(status_bar_);
 
         lv_label_set_text(battery_label_, "");
-        // lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+        lv_obj_set_style_text_font(battery_label_, &font_awesome_16_4, 0);
 
         lv_style_init(&style_user);
         lv_style_set_radius(&style_user, 5);
@@ -313,7 +287,7 @@ public:
             lv_obj_add_style(label, &style_assistant, 0);
             lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
         }
-        // lv_obj_set_style_text_font(label, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_font(label, &font_puhui_16_4, 0);
         lv_label_set_text(label, content.c_str());
         // lv_obj_center(label);
 
@@ -483,6 +457,10 @@ private:
 
     void InitializeSpi()
     {
+
+        ESP_LOGI(TAG, "Enable amoled power");
+        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         ESP_LOGI(TAG, "Initialize SPI bus");
         const spi_bus_config_t buscfg = SH8601_PANEL_BUS_QSPI_CONFIG(PIN_NUM_LCD_PCLK,
                                                                      PIN_NUM_LCD_DATA0,
@@ -499,42 +477,42 @@ private:
     {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-
-        ESP_LOGI(TAG, "Enable amoled power");
-        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
             PIN_NUM_LCD_CS,
             nullptr,
             nullptr);
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(LCD_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
-        const sh8601_vendor_config_t vendor_config = {
+        sh8601_vendor_config_t vendor_config = {
             .init_cmds = &vendor_specific_init[0],
             .init_cmds_size = sizeof(vendor_specific_init) / sizeof(sh8601_lcd_init_cmd_t),
             .flags = {
                 .use_qspi_interface = 1,
             }};
 
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.flags.reset_active_high = 1,
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = (void *)&vendor_config;
+        const esp_lcd_panel_dev_config_t panel_config = {
+            .reset_gpio_num = PIN_NUM_LCD_RST,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
+            .bits_per_pixel = LCD_BIT_PER_PIXEL,
+            .flags = {
+                .reset_active_high = 0,
+            },
+            .vendor_config = &vendor_config,
+        };
         ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
 
-        esp_lcd_panel_reset(panel);
-        esp_lcd_panel_init(panel);
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        // esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new CustomLcdDisplay(panel_io, panel, -1, false,
+        display_ = new CustomLcdDisplay(panel_io, panel, GPIO_NUM_NC, false,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
