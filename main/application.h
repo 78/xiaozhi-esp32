@@ -94,6 +94,10 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
+    time_t current_time_;
+    void UpdateTime();
+    void ShowTime();
+
     void MainLoop();
     void InputAudio();
     void OutputAudio();
@@ -102,6 +106,12 @@ private:
     void CheckNewVersion();
 
     void PlayLocalFile(const char* data, size_t size);
+
+    // 添加时间显示任务相关成员
+    TaskHandle_t time_display_task_ = nullptr;
+    static void TimeDisplayTaskFunc(void* parameter);
+    void TimeDisplayTask();
+    std::atomic<bool> time_display_running_{true};
 };
 
 #endif // _APPLICATION_H_
