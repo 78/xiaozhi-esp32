@@ -12,7 +12,8 @@
 #include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "esp_lcd_st77916.h"
+#include <esp_lcd_st77916.h>
+#include <esp_timer.h>
 
 #define TAG "TaijiPiS3Board"
 
@@ -58,6 +59,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
     LcdDisplay* display_;
+    esp_timer_handle_t touchpad_timer_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -76,33 +78,53 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
-    static void touchpad_daemon(void* param) {
-        vTaskDelay(pdMS_TO_TICKS(2000));
+    static void touchpad_timer_callback(void* arg) {
         auto& board = (TaijiPiS3Board&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
-        bool was_touched = false;
-        while (1) {
-            touchpad->UpdateTouchPoint();
-            if (touchpad->GetTouchPoint().num > 0) {
-                // On press
-                if (!was_touched) {
-                    was_touched = true;
-                    Application::GetInstance().ToggleChatState();
+        static bool was_touched = false;
+        static int64_t touch_start_time = 0;
+        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
+        
+        touchpad->UpdateTouchPoint();
+        auto touch_point = touchpad->GetTouchPoint();
+        
+        // 检测触摸开始
+        if (touch_point.num > 0 && !was_touched) {
+            was_touched = true;
+            touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
+        } 
+        // 检测触摸释放
+        else if (touch_point.num == 0 && was_touched) {
+            was_touched = false;
+            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
+            
+            // 只有短触才触发
+            if (touch_duration < TOUCH_THRESHOLD_MS) {
+                auto& app = Application::GetInstance();
+                if (app.GetDeviceState() == kDeviceStateStarting && 
+                    !WifiStation::GetInstance().IsConnected()) {
+                    board.ResetWifiConfiguration();
                 }
+                app.ToggleChatState();
             }
-            // On release
-            else if (was_touched) {
-                was_touched = false;
-            }
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
-        vTaskDelete(NULL);
     }
 
     void InitializeCst816sTouchPad() {
         ESP_LOGI(TAG, "Init Cst816s");
         cst816s_ = new Cst816s(i2c_bus_, 0x15);
-        xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
+        
+        // 创建定时器，10ms 间隔
+        esp_timer_create_args_t timer_args = {
+            .callback = touchpad_timer_callback,
+            .arg = NULL,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "touchpad_timer",
+            .skip_unhandled_events = true,
+        };
+        
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &touchpad_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000)); // 10ms = 10000us
     }
 
     void BspLcdBlSet(int brightness_percent)
@@ -195,22 +217,21 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            audio_codec = new NoAudioCodecSimplex(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT,
-                AUDIO_MIC_SCK_PIN, AUDIO_MIC_WS_PIN, AUDIO_MIC_SD_PIN);
-        }
-        return audio_codec;
+        static NoAudioCodecSimplex audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            AUDIO_MIC_SCK_PIN,
+            AUDIO_MIC_WS_PIN,
+            AUDIO_MIC_SD_PIN
+        );
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {
         return display_;
-    }
-
-    virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        level = 100; charging = 1;
-        return true;
     }
 
     Cst816s* GetTouchpad() {
