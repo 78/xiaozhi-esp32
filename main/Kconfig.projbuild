@@ -86,6 +86,8 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3-BOX"
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"       
+    config BOARD_TYPE_ESP32S3_Taiji_Pi
+        bool "太极小派esp32s3"    
 endchoice
 
 choice DISPLAY_LCD_TYPE
