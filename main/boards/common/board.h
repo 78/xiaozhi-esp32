@@ -23,10 +23,7 @@ protected:
 
 public:
     static Board& GetInstance() {
-        static Board* instance = nullptr;
-        if (nullptr == instance) {
-            instance = static_cast<Board*>(create_board());
-        }
+        static Board* instance = static_cast<Board*>(create_board());
         return *instance;
     }
 

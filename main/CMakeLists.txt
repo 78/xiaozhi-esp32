@@ -91,7 +91,7 @@ endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
 
-if(CONFIG_IDF_TARGET_ESP32S3)
+if(CONFIG_USE_AUDIO_PROCESSING)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
 

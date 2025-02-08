@@ -118,6 +118,12 @@ choice DISPLAY_LCD_TYPE
         bool "ILI9341, 分辨率240*320, 非IPS"    
     config LCD_CUSTOM
         bool "自定义屏幕参数"  
-endchoice        
+endchoice
 
+config USE_AUDIO_PROCESSING
+    bool "启用语音唤醒与音频处理"
+    default y
+    depends on IDF_TARGET_ESP32S3 && USE_AFE
+    help
+        需要 ESP32 S3 与 AFE 支持
 endmenu
