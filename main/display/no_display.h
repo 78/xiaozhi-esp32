@@ -11,7 +11,7 @@ private:
 public:
     NoDisplay();
     ~NoDisplay();
-    DisplayType GetType() const override { return DisplayType::NO_DISPLAY; }
+    std::string DisplayType() const override { return "NO"; }
 };
 
 #endif

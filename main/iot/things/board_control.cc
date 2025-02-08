@@ -55,7 +55,7 @@ public:
             [this](const ParameterList& parameters) {
                 ESP_LOGI(TAG, "ResetWifiConfiguration");
                 auto board = static_cast<WifiBoard*>(&Board::GetInstance());
-                if (board) {
+                if (board && board->GetBoardType() == "wifi") {
                     board->ResetWifiConfiguration();
                 }
             });

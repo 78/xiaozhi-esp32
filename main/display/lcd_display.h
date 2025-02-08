@@ -69,7 +69,7 @@ public:
     void lv_switch_page();
     void lv_smartconfig_page(const std::string& qrcode_content);
     PageIndex getlvpage() const { return lv_page_index; }
-    DisplayType GetType() const override { return DisplayType::LCD; }
+    std::string DisplayType() const override { return "LCD"; }
 };
 
 #endif // LCD_DISPLAY_H

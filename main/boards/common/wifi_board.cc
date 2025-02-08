@@ -50,7 +50,7 @@ void WifiBoard::EnterWifiConfigMode() {
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = "请在手机上连接热点 ";
-    if (display->GetType() == Display::DisplayType::LCD) {
+    if (display->DisplayType() == "LCD") {
         hint = "微信直接扫二维码配网，或在手机上连接热点 ";
     }
     hint += wifi_ap.GetSsid();
@@ -60,7 +60,7 @@ void WifiBoard::EnterWifiConfigMode() {
     display->SetStatus(hint);
 
     // 如果是LCD显示屏则显示微信配网二维码
-    if (display->GetType() == Display::DisplayType::LCD) {
+    if (display->DisplayType() == "LCD") {
         static_cast<LcdDisplay*>(display)->lv_smartconfig_page(WIFI_SMARTCONFIG_URL);
     }    
     

@@ -15,11 +15,6 @@ struct DisplayFonts {
 
 class Display {
 public:
-    enum class DisplayType {
-        LCD,
-        SSD1306,
-        NO_DISPLAY
-    };
     Display();
     virtual ~Display();
 
@@ -29,11 +24,11 @@ public:
     virtual void SetChatMessage(const std::string &role, const std::string &content);
     virtual void SetIcon(const char* icon);
     virtual void SetLogo(const std::string &logo);
+    virtual std::string DisplayType() const = 0;
 
     int width() const { return width_; }
     int height() const { return height_; }
 
-    virtual DisplayType GetType() const = 0;  
 protected:
     int width_ = 0;
     int height_ = 0;
