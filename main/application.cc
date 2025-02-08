@@ -77,6 +77,9 @@ void Application::CheckNewVersion() {
                     display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
 
                     board.SetPowerSaveMode(false);
+#if CONFIG_USE_AUDIO_PROCESSING
+                    wake_word_detect_.StopDetection();
+#endif
                     // 预先关闭音频输出，避免升级过程有音频操作
                     board.GetAudioCodec()->EnableOutput(false);
                     {
@@ -222,6 +225,16 @@ void Application::Start() {
     opus_decode_sample_rate_ = codec->output_sample_rate();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(opus_decode_sample_rate_, 1);
     opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
+    // For ML307 boards, we use complexity 5 to save bandwidth
+    // For other boards, we use complexity 3 to save CPU
+    if (board.GetBoardType() == "ml307") {
+        ESP_LOGI(TAG, "ML307 board detected, setting opus encoder complexity to 5");
+        opus_encoder_->SetComplexity(5);
+    } else {
+        ESP_LOGI(TAG, "WiFi board detected, setting opus encoder complexity to 3");
+        opus_encoder_->SetComplexity(3);
+    }
+
     if (codec->input_sample_rate() != 16000) {
         input_resampler_.Configure(codec->input_sample_rate(), 16000);
         reference_resampler_.Configure(codec->input_sample_rate(), 16000);
@@ -247,74 +260,6 @@ void Application::Start() {
 
     /* Wait for the network to be ready */
     board.StartNetwork();
-
-    // Check for new firmware version or get the MQTT broker address
-    xTaskCreate([](void* arg) {
-        Application* app = (Application*)arg;
-        app->CheckNewVersion();
-        vTaskDelete(NULL);
-    }, "check_new_version", 4096 * 2, this, 1, nullptr);
-
-#if CONFIG_IDF_TARGET_ESP32S3
-    audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
-    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
-        background_task_->Schedule([this, data = std::move(data)]() mutable {
-            opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
-                Schedule([this, opus = std::move(opus)]() {
-                    protocol_->SendAudio(opus);
-                });
-            });
-        });
-    });
-
-    wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
-    wake_word_detect_.OnVadStateChange([this](bool speaking) {
-        Schedule([this, speaking]() {
-            if (device_state_ == kDeviceStateListening) {
-                if (speaking) {
-                    voice_detected_ = true;
-                } else {
-                    voice_detected_ = false;
-                }
-                auto led = Board::GetInstance().GetLed();
-                led->OnStateChanged();
-            }
-        });
-    });
-
-    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
-        Schedule([this, &wake_word]() {
-            if (device_state_ == kDeviceStateIdle) {
-                SetDeviceState(kDeviceStateConnecting);
-                wake_word_detect_.EncodeWakeWordData();
-
-                if (!protocol_->OpenAudioChannel()) {
-                    ESP_LOGE(TAG, "Failed to open audio channel");
-                    SetDeviceState(kDeviceStateIdle);
-                    wake_word_detect_.StartDetection();
-                    return;
-                }
-                
-                std::vector<uint8_t> opus;
-                // Encode and send the wake word data to the server
-                while (wake_word_detect_.GetWakeWordOpus(opus)) {
-                    protocol_->SendAudio(opus);
-                }
-                // Set the chat state to wake word detected
-                protocol_->SendWakeWordDetected(wake_word);
-                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-                keep_listening_ = true;
-                SetDeviceState(kDeviceStateListening);
-            } else if (device_state_ == kDeviceStateSpeaking) {
-                AbortSpeaking(kAbortReasonWakeWordDetected);
-            }
-
-            // Resume detection
-            wake_word_detect_.StartDetection();
-        });
-    });
-    wake_word_detect_.StartDetection();
-#endif
 
     // Initialize the protocol
     display->SetStatus("初始化协议");
@@ -380,19 +325,25 @@ void Application::Start() {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (text != NULL) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    display->SetChatMessage("assistant", text->valuestring);
+                    Schedule([this, display, message = std::string(text->valuestring)]() {
+                        display->SetChatMessage("assistant", message);
+                    });
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (text != NULL) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                display->SetChatMessage("user", text->valuestring);
+                Schedule([this, display, message = std::string(text->valuestring)]() {
+                    display->SetChatMessage("user", message);
+                });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
-                display->SetEmotion(emotion->valuestring);
+                Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
+                    display->SetEmotion(emotion_str);
+                });
             }
         } else if (strcmp(type->valuestring, "iot") == 0) {
             auto commands = cJSON_GetObjectItem(root, "commands");
@@ -406,12 +357,83 @@ void Application::Start() {
         }
     });
 
+    // Check for new firmware version or get the MQTT broker address
+    xTaskCreate([](void* arg) {
+        Application* app = (Application*)arg;
+        app->CheckNewVersion();
+        vTaskDelete(NULL);
+    }, "check_new_version", 4096 * 2, this, 1, nullptr);
+
+
+#if CONFIG_USE_AUDIO_PROCESSING
+    audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
+    audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
+            opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
+                Schedule([this, opus = std::move(opus)]() {
+                    protocol_->SendAudio(opus);
+                });
+            });
+        });
+    });
+
+    wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
+    wake_word_detect_.OnVadStateChange([this](bool speaking) {
+        Schedule([this, speaking]() {
+            if (device_state_ == kDeviceStateListening) {
+                if (speaking) {
+                    voice_detected_ = true;
+                } else {
+                    voice_detected_ = false;
+                }
+                auto led = Board::GetInstance().GetLed();
+                led->OnStateChanged();
+            }
+        });
+    });
+
+    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
+        Schedule([this, &wake_word]() {
+            if (device_state_ == kDeviceStateIdle) {
+                SetDeviceState(kDeviceStateConnecting);
+                wake_word_detect_.EncodeWakeWordData();
+
+                if (!protocol_->OpenAudioChannel()) {
+                    ESP_LOGE(TAG, "Failed to open audio channel");
+                    SetDeviceState(kDeviceStateIdle);
+                    wake_word_detect_.StartDetection();
+                    return;
+                }
+                
+                std::vector<uint8_t> opus;
+                // Encode and send the wake word data to the server
+                while (wake_word_detect_.GetWakeWordOpus(opus)) {
+                    protocol_->SendAudio(opus);
+                }
+                // Set the chat state to wake word detected
+                protocol_->SendWakeWordDetected(wake_word);
+                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+                keep_listening_ = true;
+                SetDeviceState(kDeviceStateListening);
+            } else if (device_state_ == kDeviceStateSpeaking) {
+                AbortSpeaking(kAbortReasonWakeWordDetected);
+            }
+
+            // Resume detection
+            wake_word_detect_.StartDetection();
+        });
+    });
+    wake_word_detect_.StartDetection();
+#endif
+
     SetDeviceState(kDeviceStateIdle);
 }
 
 void Application::Schedule(std::function<void()> callback) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    main_tasks_.push_back(std::move(callback));
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        main_tasks_.push_back(std::move(callback));
+    }
     xEventGroupSetBits(event_group_, SCHEDULE_EVENT);
 }
 
@@ -431,9 +453,9 @@ void Application::MainLoop() {
             OutputAudio();
         }
         if (bits & SCHEDULE_EVENT) {
-            mutex_.lock();
+            std::unique_lock<std::mutex> lock(mutex_);
             std::list<std::function<void()>> tasks = std::move(main_tasks_);
-            mutex_.unlock();
+            lock.unlock();
             for (auto& task : tasks) {
                 task();
             }
@@ -529,7 +551,7 @@ void Application::InputAudio() {
         }
     }
     
-#if CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_USE_AUDIO_PROCESSING
     if (audio_processor_.IsRunning()) {
         audio_processor_.Input(data);
     }
@@ -573,7 +595,7 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus("待命");
             display->SetEmotion("neutral");
-#ifdef CONFIG_IDF_TARGET_ESP32S3
+#ifdef CONFIG_USE_AUDIO_PROCESSING
             audio_processor_.Stop();
 #endif
             break;
@@ -585,7 +607,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetEmotion("neutral");
             ResetDecoder();
             opus_encoder_->ResetState();
-#if CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_USE_AUDIO_PROCESSING
             audio_processor_.Start();
 #endif
             UpdateIotStates();
@@ -593,7 +615,7 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateSpeaking:
             display->SetStatus("说话中...");
             ResetDecoder();
-#if CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_USE_AUDIO_PROCESSING
             audio_processor_.Stop();
 #endif
             break;
@@ -609,6 +631,7 @@ void Application::SetDecodeSampleRate(int sample_rate) {
     }
 
     opus_decode_sample_rate_ = sample_rate;
+    opus_decoder_.reset();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(opus_decode_sample_rate_, 1);
 
     auto codec = Board::GetInstance().GetAudioCodec();

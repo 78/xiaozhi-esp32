@@ -13,6 +13,9 @@
 
 #define TAG "CompactMl307Board"
 
+LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_awesome_14_1);
+
 class CompactMl307Board : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
@@ -20,7 +23,6 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    SystemReset system_reset_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -92,10 +94,7 @@ public:
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
-        system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO) {
-        // Check if the reset button is pressed
-        system_reset_.CheckButtons();
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
 
         InitializeDisplayI2c();
         InitializeButtons();
@@ -119,7 +118,8 @@ public:
     }
 
     virtual Display* GetDisplay() override {
-        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+                                    &font_puhui_14_1, &font_awesome_14_1);
         return &display;
     }
 };

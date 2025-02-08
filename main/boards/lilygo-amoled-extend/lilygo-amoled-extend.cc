@@ -1,8 +1,10 @@
 #include "wifi_board.h"
+#include "display/lcd_display.h"
+#include "esp_lcd_sh8601.h"
+#include "font_awesome_symbols.h"
 #include "audio_codecs/no_audio_codec.h"
 #include <esp_sleep.h>
 
-#include "display/rm67162_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -14,9 +16,9 @@
 
 #include <wifi_station.h>
 #include <esp_log.h>
+#include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-// #include "driver/adc.h"
-// #include "esp_adc_cal.h"
+#include <driver/spi_master.h>
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -24,8 +26,337 @@
 #include <esp_wifi.h>
 #include "rx8900.h"
 #include "esp_sntp.h"
+#include "settings.h"
 
 #define TAG "LilyGoAmoled"
+
+LV_FONT_DECLARE(font_puhui_30_4);
+LV_FONT_DECLARE(font_awesome_30_4);
+
+static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
+    {0x11, (uint8_t[]){0x00}, 0, 120},
+    // {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
+    // {0x35, (uint8_t []){0x00}, 1, 0},
+    {0x36, (uint8_t[]){0xF0}, 1, 0},
+    {0x3A, (uint8_t[]){0x55}, 1, 0}, // 16bits-RGB565
+    {0x2A, (uint8_t[]){0x00, 0x00, 0x02, 0x17}, 4, 0},
+    {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 10},
+};
+
+class CustomLcdDisplay : public LcdDisplay
+{
+private:
+    uint8_t brightness_ = 0;
+    lv_obj_t *time_label_ = nullptr;
+    lv_style_t style_user;
+    lv_style_t style_assistant;
+    std::vector<lv_obj_t *> labelContainer; // 存储 label 指针的容器
+    lv_anim_t anim[3];
+
+    void RemoveOldestLabel()
+    {
+        if (!labelContainer.empty())
+        {
+            lv_obj_t *oldestLabel = labelContainer.front();
+            labelContainer.erase(labelContainer.begin()); // 从容器中移除最早的 label 指针
+
+            lv_obj_t *label = lv_obj_get_child(oldestLabel, 0);
+            lv_obj_del(label);      
+            lv_obj_del(oldestLabel); // 删除 lvgl 对象
+        }
+    }
+public:
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
+                     esp_lcd_panel_handle_t panel_handle,
+                     gpio_num_t backlight_pin,
+                     bool backlight_output_invert,
+                     int width,
+                     int height,
+                     int offset_x,
+                     int offset_y,
+                     bool mirror_x,
+                     bool mirror_y,
+                     bool swap_xy)
+        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                     {
+                         .text_font = &font_puhui_30_4,
+                         .icon_font = &font_awesome_30_4,
+                         .emoji_font = font_emoji_64_init(),
+                     })
+    {
+
+        DisplayLockGuard lock(this);
+        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+
+        InitBrightness();
+    }
+
+    ~CustomLcdDisplay()
+    {
+        ESP_ERROR_CHECK(esp_timer_stop(lvgl_tick_timer_));
+        ESP_ERROR_CHECK(esp_timer_delete(lvgl_tick_timer_));
+
+        if (content_ != nullptr)
+        {
+            lv_obj_del(content_);
+        }
+        if (status_bar_ != nullptr)
+        {
+            lv_obj_del(status_bar_);
+        }
+        if (side_bar_ != nullptr)
+        {
+            lv_obj_del(side_bar_);
+        }
+        if (container_ != nullptr)
+        {
+            lv_obj_del(container_);
+        }
+
+        if (panel_ != nullptr)
+        {
+            esp_lcd_panel_del(panel_);
+        }
+        if (panel_io_ != nullptr)
+        {
+            esp_lcd_panel_io_del(panel_io_);
+        }
+        vSemaphoreDelete(lvgl_mutex_);
+    }
+    void InitBrightness()
+    {
+        Settings settings("display", false);
+        brightness_ = settings.GetInt("bright", 80);
+    }
+
+    void Sleep()
+    {
+        ESP_LOGI(TAG, "LCD sleep");
+        uint8_t data[1] = {1};
+        int lcd_cmd = 0x10;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+    }
+
+    void UpdateTime(struct tm *time)
+    {
+        char time_str[6];
+        strftime(time_str, sizeof(time_str), "%H:%M", time);
+        DisplayLockGuard lock(this);
+        lv_label_set_text(time_label_, time_str);
+    }
+
+    static void set_width(void *var, int32_t v)
+    {
+        lv_obj_set_width((lv_obj_t *)var, v);
+    }
+
+    static void set_height(void *var, int32_t v)
+    {
+        lv_obj_set_height((lv_obj_t *)var, v);
+    }
+
+    void SetBacklight(uint8_t brightness)
+    {
+        brightness_ = brightness;
+        if (brightness > 100)
+        {
+            brightness = 100;
+        }
+        Settings settings("display", true);
+        settings.SetInt("bright", brightness_);
+
+        ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
+        // LEDC resolution set to 10bits, thus: 100% = 255
+        uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+    }
+
+    void SetupUI()
+    {
+        DisplayLockGuard lock(this);
+
+        auto screen = lv_disp_get_scr_act(lv_disp_get_default());
+        lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+        // lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_color(screen, lv_color_white(), 0);
+
+        /* Container */
+        container_ = lv_obj_create(screen);
+        lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_all(container_, 0, 0);
+        lv_obj_set_style_border_width(container_, 0, 0);
+        lv_obj_set_style_pad_row(container_, 0, 0);
+
+        /* Status bar */
+        status_bar_ = lv_obj_create(container_);
+        lv_obj_set_size(status_bar_, LV_HOR_RES, 18);
+        lv_obj_set_style_radius(status_bar_, 0, 0);
+
+        /* Status bar */
+        lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_all(status_bar_, 0, 0);
+        lv_obj_set_style_border_width(status_bar_, 0, 0);
+        lv_obj_set_style_pad_column(status_bar_, 4, 0);
+
+        /* Content */
+        content_ = lv_obj_create(container_);
+        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);
+        lv_obj_set_style_radius(content_, 0, 0);
+        lv_obj_set_width(content_, LV_HOR_RES);
+        lv_obj_set_flex_grow(content_, 1);
+
+        /* Content */
+        lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_set_style_pad_all(content_, 0, 0);
+        lv_obj_set_style_border_width(content_, 1, 0);
+
+        network_label_ = lv_label_create(status_bar_);
+        lv_label_set_text(network_label_, "");
+        // lv_obj_set_style_text_font(network_label_, &font_awesome_14_1, 0);
+
+        time_label_ = lv_label_create(status_bar_);
+        lv_label_set_text(time_label_, "");
+        // lv_obj_set_style_text_font(time_label_, &font_puhui_14_1, 0);
+
+        notification_label_ = lv_label_create(status_bar_);
+        lv_obj_set_flex_grow(notification_label_, 1);
+        lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(notification_label_, "通知");
+        lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+
+        status_label_ = lv_label_create(status_bar_);
+        lv_obj_set_flex_grow(status_label_, 1);
+        lv_label_set_text(status_label_, "正在初始化");
+        lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
+
+        emotion_label_ = lv_label_create(status_bar_);
+        // lv_obj_set_style_text_font(emotion_label_, &font_awesome_14_1, 0);
+        lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+        lv_obj_center(emotion_label_);
+
+        mute_label_ = lv_label_create(status_bar_);
+        lv_label_set_text(mute_label_, "");
+        // lv_obj_set_style_text_font(mute_label_, &font_awesome_14_1, 0);
+
+        battery_label_ = lv_label_create(status_bar_);
+
+        lv_label_set_text(battery_label_, "");
+        // lv_obj_set_style_text_font(battery_label_, &font_awesome_14_1, 0);
+
+        lv_style_init(&style_user);
+        lv_style_set_radius(&style_user, 5);
+        lv_style_set_bg_opa(&style_user, LV_OPA_COVER);
+        lv_style_set_border_width(&style_user, 2);
+        lv_style_set_border_color(&style_user, lv_color_hex(0));
+        lv_style_set_pad_all(&style_user, 10);
+
+        lv_style_set_text_color(&style_user, lv_color_hex(0xffffff));
+        lv_style_set_bg_color(&style_user, lv_color_hex(0x00B050));
+
+        lv_style_init(&style_assistant);
+        lv_style_set_radius(&style_assistant, 5);
+        lv_style_set_bg_opa(&style_assistant, LV_OPA_COVER);
+        lv_style_set_border_width(&style_assistant, 2);
+        lv_style_set_border_color(&style_assistant, lv_color_hex(0));
+        lv_style_set_pad_all(&style_assistant, 10);
+
+        lv_style_set_text_color(&style_assistant, lv_color_hex(0));
+        lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
+    }
+
+    void SetChatMessage(const std::string &role, const std::string &content)
+    {
+        if (role == "")
+            return;
+        std::stringstream ss;
+        ss << "role: " << role << ", content: " << content << std::endl;
+        std::string logMessage = ss.str();
+        auto sdcard = Board::GetInstance().GetSdcard();
+        sdcard->Write("/sdcard/log.txt", logMessage.c_str());
+        ESP_LOGI(TAG, "%s", logMessage.c_str());
+
+        DisplayLockGuard lock(this);
+        if (labelContainer.size() >= 10)
+        {
+            RemoveOldestLabel(); // 当 label 数量达到 10 时移除最早的
+        }
+        lv_obj_t *container = lv_obj_create(content_);
+        lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_style_radius(container, 0, 0);
+        lv_obj_set_style_border_width(container, 0, 0);
+        lv_obj_set_width(container, LV_HOR_RES - 2);
+        lv_obj_set_style_pad_all(container, 0, 0);
+
+        lv_obj_t *label = lv_label_create(container);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+
+        if (role == "user")
+        {
+            lv_obj_add_style(label, &style_user, 0);
+            lv_obj_align(label, LV_ALIGN_RIGHT_MID, 0, 0);
+        }
+        else
+        {
+            lv_obj_add_style(label, &style_assistant, 0);
+            lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
+        }
+        // lv_obj_set_style_text_font(label, &font_puhui_14_1, 0);
+        lv_label_set_text(label, content.c_str());
+        // lv_obj_center(label);
+
+        lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
+
+        lv_obj_update_layout(label);
+        ESP_LOGI(TAG, "Label Width: %ld-%ld", lv_obj_get_width(label), (LV_HOR_RES - 2));
+        if (lv_obj_get_width(label) >= (LV_HOR_RES - 2))
+            lv_obj_set_width(label, (LV_HOR_RES - 2));
+        lv_obj_scroll_to_view(container, LV_ANIM_ON);
+
+        for (size_t i = 0; i < 2; i++)
+        {
+            lv_anim_init(&anim[i]);
+            lv_anim_set_var(&anim[i], label);
+            lv_anim_set_early_apply(&anim[i], false);
+            lv_anim_set_path_cb(&anim[i], lv_anim_path_overshoot);
+            lv_anim_set_time(&anim[i], 300);
+            lv_anim_set_delay(&anim[i], 200);
+        }
+        lv_anim_set_values(&anim[0], 0, lv_obj_get_width(label));
+        lv_anim_set_exec_cb(&anim[0], (lv_anim_exec_xcb_t)set_width);
+        lv_anim_start(&anim[0]);
+
+        lv_anim_set_values(&anim[1], 0, lv_obj_get_height(label));
+        lv_anim_set_exec_cb(&anim[1], (lv_anim_exec_xcb_t)set_height);
+        lv_anim_start(&anim[1]);
+
+        lv_obj_set_width(label, 0);
+        lv_obj_set_height(label, 0);
+
+        lv_anim_init(&anim[2]);
+        lv_anim_set_var(&anim[2], container);
+        lv_anim_set_early_apply(&anim[2], true);
+        lv_anim_set_path_cb(&anim[2], lv_anim_path_overshoot);
+        lv_anim_set_time(&anim[2], 200);
+        lv_anim_set_values(&anim[2], 0, lv_obj_get_height(label));
+        lv_anim_set_exec_cb(&anim[2], (lv_anim_exec_xcb_t)set_height);
+        lv_anim_start(&anim[2]);
+
+        labelContainer.push_back(container); // 将新创建的 container 加入容器
+    }
+};
 
 static rx8900_handle_t _rx8900 = NULL;
 class LilyGoAmoled : public WifiBoard
@@ -36,7 +367,7 @@ private:
     Button touch_button_;
     Encoder volume_encoder_;
     // SystemReset system_reset_;
-    Rm67162Display *display_;
+    CustomLcdDisplay *display_;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -112,7 +443,7 @@ private:
         boot_button_.OnLongPress([this]
                                  {
             ESP_LOGI(TAG, "System Sleeped");
-            ((Rm67162Display *)GetDisplay())->Sleep();
+            ((CustomLcdDisplay *)GetDisplay())->Sleep();
             gpio_set_level(PIN_NUM_LCD_POWER, 0);
             // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
             i2c_bus_delete(&i2c_bus);
@@ -150,28 +481,8 @@ private:
             GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
     }
 
-#define SH8601_PANEL_BUS_QSPI_CONFIG(sclk, d0, d1, d2, d3, max_trans_sz) \
-    {                                                                    \
-        .data0_io_num = d0,                                              \
-        .data1_io_num = d1,                                              \
-        .sclk_io_num = sclk,                                             \
-        .data2_io_num = d2,                                              \
-        .data3_io_num = d3,                                              \
-        .data4_io_num = GPIO_NUM_NC,                                     \
-        .data5_io_num = GPIO_NUM_NC,                                     \
-        .data6_io_num = GPIO_NUM_NC,                                     \
-        .data7_io_num = GPIO_NUM_NC,                                     \
-        .data_io_default_level = 0,                                      \
-        .max_transfer_sz = max_trans_sz,                                 \
-        .flags = 0,                                                      \
-        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,                        \
-        .intr_flags = 0                                                  \
-    }
     void InitializeSpi()
     {
-        ESP_LOGI(TAG, "Enable amoled power");
-        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         ESP_LOGI(TAG, "Initialize SPI bus");
         const spi_bus_config_t buscfg = SH8601_PANEL_BUS_QSPI_CONFIG(PIN_NUM_LCD_PCLK,
                                                                      PIN_NUM_LCD_DATA0,
@@ -184,10 +495,47 @@ private:
         ESP_LOGI(TAG, "Install panel IO");
     }
 
-    void InitializeRm67162Display()
+    void InitializeSH8601Display()
     {
-        display_ = new Rm67162Display(LCD_HOST, (int)PIN_NUM_LCD_CS, (int)PIN_NUM_LCD_RST,
-                                      DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+
+        ESP_LOGI(TAG, "Enable amoled power");
+        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level(PIN_NUM_LCD_POWER, 1);
+        // 液晶屏控制IO初始化
+        ESP_LOGD(TAG, "Install panel IO");
+        esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
+            PIN_NUM_LCD_CS,
+            nullptr,
+            nullptr);
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
+
+        // 初始化液晶屏驱动芯片
+        ESP_LOGD(TAG, "Install LCD driver");
+        const sh8601_vendor_config_t vendor_config = {
+            .init_cmds = &vendor_specific_init[0],
+            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(sh8601_lcd_init_cmd_t),
+            .flags = {
+                .use_qspi_interface = 1,
+            }};
+
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.flags.reset_active_high = 1,
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        panel_config.vendor_config = (void *)&vendor_config;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
+
+        esp_lcd_panel_reset(panel);
+        esp_lcd_panel_init(panel);
+        esp_lcd_panel_invert_color(panel, false);
+        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        esp_lcd_panel_disp_on_off(panel, true);
+        display_ = new CustomLcdDisplay(panel_io, panel, -1, false,
+                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -279,7 +627,7 @@ public:
         InitializeAdc();
         InitializeI2c();
         InitializeSpi();
-        InitializeRm67162Display();
+        InitializeSH8601Display();
         InitializeButtons();
         InitializeEncoder();
         InitializeIot();
@@ -392,7 +740,7 @@ public:
         }
         static struct tm time_user;
         rx8900_read_time(rx8900, &time_user);
-        ((Rm67162Display *)GetDisplay())->UpdateTime(&time_user);
+        ((CustomLcdDisplay *)GetDisplay())->UpdateTime(&time_user);
 
         // char time_str[50];
         // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
