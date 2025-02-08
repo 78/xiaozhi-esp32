@@ -20,6 +20,10 @@
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
 
+#include "lcd_display.h"
+
+#define WIFI_SMARTCONFIG_URL	"https://iot.espressif.cn/configWXDeviceWiFi.html"
+
 static const char *TAG = "WifiBoard";
 
 WifiBoard::WifiBoard() {
@@ -46,11 +50,19 @@ void WifiBoard::EnterWifiConfigMode() {
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = "请在手机上连接热点 ";
+    if (display->DisplayType() == "LCD") {
+        hint = "微信直接扫二维码配网，或在手机上连接热点 ";
+    }
     hint += wifi_ap.GetSsid();
     hint += "，然后打开浏览器访问 ";
     hint += wifi_ap.GetWebServerUrl();
 
     display->SetStatus(hint);
+
+    // 如果是LCD显示屏则显示微信配网二维码
+    if (display->DisplayType() == "LCD") {
+        static_cast<LcdDisplay*>(display)->lv_smartconfig_page(WIFI_SMARTCONFIG_URL);
+    }    
     
     // 播报配置 WiFi 的提示
     application.Alert("Info", "进入配网模式");
@@ -102,6 +114,19 @@ void WifiBoard::StartNetwork() {
         EnterWifiConfigMode();
         return;
     }
+}
+
+void WifiBoard::StopNetwork() {
+    if (wifi_config_mode_) {
+        auto& wifi_ap = WifiConfigurationAp::GetInstance();
+        wifi_ap.Stop();
+    } else {
+        auto& wifi_station = WifiStation::GetInstance();
+        wifi_station.Stop();
+    }
+    // 更新显示状态
+    auto display = Board::GetInstance().GetDisplay();
+    display->ShowNotification("网络已断开");
 }
 
 Http* WifiBoard::CreateHttp() {

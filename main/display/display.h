@@ -23,6 +23,8 @@ public:
     virtual void SetEmotion(const std::string &emotion);
     virtual void SetChatMessage(const std::string &role, const std::string &content);
     virtual void SetIcon(const char* icon);
+    virtual void SetLogo(const std::string &logo);
+    virtual std::string DisplayType() const = 0;
 
     int width() const { return width_; }
     int height() const { return height_; }
@@ -39,6 +41,7 @@ protected:
     lv_obj_t *notification_label_ = nullptr;
     lv_obj_t *mute_label_ = nullptr;
     lv_obj_t *battery_label_ = nullptr;
+    lv_obj_t *logo_label_ = nullptr;
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
