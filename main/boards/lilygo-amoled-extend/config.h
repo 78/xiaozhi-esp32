@@ -3,6 +3,10 @@
 
 #include <driver/gpio.h>
 
+#define NTP_SERVER1           "pool.ntp.org"
+#define NTP_SERVER2           "time.nist.gov"
+#define DEFAULT_TIMEZONE      "CST-8"     
+
 #define AUDIO_INPUT_SAMPLE_RATE  24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
@@ -19,10 +23,6 @@
 #define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
 
 #else
-
-#define NTP_SERVER1           "pool.ntp.org"
-#define NTP_SERVER2           "time.nist.gov"
-#define DEFAULT_TIMEZONE      "CST-8"     
 
 #define AUDIO_I2S_GPIO_WS GPIO_NUM_10   //以适配
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_11   //以适配

@@ -20,7 +20,7 @@
 #if CONFIG_IDF_TARGET_ESP32S3
 #include "wake_word_detect.h"
 #include "audio_processor.h"
-#include "fft_dsp_processor..h"
+#include "fft_dsp_processor.h"
 #endif
 
 #define SCHEDULE_EVENT (1 << 0)

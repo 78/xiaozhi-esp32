@@ -291,10 +291,6 @@ static const lv_img_dsc_t img_screen_rgb = {
     .data_size = (X_AXIS_SIZE * Y_AXIS_SIZE + 7) / 8,
     .data = screen_rgb_data,
 };
-// Init screen with blue values
-static void spectrum2d_picture_init()
-{
-}
 
 // Add spectrum data to the screen
 void Rm67162Display::spectrum2d_picture(float *result_data, int size)
@@ -325,7 +321,7 @@ void Rm67162Display::spectrum2d_picture(float *result_data, int size)
     }
 
     DisplayLockGuard lock(this);
-    lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(img_fft, LV_ALIGN_CENTER, 0, 0);
 }
 
 void Rm67162Display::SetChatMessage(const std::string &role, const std::string &content)
@@ -577,9 +573,8 @@ void Rm67162Display::SetupUI()
     lv_style_set_text_color(&style_assistant, lv_color_hex(0));
     lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
 
-    img1 = lv_img_create(lv_scr_act());
-    lv_img_set_src(img1, &img_screen_rgb);
+    img_fft = lv_img_create(lv_scr_act());
+    lv_img_set_src(img_fft, &img_screen_rgb);
     
-    spectrum2d_picture_init();
-    lv_obj_align(img1, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(img_fft, LV_ALIGN_CENTER, 0, 0);
 }

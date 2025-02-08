@@ -1,4 +1,3 @@
-# if false
 #include "sdcard.h"
 
 static const char *TAG = "Sdcard";
@@ -103,4 +102,3 @@ void Sdcard::Read(const char *filename, char *buffer, size_t buffer_size)
 
     fclose(file);
 }
-#endif

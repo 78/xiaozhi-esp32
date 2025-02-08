@@ -1,4 +1,4 @@
-#include "fft_dsp_processor..h"
+#include "fft_dsp_processor.h"
 #include <esp_log.h>
 #include <malloc.h>
 
@@ -90,7 +90,11 @@ void FFTDspProcessor::FFTDspProcessorTask()
 
             for (int i = 0; i < audio_chunksize; i++)
             {
+#if (false)
                 result_data[i] = sqrt((audio_buffer[i * 2 + 0] * audio_buffer[i * 2 + 0] + audio_buffer[i * 2 + 1] * audio_buffer[i * 2 + 1]));
+#else
+                result_data[i] = 10 * log10f((audio_buffer[i * 2 + 0] * audio_buffer[i * 2 + 0] + audio_buffer[i * 2 + 1] * audio_buffer[i * 2 + 1]) / audio_chunksize);
+#endif
             }
             if (output_callback_)
             {
