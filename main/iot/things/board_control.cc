@@ -50,7 +50,7 @@ public:
                     xTimerStart(sleep_timer_, 0);  // 启动定时器
                 }
             });
-        // 修改休眠方法
+        // 修改重新配网
         methods_.AddMethod("ResetWifiConfiguration", "重新配网", ParameterList(), 
             [this](const ParameterList& parameters) {
                 ESP_LOGI(TAG, "ResetWifiConfiguration");

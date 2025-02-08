@@ -37,6 +37,7 @@ public:
     virtual Mqtt* CreateMqtt() = 0;
     virtual Udp* CreateUdp() = 0;
     virtual void StartNetwork() = 0;
+    virtual void StopNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging);
     virtual std::string GetJson();

@@ -116,6 +116,19 @@ void WifiBoard::StartNetwork() {
     }
 }
 
+void WifiBoard::StopNetwork() {
+    if (wifi_config_mode_) {
+        auto& wifi_ap = WifiConfigurationAp::GetInstance();
+        wifi_ap.Stop();
+    } else {
+        auto& wifi_station = WifiStation::GetInstance();
+        wifi_station.Stop();
+    }
+    // 更新显示状态
+    auto display = Board::GetInstance().GetDisplay();
+    display->ShowNotification("网络已断开");
+}
+
 Http* WifiBoard::CreateHttp() {
     return new EspHttp();
 }

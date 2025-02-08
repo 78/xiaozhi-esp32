@@ -220,7 +220,9 @@ private:
         boot_button_.OnLongPress([this]() {
             // ESP_LOGI(TAG, "Button LongPress");
             if (wifi_config_mode_) {
-                Sleep();;
+                StopNetwork();
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                Sleep();
             }
         });    
         boot_button_.OnDoubleClick([this]() {
