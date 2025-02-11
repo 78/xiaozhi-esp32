@@ -61,7 +61,11 @@ void Application::CheckNewVersion() {
     ota_.SetPostData(board.GetJson());
 
     while (true) {
-        if (ota_.CheckVersion()) {
+        bool success = ota_.CheckVersion();
+        if (ota_.HasActivationCode()) {
+            DisplayActivationCode();
+        }
+        if (success) {
             if (ota_.HasNewVersion()) {
                 Alert("Info", "正在升级固件");
                 // Wait for the chat state to be idle
@@ -113,6 +117,13 @@ void Application::CheckNewVersion() {
         // Check again in 60 seconds
         vTaskDelay(pdMS_TO_TICKS(60000));
     }
+}
+
+void Application::DisplayActivationCode() {
+    ESP_LOGW(TAG, "Activation Message: %s", ota_.GetActivationMessage().c_str());
+    ESP_LOGW(TAG, "Activation Code: %s", ota_.GetActivationCode().c_str());
+    auto display = Board::GetInstance().GetDisplay();
+    display->ShowNotification(ota_.GetActivationMessage(), 30000);
 }
 
 void Application::Alert(const std::string& title, const std::string& message) {

@@ -100,6 +100,7 @@ private:
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate);
     void CheckNewVersion();
+    void DisplayActivationCode();
 
     void PlayLocalFile(const char* data, size_t size);
 };
