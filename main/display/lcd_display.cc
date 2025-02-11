@@ -186,11 +186,7 @@ void LcdDisplay::SetupUI() {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
-#else    
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
-#endif    
     
 
     /* Container */
@@ -205,10 +201,6 @@ void LcdDisplay::SetupUI() {
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    lv_obj_set_style_text_color(status_bar_, lv_color_white(), 0);
-    lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
-#endif
     
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -218,15 +210,9 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
     lv_obj_set_style_pad_right(status_bar_, 2, 0);
 
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    logo_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(logo_label_, "");
-    lv_obj_set_style_text_font(logo_label_, fonts_.text_font, 0);
-#else    
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-#endif
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -244,11 +230,6 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
 
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    network_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-#endif
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
@@ -263,11 +244,6 @@ void LcdDisplay::SetupUI() {
     
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    lv_obj_set_style_border_width(content_, 0, 0);
-    lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
-    lv_obj_set_style_text_color(content_, lv_color_white(), 0);
-#endif
 
     // 创建配置页面
     config_container_ = lv_obj_create(content_);
@@ -303,13 +279,8 @@ void LcdDisplay::SetupUI() {
 
     config_qrcode_panel_ = lv_qrcode_create(right_container);
     lv_qrcode_set_size(config_qrcode_panel_, 120);
-#if defined(CONFIG_BOARD_TYPE_PEILIAO_C3) || defined(CONFIG_BOARD_TYPE_PEILIAO_S3)    
-    lv_qrcode_set_dark_color(config_qrcode_panel_, lv_color_white());
-    lv_qrcode_set_light_color(config_qrcode_panel_, lv_color_black());
-#else    
     lv_qrcode_set_dark_color(config_qrcode_panel_, lv_color_black());
     lv_qrcode_set_light_color(config_qrcode_panel_, lv_color_white());
-#endif
 
     lv_obj_add_flag(config_container_, LV_OBJ_FLAG_HIDDEN);
 
