@@ -156,6 +156,7 @@ private:
                                         .icon_font = &font_awesome_16_4,
                                         .emoji_font = font_emoji_64_init(),
                                     });
+        display_->SetBacklight(60);
         display_->SetLogo("小智陪聊");
         display_->SetConfigPage(
                    "按键功能:\n"
