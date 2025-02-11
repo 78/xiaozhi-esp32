@@ -88,7 +88,7 @@ choice BOARD_TYPE
         bool "嘟嘟开发板CHATX(wifi)"       
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
-    config BOARD_TYPE_XINGZHI_Cube_0.96
+    config BOARD_TYPE_XINGZHI_Cube_OLED
         bool "无名科技星智0.96"
 endchoice
 
