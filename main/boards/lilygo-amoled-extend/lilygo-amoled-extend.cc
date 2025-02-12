@@ -34,6 +34,12 @@
 LV_FONT_DECLARE(font_awesome_16_4);
 LV_FONT_DECLARE(font_puhui_16_4);
 
+#define LCD_BIT_PER_PIXEL (16)
+
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
+#define LCD_OPCODE_READ_CMD (0x03ULL)
+#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
+
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
     // {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
@@ -95,11 +101,11 @@ public:
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
-        InitBrightness();
+        InitializeBacklight();
         SetupUI();
     }
 
-    void InitBrightness()
+    void InitializeBacklight()
     {
         Settings settings("display", false);
         brightness_ = settings.GetInt("bright", 80);
@@ -135,7 +141,9 @@ public:
         lv_obj_set_height((lv_obj_t *)var, v);
     }
 
-    void SetBacklight(uint8_t brightness)
+    virtual int GetBacklight() override { return brightness_; }
+
+    virtual void SetBacklight(uint8_t brightness) override
     {
         brightness_ = brightness;
         if (brightness > 100)
@@ -155,7 +163,7 @@ public:
         esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
     }
 
-    void SetupUI()
+    virtual void SetupUI() override
     {
         DisplayLockGuard lock(this);
 
@@ -251,7 +259,7 @@ public:
         lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
     }
 
-    void SetChatMessage(const std::string &role, const std::string &content)
+    virtual void SetChatMessage(const std::string &role, const std::string &content) override
     {
         if (role == "")
             return;
@@ -457,26 +465,26 @@ private:
 
     void InitializeSpi()
     {
-
-        ESP_LOGI(TAG, "Enable amoled power");
-        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         ESP_LOGI(TAG, "Initialize SPI bus");
-        const spi_bus_config_t buscfg = SH8601_PANEL_BUS_QSPI_CONFIG(PIN_NUM_LCD_PCLK,
-                                                                     PIN_NUM_LCD_DATA0,
-                                                                     PIN_NUM_LCD_DATA1,
-                                                                     PIN_NUM_LCD_DATA2,
-                                                                     PIN_NUM_LCD_DATA3,
-                                                                     DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t));
+        spi_bus_config_t buscfg = {};
+        buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
+        buscfg.data0_io_num = PIN_NUM_LCD_DATA0;
+        buscfg.data1_io_num = PIN_NUM_LCD_DATA1;
+        buscfg.data2_io_num = PIN_NUM_LCD_DATA2;
+        buscfg.data3_io_num = PIN_NUM_LCD_DATA3;
+        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
+        buscfg.flags = SPICOMMON_BUSFLAG_QUAD;
         ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
-
-        ESP_LOGI(TAG, "Install panel IO");
     }
 
     void InitializeSH8601Display()
     {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
+
+        ESP_LOGI(TAG, "Enable amoled power");
+        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(

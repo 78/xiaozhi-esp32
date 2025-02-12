@@ -1,9 +1,9 @@
 #include "iot/thing.h"
+#include "display/lcd_display.h"
 #include "board.h"
 #include "audio_codec.h"
 
 #include <esp_log.h>
-#include "rm67162_display.h"
 #define TAG "Displayer"
 
 namespace iot

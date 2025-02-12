@@ -31,7 +31,7 @@ protected:
     DisplayFonts fonts_;
 
     void InitializeBacklight(gpio_num_t backlight_pin);
-    void SetBacklight(uint8_t brightness);
+    virtual void SetBacklight(uint8_t brightness) override;
 
     virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
