@@ -2,6 +2,7 @@
 #define _BOARD_CONFIG_H_
 
 #include <driver/gpio.h>
+#include <driver/uart.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 16000
@@ -42,5 +43,31 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_46
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+#define UART_ECHO_TXD GPIO_NUM_38
+#define UART_ECHO_RXD GPIO_NUM_48
+#define UART_ECHO_RTS (-1)
+#define UART_ECHO_CTS (-1)
+
+#define MOTOR_SPEED_MAX 100
+#define MOTOR_SPEED_80  80
+#define MOTOR_SPEED_60  60
+#define MOTOR_SPEED_MIN 0
+
+#define ECHO_UART_PORT_NUM      UART_NUM_1
+#define ECHO_UART_BAUD_RATE     (115200)
+#define BUF_SIZE                (1024)
+
+typedef enum {
+    LIGHT_MODE_CHARGING_BREATH = 0,
+    LIGHT_MODE_POWER_LOW,
+    LIGHT_MODE_ALWAYS_ON,
+    LIGHT_MODE_BLINK,
+    LIGHT_MODE_WHITE_BREATH_SLOW,
+    LIGHT_MODE_WHITE_BREATH_FAST,
+    LIGHT_MODE_FLOWING,
+    LIGHT_MODE_SHOW,
+    LIGHT_MODE_SLEEP,
+    LIGHT_MODE_MAX
+} light_mode_t;
 
 #endif // _BOARD_CONFIG_H_
