@@ -463,6 +463,7 @@ private:
             .mode = 0,                  // SPI mode 0
             .clock_speed_hz = 312500,  // 312.5kHz
             .spics_io_num = PIN_NUM_VFD_CS, // CS pin
+            .flags = SPI_DEVICE_BIT_LSBFIRST,
             .queue_size = 7,            // 传输队列大小
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
