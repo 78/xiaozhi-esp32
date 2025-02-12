@@ -33,7 +33,7 @@ config WEBSOCKET_ACCESS_TOKEN
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_DUAL_SCREEN_AI_DISPLAY
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -87,7 +87,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
     config BOARD_TYPE_DU_CHATX
-        bool "嘟嘟开发板CHATX(wifi)"       
+        bool "嘟嘟开发板CHATX(wifi)"     
+    config BOARD_TYPE_DUAL_SCREEN_AI_DISPLAY
+        bool "ESP32S3控制的VFD和Amoeld1.91双屏AI终端"  
 endchoice
 
 choice DISPLAY_LCD_TYPE
