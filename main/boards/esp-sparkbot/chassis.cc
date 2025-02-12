@@ -1,12 +1,9 @@
-#include "sdkconfig.h"
-
-#ifdef CONFIG_BOARD_TYPE_ESP_SPARKBOT
-
 /*
     ESP-SparkBot 的底座
     https://gitee.com/esp-friends/esp_sparkbot/tree/master/example/tank/c2_tracked_chassis
 */
 
+#include "sdkconfig.h"
 #include "iot/thing.h"
 #include "board.h"
 
@@ -99,5 +96,3 @@ public:
 } // namespace iot
 
 DECLARE_THING(Chassis);
-
-#endif // CONFIG_BOARD_TYPE_ESP_SPARKBOT
