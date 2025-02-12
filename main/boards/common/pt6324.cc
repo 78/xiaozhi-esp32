@@ -20,7 +20,7 @@ void PT6324Writer::pt6324_write_data(uint8_t *dat, int len)
 
 void PT6324Writer::pt6324_init()
 {
-    uint8_t data[] = {0x0F, 0x40};
+    uint8_t data[] = {0x0F, 0x40, 0x8F}; //2. 亮度
     pt6324_write_data(data, sizeof data);
 }
 
