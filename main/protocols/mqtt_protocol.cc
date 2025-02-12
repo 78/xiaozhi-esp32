@@ -154,6 +154,7 @@ bool MqttProtocol::OpenAudioChannel() {
     }
 
     session_id_ = "";
+    xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 
     // 发送 hello 消息申请 UDP 通道
     std::string message = "{";
@@ -234,6 +235,7 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     auto session_id = cJSON_GetObjectItem(root, "session_id");
     if (session_id != nullptr) {
         session_id_ = session_id->valuestring;
+        ESP_LOGI(TAG, "Session ID: %s", session_id_.c_str());
     }
 
     // Get sample rate from hello message
