@@ -181,7 +181,8 @@ private:
                     "  重新配网",  // 左侧说明文本
                 "扫码访问管理后台",    // 二维码上方说明文字
                 "https://xiaozhi.me/"// 二维码实际内容
-);
+        );
+        display_->SetChatMessage("user", "长按按键开始对话\n双击按键进入帮助");
     }
 #endif    
     void Start5V(){
