@@ -1,4 +1,4 @@
-#include "xiaozipeiliao_display.h"
+#include "xiaoziyunliao_display.h"
 
 #include <font_awesome_symbols.h>
 #include <esp_log.h>
@@ -14,7 +14,7 @@
 LV_FONT_DECLARE(font_awesome_30_4);
 
 
-XiaozipeiliaoDisplay::XiaozipeiliaoDisplay(
+XiaoziyunliaoDisplay::XiaoziyunliaoDisplay(
     esp_lcd_panel_io_handle_t panel_io,
     esp_lcd_panel_handle_t panel,
     gpio_num_t backlight_pin,
@@ -36,7 +36,7 @@ XiaozipeiliaoDisplay::XiaozipeiliaoDisplay(
     // 可在此添加派生类特有的初始化代码
 }
 
-void XiaozipeiliaoDisplay::SetupUI() {
+void XiaoziyunliaoDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
@@ -172,15 +172,15 @@ void XiaozipeiliaoDisplay::SetupUI() {
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
 }
 
-void XiaozipeiliaoDisplay::SetChatMessage(const std::string &role, const std::string &content) {
+void XiaoziyunliaoDisplay::SetChatMessage(const std::string &role, const std::string &content) {
     LcdDisplay::SetChatMessage(role, content);
 }
 
-void XiaozipeiliaoDisplay::SetEmotion(const std::string &emotion) {
+void XiaoziyunliaoDisplay::SetEmotion(const std::string &emotion) {
     LcdDisplay::SetEmotion(emotion);
 }
 
-void XiaozipeiliaoDisplay::SetIcon(const char* icon) {
+void XiaoziyunliaoDisplay::SetIcon(const char* icon) {
     LcdDisplay::SetIcon(icon);
 }
 
