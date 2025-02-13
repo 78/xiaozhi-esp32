@@ -16,9 +16,12 @@ public:
     PT6324Writer(spi_device_handle_t spi_device) : spi_device_(spi_device) {}
     void pt6324_init();
     void pt6324_test();
+    void pt6324_cali();
 private:
     spi_device_handle_t spi_device_;
+    uint8_t gram[48];
     void pt6324_write_data(uint8_t *dat, int len);
+    void pt6324_refrash();
 };
 
 #endif
