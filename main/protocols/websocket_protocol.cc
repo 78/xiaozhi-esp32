@@ -61,6 +61,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     websocket_->SetHeader("Authorization", token.c_str());
     websocket_->SetHeader("Protocol-Version", "1");
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    websocket_->SetHeader("X-Uuid", Board::GetInstance().GetUuid().c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {

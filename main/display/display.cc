@@ -63,20 +63,20 @@ Display::~Display() {
 }
 
 void Display::SetStatus(const std::string &status) {
+    DisplayLockGuard lock(this);
     if (status_label_ == nullptr) {
         return;
     }
-    DisplayLockGuard lock(this);
     lv_label_set_text(status_label_, status.c_str());
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
+    DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
         return;
     }
-    DisplayLockGuard lock(this);
     lv_label_set_text(notification_label_, notification.c_str());
     lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
@@ -86,15 +86,15 @@ void Display::ShowNotification(const std::string &notification, int duration_ms)
 }
 
 void Display::Update() {
-    if (mute_label_ == nullptr) {
-        return;
-    }
-
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
     {
         DisplayLockGuard lock(this);
+        if (mute_label_ == nullptr) {
+            return;
+        }
+
         // 如果静音状态改变，则更新图标
         if (codec->output_volume() == 0 && !muted_) {
             muted_ = true;
@@ -123,8 +123,8 @@ void Display::Update() {
             };
             icon = levels[battery_level / 20];
         }
-        if (battery_icon_ != icon) {
-            DisplayLockGuard lock(this);
+        DisplayLockGuard lock(this);
+        if (battery_label_ != nullptr && battery_icon_ != icon) {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
@@ -140,7 +140,7 @@ void Display::Update() {
     };
     if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
         icon = board.GetNetworkStateIcon();
-        if (network_icon_ != icon) {
+        if (network_label_ != nullptr && network_icon_ != icon) {
             DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
@@ -150,10 +150,6 @@ void Display::Update() {
 
 
 void Display::SetEmotion(const std::string &emotion) {
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-
     struct Emotion {
         const char* icon;
         const char* text;
@@ -188,6 +184,10 @@ void Display::SetEmotion(const std::string &emotion) {
         [&emotion](const Emotion& e) { return e.text == emotion; });
     
     DisplayLockGuard lock(this);
+    if (emotion_label_ == nullptr) {
+        return;
+    }
+
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);
@@ -197,10 +197,10 @@ void Display::SetEmotion(const std::string &emotion) {
 }
 
 void Display::SetIcon(const char* icon) {
+    DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
-    DisplayLockGuard lock(this);
     lv_label_set_text(emotion_label_, icon);
 }
 

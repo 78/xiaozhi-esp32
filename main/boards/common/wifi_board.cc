@@ -22,20 +22,6 @@
 
 static const char *TAG = "WifiBoard";
 
-static std::string rssi_to_string(int rssi) {
-    if (rssi >= -55) {
-        return "Very good";
-    } else if (rssi >= -65) {
-        return "Good";
-    } else if (rssi >= -75) {
-        return "Fair";
-    } else if (rssi >= -85) {
-        return "Poor";
-    } else {
-        return "No network";
-    }
-}
-
 WifiBoard::WifiBoard() {
     Settings settings("wifi", true);
     wifi_config_mode_ = settings.GetInt("force_ap") == 1;
@@ -43,6 +29,10 @@ WifiBoard::WifiBoard() {
         ESP_LOGI(TAG, "force_ap is set to 1, reset to 0");
         settings.SetInt("force_ap", 0);
     }
+}
+
+std::string WifiBoard::GetBoardType() {
+    return "wifi";
 }
 
 void WifiBoard::EnterWifiConfigMode() {
@@ -136,24 +126,6 @@ Mqtt* WifiBoard::CreateMqtt() {
 
 Udp* WifiBoard::CreateUdp() {
     return new EspUdp();
-}
-
-bool WifiBoard::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
-    if (wifi_config_mode_) {
-        auto& wifi_ap = WifiConfigurationAp::GetInstance();
-        network_name = wifi_ap.GetSsid();
-        signal_quality = -99;
-        signal_quality_text = wifi_ap.GetWebServerUrl();
-        return true;
-    }
-    auto& wifi_station = WifiStation::GetInstance();
-    if (!wifi_station.IsConnected()) {
-        return false;
-    }
-    network_name = wifi_station.GetSsid();
-    signal_quality = wifi_station.GetRssi();
-    signal_quality_text = rssi_to_string(signal_quality);
-    return signal_quality != -1;
 }
 
 const char* WifiBoard::GetNetworkStateIcon() {

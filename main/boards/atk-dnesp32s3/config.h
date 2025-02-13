@@ -2,11 +2,11 @@
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
 
+
 #include <driver/gpio.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE      24000
 #define AUDIO_OUTPUT_SAMPLE_RATE     24000
-#define AUDIO_DEFAULT_OUTPUT_VOLUME  90
 
 #define AUDIO_I2S_GPIO_MCLK GPIO_NUM_3
 #define AUDIO_I2S_GPIO_WS GPIO_NUM_9
