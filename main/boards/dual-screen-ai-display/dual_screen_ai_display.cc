@@ -456,18 +456,20 @@ private:
         buscfg.sclk_io_num = PIN_NUM_VFD_PCLK;
         buscfg.data0_io_num = PIN_NUM_VFD_DATA0;
         buscfg.max_transfer_sz = 256;
-        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_DISABLED));
+        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
         spi_device_handle_t spidevice;
         spi_device_interface_config_t devcfg = {
-            .mode = 0,                  // SPI mode 0
-            .clock_speed_hz = 312500,  // 312.5kHz
+            .mode = 2,                  // SPI mode 0
+            .clock_speed_hz = 10000,  // 10kHz
             .spics_io_num = PIN_NUM_VFD_CS, // CS pin
             .flags = SPI_DEVICE_BIT_LSBFIRST,
             .queue_size = 7,            // 传输队列大小
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         pt6324 = new PT6324Writer(spidevice);
+        pt6324->pt6324_init();
+        pt6324->pt6324_test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;

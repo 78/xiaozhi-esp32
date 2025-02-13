@@ -20,20 +20,20 @@ void PT6324Writer::pt6324_write_data(uint8_t *dat, int len)
 
 void PT6324Writer::pt6324_init()
 {
-    uint8_t data[] = {0x0F, 0x40, 0x8F}; //2. 亮度
-    pt6324_write_data(data, sizeof data);
+    uint8_t data[] = {0x0F, 0x40, 0x8F}; // 2. 亮度
+    pt6324_write_data(data, (sizeof data) * 8);
 }
 
 void PT6324Writer::pt6324_test()
 {
     uint8_t data[] = {0xC0};
-    pt6324_write_data(data, sizeof data);
+    pt6324_write_data(data, (sizeof data) * 8);
 
     uint8_t data_gram[48] = {0};
     for (size_t i = 0; i < sizeof data_gram; i++)
-        data_gram[i] = 0xFF;
-    pt6324_write_data(data_gram, sizeof data_gram);
+        data_gram[i] = i;
+    pt6324_write_data(data_gram, (sizeof data_gram) * 8);
 
     data[0] = 0x0F;
-    pt6324_write_data(data, sizeof data);
+    pt6324_write_data(data, (sizeof data) * 8);
 }
