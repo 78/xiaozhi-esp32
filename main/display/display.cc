@@ -8,10 +8,15 @@
 #include "application.h"
 #include "font_awesome_symbols.h"
 #include "audio_codec.h"
+#include "settings.h"
 
 #define TAG "Display"
 
 Display::Display() {
+    // Load brightness from settings
+    Settings settings("display");
+    brightness_ = settings.GetInt("brightness", 100);
+
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
         .callback = [](void *arg) {
@@ -205,4 +210,10 @@ void Display::SetIcon(const char* icon) {
 }
 
 void Display::SetChatMessage(const std::string &role, const std::string &content) {
+}
+
+void Display::SetBacklight(uint8_t brightness) {
+    Settings settings("display", true);
+    settings.SetInt("brightness", brightness);
+    brightness_ = brightness;
 }
