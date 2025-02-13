@@ -90,10 +90,12 @@ void XiaozipeiliaoDisplay::SetupUI() {
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_pad_left(network_label_, 3, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_pad_left(battery_label_, 3, 0);
 
     /* Content */
     content_ = lv_obj_create(container_);
@@ -140,10 +142,21 @@ void XiaozipeiliaoDisplay::SetupUI() {
     lv_obj_set_style_text_line_space(qrcode_label_, 2, 0);
     lv_obj_set_style_text_align(qrcode_label_, LV_TEXT_ALIGN_CENTER, 0);
 
-    config_qrcode_panel_ = lv_qrcode_create(right_container);
+    // 创建带边框的容器
+    lv_obj_t* border_container = lv_obj_create(right_container);
+    lv_obj_remove_style_all(border_container);
+    lv_obj_set_size(border_container, 126, 126); // 120 + 3*2 边框
+    lv_obj_set_style_border_color(border_container, lv_color_white(), 0);
+    lv_obj_set_style_border_width(border_container, 3, 0);
+    lv_obj_set_style_bg_color(border_container, lv_color_black(), 0);
+    lv_obj_set_style_pad_all(border_container, 0, 0);
+
+    // 在边框容器中创建二维码
+    config_qrcode_panel_ = lv_qrcode_create(border_container);
     lv_qrcode_set_size(config_qrcode_panel_, 120);
-    lv_qrcode_set_dark_color(config_qrcode_panel_, lv_color_white());
-    lv_qrcode_set_light_color(config_qrcode_panel_, lv_color_black());
+    lv_qrcode_set_dark_color(config_qrcode_panel_, lv_color_black());
+    lv_qrcode_set_light_color(config_qrcode_panel_, lv_color_white());
+    lv_obj_center(config_qrcode_panel_); // 居中显示
 
     lv_obj_add_flag(config_container_, LV_OBJ_FLAG_HIDDEN);
 
