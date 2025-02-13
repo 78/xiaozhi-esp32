@@ -23,14 +23,16 @@ public:
     virtual void SetEmotion(const std::string &emotion);
     virtual void SetChatMessage(const std::string &role, const std::string &content);
     virtual void SetIcon(const char* icon);
-    virtual void SetBacklight(uint8_t brightness) = 0;
+    virtual void SetBacklight(uint8_t brightness);
 
-    int width() const { return width_; }
-    int height() const { return height_; }
+    inline int width() const { return width_; }
+    inline int height() const { return height_; }
+    inline uint8_t brightness() const { return brightness_; }
 
 protected:
     int width_ = 0;
     int height_ = 0;
+    uint8_t brightness_ = 0;
 
     lv_display_t *display_ = nullptr;
 

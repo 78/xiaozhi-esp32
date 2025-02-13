@@ -13,30 +13,21 @@ class Backlight : public Thing {
 public:
     Backlight() : Thing("Backlight", "当前 AI 机器人屏幕的亮度") {
         // 定义设备的属性
-        properties_.AddNumberProperty("light", "当前亮度值", [this]() -> int {
+        properties_.AddNumberProperty("brightness", "当前亮度值", [this]() -> int {
             // 这里可以添加获取当前亮度的逻辑
-            return current_brightness_;
+            auto display = Board::GetInstance().GetDisplay();
+            return display->brightness();
         });
 
         // 定义设备可以被远程执行的指令
-        methods_.AddMethod("SetLight", "设置亮度", ParameterList({
-            Parameter("light", "0到100之间的整数", kValueTypeNumber, true)
+        methods_.AddMethod("SetBrightness", "设置亮度", ParameterList({
+            Parameter("brightness", "0到100之间的整数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
             auto display = Board::GetInstance().GetDisplay();
-            uint8_t target_brightness = static_cast<uint8_t>(parameters["light"].number());
-            int step = (target_brightness > current_brightness_) ? 1 : -1;
-            for (int brightness = current_brightness_; brightness != target_brightness; brightness += step) {
-                display->SetBacklight(static_cast<uint8_t>(brightness));
-                // 可以根据需要调整渐变速度，这里假设每次调整间隔 10 毫秒
-                vTaskDelay(pdMS_TO_TICKS(10)); 
-            }
-            display->SetBacklight(target_brightness);
-            current_brightness_ = target_brightness;  // 保存当前亮度值
+            uint8_t brightness = static_cast<uint8_t>(parameters["brightness"].number());
+            display->SetBacklight(brightness);
         });
     }
-
-private:
-    int current_brightness_ = 100;  // 保存当前亮度值
 };
 
 } // namespace iot
