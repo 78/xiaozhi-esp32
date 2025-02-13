@@ -17,7 +17,7 @@
 #include "esp_sleep.h"
 #include "font_awesome_symbols.h"
 #include <string.h>  // 添加字符串处理头文件
-#include "xiaozipeiliao_display.h"
+#include "xiaoziyunliao_display.h"
 
 #if CONFIG_LCD_CONTROLLER_ILI9341
     #include "esp_lcd_ili9341.h"
@@ -33,7 +33,7 @@
     LV_FONT_DECLARE(font_awesome_16_4);
 #endif
 
-#define TAG "XiaoZhiPeiliaoC3"
+#define TAG "XiaoZhiYunliaoC3"
 
 RTC_DATA_ATTR int bootCNT;
 esp_lcd_panel_handle_t panel = nullptr;
@@ -77,13 +77,13 @@ static void calBattLife(TimerHandle_t xTimer) {
 }
 
 
-class XiaoZhiPeiliaoC3 : public WifiBoard {
+class XiaoZhiYunliaoC3 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     TimerHandle_t batt_ticker_;
 #if defined(CONFIG_LCD_CONTROLLER_ILI9341) || defined(CONFIG_LCD_CONTROLLER_ST7789)
-    XiaozipeiliaoDisplay* display_;
+    XiaoziyunliaoDisplay* display_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -150,7 +150,7 @@ private:
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new XiaozipeiliaoDisplay(
+        display_ = new XiaoziyunliaoDisplay(
             panel_io,       // 保持参数传递
             panel,          // 保持参数传递
             DISPLAY_BACKLIGHT_PIN, 
@@ -169,7 +169,7 @@ private:
             });
         display_->SetupUI();
         display_->SetBacklight(60);
-        display_->SetLogo("小智陪聊");
+        display_->SetLogo("小智云聊");
         display_->SetConfigPage(
                    "按键功能:\n"
                     "  长按通话\n"
@@ -289,7 +289,7 @@ private:
 
 
 public:
-    XiaoZhiPeiliaoC3() : boot_button_(BOOT_BUTTON_GPIO, false, 800) {  
+    XiaoZhiYunliaoC3() : boot_button_(BOOT_BUTTON_GPIO, false, 800) {  
         InitializeI2c();
         InitializeButtons();
         InitializeIot();
@@ -351,4 +351,4 @@ public:
     }
 };
 
-DECLARE_BOARD(XiaoZhiPeiliaoC3);
+DECLARE_BOARD(XiaoZhiYunliaoC3);
