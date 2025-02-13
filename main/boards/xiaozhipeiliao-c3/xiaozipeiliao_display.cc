@@ -56,7 +56,7 @@ void XiaozipeiliaoDisplay::SetupUI() {
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_text_color(status_bar_, lv_color_white(), 0);
+    lv_obj_set_style_text_color(status_bar_, lv_color_make(0xAf, 0xAf, 0xAf), 0);
     lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
     
     /* Status bar */
