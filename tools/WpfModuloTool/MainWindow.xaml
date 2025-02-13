@@ -1,0 +1,35 @@
+﻿<Window x:Class="WpfModuloTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="米字形数码管取模工具" Height="400" Width="600">
+    <Grid>
+        <Canvas x:Name="DigitCanvas" Width="200" Height="200" VerticalAlignment="Top" Background="LightGray">
+            <!-- 绘制米字形数码管的线段 -->
+            <Line x:Name="Line_LT" X1="40" Y1="30" X2="40" Y2="20" Stroke="Black" StrokeThickness="5" Tag="2:80" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_T" X1="50" Y1="20" X2="150" Y2="20" Stroke="Black" StrokeThickness="5" Tag="2:40" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RT" X1="160" Y1="20" X2="160" Y2="30" Stroke="Black" StrokeThickness="5" Tag="2:20" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LU" X1="40" Y1="98" X2="40" Y2="30" Stroke="Black" StrokeThickness="5" Tag="2:10" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RMU" X1="105" Y1="95" X2="152" Y2="28" Stroke="Black" StrokeThickness="5" Tag="2:2" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_MU" X1="100" Y1="20" X2="100" Y2="95" Stroke="Black" StrokeThickness="5" Tag="2:4" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LMU" X1="95" Y1="95" X2="48" Y2="28" Stroke="Black" StrokeThickness="5" Tag="2:2" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RU" X1="160" Y1="30" X2="160" Y2="98" Stroke="Black" StrokeThickness="5" Tag="2:1" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LM" X1="45" Y1="100" X2="95" Y2="100" Stroke="Black" StrokeThickness="5" Tag="1:80" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_M" X1="100" Y1="98" X2="100" Y2="102" Stroke="Black" StrokeThickness="5" Tag="1:40" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RM" X1="105" Y1="100" X2="155" Y2="100" Stroke="Black" StrokeThickness="5" Tag="1:20" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LD" X1="40" Y1="170" X2="40" Y2="102" Stroke="Black" StrokeThickness="5" Tag="1:10" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LMD" X1="95" Y1="105" X2="48" Y2="172" Stroke="Black" StrokeThickness="5" Tag="1:8" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_MD" X1="100" Y1="105" X2="100" Y2="180" Stroke="Black" StrokeThickness="5" Tag="1:4" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RMD" X1="105" Y1="105" X2="152" Y2="172" Stroke="Black" StrokeThickness="5" Tag="1:8" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RD" X1="160" Y1="102" X2="160" Y2="170" Stroke="Black" StrokeThickness="5" Tag="1:1" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_LB" X1="40" Y1="180" X2="40" Y2="170" Stroke="Black" StrokeThickness="5" Tag="0:80" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_B" X1="50" Y1="180" X2="150" Y2="180" Stroke="Black" StrokeThickness="5" Tag="0:40" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_MB" X1="97" Y1="180" X2="103" Y2="180" Stroke="Black" StrokeThickness="5" Tag="0:20" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+            <Line x:Name="Line_RB" X1="160" Y1="170" X2="160" Y2="180" Stroke="Black" StrokeThickness="5" Tag="0:10" MouseLeftButtonDown="Line_MouseLeftButtonDown"/>
+        </Canvas>
+        <Button Content="采用编码" HorizontalAlignment="Left" Margin="136,230,0,0" VerticalAlignment="Top" Width="75" Click="SetCodeButton_Click"/>
+        <TextBox Name="tb_content" Width="100" VerticalAlignment="Top" Margin="228,230,272,0"></TextBox>
+        <Button Content="获取编码" HorizontalAlignment="Left" Margin="20,230,0,0" VerticalAlignment="Top" Width="75" Click="GetCodeButton_Click"/>
+        <Label Content="编码结果:" HorizontalAlignment="Left" Margin="20,270,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="ResultTextBox" HorizontalAlignment="Left" Height="250" Margin="20,300,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="540" IsReadOnly="True"/>
+    </Grid>
+</Window>

@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WpfModuloTool", "WpfModuloTool.csproj", "{D320CAFC-ED1C-4D4A-91BF-6E77ECFF9B46}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D320CAFC-ED1C-4D4A-91BF-6E77ECFF9B46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D320CAFC-ED1C-4D4A-91BF-6E77ECFF9B46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D320CAFC-ED1C-4D4A-91BF-6E77ECFF9B46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D320CAFC-ED1C-4D4A-91BF-6E77ECFF9B46}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {07337605-0C40-44AF-91CA-19A63005FFD1}
+	EndGlobalSection
+EndGlobal

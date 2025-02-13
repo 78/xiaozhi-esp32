@@ -460,16 +460,16 @@ private:
 
         spi_device_handle_t spidevice;
         spi_device_interface_config_t devcfg = {
-            .mode = 3,                  // SPI mode 3
-            .clock_speed_hz = 1000000,  // 1MHz
+            .mode = 3,                      // SPI mode 3
+            .clock_speed_hz = 1000000,      // 1MHz
             .spics_io_num = PIN_NUM_VFD_CS, // CS pin
             .flags = SPI_DEVICE_BIT_LSBFIRST,
-            .queue_size = 7,            
+            .queue_size = 7,
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         pt6324 = new PT6324Writer(spidevice);
         pt6324->pt6324_init();
-        pt6324->pt6324_test();
+        // pt6324->pt6324_test();
         pt6324->pt6324_cali();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
