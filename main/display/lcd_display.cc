@@ -48,7 +48,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
         .panel_handle = panel_,
         .control_handle = nullptr,
         .buffer_size = static_cast<uint32_t>(width_ * 10),
-        .double_buffer = true,
+        .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -75,7 +75,9 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
         return;
     }
 
-    lv_display_set_offset(display_, offset_x, offset_y);
+    if (offset_x != 0 || offset_y != 0) {
+        lv_display_set_offset(display_, offset_x, offset_y);
+    }
 
     SetBacklight(100);
 
@@ -166,7 +168,7 @@ void LcdDisplay::Unlock() {
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_disp_get_scr_act(lv_disp_get_default());
+    auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
@@ -237,19 +239,14 @@ void LcdDisplay::SetupUI() {
 }
 
 void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content) {
+    DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
     }
-
-    DisplayLockGuard lock(this);
     lv_label_set_text(chat_message_label_, content.c_str());
 }
 
 void LcdDisplay::SetEmotion(const std::string &emotion) {
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-
     struct Emotion {
         const char* icon;
         const char* text;
@@ -284,6 +281,10 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         [&emotion](const Emotion& e) { return e.text == emotion; });
 
     DisplayLockGuard lock(this);
+    if (emotion_label_ == nullptr) {
+        return;
+    }
+
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     if (it != emotions.end()) {
@@ -294,10 +295,10 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
 }
 
 void LcdDisplay::SetIcon(const char* icon) {
+    DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
-    DisplayLockGuard lock(this);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, icon);
 }

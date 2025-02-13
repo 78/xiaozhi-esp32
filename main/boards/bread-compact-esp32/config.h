@@ -32,5 +32,11 @@
 #define TOUCH_BUTTON_GPIO       GPIO_NUM_5
 #define BUILTIN_LED_GPIO        GPIO_NUM_2
 
+#define DISPLAY_SDA_PIN GPIO_NUM_4
+#define DISPLAY_SCL_PIN GPIO_NUM_15
+#define DISPLAY_WIDTH   128
+#define DISPLAY_HEIGHT  64
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y true
 
 #endif // _BOARD_CONFIG_H_

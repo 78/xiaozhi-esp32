@@ -11,28 +11,15 @@
 #include <web_socket.h>
 #include <ml307_mqtt.h>
 #include <ml307_udp.h>
+#include <opus_encoder.h>
 
 static const char *TAG = "Ml307Board";
 
-static std::string csq_to_string(int csq) {
-    if (csq == -1) {
-        return "No network";
-    } else if (csq >= 0 && csq <= 9) {
-        return "Very bad";
-    } else if (csq >= 10 && csq <= 14) {
-        return "Bad";
-    } else if (csq >= 15 && csq <= 19) {
-        return "Fair";
-    } else if (csq >= 20 && csq <= 24) {
-        return "Good";
-    } else if (csq >= 25 && csq <= 31) {
-        return "Very good";
-    }
-    return "Invalid";
+Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, size_t rx_buffer_size) : modem_(tx_pin, rx_pin, rx_buffer_size) {
 }
 
-
-Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, size_t rx_buffer_size) : modem_(tx_pin, rx_pin, rx_buffer_size) {
+std::string Ml307Board::GetBoardType() {
+    return "ml307";
 }
 
 void Ml307Board::StartNetwork() {
@@ -93,16 +80,6 @@ Mqtt* Ml307Board::CreateMqtt() {
 
 Udp* Ml307Board::CreateUdp() {
     return new Ml307Udp(modem_, 0);
-}
-
-bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
-    if (!modem_.network_ready()) {
-        return false;
-    }
-    network_name = modem_.GetCarrierName();
-    signal_quality = modem_.GetCsq();
-    signal_quality_text = csq_to_string(signal_quality);
-    return signal_quality != -1;
 }
 
 const char* Ml307Board::GetNetworkStateIcon() {

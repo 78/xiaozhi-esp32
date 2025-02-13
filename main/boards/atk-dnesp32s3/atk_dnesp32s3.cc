@@ -162,15 +162,20 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8388AudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            audio_codec = new Es8388AudioCodec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                GPIO_NUM_NC, AUDIO_CODEC_ES8388_ADDR);
-
-            audio_codec->SetOutputVolume(AUDIO_DEFAULT_OUTPUT_VOLUME);  //设置默认音量
-        }
-        return audio_codec;
+        static Es8388AudioCodec audio_codec(
+            i2c_bus_, 
+            I2C_NUM_0, 
+            AUDIO_INPUT_SAMPLE_RATE, 
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, 
+            AUDIO_I2S_GPIO_BCLK, 
+            AUDIO_I2S_GPIO_WS, 
+            AUDIO_I2S_GPIO_DOUT, 
+            AUDIO_I2S_GPIO_DIN,
+            GPIO_NUM_NC, 
+            AUDIO_CODEC_ES8388_ADDR
+        );
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {

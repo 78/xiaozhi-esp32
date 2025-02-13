@@ -2,7 +2,6 @@
 #include "audio_codecs/cores3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
-#include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -12,7 +11,8 @@
 #include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "esp_lcd_ili9341.h"
+#include <esp_lcd_ili9341.h>
+#include <esp_timer.h>
 
 #define TAG "M5StackCoreS3Board"
 
@@ -119,7 +119,7 @@ private:
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
-    Button boot_button_;
+    esp_timer_handle_t touchpad_timer_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -170,37 +170,53 @@ private:
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    static void touchpad_daemon(void* param) {
-        vTaskDelay(pdMS_TO_TICKS(2000));
+    static void touchpad_timer_callback(void* arg) {
         auto& board = (M5StackCoreS3Board&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
-        bool was_touched = false;
-        while (1) {
-            touchpad->UpdateTouchPoint();
-            if (touchpad->GetTouchPoint().num > 0) {
-                // On press
-                if (!was_touched) {
-                    was_touched = true;
-                    auto& app = Application::GetInstance();
-                    if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                        board.ResetWifiConfiguration();
-                    }
-                    app.ToggleChatState();
+        static bool was_touched = false;
+        static int64_t touch_start_time = 0;
+        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
+        
+        touchpad->UpdateTouchPoint();
+        auto touch_point = touchpad->GetTouchPoint();
+        
+        // 检测触摸开始
+        if (touch_point.num > 0 && !was_touched) {
+            was_touched = true;
+            touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
+        } 
+        // 检测触摸释放
+        else if (touch_point.num == 0 && was_touched) {
+            was_touched = false;
+            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
+            
+            // 只有短触才触发
+            if (touch_duration < TOUCH_THRESHOLD_MS) {
+                auto& app = Application::GetInstance();
+                if (app.GetDeviceState() == kDeviceStateStarting && 
+                    !WifiStation::GetInstance().IsConnected()) {
+                    board.ResetWifiConfiguration();
                 }
+                app.ToggleChatState();
             }
-            // On release
-            else if (was_touched) {
-                was_touched = false;
-            }
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
-        vTaskDelete(NULL);
     }
 
     void InitializeFt6336TouchPad() {
         ESP_LOGI(TAG, "Init FT6336");
         ft6336_ = new Ft6336(i2c_bus_, 0x38);
-        xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
+        
+        // 创建定时器，10ms 间隔
+        esp_timer_create_args_t timer_args = {
+            .callback = touchpad_timer_callback,
+            .arg = NULL,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "touchpad_timer",
+            .skip_unhandled_events = true,
+        };
+        
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &touchpad_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000)); // 10ms = 10000us
     }
 
     void InitializeSpi() {
@@ -255,16 +271,6 @@ private:
                                     });
     }
 
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
-    }
-
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -272,27 +278,30 @@ private:
     }
 
 public:
-    M5StackCoreS3Board() : boot_button_(GPIO_NUM_1) {
+    M5StackCoreS3Board() {
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
-        InitializeFt6336TouchPad();
         I2cDetect();
         InitializeSpi();
         InitializeIli9342Display();
-        InitializeButtons();
         InitializeIot();
+        InitializeFt6336TouchPad();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static CoreS3AudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            aw9523_->ResetAw88298();
-            audio_codec = new CoreS3AudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                AUDIO_CODEC_AW88298_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-        }
-        return audio_codec;
+        static CoreS3AudioCodec audio_codec(i2c_bus_,
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_AW88298_ADDR,
+            AUDIO_CODEC_ES7210_ADDR,
+            AUDIO_INPUT_REFERENCE);
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {
