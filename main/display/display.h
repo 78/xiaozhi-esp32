@@ -23,6 +23,7 @@ public:
     virtual void SetEmotion(const std::string &emotion);
     virtual void SetChatMessage(const std::string &role, const std::string &content);
     virtual void SetIcon(const char* icon);
+    virtual void SetBacklight(uint8_t brightness) = 0;
 
     int width() const { return width_; }
     int height() const { return height_; }
