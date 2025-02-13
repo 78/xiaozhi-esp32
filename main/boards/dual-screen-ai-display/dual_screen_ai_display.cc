@@ -460,11 +460,11 @@ private:
 
         spi_device_handle_t spidevice;
         spi_device_interface_config_t devcfg = {
-            .mode = 2,                  // SPI mode 0
-            .clock_speed_hz = 10000,  // 10kHz
+            .mode = 3,                  // SPI mode 3
+            .clock_speed_hz = 1000000,  // 1MHz
             .spics_io_num = PIN_NUM_VFD_CS, // CS pin
             .flags = SPI_DEVICE_BIT_LSBFIRST,
-            .queue_size = 7,            // 传输队列大小
+            .queue_size = 7,            
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         pt6324 = new PT6324Writer(spidevice);
