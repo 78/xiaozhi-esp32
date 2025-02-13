@@ -87,7 +87,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"       
     config BOARD_TYPE_YUNLIAO_C3
-        bool "小智陪聊C3"
+        bool "小智云聊C3"
 endchoice
 
 choice DISPLAY_LCD_TYPE
