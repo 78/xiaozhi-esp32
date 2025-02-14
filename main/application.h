@@ -67,7 +67,7 @@ private:
     ~Application();
 
 #if CONFIG_IDF_TARGET_ESP32S3
-    WakeWordDetect wake_word_detect_;
+    // WakeWordDetect wake_word_detect_;
     AudioProcessor audio_processor_;
 #endif
     Ota ota_;

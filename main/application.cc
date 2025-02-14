@@ -99,7 +99,7 @@ void Application::CheckNewVersion() {
 
                     board.SetPowerSaveMode(false);
 #if CONFIG_IDF_TARGET_ESP32S3
-                    wake_word_detect_.StopDetection();
+                    // wake_word_detect_.StopDetection();
 #endif
                     // 预先关闭音频输出，避免升级过程有音频操作
                     board.GetAudioCodec()->EnableOutput(false);
@@ -388,53 +388,53 @@ void Application::Start() {
         });
     });
 
-    wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
-    wake_word_detect_.OnVadStateChange([this](bool speaking) {
-        Schedule([this, speaking]() {
-            if (device_state_ == kDeviceStateListening) {
-                if (speaking) {
-                    voice_detected_ = true;
-                } else {
-                    voice_detected_ = false;
-                }
-                auto led = Board::GetInstance().GetLed();
-                led->OnStateChanged();
-            }
-        });
-    });
+    // wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
+    // wake_word_detect_.OnVadStateChange([this](bool speaking) {
+    //     Schedule([this, speaking]() {
+    //         if (device_state_ == kDeviceStateListening) {
+    //             if (speaking) {
+    //                 voice_detected_ = true;
+    //             } else {
+    //                 voice_detected_ = false;
+    //             }
+    //             auto led = Board::GetInstance().GetLed();
+    //             led->OnStateChanged();
+    //         }
+    //     });
+    // });
 
-    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
-        Schedule([this, &wake_word]() {
-            if (device_state_ == kDeviceStateIdle) {
-                SetDeviceState(kDeviceStateConnecting);
-                wake_word_detect_.EncodeWakeWordData();
+    // wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
+    //     Schedule([this, &wake_word]() {
+    //         if (device_state_ == kDeviceStateIdle) {
+    //             SetDeviceState(kDeviceStateConnecting);
+    //             wake_word_detect_.EncodeWakeWordData();
 
-                if (!protocol_->OpenAudioChannel()) {
-                    ESP_LOGE(TAG, "Failed to open audio channel");
-                    SetDeviceState(kDeviceStateIdle);
-                    wake_word_detect_.StartDetection();
-                    return;
-                }
+    //             if (!protocol_->OpenAudioChannel()) {
+    //                 ESP_LOGE(TAG, "Failed to open audio channel");
+    //                 SetDeviceState(kDeviceStateIdle);
+    //                 wake_word_detect_.StartDetection();
+    //                 return;
+    //             }
                 
-                std::vector<uint8_t> opus;
-                // Encode and send the wake word data to the server
-                while (wake_word_detect_.GetWakeWordOpus(opus)) {
-                    protocol_->SendAudio(opus);
-                }
-                // Set the chat state to wake word detected
-                protocol_->SendWakeWordDetected(wake_word);
-                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-                keep_listening_ = true;
-                SetDeviceState(kDeviceStateListening);
-            } else if (device_state_ == kDeviceStateSpeaking) {
-                AbortSpeaking(kAbortReasonWakeWordDetected);
-            }
+    //             std::vector<uint8_t> opus;
+    //             // Encode and send the wake word data to the server
+    //             while (wake_word_detect_.GetWakeWordOpus(opus)) {
+    //                 protocol_->SendAudio(opus);
+    //             }
+    //             // Set the chat state to wake word detected
+    //             protocol_->SendWakeWordDetected(wake_word);
+    //             ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+    //             keep_listening_ = true;
+    //             SetDeviceState(kDeviceStateListening);
+    //         } else if (device_state_ == kDeviceStateSpeaking) {
+    //             AbortSpeaking(kAbortReasonWakeWordDetected);
+    //         }
 
-            // Resume detection
-            wake_word_detect_.StartDetection();
-        });
-    });
-    wake_word_detect_.StartDetection();
+    //         // Resume detection
+    //         wake_word_detect_.StartDetection();
+    //     });
+    // });
+    // wake_word_detect_.StartDetection();
 #endif
 
     SetDeviceState(kDeviceStateIdle);
@@ -568,9 +568,9 @@ void Application::InputAudio() {
     if (audio_processor_.IsRunning()) {
         audio_processor_.Input(data);
     }
-    if (wake_word_detect_.IsDetectionRunning()) {
-        wake_word_detect_.Feed(data);
-    }
+    // if (wake_word_detect_.IsDetectionRunning()) {
+    //     wake_word_detect_.Feed(data);
+    // }
 #else
     if (device_state_ == kDeviceStateListening) {
         background_task_->Schedule([this, data = std::move(data)]() mutable {
