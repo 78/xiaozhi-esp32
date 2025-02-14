@@ -24,7 +24,6 @@ LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
-
 // 在waveshare_lcd_1_46类之前添加新的显示类
 class CustomLcdDisplay : public LcdDisplay {
 public:
@@ -64,7 +63,8 @@ public:
         
     }
 };
-class CompactWifiBoardLCD : public WifiBoard {
+
+class CustomBoard : public WifiBoard {
 private:
  
     Button boot_button_;
@@ -109,7 +109,6 @@ private:
         ESP_ERROR_CHECK(ret);
     }
 
-
     void InitializeSpi() {
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
@@ -123,7 +122,6 @@ private:
     }
 
     void Initializespd2010Display() {
-
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
 
@@ -155,8 +153,6 @@ private:
         display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
-
-
  
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -176,7 +172,7 @@ private:
     }
 
 public:
-    CompactWifiBoardLCD() :
+    CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         i2c_dev_tca9554_init();
@@ -200,4 +196,4 @@ public:
     
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(CustomBoard);
