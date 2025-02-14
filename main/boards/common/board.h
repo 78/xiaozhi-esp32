@@ -20,18 +20,20 @@ private:
 
 protected:
     Board();
+    std::string GenerateUuid();
+
+    // 软件生成的设备唯一标识
+    std::string uuid_;
 
 public:
     static Board& GetInstance() {
-        static Board* instance = nullptr;
-        if (nullptr == instance) {
-            instance = static_cast<Board*>(create_board());
-        }
+        static Board* instance = static_cast<Board*>(create_board());
         return *instance;
     }
 
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
+    virtual std::string GetUuid() { return uuid_; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();

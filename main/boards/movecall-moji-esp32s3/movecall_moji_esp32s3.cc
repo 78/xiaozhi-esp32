@@ -131,7 +131,8 @@ private:
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));    
+        thing_manager.AddThing(iot::CreateThing("Speaker")); 
+        thing_manager.AddThing(iot::CreateThing("Backlight"));   
     }
 
 public:
