@@ -4,6 +4,8 @@ dependencies:
   espressif/esp_lcd_ili9341: "==1.2.0"
   espressif/esp_lcd_gc9a01: "^2.0.1"
   espressif/esp_lcd_st77916: "^1.0.1"
+  espressif/esp_lcd_spd2010: "==1.0.2"
+  espressif/esp_io_expander_tca9554: "==2.0.0"
   78/esp_lcd_nv3023: "~1.0.0"
   78/esp-wifi-connect: "==2.1.0"
   78/esp-opus-encoder: "~2.1.0"
