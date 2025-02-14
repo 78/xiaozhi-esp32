@@ -69,21 +69,6 @@ private:
     }
 
 
-    void BspLcdBlSet(int brightness_percent)
-    {
-        if (brightness_percent > 100) {
-            brightness_percent = 100;
-        }
-        if (brightness_percent < 0) {
-            brightness_percent = 0;
-        }
-
-        ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness_percent);
-        uint32_t duty_cycle = (1023 * brightness_percent) / 100; // LEDC resolution set to 10bits, thus: 100% = 1023
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle);
-        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-    }
-
     void InitializeSpi() {
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
