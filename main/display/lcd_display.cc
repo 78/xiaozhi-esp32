@@ -17,8 +17,8 @@ LV_FONT_DECLARE(font_awesome_30_4);
 
 void rounder_event_cb(lv_event_t * e)
 {
-    lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
 #ifdef CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46
+    lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
         uint16_t x1 = area->x1;
         uint16_t x2 = area->x2;
     
