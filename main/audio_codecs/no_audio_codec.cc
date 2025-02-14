@@ -200,7 +200,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Simplex channels created");
 }
-NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, i2s_std_slot_mask_t spk_SoundTrack, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din, i2s_std_slot_mask_t mic_SoundTrack){
+NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, i2s_std_slot_mask_t spk_slot_mask, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din, i2s_std_slot_mask_t mic_slot_mask){
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
@@ -231,7 +231,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
             .slot_mode = I2S_SLOT_MODE_MONO,
-            .slot_mask = spk_SoundTrack,
+            .slot_mask = spk_slot_mask,
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
@@ -261,7 +261,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     chan_cfg.id = (i2s_port_t)1;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
-    std_cfg.slot_cfg.slot_mask = mic_SoundTrack;
+    std_cfg.slot_cfg.slot_mask = mic_slot_mask;
     std_cfg.gpio_cfg.bclk = mic_sck;
     std_cfg.gpio_cfg.ws = mic_ws;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
