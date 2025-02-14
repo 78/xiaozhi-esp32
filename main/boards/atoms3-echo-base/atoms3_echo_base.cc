@@ -167,7 +167,7 @@ private:
         };
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_34; // Set to -1 if not use
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_RGB;
+        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;
         panel_config.bits_per_pixel = 16; // Implemented by LCD command `3Ah` (16/18)
         panel_config.vendor_config = &gc9107_vendor_config;
 
