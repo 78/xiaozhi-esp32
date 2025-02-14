@@ -14,6 +14,13 @@
 #define NUM_BEGIN 3
 
 typedef enum {
+    DOT_MATRIX_UP,
+    DOT_MATRIX_NEXT,
+    DOT_MATRIX_PAUSE,
+    DOT_MATRIX_FILL
+} Dots;
+
+typedef enum {
     R_OUTER_B,
     R_OUTER_A,
     R_CENTER,
@@ -62,7 +69,7 @@ typedef enum {
     CENTER_INLAY_RED15,
     CENTER_INLAY_RED16,
     SYMBOL_MAX
-} SymbolFlags;
+} Symbols;
 
 typedef struct {
     int byteIndex;
@@ -77,7 +84,8 @@ public:
     void pt6324_test();
     void pt6324_cali();
     void pt6324_numhelper(int index, char ch);
-    void pt6324_symbolhelper(SymbolFlags symbol, bool is_on);
+    void pt6324_symbolhelper(Symbols symbol, bool is_on);
+    void pt6324_dotshelper(Dots dot);
     void pt6324_wavehelper(int index, int level);
 private:
     spi_device_handle_t spi_device_;
@@ -88,6 +96,10 @@ private:
 };
 
 #endif
+
+// Dots 1:78 2:0 Up
+// Dots 1:D0 2:A Next
+// Dots 1:B2 2:1 Pause
 
 // 0:1 -> NC
 // 0:2 -> R圈 外圈B
@@ -100,7 +112,7 @@ private:
 // 1:1 -> MONO
 // 1:2 -> GIGA
 // 1:4 -> REC
-// 1:8 -> 点阵 4,6
+// 1:8 -> 点阵 4,6 
 // 1:10 -> 点阵 5,2 5,3 6,3
 // 1:20 -> 点阵 0,3 0,5 0,6 1,2 1,3 1,5 1,6
 // 1:40 -> 点阵 3,1 3,2 3,3 3,5 3,6 4,0 4,1 4,2 4,3 4,5 4,6 5,1 5,2 5,3 5,5

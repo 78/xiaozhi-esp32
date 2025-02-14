@@ -214,8 +214,16 @@ namespace WpfModuloTool
 
         private void SetCodeButton_Click(object sender, RoutedEventArgs e)
         {
+            try
+            {
 
             DisplayHexCode(Convert.ToUInt32( tb_content.Text,16));
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
         }
     }
 }
