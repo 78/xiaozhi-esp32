@@ -8,10 +8,7 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
-// 如果使用 Duplex I2S 模式，请注释下面一行
-#define AUDIO_I2S_METHOD_SIMPLEX
 
-#ifdef AUDIO_I2S_METHOD_SIMPLEX
 
 #define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_2
 #define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_15
@@ -19,17 +16,6 @@
 #define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_47
 #define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_48
 #define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_38
-
-#else
-
-#define AUDIO_I2S_GPIO_WS GPIO_NUM_4
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_5
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_6
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_7
-
-#endif
-
-#define Lvgl_rounder_cb_EN  true
 
 #define I2C_SCL_IO          GPIO_NUM_10       
 #define I2C_SDA_IO          GPIO_NUM_11        
