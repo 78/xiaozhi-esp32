@@ -24,6 +24,46 @@ LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
+
+// 在waveshare_lcd_1_46类之前添加新的显示类
+class CustomLcdDisplay : public LcdDisplay {
+public:
+    static void rounder_event_cb(lv_event_t * e)
+    {
+        lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
+        uint16_t x1 = area->x1;
+        uint16_t x2 = area->x2;
+
+        area->x1 = (x1 >> 2) << 2;          // round the start of coordinate down to the nearest 4M number
+        area->x2 = ((x2 >> 2) << 2) + 3;    // round the end of coordinate up to the nearest 4N+3 number
+    }
+
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
+                    esp_lcd_panel_handle_t panel_handle,
+                    gpio_num_t backlight_pin,
+                    bool backlight_output_invert,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy) 
+        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = font_emoji_64_init(),
+                    }) {
+
+        DisplayLockGuard lock(this);
+
+        lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
+
+        
+    }
+};
 class CompactWifiBoardLCD : public WifiBoard {
 private:
  
@@ -127,14 +167,8 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 
