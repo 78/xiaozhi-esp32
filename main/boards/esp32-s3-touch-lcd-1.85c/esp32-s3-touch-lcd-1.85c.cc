@@ -23,9 +23,9 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class CompactWifiBoardLCD : public WifiBoard {
+
+class CustomBoard : public WifiBoard {
 private:
- 
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
@@ -68,7 +68,6 @@ private:
         ESP_ERROR_CHECK(ret);
     }
 
-
     void InitializeSpi() {
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
@@ -82,7 +81,6 @@ private:
     }
 
     void Initializest77916Display() {
-
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
 
@@ -121,8 +119,6 @@ private:
                                     });
     }
 
-
- 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -141,7 +137,7 @@ private:
     }
 
 public:
-    CompactWifiBoardLCD() :
+    CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         i2c_dev_tca9554_init();
@@ -158,11 +154,9 @@ public:
         return &audio_codec;
     }
 
-
     virtual Display* GetDisplay() override {
         return display_;
     }
-
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(CustomBoard);
