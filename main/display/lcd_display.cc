@@ -15,18 +15,6 @@
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
-void rounder_event_cb(lv_event_t * e)
-{
-#ifdef CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46
-    lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
-        uint16_t x1 = area->x1;
-        uint16_t x2 = area->x2;
-    
-        area->x1 = (x1 >> 2) << 2;          // round the start of coordinate down to the nearest 4M number
-        area->x2 = ((x2 >> 2) << 2) + 3;    // round the end of coordinate up to the nearest 4N+3 number
-#endif
-}
-
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            gpio_num_t backlight_pin, bool backlight_output_invert,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
@@ -103,11 +91,6 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
-#ifdef CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46
-    lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
-#endif
-    SetBacklight(100);
 
     SetupUI();
 
