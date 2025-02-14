@@ -23,9 +23,9 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class CompactWifiBoardLCD : public WifiBoard {
+
+class CustomBoard : public WifiBoard {
 private:
- 
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
@@ -67,8 +67,6 @@ private:
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);                                // 复位 LCD 与 TouchPad
         ESP_ERROR_CHECK(ret);
     }
-
-
 
     void InitializeSpi() {
         ESP_LOGI(TAG, "Initialize QSPI bus");
@@ -121,8 +119,6 @@ private:
                                         .emoji_font = font_emoji_64_init(),
                                     });
     }
-
-
  
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -142,7 +138,7 @@ private:
     }
 
 public:
-    CompactWifiBoardLCD() :
+    CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         i2c_dev_tca9554_init();
@@ -159,11 +155,9 @@ public:
         return &audio_codec;
     }
 
-
     virtual Display* GetDisplay() override {
         return display_;
     }
-
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(CustomBoard);
