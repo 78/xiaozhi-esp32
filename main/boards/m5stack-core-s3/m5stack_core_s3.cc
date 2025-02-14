@@ -2,7 +2,6 @@
 #include "audio_codecs/cores3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
-#include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -120,7 +119,6 @@ private:
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
-    Button boot_button_;
     esp_timer_handle_t touchpad_timer_;
 
     void InitializeI2c() {
@@ -273,16 +271,6 @@ private:
                                     });
     }
 
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
-    }
-
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -290,27 +278,30 @@ private:
     }
 
 public:
-    M5StackCoreS3Board() : boot_button_(GPIO_NUM_1) {
+    M5StackCoreS3Board() {
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
         I2cDetect();
         InitializeSpi();
         InitializeIli9342Display();
-        InitializeButtons();
         InitializeIot();
         InitializeFt6336TouchPad();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static CoreS3AudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            aw9523_->ResetAw88298();
-            audio_codec = new CoreS3AudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                AUDIO_CODEC_AW88298_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-        }
-        return audio_codec;
+        static CoreS3AudioCodec audio_codec(i2c_bus_,
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_AW88298_ADDR,
+            AUDIO_CODEC_ES7210_ADDR,
+            AUDIO_INPUT_REFERENCE);
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {

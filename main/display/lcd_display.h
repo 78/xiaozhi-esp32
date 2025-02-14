@@ -30,8 +30,10 @@ protected:
 
     DisplayFonts fonts_;
 
+    esp_timer_handle_t backlight_timer_ = nullptr;
+    uint8_t current_brightness_ = 0;
+    void OnBacklightTimer();
     void InitializeBacklight(gpio_num_t backlight_pin);
-    void SetBacklight(uint8_t brightness);
 
     virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
@@ -44,9 +46,10 @@ public:
                   DisplayFonts fonts);
     ~LcdDisplay();
 
-    void SetChatMessage(const std::string &role, const std::string &content) override;
-    void SetEmotion(const std::string &emotion) override;
-    void SetIcon(const char* icon) override;
+    virtual void SetChatMessage(const std::string &role, const std::string &content) override;
+    virtual void SetEmotion(const std::string &emotion) override;
+    virtual void SetIcon(const char* icon) override;
+    virtual void SetBacklight(uint8_t brightness) override;
 };
 
 #endif // LCD_DISPLAY_H

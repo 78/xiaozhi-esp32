@@ -122,13 +122,20 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            audio_codec = new Es8311AudioCodec(i2c_bus_, I2C_NUM_1, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                AUDIO_CODEC_GPIO_PA, AUDIO_CODEC_ES8311_ADDR, false);
-        }
-        return audio_codec;
+        static Es8311AudioCodec audio_codec(
+            i2c_bus_, 
+            I2C_NUM_1, 
+            AUDIO_INPUT_SAMPLE_RATE, 
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, 
+            AUDIO_I2S_GPIO_BCLK, 
+            AUDIO_I2S_GPIO_WS, 
+            AUDIO_I2S_GPIO_DOUT, 
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_GPIO_PA, 
+            AUDIO_CODEC_ES8311_ADDR, 
+            false);
+        return &audio_codec;
     }
 
 };
