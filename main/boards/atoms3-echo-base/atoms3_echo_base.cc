@@ -15,49 +15,10 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_gc9a01.h>
 
-#define TAG "AtomS3R+EchoBase"
-
-#define PI4IOE_ADDR          0x43
-#define PI4IOE_REG_CTRL      0x00
-#define PI4IOE_REG_IO_PP     0x07
-#define PI4IOE_REG_IO_DIR    0x03
-#define PI4IOE_REG_IO_OUT    0x05
-#define PI4IOE_REG_IO_PULLUP 0x0D
+#define TAG "AtomS3+EchoBase"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
-
-class Pi4ioe : public I2cDevice {
-public:
-    Pi4ioe(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
-        WriteReg(PI4IOE_REG_IO_PP, 0x00); // Set to high-impedance
-        WriteReg(PI4IOE_REG_IO_PULLUP, 0xFF); // Enable pull-up
-        WriteReg(PI4IOE_REG_IO_DIR, 0x6E); // Set input=0, output=1
-        WriteReg(PI4IOE_REG_IO_OUT, 0xFF); // Set outputs to 1
-    }
-
-    void SetSpeakerMute(bool mute) {
-        WriteReg(PI4IOE_REG_IO_OUT, mute ? 0x00 : 0xFF);
-    }
-};
-
-class Lp5562 : public I2cDevice {
-public:
-    Lp5562(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
-        WriteReg(0x00, 0B01000000); // Set chip_en to 1
-        WriteReg(0x08, 0B00000001); // Enable internal clock
-        WriteReg(0x70, 0B00000000); // Configure all LED outputs to be controlled from I2C registers
-
-        // PWM clock frequency 558 Hz
-        auto data = ReadReg(0x08);
-        data = data | 0B01000000;
-        WriteReg(0x08, data);
-    }
-
-    void SetLcdBacklight(uint8_t brightness) {
-        WriteReg(0x0E, brightness);
-    }
-};
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
@@ -88,12 +49,9 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     14, 0},
 };
 
-class AtomS3rEchoBaseBoard : public WifiBoard {
+class AtomS3EchoBaseBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    i2c_master_bus_handle_t i2c_bus_internal_;
-    Pi4ioe* pi4ioe_;
-    Lp5562* lp5562_;
     Display* display_;
     Button boot_button_;
     bool is_echo_base_connected_ = false;
@@ -112,11 +70,6 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-        
-        i2c_bus_cfg.i2c_port = I2C_NUM_0;
-        i2c_bus_cfg.sda_io_num = GPIO_NUM_45;
-        i2c_bus_cfg.scl_io_num = GPIO_NUM_0;
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_internal_));
     }
 
     void I2cDetect() {
@@ -154,7 +107,6 @@ private:
         }
         
         // Pop error page
-        InitializeLp5562();
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
@@ -180,24 +132,12 @@ private:
         }
     }
 
-    void InitializePi4ioe() {
-        ESP_LOGI(TAG, "Init PI4IOE");
-        pi4ioe_ = new Pi4ioe(i2c_bus_, PI4IOE_ADDR);
-        pi4ioe_->SetSpeakerMute(false);
-    }
-
-    void InitializeLp5562() {
-        ESP_LOGI(TAG, "Init LP5562");
-        lp5562_ = new Lp5562(i2c_bus_internal_, 0x30);
-        lp5562_->SetLcdBacklight(255);
-    }
-
     void InitializeSpi() {
         ESP_LOGI(TAG, "Initialize SPI bus");
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_21;
         buscfg.miso_io_num = GPIO_NUM_NC;
-        buscfg.sclk_io_num = GPIO_NUM_15;
+        buscfg.sclk_io_num = GPIO_NUM_17;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
@@ -210,8 +150,8 @@ private:
         ESP_LOGI(TAG, "Install panel IO");
         esp_lcd_panel_io_handle_t io_handle = NULL;
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_14;
-        io_config.dc_gpio_num = GPIO_NUM_42;
+        io_config.cs_gpio_num = GPIO_NUM_15;
+        io_config.dc_gpio_num = GPIO_NUM_33;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
@@ -226,8 +166,8 @@ private:
             .init_cmds_size = sizeof(gc9107_lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
         };
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_48; // Set to -1 if not use
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;
+        panel_config.reset_gpio_num = GPIO_NUM_34; // Set to -1 if not use
+        panel_config.rgb_endian = LCD_RGB_ENDIAN_RGB;
         panel_config.bits_per_pixel = 16; // Implemented by LCD command `3Ah` (16/18)
         panel_config.vendor_config = &gc9107_vendor_config;
 
@@ -236,14 +176,15 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
+
         display_ = new LcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
-    }
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+            {
+                .text_font = &font_puhui_16_4,
+                .icon_font = &font_awesome_16_4,
+                .emoji_font = font_emoji_32_init(),
+            });
+        }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -262,12 +203,10 @@ private:
     }
 
 public:
-    AtomS3rEchoBaseBoard() : boot_button_(BOOT_BUTTON_GPIO) {
+    AtomS3EchoBaseBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         I2cDetect();
         CheckEchoBaseConnection();
-        InitializePi4ioe();
-        InitializeLp5562();
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
@@ -296,4 +235,4 @@ public:
     }
 };
 
-DECLARE_BOARD(AtomS3rEchoBaseBoard);
+DECLARE_BOARD(AtomS3EchoBaseBoard);

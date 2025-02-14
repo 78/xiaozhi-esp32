@@ -85,7 +85,9 @@ void Application::CheckNewVersion() {
                     wake_word_detect_.StopDetection();
 #endif
                     // 预先关闭音频输出，避免升级过程有音频操作
-                    board.GetAudioCodec()->EnableOutput(false);
+                    auto codec = board.GetAudioCodec();
+                    codec->EnableInput(false);
+                    codec->EnableOutput(false);
                     {
                         std::lock_guard<std::mutex> lock(mutex_);
                         audio_decode_queue_.clear();
@@ -479,7 +481,6 @@ void Application::ResetDecoder() {
     opus_decoder_->ResetState();
     audio_decode_queue_.clear();
     last_output_time_ = std::chrono::steady_clock::now();
-    Board::GetInstance().GetAudioCodec()->EnableOutput(true);
 }
 
 void Application::OutputAudio() {
@@ -598,8 +599,10 @@ void Application::SetDeviceState(DeviceState state) {
     // The state is changed, wait for all background tasks to finish
     background_task_->WaitForCompletion();
 
-    auto display = Board::GetInstance().GetDisplay();
-    auto led = Board::GetInstance().GetLed();
+    auto& board = Board::GetInstance();
+    auto codec = board.GetAudioCodec();
+    auto display = board.GetDisplay();
+    auto led = board.GetLed();
     led->OnStateChanged();
     switch (state) {
         case kDeviceStateUnknown:
@@ -626,6 +629,7 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateSpeaking:
             display->SetStatus("说话中...");
             ResetDecoder();
+            codec->EnableOutput(true);
 #if CONFIG_USE_AUDIO_PROCESSING
             audio_processor_.Stop();
 #endif
