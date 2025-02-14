@@ -469,7 +469,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         pt6324 = new PT6324Writer(spidevice);
         pt6324->pt6324_init();
-        // pt6324->pt6324_test();
+        pt6324->pt6324_test();
         pt6324->pt6324_cali();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");

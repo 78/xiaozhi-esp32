@@ -10,3 +10,5 @@ dependencies.lock
 .env
 releases/
 tools/WpfModuloTool/bin/
+tools/WpfModuloTool/.vs/
+tools/WpfModuloTool/obj/

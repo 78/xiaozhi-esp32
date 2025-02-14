@@ -149,7 +149,7 @@ namespace WpfModuloTool
                     codes |= encodingRules[segment];
                 }
             }
-            ResultTextBox.AppendText(Convert.ToString(codes, 16)+"\n");
+            ResultTextBox.AppendText("0x" + codes.ToString("x6")+"\n");
         }
 
         private void GenerateSegmentCodeTable()
@@ -167,7 +167,7 @@ namespace WpfModuloTool
                         code |= encodingRules[segment];
                     }
                 }
-                table += $"{character}: 0x{code:X}\n";
+                table += $"{character}: 0x{code:X6}\n";
             }
             ResultTextBox.Text = table;
         }
@@ -209,7 +209,7 @@ namespace WpfModuloTool
             }
 
             // 在 ResultTextBox 中显示编码结果
-            ResultTextBox.Text = $"当前显示编码: 0x{hexCode:X}";
+            ResultTextBox.Text = $"当前显示编码: 0x{hexCode:X6}\n";
         }
 
         private void SetCodeButton_Click(object sender, RoutedEventArgs e)
