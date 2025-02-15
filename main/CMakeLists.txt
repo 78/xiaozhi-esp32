@@ -13,8 +13,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/ssd1306_display.cc"
             "boards/lilygo-t-circle-s3/esp_lcd_gc9d01n.c"
             "protocols/protocol.cc"
-            "protocols/mqtt_protocol.cc"
-            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -107,6 +105,12 @@ endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
 
+if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
+    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
+elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
+    list(APPEND SOURCES "protocols/websocket_protocol.cc")
+endif()
+
 if(CONFIG_USE_AUDIO_PROCESSING)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
@@ -119,8 +123,10 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc")
 endif()
 
+file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh/*.p3)
+
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/wificonfig.p3" "assets/upgrade.p3"
+                    EMBED_FILES ${ASSETS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )

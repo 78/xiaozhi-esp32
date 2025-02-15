@@ -71,6 +71,7 @@ bool Ota::CheckVersion() {
         return false;
     }
 
+    has_activation_code_ = false;
     cJSON *activation = cJSON_GetObjectItem(root, "activation");
     if (activation != NULL) {
         cJSON* message = cJSON_GetObjectItem(activation, "message");
@@ -84,6 +85,7 @@ bool Ota::CheckVersion() {
         has_activation_code_ = true;
     }
 
+    has_mqtt_config_ = false;
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
     if (mqtt != NULL) {
         Settings settings("mqtt", true);
