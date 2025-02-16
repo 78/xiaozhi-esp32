@@ -251,7 +251,7 @@ void PT6324Writer::pt6324_symbolhelper(Symbols symbol, bool is_on)
     int byteIndex, bitIndex;
     find_enum_code(symbol, &byteIndex, &bitIndex);
 
-    printf("symbol %d 所在字节: %d, 所在位: %d\n", symbol, byteIndex, bitIndex);
+    // printf("symbol %d 所在字节: %d, 所在位: %d\n", symbol, byteIndex, bitIndex);
     if (is_on)
         gram[byteIndex] |= bitIndex;
     else
@@ -278,7 +278,7 @@ void PT6324Writer::pt6324_dotshelper(Dots dot)
         break;
     case DOT_MATRIX_FILL:
         gram[1] |= 0xF8;
-        gram[2] |= 0xF;
+        gram[2] |= 0x7;
         break;
     }
 }

@@ -39,7 +39,7 @@ typedef enum {
     DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5,
     DOT_MATRIX_2_0_2_4_3_4_4_4,
     DOT_MATRIX_4_0,
-    DOT_MATRIX_2_MINUS1_2_7,
+    DOT_MATRIX_2_N1_2_7,
     USB2,
     USB1,
     REC_2,
@@ -80,6 +80,8 @@ class PT6324Writer
 {
 public:
     PT6324Writer(spi_device_handle_t spi_device) : spi_device_(spi_device) {}
+    
+    void pt6324_refrash();
     void pt6324_init();
     void pt6324_test();
     void pt6324_cali();
@@ -91,7 +93,6 @@ private:
     spi_device_handle_t spi_device_;
     uint8_t gram[48] = {0};
     void pt6324_write_data(uint8_t *dat, int len);
-    void pt6324_refrash();
     
 };
 

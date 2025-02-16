@@ -5,6 +5,7 @@
 #include "audio_codecs/no_audio_codec.h"
 #include <esp_sleep.h>
 #include <vector>
+#include <cmath>
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -29,6 +30,7 @@
 #include "esp_sntp.h"
 #include "settings.h"
 #include "pt6324.h"
+#include "driver/usb_serial_jtag.h"
 
 #define TAG "DualScreenAIDisplay"
 
@@ -337,7 +339,103 @@ public:
         lv_anim_set_exec_cb(&anim[2], (lv_anim_exec_xcb_t)set_height);
         lv_anim_start(&anim[2]);
 
-        labelContainer.push_back(container); // 将新创建的 container 加入容器
+        labelContainer.push_back(container);
+    }
+};
+
+class VFDDisplay : public PT6324Writer
+{
+#define BUF_SIZE (1024)
+private:
+    int last_values[12] = {0};
+    int target_values[12] = {0};
+    int current_values[12] = {0};
+    int animation_steps[12] = {0};
+    int total_steps = 20; // 动画总步数
+
+    void animate()
+    {
+        for (int i = 0; i < 12; i++)
+        {
+            if (animation_steps[i] < total_steps)
+            {
+                // 使用指数衰减函数计算当前值
+                float progress = static_cast<float>(animation_steps[i]) / total_steps;
+                float factor = 1 - std::exp(-3 * progress); // 指数衰减因子
+                current_values[i] = last_values[i] + static_cast<int>((target_values[i] - last_values[i]) * factor);
+                pt6324_wavehelper(i, current_values[i] * 8 / 90);
+                animation_steps[i]++;
+            }
+            else
+            {
+                last_values[i] = target_values[i];
+                pt6324_wavehelper(i, target_values[i] * 8 / 90);
+            }
+        }
+    }
+
+public:
+    VFDDisplay(spi_device_handle_t spi_device) : PT6324Writer(spi_device)
+    {
+        pt6324_init();
+        xTaskCreate(
+            [](void *arg)
+            {
+                VFDDisplay *vfd = static_cast<VFDDisplay *>(arg);
+                while(true)
+                {
+                    vfd->pt6324_refrash();
+                    vfd->animate();
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                }
+            vTaskDelete(NULL); }, "vfd", 4096, this, 4, nullptr);
+    }
+
+    void SpectrumPresent(uint8_t *buf) // 0-100
+    {
+        for (size_t i = 0; i < 12; i++)
+        {
+            last_values[i] = target_values[i];
+            target_values[i] = buf[i];
+            animation_steps[i] = 0;
+        }
+    }
+
+    void test()
+    {
+        xTaskCreate(
+            [](void *arg)
+            {
+                VFDDisplay *vfd = static_cast<VFDDisplay *>(arg);
+                // Configure USB SERIAL JTAG
+                usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+                    .tx_buffer_size = BUF_SIZE,
+                    .rx_buffer_size = BUF_SIZE,
+                };
+                uint8_t testbuff[12];
+                ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+                uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
+                while (1)
+                {
+                    memset(recv_data, 0, BUF_SIZE);
+                    int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
+                    if (len > 0)
+                    {
+                        vfd->pt6324_dotshelper((Dots)((recv_data[0] - '0') % 4));
+                        for (int i = 0; i < 10; i++)
+                            vfd->pt6324_numhelper(i, recv_data[0]);
+                        for (int i = 0; i < 12; i++)
+                            testbuff[i] = (recv_data[0] - '0') * 10;
+                        vfd->SpectrumPresent(testbuff);
+                        // int index = 0, data = 0;
+        
+                        // sscanf((char *)recv_data, "%d:%X", &index, &data);
+                        // printf("Parsed numbers: %d and 0x%02X\n", index, data);
+                        // gram[index] = data;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+            vTaskDelete(NULL); }, "vfd1", 4096, this, 4, nullptr);
     }
 };
 
@@ -351,7 +449,7 @@ private:
     Encoder volume_encoder_;
     // SystemReset system_reset_;
     CustomLcdDisplay *display_;
-    PT6324Writer *pt6324;
+    VFDDisplay *vfd;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -467,10 +565,8 @@ private:
             .queue_size = 7,
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
-        pt6324 = new PT6324Writer(spidevice);
-        pt6324->pt6324_init();
-        pt6324->pt6324_test();
-        pt6324->pt6324_cali();
+        vfd = new VFDDisplay(spidevice);
+        vfd->test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
