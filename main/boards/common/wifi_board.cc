@@ -45,10 +45,11 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-    std::string hint = "请在手机上连接热点 ";
+    std::string hint = "手机连接热点 ";
     hint += wifi_ap.GetSsid();
-    hint += "，然后打开浏览器访问 ";
+    hint += "\n浏览器访问 ";
     hint += wifi_ap.GetWebServerUrl();
+    hint += "\n\n";
     
     // 播报配置 WiFi 的提示
     application.Alert("配网模式", hint, "", std::string(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
