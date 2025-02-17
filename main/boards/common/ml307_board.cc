@@ -48,10 +48,10 @@ void Ml307Board::WaitForNetworkReady() {
     display->SetStatus("等待网络...");
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
-        application.Alert("PIN_ERROR", "请插入SIM卡", "sad", std::string(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start));
+        application.Alert("PIN_ERROR", "请插入SIM卡", "sad", std::string_view(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start));
         return;
     } else if (result == -2) {
-        application.Alert("REG_ERROR", "无法接入网络，请检查流量卡状态", "sad", std::string(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start));
+        application.Alert("REG_ERROR", "无法接入网络，请检查流量卡状态", "sad", std::string_view(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start));
         return;
     }
 

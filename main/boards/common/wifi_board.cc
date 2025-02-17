@@ -52,7 +52,7 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert("配网模式", hint, "", std::string(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
+    application.Alert("配网模式", hint, "", std::string_view(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
     
     // Wait forever until reset after configuration
     while (true) {

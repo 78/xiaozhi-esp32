@@ -54,7 +54,7 @@ void Application::CheckNewVersion() {
     while (true) {
         if (ota_.CheckVersion()) {
             if (ota_.HasNewVersion()) {
-                Alert("OTA 升级", "正在升级系统", "happy", std::string(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start));
+                Alert("OTA 升级", "正在升级系统", "happy", std::string_view(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start));
                 // Wait for the chat state to be idle
                 do {
                     vTaskDelay(pdMS_TO_TICKS(3000));
@@ -123,33 +123,37 @@ void Application::ShowActivationCode() {
 
     struct digit_sound {
         char digit;
-        const char* sound_data_start;
-        const char* sound_data_end;
+        const char* data;
+        size_t size;
     };
-    digit_sound digit_sounds[] = {
-        {'0', p3_0_start, p3_0_end},
-        {'1', p3_1_start, p3_1_end},
-        {'2', p3_2_start, p3_2_end},
-        {'3', p3_3_start, p3_3_end},
-        {'4', p3_4_start, p3_4_end},
-        {'5', p3_5_start, p3_5_end},
-        {'6', p3_6_start, p3_6_end},
-        {'7', p3_7_start, p3_7_end},
-        {'8', p3_8_start, p3_8_end},
-        {'9', p3_9_start, p3_9_end},
-    };
-    std::string sound = std::string(p3_activation_start, p3_activation_end - p3_activation_start);
+    static const std::array<digit_sound, 10> digit_sounds{{
+        digit_sound{'0', p3_0_start, size_t(p3_0_end - p3_0_start)},
+        digit_sound{'1', p3_1_start, size_t(p3_1_end - p3_1_start)}, 
+        digit_sound{'2', p3_2_start, size_t(p3_2_end - p3_2_start)},
+        digit_sound{'3', p3_3_start, size_t(p3_3_end - p3_3_start)},
+        digit_sound{'4', p3_4_start, size_t(p3_4_end - p3_4_start)},
+        digit_sound{'5', p3_5_start, size_t(p3_5_end - p3_5_start)},
+        digit_sound{'6', p3_6_start, size_t(p3_6_end - p3_6_start)},
+        digit_sound{'7', p3_7_start, size_t(p3_7_end - p3_7_start)},
+        digit_sound{'8', p3_8_start, size_t(p3_8_end - p3_8_start)},
+        digit_sound{'9', p3_9_start, size_t(p3_9_end - p3_9_start)}
+    }};
+
+    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+    Alert("激活设备", message, "happy", std::string_view(p3_activation_start, p3_activation_end - p3_activation_start));
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    background_task_->WaitForCompletion();
+
     for (const auto& digit : code) {
-        auto it = std::find_if(digit_sounds, digit_sounds + sizeof(digit_sounds) / sizeof(digit_sound),
+        auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
             [digit](const digit_sound& ds) { return ds.digit == digit; });
-        if (it != digit_sounds + sizeof(digit_sounds) / sizeof(digit_sound)) {
-            sound += std::string(it->sound_data_start, it->sound_data_end - it->sound_data_start);
+        if (it != digit_sounds.end()) {
+            PlayLocalFile(it->data, it->size);
         }
     }
-    Alert("激活设备", message, "happy", sound);
 }
 
-void Application::Alert(const std::string& status, const std::string& message, const std::string& emotion, const std::string& sound) {
+void Application::Alert(const std::string& status, const std::string& message, const std::string& emotion, const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert %s: %s [%s]", status.c_str(), message.c_str(), emotion.c_str());
     auto display = Board::GetInstance().GetDisplay();
     display->SetStatus(status);
