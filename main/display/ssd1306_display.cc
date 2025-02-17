@@ -134,6 +134,9 @@ void Ssd1306Display::Unlock() {
 
 void Ssd1306Display::SetChatMessage(const std::string &role, const std::string &content) {
     DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
     if (content_right_ == nullptr) {
         lv_label_set_text(chat_message_label_, content.c_str());
     } else {
