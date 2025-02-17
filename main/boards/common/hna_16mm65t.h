@@ -109,7 +109,7 @@ private:
 
 public:
     HNA_16MM65T(spi_device_handle_t spi_device);
-    void spectrum_show(uint8_t *buf, int size);
+    void spectrum_show(float *buf, int size);
     void test();
     void cali();
     void numhelper(int index, char ch);

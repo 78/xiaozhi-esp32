@@ -17,35 +17,30 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
                 while(true)
                 {
-                    // for (size_t i = 0; i < 48; i++)
-                    // {
-                    //     vfd->gram[i] = 0xff;
-                    // }
-                    
                     vfd->pt6324_refrash(vfd->gram);
                     vfd->animate();
-                    vTaskDelay(pdMS_TO_TICKS(50));
+                    vTaskDelay(pdMS_TO_TICKS(20));
                 }
             vTaskDelete(NULL); }, "vfd", 4096, this, 6, nullptr);
 }
 
-void HNA_16MM65T::spectrum_show(uint8_t *buf, int size) // 0-100
+void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 {
-    // float fft_buf[FFT_SIZE];
-    // int elements_per_part = size / 12;
+    float fft_buf[FFT_SIZE];
+    int elements_per_part = size / 12;
 
-    // for (int i = 0; i < FFT_SIZE; i++) {
-    //     float sum = 0;
-    //     for (int j = 0; j < elements_per_part; j++) {
-    //         sum += buf[i * elements_per_part + j];
-    //     }
-    //     fft_buf[i] = buf[i];
-    // }
+    for (int i = 0; i < FFT_SIZE; i++) {
+        float sum = 0;
+        for (int j = 0; j < elements_per_part; j++) {
+            sum += buf[i * elements_per_part + j];
+        }
+        fft_buf[i] = sum / elements_per_part;
+    }
 
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
         last_values[i] = target_values[i];
-        target_values[i] = buf[i];
+        target_values[i] = fft_buf[i];
         animation_steps[i] = 0;
     }
     // ESP_LOGI(TAG, "FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)fft_buf[0], (int)fft_buf[1], (int)fft_buf[2], (int)fft_buf[3], (int)fft_buf[4], (int)fft_buf[5], (int)fft_buf[6], (int)fft_buf[7], (int)fft_buf[8], (int)fft_buf[9], (int)fft_buf[10], (int)fft_buf[11]);
@@ -62,7 +57,7 @@ void HNA_16MM65T::test()
                 //     .tx_buffer_size = BUF_SIZE,
                 //     .rx_buffer_size = BUF_SIZE,
                 // };
-                uint8_t testbuff[FFT_SIZE];
+                float testbuff[FFT_SIZE];
                 // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
                 // uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
                 while (1)
