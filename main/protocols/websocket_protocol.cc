@@ -21,6 +21,9 @@ WebsocketProtocol::~WebsocketProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
+void WebsocketProtocol::Start() {
+}
+
 void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
     if (websocket_ == nullptr) {
         return;

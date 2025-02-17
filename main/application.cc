@@ -51,69 +51,88 @@ void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
     ota_.SetPostData(board.GetJson());
 
+    const int MAX_RETRY = 10;
+    int retry_count = 0;
+
     while (true) {
-        if (ota_.CheckVersion()) {
-            if (ota_.HasNewVersion()) {
-                Alert("OTA 升级", "正在升级系统", "happy", std::string_view(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start));
-                // Wait for the chat state to be idle
-                do {
-                    vTaskDelay(pdMS_TO_TICKS(3000));
-                } while (GetDeviceState() != kDeviceStateIdle);
-
-                // Use main task to do the upgrade, not cancelable
-                Schedule([this, &board, display]() {
-                    SetDeviceState(kDeviceStateUpgrading);
-                    
-                    display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                    display->SetChatMessage("system", "新版本 " + ota_.GetFirmwareVersion());
-
-                    board.SetPowerSaveMode(false);
-#if CONFIG_USE_AUDIO_PROCESSING
-                    wake_word_detect_.StopDetection();
-#endif
-                    // 预先关闭音频输出，避免升级过程有音频操作
-                    auto codec = board.GetAudioCodec();
-                    codec->EnableInput(false);
-                    codec->EnableOutput(false);
-                    {
-                        std::lock_guard<std::mutex> lock(mutex_);
-                        audio_decode_queue_.clear();
-                    }
-                    background_task_->WaitForCompletion();
-                    delete background_task_;
-                    background_task_ = nullptr;
-                    vTaskDelay(pdMS_TO_TICKS(1000));
-
-                    ota_.StartUpgrade([display](int progress, size_t speed) {
-                        char buffer[64];
-                        snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                        display->SetChatMessage("system", buffer);
-                    });
-
-                    // If upgrade success, the device will reboot and never reach here
-                    display->SetStatus("更新失败");
-                    ESP_LOGI(TAG, "Firmware upgrade failed...");
-                    vTaskDelay(pdMS_TO_TICKS(3000));
-                    Reboot();
-                });
-            } else {
-                ota_.MarkCurrentVersionValid();
-                display->ShowNotification("版本 " + ota_.GetCurrentVersion());
-            
-                // Check if the activation code is valid
-                if (ota_.HasActivationCode()) {
-                    SetDeviceState(kDeviceStateActivating);
-                    ShowActivationCode();
-                } else {
-                    SetDeviceState(kDeviceStateIdle);
-                    display->SetChatMessage("system", "");
-                    return;
-                }
+        if (!ota_.CheckVersion()) {
+            retry_count++;
+            if (retry_count >= MAX_RETRY) {
+                ESP_LOGE(TAG, "版本检查失败次数过多，退出检查");
+                return;
             }
+            ESP_LOGW(TAG, "版本检查失败，%d秒后重试 (%d/%d)", 60, retry_count, MAX_RETRY);
+            vTaskDelay(pdMS_TO_TICKS(60000));
+            continue;
+        }
+        retry_count = 0;
+
+        if (ota_.HasNewVersion()) {
+            Alert("OTA 升级", "正在升级系统", "happy", std::string_view(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start));
+            // Wait for the chat state to be idle
+            do {
+                vTaskDelay(pdMS_TO_TICKS(3000));
+            } while (GetDeviceState() != kDeviceStateIdle);
+
+            // Use main task to do the upgrade, not cancelable
+            Schedule([this, display]() {
+                SetDeviceState(kDeviceStateUpgrading);
+                
+                display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                display->SetChatMessage("system", "新版本 " + ota_.GetFirmwareVersion());
+
+                auto& board = Board::GetInstance();
+                board.SetPowerSaveMode(false);
+#if CONFIG_USE_AUDIO_PROCESSING
+                wake_word_detect_.StopDetection();
+#endif
+                // 预先关闭音频输出，避免升级过程有音频操作
+                auto codec = board.GetAudioCodec();
+                codec->EnableInput(false);
+                codec->EnableOutput(false);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    audio_decode_queue_.clear();
+                }
+                background_task_->WaitForCompletion();
+                delete background_task_;
+                background_task_ = nullptr;
+                vTaskDelay(pdMS_TO_TICKS(1000));
+
+                ota_.StartUpgrade([display](int progress, size_t speed) {
+                    char buffer[64];
+                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                    display->SetChatMessage("system", buffer);
+                });
+
+                // If upgrade success, the device will reboot and never reach here
+                display->SetStatus("更新失败");
+                ESP_LOGI(TAG, "Firmware upgrade failed...");
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                Reboot();
+            });
+
+            return;
         }
 
-        // Check again in 60 seconds
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        // No new version, mark the current version as valid
+        ota_.MarkCurrentVersionValid();
+        display->ShowNotification("版本 " + ota_.GetCurrentVersion());
+    
+        if (ota_.HasActivationCode()) {
+            // Activation code is valid
+            SetDeviceState(kDeviceStateActivating);
+            ShowActivationCode();
+            // Check again in 60 seconds
+            vTaskDelay(pdMS_TO_TICKS(60000));
+            continue;
+        }
+
+        SetDeviceState(kDeviceStateIdle);
+        display->SetChatMessage("system", "");
+
+        // Exit the loop if upgrade or idle
+        break;
     }
 }
 
@@ -199,7 +218,7 @@ void Application::ToggleChatState() {
         if (device_state_ == kDeviceStateIdle) {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
-                Alert("ERROR", "无法建立音频通道");
+                Alert("ERROR", "无法建立音频通道", "sad");
                 SetDeviceState(kDeviceStateIdle);
                 return;
             }
@@ -233,7 +252,7 @@ void Application::StartListening() {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
                     SetDeviceState(kDeviceStateIdle);
-                    Alert("ERROR", "无法建立音频通道");
+                    Alert("ERROR", "无法建立音频通道", "sad");
                     return;
                 }
             }
@@ -314,7 +333,7 @@ void Application::Start() {
     protocol_ = std::make_unique<MqttProtocol>();
 #endif
     protocol_->OnNetworkError([this](const std::string& message) {
-        Alert("ERROR", message);
+        Alert("ERROR", message, "sad");
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -401,6 +420,7 @@ void Application::Start() {
             }
         }
     });
+    protocol_->Start();
 
     // Check for new firmware version or get the MQTT broker address
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
