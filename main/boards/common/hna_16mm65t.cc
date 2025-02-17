@@ -17,6 +17,11 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
                 while(true)
                 {
+                    // for (size_t i = 0; i < 48; i++)
+                    // {
+                    //     vfd->gram[i] = 0xff;
+                    // }
+                    
                     vfd->pt6324_refrash(vfd->gram);
                     vfd->animate();
                     vTaskDelay(pdMS_TO_TICKS(50));
@@ -24,23 +29,23 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
             vTaskDelete(NULL); }, "vfd", 4096, this, 6, nullptr);
 }
 
-void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
+void HNA_16MM65T::spectrum_show(uint8_t *buf, int size) // 0-100
 {
-    float fft_buf[FFT_SIZE];
-    int elements_per_part = size / 12;
+    // float fft_buf[FFT_SIZE];
+    // int elements_per_part = size / 12;
 
-    for (int i = 0; i < FFT_SIZE; i++) {
-        float sum = 0;
-        for (int j = 0; j < elements_per_part; j++) {
-            sum += buf[i * elements_per_part + j];
-        }
-        fft_buf[i] = sum / elements_per_part;
-    }
-    
+    // for (int i = 0; i < FFT_SIZE; i++) {
+    //     float sum = 0;
+    //     for (int j = 0; j < elements_per_part; j++) {
+    //         sum += buf[i * elements_per_part + j];
+    //     }
+    //     fft_buf[i] = buf[i];
+    // }
+
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
         last_values[i] = target_values[i];
-        target_values[i] = fft_buf[i];
+        target_values[i] = buf[i];
         animation_steps[i] = 0;
     }
     // ESP_LOGI(TAG, "FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)fft_buf[0], (int)fft_buf[1], (int)fft_buf[2], (int)fft_buf[3], (int)fft_buf[4], (int)fft_buf[5], (int)fft_buf[6], (int)fft_buf[7], (int)fft_buf[8], (int)fft_buf[9], (int)fft_buf[10], (int)fft_buf[11]);
@@ -53,24 +58,24 @@ void HNA_16MM65T::test()
         {
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
                 // Configure USB SERIAL JTAG
-                usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-                    .tx_buffer_size = BUF_SIZE,
-                    .rx_buffer_size = BUF_SIZE,
-                };
-                float testbuff[FFT_SIZE];
-                ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-                uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
+                // usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+                //     .tx_buffer_size = BUF_SIZE,
+                //     .rx_buffer_size = BUF_SIZE,
+                // };
+                uint8_t testbuff[FFT_SIZE];
+                // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+                // uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
                 while (1)
                 {
-                    memset(recv_data, 0, BUF_SIZE);
-                    int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
-                    if (len > 0)
+                    // memset(recv_data, 0, BUF_SIZE);
+                    // int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
+                    // if (len > 0)
                     {
-                        vfd->dotshelper((Dots)((recv_data[0] - '0') % 4));
+                        // vfd->dotshelper((Dots)((recv_data[0] - '0') % 4));
                         for (int i = 0; i < 10; i++)
-                            vfd->numhelper(i, recv_data[0]);
+                            vfd->numhelper(i, '9');
                         for (int i = 0; i < FFT_SIZE; i++)
-                            testbuff[i] = (recv_data[0] - '0') * 10;
+                            testbuff[i] = rand()%100;
                         vfd->spectrum_show(testbuff, FFT_SIZE);
                         // int index = 0, data = 0;
         
@@ -333,8 +338,11 @@ void HNA_16MM65T::wavehelper(int index, int level)
         {45, 8},
         {45, 0x10},
     };
-    if (index >= 12 || level > 8)
+    if (index >= 12)
         return;
+    if (level > 8)
+    level = 8;
+
     int byteIndex = wavePositions[index].byteIndex, bitIndex = wavePositions[index].bitIndex;
 
     if (level)
