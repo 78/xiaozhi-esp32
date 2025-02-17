@@ -12,13 +12,27 @@
 
 #define TAG "PT6324Writer"
 
+spi_transaction_t t;
 void PT6324Writer::pt6324_write_data(uint8_t *dat, int len)
 {
-    spi_transaction_t t;
     memset(&t, 0, sizeof(t));
     t.length = len;
     t.tx_buffer = dat;
-    ESP_ERROR_CHECK(spi_device_transmit(spi_device_, &t));
+    esp_err_t ret;
+    spi_transaction_t *ret_trans;
+    //ToDo: check if any spi transfers in flight
+    ret = spi_device_queue_trans(spi_device_, &t, portMAX_DELAY);
+    if (ret != ESP_OK) {
+        return;
+    }
+
+    // ret = spi_device_get_trans_result(spi_device_, &ret_trans, portMAX_DELAY);
+    // if (ret != ESP_OK) {
+    //     return;
+    // }
+
+    // assert(ret_trans == &t);
+    return;
 }
 
 void PT6324Writer::pt6324_init()

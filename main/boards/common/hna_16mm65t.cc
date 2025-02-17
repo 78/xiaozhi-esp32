@@ -19,9 +19,9 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
                 {
                     vfd->pt6324_refrash(vfd->gram);
                     vfd->animate();
-                    vTaskDelay(pdMS_TO_TICKS(10));
+                    vTaskDelay(pdMS_TO_TICKS(50));
                 }
-            vTaskDelete(NULL); }, "vfd", 4096, this, 4, nullptr);
+            vTaskDelete(NULL); }, "vfd", 4096, this, 6, nullptr);
 }
 
 void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
@@ -43,7 +43,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
         target_values[i] = fft_buf[i];
         animation_steps[i] = 0;
     }
-    ESP_LOGI(TAG, "FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)fft_buf[0], (int)fft_buf[1], (int)fft_buf[2], (int)fft_buf[3], (int)fft_buf[4], (int)fft_buf[5], (int)fft_buf[6], (int)fft_buf[7], (int)fft_buf[8], (int)fft_buf[9], (int)fft_buf[10], (int)fft_buf[11]);
+    // ESP_LOGI(TAG, "FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)fft_buf[0], (int)fft_buf[1], (int)fft_buf[2], (int)fft_buf[3], (int)fft_buf[4], (int)fft_buf[5], (int)fft_buf[6], (int)fft_buf[7], (int)fft_buf[8], (int)fft_buf[9], (int)fft_buf[10], (int)fft_buf[11]);
 }
 
 void HNA_16MM65T::test()
@@ -80,7 +80,7 @@ void HNA_16MM65T::test()
                     }
                     vTaskDelay(pdMS_TO_TICKS(100));
                 }
-            vTaskDelete(NULL); }, "vfd1", 4096, this, 4, nullptr);
+            vTaskDelete(NULL); }, "vfd1", 4096, this, 5, nullptr);
 }
 
 // #define BUF_SIZE (1024)

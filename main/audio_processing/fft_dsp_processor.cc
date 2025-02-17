@@ -13,6 +13,7 @@ FFTDspProcessor::FFTDspProcessor()
 void FFTDspProcessor::Initialize()
 {
     // Init esp-dsp library to use fft functionality
+    ESP_LOGI(TAG, "FFT Initialize");
     esp_err_t ret = dsps_fft2r_init_sc16(NULL, CONFIG_DSP_MAX_FFT_SIZE);
     if (ret != ESP_OK)
     {
