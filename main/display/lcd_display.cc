@@ -17,13 +17,13 @@ LV_FONT_DECLARE(font_awesome_30_4);
 
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            gpio_num_t backlight_pin, bool backlight_output_invert,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
+                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy, int lcd_type,
                            DisplayFonts fonts)
     : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
       fonts_(fonts) {
     width_ = width;
     height_ = height;
-
+    lcd_type_ = lcd_type;
     // 创建背光渐变定时器
     const esp_timer_create_args_t timer_args = {
         .callback = [](void* arg) {
@@ -44,9 +44,6 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
         esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
     }
 
-    // Set the display to on
-    ESP_LOGI(TAG, "Turning display on");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
@@ -56,7 +53,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD screen");
-    const lvgl_port_display_cfg_t display_cfg = {
+    lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
@@ -81,8 +78,38 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
             .direct_mode = 0,
         },
     };
-
-    display_ = lvgl_port_add_disp(&display_cfg);
+    
+    switch (lcd_type_) {
+        case LcdType::RGB_LCD:{
+            display_cfg.flags.full_refresh = 1;
+            display_cfg.flags.direct_mode = 1;
+            display_cfg.double_buffer = true;
+            // Initialize RGB specific settings
+            const lvgl_port_display_rgb_cfg_t rgb_cfg = {
+                .flags = {
+                    .bb_mode = true,
+                    .avoid_tearing = true,
+                }
+            };
+            display_ = lvgl_port_add_disp_rgb(&display_cfg, &rgb_cfg);
+            }
+            break;
+        case LcdType::MIPI_LCD:{
+            }
+            break;
+        case LcdType::SPI_LCD:
+        case LcdType::QSPI_LCD:{
+            ESP_LOGI(TAG, "Turning display on");
+            ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+            display_ = lvgl_port_add_disp(&display_cfg);
+            }
+            break;
+        case LcdType::MCU8080_LCD:{
+            }
+            break;
+    }
+        
+    // Set the display to on
     if (display_ == nullptr) {
         ESP_LOGE(TAG, "Failed to add display");
         return;

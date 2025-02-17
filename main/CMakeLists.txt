@@ -12,6 +12,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/ssd1306_display.cc"
             "boards/lilygo-t-circle-s3/esp_lcd_gc9d01n.c"
+            "boards/kevin-yuying-313lcd/esp_lcd_gc9503.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -53,6 +54,8 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
     set(BOARD_TYPE "kevin-c3") 
 elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
     set(BOARD_TYPE "kevin-sp-v3-dev")
+elseif(CONFIG_BOARD_TYPE_KEVIN_YUYING_313LCD)
+    set(BOARD_TYPE "kevin-yuying-313lcd")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
