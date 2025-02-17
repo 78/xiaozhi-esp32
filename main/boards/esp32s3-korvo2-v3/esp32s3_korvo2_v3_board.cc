@@ -64,8 +64,38 @@ private:
             printf("\r\n");
         }
     }
-
-
+    void i2c_dev_tca9554_init(void)
+    {
+        esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander);
+        if(ret != ESP_OK)
+        {
+            ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000, &io_expander);
+            if(ret != ESP_OK)
+            {
+                ESP_LOGE(TAG, "TCA9554 create returned error");  
+                
+            }
+        }
+        if(io_expander != NULL)
+        {
+            ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_3, IO_EXPANDER_OUTPUT);// 设置引脚 EXIO0 和 EXIO1 模式为输出
+            ESP_ERROR_CHECK(ret);
+            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1);// 复位 LCD 与 TouchPad
+            ESP_ERROR_CHECK(ret);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 0);// 复位 LCD 与 TouchPad
+            ESP_ERROR_CHECK(ret);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1);// 复位 LCD 与 TouchPad
+            ESP_ERROR_CHECK(ret);
+        }
+    }
+    void Enable_LCD_CS(void)
+    {
+        if(io_expander != NULL){
+            esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_3, 0);// 置低 LCD CS
+        }
+    }
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_0;
@@ -98,7 +128,7 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_46;
+        io_config.cs_gpio_num = GPIO_NUM_NC;//酷世diy的korvo板子上cs引脚为GPIO46 官方korvo2 v3的lcd cs引脚由TCA9554的IO3控制 所以这里设置为GPIO_NUM_NC
         io_config.dc_gpio_num = GPIO_NUM_2;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 60 * 1000 * 1000;
@@ -115,6 +145,7 @@ private:
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        Enable_LCD_CS();
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
@@ -143,6 +174,7 @@ public:
         InitializeI2c();
         I2cDetect();
         InitializeSpi();
+        i2c_dev_tca9554_init();
         InitializeButtons();
         InitializeSt7789Display();  
         InitializeIot();
