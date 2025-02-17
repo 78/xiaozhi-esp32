@@ -701,35 +701,18 @@ void Application::Reboot() {
     esp_restart();
 }
 
-void Application::WakeWordInvoke(const std::string& wake_word)
-{
-    //外接唤醒模组的支持，好处是可以有多种自定义唤醒词，进行唤醒小智
-    //唤醒模组需要一个GPIO Pin，设置成输出模式+高电平
-    //对该Pin进行唤醒设置，1秒内的低电平脉冲，也就是小智的一个Click
-    //可以参考 ESP32 面包板中的 asr_button_ 按钮的功能函数调用
-    //本人测试采用ASR-ProV1.0版本的唤醒模组，测试内容包括：自定义唤醒词，唤醒词打断，唤醒词回应
-    //此代码兼容其他型号的唤醒模组，并没做限制模组型号，方便大家使用
-    //Modify By MarsBear
-
-    if (device_state_ == kDeviceStateIdle) 
-    {
+void Application::WakeWordInvoke(const std::string& wake_word) {
+    if (device_state_ == kDeviceStateIdle) {
         ToggleChatState();
-        Schedule([this, wake_word]() 
-        {
-            if (protocol_)
-            {
+        Schedule([this, wake_word]() {
+            if (protocol_) {
                 protocol_->SendWakeWordDetected(wake_word); 
             }
         }); 
-    } 
-    else if (device_state_ == kDeviceStateSpeaking) 
-    {
+    } else if (device_state_ == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonNone);
-    } 
-    else if (device_state_ == kDeviceStateListening) 
-    {   
-        if (protocol_)
-        {
+    } else if (device_state_ == kDeviceStateListening) {   
+        if (protocol_) {
             protocol_->CloseAudioChannel();
         }
     }
