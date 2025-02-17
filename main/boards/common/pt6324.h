@@ -10,90 +10,18 @@
 #include "esp_log.h"
 #include <driver/spi_master.h>
 
-#define CHAR_COUNT 62
-#define NUM_BEGIN 3
-
-typedef enum {
-    DOT_MATRIX_UP,
-    DOT_MATRIX_NEXT,
-    DOT_MATRIX_PAUSE,
-    DOT_MATRIX_FILL
-} Dots;
-
-typedef enum {
-    R_OUTER_B,
-    R_OUTER_A,
-    R_CENTER,
-    L_OUTER_B,
-    L_OUTER_A,
-    L_CENTER,
-    STEREO,
-    MONO,
-    GIGA,
-    REC_1,
-    DOT_MATRIX_4_6,
-    DOT_MATRIX_5_2_5_3_6_3,
-    DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6,
-    DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5,
-    DOT_MATRIX_5_4,
-    DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5,
-    DOT_MATRIX_2_0_2_4_3_4_4_4,
-    DOT_MATRIX_4_0,
-    DOT_MATRIX_2_N1_2_7,
-    USB2,
-    USB1,
-    REC_2,
-    LBAR_RBAR,
-    CENTER_OUTLAY_BLUEA,
-    CENTER_OUTLAY_BLUEB,
-    CENTER_OUTLAY_REDA,
-    CENTER_OUTLAY_REDB,
-    CENTER_INLAY_BLUER,
-    CENTER_INLAY_BLUET,
-    CENTER_INLAY_BLUEL,
-    CENTER_INLAY_BLUEB,
-    CENTER_INLAY_RED1,
-    CENTER_INLAY_RED2,
-    CENTER_INLAY_RED3,
-    CENTER_INLAY_RED4,
-    CENTER_INLAY_RED5,
-    CENTER_INLAY_RED6,
-    CENTER_INLAY_RED7,
-    CENTER_INLAY_RED8,
-    CENTER_INLAY_RED9,
-    CENTER_INLAY_RED10,
-    CENTER_INLAY_RED11,
-    CENTER_INLAY_RED12,
-    CENTER_INLAY_RED13,
-    CENTER_INLAY_RED14,
-    CENTER_INLAY_RED15,
-    CENTER_INLAY_RED16,
-    SYMBOL_MAX
-} Symbols;
-
-typedef struct {
-    int byteIndex;
-    int bitIndex;
-} SymbolPosition;
-
 class PT6324Writer
 {
 public:
     PT6324Writer(spi_device_handle_t spi_device) : spi_device_(spi_device) {}
-    
-    void pt6324_refrash();
     void pt6324_init();
-    void pt6324_test();
-    void pt6324_cali();
-    void pt6324_numhelper(int index, char ch);
-    void pt6324_symbolhelper(Symbols symbol, bool is_on);
-    void pt6324_dotshelper(Dots dot);
-    void pt6324_wavehelper(int index, int level);
+
 private:
     spi_device_handle_t spi_device_;
-    uint8_t gram[48] = {0};
     void pt6324_write_data(uint8_t *dat, int len);
-    
+
+protected:
+    void pt6324_refrash(uint8_t *gram);
 };
 
 #endif
@@ -113,7 +41,7 @@ private:
 // 1:1 -> MONO
 // 1:2 -> GIGA
 // 1:4 -> REC
-// 1:8 -> 点阵 4,6 
+// 1:8 -> 点阵 4,6
 // 1:10 -> 点阵 5,2 5,3 6,3
 // 1:20 -> 点阵 0,3 0,5 0,6 1,2 1,3 1,5 1,6
 // 1:40 -> 点阵 3,1 3,2 3,3 3,5 3,6 4,0 4,1 4,2 4,3 4,5 4,6 5,1 5,2 5,3 5,5
