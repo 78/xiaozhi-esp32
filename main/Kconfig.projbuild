@@ -52,6 +52,8 @@ choice BOARD_TYPE
         bool "Kevin Box 2"
     config BOARD_TYPE_KEVIN_C3
         bool "Kevin C3"
+    config BOARD_TYPE_KEVIN_SP_V3_DEV
+        bool "Kevin SP V3开发板"
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LICHUANG_C3_DEV
@@ -76,6 +78,12 @@ choice BOARD_TYPE
         bool "ESP-SparkBot开发板"    
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
+        bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
+    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
+        bool "Waveshare ESP32-S3-Touch-LCD-1.85"
+    config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
+        bool "Waveshare ESP32-S3-Touch-LCD-1.46"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3

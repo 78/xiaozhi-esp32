@@ -13,8 +13,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/ssd1306_display.cc"
             "boards/lilygo-t-circle-s3/esp_lcd_gc9d01n.c"
             "protocols/protocol.cc"
-            "protocols/mqtt_protocol.cc"
-            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -50,7 +48,9 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
     set(BOARD_TYPE "kevin-box-2")
 elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
-    set(BOARD_TYPE "kevin-c3")
+    set(BOARD_TYPE "kevin-c3") 
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
+    set(BOARD_TYPE "kevin-sp-v3-dev")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
     set(BOARD_TYPE "lichuang-dev")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
@@ -75,6 +75,12 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
     set(BOARD_TYPE "esp-sparkbot")    
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
+    set(BOARD_TYPE "esp32-s3-touch-lcd-1.85c")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85)
+    set(BOARD_TYPE "esp32-s3-touch-lcd-1.85")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46)
+    set(BOARD_TYPE "esp32-s3-touch-lcd-1.46")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")    
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
@@ -99,6 +105,12 @@ endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
 
+if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
+    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
+elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
+    list(APPEND SOURCES "protocols/websocket_protocol.cc")
+endif()
+
 if(CONFIG_USE_AUDIO_PROCESSING)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
@@ -111,8 +123,10 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc")
 endif()
 
+file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh/*.p3)
+
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES "assets/err_reg.p3" "assets/err_pin.p3" "assets/wificonfig.p3" "assets/upgrade.p3"
+                    EMBED_FILES ${ASSETS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )
