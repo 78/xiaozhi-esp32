@@ -63,6 +63,7 @@ public:
     void StopListening();
     void UpdateIotStates();
     void Reboot();
+    void WakeWordInvoke(const std::string& wake_word);
 
 private:
     Application();

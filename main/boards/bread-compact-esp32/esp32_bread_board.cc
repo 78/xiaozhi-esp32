@@ -21,6 +21,8 @@ class CompactWifiBoard : public WifiBoard {
 private:
     Button boot_button_;
     Button touch_button_;
+    Button asr_button_;
+
     i2c_master_bus_handle_t display_i2c_bus_;
 
     void InitializeDisplayI2c() {
@@ -59,6 +61,12 @@ private:
             gpio_set_level(BUILTIN_LED_GPIO, 1);
             app.ToggleChatState();
         });
+
+        asr_button_.OnClick([this]() {
+            std::string wake_word="你好小智";
+            Application::GetInstance().WakeWordInvoke(wake_word);
+        });
+
         touch_button_.OnPressDown([this]() {
             gpio_set_level(BUILTIN_LED_GPIO, 1);
             Application::GetInstance().StartListening();
@@ -77,7 +85,7 @@ private:
     }
 
 public:
-    CompactWifiBoard() : boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO)
+    CompactWifiBoard() : boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
     {
         InitializeDisplayI2c();
         InitializeButtons();

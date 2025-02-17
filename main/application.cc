@@ -700,3 +700,20 @@ void Application::Reboot() {
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
 }
+
+void Application::WakeWordInvoke(const std::string& wake_word) {
+    if (device_state_ == kDeviceStateIdle) {
+        ToggleChatState();
+        Schedule([this, wake_word]() {
+            if (protocol_) {
+                protocol_->SendWakeWordDetected(wake_word); 
+            }
+        }); 
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonNone);
+    } else if (device_state_ == kDeviceStateListening) {   
+        if (protocol_) {
+            protocol_->CloseAudioChannel();
+        }
+    }
+}
