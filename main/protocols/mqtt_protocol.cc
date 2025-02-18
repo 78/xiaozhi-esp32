@@ -13,8 +13,6 @@
 
 MqttProtocol::MqttProtocol() {
     event_group_handle_ = xEventGroupCreate();
-
-    StartMqttClient();
 }
 
 MqttProtocol::~MqttProtocol() {
@@ -26,6 +24,10 @@ MqttProtocol::~MqttProtocol() {
         delete mqtt_;
     }
     vEventGroupDelete(event_group_handle_);
+}
+
+void MqttProtocol::Start() {
+    StartMqttClient();
 }
 
 bool MqttProtocol::StartMqttClient() {
@@ -98,7 +100,12 @@ void MqttProtocol::SendText(const std::string& text) {
     if (publish_topic_.empty()) {
         return;
     }
-    mqtt_->Publish(publish_topic_, text);
+    if (!mqtt_->Publish(publish_topic_, text)) {
+        ESP_LOGE(TAG, "Failed to publish message");
+        if (on_network_error_ != nullptr) {
+            on_network_error_("发送失败，请检查网络");
+        }
+    }
 }
 
 void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {

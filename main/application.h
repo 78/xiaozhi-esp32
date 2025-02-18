@@ -35,6 +35,7 @@ enum DeviceState {
     kDeviceStateListening,
     kDeviceStateSpeaking,
     kDeviceStateUpgrading,
+    kDeviceStateActivating,
     kDeviceStateFatalError
 };
 
@@ -55,12 +56,14 @@ public:
     bool IsVoiceDetected() const { return voice_detected_; }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
-    void Alert(const std::string& title, const std::string& message);
+    void Alert(const std::string& status, const std::string& message, const std::string& emotion = "", const std::string_view& sound = "");
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
     void StopListening();
     void UpdateIotStates();
+    void Reboot();
+    void WakeWordInvoke(const std::string& wake_word);
 
 private:
     Application();
@@ -100,7 +103,7 @@ private:
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate);
     void CheckNewVersion();
-    void DisplayActivationCode();
+    void ShowActivationCode();
 
     void PlayLocalFile(const char* data, size_t size);
 };

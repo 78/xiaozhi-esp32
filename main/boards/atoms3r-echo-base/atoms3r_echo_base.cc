@@ -96,6 +96,7 @@ private:
     Lp5562* lp5562_;
     Display* display_;
     Button boot_button_;
+    bool is_echo_base_connected_ = false;
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -119,6 +120,8 @@ private:
     }
 
     void I2cDetect() {
+        is_echo_base_connected_ = false;
+        uint8_t echo_base_connected_flag = 0x00;
         uint8_t address;
         printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
         for (int i = 0; i < 128; i += 16) {
@@ -129,6 +132,11 @@ private:
                 esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(200));
                 if (ret == ESP_OK) {
                     printf("%02x ", address);
+                    if (address == 0x18) {
+                        echo_base_connected_flag |= 0xF0;
+                    } else if (address == 0x43) {
+                        echo_base_connected_flag |= 0x0F;
+                    }
                 } else if (ret == ESP_ERR_TIMEOUT) {
                     printf("UU ");
                 } else {
@@ -136,6 +144,39 @@ private:
                 }
             }
             printf("\r\n");
+        }
+        is_echo_base_connected_ = (echo_base_connected_flag == 0xFF);
+    }
+
+    void CheckEchoBaseConnection() {
+        if (is_echo_base_connected_) {
+            return;
+        }
+        
+        // Pop error page
+        InitializeLp5562();
+        InitializeSpi();
+        InitializeGc9107Display();
+        InitializeButtons();
+        display_->SetStatus("错误");
+        display_->SetEmotion("sad");
+        display_->SetChatMessage("system", "Echo Base\n未连接");
+        
+        while (1) {
+            ESP_LOGE(TAG, "Atomic Echo Base is disconnected");
+            vTaskDelay(pdMS_TO_TICKS(1000));
+
+            // Rerun detection
+            I2cDetect();
+            if (is_echo_base_connected_) {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                I2cDetect();
+                if (is_echo_base_connected_) {
+                    ESP_LOGI(TAG, "Atomic Echo Base is reconnected");
+                    vTaskDelay(pdMS_TO_TICKS(200));
+                    esp_restart();
+                }
+            }
         }
     }
 
@@ -224,6 +265,7 @@ public:
     AtomS3rEchoBaseBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         I2cDetect();
+        CheckEchoBaseConnection();
         InitializePi4ioe();
         InitializeLp5562();
         InitializeSpi();

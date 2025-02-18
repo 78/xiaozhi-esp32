@@ -27,7 +27,7 @@
 - 支持国语、粤语、英语、日语、韩语 5 种语言识别 [SenseVoice](https://github.com/FunAudioLLM/SenseVoice)
 - 声纹识别，识别是谁在喊 AI 的名字 [3D Speaker](https://github.com/modelscope/3D-Speaker)
 - 大模型 TTS（火山引擎 或 CosyVoice）
-- 大模型 LLM（Qwen2.5 72B 或 豆包 API）
+- 大模型 LLM（Qwen, DeepSeek, Doubao）
 - 可配置的提示词和音色（自定义角色）
 - 短期记忆，每轮对话后自我总结
 - OLED / LCD 显示屏，显示信号强弱或对话内容

@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "xmini-c3",
+            "sdkconfig_append": []
+        }
+    ]
+}

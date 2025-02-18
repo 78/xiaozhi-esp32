@@ -198,6 +198,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
     }
     void InitializeMute() {
         gpio_reset_pin(AUDIO_MUTE_PIN);
