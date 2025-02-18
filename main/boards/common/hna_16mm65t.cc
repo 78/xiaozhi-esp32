@@ -64,13 +64,13 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     // 定义每个频段的增益系数
     static float fft_gain[FFT_SIZE] = {4.0f, 3.0f, 3.0f, 3.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f};
     // 定义每个频段的显示位置映射
-    static uint8_t fft_postion[FFT_SIZE] = {0, FFT_SIZE - 1, 1, FFT_SIZE - 1 - 1, 2, FFT_SIZE - 1 - 2, 3, FFT_SIZE - 1 - 3, 4, FFT_SIZE - 1 - 4, 5, FFT_SIZE - 1 - 5};
+    static uint8_t fft_postion[FFT_SIZE] = {0, 2, 4, 6, 8, 10, 11, 9, 7, 5, 3, 1};
     // 记录最大幅度值
     static float max = 0;
     // 存储每个频段的平均幅度值
     float fft_buf[FFT_SIZE];
     // 计算每个频段包含的数据元素数量
-    int elements_per_part = size / 12;
+    int elements_per_part = size / 2 / 12;
 
     // 计算每个频段的平均幅度值
     for (int i = 0; i < FFT_SIZE; i++)
@@ -104,8 +104,8 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
         animation_steps[i] = 0;
     }
     // 打印最大幅度值和每个频段的目标值
-    ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, target_values[0], target_values[1], target_values[2], target_values[3], target_values[4], target_values[5],
-             target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
+    // ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, target_values[0], target_values[1], target_values[2], target_values[3], target_values[4], target_values[5],
+    //          target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
 }
 
 /**

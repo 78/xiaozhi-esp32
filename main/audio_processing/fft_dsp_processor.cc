@@ -31,7 +31,7 @@ void FFTDspProcessor::Initialize()
                 {
         auto this_ = (FFTDspProcessor*)arg;
         this_->FFTDspProcessorTask();
-        vTaskDelete(NULL); }, "fft_dsp_communication", 4096 * 2, this, 1, NULL);
+        vTaskDelete(NULL); }, "fft_dsp_communication", 4096 * 1, this, 1, NULL);
 }
 
 FFTDspProcessor::~FFTDspProcessor()
