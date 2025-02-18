@@ -384,11 +384,11 @@ void Application::Start()
         } });
 
     // Check for new firmware version or get the MQTT broker address
-    xTaskCreate([](void *arg)
-                {
-        Application* app = (Application*)arg;
-        app->CheckNewVersion();
-        vTaskDelete(NULL); }, "check_new_version", 4096 * 2, this, 1, nullptr);
+    // xTaskCreate([](void *arg)
+    //             {
+    //     Application* app = (Application*)arg;
+    //     app->CheckNewVersion();
+    //     vTaskDelete(NULL); }, "check_new_version", 4096 * 2, this, 1, nullptr);
 
 #if CONFIG_USE_AUDIO_PROCESSING
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
@@ -443,11 +443,11 @@ void Application::Start()
             // Resume detection
             wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
-    // fft_dsp_processor_.Initialize();
-    // fft_dsp_processor_.OnOutput([this](std::vector<float> &&data) {
-    //     auto vfd = (HNA_16MM65T *) Board::GetInstance().GetFFTPresenter();
-    //     // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
-    //     vfd->spectrum_show(data.data(),data.size()); });
+    fft_dsp_processor_.Initialize();
+    fft_dsp_processor_.OnOutput([this](std::vector<float> &&data) {
+        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetFFTPresenter();
+        // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
+        vfd->spectrum_show(data.data(),data.size()); });
 
 #endif
 
@@ -492,6 +492,8 @@ void Application::MainLoop()
                 task();
             }
         }
+        UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+        ESP_LOGD(TAG, "Task free stack size: %u bytes", uxHighWaterMark * sizeof(StackType_t));
     }
 }
 
@@ -601,7 +603,7 @@ void Application::InputAudio()
     if (audio_processor_.IsRunning())
     {
         audio_processor_.Input(data);
-        //fft_dsp_processor_.Input(data);
+        fft_dsp_processor_.Input(data);
     }
     if (wake_word_detect_.IsDetectionRunning())
     {

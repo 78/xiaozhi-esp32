@@ -6,116 +6,174 @@
 #include <string.h>
 #include <esp_log.h>
 
+// 定义日志标签
 #define TAG "HNA_16MM65T"
 
+/**
+ * @brief HNA_16MM65T 类的构造函数。
+ *
+ * 初始化 PT6324 设备，并创建一个任务用于刷新显示和执行动画。
+ *
+ * @param spi_device SPI 设备句柄，用于与 PT6324 通信。
+ */
 HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_device)
 {
+    // 初始化 PT6324 设备
     pt6324_init();
+
+    // 创建一个任务用于刷新显示和执行动画
     xTaskCreate(
         [](void *arg)
         {
+            // 将参数转换为 HNA_16MM65T 指针
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
-                while(true)
-                {
-                    vfd->pt6324_refrash(vfd->gram);
-                    vfd->animate();
-                    vTaskDelay(pdMS_TO_TICKS(20));
-                }
-            vTaskDelete(NULL); }, "vfd", 4096, this, 6, nullptr);
+            while (true)
+            {
+                // 刷新显示
+                vfd->pt6324_refrash(vfd->gram);
+                // 执行动画
+                vfd->animate();
+                // 任务延时 10 毫秒
+                vTaskDelay(pdMS_TO_TICKS(10));
+                // 可取消注释以打印任务空闲栈大小
+                // UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+                // ESP_LOGI(TAG, "Task refrash free stack size: %u bytes", uxHighWaterMark * sizeof(StackType_t));
+            }
+            // 删除当前任务
+            vTaskDelete(NULL);
+        },
+        "vfd",
+        4096 - 1024,
+        this,
+        6,
+        nullptr);
 }
 
+/**
+ * @brief 显示频谱信息。
+ *
+ * 处理传入的频谱数据，计算每个频段的平均值，并应用增益。
+ * 更新目标值和动画步数，用于后续动画效果。
+ *
+ * @param buf 频谱数据缓冲区，包含每个频段的幅度值。
+ * @param size 缓冲区的大小，即频谱数据的数量。
+ */
 void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 {
+#if true
+    // 定义每个频段的增益系数
+    static float fft_gain[FFT_SIZE] = {4.0f, 3.0f, 3.0f, 3.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f};
+    // 定义每个频段的显示位置映射
+    static uint8_t fft_postion[FFT_SIZE] = {0, FFT_SIZE - 1, 1, FFT_SIZE - 1 - 1, 2, FFT_SIZE - 1 - 2, 3, FFT_SIZE - 1 - 3, 4, FFT_SIZE - 1 - 4, 5, FFT_SIZE - 1 - 5};
+    // 记录最大幅度值
+    static float max = 0;
+    // 存储每个频段的平均幅度值
     float fft_buf[FFT_SIZE];
+    // 计算每个频段包含的数据元素数量
     int elements_per_part = size / 12;
 
-    for (int i = 0; i < FFT_SIZE; i++) {
-        float sum = 0;
-        for (int j = 0; j < elements_per_part; j++) {
-            sum += buf[i * elements_per_part + j];
+    // 计算每个频段的平均幅度值
+    for (int i = 0; i < FFT_SIZE; i++)
+    {
+        fft_buf[i] = 0;
+        for (int j = 0; j < elements_per_part; j++)
+        {
+            fft_buf[i] += buf[i * elements_per_part + j] / elements_per_part;
         }
-        fft_buf[i] = sum / elements_per_part;
+        // 更新最大幅度值
+        if (max < fft_buf[i])
+        {
+            max = fft_buf[i];
+        }
+
+        // 确保幅度值非负，并应用增益
+        if (fft_buf[i] < 0)
+            fft_buf[i] = 0;
+        else
+            fft_buf[i] *= fft_gain[i];
     }
 
+#else
+#endif
+
+    // 更新上一次的值、目标值和动画步数
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
         last_values[i] = target_values[i];
-        target_values[i] = fft_buf[i];
+        target_values[i] = fft_buf[fft_postion[i]];
         animation_steps[i] = 0;
     }
-    // ESP_LOGI(TAG, "FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)fft_buf[0], (int)fft_buf[1], (int)fft_buf[2], (int)fft_buf[3], (int)fft_buf[4], (int)fft_buf[5], (int)fft_buf[6], (int)fft_buf[7], (int)fft_buf[8], (int)fft_buf[9], (int)fft_buf[10], (int)fft_buf[11]);
+    // 打印最大幅度值和每个频段的目标值
+    ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, target_values[0], target_values[1], target_values[2], target_values[3], target_values[4], target_values[5],
+             target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
 }
 
+/**
+ * @brief 测试函数，创建一个任务用于模拟频谱数据显示。
+ *
+ * 创建一个任务，在任务中随机生成频谱数据并调用 spectrum_show 函数显示。
+ * 同时可以进行数字显示和点矩阵显示的测试。
+ */
 void HNA_16MM65T::test()
 {
+    // 创建一个任务用于测试显示功能
     xTaskCreate(
         [](void *arg)
         {
+            // 将参数转换为 HNA_16MM65T 指针
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
-                // Configure USB SERIAL JTAG
-                // usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-                //     .tx_buffer_size = BUF_SIZE,
-                //     .rx_buffer_size = BUF_SIZE,
-                // };
-                float testbuff[FFT_SIZE];
-                // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-                // uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
-                while (1)
+            // 配置 USB SERIAL JTAG（此处注释掉，未实际使用）
+            // usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+            //     .tx_buffer_size = BUF_SIZE,
+            //     .rx_buffer_size = BUF_SIZE,
+            // };
+            // 存储测试用的频谱数据
+            float testbuff[FFT_SIZE];
+            // 安装 USB SERIAL JTAG 驱动（此处注释掉，未实际使用）
+            // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+            // 分配接收数据的缓冲区（此处注释掉，未实际使用）
+            // uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
+            while (1)
+            {
+                // 清空接收缓冲区（此处注释掉，未实际使用）
+                // memset(recv_data, 0, BUF_SIZE);
+                // 从 USB SERIAL JTAG 读取数据（此处注释掉，未实际使用）
+                // int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
+                // if (len > 0)
                 {
-                    // memset(recv_data, 0, BUF_SIZE);
-                    // int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
-                    // if (len > 0)
-                    {
-                        // vfd->dotshelper((Dots)((recv_data[0] - '0') % 4));
-                        for (int i = 0; i < 10; i++)
-                            vfd->numhelper(i, '9');
-                        for (int i = 0; i < FFT_SIZE; i++)
-                            testbuff[i] = rand()%100;
-                        vfd->spectrum_show(testbuff, FFT_SIZE);
-                        // int index = 0, data = 0;
-        
-                        // sscanf((char *)recv_data, "%d:%X", &index, &data);
-                        // printf("Parsed numbers: %d and 0x%02X\n", index, data);
-                        // gram[index] = data;
-                    }
-                    vTaskDelay(pdMS_TO_TICKS(100));
+                    // 设置点矩阵显示状态（此处注释掉，未实际使用）
+                    // vfd->dotshelper((Dots)((recv_data[0] - '0') % 4));
+                    // 显示数字 9
+                    for (int i = 0; i < 10; i++)
+                        vfd->numhelper(i, '9');
+                    // 随机生成频谱数据
+                    for (int i = 0; i < FFT_SIZE; i++)
+                        testbuff[i] = rand() % 100;
+                    // 显示频谱数据
+                    vfd->spectrum_show(testbuff, FFT_SIZE);
+                    // 解析接收数据（此处注释掉，未实际使用）
+                    // int index = 0, data = 0;
+                    // sscanf((char *)recv_data, "%d:%X", &index, &data);
+                    // printf("Parsed numbers: %d and 0x%02X\n", index, data);
+                    // gram[index] = data;
                 }
-            vTaskDelete(NULL); }, "vfd1", 4096, this, 5, nullptr);
+                // 可取消注释以打印任务空闲栈大小
+                // UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+                // ESP_LOGI(TAG, "Task free stack size: %u bytes", uxHighWaterMark * sizeof(StackType_t));
+                // 任务延时 100 毫秒
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            // 删除当前任务
+            vTaskDelete(NULL);
+        },
+        "vfd1",
+        4096 - 1024,
+        this,
+        5,
+        nullptr);
 }
 
-// #define BUF_SIZE (1024)
-// void HNA_16MM65T::cali()
-// {
-//     // Configure USB SERIAL JTAG
-//     usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-//         .tx_buffer_size = BUF_SIZE,
-//         .rx_buffer_size = BUF_SIZE,
-//     };
-
-//     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-//     uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
-//     while (1)
-//     {
-//         memset(recv_data, 0, BUF_SIZE);
-//         int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
-//         if (len > 0)
-//         {
-//             dotshelper((Dots)((recv_data[0] - '0') % 4));
-//             for (int i = 0; i < 10; i++)
-//                 numhelper(i, recv_data[0]);
-//             for (size_t i = 0; i < 12; i++)
-//                 wavehelper(i, (recv_data[0] - '0') % 9);
-//             // int index = 0, data = 0;
-
-//             // sscanf((char *)recv_data, "%d:%X", &index, &data);
-//             // printf("Parsed numbers: %d and 0x%02X\n", index, data);
-//             // gram[index] = data;
-//             pt6324_refrash(gram);
-//         }
-//         vTaskDelay(100 / portTICK_PERIOD_MS);
-//     }
-// }
-
+// 可显示的字符数组
 const char characters[CHAR_COUNT] = {
     '0', '1', '2', '3', '4',
     '5', '6', '7', '8', '9',
@@ -132,6 +190,7 @@ const char characters[CHAR_COUNT] = {
     'u', 'v', 'w', 'x', 'y',
     'z'};
 
+// 每个字符对应的十六进制编码
 const unsigned int hex_codes[CHAR_COUNT] = {
     0xf111f0, // 0
     0x210110, // 1
@@ -197,6 +256,14 @@ const unsigned int hex_codes[CHAR_COUNT] = {
     0xe248f0, // z
 };
 
+/**
+ * @brief 根据字符查找对应的十六进制编码。
+ *
+ * 在字符数组中查找给定字符，并返回其对应的十六进制编码。
+ *
+ * @param ch 要查找的字符。
+ * @return 字符对应的十六进制编码，如果未找到则返回 0。
+ */
 unsigned int find_hex_code(char ch)
 {
     for (int i = 0; i < CHAR_COUNT; i++)
@@ -209,16 +276,28 @@ unsigned int find_hex_code(char ch)
     return 0;
 }
 
+/**
+ * @brief 显示数字字符。
+ *
+ * 根据给定的索引和字符，查找对应的十六进制编码，并更新显示缓冲区。
+ *
+ * @param index 数字显示的索引位置。
+ * @param ch 要显示的字符。
+ */
 void HNA_16MM65T::numhelper(int index, char ch)
 {
+    // 检查索引是否越界
     if (index >= 10)
         return;
+    // 查找字符对应的十六进制编码
     uint32_t val = find_hex_code(ch);
+    // 更新显示缓冲区
     gram[NUM_BEGIN + index * 3 + 2] = val >> 16;
     gram[NUM_BEGIN + index * 3 + 1] = val >> 8;
     gram[NUM_BEGIN + index * 3 + 0] = val & 0xff;
 }
 
+// 每个符号在显示缓冲区中的位置
 SymbolPosition symbolPositions[] = {
     {0, 2},     // R_OUTER_B
     {0, 4},     // R_OUTER_A
@@ -268,54 +347,103 @@ SymbolPosition symbolPositions[] = {
     {41, 0x40}, // CENTER_INLAY_RED15
     {41, 0x80}  // CENTER_INLAY_RED16
 };
-
+/**
+ * @brief 根据符号枚举值查找其在显示缓冲区中的位置。
+ *
+ * 该函数接收一个符号枚举值，通过查询 `symbolPositions` 数组，
+ * 找到该符号对应的字节索引和位索引，并将其存储在传入的指针所指向的变量中。
+ *
+ * @param flag 符号的枚举值，用于标识要查找的符号。
+ * @param byteIndex 指向一个整数的指针，用于存储符号所在的字节索引。
+ * @param bitIndex 指向一个整数的指针，用于存储符号所在的位索引。
+ */
 void find_enum_code(Symbols flag, int *byteIndex, int *bitIndex)
 {
     *byteIndex = symbolPositions[flag].byteIndex;
     *bitIndex = symbolPositions[flag].bitIndex;
 }
 
+/**
+ * @brief 控制特定符号的显示状态。
+ *
+ * 根据传入的符号枚举值和显示状态标志，找到该符号在显示缓冲区中的位置，
+ * 并相应地设置或清除该位置的位，以控制符号的显示或隐藏。
+ *
+ * @param symbol 要控制的符号的枚举值。
+ * @param is_on 一个布尔值，指示符号是否应该显示（true 表示显示，false 表示隐藏）。
+ */
 void HNA_16MM65T::symbolhelper(Symbols symbol, bool is_on)
 {
+    // 检查符号枚举值是否越界，如果越界则直接返回
     if (symbol >= SYMBOL_MAX)
         return;
+
     int byteIndex, bitIndex;
+    // 调用 find_enum_code 函数查找符号在显示缓冲区中的位置
     find_enum_code(symbol, &byteIndex, &bitIndex);
 
+    // 可取消注释以打印符号的位置信息
     // printf("symbol %d 所在字节: %d, 所在位: %d\n", symbol, byteIndex, bitIndex);
+
     if (is_on)
+        // 如果要显示符号，则将该位置的位设置为 1
         gram[byteIndex] |= bitIndex;
     else
+        // 如果要隐藏符号，则将该位置的位设置为 0
         gram[byteIndex] &= ~bitIndex;
 }
 
+/**
+ * @brief 根据不同的点矩阵状态更新显示缓冲区。
+ *
+ * 该函数根据传入的点矩阵状态枚举值，对显示缓冲区中的特定字节进行操作，
+ * 以实现不同的点矩阵显示效果。在操作之前，会先清除相关字节中的特定位。
+ *
+ * @param dot 点矩阵的状态枚举值，指示要显示的点矩阵样式。
+ */
 void HNA_16MM65T::dotshelper(Dots dot)
 {
+    // 清除 gram[1] 字节中从第 3 位到第 7 位的位
     gram[1] &= ~0xF8;
+    // 清除 gram[2] 字节中从第 0 位到第 3 位的位
     gram[2] &= ~0xF;
 
     switch (dot)
     {
     case DOT_MATRIX_UP:
+        // 如果是向上的点矩阵样式，设置 gram[1] 字节的相应位
         gram[1] |= 0x78;
         break;
     case DOT_MATRIX_NEXT:
+        // 如果是下一个的点矩阵样式，设置 gram[1] 和 gram[2] 字节的相应位
         gram[1] |= 0xD0;
         gram[2] |= 0xA;
         break;
     case DOT_MATRIX_PAUSE:
+        // 如果是暂停的点矩阵样式，设置 gram[1] 和 gram[2] 字节的相应位
         gram[1] |= 0xB2;
         gram[2] |= 0x1;
         break;
     case DOT_MATRIX_FILL:
+        // 如果是填充的点矩阵样式，设置 gram[1] 和 gram[2] 字节的相应位
         gram[1] |= 0xF8;
         gram[2] |= 0x7;
         break;
     }
 }
 
+/**
+ * @brief 根据索引和级别更新波形显示。
+ *
+ * 该函数根据传入的索引和级别，在显示缓冲区中更新相应的波形显示。
+ * 会先检查索引和级别是否在有效范围内，然后根据级别设置或清除显示缓冲区中的位。
+ *
+ * @param index 波形的索引，用于确定在显示缓冲区中的起始位置。
+ * @param level 波形的级别，指示波形的高度，范围通常为 0 到 8。
+ */
 void HNA_16MM65T::wavehelper(int index, int level)
 {
+    // 定义每个波形在显示缓冲区中的起始位置
     static SymbolPosition wavePositions[] = {
         {33, 0x10},
         {33, 8},
@@ -333,28 +461,37 @@ void HNA_16MM65T::wavehelper(int index, int level)
         {45, 8},
         {45, 0x10},
     };
+
+    // 检查索引是否越界，如果越界则直接返回
     if (index >= 12)
         return;
+    // 确保级别不超过 8
     if (level > 8)
-    level = 8;
+        level = 8;
 
     int byteIndex = wavePositions[index].byteIndex, bitIndex = wavePositions[index].bitIndex;
 
     if (level)
+        // 如果级别不为 0，则设置相应字节的最高位
         gram[byteIndex + 2] |= 0x80;
     else if (level == -1)
+        // 如果级别为 -1，则清除相应字节的最高位
         gram[byteIndex + 2] &= ~0x80;
 
     for (size_t i = 0; i < 7; i++)
     {
         if ((i) >= (8 - level) && level > 1)
+            // 如果当前位置在波形高度范围内，则设置相应位
             gram[byteIndex] |= bitIndex;
         else
+            // 否则清除相应位
             gram[byteIndex] &= ~bitIndex;
 
+        // 位索引左移 3 位
         bitIndex <<= 3;
         if (bitIndex > 0xFF)
         {
+            // 如果位索引超过一个字节的范围，则右移 8 位并将字节索引加 1
             bitIndex >>= 8;
             byteIndex++;
         }

@@ -467,7 +467,7 @@ private:
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         vfd = new HNA_16MM65T(spidevice);
-        vfd->test();
+        // vfd->test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;

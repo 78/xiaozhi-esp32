@@ -99,7 +99,7 @@ void FFTDspProcessor::FFTDspProcessorTask()
             }
             if (output_callback_)
             {
-                // output_callback_(std::vector<float>(result_data, result_data + audio_chunksize));
+                output_callback_(std::vector<float>(result_data, result_data + audio_chunksize));
             }
             delete dataPtr; // 处理完数据后删除数据指针
         }
