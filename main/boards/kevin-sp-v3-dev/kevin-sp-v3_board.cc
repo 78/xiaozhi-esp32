@@ -6,7 +6,7 @@
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-
+#include <wifi_station.h>
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
