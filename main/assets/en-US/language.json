@@ -1,0 +1,34 @@
+{
+    "language": {
+        "type" :"en"
+    },
+    "strings": {
+        "VERSION": "Version",
+        "LOADING_PROTOCOL":"Loading Protocol",
+        "INITIALIZING":"Initializing",
+        "NOTICE":"Notice",
+
+        "STANDING_BY":"Standing By",
+        "CONNECT":"Connect",
+        "CONNECTING":"Connecting",
+        "CONNECTION_SUCCESSFUL":"Connection Successful",
+
+        "LISTENING":"Listening",
+        "SPEAKING":"Speaking",
+
+        "UNABLE_TO_CONNECT_TO_SERVICE":"Unable to connect to service",
+        "WAITING_FOR_RESPONSE_TIMEOUT":"Waiting for response timeout",
+        "SENDING_FAILED_PLEASE_CHECK_THE_NETWORK":"Sending failed, please check the network",
+
+
+
+        "CONNECT_MOBILE_PHONE_TO_HOTSPOT":"Connect mobile phone to hotspot",
+        "ACCESS_VIA_BROWSER":"Access via browser",
+        "WIFI_CONFIGURATION_MODE":"Wi-Fi Configuration Mode",
+        "SCANNING_WIFI":"Scanning Wi-Fi",
+
+        "UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "Unable to establish audio channel",
+        "TEST":"Test"
+
+    }
+}
