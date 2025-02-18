@@ -135,3 +135,31 @@ idf_component_register(SRCS ${SOURCES}
 target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\"
                     )
+
+# 根据Kconfig选择语言目录
+if(CONFIG_LANGUAGE_ZH)
+    set(LANG_DIR "zh")
+elseif(CONFIG_LANGUAGE_EN)
+    set(LANG_DIR "en")
+endif()
+
+# 定义生成路径
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
+set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
+
+# 添加生成规则
+add_custom_command(
+    OUTPUT ${LANG_HEADER}
+    COMMAND python3 ${PROJECT_DIR}/scripts/gen_lang.py
+            --input "${LANG_JSON}"
+            --output "${LANG_HEADER}"
+    DEPENDS 
+        ${LANG_JSON}
+        ${PROJECT_DIR}/scripts/gen_lang.py
+    COMMENT "Generating ${LANG_DIR} language config"
+)
+
+# 强制建立生成依赖
+add_custom_target(lang_header ALL
+    DEPENDS ${LANG_HEADER}
+)

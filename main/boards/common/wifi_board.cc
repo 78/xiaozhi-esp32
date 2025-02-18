@@ -20,6 +20,7 @@
 #include <wifi_station.h>
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
+#include "assets/lang_config.h"
 
 static const char *TAG = "WifiBoard";
 
@@ -45,14 +46,14 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-    std::string hint = "手机连接热点 ";
+    std::string hint = Lang::Strings::CONNECT_MOBILE_PHONE_TO_HOTSPOT + " ";
     hint += wifi_ap.GetSsid();
-    hint += "\n浏览器访问 ";
+    hint += "\n"+ Lang::Strings::ACCESS_VIA_BROWSER + " ";
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert("配网模式", hint, "", std::string_view(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
+    application.Alert(Lang::Strings::WIFI_CONFIGURATION_MODE, hint, "", std::string(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
     
     // Wait forever until reset after configuration
     while (true) {
@@ -82,15 +83,15 @@ void WifiBoard::StartNetwork() {
     auto& wifi_station = WifiStation::GetInstance();
     wifi_station.OnScanBegin([this]() {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification("扫描 WiFi...", 30000);
+        display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
     });
     wifi_station.OnConnect([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("连接 ") + ssid + "...", 30000);
+        display->ShowNotification(std::string(Lang::Strings::CONNECT + " ") + ssid + "...", 30000);
     });
     wifi_station.OnConnected([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("已连接 ") + ssid);
+        display->ShowNotification(std::string(Lang::Strings::CONNECTION_SUCCESSFUL) + ssid);
     });
     wifi_station.Start();
 
@@ -171,7 +172,7 @@ void WifiBoard::ResetWifiConfiguration() {
         Settings settings("wifi", true);
         settings.SetInt("force_ap", 1);
     }
-    GetDisplay()->ShowNotification("进入配网模式...");
+    GetDisplay()->ShowNotification("Enter the network configuration mode...");
     vTaskDelay(pdMS_TO_TICKS(1000));
     // Reboot the device
     esp_restart();

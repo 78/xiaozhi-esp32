@@ -7,6 +7,7 @@
 #include <vector>
 #include <esp_lvgl_port.h>
 #include <esp_timer.h>
+#include "assets/lang_config.h"
 
 #include "board.h"
 
@@ -256,13 +257,13 @@ void LcdDisplay::SetupUI() {
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(notification_label_, "通知");
+    lv_label_set_text(notification_label_, (Lang::Strings::NOTICE).c_str());
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_label_set_text(status_label_, "正在初始化");
+    lv_label_set_text(status_label_,(Lang::Strings::INITIALIZING + "...").c_str());
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
 
     mute_label_ = lv_label_create(status_bar_);
