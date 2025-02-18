@@ -263,12 +263,12 @@ public:
     {
         if (role == "")
             return;
-        std::stringstream ss;
-        ss << "role: " << role << ", content: " << content << std::endl;
-        std::string logMessage = ss.str();
+        // std::stringstream ss;
+        // ss << "role: " << role << ", content: " << content << std::endl;
+        // std::string logMessage = ss.str();
         // auto sdcard = Board::GetInstance().GetSdcard();
         // sdcard->Write("/sdcard/log.txt", logMessage.c_str());
-        ESP_LOGI(TAG, "%s", logMessage.c_str());
+        //ESP_LOGI(TAG, "%s", logMessage.c_str());
 
         DisplayLockGuard lock(this);
         if (labelContainer.size() >= 10)
@@ -302,7 +302,7 @@ public:
         lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
 
         lv_obj_update_layout(label);
-        ESP_LOGI(TAG, "Label Width: %ld-%ld", lv_obj_get_width(label), (LV_HOR_RES - 2));
+        // ESP_LOGI(TAG, "Label Width: %ld-%ld", lv_obj_get_width(label), (LV_HOR_RES - 2));
         if (lv_obj_get_width(label) >= (LV_HOR_RES - 2))
             lv_obj_set_width(label, (LV_HOR_RES - 2));
         lv_obj_scroll_to_view(container, LV_ANIM_ON);
