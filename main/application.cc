@@ -357,7 +357,7 @@ void Application::Start() {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
-            display->SetChatMessage("", "");
+            display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
         });
     });
@@ -670,6 +670,7 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateConnecting:
             display->SetStatus("连接中...");
+            display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
             display->SetStatus("聆听中...");
