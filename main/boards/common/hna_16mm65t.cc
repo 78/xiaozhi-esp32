@@ -32,7 +32,8 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
                 // 刷新显示
                 vfd->pt6324_refrash(vfd->gram);
                 // 执行动画
-                vfd->animate();
+                vfd->numberanimate();
+                vfd->waveanimate();
                 // 任务延时 10 毫秒
                 vTaskDelay(pdMS_TO_TICKS(10));
                 // 可取消注释以打印任务空闲栈大小
@@ -99,13 +100,21 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     // 更新上一次的值、目标值和动画步数
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
-        last_values[i] = target_values[i];
-        target_values[i] = fft_buf[fft_postion[i]];
-        animation_steps[i] = 0;
+        wave_last_values[i] = wave_target_values[i];
+        wave_target_values[i] = fft_buf[fft_postion[i]];
+        wave_animation_steps[i] = 0;
     }
     // 打印最大幅度值和每个频段的目标值
     // ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, target_values[0], target_values[1], target_values[2], target_values[3], target_values[4], target_values[5],
     //          target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
+}
+
+void HNA_16MM65T::number_show(char *buf, int size)
+{
+    for (size_t i = 0; i < size && i < NUM_SIZE; i++)
+    {
+        number_buf[i] = buf[i];
+    }
 }
 
 /**
@@ -120,141 +129,61 @@ void HNA_16MM65T::test()
     xTaskCreate(
         [](void *arg)
         {
-            // 将参数转换为 HNA_16MM65T 指针
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
-            // 配置 USB SERIAL JTAG（此处注释掉，未实际使用）
-            // usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
-            //     .tx_buffer_size = BUF_SIZE,
-            //     .rx_buffer_size = BUF_SIZE,
-            // };
-            // 存储测试用的频谱数据
             float testbuff[FFT_SIZE];
-            // 安装 USB SERIAL JTAG 驱动（此处注释掉，未实际使用）
-            // ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
-            // 分配接收数据的缓冲区（此处注释掉，未实际使用）
-            // uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
+            int rollcounter = 0;
+            char tempstr[NUM_SIZE];
             while (1)
             {
-                // 清空接收缓冲区（此处注释掉，未实际使用）
-                // memset(recv_data, 0, BUF_SIZE);
-                // 从 USB SERIAL JTAG 读取数据（此处注释掉，未实际使用）
-                // int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
-                // if (len > 0)
-                {
-                    // 设置点矩阵显示状态（此处注释掉，未实际使用）
-                    // vfd->dotshelper((Dots)((recv_data[0] - '0') % 4));
-                    // 显示数字 9
-                    for (int i = 0; i < 10; i++)
-                        vfd->numhelper(i, '9');
-                    // 随机生成频谱数据
-                    for (int i = 0; i < FFT_SIZE; i++)
-                        testbuff[i] = rand() % 100;
-                    // 显示频谱数据
-                    vfd->spectrum_show(testbuff, FFT_SIZE);
-                    // 解析接收数据（此处注释掉，未实际使用）
-                    // int index = 0, data = 0;
-                    // sscanf((char *)recv_data, "%d:%X", &index, &data);
-                    // printf("Parsed numbers: %d and 0x%02X\n", index, data);
-                    // gram[index] = data;
-                }
-                // 可取消注释以打印任务空闲栈大小
-                // UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-                // ESP_LOGI(TAG, "Task free stack size: %u bytes", uxHighWaterMark * sizeof(StackType_t));
-                // 任务延时 100 毫秒
+                sprintf(tempstr, "%d%X", rollcounter++, rollcounter);
+                vfd->number_show(tempstr, NUM_SIZE);
+
+                for (int i = 0; i < FFT_SIZE; i++)
+                    testbuff[i] = rand() % 100;
+                vfd->spectrum_show(testbuff, FFT_SIZE);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
             // 删除当前任务
             vTaskDelete(NULL);
         },
-        "vfd1",
+        "vfd_test",
         4096 - 1024,
         this,
         5,
         nullptr);
 }
 
-// 可显示的字符数组
-const char characters[CHAR_COUNT] = {
-    '0', '1', '2', '3', '4',
-    '5', '6', '7', '8', '9',
-    'A', 'B', 'C', 'D', 'E',
-    'F', 'G', 'H', 'I', 'J',
-    'K', 'L', 'M', 'N', 'O',
-    'P', 'Q', 'R', 'S', 'T',
-    'U', 'V', 'W', 'X', 'Y',
-    'Z',
-    'a', 'b', 'c', 'd', 'e',
-    'f', 'g', 'h', 'i', 'j',
-    'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't',
-    'u', 'v', 'w', 'x', 'y',
-    'z'};
+void HNA_16MM65T::cali()
+{
+    // Configure USB SERIAL JTAG
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = {
+        .tx_buffer_size = BUF_SIZE,
+        .rx_buffer_size = BUF_SIZE,
+    };
 
-// 每个字符对应的十六进制编码
-const unsigned int hex_codes[CHAR_COUNT] = {
-    0xf111f0, // 0
-    0x210110, // 1
-    0x61f0e0, // 2
-    0x61e170, // 3
-    0xb1e110, // 4
-    0xd0e170, // 5
-    0xd0f1f0, // 6
-    0x610110, // 7
-    0xf1f1f0, // 8
-    0xf1e170, // 9
-    0x51f190, // A
-    0xd1f1e0, // B
-    0xf010f0, // C
-    0xd111e0, // D
-    0xf0f0f0, // E
-    0xf0f080, // F
-    0xf031e0, // G
-    0xb1f190, // H
-    0x444460, // I
-    0x2101f0, // J
-    0xb2d290, // K
-    0x9010f0, // L
-    0xbb5190, // M
-    0xb35990, // N
-    0x511160, // O
-    0x51f080, // P
-    0x511370, // Q
-    0x51f290, // R
-    0x70e1e0, // S
-    0xe44420, // T
-    0xb11160, // U
-    0xb25880, // V
-    0xb15b90, // W
-    0xaa4a90, // X
-    0xaa4420, // Y
-    0xe248f0, // Z
-    0x51f190, // a
-    0xd1f1e0, // b
-    0xf010f0, // c
-    0xd111e0, // d
-    0xf0f0f0, // e
-    0xf0f080, // f
-    0xf031e0, // g
-    0xb1f190, // h
-    0x444460, // i
-    0x2101f0, // j
-    0xb2d290, // k
-    0x9010f0, // l
-    0xbb5190, // m
-    0xb35990, // n
-    0x511160, // o
-    0x51f080, // p
-    0x511370, // q
-    0x51f290, // r
-    0x70e1e0, // s
-    0xe44420, // t
-    0xb11160, // u
-    0xb25880, // v
-    0xb15b90, // w
-    0xaa4a90, // x
-    0xaa4420, // y
-    0xe248f0, // z
-};
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+    uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
+    while (1)
+    {
+        memset(recv_data, 0, BUF_SIZE);
+        int len = usb_serial_jtag_read_bytes(recv_data, BUF_SIZE - 1, 0x20 / portTICK_PERIOD_MS);
+        if (len > 0)
+        {
+            // dotshelper((Dots)((recv_data[0] - '0') % 4));
+            // for (int i = 0; i < 10; i++)
+            //     numhelper(i, recv_data[0]);
+            // for (size_t i = 0; i < 12; i++)
+            //     wavehelper(i, (recv_data[0] - '0') % 9);
+            int index = 0, data = 0;
+
+            sscanf((char *)recv_data, "%d:%X", &index, &data);
+            printf("Parsed numbers: %d and 0x%02X\n", index, data);
+            gram[index] = data;
+            // pt6324_refrash(gram);
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
 
 /**
  * @brief 根据字符查找对应的十六进制编码。
@@ -264,15 +193,12 @@ const unsigned int hex_codes[CHAR_COUNT] = {
  * @param ch 要查找的字符。
  * @return 字符对应的十六进制编码，如果未找到则返回 0。
  */
-unsigned int find_hex_code(char ch)
+unsigned int HNA_16MM65T::find_hex_code(char ch)
 {
-    for (int i = 0; i < CHAR_COUNT; i++)
-    {
-        if (characters[i] == ch)
-        {
-            return hex_codes[i];
-        }
-    }
+    if (ch >= ' ' && ch <= 'Z')
+        return hex_codes[ch - ' '];
+    else if (ch >= 'a' && ch <= 'z')
+        return hex_codes[ch - 'a' + 'A' - ' '];
     return 0;
 }
 
@@ -297,56 +223,17 @@ void HNA_16MM65T::numhelper(int index, char ch)
     gram[NUM_BEGIN + index * 3 + 0] = val & 0xff;
 }
 
-// 每个符号在显示缓冲区中的位置
-SymbolPosition symbolPositions[] = {
-    {0, 2},     // R_OUTER_B
-    {0, 4},     // R_OUTER_A
-    {0, 8},     // R_CENTER
-    {0, 0x10},  // L_OUTER_B
-    {0, 0x20},  // L_OUTER_A
-    {0, 0x40},  // L_CENTER
-    {0, 0x80},  // STEREO
-    {1, 1},     // MONO
-    {1, 2},     // GIGA
-    {1, 4},     // REC_1
-    {1, 8},     // DOT_MATRIX_4_6
-    {1, 0x10},  // DOT_MATRIX_5_2_5_3_6_3
-    {1, 0x20},  // DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6
-    {1, 0x40},  // DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5
-    {1, 0x80},  // DOT_MATRIX_5_4
-    {2, 1},     // DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5
-    {2, 2},     // DOT_MATRIX_2_0_2_4_3_4_4_4
-    {2, 4},     // DOT_MATRIX_4_0
-    {2, 8},     // DOT_MATRIX_2_MINUS1_2_7
-    {2, 0x10},  // USB2
-    {2, 0x20},  // USB1
-    {2, 0x40},  // REC_2
-    {2, 0x80},  // LBAR_RBAR
-    {39, 1},    // CENTER_OUTLAY_BLUEA
-    {39, 2},    // CENTER_OUTLAY_BLUEB
-    {39, 4},    // CENTER_OUTLAY_REDA
-    {39, 8},    // CENTER_OUTLAY_REDB
-    {39, 0x10}, // CENTER_INLAY_BLUER
-    {39, 0x20}, // CENTER_INLAY_BLUET
-    {39, 0x40}, // CENTER_INLAY_BLUEL
-    {39, 0x80}, // CENTER_INLAY_BLUEB
-    {40, 1},    // CENTER_INLAY_RED1
-    {40, 2},    // CENTER_INLAY_RED2
-    {40, 4},    // CENTER_INLAY_RED3
-    {40, 8},    // CENTER_INLAY_RED4
-    {40, 0x10}, // CENTER_INLAY_RED5
-    {40, 0x20}, // CENTER_INLAY_RED6
-    {40, 0x40}, // CENTER_INLAY_RED7
-    {40, 0x80}, // CENTER_INLAY_RED8
-    {41, 1},    // CENTER_INLAY_RED9
-    {41, 2},    // CENTER_INLAY_RED10
-    {41, 4},    // CENTER_INLAY_RED11
-    {41, 8},    // CENTER_INLAY_RED12
-    {41, 0x10}, // CENTER_INLAY_RED13
-    {41, 0x20}, // CENTER_INLAY_RED14
-    {41, 0x40}, // CENTER_INLAY_RED15
-    {41, 0x80}  // CENTER_INLAY_RED16
-};
+void HNA_16MM65T::numhelper(int index, uint32_t code)
+{
+    // 检查索引是否越界
+    if (index >= 10)
+        return;
+    // 更新显示缓冲区
+    gram[NUM_BEGIN + index * 3 + 2] = code >> 16;
+    gram[NUM_BEGIN + index * 3 + 1] = code >> 8;
+    gram[NUM_BEGIN + index * 3 + 0] = code & 0xff;
+}
+
 /**
  * @brief 根据符号枚举值查找其在显示缓冲区中的位置。
  *
@@ -357,7 +244,7 @@ SymbolPosition symbolPositions[] = {
  * @param byteIndex 指向一个整数的指针，用于存储符号所在的字节索引。
  * @param bitIndex 指向一个整数的指针，用于存储符号所在的位索引。
  */
-void find_enum_code(Symbols flag, int *byteIndex, int *bitIndex)
+void HNA_16MM65T::find_enum_code(Symbols flag, int *byteIndex, int *bitIndex)
 {
     *byteIndex = symbolPositions[flag].byteIndex;
     *bitIndex = symbolPositions[flag].bitIndex;
