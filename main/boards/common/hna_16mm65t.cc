@@ -5,6 +5,7 @@
 #include <freertos/task.h>
 #include <string.h>
 #include <esp_log.h>
+#include "application.h"
 
 // 定义日志标签
 #define TAG "HNA_16MM65T"
@@ -27,6 +28,7 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
         {
             // 将参数转换为 HNA_16MM65T 指针
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
+            vfd->symbolhelper(LBAR_RBAR, true);
             while (true)
             {
                 // 刷新显示
@@ -62,6 +64,8 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
 void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 {
 #if true
+    if (size < 512)
+        return;
     // 定义每个频段的增益系数
     static float fft_gain[FFT_SIZE] = {1.8f, 1.8f, 1.8f, 1.8f, 2.4f, 2.4f, 2.8f, 2.8f, 3.0f, 3.0f, 3.0f, 3.0f};
     // 定义每个频段的显示位置映射
@@ -78,8 +82,8 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
         int max_val = 0;
         for (int j = 0; j < elements_per_part; j++)
         {
-            if (max_val < buf[(i + 2) * elements_per_part + j])
-                max_val = buf[(i + 2) * elements_per_part + j];
+            if (max_val < buf[(i + 3) * elements_per_part + j])
+                max_val = buf[(i + 3) * elements_per_part + j];
         }
         fft_buf[i] = max_val;
         // 更新最大幅度值
@@ -406,5 +410,51 @@ void HNA_16MM65T::wavehelper(int index, int level)
             bitIndex >>= 8;
             byteIndex++;
         }
+    }
+}
+void HNA_16MM65T::OnStateChanged()
+{
+    auto &app = Application::GetInstance();
+    auto device_state = app.GetDeviceState();
+    symbolhelper(GIGA, false);
+    symbolhelper(MONO, false);
+    symbolhelper(STEREO, false);
+    symbolhelper(REC_1, false);
+    symbolhelper(REC_2, false);
+    symbolhelper(USB1, false);
+    dotshelper(DOT_MATRIX_PAUSE);
+    switch (device_state)
+    {
+    case kDeviceStateStarting:
+        symbolhelper(GIGA, true);
+        break;
+    case kDeviceStateWifiConfiguring:
+        symbolhelper(MONO, true);
+        break;
+    case kDeviceStateIdle:
+        break;
+    case kDeviceStateConnecting:
+        symbolhelper(STEREO, true);
+        break;
+    case kDeviceStateListening:
+        if (app.IsVoiceDetected())
+        {
+            symbolhelper(REC_1, true);
+            symbolhelper(REC_2, true);
+        }
+        else
+        {
+            symbolhelper(REC_2, true);
+        }
+        break;
+    case kDeviceStateSpeaking:
+        dotshelper(DOT_MATRIX_NEXT);
+        break;
+    case kDeviceStateUpgrading:
+        symbolhelper(USB1, true);
+        break;
+    default:
+        ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+        return;
     }
 }

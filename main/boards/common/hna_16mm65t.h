@@ -18,6 +18,7 @@
 // 引入 ESP32 Wi-Fi 相关库
 #include <esp_wifi.h>
 #include "display.h"
+#include "led/led.h"
 
 // 定义字符数量
 #define CHAR_COUNT (62 + 1)
@@ -122,7 +123,7 @@ typedef struct
  *
  * 提供了显示频谱、数字、符号、点矩阵等信息的方法，同时支持动画效果。
  */
-class HNA_16MM65T : public PT6324Writer, public Display
+class HNA_16MM65T : public PT6324Writer, public Display, public Led
 {
     // 定义缓冲区 数量
 #define BUF_SIZE (1024)
@@ -548,6 +549,8 @@ public:
      * @brief 测试方法，用于测试显示功能。
      */
     void cali();
+
+    void OnStateChanged();
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;

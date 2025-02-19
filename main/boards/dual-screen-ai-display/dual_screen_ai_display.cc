@@ -268,7 +268,7 @@ public:
         // std::string logMessage = ss.str();
         // auto sdcard = Board::GetInstance().GetSdcard();
         // sdcard->Write("/sdcard/log.txt", logMessage.c_str());
-        //ESP_LOGI(TAG, "%s", logMessage.c_str());
+        // ESP_LOGI(TAG, "%s", logMessage.c_str());
 
         DisplayLockGuard lock(this);
         if (labelContainer.size() >= 10)
@@ -625,8 +625,7 @@ public:
 
     virtual Led *GetLed() override
     {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
+        return vfd_;
     }
 
     virtual float GetBarometer() override
@@ -742,11 +741,14 @@ public:
         rx8900_read_time(rx8900, &time_user);
         char time_str[7];
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
-        HNA_16MM65T* vfd = (HNA_16MM65T *)GetSubDisplay();
+        HNA_16MM65T *vfd = (HNA_16MM65T *)GetSubDisplay();
         vfd->number_show(4, time_str, 6);
         vfd->symbolhelper(NUM6_MARK, time_mark);
         vfd->symbolhelper(NUM8_MARK, time_mark);
         time_mark = !time_mark;
+        const char *weekDays[7] = {
+            "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+        vfd->number_show(0, (char *)weekDays[time_user.tm_wday % 7], 3);
         // char time_str[50];
         // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
         // ESP_LOGI(TAG, "The time is: %s", time_str);
