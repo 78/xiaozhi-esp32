@@ -63,7 +63,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 {
 #if true
     // 定义每个频段的增益系数
-    static float fft_gain[FFT_SIZE] = {4.0f, 3.0f, 3.0f, 3.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f, 2.0f};
+    static float fft_gain[FFT_SIZE] = {1.8f, 1.8f, 1.8f, 1.8f, 2.4f, 2.4f, 2.8f, 2.8f, 3.0f, 3.0f, 3.0f, 3.0f};
     // 定义每个频段的显示位置映射
     static uint8_t fft_postion[FFT_SIZE] = {0, 2, 4, 6, 8, 10, 11, 9, 7, 5, 3, 1};
     // 记录最大幅度值
@@ -71,16 +71,17 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     // 存储每个频段的平均幅度值
     float fft_buf[FFT_SIZE];
     // 计算每个频段包含的数据元素数量
-    int elements_per_part = size / 2 / 12;
-
+    int elements_per_part = size / 4 / 12;
     // 计算每个频段的平均幅度值
     for (int i = 0; i < FFT_SIZE; i++)
     {
-        fft_buf[i] = 0;
+        int max_val = 0;
         for (int j = 0; j < elements_per_part; j++)
         {
-            fft_buf[i] += buf[i * elements_per_part + j] / elements_per_part;
+            if (max_val < buf[(i + 2) * elements_per_part + j])
+                max_val = buf[(i + 2) * elements_per_part + j];
         }
+        fft_buf[i] = max_val;
         // 更新最大幅度值
         if (max < fft_buf[i])
         {
@@ -89,7 +90,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 
         // 确保幅度值非负，并应用增益
         if (fft_buf[i] < 0)
-            fft_buf[i] = 0;
+            fft_buf[i] = -fft_buf[i];
         else
             fft_buf[i] *= fft_gain[i];
     }
@@ -105,16 +106,16 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
         wave_animation_steps[i] = 0;
     }
     // 打印最大幅度值和每个频段的目标值
-    // ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, target_values[0], target_values[1], target_values[2], target_values[3], target_values[4], target_values[5],
-    //          target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
+    // ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, wave_target_values[0], wave_target_values[1], wave_target_values[2], wave_target_values[3], wave_target_values[4], wave_target_values[5],
+    //          wave_target_values[6], wave_target_values[7], wave_target_values[8], wave_target_values[9], wave_target_values[10], wave_target_values[11]);
 }
 
-void HNA_16MM65T::number_show(char *buf, int size, NumAni ani)
+void HNA_16MM65T::number_show(int start, char *buf, int size, NumAni ani)
 {
     number_animation_type = ani;
-    for (size_t i = 0; i < size && i < NUM_SIZE; i++)
+    for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
     {
-        number_buf[i] = buf[i];
+        number_buf[start + i] = buf[i];
     }
 }
 
@@ -149,12 +150,12 @@ void HNA_16MM65T::test()
                     start_time = current_time;
                 }
 
-                snprintf(tempstr, NUM_SIZE, "ABC%dDEF", (rollcounter++)%100);
-                vfd->number_show(tempstr, NUM_SIZE, num_ani);
+                snprintf(tempstr, NUM_SIZE, "ABC%dDEF", (rollcounter++) % 100);
+                vfd->number_show(0, tempstr, NUM_SIZE, num_ani);
 
-                for (int i = 0; i < FFT_SIZE; i++)
-                    testbuff[i] = rand() % 100;
-                vfd->spectrum_show(testbuff, FFT_SIZE);
+                // for (int i = 0; i < FFT_SIZE; i++)
+                //     testbuff[i] = rand() % 100;
+                // vfd->spectrum_show(testbuff, FFT_SIZE);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
             // 删除当前任务
@@ -197,6 +198,15 @@ void HNA_16MM65T::cali()
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
+}
+
+bool HNA_16MM65T::Lock(int timeout_ms)
+{
+    return true;
+}
+
+void HNA_16MM65T::Unlock()
+{
 }
 
 /**

@@ -37,10 +37,7 @@ public:
     virtual float GetBarometer() {return 0;}
     virtual float GetTemperature() {return 0;}
     virtual Display* GetDisplay();
-    virtual HNA_16MM65T *GetFFTPresenter()
-    {
-        return NULL;
-    }
+    virtual Display* GetSubDisplay();
     virtual Sdcard* GetSdcard();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
@@ -49,6 +46,7 @@ public:
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging);
+    virtual bool TimeUpdate();
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
 };

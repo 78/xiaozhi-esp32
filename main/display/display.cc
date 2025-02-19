@@ -42,7 +42,7 @@ Display::Display()
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 500000));
 }
 
 Display::~Display() {
@@ -142,6 +142,8 @@ void Display::Update() {
             lv_label_set_text(battery_label_, battery_icon_);
         }
     }
+
+    board.TimeUpdate();
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();

@@ -15,10 +15,20 @@ bool Board::GetBatteryLevel(int &level, bool& charging) {
     return false;
 }
 
+bool Board::TimeUpdate()
+{
+    return false;
+}
+
 Display *Board::GetDisplay()
 {
     static NoDisplay display;
     return &display;
+}
+
+Display *Board::GetSubDisplay()
+{
+    return nullptr;
 }
 
 Sdcard *Board::GetSdcard()

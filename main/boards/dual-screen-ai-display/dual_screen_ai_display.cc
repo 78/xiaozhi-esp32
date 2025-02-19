@@ -350,7 +350,7 @@ private:
     Encoder volume_encoder_;
     // SystemReset system_reset_;
     CustomLcdDisplay *display_;
-    HNA_16MM65T *vfd;
+    HNA_16MM65T *vfd_;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -466,8 +466,8 @@ private:
             .queue_size = 7,
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
-        vfd = new HNA_16MM65T(spidevice);
-        vfd->test();
+        vfd_ = new HNA_16MM65T(spidevice);
+        // vfd_->test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
@@ -668,9 +668,9 @@ public:
         return display_;
     }
 
-    virtual HNA_16MM65T *GetFFTPresenter() override
+    virtual Display *GetSubDisplay() override
     {
-        return vfd;
+        return vfd_;
     }
 
     // virtual Sdcard *GetSdcard() override
@@ -732,10 +732,21 @@ public:
             last_charging = charging;
             // ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
-        // static struct tm time_user;
-        // rx8900_read_time(rx8900, &time_user);
-        // ((CustomLcdDisplay *)GetDisplay())->UpdateTime(&time_user);
+        return true;
+    }
 
+    virtual bool TimeUpdate() override
+    {
+        static bool time_mark = true;
+        static struct tm time_user;
+        rx8900_read_time(rx8900, &time_user);
+        char time_str[7];
+        strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
+        HNA_16MM65T* vfd = (HNA_16MM65T *)GetSubDisplay();
+        vfd->number_show(4, time_str, 6);
+        vfd->symbolhelper(NUM6_MARK, time_mark);
+        vfd->symbolhelper(NUM8_MARK, time_mark);
+        time_mark = !time_mark;
         // char time_str[50];
         // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
         // ESP_LOGI(TAG, "The time is: %s", time_str);

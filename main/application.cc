@@ -445,7 +445,7 @@ void Application::Start()
     wake_word_detect_.StartDetection();
     fft_dsp_processor_.Initialize();
     fft_dsp_processor_.OnOutput([this](std::vector<float> &&data) {
-        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetFFTPresenter();
+        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetSubDisplay();
         // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
         vfd->spectrum_show(data.data(),data.size()); });
 
@@ -600,10 +600,10 @@ void Application::InputAudio()
     }
 
 #if CONFIG_USE_AUDIO_PROCESSING
+fft_dsp_processor_.Input(data);
     if (audio_processor_.IsRunning())
     {
         audio_processor_.Input(data);
-        fft_dsp_processor_.Input(data);
     }
     if (wake_word_detect_.IsDetectionRunning())
     {

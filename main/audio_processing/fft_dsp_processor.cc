@@ -8,10 +8,6 @@ static const char *TAG = "FFTDspProcessor";
 
 FFTDspProcessor::FFTDspProcessor()
 {
-}
-
-void FFTDspProcessor::Initialize()
-{
     // Init esp-dsp library to use fft functionality
     ESP_LOGI(TAG, "FFT Initialize");
     esp_err_t ret = dsps_fft2r_init_sc16(NULL, CONFIG_DSP_MAX_FFT_SIZE);
@@ -32,6 +28,10 @@ void FFTDspProcessor::Initialize()
         auto this_ = (FFTDspProcessor*)arg;
         this_->FFTDspProcessorTask();
         vTaskDelete(NULL); }, "fft_dsp_communication", 4096 * 1, this, 1, NULL);
+}
+
+void FFTDspProcessor::Initialize()
+{
 }
 
 FFTDspProcessor::~FFTDspProcessor()
