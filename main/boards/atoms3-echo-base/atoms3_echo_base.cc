@@ -1,12 +1,12 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "display/no_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -110,9 +110,9 @@ private:
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
-        display_->SetStatus("错误");
+        display_->SetStatus(Lang::Strings::ERROR);
         display_->SetEmotion("sad");
-        display_->SetChatMessage("system", "Echo Base\n未连接");
+        display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {
             ESP_LOGE(TAG, "Atomic Echo Base is disconnected");

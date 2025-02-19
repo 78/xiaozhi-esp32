@@ -9,13 +9,13 @@ config OTA_VERSION_URL
 
 choice
     prompt "语言选择"
-    default LANGUAGE_ZH
+    default LANGUAGE_ZH_CN
     help
         Select device display language
         
-    config LANGUAGE_ZH
+    config LANGUAGE_ZH_CN
         bool "Chinese"
-    config LANGUAGE_EN
+    config LANGUAGE_EN_US
         bool "English"
 endchoice
 

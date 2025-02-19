@@ -6,18 +6,20 @@ import os
 HEADER_TEMPLATE = """// Auto-generated language config
 #pragma once
 
-#include <string>
 #include <string_view>
 
 namespace Lang {{
     // 语言元数据
-    constexpr std::string_view CODE_VIEW = "{lang_code}";
-    const std::string CODE = std::string(CODE_VIEW);
+    constexpr const char* CODE = "{lang_code}";
 
     // 字符串资源
     namespace Strings {{
-{strings_view}
-{strings_string}
+{strings}
+    }}
+
+    // 音效资源
+    namespace Sounds {{
+{sounds}
     }}
 }}
 """
@@ -33,18 +35,29 @@ def generate_header(input_path, output_path):
     lang_code = data['language']['type']
 
     # 生成字符串常量
-    strings_view = []
-    strings_string = []
+    strings = []
+    sounds = []
     for key, value in data['strings'].items():
         value = value.replace('"', '\\"')
-        strings_view.append(f'        constexpr std::string_view {key.upper()}_VIEW = "{value}";')
-        strings_string.append(f'        const std::string {key.upper()} = std::string({key.upper()}_VIEW);')
+        strings.append(f'        constexpr const char* {key.upper()} = "{value}";')
+
+    # 生成音效常量
+    for file in os.listdir(os.path.dirname(input_path)):
+        if file.endswith('.p3'):
+            base_name = os.path.splitext(file)[0]
+            sounds.append(f'''
+        extern const char p3_{base_name}_start[] asm("_binary_{base_name}_p3_start");
+        extern const char p3_{base_name}_end[] asm("_binary_{base_name}_p3_end");
+        static const std::string_view P3_{base_name.upper()} {{
+        static_cast<const char*>(p3_{base_name}_start),
+        static_cast<size_t>(p3_{base_name}_end - p3_{base_name}_start)
+        }};''')
 
     # 填充模板
     content = HEADER_TEMPLATE.format(
         lang_code=lang_code,
-        strings_view="\n".join(sorted(strings_view)),
-        strings_string="\n".join(sorted(strings_string))
+        strings="\n".join(sorted(strings)),
+        sounds="\n".join(sorted(sounds))
     )
 
     # 写入文件

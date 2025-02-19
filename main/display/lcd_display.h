@@ -45,7 +45,7 @@ public:
                   DisplayFonts fonts);
     ~LcdDisplay();
 
-    virtual void SetEmotion(const std::string &emotion) override;
+    virtual void SetEmotion(const char* emotion) override;
     virtual void SetIcon(const char* icon) override;
     virtual void SetBacklight(uint8_t brightness) override;
 };

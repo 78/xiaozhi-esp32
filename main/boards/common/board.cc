@@ -2,6 +2,7 @@
 #include "system_info.h"
 #include "settings.h"
 #include "display/no_display.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -99,6 +100,7 @@ std::string Board::GetJson() {
     */
     std::string json = "{";
     json += "\"version\":2,";
+    json += "\"language\":\"" + std::string(Lang::CODE) + "\",";
     json += "\"flash_size\":" + std::to_string(SystemInfo::GetFlashSize()) + ",";
     json += "\"minimum_free_heap_size\":" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) + ",";
     json += "\"mac_address\":\"" + SystemInfo::GetMacAddress() + "\",";

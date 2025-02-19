@@ -115,6 +115,18 @@ if(CONFIG_USE_AUDIO_PROCESSING)
     list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
 endif()
 
+# 根据Kconfig选择语言目录
+if(CONFIG_LANGUAGE_ZH_CN)
+    set(LANG_DIR "zh-CN")
+elseif(CONFIG_LANGUAGE_EN_US)
+    set(LANG_DIR "en-US")
+endif()
+
+# 定义生成路径
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
+set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
+file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
+
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
     # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
@@ -122,8 +134,6 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/cores3_audio_codec.cc"
                              "audio_codecs/es8388_audio_codec.cc")
 endif()
-
-file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/zh/*.p3)
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${ASSETS}
@@ -135,17 +145,6 @@ idf_component_register(SRCS ${SOURCES}
 target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\"
                     )
-
-# 根据Kconfig选择语言目录
-if(CONFIG_LANGUAGE_ZH)
-    set(LANG_DIR "zh")
-elseif(CONFIG_LANGUAGE_EN)
-    set(LANG_DIR "en-US")
-endif()
-
-# 定义生成路径
-set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
-set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
 
 # 添加生成规则
 add_custom_command(

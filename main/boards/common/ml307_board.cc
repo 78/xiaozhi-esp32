@@ -3,7 +3,7 @@
 #include "application.h"
 #include "display.h"
 #include "font_awesome_symbols.h"
-#include "assets/zh/binary.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -25,7 +25,7 @@ std::string Ml307Board::GetBoardType() {
 
 void Ml307Board::StartNetwork() {
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus("检测模组...");
+    display->SetStatus(Lang::Strings::DETECTING_MODULE);
     modem_.SetDebug(false);
     modem_.SetBaudRate(921600);
 
@@ -45,13 +45,13 @@ void Ml307Board::StartNetwork() {
 void Ml307Board::WaitForNetworkReady() {
     auto& application = Application::GetInstance();
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus("等待网络...");
+    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
-        application.Alert("PIN_ERROR", "请插入SIM卡", "sad", std::string_view(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start));
+        application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::P3_ERR_PIN);
         return;
     } else if (result == -2) {
-        application.Alert("REG_ERROR", "无法接入网络，请检查流量卡状态", "sad", std::string_view(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start));
+        application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::P3_ERR_REG);
         return;
     }
 
