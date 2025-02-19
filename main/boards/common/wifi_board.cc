@@ -41,6 +41,7 @@ void WifiBoard::EnterWifiConfigMode() {
     application.SetDeviceState(kDeviceStateWifiConfiguring);
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
+    wifi_ap.SetLanguage(Lang::CODE);
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
 
