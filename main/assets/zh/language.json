@@ -1,0 +1,34 @@
+{
+    "language": {
+        "type" :"zh"
+    },
+    "strings": {
+        "LANG_TXT_VERSION": "版本",
+        "LANG_TXT_LOADING_PROTOCOL":"加载协议",
+        "LANG_TXT_INITIALIZING":"正在初始化",
+        "LANG_TXT_NOTICE":"通知",
+
+        "LANG_TXT_STANDING_BY":"待命",
+        "LANG_TXT_CONNECT":"连接",
+        "LANG_TXT_CONNECTING":"连接中",
+        "LANG_TXT_CONNECTION_SUCCESSFUL":"连接成功",
+
+        "LANG_TXT_LISTENING":"聆听中",
+        "LANG_TXT_SPEAKING":"说话中",
+
+        "LANG_TXT_UNABLE_TO_CONNECT_TO_SERVICE":"无法连接服务",
+        "LANG_TXT_WAITING_FOR_RESPONSE_TIMEOUT":"等待响应超时",
+        "LANG_TXT_SENDING_FAILED_PLEASE_CHECK_THE_NETWORK":"发送失败，请检查网络",
+
+
+
+        "LANG_TXT_CONNECT_MOBILE_PHONE_TO_HOTSPOT":"手机连接热点",
+        "LANG_TXT_ACCESS_VIA_BROWSER":"浏览器访问",
+        "LANG_TXT_WIFI_CONFIGURATION_MODE":"配网模式",
+        "LANG_TXT_SCANNING_WIFI":"扫描 WIFI",
+
+        "LANG_TXT_UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "无法建立音频通道",
+        "LANG_TXT_TEST":"测试"
+
+    }
+}

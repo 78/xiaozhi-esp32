@@ -9,6 +9,7 @@
 #include "font_awesome_symbols.h"
 #include "iot/thing_manager.h"
 #include "assets/zh/binary.h"
+#include "assets/lang_config.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -117,7 +118,7 @@ void Application::CheckNewVersion() {
 
         // No new version, mark the current version as valid
         ota_.MarkCurrentVersionValid();
-        display->ShowNotification("版本 " + ota_.GetCurrentVersion());
+        display->ShowNotification(LANG_TXT_VERSION + " " + ota_.GetCurrentVersion());
     
         if (ota_.HasActivationCode()) {
             // Activation code is valid
@@ -218,7 +219,7 @@ void Application::ToggleChatState() {
         if (device_state_ == kDeviceStateIdle) {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
-                Alert("ERROR", "无法建立音频通道", "sad");
+                Alert("ERROR", LANG_TXT_UNABLE_TO_ESTABLISH_AUDIO_CHANNEL, "sad");
                 SetDeviceState(kDeviceStateIdle);
                 return;
             }
@@ -252,7 +253,7 @@ void Application::StartListening() {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
                     SetDeviceState(kDeviceStateIdle);
-                    Alert("ERROR", "无法建立音频通道", "sad");
+                    Alert("ERROR", LANG_TXT_UNABLE_TO_ESTABLISH_AUDIO_CHANNEL, "sad");
                     return;
                 }
             }
@@ -326,7 +327,7 @@ void Application::Start() {
     board.StartNetwork();
 
     // Initialize the protocol
-    display->SetStatus("加载协议...");
+    display->SetStatus(LANG_TXT_LOADING_PROTOCOL + "...");
 #ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
     protocol_ = std::make_unique<WebsocketProtocol>();
 #else
@@ -662,18 +663,18 @@ void Application::SetDeviceState(DeviceState state) {
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
-            display->SetStatus("待命");
+            display->SetStatus(LANG_TXT_STANDING_BY);
             display->SetEmotion("neutral");
 #ifdef CONFIG_USE_AUDIO_PROCESSING
             audio_processor_.Stop();
 #endif
             break;
         case kDeviceStateConnecting:
-            display->SetStatus("连接中...");
+            display->SetStatus(LANG_TXT_CONNECTING + "...");
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
-            display->SetStatus("聆听中...");
+            display->SetStatus(LANG_TXT_LISTENING + "...");
             display->SetEmotion("neutral");
             ResetDecoder();
             opus_encoder_->ResetState();
@@ -683,7 +684,7 @@ void Application::SetDeviceState(DeviceState state) {
             UpdateIotStates();
             break;
         case kDeviceStateSpeaking:
-            display->SetStatus("说话中...");
+            display->SetStatus(LANG_TXT_SPEAKING + "...");
             ResetDecoder();
             codec->EnableOutput(true);
 #if CONFIG_USE_AUDIO_PROCESSING

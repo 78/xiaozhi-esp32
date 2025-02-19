@@ -7,6 +7,7 @@
 #include <cJSON.h>
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include "assets/lang_config.h"
 
 #define TAG "WS"
 
@@ -98,7 +99,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     if (!websocket_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         if (on_network_error_ != nullptr) {
-            on_network_error_("无法连接服务");
+            on_network_error_(LANG_TXT_UNABLE_TO_CONNECT_TO_SERVICE);
         }
         return false;
     }
@@ -119,7 +120,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
         if (on_network_error_ != nullptr) {
-            on_network_error_("等待响应超时");
+            on_network_error_(LANG_TXT_WAITING_FOR_RESPONSE_TIMEOUT);
         }
         return false;
     }
