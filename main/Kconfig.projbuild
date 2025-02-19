@@ -6,6 +6,20 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+
+choice
+    prompt "语言选择"
+    default LANGUAGE_ZH
+    help
+        Select device display language
+        
+    config LANGUAGE_ZH
+        bool "Chinese"
+    config LANGUAGE_EN
+        bool "English"
+endchoice
+
+
 choice CONNECTION_TYPE
     prompt "Connection Type"
     default CONNECTION_TYPE_MQTT_UDP

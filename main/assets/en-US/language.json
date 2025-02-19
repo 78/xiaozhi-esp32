@@ -1,0 +1,34 @@
+{
+    "language": {
+        "type" :"en"
+    },
+    "strings": {
+        "LANG_TXT_VERSION": "Version",
+        "LANG_TXT_LOADING_PROTOCOL":"Loading Protocol",
+        "LANG_TXT_INITIALIZING":"Initializing",
+        "LANG_TXT_NOTICE":"Notice",
+
+        "LANG_TXT_STANDING_BY":"Standing By",
+        "LANG_TXT_CONNECT":"Connect",
+        "LANG_TXT_CONNECTING":"Connecting",
+        "LANG_TXT_CONNECTION_SUCCESSFUL":"Connection Successful",
+
+        "LANG_TXT_LISTENING":"Listening",
+        "LANG_TXT_SPEAKING":"Speaking",
+
+        "LANG_TXT_UNABLE_TO_CONNECT_TO_SERVICE":"Unable to connect to service",
+        "LANG_TXT_WAITING_FOR_RESPONSE_TIMEOUT":"Waiting for response timeout",
+        "LANG_TXT_SENDING_FAILED_PLEASE_CHECK_THE_NETWORK":"Sending failed, please check the network",
+
+
+
+        "LANG_TXT_CONNECT_MOBILE_PHONE_TO_HOTSPOT":"Connect mobile phone to hotspot",
+        "LANG_TXT_ACCESS_VIA_BROWSER":"Access via browser",
+        "LANG_TXT_WIFI_CONFIGURATION_MODE":"Wi-Fi Configuration Mode",
+        "LANG_TXT_SCANNING_WIFI":"Scanning Wi-Fi",
+
+        "LANG_TXT_UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "Unable to establish audio channel",
+        "LANG_TXT_TEST":"Test"
+
+    }
+}
