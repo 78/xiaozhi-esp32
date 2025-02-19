@@ -14,11 +14,19 @@
 
 #include <atomic>
 
+enum LcdType {
+    RGB_LCD,
+    MIPI_LCD,
+    SPI_LCD,
+    QSPI_LCD,
+    MCU8080_LCD
+};
 class LcdDisplay : public Display {
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     gpio_num_t backlight_pin_ = GPIO_NUM_NC;
+    int lcd_type_;
     bool backlight_output_invert_ = false;
     
     lv_draw_buf_t draw_buf_;
@@ -41,7 +49,7 @@ protected:
 public:
     LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                   gpio_num_t backlight_pin, bool backlight_output_invert,
-                  int width, int height,  int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
+                  int width, int height,  int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy, int lcd_type,
                   DisplayFonts fonts);
     ~LcdDisplay();
 

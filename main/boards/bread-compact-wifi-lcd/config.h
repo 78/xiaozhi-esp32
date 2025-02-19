@@ -42,6 +42,8 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_45
 #define DISPLAY_CS_PIN        GPIO_NUM_41
 
+#define DISPLAY_LCD_TYPE  SPI_LCD
+
 
 
 

@@ -35,6 +35,8 @@
 
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
+#define DISPLAY_LCD_TYPE  SPI_LCD
+
 #define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y true
 #define DISPLAY_SWAP_XY false
