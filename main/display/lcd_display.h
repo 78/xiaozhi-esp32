@@ -26,7 +26,6 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
-    lv_obj_t* chat_message_label_ = nullptr;
 
     DisplayFonts fonts_;
 
@@ -46,7 +45,6 @@ public:
                   DisplayFonts fonts);
     ~LcdDisplay();
 
-    virtual void SetChatMessage(const std::string &role, const std::string &content) override;
     virtual void SetEmotion(const std::string &emotion) override;
     virtual void SetIcon(const char* icon) override;
     virtual void SetBacklight(uint8_t brightness) override;

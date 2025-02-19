@@ -13,6 +13,8 @@ private:
 
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;
+    lv_obj_t* content_left_ = nullptr;
+    lv_obj_t* content_right_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
 
@@ -29,6 +31,8 @@ public:
     Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
                    const lv_font_t* text_font, const lv_font_t* icon_font);
     ~Ssd1306Display();
+
+    virtual void SetChatMessage(const std::string &role, const std::string &content);
 };
 
 #endif // SSD1306_DISPLAY_H

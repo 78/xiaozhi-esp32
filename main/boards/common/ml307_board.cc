@@ -3,6 +3,7 @@
 #include "application.h"
 #include "display.h"
 #include "font_awesome_symbols.h"
+#include "assets/zh/binary.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -24,7 +25,7 @@ std::string Ml307Board::GetBoardType() {
 
 void Ml307Board::StartNetwork() {
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus("初始化模块");
+    display->SetStatus("检测模组...");
     modem_.SetDebug(false);
     modem_.SetBaudRate(921600);
 
@@ -47,10 +48,10 @@ void Ml307Board::WaitForNetworkReady() {
     display->SetStatus("等待网络...");
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
-        application.Alert("Error", "请插入SIM卡");
+        application.Alert("PIN_ERROR", "请插入SIM卡", "sad", std::string_view(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start));
         return;
     } else if (result == -2) {
-        application.Alert("Error", "无法接入网络，请检查流量卡状态");
+        application.Alert("REG_ERROR", "无法接入网络，请检查流量卡状态", "sad", std::string_view(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start));
         return;
     }
 

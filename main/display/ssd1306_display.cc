@@ -132,6 +132,23 @@ void Ssd1306Display::Unlock() {
     lvgl_port_unlock();
 }
 
+void Ssd1306Display::SetChatMessage(const std::string &role, const std::string &content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
+    if (content_right_ == nullptr) {
+        lv_label_set_text(chat_message_label_, content.c_str());
+    } else {
+        if (content.empty()) {
+            lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_label_set_text(chat_message_label_, content.c_str());
+            lv_obj_clear_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
 void Ssd1306Display::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
@@ -149,20 +166,46 @@ void Ssd1306Display::SetupUI_128x64() {
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, 18);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, 16);
+    lv_obj_set_style_border_width(status_bar_, 0, 0);
+    lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(status_bar_, 0, 0);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_style_pad_all(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_flex_main_place(content_, LV_FLEX_ALIGN_CENTER, 0);
 
-    emotion_label_ = lv_label_create(content_);
+    // 创建左侧固定宽度的容器
+    content_left_ = lv_obj_create(content_);
+    lv_obj_set_size(content_left_, 32, LV_SIZE_CONTENT);  // 固定宽度32像素
+    lv_obj_set_style_pad_all(content_left_, 0, 0);
+    lv_obj_set_style_border_width(content_left_, 0, 0);
+    
+    emotion_label_ = lv_label_create(content_left_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
     lv_obj_center(emotion_label_);
+    lv_obj_set_style_pad_top(emotion_label_, 8, 0);
+
+    // 创建右侧可扩展的容器
+    content_right_ = lv_obj_create(content_);
+    lv_obj_set_size(content_right_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(content_right_, 0, 0);
+    lv_obj_set_style_border_width(content_right_, 0, 0);
+    lv_obj_set_flex_grow(content_right_, 1);
+    lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+
+    chat_message_label_ = lv_label_create(content_right_);
+    lv_label_set_text(chat_message_label_, "");
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(chat_message_label_, lv_pct(100));
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_LEFT, 0);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -250,17 +293,19 @@ void Ssd1306Display::SetupUI_128x32() {
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
 
-    status_label_ = lv_label_create(side_bar_);
-    lv_obj_set_flex_grow(status_label_, 1);
-    lv_obj_set_width(status_label_, width_ - 32);
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    status_label_ = lv_label_create(status_bar_);
+    lv_obj_set_style_pad_left(status_label_, 2, 0);
     lv_label_set_text(status_label_, "正在初始化");
 
-    notification_label_ = lv_label_create(side_bar_);
-    lv_obj_set_flex_grow(notification_label_, 1);
-    lv_obj_set_width(notification_label_, width_ - 32);
-    lv_label_set_long_mode(notification_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    notification_label_ = lv_label_create(status_bar_);
     lv_label_set_text(notification_label_, "通知");
+    lv_obj_set_style_pad_left(notification_label_, 2, 0);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+
+    chat_message_label_ = lv_label_create(side_bar_);
+    lv_obj_set_flex_grow(chat_message_label_, 1);
+    lv_obj_set_width(chat_message_label_, width_ - 32);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_text(chat_message_label_, "");
 }
 

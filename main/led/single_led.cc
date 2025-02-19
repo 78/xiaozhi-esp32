@@ -151,8 +151,12 @@ void SingleLed::OnStateChanged() {
             SetColor(0, DEFAULT_BRIGHTNESS, 0);
             StartContinuousBlink(100);
             break;
+        case kDeviceStateActivating:
+            SetColor(0, DEFAULT_BRIGHTNESS, 0);
+            StartContinuousBlink(500);
+            break;
         default:
-            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
             return;
     }
 }

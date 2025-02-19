@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kevin-box-2",
+            "sdkconfig_append": []
+        }
+    ]
+}

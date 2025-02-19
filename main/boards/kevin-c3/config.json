@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "kevin-c3",
+            "sdkconfig_append": []
+        }
+    ]
+}

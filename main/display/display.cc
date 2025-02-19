@@ -210,6 +210,11 @@ void Display::SetIcon(const char* icon) {
 }
 
 void Display::SetChatMessage(const std::string &role, const std::string &content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
+    lv_label_set_text(chat_message_label_, content.c_str());
 }
 
 void Display::SetBacklight(uint8_t brightness) {

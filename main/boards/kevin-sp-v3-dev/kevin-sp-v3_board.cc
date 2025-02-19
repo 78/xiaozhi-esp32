@@ -6,15 +6,16 @@
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
-#include <esp_log.h>
-#include <driver/i2c_master.h>
-#include <esp_lcd_panel_vendor.h>
-#define TAG "kevin-sp-v3"
 
+#include <esp_log.h>
+#include <esp_lcd_panel_vendor.h>
+#include <driver/i2c_master.h>
+#include <wifi_station.h>
+
+#define TAG "kevin-sp-v3"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
@@ -22,14 +23,12 @@ LV_FONT_DECLARE(font_awesome_20_4);
 
 // class KEVIN_SP_V3Board : public Ml307Board {
 class KEVIN_SP_V3Board : public WifiBoard {
-
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
 
-    void InitializeSpi()
-    {
+    void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_47;
         buscfg.miso_io_num = GPIO_NUM_NC;
@@ -40,8 +39,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeButtons()
-    {
+    void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -55,8 +53,8 @@ private:
             Application::GetInstance().StopListening();
         });
     }
-    void InitializeSt7789Display()
-    {
+
+    void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -92,6 +90,7 @@ private:
                                 .emoji_font = font_emoji_64_init(),
                             });
     }
+
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -103,8 +102,7 @@ private:
 public:
     KEVIN_SP_V3Board() : 
     // Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
-    boot_button_(BOOT_BUTTON_GPIO)
-    {
+    boot_button_(BOOT_BUTTON_GPIO) {
         ESP_LOGI(TAG, "Initializing KEVIN_SP_V3 Board");
 
         InitializeSpi();
@@ -119,16 +117,14 @@ public:
         return &led;
     }
 
-    virtual AudioCodec *GetAudioCodec() override
-    {
+    virtual AudioCodec *GetAudioCodec() override {
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
         return &audio_codec;
     }
 
 
-    virtual Display *GetDisplay() override
-    {
+    virtual Display *GetDisplay() override {
         return display_;
     }
 };

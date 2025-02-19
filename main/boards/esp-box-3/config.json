@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-box-3",
+            "sdkconfig_append": []
+        }
+    ]
+}

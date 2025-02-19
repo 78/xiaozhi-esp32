@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lilygo-t-circle-s3",
+            "sdkconfig_append": []
+        }
+    ]
+}

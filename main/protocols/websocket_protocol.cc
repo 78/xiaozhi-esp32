@@ -10,8 +10,6 @@
 
 #define TAG "WS"
 
-#ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
-
 WebsocketProtocol::WebsocketProtocol() {
     event_group_handle_ = xEventGroupCreate();
 }
@@ -21,6 +19,9 @@ WebsocketProtocol::~WebsocketProtocol() {
         delete websocket_;
     }
     vEventGroupDelete(event_group_handle_);
+}
+
+void WebsocketProtocol::Start() {
 }
 
 void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
@@ -61,7 +62,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     websocket_->SetHeader("Authorization", token.c_str());
     websocket_->SetHeader("Protocol-Version", "1");
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    websocket_->SetHeader("X-Uuid", Board::GetInstance().GetUuid().c_str());
+    websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
@@ -147,5 +148,3 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
 
     xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT);
 }
-
-#endif
