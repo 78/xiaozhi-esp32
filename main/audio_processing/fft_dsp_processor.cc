@@ -40,7 +40,15 @@ FFTDspProcessor::~FFTDspProcessor()
 
 void FFTDspProcessor::Input(const std::vector<int16_t> &data)
 {
-    // ESP_LOGI(TAG, "FFT audio size: %d", data.size());
+    static int64_t start_time = esp_timer_get_time() / 1000;
+    int64_t current_time = esp_timer_get_time() / 1000;
+
+    int64_t elapsed_time = current_time - start_time;
+
+    if (elapsed_time >= 30)
+        start_time = current_time;
+    else
+        return;
     std::vector<int16_t> *dataPtr = new std::vector<int16_t>(data);
     if (xQueueSend(inputQueue, &dataPtr, portMAX_DELAY) != pdTRUE)
     {

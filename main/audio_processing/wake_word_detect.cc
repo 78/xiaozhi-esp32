@@ -202,7 +202,7 @@ void WakeWordDetect::EncodeWakeWordData() {
             this_->wake_word_cv_.notify_all();
         }
         vTaskDelete(NULL);
-    }, "encode_detect_packets", 4096 * 6, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
+    }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
 
 bool WakeWordDetect::GetWakeWordOpus(std::vector<uint8_t>& opus) {

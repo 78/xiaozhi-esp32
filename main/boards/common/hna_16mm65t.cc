@@ -67,7 +67,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     if (size < 512)
         return;
     // 定义每个频段的增益系数
-    static float fft_gain[FFT_SIZE] = {1.8f, 1.8f, 1.8f, 1.8f, 2.4f, 2.4f, 2.8f, 2.8f, 3.0f, 3.0f, 3.0f, 3.0f};
+    static float fft_gain[FFT_SIZE] = {1.8f * 2, 2.2f * 2, 2.4f * 2, 2.8f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2};
     // 定义每个频段的显示位置映射
     static uint8_t fft_postion[FFT_SIZE] = {0, 2, 4, 6, 8, 10, 11, 9, 7, 5, 3, 1};
     // 记录最大幅度值
