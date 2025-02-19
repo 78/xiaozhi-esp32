@@ -112,7 +112,7 @@ private:
         InitializeButtons();
         display_->SetStatus("错误");
         display_->SetEmotion("sad");
-        display_->SetChatMessage("", "Echo Base\n未连接");
+        display_->SetChatMessage("system", "Echo Base\n未连接");
         
         while (1) {
             ESP_LOGE(TAG, "Atomic Echo Base is disconnected");

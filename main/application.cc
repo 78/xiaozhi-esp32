@@ -8,6 +8,7 @@
 #include "websocket_protocol.h"
 #include "font_awesome_symbols.h"
 #include "iot/thing_manager.h"
+#include "assets/zh/binary.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -17,14 +18,6 @@
 
 #define TAG "Application"
 
-extern const char p3_err_reg_start[] asm("_binary_err_reg_p3_start");
-extern const char p3_err_reg_end[] asm("_binary_err_reg_p3_end");
-extern const char p3_err_pin_start[] asm("_binary_err_pin_p3_start");
-extern const char p3_err_pin_end[] asm("_binary_err_pin_p3_end");
-extern const char p3_wificonfig_start[] asm("_binary_wificonfig_p3_start");
-extern const char p3_wificonfig_end[] asm("_binary_wificonfig_p3_end");
-extern const char p3_upgrade_start[] asm("_binary_upgrade_p3_start");
-extern const char p3_upgrade_end[] asm("_binary_upgrade_p3_end");
 
 static const char* const STATE_STRINGS[] = {
     "unknown",
@@ -35,6 +28,7 @@ static const char* const STATE_STRINGS[] = {
     "listening",
     "speaking",
     "upgrading",
+    "activating",
     "fatal_error",
     "invalid_state"
 };
@@ -42,9 +36,6 @@ static const char* const STATE_STRINGS[] = {
 Application::Application() {
     event_group_ = xEventGroupCreate();
     background_task_ = new BackgroundTask(4096 * 8);
-
-    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
-    ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
 }
 
 Application::~Application() {
@@ -60,92 +51,142 @@ void Application::CheckNewVersion() {
     // Check if there is a new firmware version available
     ota_.SetPostData(board.GetJson());
 
+    const int MAX_RETRY = 10;
+    int retry_count = 0;
+
     while (true) {
-        bool success = ota_.CheckVersion();
-        if (ota_.HasActivationCode()) {
-            DisplayActivationCode();
-        }
-        if (success) {
-            if (ota_.HasNewVersion()) {
-                Alert("Info", "正在升级固件");
-                // Wait for the chat state to be idle
-                do {
-                    vTaskDelay(pdMS_TO_TICKS(3000));
-                } while (GetDeviceState() != kDeviceStateIdle);
-
-                // Use main task to do the upgrade, not cancelable
-                Schedule([this, &board, display]() {
-                    SetDeviceState(kDeviceStateUpgrading);
-                    
-                    display->SetIcon(FONT_AWESOME_DOWNLOAD);
-                    display->SetStatus("新版本 " + ota_.GetFirmwareVersion());
-
-                    board.SetPowerSaveMode(false);
-#if CONFIG_USE_AUDIO_PROCESSING
-                    wake_word_detect_.StopDetection();
-#endif
-                    // 预先关闭音频输出，避免升级过程有音频操作
-                    auto codec = board.GetAudioCodec();
-                    codec->EnableInput(false);
-                    codec->EnableOutput(false);
-                    {
-                        std::lock_guard<std::mutex> lock(mutex_);
-                        audio_decode_queue_.clear();
-                    }
-                    background_task_->WaitForCompletion();
-                    delete background_task_;
-                    background_task_ = nullptr;
-                    vTaskDelay(pdMS_TO_TICKS(1000));
-
-                    ota_.StartUpgrade([display](int progress, size_t speed) {
-                        char buffer[64];
-                        snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                        display->SetStatus(buffer);
-                    });
-
-                    // If upgrade success, the device will reboot and never reach here
-                    display->SetStatus("更新失败");
-                    ESP_LOGI(TAG, "Firmware upgrade failed...");
-                    vTaskDelay(pdMS_TO_TICKS(3000));
-                    esp_restart();
-                });
-            } else {
-                ota_.MarkCurrentVersionValid();
-                display->ShowNotification("版本 " + ota_.GetCurrentVersion());
+        if (!ota_.CheckVersion()) {
+            retry_count++;
+            if (retry_count >= MAX_RETRY) {
+                ESP_LOGE(TAG, "版本检查失败次数过多，退出检查");
+                return;
             }
+            ESP_LOGW(TAG, "版本检查失败，%d秒后重试 (%d/%d)", 60, retry_count, MAX_RETRY);
+            vTaskDelay(pdMS_TO_TICKS(60000));
+            continue;
+        }
+        retry_count = 0;
+
+        if (ota_.HasNewVersion()) {
+            Alert("OTA 升级", "正在升级系统", "happy", std::string_view(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start));
+            // Wait for the chat state to be idle
+            do {
+                vTaskDelay(pdMS_TO_TICKS(3000));
+            } while (GetDeviceState() != kDeviceStateIdle);
+
+            // Use main task to do the upgrade, not cancelable
+            Schedule([this, display]() {
+                SetDeviceState(kDeviceStateUpgrading);
+                
+                display->SetIcon(FONT_AWESOME_DOWNLOAD);
+                display->SetChatMessage("system", "新版本 " + ota_.GetFirmwareVersion());
+
+                auto& board = Board::GetInstance();
+                board.SetPowerSaveMode(false);
+#if CONFIG_USE_AUDIO_PROCESSING
+                wake_word_detect_.StopDetection();
+#endif
+                // 预先关闭音频输出，避免升级过程有音频操作
+                auto codec = board.GetAudioCodec();
+                codec->EnableInput(false);
+                codec->EnableOutput(false);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    audio_decode_queue_.clear();
+                }
+                background_task_->WaitForCompletion();
+                delete background_task_;
+                background_task_ = nullptr;
+                vTaskDelay(pdMS_TO_TICKS(1000));
+
+                ota_.StartUpgrade([display](int progress, size_t speed) {
+                    char buffer[64];
+                    snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                    display->SetChatMessage("system", buffer);
+                });
+
+                // If upgrade success, the device will reboot and never reach here
+                display->SetStatus("更新失败");
+                ESP_LOGI(TAG, "Firmware upgrade failed...");
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                Reboot();
+            });
+
             return;
         }
 
-        // Check again in 60 seconds
-        vTaskDelay(pdMS_TO_TICKS(60000));
+        // No new version, mark the current version as valid
+        ota_.MarkCurrentVersionValid();
+        display->ShowNotification("版本 " + ota_.GetCurrentVersion());
+    
+        if (ota_.HasActivationCode()) {
+            // Activation code is valid
+            SetDeviceState(kDeviceStateActivating);
+            ShowActivationCode();
+            // Check again in 60 seconds
+            vTaskDelay(pdMS_TO_TICKS(60000));
+            continue;
+        }
+
+        SetDeviceState(kDeviceStateIdle);
+        display->SetChatMessage("system", "");
+
+        // Exit the loop if upgrade or idle
+        break;
     }
 }
 
-void Application::DisplayActivationCode() {
-    ESP_LOGW(TAG, "Activation Message: %s", ota_.GetActivationMessage().c_str());
-    ESP_LOGW(TAG, "Activation Code: %s", ota_.GetActivationCode().c_str());
-    auto display = Board::GetInstance().GetDisplay();
-    display->ShowNotification(ota_.GetActivationMessage(), 30000);
+void Application::ShowActivationCode() {
+    auto& message = ota_.GetActivationMessage();
+    auto& code = ota_.GetActivationCode();
+
+    struct digit_sound {
+        char digit;
+        const char* data;
+        size_t size;
+    };
+    static const std::array<digit_sound, 10> digit_sounds{{
+        digit_sound{'0', p3_0_start, size_t(p3_0_end - p3_0_start)},
+        digit_sound{'1', p3_1_start, size_t(p3_1_end - p3_1_start)}, 
+        digit_sound{'2', p3_2_start, size_t(p3_2_end - p3_2_start)},
+        digit_sound{'3', p3_3_start, size_t(p3_3_end - p3_3_start)},
+        digit_sound{'4', p3_4_start, size_t(p3_4_end - p3_4_start)},
+        digit_sound{'5', p3_5_start, size_t(p3_5_end - p3_5_start)},
+        digit_sound{'6', p3_6_start, size_t(p3_6_end - p3_6_start)},
+        digit_sound{'7', p3_7_start, size_t(p3_7_end - p3_7_start)},
+        digit_sound{'8', p3_8_start, size_t(p3_8_end - p3_8_start)},
+        digit_sound{'9', p3_9_start, size_t(p3_9_end - p3_9_start)}
+    }};
+
+    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+    Alert("激活设备", message, "happy", std::string_view(p3_activation_start, p3_activation_end - p3_activation_start));
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    background_task_->WaitForCompletion();
+
+    for (const auto& digit : code) {
+        auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
+            [digit](const digit_sound& ds) { return ds.digit == digit; });
+        if (it != digit_sounds.end()) {
+            PlayLocalFile(it->data, it->size);
+        }
+    }
 }
 
-void Application::Alert(const std::string& title, const std::string& message) {
-    ESP_LOGW(TAG, "Alert: %s, %s", title.c_str(), message.c_str());
+void Application::Alert(const std::string& status, const std::string& message, const std::string& emotion, const std::string_view& sound) {
+    ESP_LOGW(TAG, "Alert %s: %s [%s]", status.c_str(), message.c_str(), emotion.c_str());
     auto display = Board::GetInstance().GetDisplay();
-    display->ShowNotification(message);
-
-    if (message == "进入配网模式") {
-        PlayLocalFile(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start);
-    } else if (message == "正在升级固件") {
-        PlayLocalFile(p3_upgrade_start, p3_upgrade_end - p3_upgrade_start);
-    } else if (message == "请插入SIM卡") {
-        PlayLocalFile(p3_err_pin_start, p3_err_pin_end - p3_err_pin_start);
-    } else if (message == "无法接入网络，请检查流量卡状态") {
-        PlayLocalFile(p3_err_reg_start, p3_err_reg_end - p3_err_reg_start);
+    display->SetStatus(status);
+    display->SetEmotion(emotion);
+    display->SetChatMessage("system", message);
+    if (!sound.empty()) {
+        PlayLocalFile(sound.data(), sound.size());
     }
 }
 
 void Application::PlayLocalFile(const char* data, size_t size) {
     ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
+    auto codec = Board::GetInstance().GetAudioCodec();
+    codec->EnableOutput(true);
     SetDecodeSampleRate(16000);
     for (const char* p = data; p < data + size; ) {
         auto p3 = (BinaryProtocol3*)p;
@@ -164,6 +205,11 @@ void Application::PlayLocalFile(const char* data, size_t size) {
 
 void Application::ToggleChatState() {
     Schedule([this]() {
+        if (device_state_ == kDeviceStateActivating) {
+            Reboot();
+            return;
+        }
+
         if (!protocol_) {
             ESP_LOGE(TAG, "Protocol not initialized");
             return;
@@ -172,7 +218,7 @@ void Application::ToggleChatState() {
         if (device_state_ == kDeviceStateIdle) {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
-                Alert("Error", "Failed to open audio channel");
+                Alert("ERROR", "无法建立音频通道", "sad");
                 SetDeviceState(kDeviceStateIdle);
                 return;
             }
@@ -190,6 +236,11 @@ void Application::ToggleChatState() {
 
 void Application::StartListening() {
     Schedule([this]() {
+        if (device_state_ == kDeviceStateActivating) {
+            Reboot();
+            return;
+        }
+
         if (!protocol_) {
             ESP_LOGE(TAG, "Protocol not initialized");
             return;
@@ -201,7 +252,7 @@ void Application::StartListening() {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
                     SetDeviceState(kDeviceStateIdle);
-                    Alert("Error", "Failed to open audio channel");
+                    Alert("ERROR", "无法建立音频通道", "sad");
                     return;
                 }
             }
@@ -275,14 +326,14 @@ void Application::Start() {
     board.StartNetwork();
 
     // Initialize the protocol
-    display->SetStatus("初始化协议");
+    display->SetStatus("加载协议...");
 #ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
     protocol_ = std::make_unique<WebsocketProtocol>();
 #else
     protocol_ = std::make_unique<MqttProtocol>();
 #endif
     protocol_->OnNetworkError([this](const std::string& message) {
-        Alert("Error", std::move(message));
+        Alert("ERROR", message, "sad");
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -306,7 +357,7 @@ void Application::Start() {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
-            display->SetChatMessage("", "");
+            display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
         });
     });
@@ -369,8 +420,12 @@ void Application::Start() {
             }
         }
     });
+    protocol_->Start();
 
     // Check for new firmware version or get the MQTT broker address
+    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    ota_.SetHeader("Client-Id", board.GetUuid());
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
         app->CheckNewVersion();
@@ -615,6 +670,7 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateConnecting:
             display->SetStatus("连接中...");
+            display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
             display->SetStatus("聆听中...");
@@ -662,5 +718,27 @@ void Application::UpdateIotStates() {
     if (states != last_iot_states_) {
         last_iot_states_ = states;
         protocol_->SendIotStates(states);
+    }
+}
+
+void Application::Reboot() {
+    ESP_LOGI(TAG, "Rebooting...");
+    esp_restart();
+}
+
+void Application::WakeWordInvoke(const std::string& wake_word) {
+    if (device_state_ == kDeviceStateIdle) {
+        ToggleChatState();
+        Schedule([this, wake_word]() {
+            if (protocol_) {
+                protocol_->SendWakeWordDetected(wake_word); 
+            }
+        }); 
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonNone);
+    } else if (device_state_ == kDeviceStateListening) {   
+        if (protocol_) {
+            protocol_->CloseAudioChannel();
+        }
     }
 }

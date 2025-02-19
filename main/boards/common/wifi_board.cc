@@ -5,6 +5,7 @@
 #include "system_info.h"
 #include "font_awesome_symbols.h"
 #include "settings.h"
+#include "assets/zh/binary.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -37,7 +38,6 @@ std::string WifiBoard::GetBoardType() {
 
 void WifiBoard::EnterWifiConfigMode() {
     auto& application = Application::GetInstance();
-    auto display = Board::GetInstance().GetDisplay();
     application.SetDeviceState(kDeviceStateWifiConfiguring);
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
@@ -45,15 +45,14 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-    std::string hint = "请在手机上连接热点 ";
+    std::string hint = "手机连接热点 ";
     hint += wifi_ap.GetSsid();
-    hint += "，然后打开浏览器访问 ";
+    hint += "\n浏览器访问 ";
     hint += wifi_ap.GetWebServerUrl();
-
-    display->SetStatus(hint);
+    hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert("Info", "进入配网模式");
+    application.Alert("配网模式", hint, "", std::string_view(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
     
     // Wait forever until reset after configuration
     while (true) {
@@ -83,11 +82,11 @@ void WifiBoard::StartNetwork() {
     auto& wifi_station = WifiStation::GetInstance();
     wifi_station.OnScanBegin([this]() {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification("正在扫描 WiFi 网络", 30000);
+        display->ShowNotification("扫描 WiFi...", 30000);
     });
     wifi_station.OnConnect([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("正在连接 ") + ssid, 30000);
+        display->ShowNotification(std::string("连接 ") + ssid + "...", 30000);
     });
     wifi_station.OnConnected([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();

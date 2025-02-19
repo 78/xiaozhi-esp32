@@ -52,6 +52,8 @@ choice BOARD_TYPE
         bool "Kevin Box 2"
     config BOARD_TYPE_KEVIN_C3
         bool "Kevin C3"
+    config BOARD_TYPE_KEVIN_SP_V3_DEV
+        bool "Kevin SP V3开发板"
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LICHUANG_C3_DEV
@@ -100,6 +102,18 @@ choice BOARD_TYPE
         bool "无名科技星智0.96"
     config BOARD_TYPE_XINGZHI_Cube_TFT
         bool "无名科技星智1.54"
+endchoice
+
+choice DISPLAY_OLED_TYPE
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32
+    prompt "OLED Type"
+    default OLED_SSD1306_128X32
+    help
+        OLED 屏幕类型选择
+    config OLED_SSD1306_128X32
+        bool "SSD1306, 分辨率128*32"
+    config OLED_SSD1306_128X64
+        bool "SSD1306, 分辨率128*64"
 endchoice
 
 choice DISPLAY_LCD_TYPE
