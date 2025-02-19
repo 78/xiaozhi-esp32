@@ -93,12 +93,14 @@ typedef enum
 
 typedef enum
 {
-    CLOCKWISE,
-    ANTICLOCKWISE,
-    UP2DOWN,
-    DOWN2UP,
-    LEFT2RT,
-    RT2LEFT
+    ANI_NONE,
+    ANI_CLOCKWISE,
+    ANI_ANTICLOCKWISE,
+    ANI_UP2DOWN,
+    ANI_DOWN2UP,
+    ANI_LEFT2RT,
+    ANI_RT2LEFT,
+    ANI_MAX
 } NumAni;
 /**
  * @struct SymbolPosition
@@ -136,7 +138,7 @@ private:
     char number_buf[NUM_SIZE] = {0};
     char number_last_buf[NUM_SIZE] = {0};
     int number_animation_steps[NUM_SIZE] = {0}; // 动画步数
-    NumAni number_animation_type = CLOCKWISE;
+    NumAni number_animation_type = ANI_CLOCKWISE;
 
     // 每个字符对应的十六进制编码
     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
@@ -172,7 +174,7 @@ private:
         0x224210, // <
         0x00e060, // =
         0x884880, // >
-        0x624020, // ?
+        0x416020, // ?
         0,        // @
         0x51f190, // A
         0xd1f1e0, // B
@@ -291,7 +293,7 @@ private:
                 number_last_buf[i] = number_buf[i];
                 uint32_t raw_code = find_hex_code(number_buf[i]);
                 uint32_t code = raw_code;
-                if (number_animation_type == CLOCKWISE)
+                if (number_animation_type == ANI_CLOCKWISE)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -332,7 +334,7 @@ private:
                         break;
                     }
                 }
-                else if (number_animation_type == ANTICLOCKWISE)
+                else if (number_animation_type == ANI_ANTICLOCKWISE)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -373,7 +375,7 @@ private:
                         break;
                     }
                 }
-                else if (number_animation_type == UP2DOWN)
+                else if (number_animation_type == ANI_UP2DOWN)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -398,7 +400,7 @@ private:
                         break;
                     }
                 }
-                else if (number_animation_type == DOWN2UP)
+                else if (number_animation_type == ANI_DOWN2UP)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -423,7 +425,7 @@ private:
                         break;
                     }
                 }
-                else if (number_animation_type == LEFT2RT)
+                else if (number_animation_type == ANI_LEFT2RT)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -448,7 +450,7 @@ private:
                         break;
                     }
                 }
-                else if (number_animation_type == RT2LEFT)
+                else if (number_animation_type == ANI_RT2LEFT)
                 {
                     switch (number_animation_steps[i])
                     {
@@ -504,7 +506,7 @@ public:
      * @param buf String
      * @param size String大小
      */
-    void number_show(char *buf, int size);
+    void number_show(char *buf, int size, NumAni ani = ANI_CLOCKWISE);
 
     /**
      * @brief 显示符号信息。

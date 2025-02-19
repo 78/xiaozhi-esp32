@@ -109,8 +109,9 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     //          target_values[6], target_values[7], target_values[8], target_values[9], target_values[10], target_values[11]);
 }
 
-void HNA_16MM65T::number_show(char *buf, int size)
+void HNA_16MM65T::number_show(char *buf, int size, NumAni ani)
 {
+    number_animation_type = ani;
     for (size_t i = 0; i < size && i < NUM_SIZE; i++)
     {
         number_buf[i] = buf[i];
@@ -132,11 +133,24 @@ void HNA_16MM65T::test()
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
             float testbuff[FFT_SIZE];
             int rollcounter = 0;
+            NumAni num_ani = ANI_ANTICLOCKWISE;
             char tempstr[NUM_SIZE];
+            // 获取初始时间戳（单位：毫秒）
+            int64_t start_time = esp_timer_get_time() / 1000;
             while (1)
             {
-                sprintf(tempstr, "%d%X", rollcounter++, rollcounter);
-                vfd->number_show(tempstr, NUM_SIZE);
+                int64_t current_time = esp_timer_get_time() / 1000;
+
+                int64_t elapsed_time = current_time - start_time;
+
+                if (elapsed_time >= 5000)
+                {
+                    num_ani = (NumAni)((int)(num_ani + 1) % ANI_MAX);
+                    start_time = current_time;
+                }
+
+                snprintf(tempstr, NUM_SIZE, "ABC%dDEF", (rollcounter++)%100);
+                vfd->number_show(tempstr, NUM_SIZE, num_ani);
 
                 for (int i = 0; i < FFT_SIZE; i++)
                     testbuff[i] = rand() % 100;
