@@ -45,6 +45,8 @@
 #define DISPLAY_OFFSET_X  0
 #define DISPLAY_OFFSET_Y  0
 
+#define DISPLAY_LCD_TYPE  QSPI_LCD
+
 #define TP_PORT          (I2C_NUM_1)
 #define TP_PIN_NUM_SDA   (I2C_SDA_IO)
 #define TP_PIN_NUM_SCL   (I2C_SCL_IO)
