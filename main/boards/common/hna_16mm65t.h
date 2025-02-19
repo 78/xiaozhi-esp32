@@ -138,7 +138,7 @@ private:
     int wave_target_values[FFT_SIZE] = {0};   // 目标 FFT 值
     int wave_current_values[FFT_SIZE] = {0};  // 当前 FFT 值
     int wave_animation_steps[FFT_SIZE] = {0}; // 动画步数
-    int wave_total_steps = 20;                // 动画总步数
+    int wave_total_steps = 5;                // 动画总步数
 
     char number_buf[NUM_SIZE] = {0};
     char number_last_buf[NUM_SIZE] = {0};

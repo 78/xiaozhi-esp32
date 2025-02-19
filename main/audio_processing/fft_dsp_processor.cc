@@ -45,7 +45,7 @@ void FFTDspProcessor::Input(const std::vector<int16_t> &data)
 
     int64_t elapsed_time = current_time - start_time;
 
-    if (elapsed_time >= 30)
+    if (elapsed_time >= 50)
         start_time = current_time;
     else
         return;

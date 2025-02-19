@@ -67,13 +67,14 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     if (size < 512)
         return;
     // 定义每个频段的增益系数
-    static float fft_gain[FFT_SIZE] = {1.8f * 2, 2.2f * 2, 2.4f * 2, 2.8f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2};
+    static float fft_gain[FFT_SIZE] = {1.8f * 2, 2.2f * 2, 2.6f * 2, 2.8f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2};
     // 定义每个频段的显示位置映射
     static uint8_t fft_postion[FFT_SIZE] = {0, 2, 4, 6, 8, 10, 11, 9, 7, 5, 3, 1};
     // 记录最大幅度值
     static float max = 0;
     // 存储每个频段的平均幅度值
     float fft_buf[FFT_SIZE];
+    int sum = 0;
     // 计算每个频段包含的数据元素数量
     int elements_per_part = size / 4 / 12;
     // 计算每个频段的平均幅度值
@@ -85,6 +86,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
             if (max_val < buf[(i + 3) * elements_per_part + j])
                 max_val = buf[(i + 3) * elements_per_part + j];
         }
+        sum += max_val;
         fft_buf[i] = max_val;
         // 更新最大幅度值
         if (max < fft_buf[i])
@@ -95,9 +97,15 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
         // 确保幅度值非负，并应用增益
         if (fft_buf[i] < 0)
             fft_buf[i] = -fft_buf[i];
-        else
-            fft_buf[i] *= fft_gain[i];
     }
+    // if (sum < 30)
+    // {
+    //     for (size_t i = 0; i < FFT_SIZE; i++)
+    //     {
+    //         fft_buf[i] = 0;
+    //     }
+    //     ESP_LOGI(TAG, "Sound: %d", (int)max);
+    // }
 
 #else
 #endif
@@ -106,7 +114,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
         wave_last_values[i] = wave_target_values[i];
-        wave_target_values[i] = fft_buf[fft_postion[i]];
+        wave_target_values[i] = fft_buf[fft_postion[i]] * fft_gain[fft_postion[i]];
         wave_animation_steps[i] = 0;
     }
     // 打印最大幅度值和每个频段的目标值
