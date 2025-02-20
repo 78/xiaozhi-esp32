@@ -119,8 +119,8 @@ private:
         });
 
         right_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification("最大音量");
         });
     }
 
