@@ -93,7 +93,7 @@
     <img src="docs/v1/wmnologo_xingzhi_1.54.jpg" width="240" />
   </a>
   <a href="docs/v1/wmnologo_xingzhi_0.96.jpg" target="_blank" title="Movecall Moji 小智AI衍生版">
-    <img src="docs/v1/wmnologo_xingzhi_0.9.jpg" width="240" />
+    <img src="docs/v1/wmnologo_xingzhi_0.96.jpg" width="240" />
   </a>
 </div>
 
