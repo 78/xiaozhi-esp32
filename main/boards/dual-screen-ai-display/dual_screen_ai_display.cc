@@ -104,12 +104,6 @@ public:
 
         InitializeBacklight();
         SetupUI();
-        lv_obj_t * btn = lv_btn_create(lv_scr_act());
-        lv_obj_set_pos(btn, 100, 100);
-        lv_obj_set_size(btn, 120, 50);
-        lv_obj_t * label = lv_label_create(btn);
-        lv_label_set_text(label, "Click me");
-        lv_obj_center(label);
     }
 
     void InitializeBacklight()
@@ -473,6 +467,9 @@ private:
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         vfd_ = new HNA_16MM65T(spidevice);
+        ESP_LOGI(TAG, "Enable VFD power");
+        gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
+        gpio_set_level(PIN_NUM_VFD_EN, 1);
         // vfd_->test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
@@ -490,10 +487,6 @@ private:
     {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-
-        ESP_LOGI(TAG, "Enable amoled power");
-        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_LCD_POWER, 1);
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
@@ -572,12 +565,16 @@ private:
         };
 
         ESP_LOGI(TAG, "Initialize touch controller");
-        (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp)); //The first initial will be failed
+        (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp)); // The first initial will be failed
         (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
 #endif
 
         display_ = new CustomLcdDisplay(panel_io, panel, tp, GPIO_NUM_NC, false,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+
+        ESP_LOGI(TAG, "Enable amoled power");
+        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
+        gpio_set_level(PIN_NUM_LCD_POWER, 1);
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -663,6 +660,8 @@ public:
     {
         // Check if the reset button is pressed
         // system_reset_.CheckButtons();
+
+        vTaskDelay(pdMS_TO_TICKS(120));
         InitializeAdc();
         InitializeI2c();
         InitializeSpi();

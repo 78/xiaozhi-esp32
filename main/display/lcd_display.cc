@@ -86,6 +86,8 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
         touch_ = lvgl_port_add_touch(&touch_cfg);
     }
+    else
+        ESP_LOGW(TAG, "No touch");
 
     if (offset_x != 0 || offset_y != 0)
     {

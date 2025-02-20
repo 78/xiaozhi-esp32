@@ -41,7 +41,7 @@
 #define TOUCH_INT_NUM GPIO_NUM_45
 #endif
 #define ADC_UNIT ADC_UNIT_1
-#define ADC_CHANNEL ADC_CHANNEL_0 // GPIO_NUM_1
+#define ADC_CHANNEL ADC_CHANNEL_3 // GPIO_NUM_4
 #define DEFAULT_VREF 1100         // 参考电压，单位为 mV，可根据实际情况调整
 
 #define IIC_MASTER_NUM I2C_NUM_0
@@ -55,7 +55,7 @@
 // #define RESET_NVS_BUTTON_GPIO     GPIO_NUM_1
 // #define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_4
 
-#define TOUCH_BUTTON_GPIO GPIO_NUM_15    // 以适配-encoder
+#define TOUCH_BUTTON_GPIO GPIO_NUM_18    // 以适配-encoder
 // #define VOLUME_ENCODER1_GPIO GPIO_NUM_14 // 以适配-encoder
 // #define VOLUME_ENCODER2_GPIO GPIO_NUM_16 // 以适配-encoder
 
@@ -89,9 +89,10 @@
 // #define PIN_NUM_SD_D3 (GPIO_NUM_44)
 // #define PIN_NUM_SD_CDZ (GPIO_NUM_39)
 
-#define PIN_NUM_VFD_DATA0 (GPIO_NUM_42)
-#define PIN_NUM_VFD_PCLK (GPIO_NUM_45)
-#define PIN_NUM_VFD_CS (GPIO_NUM_46)
+#define PIN_NUM_VFD_DATA0 (GPIO_NUM_15)
+#define PIN_NUM_VFD_PCLK (GPIO_NUM_16)
+#define PIN_NUM_VFD_CS (GPIO_NUM_17)
+#define PIN_NUM_VFD_EN (GPIO_NUM_8)
 #else
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
 

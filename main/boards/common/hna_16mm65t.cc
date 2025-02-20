@@ -29,7 +29,7 @@ void HNA_16MM65T::waveanimate()
             wave_last_values[i] = wave_target_values[i];
             wavehelper(i, wave_target_values[i] * 8 / 90);
         }
-        if (left_sum < 6)
+        if (i < 6)
             left_sum += wave_current_values[i];
         else
             right_sum += wave_current_values[i];
@@ -666,6 +666,8 @@ void HNA_16MM65T::wavehelper(int index, int level)
 void HNA_16MM65T::corewavehelper(int l_level, int r_level) // 0-100
 {
     static int rollcount = 0;
+    gram[0] &= 0x80;
+    gram[COREWAVE_BEGIN] = gram[COREWAVE_BEGIN + 1] = gram[COREWAVE_BEGIN + 2] = 0;
     if (l_level > 8)
         l_level = 8;
     if (r_level > 8)
