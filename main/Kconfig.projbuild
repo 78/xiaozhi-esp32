@@ -58,6 +58,8 @@ choice BOARD_TYPE
         bool "面包板新版接线（ML307 AT）"
     config BOARD_TYPE_BREAD_COMPACT_ESP32
         bool "面包板 ESP32 DevKit"
+    config BOARD_TYPE_ESP32_CGC
+        bool "ESP32 CGC"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
     config BOARD_TYPE_KEVIN_BOX_1
