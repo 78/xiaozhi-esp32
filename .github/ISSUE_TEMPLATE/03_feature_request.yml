@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an idea for this project.
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        * We welcome any ideas or feature requests! It’s helpful if you can explain exactly why the feature would be useful.
+        * There are usually some outstanding feature requests in the [existing issues list](https://github.com/78/xiaozhi-esp32/labels/enhancement), feel free to add comments to them.
+        * If you would like to contribute, please read the [contributions guide](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb).
+  - type: textarea
+    id: problem-related
+    attributes:
+      label: Is your feature request related to a problem?
+      description: Please provide a clear and concise description of what the problem is.
+      placeholder: ex. I'm always frustrated when ...
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution you'd like.
+      description: Please provide a clear and concise description of what you want to happen.
+      placeholder: ex. When using XiaoZhi ...
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered.
+      description: Please provide a clear and concise description of any alternative solutions or features you've considered.
+      placeholder: ex. Choosing other approach wouldn't work, because ...
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context.
+      description: Please add any other context or screenshots about the feature request here.
+      placeholder: ex. This would work only when ...
