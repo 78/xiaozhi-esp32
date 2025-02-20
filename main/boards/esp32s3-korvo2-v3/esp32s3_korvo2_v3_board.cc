@@ -25,7 +25,7 @@ private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
-    esp_io_expander_handle_t io_expander = NULL;
+    esp_io_expander_handle_t io_expander_ = NULL;
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -62,36 +62,34 @@ private:
             printf("\r\n");
         }
     }
-    void i2c_dev_tca9554_init(void)
-    {
-        esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander);
-        if(ret != ESP_OK)
-        {
-            ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000, &io_expander);
-            if(ret != ESP_OK)
-            {
+    void i2c_dev_tca9554_init(void) {
+        esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander_);
+        if(ret != ESP_OK) {
+            ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000, &io_expander_);
+            if(ret != ESP_OK) {
                 ESP_LOGE(TAG, "TCA9554 create returned error");  
-
+                return;
             }
         }
-        if(io_expander != NULL)
-        {
-            ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_3, IO_EXPANDER_OUTPUT);// 设置引脚 EXIO0\EXIO1\EXIO2\EXIO3 模式为输出
-            ESP_ERROR_CHECK(ret);
-            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1);// 复位 LCD 与 TouchPad CS
-            ESP_ERROR_CHECK(ret);
-            vTaskDelay(pdMS_TO_TICKS(300));
-            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 0);// 复位 LCD 与 TouchPad CS
-            ESP_ERROR_CHECK(ret);
-            vTaskDelay(pdMS_TO_TICKS(300));
-            ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1);// 复位 LCD 与 TouchPad CS
-            ESP_ERROR_CHECK(ret);
-        }
+        // 配置IO0-IO3为输出模式
+        ESP_ERROR_CHECK(esp_io_expander_set_dir(io_expander_, 
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | 
+            IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_3, 
+            IO_EXPANDER_OUTPUT));
+
+        // 复位LCD和TouchPad
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1));
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 0));
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1));
     }
-    void Enable_LCD_CS(void)
-    {
-        if(io_expander != NULL){
-            esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_3, 0);// 置低 LCD CS
+    void Enable_LCD_CS(void) {
+        if(io_expander_ != NULL){
+            esp_io_expander_set_level(io_expander_, IO_EXPANDER_PIN_NUM_3, 0);// 置低 LCD CS
         }
     }
     void InitializeSpi() {
@@ -166,8 +164,7 @@ private:
     }
 
 public:
-    esp32s3_korvo2_v3_board() : boot_button_(BOOT_BUTTON_GPIO)
-    {
+    esp32s3_korvo2_v3_board() : boot_button_(BOOT_BUTTON_GPIO) {
         ESP_LOGI(TAG, "Initializing esp32s3_korvo2_v3 Board");
         InitializeI2c();
         I2cDetect();
@@ -195,8 +192,7 @@ public:
         return &audio_codec;
     }
 
-    virtual Display *GetDisplay() override
-    {
+    virtual Display *GetDisplay() override {
         return display_;
     }
 };
