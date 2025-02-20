@@ -7,13 +7,18 @@
 
 #include <string>
 
-struct DisplayFonts {
-    const lv_font_t* text_font = nullptr;
-    const lv_font_t* icon_font = nullptr;
-    const lv_font_t* emoji_font = nullptr;
+struct DisplayFonts
+{
+    const lv_font_t *text_font = nullptr;
+    const lv_font_t *icon_font = nullptr;
+    const lv_font_t *emoji_font = nullptr;
 };
 
-class Display {
+class Display
+{
+private:
+    bool timeOffline = false;
+
 public:
     Display();
     virtual ~Display();
@@ -33,6 +38,7 @@ protected:
     int width_ = 0;
     int height_ = 0;
 
+    lv_indev_t *touch_ = nullptr;
     lv_display_t *display_ = nullptr;
 
     lv_obj_t *emotion_label_ = nullptr;
@@ -58,8 +64,10 @@ protected:
 class DisplayLockGuard
 {
 public:
-    DisplayLockGuard(Display *display) : display_(display) {
-        if (!display_->Lock(3000)) {
+    DisplayLockGuard(Display *display) : display_(display)
+    {
+        if (!display_->Lock(3000))
+        {
             ESP_LOGE("Display", "Failed to lock display");
         }
     }

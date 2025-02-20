@@ -45,12 +45,15 @@ Display::Display()
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 500000));
 }
 
-Display::~Display() {
-    if (notification_timer_ != nullptr) {
+Display::~Display()
+{
+    if (notification_timer_ != nullptr)
+    {
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
     }
-    if (update_timer_ != nullptr) {
+    if (update_timer_ != nullptr)
+    {
         esp_timer_stop(update_timer_);
         esp_timer_delete(update_timer_);
     }
@@ -66,9 +69,11 @@ Display::~Display() {
     }
 }
 
-void Display::SetStatus(const std::string &status) {
+void Display::SetStatus(const std::string &status)
+{
     DisplayLockGuard lock(this);
-    if (status_label_ == nullptr) {
+    if (status_label_ == nullptr)
+    {
         return;
     }
     lv_label_set_text(status_label_, status.c_str());
@@ -77,9 +82,11 @@ void Display::SetStatus(const std::string &status) {
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
-void Display::ShowNotification(const std::string &notification, int duration_ms) {
+void Display::ShowNotification(const std::string &notification, int duration_ms)
+{
     DisplayLockGuard lock(this);
-    if (notification_label_ == nullptr) {
+    if (notification_label_ == nullptr)
+    {
         return;
     }
     lv_label_set_text(notification_label_, notification.c_str());
@@ -90,25 +97,31 @@ void Display::ShowNotification(const std::string &notification, int duration_ms)
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::Update() {
-    if (mute_label_ == nullptr) {
+void Display::Update()
+{
+    if (mute_label_ == nullptr)
+    {
         return;
     }
 
-    auto& board = Board::GetInstance();
+    auto &board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
     {
         DisplayLockGuard lock(this);
-        if (mute_label_ == nullptr) {
+        if (mute_label_ == nullptr)
+        {
             return;
         }
 
         // 如果静音状态改变，则更新图标
-        if (codec->output_volume() == 0 && !muted_) {
+        if (codec->output_volume() == 0 && !muted_)
+        {
             muted_ = true;
             lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
-        } else if (codec->output_volume() > 0 && muted_) {
+        }
+        else if (codec->output_volume() > 0 && muted_)
+        {
             muted_ = false;
             lv_label_set_text(mute_label_, "");
         }
@@ -137,13 +150,14 @@ void Display::Update() {
             icon = levels[battery_level / 20];
         }
         DisplayLockGuard lock(this);
-        if (battery_label_ != nullptr && battery_icon_ != icon) {
+        if (battery_label_ != nullptr && battery_icon_ != icon)
+        {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
     }
-
-    board.TimeUpdate();
+    if (!timeOffline && !board.TimeUpdate())
+        timeOffline = true;
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();
@@ -153,9 +167,11 @@ void Display::Update() {
         kDeviceStateWifiConfiguring,
         kDeviceStateListening,
     };
-    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
+    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end())
+    {
         icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && network_icon_ != icon) {
+        if (network_label_ != nullptr && network_icon_ != icon)
+        {
             DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
@@ -163,15 +179,17 @@ void Display::Update() {
     }
 }
 
-
-void Display::SetEmotion(const std::string &emotion) {
-    if (emotion_label_ == nullptr) {
+void Display::SetEmotion(const std::string &emotion)
+{
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
 
-    struct Emotion {
-        const char* icon;
-        const char* text;
+    struct Emotion
+    {
+        const char *icon;
+        const char *text;
     };
 
     static const std::vector<Emotion> emotions = {
@@ -195,16 +213,17 @@ void Display::SetEmotion(const std::string &emotion) {
         {FONT_AWESOME_EMOJI_CONFIDENT, "confident"},
         {FONT_AWESOME_EMOJI_SLEEPY, "sleepy"},
         {FONT_AWESOME_EMOJI_SILLY, "silly"},
-        {FONT_AWESOME_EMOJI_CONFUSED, "confused"}
-    };
+        {FONT_AWESOME_EMOJI_CONFUSED, "confused"}};
 
     DisplayLockGuard lock(this);
-    
+
     // 查找匹配的表情
     auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion](const Emotion& e) { return e.text == emotion; });
-    
-    if (emotion_label_ == nullptr) {
+                           [&emotion](const Emotion &e)
+                           { return e.text == emotion; });
+
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
 
@@ -219,9 +238,11 @@ void Display::SetEmotion(const std::string &emotion) {
     }
 }
 
-void Display::SetIcon(const char* icon) {
+void Display::SetIcon(const char *icon)
+{
     DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
     lv_label_set_text(emotion_label_, icon);

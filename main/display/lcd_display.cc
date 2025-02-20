@@ -13,13 +13,14 @@
 
 LV_FONT_DECLARE(font_awesome_16_4);
 
-
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           gpio_num_t backlight_pin, bool backlight_output_invert,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : panel_io_(panel_io), panel_(panel), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
-      fonts_(fonts) {
+                       esp_lcd_touch_handle_t tp,
+                       gpio_num_t backlight_pin, bool backlight_output_invert,
+                       int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
+                       DisplayFonts fonts)
+    : panel_io_(panel_io), panel_(panel), tp_(tp), backlight_pin_(backlight_pin), backlight_output_invert_(backlight_output_invert),
+      fonts_(fonts)
+{
     width_ = width;
     height_ = height;
 
@@ -27,7 +28,8 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
-    for (int y = 0; y < height_; y++) {
+    for (int y = 0; y < height_; y++)
+    {
         esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
     }
 
@@ -70,12 +72,23 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     };
 
     display_ = lvgl_port_add_disp(&display_cfg);
-    if (display_ == nullptr) {
+    if (display_ == nullptr)
+    {
         ESP_LOGE(TAG, "Failed to add display");
         return;
     }
 
-    if (offset_x != 0 || offset_y != 0) {
+    if (tp_ != nullptr)
+    {
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = display_,
+            .handle = tp_};
+
+        touch_ = lvgl_port_add_touch(&touch_cfg);
+    }
+
+    if (offset_x != 0 || offset_y != 0)
+    {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
@@ -84,34 +97,44 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     SetupUI();
 }
 
-LcdDisplay::~LcdDisplay() {
+LcdDisplay::~LcdDisplay()
+{
     // 然后再清理 LVGL 对象
-    if (content_ != nullptr) {
+    if (content_ != nullptr)
+    {
         lv_obj_del(content_);
     }
-    if (status_bar_ != nullptr) {
+    if (status_bar_ != nullptr)
+    {
         lv_obj_del(status_bar_);
     }
-    if (side_bar_ != nullptr) {
+    if (side_bar_ != nullptr)
+    {
         lv_obj_del(side_bar_);
     }
-    if (container_ != nullptr) {
+    if (container_ != nullptr)
+    {
         lv_obj_del(container_);
     }
-    if (display_ != nullptr) {
+    if (display_ != nullptr)
+    {
         lv_display_delete(display_);
     }
 
-    if (panel_ != nullptr) {
+    if (panel_ != nullptr)
+    {
         esp_lcd_panel_del(panel_);
     }
-    if (panel_io_ != nullptr) {
+    if (panel_io_ != nullptr)
+    {
         esp_lcd_panel_io_del(panel_io_);
     }
 }
 
-void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
-    if (backlight_pin == GPIO_NUM_NC) {
+void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin)
+{
+    if (backlight_pin == GPIO_NUM_NC)
+    {
         return;
     }
 
@@ -126,27 +149,28 @@ void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
         .hpoint = 0,
         .flags = {
             .output_invert = backlight_output_invert_,
-        }
-    };
+        }};
     const ledc_timer_config_t backlight_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = LEDC_TIMER_0,
         .freq_hz = 5000,
         .clk_cfg = LEDC_AUTO_CLK,
-        .deconfigure = false
-    };
+        .deconfigure = false};
 
     ESP_ERROR_CHECK(ledc_timer_config(&backlight_timer));
     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 }
 
-void LcdDisplay::SetBacklight(uint8_t brightness) {
-    if (backlight_pin_ == GPIO_NUM_NC) {
+void LcdDisplay::SetBacklight(uint8_t brightness)
+{
+    if (backlight_pin_ == GPIO_NUM_NC)
+    {
         return;
     }
 
-    if (brightness > 100) {
+    if (brightness > 100)
+    {
         brightness = 100;
     }
 
@@ -157,15 +181,18 @@ void LcdDisplay::SetBacklight(uint8_t brightness) {
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
 }
 
-bool LcdDisplay::Lock(int timeout_ms) {
+bool LcdDisplay::Lock(int timeout_ms)
+{
     return lvgl_port_lock(timeout_ms);
 }
 
-void LcdDisplay::Unlock() {
+void LcdDisplay::Unlock()
+{
     lvgl_port_unlock();
 }
 
-void LcdDisplay::SetupUI() {
+void LcdDisplay::SetupUI()
+{
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
@@ -184,7 +211,7 @@ void LcdDisplay::SetupUI() {
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    
+
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
@@ -192,7 +219,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
 
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);                                                     // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
     emotion_label_ = lv_label_create(content_);
@@ -201,8 +228,8 @@ void LcdDisplay::SetupUI() {
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);                   // 限制宽度为屏幕宽度的 90%
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);           // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
 
     /* Status bar */
@@ -238,18 +265,22 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
 }
 
-void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content) {
+void LcdDisplay::SetChatMessage(const std::string &role, const std::string &content)
+{
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
+    if (chat_message_label_ == nullptr)
+    {
         return;
     }
     lv_label_set_text(chat_message_label_, content.c_str());
 }
 
-void LcdDisplay::SetEmotion(const std::string &emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
+void LcdDisplay::SetEmotion(const std::string &emotion)
+{
+    struct Emotion
+    {
+        const char *icon;
+        const char *text;
     };
 
     static const std::vector<Emotion> emotions = {
@@ -273,30 +304,36 @@ void LcdDisplay::SetEmotion(const std::string &emotion) {
         {"😏", "confident"},
         {"😴", "sleepy"},
         {"😜", "silly"},
-        {"🙄", "confused"}
-    };
-    
+        {"🙄", "confused"}};
+
     // 查找匹配的表情
     auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion](const Emotion& e) { return e.text == emotion; });
+                           [&emotion](const Emotion &e)
+                           { return e.text == emotion; });
 
     DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
 
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
+    if (it != emotions.end())
+    {
         lv_label_set_text(emotion_label_, it->icon);
-    } else {
+    }
+    else
+    {
         lv_label_set_text(emotion_label_, "😶");
     }
 }
 
-void LcdDisplay::SetIcon(const char* icon) {
+void LcdDisplay::SetIcon(const char *icon)
+{
     DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_16_4, 0);

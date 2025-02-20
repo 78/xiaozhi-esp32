@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_sh8601.h"
+#include "esp_lcd_touch_ft5x06.h"
 #include "font_awesome_symbols.h"
 #include "audio_codecs/no_audio_codec.h"
 #include <esp_sleep.h>
@@ -8,7 +9,6 @@
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-#include "encoder.h"
 #include <sstream>
 #include "led/single_led.h"
 #include "config.h"
@@ -78,6 +78,7 @@ private:
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                      esp_lcd_panel_handle_t panel_handle,
+                     esp_lcd_touch_handle_t tp_handle,
                      gpio_num_t backlight_pin,
                      bool backlight_output_invert,
                      int width,
@@ -87,7 +88,7 @@ public:
                      bool mirror_x,
                      bool mirror_y,
                      bool swap_xy)
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : LcdDisplay(io_handle, panel_handle, tp_handle, backlight_pin, backlight_output_invert,
                      width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                      {
                          .text_font = &font_puhui_16_4,
@@ -103,6 +104,12 @@ public:
 
         InitializeBacklight();
         SetupUI();
+        lv_obj_t * btn = lv_btn_create(lv_scr_act());
+        lv_obj_set_pos(btn, 100, 100);
+        lv_obj_set_size(btn, 120, 50);
+        lv_obj_t * label = lv_label_create(btn);
+        lv_label_set_text(label, "Click me");
+        lv_obj_center(label);
     }
 
     void InitializeBacklight()
@@ -344,10 +351,9 @@ static rx8900_handle_t _rx8900 = NULL;
 class DualScreenAIDisplay : public WifiBoard
 {
 private:
-    i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
     Button touch_button_;
-    Encoder volume_encoder_;
+    // Encoder volume_encoder_;
     // SystemReset system_reset_;
     CustomLcdDisplay *display_;
     HNA_16MM65T *vfd_;
@@ -422,31 +428,31 @@ private:
                                 { Application::GetInstance().StopListening(); });
     }
 
-    void InitializeEncoder()
-    {
-        volume_encoder_.OnPcntReach([this](int value)
-                                    {
-            static int lastvalue = 0;
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume();
-            if(value>lastvalue)
-            {
-                volume += 4;
-                if (volume > 100) {
-                    volume = 100;
-                }
-            }
-            else if(value<lastvalue)
-            {
-                volume -= 4;
-                if (volume < 0) {
-                    volume = 0;
-                }
-            }
-            lastvalue = value;
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
-    }
+    // void InitializeEncoder()
+    // {
+    //     volume_encoder_.OnPcntReach([this](int value)
+    //                                 {
+    //         static int lastvalue = 0;
+    //         auto codec = GetAudioCodec();
+    //         auto volume = codec->output_volume();
+    //         if(value>lastvalue)
+    //         {
+    //             volume += 4;
+    //             if (volume > 100) {
+    //                 volume = 100;
+    //             }
+    //         }
+    //         else if(value<lastvalue)
+    //         {
+    //             volume -= 4;
+    //             if (volume < 0) {
+    //                 volume = 0;
+    //             }
+    //         }
+    //         lastvalue = value;
+    //         codec->SetOutputVolume(volume);
+    //         GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
+    // }
 
     void InitializeSpi()
     {
@@ -523,7 +529,54 @@ private:
         // esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new CustomLcdDisplay(panel_io, panel, GPIO_NUM_NC, false,
+
+        esp_lcd_touch_handle_t tp = nullptr;
+#if USE_TOUCH
+        ESP_LOGI(TAG, "Initialize I2C bus");
+        i2c_master_bus_handle_t i2c_bus_;
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = (i2c_port_t)TOUCH_MASTER_NUM,
+            .sda_io_num = TOUCH_SDA_NUM,
+            .scl_io_num = TOUCH_SCL_NUM,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+
+        esp_lcd_panel_io_handle_t tp_io_handle = NULL;
+        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
+
+        tp_io_config.scl_speed_hz = 400 * 1000;
+        // Attach the TOUCH to the I2C bus
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2((i2c_master_bus_t *)i2c_bus_, &tp_io_config, &tp_io_handle));
+
+        const esp_lcd_touch_config_t tp_cfg = {
+            .x_max = DISPLAY_HEIGHT - 1,
+            .y_max = DISPLAY_WIDTH - 1,
+            .rst_gpio_num = GPIO_NUM_NC,
+            .int_gpio_num = TOUCH_INT_NUM,
+            .levels = {
+                .reset = 0,
+                .interrupt = 0,
+            },
+            .flags = {
+                .swap_xy = 1,
+                .mirror_x = 1,
+                .mirror_y = 0,
+            },
+        };
+
+        ESP_LOGI(TAG, "Initialize touch controller");
+        (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp)); //The first initial will be failed
+        (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
+#endif
+
+        display_ = new CustomLcdDisplay(panel_io, panel, tp, GPIO_NUM_NC, false,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -606,10 +659,7 @@ private:
 
 public:
     DualScreenAIDisplay() : boot_button_(BOOT_BUTTON_GPIO),
-                            touch_button_(TOUCH_BUTTON_GPIO),
-                            volume_encoder_(VOLUME_ENCODER1_GPIO, VOLUME_ENCODER2_GPIO)
-    // ,
-    // system_reset_(RESET_NVS_BUTTON_GPIO, RESET_FACTORY_BUTTON_GPIO)
+                            touch_button_(TOUCH_BUTTON_GPIO)
     {
         // Check if the reset button is pressed
         // system_reset_.CheckButtons();
@@ -618,7 +668,7 @@ public:
         InitializeSpi();
         InitializeSH8601Display();
         InitializeButtons();
-        InitializeEncoder();
+        // InitializeEncoder();
         InitializeIot();
         GetWakeupCause();
     }
@@ -738,7 +788,8 @@ public:
     {
         static bool time_mark = true;
         static struct tm time_user;
-        rx8900_read_time(rx8900, &time_user);
+        if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
+            return false;
         char time_str[7];
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
         HNA_16MM65T *vfd = (HNA_16MM65T *)GetSubDisplay();
@@ -749,8 +800,6 @@ public:
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
         vfd->number_show(0, (char *)weekDays[time_user.tm_wday % 7], 3);
-        // char time_str[50];
-        // strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_user);
         // ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }

@@ -10,6 +10,248 @@
 // 定义日志标签
 #define TAG "HNA_16MM65T"
 
+void HNA_16MM65T::waveanimate()
+{
+    int left_sum = 0, right_sum = 0;
+    for (int i = 0; i < FFT_SIZE; i++)
+    {
+        if (wave_animation_steps[i] < wave_total_steps)
+        {
+            // 使用指数衰减函数计算当前值
+            float progress = static_cast<float>(wave_animation_steps[i]) / wave_total_steps;
+            float factor = 1 - std::exp(-3 * progress); // 指数衰减因子
+            wave_current_values[i] = wave_last_values[i] + static_cast<int>((wave_target_values[i] - wave_last_values[i]) * factor);
+            wavehelper(i, wave_current_values[i] * 8 / 90);
+            wave_animation_steps[i]++;
+        }
+        else
+        {
+            wave_last_values[i] = wave_target_values[i];
+            wavehelper(i, wave_target_values[i] * 8 / 90);
+        }
+        if (left_sum < 6)
+            left_sum += wave_current_values[i];
+        else
+            right_sum += wave_current_values[i];
+    }
+
+    corewavehelper(left_sum * 8 / 90 / 4, right_sum * 8 / 90 / 4);
+}
+
+uint32_t HNA_16MM65T::numbergetpart(uint32_t raw, uint32_t mask)
+{
+    return raw & mask;
+}
+
+void HNA_16MM65T::numberanimate()
+{
+    static int64_t start_time = esp_timer_get_time() / 1000;
+    int64_t current_time = esp_timer_get_time() / 1000;
+
+    int64_t elapsed_time = current_time - start_time;
+
+    if (elapsed_time >= 30)
+        start_time = current_time;
+    else
+        return;
+    for (int i = 0; i < NUM_SIZE; i++)
+    {
+        if (number_buf[i] != number_last_buf[i] || number_animation_steps[i] != 0)
+        {
+            number_last_buf[i] = number_buf[i];
+            uint32_t raw_code = find_hex_code(number_buf[i]);
+            uint32_t code = raw_code;
+            if (number_animation_type == ANI_CLOCKWISE)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0x080000 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0x4C0000 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0x6e0000 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0x6f6000 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 4:
+                    code = numbergetpart(raw_code, 0x6f6300 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 5:
+                    code = numbergetpart(raw_code, 0x6f6770 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 6:
+                    code = numbergetpart(raw_code, 0x6f6ff0 | 0x800000);
+                    if (code != 0)
+                        break;
+                case 7:
+                    code = numbergetpart(raw_code, 0x6ffff0 | 0x800000);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else if (number_animation_type == ANI_ANTICLOCKWISE)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0x004880);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0x004ca0);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0x004ef0);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0x006ff0);
+                    if (code != 0)
+                        break;
+                case 4:
+                    code = numbergetpart(raw_code, 0x036ff0);
+                    if (code != 0)
+                        break;
+                case 5:
+                    code = numbergetpart(raw_code, 0x676ff0);
+                    if (code != 0)
+                        break;
+                case 6:
+                    code = numbergetpart(raw_code, 0xef6ff0);
+                    if (code != 0)
+                        break;
+                case 7:
+                    code = numbergetpart(raw_code, 0xffeff0);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else if (number_animation_type == ANI_UP2DOWN)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0xe00000);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0xff0000);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0xffe000);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0xffff00);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else if (number_animation_type == ANI_DOWN2UP)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0x0000f0);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0x001ff0);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0x00fff0);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0x1ffff0);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else if (number_animation_type == ANI_LEFT2RT)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0x901080);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0xd89880);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0xdcdce0);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0xdefee0);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else if (number_animation_type == ANI_RT2LEFT)
+            {
+                switch (number_animation_steps[i])
+                {
+                case 0:
+                    code = numbergetpart(raw_code, 0x210110);
+                    if (code != 0)
+                        break;
+                case 1:
+                    code = numbergetpart(raw_code, 0x632310);
+                    if (code != 0)
+                        break;
+                case 2:
+                    code = numbergetpart(raw_code, 0x676770);
+                    if (code != 0)
+                        break;
+                case 3:
+                    code = numbergetpart(raw_code, 0x6fef70);
+                    if (code != 0)
+                        break;
+                default:
+                    number_animation_steps[i] = -1;
+                    break;
+                }
+            }
+            else
+                number_animation_steps[i] = -1;
+
+            numhelper(i, code);
+            number_animation_steps[i]++;
+        }
+    }
+}
+
 /**
  * @brief HNA_16MM65T 类的构造函数。
  *
@@ -420,6 +662,72 @@ void HNA_16MM65T::wavehelper(int index, int level)
         }
     }
 }
+
+void HNA_16MM65T::corewavehelper(int l_level, int r_level) // 0-100
+{
+    static int rollcount = 0;
+    if (l_level > 8)
+        l_level = 8;
+    if (r_level > 8)
+        r_level = 8;
+    uint16_t core_level = (((1 << l_level) - 1) << 8) | ((1 << r_level) - 1);
+
+    core_level = (core_level << rollcount) | (core_level >> (8 - rollcount));
+    rollcount = (rollcount + 1) % 8;
+
+    if (l_level > 1)
+        gram[0] |= 0x40;
+    if (l_level > 3)
+        gram[0] |= 0x20;
+    if (l_level > 5)
+        gram[0] |= 0x10;
+
+    if (r_level > 1)
+        gram[0] |= 0x8;
+    if (r_level > 3)
+        gram[0] |= 0x4;
+    if (r_level > 5)
+        gram[0] |= 0x2;
+
+    if (l_level > 3 || r_level > 3)
+    {
+        gram[COREWAVE_BEGIN + 1] = core_level >> 8;
+        gram[COREWAVE_BEGIN + 1 + 1] = core_level & 0xFF;
+    }
+    if (l_level > 4)
+    {
+        gram[COREWAVE_BEGIN] |= 0x40;
+    }
+    if (r_level > 4)
+    {
+        gram[COREWAVE_BEGIN] |= 0x10;
+    }
+    if (l_level > 5)
+    {
+        gram[COREWAVE_BEGIN] |= 0x20;
+    }
+    if (r_level > 5)
+    {
+        gram[COREWAVE_BEGIN] |= 0x80;
+    }
+    if (l_level > 6)
+    {
+        gram[COREWAVE_BEGIN] |= 0x4;
+    }
+    if (r_level > 6)
+    {
+        gram[COREWAVE_BEGIN] |= 0x8;
+    }
+    if (l_level > 7)
+    {
+        gram[COREWAVE_BEGIN] |= 0x1;
+    }
+    if (r_level > 7)
+    {
+        gram[COREWAVE_BEGIN] |= 0x2;
+    }
+}
+
 void HNA_16MM65T::OnStateChanged()
 {
     auto &app = Application::GetInstance();

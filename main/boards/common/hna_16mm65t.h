@@ -24,6 +24,7 @@
 #define CHAR_COUNT (62 + 1)
 // 定义数字开始的索引
 #define NUM_BEGIN 3
+#define COREWAVE_BEGIN 39
 
 /**
  * @enum Dots
@@ -123,7 +124,7 @@ typedef struct
  *
  * 提供了显示频谱、数字、符号、点矩阵等信息的方法，同时支持动画效果。
  */
-class HNA_16MM65T : public PT6324Writer, public Display, public Led
+class HNA_16MM65T : PT6324Writer, public Display, public Led
 {
     // 定义缓冲区 数量
 #define BUF_SIZE (1024)
@@ -131,14 +132,13 @@ class HNA_16MM65T : public PT6324Writer, public Display, public Led
 #define FFT_SIZE (12)
 // 定义 数字 数量
 #define NUM_SIZE (10)
-
 private:
     uint8_t gram[48] = {0};                   // 显示缓冲区
     int wave_last_values[FFT_SIZE] = {0};     // 上一次的 FFT 值
     int wave_target_values[FFT_SIZE] = {0};   // 目标 FFT 值
     int wave_current_values[FFT_SIZE] = {0};  // 当前 FFT 值
     int wave_animation_steps[FFT_SIZE] = {0}; // 动画步数
-    int wave_total_steps = 5;                // 动画总步数
+    int wave_total_steps = 5;                 // 动画总步数
 
     char number_buf[NUM_SIZE] = {0};
     char number_last_buf[NUM_SIZE] = {0};
@@ -266,240 +266,11 @@ private:
      *
      * 使用指数衰减函数计算当前值，并调用 wavehelper 方法更新显示。
      */
-    void waveanimate()
-    {
-        for (int i = 0; i < FFT_SIZE; i++)
-        {
-            if (wave_animation_steps[i] < wave_total_steps)
-            {
-                // 使用指数衰减函数计算当前值
-                float progress = static_cast<float>(wave_animation_steps[i]) / wave_total_steps;
-                float factor = 1 - std::exp(-3 * progress); // 指数衰减因子
-                wave_current_values[i] = wave_last_values[i] + static_cast<int>((wave_target_values[i] - wave_last_values[i]) * factor);
-                wavehelper(i, wave_current_values[i] * 8 / 90);
-                wave_animation_steps[i]++;
-            }
-            else
-            {
-                wave_last_values[i] = wave_target_values[i];
-                wavehelper(i, wave_target_values[i] * 8 / 90);
-            }
-        }
-    }
+    void waveanimate();
 
-    uint32_t numbergetpart(uint32_t raw, uint32_t mask)
-    {
-        return raw & mask;
-    }
+    uint32_t numbergetpart(uint32_t raw, uint32_t mask);
 
-    void numberanimate()
-    {
-        static int64_t start_time = esp_timer_get_time() / 1000;
-        int64_t current_time = esp_timer_get_time() / 1000;
-
-        int64_t elapsed_time = current_time - start_time;
-
-        if (elapsed_time >= 30)
-            start_time = current_time;
-        else
-            return;
-        for (int i = 0; i < NUM_SIZE; i++)
-        {
-            if (number_buf[i] != number_last_buf[i] || number_animation_steps[i] != 0)
-            {
-                number_last_buf[i] = number_buf[i];
-                uint32_t raw_code = find_hex_code(number_buf[i]);
-                uint32_t code = raw_code;
-                if (number_animation_type == ANI_CLOCKWISE)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0x080000 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0x4C0000 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0x6e0000 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0x6f6000 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 4:
-                        code = numbergetpart(raw_code, 0x6f6300 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 5:
-                        code = numbergetpart(raw_code, 0x6f6770 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 6:
-                        code = numbergetpart(raw_code, 0x6f6ff0 | 0x800000);
-                        if (code != 0)
-                            break;
-                    case 7:
-                        code = numbergetpart(raw_code, 0x6ffff0 | 0x800000);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else if (number_animation_type == ANI_ANTICLOCKWISE)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0x004880);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0x004ca0);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0x004ef0);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0x006ff0);
-                        if (code != 0)
-                            break;
-                    case 4:
-                        code = numbergetpart(raw_code, 0x036ff0);
-                        if (code != 0)
-                            break;
-                    case 5:
-                        code = numbergetpart(raw_code, 0x676ff0);
-                        if (code != 0)
-                            break;
-                    case 6:
-                        code = numbergetpart(raw_code, 0xef6ff0);
-                        if (code != 0)
-                            break;
-                    case 7:
-                        code = numbergetpart(raw_code, 0xffeff0);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else if (number_animation_type == ANI_UP2DOWN)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0xe00000);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0xff0000);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0xffe000);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0xffff00);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else if (number_animation_type == ANI_DOWN2UP)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0x0000f0);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0x001ff0);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0x00fff0);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0x1ffff0);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else if (number_animation_type == ANI_LEFT2RT)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0x901080);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0xd89880);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0xdcdce0);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0xdefee0);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else if (number_animation_type == ANI_RT2LEFT)
-                {
-                    switch (number_animation_steps[i])
-                    {
-                    case 0:
-                        code = numbergetpart(raw_code, 0x210110);
-                        if (code != 0)
-                            break;
-                    case 1:
-                        code = numbergetpart(raw_code, 0x632310);
-                        if (code != 0)
-                            break;
-                    case 2:
-                        code = numbergetpart(raw_code, 0x676770);
-                        if (code != 0)
-                            break;
-                    case 3:
-                        code = numbergetpart(raw_code, 0x6fef70);
-                        if (code != 0)
-                            break;
-                    default:
-                        number_animation_steps[i] = -1;
-                        break;
-                    }
-                }
-                else
-                    number_animation_steps[i] = -1;
-
-                numhelper(i, code);
-                number_animation_steps[i]++;
-            }
-        }
-    }
+    void numberanimate();
 
 public:
     /**
@@ -579,6 +350,8 @@ protected:
      * @param level 波形的级别。
      */
     void wavehelper(int index, int level);
+
+    void corewavehelper(int l_level, int r_level);
 
     /**
      * @brief 查找字符对应的十六进制代码
