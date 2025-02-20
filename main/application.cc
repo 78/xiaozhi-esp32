@@ -125,8 +125,14 @@ void Application::CheckNewVersion() {
             // Activation code is valid
             SetDeviceState(kDeviceStateActivating);
             ShowActivationCode();
-            // Check again in 60 seconds
-            vTaskDelay(pdMS_TO_TICKS(60000));
+
+            // Check again in 60 seconds or until the device is idle
+            for (int i = 0; i < 60; ++i) {
+                if (device_state_ == kDeviceStateIdle) {
+                    break;
+                }
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
             continue;
         }
 
@@ -488,6 +494,8 @@ void Application::Start() {
                 SetDeviceState(kDeviceStateListening);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
+            } else if (device_state_ == kDeviceStateActivating) {
+                SetDeviceState(kDeviceStateIdle);
             }
 
             // Resume detection
