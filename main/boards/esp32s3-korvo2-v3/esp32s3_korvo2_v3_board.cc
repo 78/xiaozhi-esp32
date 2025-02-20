@@ -10,22 +10,23 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_io_expander_tca9554.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <wifi_station.h>
-#include "esp_io_expander_tca9554.h"
+
 #define TAG "esp32s3_korvo2_v3"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class Esp32S3Korvo2V3Board : public WifiBoard
-{
+class Esp32S3Korvo2V3Board : public WifiBoard {
 private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
     esp_io_expander_handle_t io_expander_ = NULL;
+
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -42,6 +43,7 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
+
     void I2cDetect() {
         uint8_t address;
         printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
@@ -62,7 +64,8 @@ private:
             printf("\r\n");
         }
     }
-    void InitializeTca9554(void) {
+
+    void InitializeTca9554() {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander_);
         if(ret != ESP_OK) {
             ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000, &io_expander_);
@@ -87,11 +90,13 @@ private:
         ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
             IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1));
     }
-    void EnableLcdCs(void) {
-        if(io_expander_ != NULL){
+
+    void EnableLcdCs() {
+        if(io_expander_ != NULL) {
             esp_io_expander_set_level(io_expander_, IO_EXPANDER_PIN_NUM_3, 0);// 置低 LCD CS
         }
     }
+
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_0;
