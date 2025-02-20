@@ -133,18 +133,18 @@ void Ssd1306Display::Unlock() {
     lvgl_port_unlock();
 }
 
-void Ssd1306Display::SetChatMessage(const std::string &role, const std::string &content) {
+void Ssd1306Display::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
     }
     if (content_right_ == nullptr) {
-        lv_label_set_text(chat_message_label_, content.c_str());
+        lv_label_set_text(chat_message_label_, content);
     } else {
-        if (content.empty()) {
+        if (content == nullptr || content[0] == '\0') {
             lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
         } else {
-            lv_label_set_text(chat_message_label_, content.c_str());
+            lv_label_set_text(chat_message_label_, content);
             lv_obj_clear_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
         }
     }
