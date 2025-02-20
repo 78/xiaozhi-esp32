@@ -149,7 +149,7 @@ target_compile_definitions(${COMPONENT_LIB}
 # 添加生成规则
 add_custom_command(
     OUTPUT ${LANG_HEADER}
-    COMMAND python3 ${PROJECT_DIR}/scripts/gen_lang.py
+    COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
             --input "${LANG_JSON}"
             --output "${LANG_HEADER}"
     DEPENDS 
