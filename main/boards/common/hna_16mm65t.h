@@ -270,7 +270,7 @@ private:
      */
     void waveanimate();
 
-    uint32_t numbergetpart(uint32_t raw, uint32_t mask);
+    uint32_t numbergetpart(uint32_t raw, uint32_t before_raw, uint32_t mask);
 
     void numberanimate();
 

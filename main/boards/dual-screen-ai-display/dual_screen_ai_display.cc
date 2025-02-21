@@ -737,11 +737,11 @@ public:
         return vfd_;
     }
 
-    // virtual Sdcard *GetSdcard() override
-    // {
-    //     static Sdcard sd_card(PIN_NUM_SD_CMD, PIN_NUM_SD_CLK, PIN_NUM_SD_D0, PIN_NUM_SD_D1, PIN_NUM_SD_D2, PIN_NUM_SD_D3, PIN_NUM_SD_CDZ);
-    //     return &sd_card;
-    // }
+    virtual Sdcard *GetSdcard() override
+    {
+        static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO);
+        return &sd_card;
+    }
 
 #define VCHARGE 4050
 #define V1 3800

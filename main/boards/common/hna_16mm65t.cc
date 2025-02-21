@@ -48,9 +48,9 @@ void HNA_16MM65T::waveanimate()
     corewavehelper(left_sum * 8 / 90 / 4, right_sum * 8 / 90 / 4);
 }
 
-uint32_t HNA_16MM65T::numbergetpart(uint32_t raw, uint32_t mask)
+uint32_t HNA_16MM65T::numbergetpart(uint32_t raw, uint32_t before_raw, uint32_t mask)
 {
-    return raw & mask;
+    return (raw & mask) | (before_raw & (~mask));
 }
 
 void HNA_16MM65T::numberanimate()
@@ -66,9 +66,9 @@ void HNA_16MM65T::numberanimate()
         return;
     for (int i = 0; i < NUM_SIZE; i++)
     {
-        if (number_buf[i] != number_last_buf[i] || number_animation_steps[i] != 0)
+        if (number_buf[i] != number_last_buf[i])
         {
-            number_last_buf[i] = number_buf[i];
+            uint32_t before_raw_code = find_hex_code(number_last_buf[i]);
             uint32_t raw_code = find_hex_code(number_buf[i]);
             uint32_t code = raw_code;
             if (number_animation_type == ANI_CLOCKWISE)
@@ -76,35 +76,35 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0x080000 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x080000 | 0x800000);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0x4C0000 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x4C0000 | 0x800000);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0x6e0000 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6e0000 | 0x800000);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0x6f6000 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6f6000 | 0x800000);
                     if (code != 0)
                         break;
                 case 4:
-                    code = numbergetpart(raw_code, 0x6f6300 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6f6300 | 0x800000);
                     if (code != 0)
                         break;
                 case 5:
-                    code = numbergetpart(raw_code, 0x6f6770 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6f6770 | 0x800000);
                     if (code != 0)
                         break;
                 case 6:
-                    code = numbergetpart(raw_code, 0x6f6ff0 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6f6ff0 | 0x800000);
                     if (code != 0)
                         break;
                 case 7:
-                    code = numbergetpart(raw_code, 0x6ffff0 | 0x800000);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6ffff0 | 0x800000);
                     if (code != 0)
                         break;
                 default:
@@ -117,35 +117,35 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0x004880);
+                    code = numbergetpart(raw_code, before_raw_code, 0x004880);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0x004ca0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x004ca0);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0x004ef0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x004ef0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0x006ff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x006ff0);
                     if (code != 0)
                         break;
                 case 4:
-                    code = numbergetpart(raw_code, 0x036ff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x036ff0);
                     if (code != 0)
                         break;
                 case 5:
-                    code = numbergetpart(raw_code, 0x676ff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x676ff0);
                     if (code != 0)
                         break;
                 case 6:
-                    code = numbergetpart(raw_code, 0xef6ff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0xef6ff0);
                     if (code != 0)
                         break;
                 case 7:
-                    code = numbergetpart(raw_code, 0xffeff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0xffeff0);
                     if (code != 0)
                         break;
                 default:
@@ -158,19 +158,19 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0xe00000);
+                    code = numbergetpart(raw_code, before_raw_code, 0xe00000);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0xff0000);
+                    code = numbergetpart(raw_code, before_raw_code, 0xff0000);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0xffe000);
+                    code = numbergetpart(raw_code, before_raw_code, 0xffe000);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0xffff00);
+                    code = numbergetpart(raw_code, before_raw_code, 0xffff00);
                     if (code != 0)
                         break;
                 default:
@@ -183,19 +183,19 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0x0000f0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x0000f0);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0x001ff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x001ff0);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0x00fff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x00fff0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0x1ffff0);
+                    code = numbergetpart(raw_code, before_raw_code, 0x1ffff0);
                     if (code != 0)
                         break;
                 default:
@@ -208,19 +208,19 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0x901080);
+                    code = numbergetpart(raw_code, before_raw_code, 0x901080);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0xd89880);
+                    code = numbergetpart(raw_code, before_raw_code, 0xd89880);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0xdcdce0);
+                    code = numbergetpart(raw_code, before_raw_code, 0xdcdce0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0xdefee0);
+                    code = numbergetpart(raw_code, before_raw_code, 0xdefee0);
                     if (code != 0)
                         break;
                 default:
@@ -233,19 +233,19 @@ void HNA_16MM65T::numberanimate()
                 switch (number_animation_steps[i])
                 {
                 case 0:
-                    code = numbergetpart(raw_code, 0x210110);
+                    code = numbergetpart(raw_code, before_raw_code, 0x210110);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, 0x632310);
+                    code = numbergetpart(raw_code, before_raw_code, 0x632310);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, 0x676770);
+                    code = numbergetpart(raw_code, before_raw_code, 0x676770);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, 0x6fef70);
+                    code = numbergetpart(raw_code, before_raw_code, 0x6fef70);
                     if (code != 0)
                         break;
                 default:
@@ -256,6 +256,9 @@ void HNA_16MM65T::numberanimate()
             else
                 number_animation_steps[i] = -1;
 
+            if (number_animation_steps[i] == -1)
+                number_last_buf[i] = number_buf[i];
+                
             numhelper(i, code);
             number_animation_steps[i]++;
         }
