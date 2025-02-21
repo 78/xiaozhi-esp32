@@ -27,10 +27,10 @@
 #define NTP_SERVER2 "time.nist.gov"
 #define DEFAULT_TIMEZONE "CST-8"
 
-#define AUDIO_I2S_GPIO_WS GPIO_NUM_42   // 以适配
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_41 // 以适配
-#define AUDIO_I2S_GPIO_DIN GPIO_NUM_40  // 以适配
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_39 // 以适配
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_42
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_41
+#define AUDIO_I2S_GPIO_DIN GPIO_NUM_40
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_39
 
 #endif
 
@@ -43,9 +43,9 @@
 #define TOUCH_INT_NUM GPIO_NUM_45
 #endif
 #define ADC_UNIT ADC_UNIT_1
-#define BAT_ADC_CHANNEL ADC_CHANNEL_4 // GPIO_NUM_2
+#define BAT_ADC_CHANNEL ADC_CHANNEL_4  // GPIO_NUM_2
 #define DIMM_ADC_CHANNEL ADC_CHANNEL_3 // GPIO_NUM_1
-#define DEFAULT_VREF 1100         // 参考电压，单位为 mV，可根据实际情况调整
+#define DEFAULT_VREF 1100              // 参考电压，单位为 mV，可根据实际情况调整
 
 #define IIC_MASTER_NUM I2C_NUM_0
 #define IIC_SDA_NUM GPIO_NUM_7
@@ -53,14 +53,14 @@
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 
-// #define BUILTIN_LED_GPIO GPIO_NUM_1 // 以适配
-#define BOOT_BUTTON_GPIO GPIO_NUM_0 // 以适配
+// #define BUILTIN_LED_GPIO GPIO_NUM_1
+// #define BOOT_BUTTON_GPIO GPIO_NUM_0
 // #define RESET_NVS_BUTTON_GPIO     GPIO_NUM_1
 // #define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_4
 
-#define TOUCH_BUTTON_GPIO GPIO_NUM_18    // 以适配-encoder
-// #define VOLUME_ENCODER1_GPIO GPIO_NUM_14 // 以适配-encoder
-// #define VOLUME_ENCODER2_GPIO GPIO_NUM_16 // 以适配-encoder
+#define TOUCH_BUTTON_GPIO GPIO_NUM_0
+// #define VOLUME_ENCODER1_GPIO GPIO_NUM_14
+// #define VOLUME_ENCODER2_GPIO GPIO_NUM_16
 
 #define LCD_HOST SPI2_HOST
 #define VFD_HOST SPI3_HOST
@@ -129,9 +129,9 @@
 #define TOUCH_INT_NUM GPIO_NUM_46
 #endif
 #define ADC_UNIT ADC_UNIT_1
-#define BAT_ADC_CHANNEL ADC_CHANNEL_1 // GPIO_NUM_2
+#define BAT_ADC_CHANNEL ADC_CHANNEL_1  // GPIO_NUM_2
 #define DIMM_ADC_CHANNEL ADC_CHANNEL_0 // GPIO_NUM_1
-#define DEFAULT_VREF 1100         // 参考电压，单位为 mV，可根据实际情况调整
+#define DEFAULT_VREF 1100              // 参考电压，单位为 mV，可根据实际情况调整
 
 #define IIC_MASTER_NUM I2C_NUM_0
 #define IIC_SDA_NUM GPIO_NUM_3
@@ -144,7 +144,7 @@
 // #define RESET_NVS_BUTTON_GPIO     GPIO_NUM_1
 // #define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_4
 
-#define TOUCH_BUTTON_GPIO GPIO_NUM_0    
+#define TOUCH_BUTTON_GPIO GPIO_NUM_0
 // #define VOLUME_ENCODER1_GPIO GPIO_NUM_14 // 以适配-encoder
 // #define VOLUME_ENCODER2_GPIO GPIO_NUM_16 // 以适配-encoder
 
