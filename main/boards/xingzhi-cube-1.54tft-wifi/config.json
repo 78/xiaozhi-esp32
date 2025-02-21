@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "xingzhi-cube-oled",
+            "name": "xingzhi-cube-1.54tft-wifi",
             "sdkconfig_append": []
         }
     ]
