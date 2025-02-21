@@ -133,7 +133,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_ESP32_CGC
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -152,6 +152,8 @@ choice DISPLAY_LCD_TYPE
         bool "ST7789, 分辨率240*240"         
     config LCD_ST7789_240X135
         bool "ST7789, 分辨率240*135"
+    config LCD_ST7735_128X128
+        bool "ST7735, 分辨率128*128"
     config LCD_ST7735_128X160
         bool "ST7735, 分辨率128*160"
     config LCD_ST7796_320X480
