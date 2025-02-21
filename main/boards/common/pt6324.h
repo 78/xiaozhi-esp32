@@ -47,8 +47,10 @@ public:
      * This method performs any necessary setup operations to prepare the PT6324 device for use.
      */
     void pt6324_init();
+    void pt6324_setbrightness(uint8_t brightness);
 
 private:
+    uint8_t dimming = 0;
     spi_device_handle_t spi_device_;
 
     /**

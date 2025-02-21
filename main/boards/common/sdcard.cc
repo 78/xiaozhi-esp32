@@ -19,32 +19,6 @@ static const char *TAG = "Sdcard";
 Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpio_num_t d2, gpio_num_t d3, gpio_num_t cdz)
     : cmd(cmd), clk(clk), d0(d0), d1(d1), d2(d2), d3(d3), cdz(cdz), card(nullptr)
 {
-    // 调用 Init 方法初始化 SD 卡
-    Init();
-}
-
-/**
- * @brief Sdcard 类的析构函数。
- *
- * 该析构函数在对象销毁时调用 Unmount 方法来卸载 SD 卡，确保资源被正确释放。
- */
-Sdcard::~Sdcard()
-{
-    // 如果 card 指针为空，说明 SD 卡未挂载，直接返回
-    if (card == nullptr)
-        return;
-    // 调用 Unmount 方法卸载 SD 卡
-    Unmount();
-}
-
-/**
- * @brief 初始化 SD 卡并挂载文件系统。
- *
- * 该方法首先调用 isSdCardInserted 方法检查 SD 卡是否插入，若插入则进行后续的初始化和挂载操作。
- * 包括配置 SDMMC 主机、SD 卡插槽和挂载参数，最后挂载文件系统并打印 SD 卡信息。
- */
-void Sdcard::Init()
-{
     // 检查 SD 卡是否插入，如果未插入则直接返回
     if (!isSdCardInserted())
         return;
@@ -88,6 +62,77 @@ void Sdcard::Init()
 
     // 打印 SD 卡的详细信息
     sdmmc_card_print_info(stdout, card);
+}
+
+Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso)
+    : cs(cs), mosi(mosi), clk(clk), miso(miso), card(nullptr)
+{
+    // 初始化 SPI 总线
+    spi_bus_config_t bus_cfg = {
+       .mosi_io_num = mosi,
+       .miso_io_num = miso,
+       .sclk_io_num = clk,
+       .quadwp_io_num = -1,
+       .quadhd_io_num = -1,
+       .max_transfer_sz = 4000,
+    };
+    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    // 初始化 SD 卡主机配置
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+    host.slot = SPI3_HOST;
+    host.max_freq_khz = SDMMC_FREQ_PROBING;
+
+    // 配置 SD 卡插槽
+    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot_config.host_id = SPI3_HOST;
+    slot_config.gpio_cs = cs;
+    slot_config.gpio_cd = GPIO_NUM_NC;
+    slot_config.gpio_wp = GPIO_NUM_NC;
+    slot_config.gpio_int = GPIO_NUM_NC;
+    // slot_config.spi = spi;
+
+    // 初始化文件系统挂载配置
+    esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+       .format_if_mount_failed = false,  // 挂载失败时不格式化
+       .max_files = 5,                   // 最大打开文件数为 5
+       .allocation_unit_size = 16 * 1024 // 分配单元大小为 16KB
+    };
+
+    // 挂载 SD 卡文件系统，并检查操作是否成功
+    ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &card);
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount filesystem. "
+                          "If you want the card to be formatted, set format_if_mount_failed = true.");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                          "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+        }
+        spi_bus_free(SPI3_HOST);
+        return;
+    }
+
+    // 打印 SD 卡的详细信息
+    sdmmc_card_print_info(stdout, card);
+}
+
+/**
+ * @brief Sdcard 类的析构函数。
+ *
+ * 该析构函数在对象销毁时调用 Unmount 方法来卸载 SD 卡，确保资源被正确释放。
+ */
+Sdcard::~Sdcard()
+{
+    // 如果 card 指针为空，说明 SD 卡未挂载，直接返回
+    if (card == nullptr)
+        return;
+    // 调用 Unmount 方法卸载 SD 卡
+    Unmount();
 }
 
 /**

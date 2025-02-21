@@ -24,7 +24,10 @@ namespace iot
             methods_.AddMethod("SetBrightness", "设置亮度", ParameterList({Parameter("brightness", "0到100之间的整数", kValueTypeNumber, true)}), [this](const ParameterList &parameters)
                                {
                 auto display = Board::GetInstance().GetDisplay();
-            display->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); });
+                display->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); 
+                auto subdisplay = Board::GetInstance().GetSubDisplay();
+                subdisplay->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); 
+        });
         }
     };
 

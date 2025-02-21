@@ -345,14 +345,13 @@ static rx8900_handle_t _rx8900 = NULL;
 class DualScreenAIDisplay : public WifiBoard
 {
 private:
-    Button boot_button_;
     Button touch_button_;
     // Encoder volume_encoder_;
     // SystemReset system_reset_;
     CustomLcdDisplay *display_;
     HNA_16MM65T *vfd_;
     adc_oneshot_unit_handle_t adc_handle;
-    adc_cali_handle_t adc_cali_handle;
+    adc_cali_handle_t bat_adc_cali_handle, dimm_adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
@@ -399,22 +398,22 @@ private:
 
     void InitializeButtons()
     {
-        boot_button_.OnClick([this]()
-                             {
-            auto& app = Application::GetInstance();           
-             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState(); });
+        // boot_button_.OnClick([this]()
+        //                      {
+        //     auto& app = Application::GetInstance();
+        //      if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+        //         ResetWifiConfiguration();
+        //     }
+        //     app.ToggleChatState(); });
 
-        boot_button_.OnLongPress([this]
-                                 {
-            ESP_LOGI(TAG, "System Sleeped");
-            ((CustomLcdDisplay *)GetDisplay())->Sleep();
-            gpio_set_level(PIN_NUM_LCD_POWER, 0);
-            // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
-            i2c_bus_delete(&i2c_bus);
-            esp_deep_sleep_start(); });
+        // boot_button_.OnLongPress([this]
+        //                          {
+        //     ESP_LOGI(TAG, "System Sleeped");
+        //     ((CustomLcdDisplay *)GetDisplay())->Sleep();
+        //     gpio_set_level(PIN_NUM_LCD_POWER, 0);
+        //     // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+        //     i2c_bus_delete(&i2c_bus);
+        //     esp_deep_sleep_start(); });
 
         touch_button_.OnPressDown([this]()
                                   { Application::GetInstance().StartListening(); });
@@ -468,8 +467,11 @@ private:
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
         vfd_ = new HNA_16MM65T(spidevice);
         ESP_LOGI(TAG, "Enable VFD power");
-        gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_VFD_EN, 1);
+        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+        {
+            gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
+            gpio_set_level(PIN_NUM_VFD_EN, 1);
+        }
         // vfd_->test();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
@@ -524,7 +526,7 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
 
         esp_lcd_touch_handle_t tp = nullptr;
-#if USE_TOUCH
+#if USE_TOUCH && 0
         ESP_LOGI(TAG, "Initialize I2C bus");
         i2c_master_bus_handle_t i2c_bus_;
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -572,9 +574,12 @@ private:
         display_ = new CustomLcdDisplay(panel_io, panel, tp, GPIO_NUM_NC, false,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
-        ESP_LOGI(TAG, "Enable amoled power");
-        gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(PIN_NUM_LCD_POWER, 1);
+        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+        {
+            ESP_LOGI(TAG, "Enable amoled power");
+            gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
+            gpio_set_level(PIN_NUM_LCD_POWER, 1);
+        }
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -589,29 +594,36 @@ private:
 
     void InitializeAdc()
     {
-        adc_oneshot_unit_init_cfg_t init_config1 = {
+        adc_oneshot_unit_init_cfg_t init_config = {
             .unit_id = ADC_UNIT,
         };
-        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc_handle));
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 
-        adc_oneshot_chan_cfg_t config = {
+        adc_oneshot_chan_cfg_t bat_config = {
             .atten = ADC_ATTEN_DB_12,
             .bitwidth = ADC_BITWIDTH_12,
         };
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, ADC_CHANNEL, &config));
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, BAT_ADC_CHANNEL, &bat_config));
 
-        adc_cali_curve_fitting_config_t cali_config = {
+        adc_oneshot_chan_cfg_t dimm_config = {
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_12,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, DIMM_ADC_CHANNEL, &dimm_config));
+
+        adc_cali_curve_fitting_config_t bat_cali_config = {
             .unit_id = ADC_UNIT,
             .atten = ADC_ATTEN_DB_12,
             .bitwidth = ADC_BITWIDTH_12,
         };
+        ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&bat_cali_config, &bat_adc_cali_handle));
 
-        // 创建并初始化校准句柄
-        ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle));
-
-        // adc1_config_width(ADC_WIDTH_BIT_12);
-        // adc1_config_channel_atten(BAT_DETECT_CH, ADC_ATTEN_DB_12);
-        // esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, DEFAULT_VREF, &adc_chars);
+        adc_cali_curve_fitting_config_t dimm_cali_config = {
+            .unit_id = ADC_UNIT,
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_12,
+        };
+        ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&dimm_cali_config, &dimm_adc_cali_handle));
     }
     void GetWakeupCause(void)
     {
@@ -655,11 +667,15 @@ private:
     }
 
 public:
-    DualScreenAIDisplay() : boot_button_(BOOT_BUTTON_GPIO),
-                            touch_button_(TOUCH_BUTTON_GPIO)
+    DualScreenAIDisplay() : touch_button_(TOUCH_BUTTON_GPIO)
     {
         // Check if the reset button is pressed
         // system_reset_.CheckButtons();
+        if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
+        {
+            gpio_set_direction(PIN_NUM_POWER_EN, GPIO_MODE_OUTPUT);
+            gpio_set_level(PIN_NUM_POWER_EN, 1);
+        }
 
         vTaskDelay(pdMS_TO_TICKS(120));
         InitializeAdc();
@@ -737,33 +753,37 @@ public:
     {
         static int last_level = 0;
         static bool last_charging = false;
-        int adc_value;
-        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, ADC_CHANNEL, &adc_value));
-        int v1 = 0;
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_value, &v1));
-        v1 *= 2;
-        // ESP_LOGI(TAG, "adc_value: %d, v1: %d", adc_value, v1);
-        if (v1 >= VCHARGE)
+        int bat_adc_value, dimm_adc_value;
+        int bat_v = 0, dimm_v = 0;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
+        bat_v *= 2;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, DIMM_ADC_CHANNEL, &dimm_adc_value));
+        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(dimm_adc_cali_handle, dimm_adc_value, &dimm_v));
+        dimm_v *= 2;
+        // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
+        // ESP_LOGI(TAG, "adc_value dimm: %d, v: %d", dimm_adc_value, dimm_v);
+        if (bat_v >= VCHARGE)
         {
             level = last_level;
             charging = true;
         }
-        else if (v1 >= V1)
+        else if (bat_v >= V1)
         {
             level = 100;
             charging = false;
         }
-        else if (v1 >= V2)
+        else if (bat_v >= V2)
         {
             level = 75;
             charging = false;
         }
-        else if (v1 >= V3)
+        else if (bat_v >= V3)
         {
             level = 50;
             charging = false;
         }
-        else if (v1 >= V4)
+        else if (bat_v >= V4)
         {
             level = 25;
             charging = false;

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <esp_log.h>
 #include "application.h"
+#include "settings.h"
 
 // 定义日志标签
 #define TAG "HNA_16MM65T"
@@ -13,6 +14,15 @@
 void HNA_16MM65T::waveanimate()
 {
     int left_sum = 0, right_sum = 0;
+    int64_t current_time = esp_timer_get_time() / 1000;
+
+    int64_t elapsed_time = current_time - wave_start_time;
+
+    if (elapsed_time >= 220) // 2 cycle plus 10%
+    {
+        wave_start_time = current_time;
+        memset(wave_target_values, 0, sizeof wave_target_values);
+    }
     for (int i = 0; i < FFT_SIZE; i++)
     {
         if (wave_animation_steps[i] < wave_total_steps)
@@ -263,7 +273,7 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
 {
     // 初始化 PT6324 设备
     pt6324_init();
-
+    InitializeBacklight();
     // 创建一个任务用于刷新显示和执行动画
     xTaskCreate(
         [](void *arg)
@@ -452,6 +462,18 @@ void HNA_16MM65T::cali()
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
+}
+
+void HNA_16MM65T::InitializeBacklight()
+{
+    Settings settings("display", false);
+    brightness_ = settings.GetInt("bright", 80);
+    SetBacklight(brightness_);
+}
+
+void HNA_16MM65T::SetBacklight(uint8_t brightness)
+{
+    pt6324_setbrightness(brightness);
 }
 
 bool HNA_16MM65T::Lock(int timeout_ms)

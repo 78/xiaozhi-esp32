@@ -126,19 +126,21 @@ typedef struct
  */
 class HNA_16MM65T : PT6324Writer, public Display, public Led
 {
-    // 定义缓冲区 数量
+// 定义缓冲区 数量
 #define BUF_SIZE (1024)
 // 定义 FFT 数量
 #define FFT_SIZE (12)
 // 定义 数字 数量
 #define NUM_SIZE (10)
 private:
+    uint8_t brightness_ = 0;
     uint8_t gram[48] = {0};                   // 显示缓冲区
     int wave_last_values[FFT_SIZE] = {0};     // 上一次的 FFT 值
     int wave_target_values[FFT_SIZE] = {0};   // 目标 FFT 值
     int wave_current_values[FFT_SIZE] = {0};  // 当前 FFT 值
     int wave_animation_steps[FFT_SIZE] = {0}; // 动画步数
     int wave_total_steps = 5;                 // 动画总步数
+    int64_t wave_start_time = 0;
 
     char number_buf[NUM_SIZE] = {0};
     char number_last_buf[NUM_SIZE] = {0};
@@ -321,7 +323,11 @@ public:
      */
     void cali();
 
-    void OnStateChanged();
+    void InitializeBacklight();
+
+    virtual void SetBacklight(uint8_t brightness) override;
+
+    virtual void OnStateChanged() override;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;

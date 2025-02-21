@@ -98,6 +98,13 @@ void PT6324Writer::pt6324_init()
     pt6324_write_data(data, (sizeof data) * 8);
 }
 
+void PT6324Writer::pt6324_setbrightness(uint8_t brightness)
+{
+    dimming = brightness * 16 / 100;
+    if (dimming > 15)
+        dimming = 15;
+}
+
 /**
  * @brief Refreshes the display of the PT6324 device.
  *
@@ -121,7 +128,9 @@ void PT6324Writer::pt6324_refrash(uint8_t *gram)
     pt6324_write_data(data_gram, (sizeof data_gram) * 8);
 
     // Define the command to turn on the display
-    uint8_t data[1] = {0x8f};
+    uint8_t data[1] = {0x80};
+
+    data[0] |= dimming & 0xF;
 
     // Send the display on command to the PT6324 device
     pt6324_write_data(data, (sizeof data) * 8);
