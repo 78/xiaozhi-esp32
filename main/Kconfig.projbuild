@@ -73,9 +73,13 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_C3_DEV
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_MAGICLICK_2P4
-        bool "神奇按钮 Magiclick_2.4"  
+        bool "神奇按钮 Magiclick_2.4"
+    config BOARD_TYPE_MAGICLICK_2P5
+        bool "神奇按钮 Magiclick_2.5"  
     config BOARD_TYPE_MAGICLICK_C3
-        bool "神奇按钮 Magiclick_C3" 
+        bool "神奇按钮 Magiclick_C3"
+    config BOARD_TYPE_MAGICLICK_C3_V2
+        bool "神奇按钮 Magiclick_C3_v2"  
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
