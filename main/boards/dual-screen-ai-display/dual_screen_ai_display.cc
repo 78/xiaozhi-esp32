@@ -526,7 +526,7 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
 
         esp_lcd_touch_handle_t tp = nullptr;
-#if USE_TOUCH && 0
+#if USE_TOUCH
         ESP_LOGI(TAG, "Initialize I2C bus");
         i2c_master_bus_handle_t i2c_bus_;
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -737,11 +737,11 @@ public:
         return vfd_;
     }
 
-    virtual Sdcard *GetSdcard() override
-    {
-        static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO);
-        return &sd_card;
-    }
+    // virtual Sdcard *GetSdcard() override
+    // {
+    //     static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO);
+    //     return &sd_card;
+    // }
 
 #define VCHARGE 4050
 #define V1 3800
@@ -806,6 +806,7 @@ public:
     virtual bool TimeUpdate() override
     {
         static bool time_mark = true;
+        uint8_t randvalue = 0;
         static struct tm time_user;
         if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
             return false;
@@ -818,7 +819,9 @@ public:
         time_mark = !time_mark;
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-        vfd->number_show(0, (char *)weekDays[time_user.tm_wday % 7], 3);
+        vfd->number_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, ANI_DOWN2UP);
+        randvalue = rand() % ('Z' - ' ') + ' ';
+        vfd->number_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % ANI_MAX));
         // ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }

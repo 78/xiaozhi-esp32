@@ -21,13 +21,19 @@ void HNA_16MM65T::waveanimate()
     if (elapsed_time >= 220) // 2 cycle plus 10%
     {
         wave_start_time = current_time;
-        memset(wave_target_values, 0, sizeof wave_target_values);
+
+        for (size_t i = 0; i < FFT_SIZE; i++)
+        {
+            wave_last_values[i] = wave_target_values[i];
+            wave_target_values[i] = 0;
+            wave_animation_steps[i] = 0;
+        }
     }
     for (int i = 0; i < FFT_SIZE; i++)
     {
         if (wave_animation_steps[i] < wave_total_steps)
         {
-            // 使用指数衰减函数计算当前值
+            wave_total_steps = 5;
             float progress = static_cast<float>(wave_animation_steps[i]) / wave_total_steps;
             float factor = 1 - std::exp(-3 * progress); // 指数衰减因子
             wave_current_values[i] = wave_last_values[i] + static_cast<int>((wave_target_values[i] - wave_last_values[i]) * factor);
@@ -71,7 +77,7 @@ void HNA_16MM65T::numberanimate()
             uint32_t before_raw_code = find_hex_code(number_last_buf[i]);
             uint32_t raw_code = find_hex_code(number_buf[i]);
             uint32_t code = raw_code;
-            if (number_animation_type == ANI_CLOCKWISE)
+            if (number_animation_type[i] == ANI_CLOCKWISE)
             {
                 switch (number_animation_steps[i])
                 {
@@ -112,7 +118,7 @@ void HNA_16MM65T::numberanimate()
                     break;
                 }
             }
-            else if (number_animation_type == ANI_ANTICLOCKWISE)
+            else if (number_animation_type[i] == ANI_ANTICLOCKWISE)
             {
                 switch (number_animation_steps[i])
                 {
@@ -153,7 +159,7 @@ void HNA_16MM65T::numberanimate()
                     break;
                 }
             }
-            else if (number_animation_type == ANI_UP2DOWN)
+            else if (number_animation_type[i] == ANI_UP2DOWN)
             {
                 switch (number_animation_steps[i])
                 {
@@ -178,7 +184,7 @@ void HNA_16MM65T::numberanimate()
                     break;
                 }
             }
-            else if (number_animation_type == ANI_DOWN2UP)
+            else if (number_animation_type[i] == ANI_DOWN2UP)
             {
                 switch (number_animation_steps[i])
                 {
@@ -203,7 +209,7 @@ void HNA_16MM65T::numberanimate()
                     break;
                 }
             }
-            else if (number_animation_type == ANI_LEFT2RT)
+            else if (number_animation_type[i] == ANI_LEFT2RT)
             {
                 switch (number_animation_steps[i])
                 {
@@ -228,7 +234,7 @@ void HNA_16MM65T::numberanimate()
                     break;
                 }
             }
-            else if (number_animation_type == ANI_RT2LEFT)
+            else if (number_animation_type[i] == ANI_RT2LEFT)
             {
                 switch (number_animation_steps[i])
                 {
@@ -258,7 +264,7 @@ void HNA_16MM65T::numberanimate()
 
             if (number_animation_steps[i] == -1)
                 number_last_buf[i] = number_buf[i];
-                
+
             numhelper(i, code);
             number_animation_steps[i]++;
         }
@@ -379,9 +385,9 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 
 void HNA_16MM65T::number_show(int start, char *buf, int size, NumAni ani)
 {
-    number_animation_type = ani;
     for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
     {
+        number_animation_type[start + i] = ani;
         number_buf[start + i] = buf[i];
     }
 }

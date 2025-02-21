@@ -99,7 +99,7 @@ typedef enum
 
 typedef enum
 {
-    ANI_NONE,
+    ANI_NONE = -1,
     ANI_CLOCKWISE,
     ANI_ANTICLOCKWISE,
     ANI_UP2DOWN,
@@ -145,7 +145,7 @@ private:
     char number_buf[NUM_SIZE] = {0};
     char number_last_buf[NUM_SIZE] = {0};
     int number_animation_steps[NUM_SIZE] = {0}; // 动画步数
-    NumAni number_animation_type = ANI_CLOCKWISE;
+    NumAni number_animation_type[NUM_SIZE];
 
     // 每个字符对应的十六进制编码
     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
