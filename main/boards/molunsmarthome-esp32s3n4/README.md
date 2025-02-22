@@ -1,3 +1,11 @@
+
+# 开发板开源地址
+
+[默语管家开源项目](https://oshwhub.com/molun/intelligent-housekeeper)
+
+![默语管家ESP32S3N4](image-3.png)
+
+
 # 编译配置命令
 
 **配置编译目标为 ESP32S3：**
