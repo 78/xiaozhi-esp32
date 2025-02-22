@@ -59,6 +59,8 @@ public:
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
+    void AsrToggleChatState();
+    void AsrStepback();
     void StartListening();
     void StopListening();
     void UpdateIotStates();

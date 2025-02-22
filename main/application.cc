@@ -241,6 +241,59 @@ void Application::ToggleChatState() {
     });
 }
 
+void Application::AsrToggleChatState() {
+    Schedule([this]() {
+
+        if (!protocol_) {
+            ESP_LOGE(TAG, "Protocol not initialized");
+            return;
+        }
+
+        if (device_state_ == kDeviceStateIdle) {
+            SetDeviceState(kDeviceStateConnecting);
+            if (!protocol_->OpenAudioChannel()) {
+                Alert("ERROR", "无法建立音频通道", "sad");
+                SetDeviceState(kDeviceStateIdle);
+                return;
+            }
+
+            keep_listening_ = true;
+            protocol_->SendStartListening(kListeningModeManualStop);
+            SetDeviceState(kDeviceStateListening);
+
+            std::string wake_word="你好呀";
+            if (protocol_) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+                protocol_->SendWakeWordDetected(wake_word);
+            }
+        } else if (device_state_ == kDeviceStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+        }
+    });
+}
+
+void Application::AsrStepback() {
+    Schedule([this]() {
+
+        if (!protocol_) {
+            ESP_LOGE(TAG, "Protocol not initialized");
+            return;
+        }
+
+        if (device_state_ == kDeviceStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+            if (protocol_) {
+                protocol_->CloseAudioChannel();
+            }
+        } else if (device_state_ == kDeviceStateListening) {
+            std::string wake_word="退下吧";
+            if (protocol_) {
+                protocol_->SendWakeWordDetected(wake_word);
+            }
+        }
+    });
+}
+
 void Application::StartListening() {
     Schedule([this]() {
         if (device_state_ == kDeviceStateActivating) {
