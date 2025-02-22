@@ -1,3 +1,6 @@
+# 主板开源地址：
+(https://oshwhub.com/wdmomo/esp32-xiaozhi-kidpcb)[https://oshwhub.com/wdmomo/esp32-xiaozhi-kidpcb]
+
 # 编译配置命令
 
 **配置编译目标为 ESP32：**
