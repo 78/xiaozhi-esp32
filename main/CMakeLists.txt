@@ -60,8 +60,12 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_C3_DEV)
     set(BOARD_TYPE "lichuang-c3-dev")
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P4)
     set(BOARD_TYPE "magiclick-2p4")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_2P5)
+    set(BOARD_TYPE "magiclick-2p5")
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3)
     set(BOARD_TYPE "magiclick-c3")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
+    set(BOARD_TYPE "magiclick-c3-v2")
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
 elseif(CONFIG_BOARD_TYPE_ATOMS3_ECHO_BASE)
@@ -100,10 +104,14 @@ elseif(CONFIG_BOARD_TYPE_DU_CHATX)
     set(BOARD_TYPE "du-chatx")     
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
     set(BOARD_TYPE "taiji-pi-s3")
-elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_OLED)
-    set(BOARD_TYPE "xingzhi-cube-oled")
-elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_TFT)
-    set(BOARD_TYPE "xingzhi-cube-tft")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI)
+    set(BOARD_TYPE "xingzhi-cube-0.96oled-wifi")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307)
+    set(BOARD_TYPE "xingzhi-cube-0.96oled-ml307")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI)
+    set(BOARD_TYPE "xingzhi-cube-1.54tft-wifi")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
+    set(BOARD_TYPE "xingzhi-cube-1.54tft-ml307")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
@@ -152,7 +160,7 @@ target_compile_definitions(${COMPONENT_LIB}
 # 添加生成规则
 add_custom_command(
     OUTPUT ${LANG_HEADER}
-    COMMAND python3 ${PROJECT_DIR}/scripts/gen_lang.py
+    COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
             --input "${LANG_JSON}"
             --output "${LANG_HEADER}"
     DEPENDS 

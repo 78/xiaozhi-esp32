@@ -32,7 +32,7 @@ public:
                    const lv_font_t* text_font, const lv_font_t* icon_font);
     ~Ssd1306Display();
 
-    virtual void SetChatMessage(const std::string &role, const std::string &content);
+    virtual void SetChatMessage(const char* role, const char* content) override;
 };
 
 #endif // SSD1306_DISPLAY_H

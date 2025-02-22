@@ -3,7 +3,7 @@
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led/circular_strip.h"
+#include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
 #include <esp_lcd_panel_vendor.h>
@@ -11,17 +11,20 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp_lcd_nv3023.h"
+#include <esp_lcd_panel_io.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_gc9a01.h>
 #include "font_awesome_symbols.h"
+#include <esp_efuse_table.h>
 
-#define TAG "magiclick_2p4"
+#define TAG "magiclick_c3_v2"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class NV3023Display : public LcdDisplay {
+class GC9107Display : public LcdDisplay {
 public:
-    NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+    GC9107Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 gpio_num_t backlight_pin, bool backlight_output_invert,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
@@ -41,7 +44,7 @@ public:
         lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
 
         // 设置状态栏背景色和文本颜色
-        lv_obj_set_style_bg_color(status_bar_, lv_color_white(), 0);
+        lv_obj_set_style_bg_color(status_bar_, lv_color_make(0x1e, 0x90, 0xff), 0);
         lv_obj_set_style_text_color(network_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(notification_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(status_label_, lv_color_black(), 0);
@@ -53,16 +56,48 @@ public:
         lv_obj_set_style_border_width(content_, 0, 0);
         lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-    }
+    }   
 };
 
-class magiclick_2p4 : public WifiBoard {
+static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
+    //  {cmd, { data }, data_size, delay_ms}
+    {0xfe, (uint8_t[]){0x00}, 0, 0},
+    {0xef, (uint8_t[]){0x00}, 0, 0},
+    {0xb0, (uint8_t[]){0xc0}, 1, 0},
+    {0xb1, (uint8_t[]){0x80}, 1, 0},
+    {0xb2, (uint8_t[]){0x27}, 1, 0},
+    {0xb3, (uint8_t[]){0x13}, 1, 0},
+    {0xb6, (uint8_t[]){0x19}, 1, 0},
+    {0xb7, (uint8_t[]){0x05}, 1, 0},
+    {0xac, (uint8_t[]){0xc8}, 1, 0},
+    {0xab, (uint8_t[]){0x0f}, 1, 0},
+    {0x3a, (uint8_t[]){0x05}, 1, 0},
+    {0xb4, (uint8_t[]){0x04}, 1, 0},
+    {0xa8, (uint8_t[]){0x08}, 1, 0},
+    {0xb8, (uint8_t[]){0x08}, 1, 0},
+    {0xea, (uint8_t[]){0x02}, 1, 0},
+    {0xe8, (uint8_t[]){0x2A}, 1, 0},
+    {0xe9, (uint8_t[]){0x47}, 1, 0},
+    {0xe7, (uint8_t[]){0x5f}, 1, 0},
+    {0xc6, (uint8_t[]){0x21}, 1, 0},
+    {0xc7, (uint8_t[]){0x15}, 1, 0},
+    {0xf0,
+    (uint8_t[]){0x1D, 0x38, 0x09, 0x4D, 0x92, 0x2F, 0x35, 0x52, 0x1E, 0x0C,
+                0x04, 0x12, 0x14, 0x1f},
+    14, 0},
+    {0xf1,
+    (uint8_t[]){0x16, 0x40, 0x1C, 0x54, 0xA9, 0x2D, 0x2E, 0x56, 0x10, 0x0D,
+                0x0C, 0x1A, 0x14, 0x1E},
+    14, 0},
+    {0xf4, (uint8_t[]){0x00, 0x00, 0xFF}, 3, 0},
+    {0xba, (uint8_t[]){0xFF, 0xFF}, 2, 0},
+};
+
+class magiclick_c3_v2 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Button main_button_;
-    Button left_button_;
-    Button right_button_;
-    NV3023Display* display_;
+    Button boot_button_;
+    GC9107Display* display_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -82,53 +117,18 @@ private:
     }
 
     void InitializeButtons() {
-        main_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        main_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
-
-        left_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() - 10;
-            if (volume < 0) {
-                volume = 0;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
         });
-
-        left_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+        boot_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
         });
-
-        right_button_.OnClick([this]() {
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+        boot_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
         });
-
-        right_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("最大音量");
-        });
-    }
-
-    void InitializeLedPower() {
-        // 设置GPIO模式
-        gpio_reset_pin(BUILTIN_LED_POWER);
-        gpio_set_direction(BUILTIN_LED_POWER, GPIO_MODE_OUTPUT);
-        gpio_set_level(BUILTIN_LED_POWER, BUILTIN_LED_POWER_OUTPUT_INVERT ? 0 : 1);
     }
 
     void InitializeSpi() {
@@ -139,10 +139,10 @@ private:
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeNv3023Display(){
+    void InitializeGc9107Display(){
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -155,24 +155,29 @@ private:
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
-        // 初始化液晶屏驱动芯片NV3023
-        ESP_LOGD(TAG, "Install LCD driver");
+        // 初始化液晶屏驱动芯片GC9107
+        ESP_LOGD(TAG, "Install LCD driver");        
+        gc9a01_vendor_config_t gc9107_vendor_config = {
+            .init_cmds = gc9107_lcd_init_cmds,
+            .init_cmds_size = sizeof(gc9107_lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
+        };
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_nv3023(panel_io, &panel_config, &panel));
+        panel_config.vendor_config = &gc9107_vendor_config;
+
+        esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel);
 
         esp_lcd_panel_reset(panel);
-
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        esp_lcd_panel_disp_on_off(panel, true); 
+        display_ = new GC9107Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -184,20 +189,19 @@ private:
     }
 
 public:
-    magiclick_2p4() :
-        main_button_(MAIN_BUTTON_GPIO),
-        left_button_(LEFT_BUTTON_GPIO), 
-        right_button_(RIGHT_BUTTON_GPIO) {
+    magiclick_c3_v2() : boot_button_(BOOT_BUTTON_GPIO) {
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
+
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeLedPower();
         InitializeSpi();
-        InitializeNv3023Display();
+        InitializeGc9107Display();
         InitializeIot();
     }
 
     virtual Led* GetLed() override {
-        static CircularStrip led(BUILTIN_LED_GPIO, BUILTIN_LED_NUM);
+        static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
 
@@ -213,4 +217,4 @@ public:
     }
 };
 
-DECLARE_BOARD(magiclick_2p4);
+DECLARE_BOARD(magiclick_c3_v2);
