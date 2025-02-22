@@ -20,6 +20,11 @@ bool Board::TimeUpdate()
     return false;
 }
 
+bool Board::CalibrateTime(tm *tm_info)
+{
+    return false;
+}
+
 Display *Board::GetDisplay()
 {
     static NoDisplay display;

@@ -105,7 +105,6 @@ void PT6324Writer::pt6324_setbrightness(uint8_t brightness)
         dimming = 7;
     else if (dimming < 1)
         dimming = 1;
-    ESP_LOGI(TAG, "DIM: %d", dimming);
 }
 
 /**

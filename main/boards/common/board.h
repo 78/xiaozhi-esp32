@@ -25,28 +25,30 @@ protected:
     Board();
 
 public:
-    static Board& GetInstance() {
-        static Board* instance = static_cast<Board*>(create_board());
+    static Board &GetInstance()
+    {
+        static Board *instance = static_cast<Board *>(create_board());
         return *instance;
     }
 
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
-    virtual Led* GetLed();
-    virtual AudioCodec* GetAudioCodec() = 0;
-    virtual float GetBarometer() {return 0;}
-    virtual float GetTemperature() {return 0;}
-    virtual Display* GetDisplay();
-    virtual Display* GetSubDisplay();
-    virtual Sdcard* GetSdcard();
-    virtual Http* CreateHttp() = 0;
-    virtual WebSocket* CreateWebSocket() = 0;
-    virtual Mqtt* CreateMqtt() = 0;
-    virtual Udp* CreateUdp() = 0;
+    virtual Led *GetLed();
+    virtual AudioCodec *GetAudioCodec() = 0;
+    virtual float GetBarometer() { return 0; }
+    virtual float GetTemperature() { return 0; }
+    virtual Display *GetDisplay();
+    virtual Display *GetSubDisplay();
+    virtual Sdcard *GetSdcard();
+    virtual Http *CreateHttp() = 0;
+    virtual WebSocket *CreateWebSocket() = 0;
+    virtual Mqtt *CreateMqtt() = 0;
+    virtual Udp *CreateUdp() = 0;
     virtual void StartNetwork() = 0;
-    virtual const char* GetNetworkStateIcon() = 0;
-    virtual bool GetBatteryLevel(int &level, bool& charging);
+    virtual const char *GetNetworkStateIcon() = 0;
+    virtual bool GetBatteryLevel(int &level, bool &charging);
     virtual bool TimeUpdate();
+    virtual bool CalibrateTime(struct tm *tm_info);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
 };

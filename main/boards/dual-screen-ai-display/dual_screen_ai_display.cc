@@ -195,16 +195,18 @@ public:
 
         /* Content */
         content_ = lv_obj_create(container_);
-        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);
         lv_obj_set_style_radius(content_, 0, 0);
-        lv_obj_set_width(content_, LV_HOR_RES);
+        lv_obj_set_size(content_, LV_HOR_RES, LV_VER_RES - (18 + 2));
         lv_obj_set_flex_grow(content_, 1);
 
         /* Content */
         lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
         lv_obj_set_style_pad_all(content_, 0, 0);
         lv_obj_set_style_border_width(content_, 1, 0);
+        lv_obj_add_flag(content_, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_scroll_dir(content_, LV_DIR_VER);
+        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);
 
         network_label_ = lv_label_create(status_bar_);
         lv_label_set_text(network_label_, "");
@@ -338,6 +340,7 @@ public:
         lv_anim_start(&anim[2]);
 
         labelContainer.push_back(container);
+        lv_obj_update_layout(content_);
     }
 };
 
@@ -382,8 +385,15 @@ private:
                 char time_str[50];
                 strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &tm_info);
 
-                ESP_LOGW(TAG, "The net time is: %s", time_str);
-                rx8900_write_time(_rx8900, &tm_info);
+                ESP_LOGD(TAG, "The net time is: %s", time_str);
+                auto ret = Board::GetInstance().CalibrateTime(&tm_info);
+                if(!ret)
+                    ESP_LOGI(TAG, "Calibration Failed");
+                    else
+                    {
+                        HNA_16MM65T *vfd = (HNA_16MM65T*)Board::GetInstance().GetSubDisplay();
+                        vfd->noti_show(0,"SYNC TM OK", 10, ANI_LEFT2RT, 1000);
+                    }
             });
             esp_netif_init();
             esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -472,7 +482,7 @@ private:
             gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
             gpio_set_level(PIN_NUM_VFD_EN, 1);
         }
-        // vfd_->test();
+        // vfd_->cali();
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
@@ -803,25 +813,29 @@ public:
         return true;
     }
 
+    virtual bool CalibrateTime(struct tm *tm_info) override
+    {
+        if (rx8900_write_time(_rx8900, tm_info) == ESP_FAIL)
+            return false;
+        return true;
+    }
+
     virtual bool TimeUpdate() override
     {
-        static bool time_mark = true;
-        uint8_t randvalue = 0;
         static struct tm time_user;
         if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
             return false;
         char time_str[7];
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
         HNA_16MM65T *vfd = (HNA_16MM65T *)GetSubDisplay();
-        vfd->number_show(4, time_str, 6);
-        vfd->symbolhelper(NUM6_MARK, time_mark);
-        vfd->symbolhelper(NUM8_MARK, time_mark);
-        time_mark = !time_mark;
+        vfd->content_show(4, time_str, 6);
+        vfd->time_blink();
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-        vfd->number_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, ANI_DOWN2UP);
-        randvalue = rand() % ('Z' - ' ') + ' ';
-        vfd->number_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % ANI_MAX));
+        vfd->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, ANI_DOWN2UP);
+        // uint8_t randvalue = 0;
+        // randvalue = rand() % ('Z' - ' ') + ' ';
+        // vfd->content_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % ANI_MAX));
         // ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }

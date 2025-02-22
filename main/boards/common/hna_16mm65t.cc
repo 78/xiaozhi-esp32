@@ -24,42 +24,41 @@ void HNA_16MM65T::waveanimate()
 
         for (size_t i = 0; i < FFT_SIZE; i++)
         {
-            wave_last_values[i] = wave_target_values[i];
-            wave_target_values[i] = 0;
-            wave_animation_steps[i] = 0;
+            waveData[i].last_value = waveData[i].target_value;
+            waveData[i].target_value = 0;
+            waveData[i].animation_step = 0;
         }
     }
     for (int i = 0; i < FFT_SIZE; i++)
     {
-        if (wave_animation_steps[i] < wave_total_steps)
+        if (waveData[i].animation_step < wave_total_steps)
         {
-            wave_total_steps = 5;
-            float progress = static_cast<float>(wave_animation_steps[i]) / wave_total_steps;
+            float progress = static_cast<float>(waveData[i].animation_step) / wave_total_steps;
             float factor = 1 - std::exp(-3 * progress); // 指数衰减因子
-            wave_current_values[i] = wave_last_values[i] + static_cast<int>((wave_target_values[i] - wave_last_values[i]) * factor);
-            wavehelper(i, wave_current_values[i] * 8 / 90);
-            wave_animation_steps[i]++;
+            waveData[i].current_value = waveData[i].last_value + static_cast<int>((waveData[i].target_value - waveData[i].last_value) * factor);
+            wavehelper(i, waveData[i].current_value * 8 / 90);
+            waveData[i].animation_step++;
         }
         else
         {
-            wave_last_values[i] = wave_target_values[i];
-            wavehelper(i, wave_target_values[i] * 8 / 90);
+            waveData[i].last_value = waveData[i].target_value;
+            wavehelper(i, waveData[i].target_value * 8 / 90);
         }
         if (i < 6)
-            left_sum += wave_current_values[i];
+            left_sum += waveData[i].current_value;
         else
-            right_sum += wave_current_values[i];
+            right_sum += waveData[i].current_value;
     }
 
     corewavehelper(left_sum * 8 / 90 / 4, right_sum * 8 / 90 / 4);
 }
 
-uint32_t HNA_16MM65T::numbergetpart(uint32_t raw, uint32_t before_raw, uint32_t mask)
+uint32_t HNA_16MM65T::contentgetpart(uint32_t raw, uint32_t before_raw, uint32_t mask)
 {
     return (raw & mask) | (before_raw & (~mask));
 }
 
-void HNA_16MM65T::numberanimate()
+void HNA_16MM65T::contentanimate()
 {
     static int64_t start_time = esp_timer_get_time() / 1000;
     int64_t current_time = esp_timer_get_time() / 1000;
@@ -70,203 +69,221 @@ void HNA_16MM65T::numberanimate()
         start_time = current_time;
     else
         return;
+
+    if (content_inhibit_time != 0)
+    {
+        elapsed_time = current_time - content_inhibit_time;
+
+        if (elapsed_time > 0)
+        {
+            for (size_t i = 0; i < NUM_SIZE; i++)
+            {
+                currentData[i].last_content = currentData[i].current_content;
+                currentData[i].animation_type = tempData[i].animation_type;
+                currentData[i].current_content = tempData[i].current_content;
+            }
+
+            content_inhibit_time = 0;
+        }
+    }
+
     for (int i = 0; i < NUM_SIZE; i++)
     {
-        if (number_buf[i] != number_last_buf[i])
+        if (currentData[i].current_content != currentData[i].last_content)
         {
-            uint32_t before_raw_code = find_hex_code(number_last_buf[i]);
-            uint32_t raw_code = find_hex_code(number_buf[i]);
+            uint32_t before_raw_code = find_hex_code(currentData[i].last_content);
+            uint32_t raw_code = find_hex_code(currentData[i].current_content);
             uint32_t code = raw_code;
-            if (number_animation_type[i] == ANI_CLOCKWISE)
+            if (currentData[i].animation_type == ANI_CLOCKWISE)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0x080000 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x080000 | 0x800000);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0x4C0000 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x4C0000 | 0x800000);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6e0000 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6e0000 | 0x800000);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6f6000 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6f6000 | 0x800000);
                     if (code != 0)
                         break;
                 case 4:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6f6300 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6f6300 | 0x800000);
                     if (code != 0)
                         break;
                 case 5:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6f6770 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6f6770 | 0x800000);
                     if (code != 0)
                         break;
                 case 6:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6f6ff0 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6f6ff0 | 0x800000);
                     if (code != 0)
                         break;
                 case 7:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6ffff0 | 0x800000);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6ffff0 | 0x800000);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
-            else if (number_animation_type[i] == ANI_ANTICLOCKWISE)
+            else if (currentData[i].animation_type == ANI_ANTICLOCKWISE)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0x004880);
+                    code = contentgetpart(raw_code, before_raw_code, 0x004880);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0x004ca0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x004ca0);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0x004ef0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x004ef0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0x006ff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x006ff0);
                     if (code != 0)
                         break;
                 case 4:
-                    code = numbergetpart(raw_code, before_raw_code, 0x036ff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x036ff0);
                     if (code != 0)
                         break;
                 case 5:
-                    code = numbergetpart(raw_code, before_raw_code, 0x676ff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x676ff0);
                     if (code != 0)
                         break;
                 case 6:
-                    code = numbergetpart(raw_code, before_raw_code, 0xef6ff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0xef6ff0);
                     if (code != 0)
                         break;
                 case 7:
-                    code = numbergetpart(raw_code, before_raw_code, 0xffeff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0xffeff0);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
-            else if (number_animation_type[i] == ANI_UP2DOWN)
+            else if (currentData[i].animation_type == ANI_UP2DOWN)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0xe00000);
+                    code = contentgetpart(raw_code, before_raw_code, 0xe00000);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0xff0000);
+                    code = contentgetpart(raw_code, before_raw_code, 0xff0000);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0xffe000);
+                    code = contentgetpart(raw_code, before_raw_code, 0xffe000);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0xffff00);
+                    code = contentgetpart(raw_code, before_raw_code, 0xffff00);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
-            else if (number_animation_type[i] == ANI_DOWN2UP)
+            else if (currentData[i].animation_type == ANI_DOWN2UP)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0x0000f0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x0000f0);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0x001ff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x001ff0);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0x00fff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x00fff0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0x1ffff0);
+                    code = contentgetpart(raw_code, before_raw_code, 0x1ffff0);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
-            else if (number_animation_type[i] == ANI_LEFT2RT)
+            else if (currentData[i].animation_type == ANI_LEFT2RT)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0x901080);
+                    code = contentgetpart(raw_code, before_raw_code, 0x901080);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0xd89880);
+                    code = contentgetpart(raw_code, before_raw_code, 0xd89880);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0xdcdce0);
+                    code = contentgetpart(raw_code, before_raw_code, 0xdcdce0);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0xdefee0);
+                    code = contentgetpart(raw_code, before_raw_code, 0xdefee0);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
-            else if (number_animation_type[i] == ANI_RT2LEFT)
+            else if (currentData[i].animation_type == ANI_RT2LEFT)
             {
-                switch (number_animation_steps[i])
+                switch (currentData[i].animation_step)
                 {
                 case 0:
-                    code = numbergetpart(raw_code, before_raw_code, 0x210110);
+                    code = contentgetpart(raw_code, before_raw_code, 0x210110);
                     if (code != 0)
                         break;
                 case 1:
-                    code = numbergetpart(raw_code, before_raw_code, 0x632310);
+                    code = contentgetpart(raw_code, before_raw_code, 0x632310);
                     if (code != 0)
                         break;
                 case 2:
-                    code = numbergetpart(raw_code, before_raw_code, 0x676770);
+                    code = contentgetpart(raw_code, before_raw_code, 0x676770);
                     if (code != 0)
                         break;
                 case 3:
-                    code = numbergetpart(raw_code, before_raw_code, 0x6fef70);
+                    code = contentgetpart(raw_code, before_raw_code, 0x6fef70);
                     if (code != 0)
                         break;
                 default:
-                    number_animation_steps[i] = -1;
+                    currentData[i].animation_step = -1;
                     break;
                 }
             }
             else
-                number_animation_steps[i] = -1;
+                currentData[i].animation_step = -1;
 
-            if (number_animation_steps[i] == -1)
-                number_last_buf[i] = number_buf[i];
+            if (currentData[i].animation_step == -1)
+                currentData[i].last_content = currentData[i].current_content;
 
-            numhelper(i, code);
-            number_animation_steps[i]++;
+            charhelper(i, code);
+            currentData[i].animation_step++;
         }
     }
 }
@@ -295,7 +312,7 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
                 // 刷新显示
                 vfd->pt6324_refrash(vfd->gram);
                 // 执行动画
-                vfd->numberanimate();
+                vfd->contentanimate();
                 vfd->waveanimate();
                 // 任务延时 10 毫秒
                 vTaskDelay(pdMS_TO_TICKS(10));
@@ -324,6 +341,7 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
  */
 void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 {
+    wave_start_time = esp_timer_get_time() / 1000;
 #if true
     if (size < 512)
         return;
@@ -370,28 +388,58 @@ void HNA_16MM65T::spectrum_show(float *buf, int size) // 0-100
 
 #else
 #endif
-
+    wavebusy = false;
     // 更新上一次的值、目标值和动画步数
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
-        wave_last_values[i] = wave_target_values[i];
-        wave_target_values[i] = fft_buf[fft_postion[i]] * fft_gain[fft_postion[i]];
-        wave_animation_steps[i] = 0;
+        waveData[i].last_value = waveData[i].target_value;
+        waveData[i].target_value = fft_buf[fft_postion[i]] * fft_gain[fft_postion[i]];
+        waveData[i].animation_step = 0;
     }
     // 打印最大幅度值和每个频段的目标值
     // ESP_LOGI(TAG, "%d-FFT: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", (int)max, wave_target_values[0], wave_target_values[1], wave_target_values[2], wave_target_values[3], wave_target_values[4], wave_target_values[5],
     //          wave_target_values[6], wave_target_values[7], wave_target_values[8], wave_target_values[9], wave_target_values[10], wave_target_values[11]);
 }
-
-void HNA_16MM65T::number_show(int start, char *buf, int size, NumAni ani)
+void HNA_16MM65T::time_blink()
 {
+    static bool time_mark = true;
+    if (content_inhibit_time != 0)
+    {
+        return;
+    }
+    time_mark = !time_mark;
+
+    symbolhelper(NUM6_MARK, time_mark);
+    symbolhelper(NUM8_MARK, time_mark);
+}
+
+void HNA_16MM65T::content_show(int start, char *buf, int size, NumAni ani)
+{
+    if (content_inhibit_time != 0)
+    {
+        for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+        {
+            tempData[start + i].animation_type = ani;
+            tempData[start + i].current_content = buf[i];
+        }
+        return;
+    }
     for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
     {
-        number_animation_type[start + i] = ani;
-        number_buf[start + i] = buf[i];
+        currentData[start + i].animation_type = ani;
+        currentData[start + i].current_content = buf[i];
     }
 }
 
+void HNA_16MM65T::noti_show(int start, char *buf, int size, NumAni ani, int timeout)
+{
+    content_inhibit_time = esp_timer_get_time() / 1000 + timeout;
+    for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+    {
+        currentData[start + i].animation_type = ani;
+        currentData[start + i].current_content = buf[i];
+    }
+}
 /**
  * @brief 测试函数，创建一个任务用于模拟频谱数据显示。
  *
@@ -400,6 +448,7 @@ void HNA_16MM65T::number_show(int start, char *buf, int size, NumAni ani)
  */
 void HNA_16MM65T::test()
 {
+    wavebusy = false;
     // 创建一个任务用于测试显示功能
     xTaskCreate(
         [](void *arg)
@@ -424,7 +473,7 @@ void HNA_16MM65T::test()
                 }
 
                 snprintf(tempstr, NUM_SIZE, "ABC%dDEF", (rollcounter++) % 100);
-                vfd->number_show(0, tempstr, NUM_SIZE, num_ani);
+                vfd->content_show(0, tempstr, NUM_SIZE, num_ani);
 
                 // for (int i = 0; i < FFT_SIZE; i++)
                 //     testbuff[i] = rand() % 100;
@@ -448,7 +497,7 @@ void HNA_16MM65T::cali()
         .tx_buffer_size = BUF_SIZE,
         .rx_buffer_size = BUF_SIZE,
     };
-
+    wavebusy = false;
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
     uint8_t *recv_data = (uint8_t *)malloc(BUF_SIZE);
     while (1)
@@ -459,13 +508,13 @@ void HNA_16MM65T::cali()
         {
             // dotshelper((Dots)((recv_data[0] - '0') % 4));
             // for (int i = 0; i < 10; i++)
-            //     numhelper(i, recv_data[0]);
+            //     charhelper(i, recv_data[0]);
             // for (size_t i = 0; i < 12; i++)
             //     wavehelper(i, (recv_data[0] - '0') % 9);
             int index = 0, data = 0;
 
             sscanf((char *)recv_data, "%d:%X", &index, &data);
-            printf("Parsed numbers: %d and 0x%02X\n", index, data);
+            printf("Parsed contents: %d and 0x%02X\n", index, data);
             gram[index] = data;
             // pt6324_refrash(gram);
         }
@@ -482,7 +531,10 @@ void HNA_16MM65T::InitializeBacklight()
 
 void HNA_16MM65T::SetBacklight(uint8_t brightness)
 {
+    char tempstr[11] = {0};
     pt6324_setbrightness(brightness);
+    sprintf(tempstr, "BRIGHT:%d", brightness);
+    noti_show(0, tempstr, 10, ANI_UP2DOWN);
 }
 
 bool HNA_16MM65T::Lock(int timeout_ms)
@@ -519,7 +571,7 @@ unsigned int HNA_16MM65T::find_hex_code(char ch)
  * @param index 数字显示的索引位置。
  * @param ch 要显示的字符。
  */
-void HNA_16MM65T::numhelper(int index, char ch)
+void HNA_16MM65T::charhelper(int index, char ch)
 {
     // 检查索引是否越界
     if (index >= 10)
@@ -532,7 +584,7 @@ void HNA_16MM65T::numhelper(int index, char ch)
     gram[NUM_BEGIN + index * 3 + 0] = val & 0xff;
 }
 
-void HNA_16MM65T::numhelper(int index, uint32_t code)
+void HNA_16MM65T::charhelper(int index, uint32_t code)
 {
     // 检查索引是否越界
     if (index >= 10)
@@ -667,12 +719,8 @@ void HNA_16MM65T::wavehelper(int index, int level)
 
     int byteIndex = wavePositions[index].byteIndex, bitIndex = wavePositions[index].bitIndex;
 
-    if (level)
-        // 如果级别不为 0，则设置相应字节的最高位
+    if (!wavebusy)
         gram[byteIndex + 2] |= 0x80;
-    else if (level == -1)
-        // 如果级别为 -1，则清除相应字节的最高位
-        gram[byteIndex + 2] &= ~0x80;
 
     for (size_t i = 0; i < 7; i++)
     {
@@ -697,15 +745,35 @@ void HNA_16MM65T::wavehelper(int index, int level)
 void HNA_16MM65T::corewavehelper(int l_level, int r_level) // 0-100
 {
     static int rollcount = 0;
+    static int64_t start_time = esp_timer_get_time() / 1000;
+    int64_t current_time = esp_timer_get_time() / 1000;
+
+    int64_t elapsed_time = current_time - start_time;
+
+    if (elapsed_time >= 30)
+        start_time = current_time;
+    else
+        return;
+
     gram[0] &= 0x80;
     gram[COREWAVE_BEGIN] = gram[COREWAVE_BEGIN + 1] = gram[COREWAVE_BEGIN + 2] = 0;
+    if (wavebusy)
+    {
+        uint16_t core_level = (((1 << 3) - 1) << 8) | ((1 << 3) - 1);
+        core_level = (core_level << rollcount) | (core_level >> (8 - rollcount));
+        rollcount = (rollcount + 1) % 8;
+        gram[COREWAVE_BEGIN + 1] = core_level >> 8;
+        gram[COREWAVE_BEGIN + 1 + 1] = core_level & 0xFF;
+        // gram[COREWAVE_BEGIN] |= 0x3;
+        return;
+    }
     if (l_level > 8)
         l_level = 8;
     if (r_level > 8)
         r_level = 8;
-    uint16_t core_level = (((1 << l_level) - 1) << 8) | ((1 << r_level) - 1);
+    uint16_t core_level = (((1 << l_level) - 1) << 6) | ((1 << r_level) - 1);
 
-    core_level = (core_level << rollcount) | (core_level >> (8 - rollcount));
+    core_level = (core_level << rollcount) | (core_level >> (6 - rollcount));
     rollcount = (rollcount + 1) % 8;
 
     if (l_level > 1)
@@ -725,8 +793,16 @@ void HNA_16MM65T::corewavehelper(int l_level, int r_level) // 0-100
     if (l_level > 3 || r_level > 3)
     {
         gram[COREWAVE_BEGIN + 1] = core_level >> 8;
-        gram[COREWAVE_BEGIN + 1 + 1] = core_level & 0xFF;
+        gram[COREWAVE_BEGIN + 1 + 1] = core_level & 0x3F;
     }
+
+    gram[COREWAVE_BEGIN + 1 + 1] |= 0x80;
+
+    if (l_level > 2 || r_level > 2)
+    {
+        gram[COREWAVE_BEGIN + 1 + 1] |= 0x40;
+    }
+
     if (l_level > 4)
     {
         gram[COREWAVE_BEGIN] |= 0x40;
@@ -771,7 +847,7 @@ void HNA_16MM65T::OnStateChanged()
     symbolhelper(REC_1, false);
     symbolhelper(REC_2, false);
     symbolhelper(USB1, false);
-    dotshelper(DOT_MATRIX_PAUSE);
+    dotshelper(DOT_MATRIX_FILL);
     switch (device_state)
     {
     case kDeviceStateStarting:

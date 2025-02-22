@@ -118,6 +118,21 @@ typedef struct
     int bitIndex;  // 位索引
 } SymbolPosition;
 
+typedef struct
+{
+    int last_value;     // 上一次的 FFT 值
+    int target_value;   // 目标 FFT 值
+    int current_value;  // 当前 FFT 值
+    int animation_step; // 动画步数
+} WaveFFTData;
+
+typedef struct
+{
+    char current_content;
+    char last_content;
+    int animation_step;
+    NumAni animation_type;
+} ContentData;
 /**
  * @class HNA_16MM65T
  * @brief 该类继承自 PT6324Writer 类，用于控制特定设备的显示。
@@ -133,19 +148,17 @@ class HNA_16MM65T : PT6324Writer, public Display, public Led
 // 定义 数字 数量
 #define NUM_SIZE (10)
 private:
+    bool wavebusy = true;
     uint8_t brightness_ = 0;
-    uint8_t gram[48] = {0};                   // 显示缓冲区
-    int wave_last_values[FFT_SIZE] = {0};     // 上一次的 FFT 值
-    int wave_target_values[FFT_SIZE] = {0};   // 目标 FFT 值
-    int wave_current_values[FFT_SIZE] = {0};  // 当前 FFT 值
-    int wave_animation_steps[FFT_SIZE] = {0}; // 动画步数
-    int wave_total_steps = 5;                 // 动画总步数
+    uint8_t gram[48] = {0};         // 显示缓冲区
+    const int wave_total_steps = 5; // 动画总步数
     int64_t wave_start_time = 0;
+    WaveFFTData waveData[FFT_SIZE] = {0};
 
-    char number_buf[NUM_SIZE] = {0};
-    char number_last_buf[NUM_SIZE] = {0};
-    int number_animation_steps[NUM_SIZE] = {0}; // 动画步数
-    NumAni number_animation_type[NUM_SIZE];
+    int64_t content_inhibit_time = 0;
+
+    ContentData currentData[NUM_SIZE] = {0};
+    ContentData tempData[NUM_SIZE] = {0};
 
     // 每个字符对应的十六进制编码
     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
@@ -270,9 +283,9 @@ private:
      */
     void waveanimate();
 
-    uint32_t numbergetpart(uint32_t raw, uint32_t before_raw, uint32_t mask);
+    uint32_t contentgetpart(uint32_t raw, uint32_t before_raw, uint32_t mask);
 
-    void numberanimate();
+    void contentanimate();
 
 public:
     /**
@@ -290,13 +303,17 @@ public:
      */
     void spectrum_show(float *buf, int size);
 
+    void time_blink();
+
     /**
      * @brief 显示String。
      *
      * @param buf String
      * @param size String大小
      */
-    void number_show(int start, char *buf, int size, NumAni ani = ANI_CLOCKWISE);
+    void content_show(int start, char *buf, int size, NumAni ani = ANI_CLOCKWISE);
+
+    void noti_show(int start, char *buf, int size, NumAni ani = ANI_CLOCKWISE, int timeout = 2000);
 
     /**
      * @brief 显示符号信息。
@@ -339,7 +356,7 @@ protected:
      * @param index 数字显示的索引位置。
      * @param ch 要显示的字符。
      */
-    void numhelper(int index, char ch);
+    void charhelper(int index, char ch);
 
     /**
      * @brief 显示数字信息。
@@ -347,7 +364,7 @@ protected:
      * @param index 数字显示的索引位置。
      * @param code 要显示的断码。
      */
-    void numhelper(int index, uint32_t code);
+    void charhelper(int index, uint32_t code);
 
     /**
      * @brief 显示波形信息。
@@ -716,8 +733,8 @@ protected:
 // 41:8 -> Center-Inlay-Red12
 // 41:10 -> Center-Inlay-Red13
 // 41:20 -> Center-Inlay-Red14
-// 41:40 -> Center-Inlay-Red15
-// 41:80 -> Center-Inlay-Red16
+// 41:40 -> Center-Inlay-Blue
+// 41:80 -> Center-Inlay-Red
 // 42:1 -> NC
 // 42:2 -> NC
 // 42:4 -> Wave7-1
