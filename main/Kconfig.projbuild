@@ -68,6 +68,8 @@ choice BOARD_TYPE
         bool "Kevin C3"
     config BOARD_TYPE_KEVIN_SP_V3_DEV
         bool "Kevin SP V3开发板"
+    config BOARD_TYPE_KEVIN_YUYING_313LCD
+        bool "鱼鹰科技3.13LCD开发板"
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LICHUANG_C3_DEV
