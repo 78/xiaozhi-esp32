@@ -116,6 +116,8 @@ choice BOARD_TYPE
         bool "无名科技星智0.96"
     config BOARD_TYPE_XINGZHI_Cube_TFT
         bool "无名科技星智1.54"
+    config BOARD_TYPE_OSPTEK_R_1_2
+        bool "Osptek R1.2"
 endchoice
 
 choice DISPLAY_OLED_TYPE
