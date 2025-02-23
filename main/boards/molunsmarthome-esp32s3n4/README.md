@@ -1,11 +1,28 @@
 
 # 开发板开源地址
 
-[默语管家开源项目](https://oshwhub.com/molun/intelligent-housekeeper)
+[默语小智管家](https://oshwhub.com/molun/intelligent-housekeeper)
 
 ![默语管家ESP32S3N4](image-3.png)
 
-
+# 开发板介绍
+1. 主控芯片：ESP32-S3-WROOM-1-N4
+2. 内存：4M
+3. 音频输入：麦克风INMP441（可插模块可焊接）
+4. 音频输出：扬声器MAX98357A（可插模块可焊接）
+5. 卡槽：支持TF卡（可插模块可焊接）
+6. 屏幕：0.96'OLED屏幕（4、7、8PIN插接）、1.54TFT屏幕（背面焊接ST7789V）
+7. 按键：4个（BOOT、RST、唤醒按钮KEY1、天问唤醒按钮KEY2）
+8. 离线语音唤醒：天问ASR-PRO核心板
+9. 红外接收：红外接收头
+10. 红外发射：红外发射头
+11. 充电电路：TP4054
+12. LED显示：电源指示灯1颗、TP4054充电指示灯2颗、侧发光WS2812B灯珠4颗、RGB三色灯珠1颗
+13. 雷达模块：安信可RD-03、萤火工场CEM5826-M11
+14. 姿态传感器：MPU6050
+15. 下载电路：CH340C自动下载电路、JTAG下载电路
+16. 其他：串口切换、音量旋钮、电池电量检测、光敏电阻GL5516
+---
 # 编译配置命令
 
 **配置编译目标为 ESP32S3：**
@@ -63,6 +80,10 @@ Component config -> ESP PSRAM -> Support for external, SPI-connected RAM -> No
 ```bash
 idf.py build
 ```
+
+
+---
+# 编译配置截图
 
 ![alt text](image.png)
 ![alt text](image-1.png)
