@@ -26,9 +26,9 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 
 	// Initialize the SPI device interface configuration structure
 	spi_device_interface_config_t devcfg = {
-		.mode = 0,				   // Set the SPI mode to 0
+		.mode = 0,				  // Set the SPI mode to 0
 		.clock_speed_hz = 400000, // Set the clock speed to 400kHz
-		.spics_io_num = -1,		   // Set the chip select pin
+		.spics_io_num = -1,		  // Set the chip select pin
 		.flags = 0,
 		.queue_size = 7,
 	};
@@ -323,7 +323,10 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 	switch (index)
 	{
 	case 0:
-		gram[270 + 3] = process_bit(gram[270 + 3], 0, code, 2);
+		if (code)
+			gram[270 + 3] = gram[270 + 3] | 1;
+		else
+			gram[270 + 3] = gram[270 + 3] & (~1);
 		break;
 	case 1:
 		gram[270 + 0] = process_bit(gram[270 + 0], 2, code, 3);
@@ -345,11 +348,11 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 		break;
 	case 3:
 		gram[270 + 0] = process_bit(gram[270 + 0], 4, code, 3);
-		gram[270 + 0] = process_bit(gram[270 + 0], 7, code, 4);
+		gram[270 + 0] = process_bit(gram[270 + 0], 0, code, 4);
 		gram[270 + 1] = process_bit(gram[270 + 1], 4, code, 2);
 		gram[270 + 2] = process_bit(gram[270 + 2], 3, code, 5);
 		gram[270 + 3] = process_bit(gram[270 + 3], 7, code, 1);
-		gram[270 + 1] = process_bit(gram[270 + 1], 1, code, 6);
+		gram[270 + 1] = process_bit(gram[270 + 1], 0, code, 6);
 		gram[270 + 3] = process_bit(gram[270 + 3], 3, code, 0);
 		break;
 	case 4:
@@ -381,11 +384,11 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 		break;
 	case 7:
 		gram[814 + 0] = process_bit(gram[814 + 0], 4, code, 3);
-		gram[814 + 0] = process_bit(gram[814 + 0], 7, code, 4);
+		gram[814 + 0] = process_bit(gram[814 + 0], 0, code, 4);
 		gram[814 + 1] = process_bit(gram[814 + 1], 4, code, 2);
 		gram[814 + 2] = process_bit(gram[814 + 2], 3, code, 5);
 		gram[814 + 3] = process_bit(gram[814 + 3], 7, code, 1);
-		gram[814 + 1] = process_bit(gram[814 + 1], 1, code, 6);
+		gram[814 + 1] = process_bit(gram[814 + 1], 0, code, 6);
 		gram[814 + 3] = process_bit(gram[814 + 3], 3, code, 0);
 		break;
 	case 8:
@@ -424,13 +427,13 @@ void FORD_VFD::test()
 				vfd->symbolhelper(BT, true);
 				for (size_t i = 0; i < 9; i++)
 				{
-					vfd->charhelper(i, (char)('0' + count%10));
+					vfd->charhelper(i, (char)('0' + count % 10));
 				}
 				for (size_t i = 0; i < FORD_WIDTH; i++)
 				{
 					for (size_t j = 0; j < FORD_HEIGHT; j++)
 					{
-						vfd->draw_point(i, FORD_HEIGHT - 1 - j, 1);
+						vfd->draw_point(i, FORD_HEIGHT - 1 - j, j % 2);
 					}
 				}
 				vfd->refrash(vfd->gram, sizeof vfd->gram);

@@ -471,7 +471,6 @@ void HNA_16MM65T::test()
         [](void *arg)
         {
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
-            float testbuff[FFT_SIZE];
             int rollcounter = 0;
             HNA_NumAni num_ani = HNA_ANTICLOCKWISE;
             char tempstr[NUM_SIZE];
