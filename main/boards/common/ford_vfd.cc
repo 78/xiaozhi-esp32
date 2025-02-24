@@ -139,9 +139,8 @@ void FORD_VFD::init()
 	gpio_set_level(_cs, 1);
 }
 
-uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t input)
+uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t group)
 {
-	uint8_t group = input;
 	if (x % 3 == 0)
 	{
 		if (dot)
@@ -166,9 +165,8 @@ uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t input)
 	return group & 0x7;
 }
 
-uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t input)
+uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t group)
 {
-	uint8_t group = input;
 	if (x % 3 == 0)
 	{
 		if (dot)
@@ -323,10 +321,7 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 	switch (index)
 	{
 	case 0:
-		if (code)
-			gram[270 + 3] = gram[270 + 3] | 1;
-		else
-			gram[270 + 3] = gram[270 + 3] & (~1);
+		gram[270 + 3] = process_bit(gram[270 + 3], 0, code, 2);
 		break;
 	case 1:
 		gram[270 + 0] = process_bit(gram[270 + 0], 2, code, 3);
@@ -360,7 +355,7 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 		gram[270 + 0] = process_bit(gram[270 + 0], 1, code, 4);
 		gram[270 + 1] = process_bit(gram[270 + 1], 5, code, 2);
 		gram[270 + 2] = process_bit(gram[270 + 2], 4, code, 5);
-		gram[270 + 3] = process_bit(gram[270 + 3], 4, code, 0);
+		gram[270 + 1] = process_bit(gram[270 + 1], 1, code, 6);
 		gram[270 + 2] = process_bit(gram[270 + 2], 0, code, 1);
 		gram[270 + 3] = process_bit(gram[270 + 3], 4, code, 0);
 		break;
@@ -396,7 +391,7 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 		gram[814 + 0] = process_bit(gram[814 + 0], 1, code, 4);
 		gram[814 + 1] = process_bit(gram[814 + 1], 5, code, 2);
 		gram[814 + 2] = process_bit(gram[814 + 2], 4, code, 5);
-		gram[814 + 3] = process_bit(gram[814 + 3], 4, code, 0);
+		gram[814 + 1] = process_bit(gram[814 + 1], 1, code, 6);
 		gram[814 + 2] = process_bit(gram[814 + 2], 0, code, 1);
 		gram[814 + 3] = process_bit(gram[814 + 3], 4, code, 0);
 		break;
@@ -433,7 +428,7 @@ void FORD_VFD::test()
 				{
 					for (size_t j = 0; j < FORD_HEIGHT; j++)
 					{
-						vfd->draw_point(i, FORD_HEIGHT - 1 - j, j % 2);
+						vfd->draw_point(i, FORD_HEIGHT - 1 - j, (j + i) % 2);
 					}
 				}
 				vfd->refrash(vfd->gram, sizeof vfd->gram);

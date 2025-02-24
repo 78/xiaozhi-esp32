@@ -80,8 +80,8 @@ protected:
     uint8_t find_hex_code(char ch);
     void write_data8(uint8_t dat);
     void write_data8(uint8_t *dat, int len);
-    uint8_t get_oddgroup(int x, uint8_t dot, uint8_t input);
-    uint8_t get_evengroup(int x, uint8_t dot, uint8_t input);
+    uint8_t get_oddgroup(int x, uint8_t dot, uint8_t group);
+    uint8_t get_evengroup(int x, uint8_t dot, uint8_t group);
 
 private:
     gpio_num_t _cs;
