@@ -57,6 +57,10 @@
 - <a href="https://docs.m5stack.com/en/core/ATOM%20Matrix" target="_blank" title="AtomMatrix + Echo Base">AtomMatrix + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-LCD-1.85</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.46.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.46</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.46B.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.46B</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji 小智AI衍生版</a>
@@ -79,6 +83,18 @@
     <img src="docs/v1/magiclick.jpg" width="240" />
   </a>
   <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-LCD-1.85">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.46">
+    <img src="docs/v1/waveshare.jpg" width="240" />
+  </a>
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.46B">
     <img src="docs/v1/waveshare.jpg" width="240" />
   </a>
   <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
