@@ -8,348 +8,357 @@
  * @date February 18, 2025
  */
 
- #ifndef _HNA_16MM65T_H_
- #define _HNA_16MM65T_H_
- 
- #include "pt6324.h"
- #include <cmath>
- #include <esp_wifi.h>
- #include "display.h"
- #include "led/led.h"
- 
- // Define the number of characters
- #define CHAR_COUNT (62 + 1)
- // Define the starting index of numbers
- #define NUM_BEGIN 3
- #define COREWAVE_BEGIN 39
- 
- /**
-  * @enum Dots
-  * @brief Defines different states of the dot matrix.
-  */
- typedef enum
- {
-     DOT_MATRIX_UP,    // Dot matrix up
-     DOT_MATRIX_NEXT,  // Dot matrix next
-     DOT_MATRIX_PAUSE, // Dot matrix pause
-     DOT_MATRIX_FILL   // Dot matrix fill
- } Dots;
- 
- /**
-  * @enum Symbols
-  * @brief Defines the enumeration type of various symbols.
-  */
- typedef enum
- {
-     R_OUTER_B,
-     R_OUTER_A,
-     R_CENTER,
-     L_OUTER_B,
-     L_OUTER_A,
-     L_CENTER,
-     STEREO,
-     MONO,
-     GIGA,
-     REC_1,
-     DOT_MATRIX_4_6,
-     DOT_MATRIX_5_2_5_3_6_3,
-     DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6,
-     DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5,
-     DOT_MATRIX_5_4,
-     DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5,
-     DOT_MATRIX_2_0_2_4_3_4_4_4,
-     DOT_MATRIX_4_0,
-     DOT_MATRIX_2_MINUS1_2_7,
-     USB2,
-     USB1,
-     REC_2,
-     LBAR_RBAR,
-     CENTER_OUTLAY_BLUEA,
-     CENTER_OUTLAY_BLUEB,
-     CENTER_OUTLAY_REDA,
-     CENTER_OUTLAY_REDB,
-     CENTER_INLAY_BLUER,
-     CENTER_INLAY_BLUET,
-     CENTER_INLAY_BLUEL,
-     CENTER_INLAY_BLUEB,
-     CENTER_INLAY_RED1,
-     CENTER_INLAY_RED2,
-     CENTER_INLAY_RED3,
-     CENTER_INLAY_RED4,
-     CENTER_INLAY_RED5,
-     CENTER_INLAY_RED6,
-     CENTER_INLAY_RED7,
-     CENTER_INLAY_RED8,
-     CENTER_INLAY_RED9,
-     CENTER_INLAY_RED10,
-     CENTER_INLAY_RED11,
-     CENTER_INLAY_RED12,
-     CENTER_INLAY_RED13,
-     CENTER_INLAY_RED14,
-     CENTER_INLAY_RED15,
-     CENTER_INLAY_RED16,
-     NUM6_MARK,
-     NUM8_MARK,
-     NUM8_POINT,
-     SYMBOL_MAX // Maximum value of the symbol enumeration
- } Symbols;
- 
- typedef enum
- {
-     ANI_NONE = -1,
-     ANI_CLOCKWISE,
-     ANI_ANTICLOCKWISE,
-     ANI_UP2DOWN,
-     ANI_DOWN2UP,
-     ANI_LEFT2RT,
-     ANI_RT2LEFT,
-     ANI_MAX
- } NumAni;
- 
- /**
-  * @struct SymbolPosition
-  * @brief Defines the position of a symbol in the display buffer, consisting of a byte index and a bit index.
-  */
- typedef struct
- {
-     int byteIndex; // Byte index
-     int bitIndex;  // Bit index
- } SymbolPosition;
- 
- /**
-  * @struct WaveFFTData
-  * @brief Stores the data related to FFT waveform animation, including previous, target, and current values, as well as animation steps.
-  */
- typedef struct
- {
-     int last_value;     // Last FFT value
-     int target_value;   // Target FFT value
-     int current_value;  // Current FFT value
-     int animation_step; // Animation step
- } WaveFFTData;
- 
- /**
-  * @struct ContentData
-  * @brief Stores the data related to content display and animation, including current and last content, animation steps, and animation type.
-  */
- typedef struct
- {
-     char current_content;
-     char last_content;
-     int animation_step;
-     NumAni animation_type;
- } ContentData;
- 
- /**
-  * @class HNA_16MM65T
-  * @brief This class inherits from the PT6324Writer class and is used to control the display of a specific device.
-  *
-  * It provides methods for displaying spectrum, numbers, symbols, dot matrix and other information, and also supports animation effects.
-  */
- class HNA_16MM65T : protected PT6324Writer
- {
-     // Define the buffer size
- #define BUF_SIZE (1024)
-     // Define the number of FFTs
- #define FFT_SIZE (12)
-     // Define the number of digits
- #define NUM_SIZE (10)
- private:
-     bool wavebusy = true;
-     uint8_t gram[48] = {0};         // Display buffer
-     const int wave_total_steps = 5; // Total number of animation steps
-     int64_t wave_start_time = 0;
-     WaveFFTData waveData[FFT_SIZE] = {0};
- 
-     int64_t content_inhibit_time = 0;
- 
-     ContentData currentData[NUM_SIZE] = {0};
-     ContentData tempData[NUM_SIZE] = {0};
- 
-     // Hexadecimal code corresponding to each character
-     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
-     const unsigned int hex_codes[CHAR_COUNT] = {
-         0x000000, // ' '
-         0x044020, // !
-         0,        // "
-         0,        // #
-         0,        // $
-         0,        // %
-         0,        // &
-         0x040000, // '
-         0x024200, // (
-         0x084800, // )
-         0x0eee00, // *
-         0x04e420, // +
-         0x000210, // ,
-         0x00e000, // -
-         0x000020, // .
-         0x224880, // /
-         0xf111f0, // 0
-         0x210110, // 1
-         0x61f0e0, // 2
-         0x61e170, // 3
-         0xb1e110, // 4
-         0xd0e170, // 5
-         0xd0f1f0, // 6
-         0x610110, // 7
-         0xf1f1f0, // 8
-         0xf1e170, // 9
-         0x020800, // :
-         0x040420, // ;
-         0x224210, // <
-         0x00e060, // =
-         0x884880, // >
-         0x416020, // ?
-         0,        // @
-         0x51f190, // A
-         0xd1f1e0, // B
-         0xf010f0, // C
-         0xd111e0, // D
-         0xf0f0f0, // E
-         0xf0f080, // F
-         0xf031e0, // G
-         0xb1f190, // H
-         0x444460, // I
-         0x2101f0, // J
-         0xb2d290, // K
-         0x9010f0, // L
-         0xbb5190, // M
-         0xb35990, // N
-         0x511160, // O
-         0x51f080, // P
-         0x511370, // Q
-         0x51f290, // R
-         0x70e1e0, // S
-         0xe44420, // T
-         0xb11160, // U
-         0xb25880, // V
-         0xb15b90, // W
-         0xaa4a90, // X
-         0xaa4420, // Y
-         0xe248f0, // Z
-     };
-     // Position of each symbol in the display buffer
-     SymbolPosition symbolPositions[100] = {
-         {0, 2},     // R_OUTER_B
-         {0, 4},     // R_OUTER_A
-         {0, 8},     // R_CENTER
-         {0, 0x10},  // L_OUTER_B
-         {0, 0x20},  // L_OUTER_A
-         {0, 0x40},  // L_CENTER
-         {0, 0x80},  // STEREO
-         {1, 1},     // MONO
-         {1, 2},     // GIGA
-         {1, 4},     // REC_1
-         {1, 8},     // DOT_MATRIX_4_6
-         {1, 0x10},  // DOT_MATRIX_5_2_5_3_6_3
-         {1, 0x20},  // DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6
-         {1, 0x40},  // DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5
-         {1, 0x80},  // DOT_MATRIX_5_4
-         {2, 1},     // DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5
-         {2, 2},     // DOT_MATRIX_2_0_2_4_3_4_4_4
-         {2, 4},     // DOT_MATRIX_4_0
-         {2, 8},     // DOT_MATRIX_2_MINUS1_2_7
-         {2, 0x10},  // USB2
-         {2, 0x20},  // USB1
-         {2, 0x40},  // REC_2
-         {2, 0x80},  // LBAR_RBAR
-         {39, 1},    // CENTER_OUTLAY_BLUEA
-         {39, 2},    // CENTER_OUTLAY_BLUEB
-         {39, 4},    // CENTER_OUTLAY_REDA
-         {39, 8},    // CENTER_OUTLAY_REDB
-         {39, 0x10}, // CENTER_INLAY_BLUER
-         {39, 0x20}, // CENTER_INLAY_BLUET
-         {39, 0x40}, // CENTER_INLAY_BLUEL
-         {39, 0x80}, // CENTER_INLAY_BLUEB
-         {40, 1},    // CENTER_INLAY_RED1
-         {40, 2},    // CENTER_INLAY_RED2
-         {40, 4},    // CENTER_INLAY_RED3
-         {40, 8},    // CENTER_INLAY_RED4
-         {40, 0x10}, // CENTER_INLAY_RED5
-         {40, 0x20}, // CENTER_INLAY_RED6
-         {40, 0x40}, // CENTER_INLAY_RED7
-         {40, 0x80}, // CENTER_INLAY_RED8
-         {41, 1},    // CENTER_INLAY_RED9
-         {41, 2},    // CENTER_INLAY_RED10
-         {41, 4},    // CENTER_INLAY_RED11
-         {41, 8},    // CENTER_INLAY_RED12
-         {41, 0x10}, // CENTER_INLAY_RED13
-         {41, 0x20}, // CENTER_INLAY_RED14
-         {41, 0x40}, // CENTER_INLAY_RED15
-         {41, 0x80}, // CENTER_INLAY_RED16
-         {18, 8},    // NUM6_MARK
-         {24, 8},    // NUM8_MARK
-         {24, 4},    // NUM8_POINT
-     };
- 
-     /**
-      * @brief Performs animation effects and updates the display buffer.
-      *
-      * Calculates the current value using an exponential decay function and calls the wavehelper method to update the display.
-      */
-     void waveanimate();
- 
-     /**
-      * @brief Combines the raw data and the previous raw data according to a mask to get a part of the content.
-      *
-      * @param raw The current raw data.
-      * @param before_raw The previous raw data.
-      * @param mask The mask used for combination.
-      * @return uint32_t The combined data.
-      */
-     uint32_t contentgetpart(uint32_t raw, uint32_t before_raw, uint32_t mask);
- 
-     /**
-      * @brief Performs content animation and updates the display buffer.
-      *
-      * Handles the content animation logic, including checking inhibition time, updating content data, and applying animation effects.
-      */
-     void contentanimate();
- 
- public:
-     /**
-      * @brief Constructor that initializes an HNA_16MM65T object using the given SPI device handle.
-      *
-      * @param spi_device SPI device handle.
-      */
-     HNA_16MM65T(spi_device_handle_t spi_device);
- 
-     /**
-      * @brief Displays spectrum information.
-      *
-      * @param buf Spectrum data buffer.
-      * @param size Buffer size.
-      */
-     void spectrum_show(float *buf, int size);
- 
-     /**
-      * @brief Handles the time blinking effect.
-      *
-      * Toggles the state of specific symbols to create a blinking effect related to time.
-      */
-     void time_blink();
- 
-     /**
-      * @brief Displays a string.
-      *
-      * @param start The starting position to display the string.
-      * @param buf The string to be displayed.
-      * @param size The size of the string.
-      * @param ani The animation type for the content display, default is ANI_CLOCKWISE.
-      */
-     void content_show(int start, char *buf, int size, NumAni ani = ANI_CLOCKWISE);
- 
-     /**
-      * @brief Displays a notification string with a specified timeout.
-      *
-      * @param start The starting position to display the notification string.
-      * @param buf The notification string to be displayed.
-      * @param size The size of the notification string.
-      * @param ani The animation type for the notification display, default is ANI_CLOCKWISE.
-      * @param timeout The time (in milliseconds) to inhibit other content display, default is 2000.
-      */
-     void noti_show(int start, char *buf, int size, NumAni ani = ANI_CLOCKWISE, int timeout = 2000);
+#ifndef _HNA_16MM65T_H_
+#define _HNA_16MM65T_H_
+
+#include "pt6324.h"
+#include <cmath>
+#include <esp_wifi.h>
+
+// Define the number of characters
+#define CHAR_COUNT (62 + 1)
+// Define the starting index of numbers
+#define NUM_BEGIN 3
+#define COREWAVE_BEGIN 39
+
+/**
+ * @enum Dots
+ * @brief Defines different states of the dot matrix.
+ */
+typedef enum
+{
+    DOT_MATRIX_UP,    // Dot matrix up
+    DOT_MATRIX_NEXT,  // Dot matrix next
+    DOT_MATRIX_PAUSE, // Dot matrix pause
+    DOT_MATRIX_FILL   // Dot matrix fill
+} Dots;
+
+/**
+ * @enum HNA_Symbols
+ * @brief Defines the enumeration type of various symbols.
+ */
+typedef enum
+{
+    R_OUTER_B,
+    R_OUTER_A,
+    R_CENTER,
+    L_OUTER_B,
+    L_OUTER_A,
+    L_CENTER,
+    STEREO,
+    MONO,
+    GIGA,
+    REC_1,
+    DOT_MATRIX_4_6,
+    DOT_MATRIX_5_2_5_3_6_3,
+    DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6,
+    DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5,
+    DOT_MATRIX_5_4,
+    DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5,
+    DOT_MATRIX_2_0_2_4_3_4_4_4,
+    DOT_MATRIX_4_0,
+    DOT_MATRIX_2_MINUS1_2_7,
+    USB2,
+    USB1,
+    REC_2,
+    LBAR_RBAR,
+    CENTER_OUTLAY_BLUEA,
+    CENTER_OUTLAY_BLUEB,
+    CENTER_OUTLAY_REDA,
+    CENTER_OUTLAY_REDB,
+    CENTER_INLAY_BLUER,
+    CENTER_INLAY_BLUET,
+    CENTER_INLAY_BLUEL,
+    CENTER_INLAY_BLUEB,
+    CENTER_INLAY_RED1,
+    CENTER_INLAY_RED2,
+    CENTER_INLAY_RED3,
+    CENTER_INLAY_RED4,
+    CENTER_INLAY_RED5,
+    CENTER_INLAY_RED6,
+    CENTER_INLAY_RED7,
+    CENTER_INLAY_RED8,
+    CENTER_INLAY_RED9,
+    CENTER_INLAY_RED10,
+    CENTER_INLAY_RED11,
+    CENTER_INLAY_RED12,
+    CENTER_INLAY_RED13,
+    CENTER_INLAY_RED14,
+    CENTER_INLAY_RED15,
+    CENTER_INLAY_RED16,
+    NUM6_MARK,
+    NUM8_MARK,
+    NUM8_POINT,
+    HNA_SYMBOL_MAX // Maximum value of the symbol enumeration
+} HNA_Symbols;
+
+typedef enum
+{
+    HNA_NONE = -1,
+    HNA_CLOCKWISE,
+    HNA_ANTICLOCKWISE,
+    HNA_UP2DOWN,
+    HNA_DOWN2UP,
+    HNA_LEFT2RT,
+    HNA_RT2LEFT,
+    HNA_MAX
+} HNA_NumAni;
+
+/**
+ * @struct HNA_SymbolPosition
+ * @brief Defines the position of a symbol in the display buffer, consisting of a byte index and a bit index.
+ */
+typedef struct
+{
+    int byteIndex; // Byte index
+    int bitIndex;  // Bit index
+} HNA_SymbolPosition;
+
+/**
+ * @struct WaveFFTData
+ * @brief Stores the data related to FFT waveform animation, including previous, target, and current values, as well as animation steps.
+ */
+typedef struct
+{
+    int last_value;     // Last FFT value
+    int target_value;   // Target FFT value
+    int current_value;  // Current FFT value
+    int animation_step; // Animation step
+} WaveFFTData;
+
+/**
+ * @struct ContentData
+ * @brief Stores the data related to content display and animation, including current and last content, animation steps, and animation type.
+ */
+typedef struct
+{
+    char current_content;
+    char last_content;
+    int animation_step;
+    HNA_NumAni animation_type;
+} ContentData;
+
+/**
+ * @class HNA_16MM65T
+ * @brief This class inherits from the PT6324Writer class and is used to control the display of a specific device.
+ *
+ * It provides methods for displaying spectrum, numbers, symbols, dot matrix and other information, and also supports animation effects.
+ */
+class HNA_16MM65T : protected PT6324Writer
+{
+    // Define the buffer size
+#define BUF_SIZE (1024)
+    // Define the number of FFTs
+#define FFT_SIZE (12)
+    // Define the number of digits
+#define NUM_SIZE (10)
+private:
+    bool wavebusy = true;
+    uint8_t gram[48] = {0};         // Display buffer
+    const int wave_total_steps = 5; // Total number of animation steps
+    int64_t wave_start_time = 0;
+    WaveFFTData waveData[FFT_SIZE] = {0};
+
+    int64_t content_inhibit_time = 0;
+
+    ContentData currentData[NUM_SIZE] = {0};
+    ContentData tempData[NUM_SIZE] = {0};
+
+    // Hexadecimal code corresponding to each character
+    // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
+    const unsigned int hex_codes[CHAR_COUNT] = {
+        0x000000, // ' '
+        0x044020, // !
+        0,        // "
+        0,        // #
+        0,        // $
+        0,        // %
+        0,        // &
+        0x040000, // '
+        0x024200, // (
+        0x084800, // )
+        0x0eee00, // *
+        0x04e420, // +
+        0x000210, // ,
+        0x00e000, // -
+        0x000020, // .
+        0x224880, // /
+        0xf111f0, // 0
+        0x210110, // 1
+        0x61f0e0, // 2
+        0x61e170, // 3
+        0xb1e110, // 4
+        0xd0e170, // 5
+        0xd0f1f0, // 6
+        0x610110, // 7
+        0xf1f1f0, // 8
+        0xf1e170, // 9
+        0x020800, // :
+        0x040420, // ;
+        0x224210, // <
+        0x00e060, // =
+        0x884880, // >
+        0x416020, // ?
+        0,        // @
+        0x51f190, // A
+        0xd1f1e0, // B
+        0xf010f0, // C
+        0xd111e0, // D
+        0xf0f0f0, // E
+        0xf0f080, // F
+        0xf031e0, // G
+        0xb1f190, // H
+        0x444460, // I
+        0x2101f0, // J
+        0xb2d290, // K
+        0x9010f0, // L
+        0xbb5190, // M
+        0xb35990, // N
+        0x511160, // O
+        0x51f080, // P
+        0x511370, // Q
+        0x51f290, // R
+        0x70e1e0, // S
+        0xe44420, // T
+        0xb11160, // U
+        0xb25880, // V
+        0xb15b90, // W
+        0xaa4a90, // X
+        0xaa4420, // Y
+        0xe248f0, // Z
+    };
+    // Position of each symbol in the display buffer
+    HNA_SymbolPosition symbolPositions[100] = {
+        {0, 2},     // R_OUTER_B
+        {0, 4},     // R_OUTER_A
+        {0, 8},     // R_CENTER
+        {0, 0x10},  // L_OUTER_B
+        {0, 0x20},  // L_OUTER_A
+        {0, 0x40},  // L_CENTER
+        {0, 0x80},  // STEREO
+        {1, 1},     // MONO
+        {1, 2},     // GIGA
+        {1, 4},     // REC_1
+        {1, 8},     // DOT_MATRIX_4_6
+        {1, 0x10},  // DOT_MATRIX_5_2_5_3_6_3
+        {1, 0x20},  // DOT_MATRIX_0_3_0_5_0_6_1_2_1_3_1_5_1_6
+        {1, 0x40},  // DOT_MATRIX_3_1_3_2_3_3_3_5_3_6_4_0_4_1_4_2_4_3_4_5_4_6_5_1_5_2_5_3_5_5
+        {1, 0x80},  // DOT_MATRIX_5_4
+        {2, 1},     // DOT_MATRIX_0_0_0_1_0_2_0_3_0_5_1_0_1_1_1_3_1_5_5_0_5_1_6_0_6_1_6_2_6_5
+        {2, 2},     // DOT_MATRIX_2_0_2_4_3_4_4_4
+        {2, 4},     // DOT_MATRIX_4_0
+        {2, 8},     // DOT_MATRIX_2_MINUS1_2_7
+        {2, 0x10},  // USB2
+        {2, 0x20},  // USB1
+        {2, 0x40},  // REC_2
+        {2, 0x80},  // LBAR_RBAR
+        {39, 1},    // CENTER_OUTLAY_BLUEA
+        {39, 2},    // CENTER_OUTLAY_BLUEB
+        {39, 4},    // CENTER_OUTLAY_REDA
+        {39, 8},    // CENTER_OUTLAY_REDB
+        {39, 0x10}, // CENTER_INLAY_BLUER
+        {39, 0x20}, // CENTER_INLAY_BLUET
+        {39, 0x40}, // CENTER_INLAY_BLUEL
+        {39, 0x80}, // CENTER_INLAY_BLUEB
+        {40, 1},    // CENTER_INLAY_RED1
+        {40, 2},    // CENTER_INLAY_RED2
+        {40, 4},    // CENTER_INLAY_RED3
+        {40, 8},    // CENTER_INLAY_RED4
+        {40, 0x10}, // CENTER_INLAY_RED5
+        {40, 0x20}, // CENTER_INLAY_RED6
+        {40, 0x40}, // CENTER_INLAY_RED7
+        {40, 0x80}, // CENTER_INLAY_RED8
+        {41, 1},    // CENTER_INLAY_RED9
+        {41, 2},    // CENTER_INLAY_RED10
+        {41, 4},    // CENTER_INLAY_RED11
+        {41, 8},    // CENTER_INLAY_RED12
+        {41, 0x10}, // CENTER_INLAY_RED13
+        {41, 0x20}, // CENTER_INLAY_RED14
+        {41, 0x40}, // CENTER_INLAY_RED15
+        {41, 0x80}, // CENTER_INLAY_RED16
+        {18, 8},    // NUM6_MARK
+        {24, 8},    // NUM8_MARK
+        {24, 4},    // NUM8_POINT
+    };
+
+    /**
+     * @brief Performs animation effects and updates the display buffer.
+     *
+     * Calculates the current value using an exponential decay function and calls the wavehelper method to update the display.
+     */
+    void waveanimate();
+
+    /**
+     * @brief Combines the raw data and the previous raw data according to a mask to get a part of the content.
+     *
+     * @param raw The current raw data.
+     * @param before_raw The previous raw data.
+     * @param mask The mask used for combination.
+     * @return uint32_t The combined data.
+     */
+    uint32_t contentgetpart(uint32_t raw, uint32_t before_raw, uint32_t mask);
+
+    /**
+     * @brief Performs content animation and updates the display buffer.
+     *
+     * Handles the content animation logic, including checking inhibition time, updating content data, and applying animation effects.
+     */
+    void contentanimate();
+
+public:
+    /**
+     * @brief Constructor for the PT6324Writer class.
+     *
+     * Initializes the PT6324Writer object with the specified GPIO pins and SPI host device.
+     *
+     * @param din The GPIO pin number for the data input line.
+     * @param clk The GPIO pin number for the clock line.
+     * @param cs The GPIO pin number for the chip select line.
+     * @param spi_num The SPI host device number to use for communication.
+     */
+    HNA_16MM65T(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num);
+    /**
+     * @brief Constructor that initializes an HNA_16MM65T object using the given SPI device handle.
+     *
+     * @param spi_device SPI device handle.
+     */
+    HNA_16MM65T(spi_device_handle_t spi_device);
+
+    /**
+     * @brief Displays spectrum information.
+     *
+     * @param buf Spectrum data buffer.
+     * @param size Buffer size.
+     */
+    void spectrum_show(float *buf, int size);
+
+    /**
+     * @brief Handles the time blinking effect.
+     *
+     * Toggles the state of specific symbols to create a blinking effect related to time.
+     */
+    void time_blink();
+
+    /**
+     * @brief Displays a string.
+     *
+     * @param start The starting position to display the string.
+     * @param buf The string to be displayed.
+     * @param size The size of the string.
+     * @param ani The animation type for the content display, default is HNA_CLOCKWISE.
+     */
+    void content_show(int start, char *buf, int size, HNA_NumAni ani = HNA_CLOCKWISE);
+
+    /**
+     * @brief Displays a notification string with a specified timeout.
+     *
+     * @param start The starting position to display the notification string.
+     * @param buf The notification string to be displayed.
+     * @param size The size of the notification string.
+     * @param ani The animation type for the notification display, default is HNA_CLOCKWISE.
+     * @param timeout The time (in milliseconds) to inhibit other content display, default is 2000.
+     */
+    void noti_show(int start, char *buf, int size, HNA_NumAni ani = HNA_CLOCKWISE, int timeout = 2000);
 
     /**
      * @brief Displays a symbol on the screen.
@@ -360,7 +369,7 @@
      * @param symbol The enumeration value of the symbol to be displayed.
      * @param is_on A boolean indicating whether the symbol should be shown (true) or hidden (false).
      */
-    void symbolhelper(Symbols symbol, bool is_on);
+    void symbolhelper(HNA_Symbols symbol, bool is_on);
 
     /**
      * @brief Displays a dot matrix pattern on the screen.
@@ -451,11 +460,11 @@ protected:
      * @param byteIndex A pointer to an integer used to store the byte index of the symbol.
      * @param bitIndex A pointer to an integer used to store the bit index of the symbol.
      */
-    void find_enum_code(Symbols flag, int *byteIndex, int *bitIndex);
+    void find_enum_code(HNA_Symbols flag, int *byteIndex, int *bitIndex);
 };
 
 #endif // _HNA_16MM65T_H_
- 
+
 // Dots 1:78 2:0 Up
 // Dots 1:D0 2:A Next
 // Dots 1:B2 2:1 Pause

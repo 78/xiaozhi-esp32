@@ -5,8 +5,6 @@
 #include <freertos/task.h>
 #include <string.h>
 #include <esp_log.h>
-#include "application.h"
-#include "settings.h"
 
 // Define the log tag
 #define TAG "HNA_16MM65T"
@@ -24,7 +22,7 @@ void HNA_16MM65T::waveanimate()
     int64_t current_time = esp_timer_get_time() / 1000;
     int64_t elapsed_time = current_time - wave_start_time;
 
-    if (elapsed_time >= 220) 
+    if (elapsed_time >= 220)
     {
         wave_start_time = current_time;
         for (size_t i = 0; i < FFT_SIZE; i++)
@@ -39,7 +37,7 @@ void HNA_16MM65T::waveanimate()
         if (waveData[i].animation_step < wave_total_steps)
         {
             float progress = static_cast<float>(waveData[i].animation_step) / wave_total_steps;
-            float factor = 1 - std::exp(-3 * progress); 
+            float factor = 1 - std::exp(-3 * progress);
             waveData[i].current_value = waveData[i].last_value + static_cast<int>((waveData[i].target_value - waveData[i].last_value) * factor);
             wavehelper(i, waveData[i].current_value * 8 / 90);
             waveData[i].animation_step++;
@@ -113,7 +111,7 @@ void HNA_16MM65T::contentanimate()
             uint32_t before_raw_code = find_hex_code(currentData[i].last_content);
             uint32_t raw_code = find_hex_code(currentData[i].current_content);
             uint32_t code = raw_code;
-            if (currentData[i].animation_type == ANI_CLOCKWISE)
+            if (currentData[i].animation_type == HNA_CLOCKWISE)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -146,7 +144,7 @@ void HNA_16MM65T::contentanimate()
                     break;
                 }
             }
-            else if (currentData[i].animation_type == ANI_ANTICLOCKWISE)
+            else if (currentData[i].animation_type == HNA_ANTICLOCKWISE)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -179,7 +177,7 @@ void HNA_16MM65T::contentanimate()
                     break;
                 }
             }
-            else if (currentData[i].animation_type == ANI_UP2DOWN)
+            else if (currentData[i].animation_type == HNA_UP2DOWN)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -200,7 +198,7 @@ void HNA_16MM65T::contentanimate()
                     break;
                 }
             }
-            else if (currentData[i].animation_type == ANI_DOWN2UP)
+            else if (currentData[i].animation_type == HNA_DOWN2UP)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -221,7 +219,7 @@ void HNA_16MM65T::contentanimate()
                     break;
                 }
             }
-            else if (currentData[i].animation_type == ANI_LEFT2RT)
+            else if (currentData[i].animation_type == HNA_LEFT2RT)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -242,7 +240,7 @@ void HNA_16MM65T::contentanimate()
                     break;
                 }
             }
-            else if (currentData[i].animation_type == ANI_RT2LEFT)
+            else if (currentData[i].animation_type == HNA_RT2LEFT)
             {
                 switch (currentData[i].animation_step)
                 {
@@ -273,6 +271,40 @@ void HNA_16MM65T::contentanimate()
             currentData[i].animation_step++;
         }
     }
+}
+
+/**
+ * @brief Constructor for the PT6324Writer class.
+ *
+ * Initializes the PT6324Writer object with the specified GPIO pins and SPI host device.
+ *
+ * @param din The GPIO pin number for the data input line.
+ * @param clk The GPIO pin number for the clock line.
+ * @param cs The GPIO pin number for the chip select line.
+ * @param spi_num The SPI host device number to use for communication.
+ */
+HNA_16MM65T::HNA_16MM65T(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num) : PT6324Writer(din, clk, cs, spi_num)
+{
+    pt6324_init();
+    xTaskCreate(
+        [](void *arg)
+        {
+            HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
+            vfd->symbolhelper(LBAR_RBAR, true);
+            while (true)
+            {
+                vfd->pt6324_refrash(vfd->gram);
+                vfd->contentanimate();
+                vfd->waveanimate();
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+            vTaskDelete(NULL);
+        },
+        "vfd",
+        4096 - 1024,
+        this,
+        6,
+        nullptr);
 }
 
 /**
@@ -315,7 +347,7 @@ HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_devi
  * @param buf The spectrum data buffer containing the amplitude values of each frequency band.
  * @param size The size of the buffer, i.e., the number of spectrum data points.
  */
-void HNA_16MM65T::spectrum_show(float *buf, int size) 
+void HNA_16MM65T::spectrum_show(float *buf, int size)
 {
     wave_start_time = esp_timer_get_time() / 1000;
     if (size < 512)
@@ -353,10 +385,10 @@ void HNA_16MM65T::spectrum_show(float *buf, int size)
 }
 
 /**
- * @brief Controls the blinking effect related to time and toggles the display state of specific symbols.
+ * @brief Controls the blinking effect related to time and toggles the display state of specific HNA_Symbols.
  *
  * If there is a content inhibition time, the function returns directly. Otherwise, it toggles the time mark state
- * and updates the display of corresponding symbols according to the mark state.
+ * and updates the display of corresponding HNA_Symbols according to the mark state.
  */
 void HNA_16MM65T::time_blink()
 {
@@ -381,7 +413,7 @@ void HNA_16MM65T::time_blink()
  * @param size The number of characters to be displayed.
  * @param ani The animation type enumeration value.
  */
-void HNA_16MM65T::content_show(int start, char *buf, int size, NumAni ani)
+void HNA_16MM65T::content_show(int start, char *buf, int size, HNA_NumAni ani)
 {
     if (content_inhibit_time != 0)
     {
@@ -410,7 +442,7 @@ void HNA_16MM65T::content_show(int start, char *buf, int size, NumAni ani)
  * @param ani The animation type enumeration value.
  * @param timeout The content inhibition time (in milliseconds).
  */
-void HNA_16MM65T::noti_show(int start, char *buf, int size, NumAni ani, int timeout)
+void HNA_16MM65T::noti_show(int start, char *buf, int size, HNA_NumAni ani, int timeout)
 {
     content_inhibit_time = esp_timer_get_time() / 1000 + timeout;
     for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
@@ -435,7 +467,7 @@ void HNA_16MM65T::test()
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
             float testbuff[FFT_SIZE];
             int rollcounter = 0;
-            NumAni num_ani = ANI_ANTICLOCKWISE;
+            HNA_NumAni num_ani = HNA_ANTICLOCKWISE;
             char tempstr[NUM_SIZE];
             int64_t start_time = esp_timer_get_time() / 1000;
             while (1)
@@ -445,7 +477,7 @@ void HNA_16MM65T::test()
 
                 if (elapsed_time >= 5000)
                 {
-                    num_ani = (NumAni)((int)(num_ani + 1) % ANI_MAX);
+                    num_ani = (HNA_NumAni)((int)(num_ani + 1) % HNA_MAX);
                     start_time = current_time;
                 }
 
@@ -526,9 +558,7 @@ void HNA_16MM65T::charhelper(int index, char ch)
     if (index >= 10)
         return;
     uint32_t val = find_hex_code(ch);
-    gram[NUM_BEGIN + index * 3 + 2] = val >> 16;
-    gram[NUM_BEGIN + index * 3 + 1] = val >> 8;
-    gram[NUM_BEGIN + index * 3 + 0] = val & 0xff;
+    charhelper(index, val);
 }
 
 /**
@@ -558,7 +588,7 @@ void HNA_16MM65T::charhelper(int index, uint32_t code)
  * @param byteIndex A pointer to an integer used to store the byte index of the symbol.
  * @param bitIndex A pointer to an integer used to store the bit index of the symbol.
  */
-void HNA_16MM65T::find_enum_code(Symbols flag, int *byteIndex, int *bitIndex)
+void HNA_16MM65T::find_enum_code(HNA_Symbols flag, int *byteIndex, int *bitIndex)
 {
     *byteIndex = symbolPositions[flag].byteIndex;
     *bitIndex = symbolPositions[flag].bitIndex;
@@ -573,9 +603,9 @@ void HNA_16MM65T::find_enum_code(Symbols flag, int *byteIndex, int *bitIndex)
  * @param symbol The symbol enumeration value of the symbol to be controlled.
  * @param is_on A boolean value indicating whether the symbol should be displayed (true for display, false for hiding).
  */
-void HNA_16MM65T::symbolhelper(Symbols symbol, bool is_on)
+void HNA_16MM65T::symbolhelper(HNA_Symbols symbol, bool is_on)
 {
-    if (symbol >= SYMBOL_MAX)
+    if (symbol >= HNA_SYMBOL_MAX)
         return;
 
     int byteIndex, bitIndex;
@@ -631,7 +661,7 @@ void HNA_16MM65T::dotshelper(Dots dot)
  */
 void HNA_16MM65T::wavehelper(int index, int level)
 {
-    static SymbolPosition wavePositions[] = {
+    static HNA_SymbolPosition wavePositions[] = {
         {33, 0x10},
         {33, 8},
         {33, 4},

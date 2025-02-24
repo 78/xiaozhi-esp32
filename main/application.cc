@@ -396,8 +396,8 @@ void Application::Start()
                               { background_task_->Schedule([this, data = std::move(data)]() mutable
                                                            { opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t> &&opus)
                                                                                    { Schedule([this, opus = std::move(opus)]()
-                                                                                          { protocol_->SendAudio(opus); }); }); }); });
-                                                                                          ESP_LOGI(TAG, "5");
+                                                                                              { protocol_->SendAudio(opus); }); }); }); });
+    ESP_LOGI(TAG, "5");
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking)
                                        { Schedule([this, speaking]()
@@ -444,10 +444,13 @@ void Application::Start()
             wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
     fft_dsp_processor_.Initialize();
-    fft_dsp_processor_.OnOutput([this](std::vector<float> &&data) {
+    fft_dsp_processor_.OnOutput([this](std::vector<float> &&data)
+                                {
         auto vfd = (HNA_16MM65T *) Board::GetInstance().GetSubDisplay();
         // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
-        vfd->spectrum_show(data.data(),data.size()); });
+        if(vfd!=nullptr)
+            vfd->spectrum_show(data.data(),data.size()); 
+        });
 
 #endif
 
@@ -600,7 +603,7 @@ void Application::InputAudio()
     }
 
 #if CONFIG_USE_AUDIO_PROCESSING
-fft_dsp_processor_.Input(data);
+    fft_dsp_processor_.Input(data);
     if (audio_processor_.IsRunning())
     {
         audio_processor_.Input(data);

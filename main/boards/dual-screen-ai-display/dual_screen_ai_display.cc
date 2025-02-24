@@ -28,6 +28,7 @@
 #include "esp_sntp.h"
 #include "settings.h"
 #include "hna_16mm65t.h"
+#include "ford_vfd.h"
 
 #define TAG "DualScreenAIDisplay"
 
@@ -350,6 +351,10 @@ private:
     uint8_t brightness_ = 0;
 
 public:
+    CustomSubDisplay(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num) : HNA_16MM65T(din, clk, cs, spi_num)
+    {
+        InitializeBacklight();
+    }
     CustomSubDisplay(spi_device_handle_t spi_device) : HNA_16MM65T(spi_device)
     {
         InitializeBacklight();
@@ -425,7 +430,7 @@ public:
 
     virtual void Notification(const std::string &content, int timeout = 2000) override
     {
-        noti_show(0, (char *)content.c_str(), 10, ANI_UP2DOWN, timeout);
+        noti_show(0, (char *)content.c_str(), 10, HNA_UP2DOWN, timeout);
     }
 };
 
@@ -433,10 +438,8 @@ class DualScreenAIDisplay : public WifiBoard
 {
 private:
     Button touch_button_;
-    // Encoder volume_encoder_;
-    // SystemReset system_reset_;
-    CustomLcdDisplay *display_;
-    CustomSubDisplay *vfd_;
+    CustomLcdDisplay *display_ = NULL;
+    CustomSubDisplay *vfd_ = NULL;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t bat_adc_cali_handle, dimm_adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -474,8 +477,9 @@ private:
                     ESP_LOGI(TAG, "Calibration Failed");
                     else
                     {
-                        HNA_16MM65T *vfd = (HNA_16MM65T*)Board::GetInstance().GetSubDisplay();
-                        vfd->noti_show(0,"SYNC TM OK", 10, ANI_LEFT2RT, 1000);
+                        CustomSubDisplay *vfd = (CustomSubDisplay*)Board::GetInstance().GetSubDisplay();
+                        if(vfd != nullptr)
+                            vfd->Notification("SYNC TM OK", 1000);
                     }
             });
             esp_netif_init();
@@ -539,33 +543,27 @@ private:
     //         codec->SetOutputVolume(volume);
     //         GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
     // }
-
-    void InitializeSpi()
+    void InitializeSubDisplay()
     {
-        spi_bus_config_t buscfg = {0};
-        ESP_LOGI(TAG, "Initialize VFD SPI bus");
-        buscfg.sclk_io_num = PIN_NUM_VFD_PCLK;
-        buscfg.data0_io_num = PIN_NUM_VFD_DATA0;
-        buscfg.max_transfer_sz = 256;
-        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_CH_AUTO));
-
-        spi_device_handle_t spidevice;
-        spi_device_interface_config_t devcfg = {
-            .mode = 3,                      // SPI mode 3
-            .clock_speed_hz = 1000000,      // 1MHz
-            .spics_io_num = PIN_NUM_VFD_CS, // CS pin
-            .flags = SPI_DEVICE_BIT_LSBFIRST,
-            .queue_size = 7,
-        };
-        ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
-        vfd_ = new CustomSubDisplay(spidevice);
         ESP_LOGI(TAG, "Enable VFD power");
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
         {
             gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
             gpio_set_level(PIN_NUM_VFD_EN, 1);
         }
-        // vfd_->cali();
+
+        ESP_LOGI(TAG, "Initialize SubDisplay");
+#if FORD_VFD_EN
+        FORD_VFD *ford_vfd_ = new FORD_VFD(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
+        ford_vfd_->test();
+#else
+        vfd_ = new CustomSubDisplay(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
+#endif
+    }
+
+    void InitializeSpi()
+    {
+        spi_bus_config_t buscfg = {0};
 
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
@@ -775,6 +773,7 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeSH8601Display();
+        InitializeSubDisplay();
         InitializeButtons();
         // InitializeEncoder();
         InitializeIot();
@@ -783,7 +782,13 @@ public:
 
     virtual Led *GetLed() override
     {
-        return vfd_;
+        if (vfd_ != nullptr)
+            return vfd_;
+        else
+        {
+            static SingleLed led(BUILTIN_LED_GPIO);
+            return &led;
+        }
     }
 
     virtual float GetBarometer() override
@@ -915,10 +920,10 @@ public:
         vfd->time_blink();
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-        vfd->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, ANI_DOWN2UP);
+        vfd->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, HNA_DOWN2UP);
         // uint8_t randvalue = 0;
         // randvalue = rand() % ('Z' - ' ') + ' ';
-        // vfd->content_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % ANI_MAX));
+        // vfd->content_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % HNA_MAX));
         // ESP_LOGI(TAG, "The time is: %s", time_str);
         return true;
     }

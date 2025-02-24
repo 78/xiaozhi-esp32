@@ -6,6 +6,8 @@
 #define AUDIO_INPUT_SAMPLE_RATE 24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
+#define FORD_VFD_EN 1
+
 #define ESP_D103 1
 #define ESP_DUAL_DISPLAY 0
 // 如果使用 Duplex I2S 模式，请注释下面一行
@@ -53,14 +55,9 @@
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 
-// #define BUILTIN_LED_GPIO GPIO_NUM_1
-// #define BOOT_BUTTON_GPIO GPIO_NUM_0
-// #define RESET_NVS_BUTTON_GPIO     GPIO_NUM_1
-// #define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_4
+#define BUILTIN_LED_GPIO GPIO_NUM_1
 
 #define TOUCH_BUTTON_GPIO GPIO_NUM_0
-// #define VOLUME_ENCODER1_GPIO GPIO_NUM_14
-// #define VOLUME_ENCODER2_GPIO GPIO_NUM_16
 
 #define LCD_HOST SPI2_HOST
 #define VFD_HOST SPI3_HOST
