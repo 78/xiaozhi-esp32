@@ -444,13 +444,11 @@ void Application::Start()
             wake_word_detect_.StartDetection(); }); });
     wake_word_detect_.StartDetection();
     fft_dsp_processor_.Initialize();
-    fft_dsp_processor_.OnOutput([this](std::vector<float> &&data)
-                                {
-        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetDisplay();
-        // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
-        if(vfd != nullptr)
-            vfd->spectrum_show(data.data(),data.size()); 
-        });
+    fft_dsp_processor_.OnOutput([this](std::vector<float> &&data) 
+    {
+        auto display = Board::GetInstance().GetDisplay();
+        display->SpectrumShow(data.data(), data.size()); 
+    });
 
 #endif
 

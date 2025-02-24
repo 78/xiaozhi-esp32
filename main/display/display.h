@@ -31,6 +31,7 @@ public:
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
+    virtual void SpectrumShow(float *buf, int size) {}
 
     int width() const { return width_; }
     int height() const { return height_; }

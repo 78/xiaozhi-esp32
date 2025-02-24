@@ -7,7 +7,9 @@
 #include <esp_log.h>
 #include "settings.h"
 
-FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num)
+#define TAG "FORD_VFD"
+
+FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num) : _cs(cs)
 {
 	// Initialize the SPI bus configuration structure
 	spi_bus_config_t buscfg = {0};
@@ -17,7 +19,7 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 	buscfg.data0_io_num = din;
 
 	// Set the maximum transfer size in bytes
-	buscfg.max_transfer_sz = 256;
+	buscfg.max_transfer_sz = 1024;
 
 	// Initialize the SPI bus with the specified configuration
 	ESP_ERROR_CHECK(spi_bus_initialize(spi_num, &buscfg, SPI_DMA_CH_AUTO));
@@ -25,8 +27,8 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 	// Initialize the SPI device interface configuration structure
 	spi_device_interface_config_t devcfg = {
 		.mode = 0,				   // Set the SPI mode to 0
-		.clock_speed_hz = 1000000, // Set the clock speed to 1MHz
-		.spics_io_num = cs,		   // Set the chip select pin
+		.clock_speed_hz = 400000, // Set the clock speed to 400kHz
+		.spics_io_num = -1,		   // Set the chip select pin
 		.flags = 0,
 		.queue_size = 7,
 	};
@@ -34,7 +36,12 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 	// Add the PT6324 device to the SPI bus with the specified configuration
 	ESP_ERROR_CHECK(spi_bus_add_device(spi_num, &devcfg, &spi_device_));
 
+	gpio_set_direction(cs, GPIO_MODE_OUTPUT);
+	gpio_set_level(cs, 1);
+
 	init();
+
+	ESP_LOGI(TAG, "FORD_VFD Initalized");
 }
 
 void FORD_VFD::write_data8(uint8_t dat)
@@ -65,23 +72,76 @@ void FORD_VFD::write_data8(uint8_t *dat, int len)
 	return;
 }
 
+void FORD_VFD::refrash(uint8_t *gram, int size)
+{
+	gpio_set_level(_cs, 0);
+	vTaskDelay(pdMS_TO_TICKS(5));
+	write_data8((uint8_t *)gram, size);
+	vTaskDelay(pdMS_TO_TICKS(5));
+	gpio_set_level(_cs, 1);
+}
+
 void FORD_VFD::init()
 {
+	gpio_set_level(_cs, 0);
+
 	write_data8(0x55);
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block1, sizeof(init_data_block1));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block2, sizeof(init_data_block2));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block3, sizeof(init_data_block3));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block4, sizeof(init_data_block4));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block5, sizeof(init_data_block5));
 	write_data8((uint8_t *)init_data_block6, sizeof(init_data_block6));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)gram, sizeof(gram));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block7, sizeof(init_data_block7));
+
+	gpio_set_level(_cs, 1);
+
+	gpio_set_level(_cs, 0);
+
 	write_data8((uint8_t *)init_data_block8, sizeof(init_data_block8));
+
+	gpio_set_level(_cs, 1);
 }
 
 uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t input)
 {
-	uint8_t group = 0;
+	uint8_t group = input;
 	if (x % 3 == 0)
 	{
 		if (dot)
@@ -108,7 +168,7 @@ uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t input)
 
 uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t input)
 {
-	uint8_t group = 0;
+	uint8_t group = input;
 	if (x % 3 == 0)
 	{
 		if (dot)
@@ -342,40 +402,38 @@ void FORD_VFD::charhelper(int index, uint8_t code)
 	}
 }
 
-void FORD_VFD::refrash(uint8_t *gram)
-{
-	write_data8((uint8_t *)gram, sizeof(gram));
-}
-
 void FORD_VFD::test()
 {
 	xTaskCreate(
 		[](void *arg)
 		{
+			int count = 0;
 			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
 			int64_t start_time = esp_timer_get_time() / 1000;
+			ESP_LOGI(TAG, "FORD_VFD Test");
 			while (1)
 			{
 				int64_t current_time = esp_timer_get_time() / 1000;
 				int64_t elapsed_time = current_time - start_time;
 
-				if (elapsed_time >= 5000)
+				if (elapsed_time >= 500)
 				{
+					count++;
 					start_time = current_time;
 				}
 				vfd->symbolhelper(BT, true);
 				for (size_t i = 0; i < 9; i++)
 				{
-					vfd->charhelper(i, (char)('1' + i));
+					vfd->charhelper(i, (char)('0' + count%10));
 				}
 				for (size_t i = 0; i < FORD_WIDTH; i++)
 				{
 					for (size_t j = 0; j < FORD_HEIGHT; j++)
 					{
-						vfd->draw_point(i, j, j % 2);
+						vfd->draw_point(i, FORD_HEIGHT - 1 - j, 1);
 					}
 				}
-				vfd->refrash(vfd->gram);
+				vfd->refrash(vfd->gram, sizeof vfd->gram);
 
 				vTaskDelay(pdMS_TO_TICKS(100));
 			}

@@ -400,6 +400,11 @@ public:
     {
         noti_show(0, (char *)content.c_str(), 10, HNA_UP2DOWN, timeout);
     }
+
+    virtual void SpectrumShow(float *buf, int size) override
+    {
+        spectrum_show(buf, size);
+    }
 };
 
 class DualScreenAIDisplay : public WifiBoard

@@ -7,7 +7,7 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 #define SUB_DISPLAY_EN 1
-#define FORD_VFD_EN 0
+#define FORD_VFD_EN 1
 
 #define ESP_D103 1
 #define ESP_DUAL_DISPLAY 0

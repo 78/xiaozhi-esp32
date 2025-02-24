@@ -59,8 +59,8 @@ typedef enum
 } FORD_Symbols;
 
 #define CHAR_COUNT (62 + 1)
-#define FORD_WIDTH   142
-#define FORD_HEIGHT  16
+#define FORD_WIDTH 142
+#define FORD_HEIGHT 16
 
 class FORD_VFD
 {
@@ -72,7 +72,7 @@ public:
 
     void charhelper(int index, char ch);
     void charhelper(int index, uint8_t code);
-    void refrash(uint8_t *gram);
+    void refrash(uint8_t *gram, int size);
     void test();
 
 protected:
@@ -84,6 +84,7 @@ protected:
     uint8_t get_evengroup(int x, uint8_t dot, uint8_t input);
 
 private:
+    gpio_num_t _cs;
     const uint8_t init_data_block0[102] = {0};
     const uint8_t init_data_block1[4] = {0x01, 0xa8, 0x4c, 0x80};
     const uint8_t init_data_block2[4] = {0x81, 0xfc, 0x00, 0x00};
@@ -122,21 +123,22 @@ private:
     // Hexadecimal code corresponding to each character
     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz
     const uint8_t hex_codes[CHAR_COUNT] = {
-        0, // !
-        0, // "
-        0, // #
-        0, // $
-        0, // %
-        0, // &
-        0, // '
-        0, // (
-        0, // )
+        0,
+        0,    // !
+        0,    // "
+        0,    // #
+        0,    // $
+        0,    // %
+        0,    // &
+        0,    // '
+        0,    // (
+        0,    // )
         0x61, // *
-        0, // +
-        0, // ,
-        0, // -
-        0, // .
-        0, // /
+        0,    // +
+        0,    // ,
+        0,    // -
+        0,    // .
+        0,    // /
         0x3f, // 0
         0x06, // 1
         0x5b, // 2
@@ -147,13 +149,13 @@ private:
         0x07, // 7
         0x7f, // 8
         0x6f, // 9
-        0, // :
-        0, // ;
-        0, // <
-        0, // =
-        0, // >
-        0, // ?
-        0, // @
+        0,    // :
+        0,    // ;
+        0,    // <
+        0,    // =
+        0,    // >
+        0,    // ?
+        0,    // @
         0x77, // A
         0x7c, // B
         0x39, // C

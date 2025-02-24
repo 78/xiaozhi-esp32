@@ -84,8 +84,6 @@ PT6324Writer::PT6324Writer(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_ho
     ESP_ERROR_CHECK(spi_bus_add_device(spi_num, &devcfg, &spi_device_));
 }
 
-PT6324Writer::PT6324Writer(spi_device_handle_t spi_device) : spi_device_(spi_device) {}
-
 /**
  * @brief Initializes the PT6324 device.
  *
