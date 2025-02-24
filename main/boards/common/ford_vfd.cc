@@ -28,16 +28,13 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 	spi_device_interface_config_t devcfg = {
 		.mode = 0,				  // Set the SPI mode to 0
 		.clock_speed_hz = 400000, // Set the clock speed to 400kHz
-		.spics_io_num = -1,		  // Set the chip select pin
+		.spics_io_num = cs,		  // Set the chip select pin
 		.flags = 0,
 		.queue_size = 7,
 	};
 
 	// Add the PT6324 device to the SPI bus with the specified configuration
 	ESP_ERROR_CHECK(spi_bus_add_device(spi_num, &devcfg, &spi_device_));
-
-	gpio_set_direction(cs, GPIO_MODE_OUTPUT);
-	gpio_set_level(cs, 1);
 
 	init();
 
@@ -63,7 +60,6 @@ void FORD_VFD::write_data8(uint8_t *dat, int len)
 
 	// Queue the SPI transaction. This function will block until the transaction can be queued.
 	ESP_ERROR_CHECK(spi_device_queue_trans(spi_device_, &t, portMAX_DELAY));
-
 	// The following code can be uncommented if you need to wait for the transaction to complete and verify the result
 	spi_transaction_t *ret_trans;
 	ESP_ERROR_CHECK(spi_device_get_trans_result(spi_device_, &ret_trans, portMAX_DELAY));
@@ -74,69 +70,30 @@ void FORD_VFD::write_data8(uint8_t *dat, int len)
 
 void FORD_VFD::refrash(uint8_t *gram, int size)
 {
-	gpio_set_level(_cs, 0);
-	vTaskDelay(pdMS_TO_TICKS(5));
+
 	write_data8((uint8_t *)gram, size);
-	vTaskDelay(pdMS_TO_TICKS(5));
-	gpio_set_level(_cs, 1);
 }
 
 void FORD_VFD::init()
 {
-	gpio_set_level(_cs, 0);
 
 	write_data8(0x55);
 
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
-
 	write_data8((uint8_t *)init_data_block1, sizeof(init_data_block1));
-
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
 
 	write_data8((uint8_t *)init_data_block2, sizeof(init_data_block2));
 
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
-
 	write_data8((uint8_t *)init_data_block3, sizeof(init_data_block3));
-
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
 
 	write_data8((uint8_t *)init_data_block4, sizeof(init_data_block4));
 
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
-
 	write_data8((uint8_t *)init_data_block5, sizeof(init_data_block5));
-	write_data8((uint8_t *)init_data_block6, sizeof(init_data_block6));
-
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
 
 	write_data8((uint8_t *)gram, sizeof(gram));
 
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
-
 	write_data8((uint8_t *)init_data_block7, sizeof(init_data_block7));
 
-	gpio_set_level(_cs, 1);
-
-	gpio_set_level(_cs, 0);
-
 	write_data8((uint8_t *)init_data_block8, sizeof(init_data_block8));
-
-	gpio_set_level(_cs, 1);
 }
 
 uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t group)
