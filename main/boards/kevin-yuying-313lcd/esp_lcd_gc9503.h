@@ -125,16 +125,16 @@ esp_err_t esp_lcd_new_panel_gc9503(const esp_lcd_panel_io_handle_t io, const esp
         .pclk_hz = 20 * 1000 * 1000,                \
         .h_res = 376,                               \
         .v_res = 960,                               \
-        .hsync_pulse_width = 8,                    \
+        .hsync_pulse_width = 8,                     \
         .hsync_back_porch = 30,                     \
         .hsync_front_porch = 30,                    \
         .vsync_pulse_width = 8,                     \
         .vsync_back_porch = 16,                     \
         .vsync_front_porch = 16,                    \
         .flags = {                                  \
-            .hsync_idle_low = 0,                    \  
-            .vsync_idle_low = 0,                    \ 
-            .de_idle_high = 0,                      \ 
+            .hsync_idle_low = 0,                    \
+            .vsync_idle_low = 0,                    \
+            .de_idle_high = 0,                      \
             .pclk_active_neg = 0,                   \
             .pclk_idle_high = 0,                    \
         },                                          \
