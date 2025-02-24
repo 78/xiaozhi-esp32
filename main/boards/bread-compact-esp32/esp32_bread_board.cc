@@ -63,8 +63,7 @@ private:
         });
 
         asr_button_.OnClick([this]() {
-            std::string wake_word="你好小智";
-            Application::GetInstance().WakeWordInvoke(wake_word);
+            Application::GetInstance().AsrControlWordInvoke(kControlWordTypeWakup);
         });
 
         touch_button_.OnPressDown([this]() {

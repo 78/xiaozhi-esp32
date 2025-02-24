@@ -24,6 +24,8 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    Button wakeup_button_;
+    Button stepback_button_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -85,6 +87,16 @@ private:
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification("已静音");
         });
+        wakeup_button_.OnClick([this]() {
+            Application::GetInstance().AsrControlWordInvoke(kControlWordTypeWakup);
+        });
+        stepback_button_.OnClick([this]() {
+           Application::GetInstance().AsrControlWordInvoke(kControlWordTypeStepback);
+        });
+
+        stepback_button_.OnLongPress([this]() {
+            Application::GetInstance().AsrControlWordInvoke(kControlWordTypeStepbackRightnow);
+         });
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -99,7 +111,9 @@ public:
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
+        wakeup_button_(WAKEUP_BUTTON_GPIO),
+        stepback_button_(STEPBACK_BUTTON_GPIO) {
         InitializeDisplayI2c();
         InitializeButtons();
         InitializeIot();

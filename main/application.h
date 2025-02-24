@@ -40,6 +40,12 @@ enum DeviceState {
     kDeviceStateFatalError
 };
 
+enum ControlWordType {
+    kControlWordTypeWakup,
+    kControlWordTypeStepback,
+    kControlWordTypeStepbackRightnow
+};
+
 #define OPUS_FRAME_DURATION_MS 60
 
 class Application {
@@ -64,7 +70,7 @@ public:
     void StopListening();
     void UpdateIotStates();
     void Reboot();
-    void WakeWordInvoke(const std::string& wake_word);
+    void AsrControlWordInvoke(ControlWordType word_type);
 
 private:
     Application();
