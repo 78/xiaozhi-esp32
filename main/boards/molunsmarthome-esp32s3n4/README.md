@@ -2,11 +2,11 @@
 
 [默语小智管家](https://oshwhub.com/molun/intelligent-housekeeper)：https://oshwhub.com/molun/intelligent-housekeeper
 
-![默语小智管家](image-3.png)
+![默语小智管家实物图](image/README/image-3.png)
 
-![1740376702206](image/README/1740376702206.png)
+![默语小智管家渲染图正面](image/README/1740376702206.png)
 
-![1740376663693](image/README/1740376663693.png)
+![默语小智管家渲染图背面](image/README/1740376663693.png)
 
 # 开发板资源介绍
 
@@ -92,6 +92,6 @@ idf.py build
 
 # 编译配置截图
 
-![alt text](image.png)
-![alt text](image-1.png)
-![alt text](image-2.png)
+![alt text](image/README/image.png)
+![alt text](image/README/image-1.png)
+![alt text](image/README/image-2.png)
