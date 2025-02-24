@@ -22,7 +22,7 @@
         "LISTENING": "Listening...",
         "SPEAKING": "Speaking...",
 
-        "UNABLE_TO_CONNECT_TO_SERVICE": "Unable to connect to service",
+        "UNABLE_TO_CONNECT_TO_SERVICE": "Unable to connect to service, please try again later",
         "WAITING_FOR_RESPONSE_TIMEOUT": "Waiting for response timeout",
         "SENDING_FAILED_PLEASE_CHECK_THE_NETWORK": "Sending failed, please check the network",
 
