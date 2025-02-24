@@ -85,20 +85,20 @@
   <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
     <img src="docs/v1/waveshare.jpg" width="240" />
   </a>
-  <a href="docs/waveshare-esp32-s3-touch-lcd-1.85.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85">
-    <img src="docs/v1/waveshare.jpg" width="240" />
-  </a>
   <a href="docs/waveshare-esp32-s3-touch-lcd-1.85c-box.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85C-BOX">
-    <img src="docs/v1/waveshare.jpg" width="240" />
+    <img src="docs/waveshare-esp32-s3-touch-lcd-1.85c-box.jpg" width="240" />
+  </a>
+  <a href="docs/waveshare-esp32-s3-touch-lcd-1.85.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85">
+    <img src="docs/waveshare-esp32-s3-touch-lcd-1.85.jpg" width="240" />
   </a>
   <a href="docs/waveshare-esp32-s3-lcd-1.85.jpg" target="_blank" title="微雪电子 ESP32-S3-LCD-1.85">
-    <img src="docs/v1/waveshare.jpg" width="240" />
+    <img src="docs/waveshare-esp32-s3-lcd-1.85.jpg" width="240" />
   </a>
   <a href="docs/waveshare-esp32-s3-touch-lcd-1.46.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.46">
-    <img src="docs/v1/waveshare.jpg" width="240" />
+    <img src="docs/waveshare-esp32-s3-touch-lcd-1.46.jpg" width="240" />
   </a>
   <a href="docs/waveshare-esp32-s3-touch-lcd-1.46b.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.46B">
-    <img src="docs/v1/waveshare.jpg" width="240" />
+    <img src="docs/waveshare-esp32-s3-touch-lcd-1.46b.jpg" width="240" />
   </a>
   <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
     <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
