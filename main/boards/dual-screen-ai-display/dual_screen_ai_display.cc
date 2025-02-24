@@ -344,7 +344,91 @@ public:
     }
 };
 
-static rx8900_handle_t _rx8900 = NULL;
+class CustomSubDisplay : public HNA_16MM65T, public Display, public Led
+{
+private:
+    uint8_t brightness_ = 0;
+
+public:
+    CustomSubDisplay(spi_device_handle_t spi_device) : HNA_16MM65T(spi_device)
+    {
+        InitializeBacklight();
+    }
+
+    void InitializeBacklight()
+    {
+        Settings settings("display", false);
+        brightness_ = settings.GetInt("bright", 80);
+        SetBacklight(brightness_);
+    }
+
+    virtual void SetBacklight(uint8_t brightness) override
+    {
+        pt6324_setbrightness(brightness);
+    }
+
+    virtual bool Lock(int timeout_ms = 0) override
+    {
+        return true;
+    }
+
+    virtual void Unlock() override
+    {
+    }
+
+    virtual void OnStateChanged() override
+    {
+        auto &app = Application::GetInstance();
+        auto device_state = app.GetDeviceState();
+        symbolhelper(GIGA, false);
+        symbolhelper(MONO, false);
+        symbolhelper(STEREO, false);
+        symbolhelper(REC_1, false);
+        symbolhelper(REC_2, false);
+        symbolhelper(USB1, false);
+        dotshelper(DOT_MATRIX_FILL);
+        switch (device_state)
+        {
+        case kDeviceStateStarting:
+            symbolhelper(GIGA, true);
+            break;
+        case kDeviceStateWifiConfiguring:
+            symbolhelper(MONO, true);
+            break;
+        case kDeviceStateIdle:
+            break;
+        case kDeviceStateConnecting:
+            symbolhelper(STEREO, true);
+            break;
+        case kDeviceStateListening:
+            if (app.IsVoiceDetected())
+            {
+                symbolhelper(REC_1, true);
+                symbolhelper(REC_2, true);
+            }
+            else
+            {
+                symbolhelper(REC_2, true);
+            }
+            break;
+        case kDeviceStateSpeaking:
+            dotshelper(DOT_MATRIX_NEXT);
+            break;
+        case kDeviceStateUpgrading:
+            symbolhelper(USB1, true);
+            break;
+        default:
+            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            return;
+        }
+    }
+
+    virtual void Notification(const std::string &content, int timeout = 2000) override
+    {
+        noti_show(0, (char *)content.c_str(), 10, ANI_UP2DOWN, timeout);
+    }
+};
+
 class DualScreenAIDisplay : public WifiBoard
 {
 private:
@@ -352,7 +436,7 @@ private:
     // Encoder volume_encoder_;
     // SystemReset system_reset_;
     CustomLcdDisplay *display_;
-    HNA_16MM65T *vfd_;
+    CustomSubDisplay *vfd_;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t bat_adc_cali_handle, dimm_adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -376,7 +460,6 @@ private:
         ESP_LOGI(TAG, "bmp280_default_init:%d", bmp280_default_init(bmp280));
         rx8900 = rx8900_create(i2c_bus, RX8900_I2C_ADDRESS_DEFAULT);
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
-        _rx8900 = rx8900;
         xTaskCreate([](void *arg)
                     {
             sntp_set_time_sync_notification_cb([](struct timeval *t){
@@ -475,7 +558,7 @@ private:
             .queue_size = 7,
         };
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spidevice));
-        vfd_ = new HNA_16MM65T(spidevice);
+        vfd_ = new CustomSubDisplay(spidevice);
         ESP_LOGI(TAG, "Enable VFD power");
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
         {
@@ -815,7 +898,7 @@ public:
 
     virtual bool CalibrateTime(struct tm *tm_info) override
     {
-        if (rx8900_write_time(_rx8900, tm_info) == ESP_FAIL)
+        if (rx8900_write_time(rx8900, tm_info) == ESP_FAIL)
             return false;
         return true;
     }

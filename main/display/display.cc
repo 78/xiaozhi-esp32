@@ -252,6 +252,10 @@ void Display::SetChatMessage(const std::string &role, const std::string &content
 {
 }
 
+void Display::Notification(const std::string &content, int timeout)
+{
+}
+
 void Display::SetBacklight(uint8_t brightness) {}
 
 int Display::GetBacklight() { return 0; };

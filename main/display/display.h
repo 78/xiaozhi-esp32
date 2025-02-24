@@ -27,6 +27,7 @@ public:
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
     virtual void SetEmotion(const std::string &emotion);
     virtual void SetChatMessage(const std::string &role, const std::string &content);
+    virtual void Notification(const std::string &content, int timeout);
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
