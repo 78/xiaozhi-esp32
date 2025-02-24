@@ -397,11 +397,13 @@ void HNA_16MM65T::spectrum_show(float *buf, int size)
 void HNA_16MM65T::time_blink()
 {
     static bool time_mark = true;
+    time_mark = !time_mark;
     if (content_inhibit_time != 0)
     {
+        symbolhelper(NUM6_MARK, false);
+        symbolhelper(NUM8_MARK, false);
         return;
     }
-    time_mark = !time_mark;
     symbolhelper(NUM6_MARK, time_mark);
     symbolhelper(NUM8_MARK, time_mark);
 }

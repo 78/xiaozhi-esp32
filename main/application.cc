@@ -449,7 +449,8 @@ void Application::Start()
         auto vfd = (HNA_16MM65T *) Board::GetInstance().GetDisplay();
         // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
         if(vfd != nullptr)
-            vfd->spectrum_show(data.data(),data.size()); });
+            vfd->spectrum_show(data.data(),data.size()); 
+        });
 
 #endif
 

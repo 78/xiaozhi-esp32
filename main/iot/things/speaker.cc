@@ -1,6 +1,8 @@
 #include "iot/thing.h"
 #include "board.h"
 #include "audio_codec.h"
+#include "display/lcd_display.h"
+#include <string>
 
 #include <esp_log.h>
 
@@ -22,9 +24,15 @@ public:
         methods_.AddMethod("SetVolume", "设置音量", ParameterList({
             Parameter("volume", "0到100之间的整数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
+            auto display = Board::GetInstance().GetDisplay();
             auto codec = Board::GetInstance().GetAudioCodec();
-            codec->SetOutputVolume(static_cast<uint8_t>(parameters["volume"].number()));
-        });
+            auto volume = static_cast<uint8_t>(parameters["volume"].number());
+            codec->SetOutputVolume(volume);
+            
+            
+            char tempstr[11] = {0};
+            sprintf(tempstr, "SOUND:%d", volume);
+            display->Notification((std::string)tempstr,2000); });
     }
 };
 

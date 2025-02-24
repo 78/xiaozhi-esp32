@@ -2,6 +2,8 @@
 #include "display/lcd_display.h"
 #include "board.h"
 #include "audio_codec.h"
+#include <string>
+#include "display/lcd_display.h"
 
 #include <esp_log.h>
 #define TAG "Displayer"
@@ -16,7 +18,8 @@ namespace iot
         Displayer() : Thing("Displayer", "当前 AI 机器人的显示器")
         {
             // 定义设备的属性
-            properties_.AddNumberProperty("brightness", "当前亮度值", [this]() -> int {
+            properties_.AddNumberProperty("brightness", "当前亮度值", [this]() -> int
+                                          {
                 auto display = Board::GetInstance().GetDisplay();
             return display->GetBacklight(); });
 
@@ -24,8 +27,12 @@ namespace iot
             methods_.AddMethod("SetBrightness", "设置亮度", ParameterList({Parameter("brightness", "0到100之间的整数", kValueTypeNumber, true)}), [this](const ParameterList &parameters)
                                {
                 auto display = Board::GetInstance().GetDisplay();
-                display->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); 
-        });
+                auto brightness = static_cast<uint8_t>(parameters["brightness"].number());
+                display->SetBacklight(brightness); 
+                
+                char tempstr[11] = {0};
+                sprintf(tempstr, "BRIGHT:%d", brightness);
+                display->Notification((std::string)tempstr,2000); });
         }
     };
 
