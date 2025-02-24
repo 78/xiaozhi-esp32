@@ -27,7 +27,7 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Notification Timer",
+        .name = "notification_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
@@ -40,7 +40,7 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Update Display Timer",
+        .name = "update_display_timer",
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));

@@ -46,6 +46,9 @@ bool MqttProtocol::StartMqttClient() {
 
     if (endpoint_.empty()) {
         ESP_LOGE(TAG, "MQTT endpoint is not specified");
+        if (on_network_error_ != nullptr) {
+            on_network_error_(Lang::Strings::UNABLE_TO_CONNECT_TO_SERVICE);
+        }
         return false;
     }
 
