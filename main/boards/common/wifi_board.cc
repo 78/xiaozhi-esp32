@@ -5,7 +5,7 @@
 #include "system_info.h"
 #include "font_awesome_symbols.h"
 #include "settings.h"
-#include "assets/zh/binary.h"
+#include "assets/lang_config.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -41,18 +41,19 @@ void WifiBoard::EnterWifiConfigMode() {
     application.SetDeviceState(kDeviceStateWifiConfiguring);
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
+    wifi_ap.SetLanguage(Lang::CODE);
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-    std::string hint = "手机连接热点 ";
+    std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();
-    hint += "\n浏览器访问 ";
+    hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert("配网模式", hint, "", std::string_view(p3_wificonfig_start, p3_wificonfig_end - p3_wificonfig_start));
+    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
     
     // Wait forever until reset after configuration
     while (true) {
@@ -82,15 +83,20 @@ void WifiBoard::StartNetwork() {
     auto& wifi_station = WifiStation::GetInstance();
     wifi_station.OnScanBegin([this]() {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification("扫描 WiFi...", 30000);
+        display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
     });
     wifi_station.OnConnect([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("连接 ") + ssid + "...", 30000);
+        std::string notification = Lang::Strings::CONNECT_TO;
+        notification += ssid;
+        notification += "...";
+        display->ShowNotification(notification.c_str(), 30000);
     });
     wifi_station.OnConnected([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("已连接 ") + ssid);
+        std::string notification = Lang::Strings::CONNECTED_TO;
+        notification += ssid;
+        display->ShowNotification(notification.c_str(), 30000);
     });
     wifi_station.Start();
 
@@ -166,12 +172,12 @@ void WifiBoard::SetPowerSaveMode(bool enabled) {
 }
 
 void WifiBoard::ResetWifiConfiguration() {
-    // Reset the wifi station
+    // Set a flag and reboot the device to enter the network configuration mode
     {
         Settings settings("wifi", true);
         settings.SetInt("force_ap", 1);
     }
-    GetDisplay()->ShowNotification("进入配网模式...");
+    GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
     vTaskDelay(pdMS_TO_TICKS(1000));
     // Reboot the device
     esp_restart();

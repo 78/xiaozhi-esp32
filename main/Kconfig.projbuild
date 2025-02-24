@@ -6,6 +6,20 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+
+choice
+    prompt "语言选择"
+    default LANGUAGE_ZH_CN
+    help
+        Select device display language
+        
+    config LANGUAGE_ZH_CN
+        bool "Chinese"
+    config LANGUAGE_EN_US
+        bool "English"
+endchoice
+
+
 choice CONNECTION_TYPE
     prompt "Connection Type"
     default CONNECTION_TYPE_MQTT_UDP
@@ -54,14 +68,20 @@ choice BOARD_TYPE
         bool "Kevin C3"
     config BOARD_TYPE_KEVIN_SP_V3_DEV
         bool "Kevin SP V3开发板"
+    config BOARD_TYPE_KEVIN_YUYING_313LCD
+        bool "鱼鹰科技3.13LCD开发板"
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创·实战派ESP32-S3开发板"
     config BOARD_TYPE_LICHUANG_C3_DEV
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_MAGICLICK_2P4
-        bool "神奇按钮 Magiclick_2.4"  
+        bool "神奇按钮 Magiclick_2.4"
+    config BOARD_TYPE_MAGICLICK_2P5
+        bool "神奇按钮 Magiclick_2.5"  
     config BOARD_TYPE_MAGICLICK_C3
-        bool "神奇按钮 Magiclick_C3" 
+        bool "神奇按钮 Magiclick_C3"
+    config BOARD_TYPE_MAGICLICK_C3_V2
+        bool "神奇按钮 Magiclick_C3_v2"  
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
@@ -98,10 +118,14 @@ choice BOARD_TYPE
         bool "嘟嘟开发板CHATX(wifi)"       
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
-    config BOARD_TYPE_XINGZHI_Cube_OLED
-        bool "无名科技星智0.96"
-    config BOARD_TYPE_XINGZHI_Cube_TFT
-        bool "无名科技星智1.54"
+    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
+        bool "无名科技星智0.96(WIFI)"
+    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307
+        bool "无名科技星智0.96(ML307)"
+    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI
+        bool "无名科技星智1.54(WIFI)"
+    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
+        bool "无名科技星智1.54(ML307)"
 endchoice
 
 choice DISPLAY_OLED_TYPE

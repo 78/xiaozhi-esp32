@@ -1,0 +1,103 @@
+name: Installation or build bug report
+description: Report installation or build bugs
+labels: ['bug']
+body:
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Answers checklist.
+      description: Before submitting a new issue, please follow the checklist and try to find the answer.
+      options:
+        - label: I have read the documentation [XiaoZhi AI Programming Guide](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb) and the issue is not addressed there.
+          required: true
+        - label: I have updated my branch (master or release) to the latest version and checked that the issue is present there.
+          required: true
+        - label: I have searched the issue tracker for a similar issue and not found a similar issue.
+          required: true
+  - type: input
+    id: xiaozhi_ai_version
+    attributes:
+      label: XiaoZhi AI version.
+      description: On which XiaoZhi AI version does this issue occur on? Run `git describe --tags` to find it.
+      placeholder: ex. v1.1.0-44-g140aab8
+    validations:
+      required: true
+  - type: dropdown
+    id: operating_system
+    attributes:
+      label: Operating System used.
+      multiple: false
+      options:
+        - Windows
+        - Linux
+        - macOS
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: How did you build your project?
+      multiple: false
+      options:
+        - Command line with CMake
+        - Command line with idf.py
+        - CLion IDE
+        - VS Code IDE/Cursor
+        - Other (please specify in More Information)
+    validations:
+      required: true
+  - type: dropdown
+    id: windows_comand_line
+    attributes:
+      label: If you are using Windows, please specify command line type.
+      multiple: false
+      options:
+        - PowerShell
+        - CMD
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: What is the expected behavior?
+      description: Please provide a clear and concise description of the expected behavior.
+      placeholder: I expected it to...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What is the actual behavior?
+      description: Please describe actual behavior.
+      placeholder: Instead it...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce.
+      description: 'How do you trigger this bug? Please walk us through it step by step. If this is build bug, please attach sdkconfig file (from your project folder). Please attach your code here.'
+      value: |
+        1. Step
+        2. Step
+        3. Step
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: debug_logs
+    attributes:
+      label: Build or installation Logs.
+      description: Build or installation log goes here, should contain the backtrace, as well as the reset source if it is a crash.
+      placeholder: Your log goes here.
+      render: plain
+    validations:
+      required: false
+  - type: textarea
+    id: more-info
+    attributes:
+      label: More Information.
+      description: Do you have any other information from investigating this?
+      placeholder: ex. Any more.
+    validations:
+      required: false

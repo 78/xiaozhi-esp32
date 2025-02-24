@@ -6,6 +6,7 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "settings.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -21,6 +22,7 @@ class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
+    bool press_to_talk_enabled_ = false;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -45,19 +47,30 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            if (!press_to_talk_enabled_) {
+                app.ToggleChatState();
+            }
         });
         boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+            if (press_to_talk_enabled_) {
+                Application::GetInstance().StartListening();
+            }
         });
         boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+            if (press_to_talk_enabled_) {
+                Application::GetInstance().StopListening();
+            }
         });
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
+        Settings settings("vendor");
+        press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
+
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("PressToTalk"));
     }
 
 public:
@@ -87,6 +100,45 @@ public:
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
+
+    void SetPressToTalkEnabled(bool enabled) {
+        press_to_talk_enabled_ = enabled;
+
+        Settings settings("vendor", true);
+        settings.SetInt("press_to_talk", enabled ? 1 : 0);
+        ESP_LOGI(TAG, "Press to talk enabled: %d", enabled);
+    }
+
+    bool IsPressToTalkEnabled() {
+        return press_to_talk_enabled_;
+    }
 };
 
 DECLARE_BOARD(XminiC3Board);
+
+
+namespace iot {
+
+class PressToTalk : public Thing {
+public:
+    PressToTalk() : Thing("PressToTalk", "控制对话模式，一种是长按对话，一种是单击后连续对话。") {
+        // 定义设备的属性
+        properties_.AddBooleanProperty("enabled", "true 表示长按说话模式，false 表示单击说话模式", []() -> bool {
+            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
+            return board->IsPressToTalkEnabled();
+        });
+
+        // 定义设备可以被远程执行的指令
+        methods_.AddMethod("SetEnabled", "启用或禁用长按说话模式，调用前需要经过用户确认", ParameterList({
+            Parameter("enabled", "true 表示长按说话模式，false 表示单击说话模式", kValueTypeBoolean, true)
+        }), [](const ParameterList& parameters) {
+            bool enabled = parameters["enabled"].boolean();
+            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
+            board->SetPressToTalkEnabled(enabled);
+        });
+    }
+};
+
+} // namespace iot
+
+DECLARE_THING(PressToTalk);
