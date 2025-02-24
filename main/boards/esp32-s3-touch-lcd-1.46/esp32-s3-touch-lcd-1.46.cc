@@ -83,7 +83,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
     
-    void i2c_dev_tca9554_init(void)
+    void InitializeTca9554(void)
     {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
@@ -175,7 +175,7 @@ public:
     CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
-        i2c_dev_tca9554_init();
+        InitializeTca9554();
         InitializeSpi();
         Initializespd2010Display();
         InitializeButtons();

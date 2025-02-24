@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "xingzhi-cube-tft",
+            "name": "magiclick-2p5",
             "sdkconfig_append": []
         }
     ]

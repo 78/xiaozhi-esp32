@@ -77,6 +77,9 @@ def release(board_type, board_config):
     
     for build in builds:
         name = build["name"]
+        if not name.startswith(board_type):
+            raise ValueError(f"name {name} 必须 {board_type} 开头")
+
         sdkconfig_append = [f"{board_config}=y"]
         for append in build.get("sdkconfig_append", []):
             sdkconfig_append.append(append)
@@ -111,8 +114,6 @@ if __name__ == "__main__":
         board_configs = get_all_board_types()
         found = False
         for board_config, board_type in board_configs.items():
-            if board_type == 'main/boards/bread-compact-wifi-lcd':
-                continue
             if sys.argv[1] == 'all' or board_type == sys.argv[1]:
                 release(board_type, board_config)
                 found = True

@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "magiclick-c3-v2",
+            "sdkconfig_append": []
+        }
+    ]
+}

@@ -1,0 +1,44 @@
+{
+    "language": {
+        "type": "en-US"
+    },
+    "strings": {
+        "VERSION": "Ver ",
+        "LOADING_PROTOCOL": "Loading Protocol...",
+        "INITIALIZING": "Initializing...",
+        "DETECTING_MODULE": "Detecting module...",
+        "REGISTERING_NETWORK": "Waiting for network...",
+        
+        "ERROR": "Error",
+        "PIN_ERROR": "Please insert SIM card",
+        "REG_ERROR": "Unable to access network, please check SIM card status",
+
+        "STANDBY": "Standby",
+        "CONNECT_TO": "Connect to ",
+        "CONNECTING": "Connecting...",
+        "CONNECTION_SUCCESSFUL": "Connection Successful",
+        "CONNECTED_TO": "Connected to ",
+
+        "LISTENING": "Listening...",
+        "SPEAKING": "Speaking...",
+
+        "UNABLE_TO_CONNECT_TO_SERVICE": "Unable to connect to service",
+        "WAITING_FOR_RESPONSE_TIMEOUT": "Waiting for response timeout",
+        "SENDING_FAILED_PLEASE_CHECK_THE_NETWORK": "Sending failed, please check the network",
+
+        "CONNECT_TO_HOTSPOT": "Hotspot: ",
+        "ACCESS_VIA_BROWSER": " Config URL: ",
+        "WIFI_CONFIG_MODE": "Wi-Fi Configuration Mode",
+        "ENTERING_WIFI_CONFIG_MODE": "Entering Wi-Fi configuration mode...",
+        "SCANNING_WIFI": "Scanning Wi-Fi...",
+
+        "UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "Unable to establish audio channel",
+        "TEST": "Test",
+
+        "NEW_VERSION": "New version ",
+        "OTA_UPGRADE": "OTA Upgrade",
+        "UPGRADING": "System is upgrading...",
+        "UPGRADE_FAILED": "Upgrade failed",
+        "ACTIVATION": "Activation"
+    }
+}
