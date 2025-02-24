@@ -20,18 +20,16 @@
         "LISTENING":"聆听中...",
         "SPEAKING":"说话中...",
 
-        "UNABLE_TO_CONNECT_TO_SERVICE":"无法连接服务",
-        "WAITING_FOR_RESPONSE_TIMEOUT":"等待响应超时",
-        "SENDING_FAILED_PLEASE_CHECK_THE_NETWORK":"发送失败，请检查网络",
+        "SERVER_NOT_FOUND":"正在寻找可用服务",
+        "SERVER_NOT_CONNECTED":"无法连接服务，请稍后再试",
+        "SERVER_TIMEOUT":"等待响应超时",
+        "SERVER_ERROR":"发送失败，请检查网络",
 
         "CONNECT_TO_HOTSPOT":"手机连接热点 ",
         "ACCESS_VIA_BROWSER":"，浏览器访问 ",
         "WIFI_CONFIG_MODE":"配网模式",
         "ENTERING_WIFI_CONFIG_MODE":"进入配网模式...",
         "SCANNING_WIFI":"扫描 Wi-Fi...",
-
-        "UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "无法建立音频通道",
-        "TEST":"测试",
 
         "NEW_VERSION": "新版本 ",
         "OTA_UPGRADE":"OTA 升级",
