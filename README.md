@@ -57,7 +57,7 @@
 - <a href="https://docs.m5stack.com/en/core/ATOM%20Matrix" target="_blank" title="AtomMatrix + Echo Base">AtomMatrix + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
-- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85C-BOX.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85C</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85C.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85C-BOX</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-LCD-1.85</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.46.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.46</a>
@@ -86,8 +86,8 @@
   <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
     <img src="docs/v1/waveshare.jpg" width="240" />
   </a>
-  <a href="docs/waveshare-esp32-s3-touch-lcd-1.85c.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85C">
-    <img src="docs/waveshare-esp32-s3-touch-lcd-1.85c.jpg" width="240" />
+  <a href="docs/waveshare-esp32-s3-touch-lcd-1.85c-box.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85C-BOX">
+    <img src="docs/waveshare-esp32-s3-touch-lcd-1.85c-box.jpg" width="240" />
   </a>
   <a href="docs/waveshare-esp32-s3-touch-lcd-1.85.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-LCD-1.85">
     <img src="docs/waveshare-esp32-s3-touch-lcd-1.85.jpg" width="240" />
