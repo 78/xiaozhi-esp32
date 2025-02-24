@@ -12,8 +12,8 @@
 
 #include <stdint.h>
 
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_rgb.h"
+#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_panel_rgb.h>
 
 #ifdef __cplusplus
 extern "C" {

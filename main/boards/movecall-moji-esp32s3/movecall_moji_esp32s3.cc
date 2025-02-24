@@ -26,7 +26,7 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
                     esp_lcd_panel_handle_t panel_handle,
@@ -39,7 +39,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_20_4,

@@ -32,7 +32,6 @@ private:
         ESP_LOGI(TAG, "Init GC9503V");
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
 
         ESP_LOGI(TAG, "Install 3-wire SPI panel IO");
         spi_line_config_t line_config = {
