@@ -53,7 +53,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x51, (uint8_t[]){0xFF}, 1, 0},
 };
 
-class CustomLcdDisplay : public LcdDisplay
+class CustomLcdDisplay : public LcdDisplay, public HNA_16MM65T, public Led
 {
 private:
     uint8_t brightness_ = 0;
@@ -88,14 +88,16 @@ public:
                      int offset_y,
                      bool mirror_x,
                      bool mirror_y,
-                     bool swap_xy)
+                     bool swap_xy,
+                     spi_device_handle_t spidevice = nullptr)
         : LcdDisplay(io_handle, panel_handle, tp_handle, backlight_pin, backlight_output_invert,
                      width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                      {
                          .text_font = &font_puhui_16_4,
                          .icon_font = &font_awesome_16_4,
                          .emoji_font = font_emoji_32_init(),
-                     })
+                     }),
+          HNA_16MM65T(spidevice)
     {
 
         DisplayLockGuard lock(this);
@@ -104,6 +106,7 @@ public:
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
         InitializeBacklight();
+
         SetupUI();
     }
 
@@ -163,6 +166,8 @@ public:
         lcd_cmd <<= 8;
         lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
         esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+
+        pt6324_setbrightness(brightness);
     }
 
     virtual void SetupUI() override
@@ -343,43 +348,6 @@ public:
         labelContainer.push_back(container);
         lv_obj_update_layout(content_);
     }
-};
-
-class CustomSubDisplay : public HNA_16MM65T, public Display, public Led
-{
-private:
-    uint8_t brightness_ = 0;
-
-public:
-    CustomSubDisplay(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num) : HNA_16MM65T(din, clk, cs, spi_num)
-    {
-        InitializeBacklight();
-    }
-    CustomSubDisplay(spi_device_handle_t spi_device) : HNA_16MM65T(spi_device)
-    {
-        InitializeBacklight();
-    }
-
-    void InitializeBacklight()
-    {
-        Settings settings("display", false);
-        brightness_ = settings.GetInt("bright", 80);
-        SetBacklight(brightness_);
-    }
-
-    virtual void SetBacklight(uint8_t brightness) override
-    {
-        pt6324_setbrightness(brightness);
-    }
-
-    virtual bool Lock(int timeout_ms = 0) override
-    {
-        return true;
-    }
-
-    virtual void Unlock() override
-    {
-    }
 
     virtual void OnStateChanged() override
     {
@@ -439,7 +407,6 @@ class DualScreenAIDisplay : public WifiBoard
 private:
     Button touch_button_;
     CustomLcdDisplay *display_ = NULL;
-    CustomSubDisplay *vfd_ = NULL;
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t bat_adc_cali_handle, dimm_adc_cali_handle;
     i2c_bus_handle_t i2c_bus = NULL;
@@ -474,12 +441,12 @@ private:
                 ESP_LOGD(TAG, "The net time is: %s", time_str);
                 auto ret = Board::GetInstance().CalibrateTime(&tm_info);
                 if(!ret)
-                    ESP_LOGI(TAG, "Calibration Failed");
+                    ESP_LOGI(TAG, "Calibration Time Failed");
                     else
                     {
-                        CustomSubDisplay *vfd = (CustomSubDisplay*)Board::GetInstance().GetSubDisplay();
-                        if(vfd != nullptr)
-                            vfd->Notification("SYNC TM OK", 1000);
+                        CustomLcdDisplay *display = (CustomLcdDisplay*)Board::GetInstance().GetDisplay();
+                        if(display != nullptr)
+                        display->Notification("SYNC TM OK", 1000);
                     }
             });
             esp_netif_init();
@@ -518,53 +485,38 @@ private:
                                 { Application::GetInstance().StopListening(); });
     }
 
-    // void InitializeEncoder()
-    // {
-    //     volume_encoder_.OnPcntReach([this](int value)
-    //                                 {
-    //         static int lastvalue = 0;
-    //         auto codec = GetAudioCodec();
-    //         auto volume = codec->output_volume();
-    //         if(value>lastvalue)
-    //         {
-    //             volume += 4;
-    //             if (volume > 100) {
-    //                 volume = 100;
-    //             }
-    //         }
-    //         else if(value<lastvalue)
-    //         {
-    //             volume -= 4;
-    //             if (volume < 0) {
-    //                 volume = 0;
-    //             }
-    //         }
-    //         lastvalue = value;
-    //         codec->SetOutputVolume(volume);
-    //         GetDisplay()->ShowNotification("音量 " + std::to_string(volume)); });
-    // }
-    void InitializeSubDisplay()
+    void InitializeDisplay()
     {
-        ESP_LOGI(TAG, "Enable VFD power");
-        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-        {
-            gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
-            gpio_set_level(PIN_NUM_VFD_EN, 1);
-        }
-
-        ESP_LOGI(TAG, "Initialize SubDisplay");
-#if FORD_VFD_EN
-        FORD_VFD *ford_vfd_ = new FORD_VFD(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
-        ford_vfd_->test();
-#else
-        vfd_ = new CustomSubDisplay(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
-#endif
-    }
-
-    void InitializeSpi()
-    {
+        // Initialize the SPI bus configuration structure
         spi_bus_config_t buscfg = {0};
+        spi_device_handle_t spi_device = nullptr;
 
+#if SUB_DISPLAY_EN
+        // Log the initialization process
+        ESP_LOGI(TAG, "Initialize VFD SPI bus");
+
+        // Set the clock and data pins for the SPI bus
+        buscfg.sclk_io_num = PIN_NUM_VFD_PCLK;
+        buscfg.data0_io_num = PIN_NUM_VFD_DATA0;
+
+        // Set the maximum transfer size in bytes
+        buscfg.max_transfer_sz = 256;
+
+        // Initialize the SPI bus with the specified configuration
+        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_CH_AUTO));
+
+        // Initialize the SPI device interface configuration structure
+        spi_device_interface_config_t devcfg = {
+            .mode = 3,                      // Set the SPI mode to 3
+            .clock_speed_hz = 1000000,      // Set the clock speed to 1MHz
+            .spics_io_num = PIN_NUM_VFD_CS, // Set the chip select pin
+            .flags = SPI_DEVICE_BIT_LSBFIRST,
+            .queue_size = 7,
+        };
+
+        // Add the PT6324 device to the SPI bus with the specified configuration
+        ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spi_device));
+#endif
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
         buscfg.data0_io_num = PIN_NUM_LCD_DATA0;
@@ -574,10 +526,7 @@ private:
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         buscfg.flags = SPICOMMON_BUSFLAG_QUAD;
         ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
-    }
 
-    void InitializeSH8601Display()
-    {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -663,13 +612,20 @@ private:
 #endif
 
         display_ = new CustomLcdDisplay(panel_io, panel, tp, GPIO_NUM_NC, false,
-                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, spi_device);
 
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
         {
             ESP_LOGI(TAG, "Enable amoled power");
             gpio_set_direction(PIN_NUM_LCD_POWER, GPIO_MODE_OUTPUT);
             gpio_set_level(PIN_NUM_LCD_POWER, 1);
+        }
+
+        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+        {
+            ESP_LOGI(TAG, "Enable VFD power");
+            gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
+            gpio_set_level(PIN_NUM_VFD_EN, 1);
         }
     }
 
@@ -760,8 +716,6 @@ private:
 public:
     DualScreenAIDisplay() : touch_button_(TOUCH_BUTTON_GPIO)
     {
-        // Check if the reset button is pressed
-        // system_reset_.CheckButtons();
         if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
         {
             gpio_set_direction(PIN_NUM_POWER_EN, GPIO_MODE_OUTPUT);
@@ -771,19 +725,16 @@ public:
         vTaskDelay(pdMS_TO_TICKS(120));
         InitializeAdc();
         InitializeI2c();
-        InitializeSpi();
-        InitializeSH8601Display();
-        InitializeSubDisplay();
+        InitializeDisplay();
         InitializeButtons();
-        // InitializeEncoder();
         InitializeIot();
         GetWakeupCause();
     }
 
     virtual Led *GetLed() override
     {
-        if (vfd_ != nullptr)
-            return vfd_;
+        if (display_ != nullptr)
+            return display_;
         else
         {
             static SingleLed led(BUILTIN_LED_GPIO);
@@ -828,11 +779,6 @@ public:
     virtual Display *GetDisplay() override
     {
         return display_;
-    }
-
-    virtual Display *GetSubDisplay() override
-    {
-        return vfd_;
     }
 
     // virtual Sdcard *GetSdcard() override
@@ -915,16 +861,11 @@ public:
             return false;
         char time_str[7];
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
-        HNA_16MM65T *vfd = (HNA_16MM65T *)GetSubDisplay();
-        vfd->content_show(4, time_str, 6);
-        vfd->time_blink();
+        display_->content_show(4, time_str, 6);
+        display_->time_blink();
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-        vfd->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, HNA_DOWN2UP);
-        // uint8_t randvalue = 0;
-        // randvalue = rand() % ('Z' - ' ') + ' ';
-        // vfd->content_show(3, (char *)&randvalue, 1, (NumAni)(time_user.tm_sec % HNA_MAX));
-        // ESP_LOGI(TAG, "The time is: %s", time_str);
+        display_->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, HNA_DOWN2UP);
         return true;
     }
 };

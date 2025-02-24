@@ -25,8 +25,6 @@ namespace iot
                                {
                 auto display = Board::GetInstance().GetDisplay();
                 display->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); 
-                auto subdisplay = Board::GetInstance().GetSubDisplay();
-                subdisplay->SetBacklight(static_cast<uint8_t>(parameters["brightness"].number())); 
         });
         }
     };

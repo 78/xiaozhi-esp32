@@ -316,6 +316,10 @@ HNA_16MM65T::HNA_16MM65T(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host
  */
 HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_device)
 {
+    if(!spi_device){
+        ESP_LOGE(TAG, "VFD spi is null");
+        return;
+    }
     pt6324_init();
     xTaskCreate(
         [](void *arg)

@@ -38,7 +38,6 @@ public:
     virtual float GetBarometer() { return 0; }
     virtual float GetTemperature() { return 0; }
     virtual Display *GetDisplay();
-    virtual Display *GetSubDisplay();
     virtual Sdcard *GetSdcard();
     virtual Http *CreateHttp() = 0;
     virtual WebSocket *CreateWebSocket() = 0;

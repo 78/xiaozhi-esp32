@@ -31,11 +31,6 @@ Display *Board::GetDisplay()
     return &display;
 }
 
-Display *Board::GetSubDisplay()
-{
-    return nullptr;
-}
-
 Sdcard *Board::GetSdcard()
 {
     return NULL;

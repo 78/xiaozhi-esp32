@@ -446,11 +446,10 @@ void Application::Start()
     fft_dsp_processor_.Initialize();
     fft_dsp_processor_.OnOutput([this](std::vector<float> &&data)
                                 {
-        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetSubDisplay();
+        auto vfd = (HNA_16MM65T *) Board::GetInstance().GetDisplay();
         // ESP_LOGI(TAG, "FFT dsp size: %d", data.size());
-        if(vfd!=nullptr)
-            vfd->spectrum_show(data.data(),data.size()); 
-        });
+        if(vfd != nullptr)
+            vfd->spectrum_show(data.data(),data.size()); });
 
 #endif
 
