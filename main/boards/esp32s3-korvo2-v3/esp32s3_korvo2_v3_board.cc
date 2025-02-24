@@ -10,6 +10,7 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_io_expander_tca9554.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <wifi_station.h>
@@ -19,12 +20,12 @@
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class esp32s3_korvo2_v3_board : public WifiBoard
-{
+class Esp32S3Korvo2V3Board : public WifiBoard {
 private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
+    esp_io_expander_handle_t io_expander_ = NULL;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -41,6 +42,59 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+
+    void I2cDetect() {
+        uint8_t address;
+        printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
+        for (int i = 0; i < 128; i += 16) {
+            printf("%02x: ", i);
+            for (int j = 0; j < 16; j++) {
+                fflush(stdout);
+                address = i + j;
+                esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(200));
+                if (ret == ESP_OK) {
+                    printf("%02x ", address);
+                } else if (ret == ESP_ERR_TIMEOUT) {
+                    printf("UU ");
+                } else {
+                    printf("-- ");
+                }
+            }
+            printf("\r\n");
+        }
+    }
+
+    void InitializeTca9554() {
+        esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander_);
+        if(ret != ESP_OK) {
+            ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554A_ADDRESS_000, &io_expander_);
+            if(ret != ESP_OK) {
+                ESP_LOGE(TAG, "TCA9554 create returned error");  
+                return;
+            }
+        }
+        // 配置IO0-IO3为输出模式
+        ESP_ERROR_CHECK(esp_io_expander_set_dir(io_expander_, 
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | 
+            IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_3, 
+            IO_EXPANDER_OUTPUT));
+
+        // 复位LCD和TouchPad
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1));
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 0));
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_ERROR_CHECK(esp_io_expander_set_level(io_expander_,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_2, 1));
+    }
+
+    void EnableLcdCs() {
+        if(io_expander_ != NULL) {
+            esp_io_expander_set_level(io_expander_, IO_EXPANDER_PIN_NUM_3, 0);// 置低 LCD CS
+        }
     }
 
     void InitializeSpi() {
@@ -75,7 +129,7 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_46;
+        io_config.cs_gpio_num = GPIO_NUM_NC;//酷世diy的korvo板子上cs引脚为GPIO46 官方korvo2 v3的lcd cs引脚由TCA9554的IO3控制 所以这里设置为GPIO_NUM_NC
         io_config.dc_gpio_num = GPIO_NUM_2;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 60 * 1000 * 1000;
@@ -92,12 +146,13 @@ private:
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        EnableLcdCs();
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                      DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                      {
                                          .text_font = &font_puhui_20_4,
@@ -114,10 +169,11 @@ private:
     }
 
 public:
-    esp32s3_korvo2_v3_board() : boot_button_(BOOT_BUTTON_GPIO)
-    {
+    Esp32S3Korvo2V3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         ESP_LOGI(TAG, "Initializing esp32s3_korvo2_v3 Board");
         InitializeI2c();
+        I2cDetect();
+        InitializeTca9554();
         InitializeSpi();
         InitializeButtons();
         InitializeSt7789Display();  
@@ -141,10 +197,9 @@ public:
         return &audio_codec;
     }
 
-    virtual Display *GetDisplay() override
-    {
+    virtual Display *GetDisplay() override {
         return display_;
     }
 };
 
-DECLARE_BOARD(esp32s3_korvo2_v3_board);
+DECLARE_BOARD(Esp32S3Korvo2V3Board);

@@ -1,12 +1,12 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "display/no_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -158,9 +158,10 @@ private:
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
-        display_->SetStatus("错误");
+
+        display_->SetStatus(Lang::Strings::ERROR);
         display_->SetEmotion("sad");
-        display_->SetChatMessage("system", "Echo Base\n未连接");
+        display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {
             ESP_LOGE(TAG, "Atomic Echo Base is disconnected");
@@ -236,7 +237,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
-        display_ = new LcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_16_4,

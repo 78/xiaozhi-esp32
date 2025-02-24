@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
+#include <esp_timer.h>
 
 #include <string>
 #include <mutex>
@@ -56,7 +57,7 @@ public:
     bool IsVoiceDetected() const { return voice_detected_; }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
-    void Alert(const std::string& status, const std::string& message, const std::string& emotion = "", const std::string_view& sound = "");
+    void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
@@ -77,7 +78,8 @@ private:
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
-    EventGroupHandle_t event_group_;
+    EventGroupHandle_t event_group_ = nullptr;
+    esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     bool keep_listening_ = false;
     bool aborted_ = false;
@@ -104,7 +106,7 @@ private:
     void SetDecodeSampleRate(int sample_rate);
     void CheckNewVersion();
     void ShowActivationCode();
-
+    void OnClockTimer();
     void PlayLocalFile(const char* data, size_t size);
 };
 

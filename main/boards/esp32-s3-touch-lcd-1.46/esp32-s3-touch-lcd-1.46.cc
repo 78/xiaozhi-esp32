@@ -25,7 +25,7 @@ LV_FONT_DECLARE(font_awesome_16_4);
 
 
 // 在waveshare_lcd_1_46类之前添加新的显示类
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     static void rounder_event_cb(lv_event_t * e)
     {
@@ -48,7 +48,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_16_4,
@@ -83,7 +83,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
     
-    void i2c_dev_tca9554_init(void)
+    void InitializeTca9554(void)
     {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
@@ -175,7 +175,7 @@ public:
     CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
-        i2c_dev_tca9554_init();
+        InitializeTca9554();
         InitializeSpi();
         Initializespd2010Display();
         InitializeButtons();

@@ -34,7 +34,7 @@ SingleLed::SingleLed(gpio_num_t gpio) {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Blink Timer",
+        .name = "blink_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));

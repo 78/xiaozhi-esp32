@@ -27,7 +27,7 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Notification Timer",
+        .name = "notification_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
@@ -40,7 +40,7 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Update Display Timer",
+        .name = "update_display_timer",
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
@@ -67,22 +67,26 @@ Display::~Display() {
     }
 }
 
-void Display::SetStatus(const std::string &status) {
+void Display::SetStatus(const char* status) {
     DisplayLockGuard lock(this);
     if (status_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(status_label_, status.c_str());
+    lv_label_set_text(status_label_, status);
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
+    ShowNotification(notification.c_str(), duration_ms);
+}
+
+void Display::ShowNotification(const char* notification, int duration_ms) {
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(notification_label_, notification.c_str());
+    lv_label_set_text(notification_label_, notification);
     lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
 
@@ -154,7 +158,7 @@ void Display::Update() {
 }
 
 
-void Display::SetEmotion(const std::string &emotion) {
+void Display::SetEmotion(const char* emotion) {
     struct Emotion {
         const char* icon;
         const char* text;
@@ -185,8 +189,9 @@ void Display::SetEmotion(const std::string &emotion) {
     };
     
     // 查找匹配的表情
+    std::string_view emotion_view(emotion);
     auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion](const Emotion& e) { return e.text == emotion; });
+        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
     
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
@@ -209,12 +214,12 @@ void Display::SetIcon(const char* icon) {
     lv_label_set_text(emotion_label_, icon);
 }
 
-void Display::SetChatMessage(const std::string &role, const std::string &content) {
+void Display::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(chat_message_label_, content.c_str());
+    lv_label_set_text(chat_message_label_, content);
 }
 
 void Display::SetBacklight(uint8_t brightness) {

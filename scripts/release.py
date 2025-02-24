@@ -70,6 +70,14 @@ def release(board_type, board_config):
         print(f"跳过 {board_type} 因为 config.json 不存在")
         return
 
+    # Print Project Version
+    project_version = get_project_version()
+    print(f"Project Version: {project_version}")
+    release_path = f"releases/v{project_version}_{board_type}.zip"
+    if os.path.exists(release_path):
+        print(f"跳过 {board_type} 因为 {release_path} 已存在")
+        return
+
     with open(config_path, "r") as f:
         config = json.load(f)
     target = config["target"]
@@ -77,6 +85,9 @@ def release(board_type, board_config):
     
     for build in builds:
         name = build["name"]
+        if not name.startswith(board_type):
+            raise ValueError(f"name {name} 必须 {board_type} 开头")
+
         sdkconfig_append = [f"{board_config}=y"]
         for append in build.get("sdkconfig_append", []):
             sdkconfig_append.append(append)
@@ -84,9 +95,6 @@ def release(board_type, board_config):
         print(f"target: {target}")
         for append in sdkconfig_append:
             print(f"sdkconfig_append: {append}")
-        # Print Project Version
-        project_version = get_project_version()
-        print(f"Project Version: {project_version}")
         # unset IDF_TARGET
         os.environ.pop("IDF_TARGET", None)
         # Call set-target
@@ -111,8 +119,6 @@ if __name__ == "__main__":
         board_configs = get_all_board_types()
         found = False
         for board_config, board_type in board_configs.items():
-            if board_type == 'main/boards/bread-compact-wifi-lcd':
-                continue
             if sys.argv[1] == 'all' or board_type == sys.argv[1]:
                 release(board_type, board_config)
                 found = True
