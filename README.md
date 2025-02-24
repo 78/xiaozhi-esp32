@@ -57,6 +57,7 @@
 - <a href="https://docs.m5stack.com/en/core/ATOM%20Matrix" target="_blank" title="AtomMatrix + Echo Base">AtomMatrix + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85C-BOX.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85C-BOX</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.85</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-LCD-1.85.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-LCD-1.85</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-LCD-1.46.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-LCD-1.46</a>
