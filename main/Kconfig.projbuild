@@ -109,7 +109,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
          bool "LILYGO T-Circle-S3"
     config BOARD_TYPE_MOLUNSMARTHOME_ESP32S3N4
-         bool "MolunSmartHome ESP32-S3-WROOM-1-N4"  
+         bool "默语小智管家"  
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
          bool "Movecall Moji 小智AI衍生版"  
     config BOARD_TYPE_ATK_DNESP32S3
