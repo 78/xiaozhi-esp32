@@ -492,6 +492,10 @@ private:
         spi_device_handle_t spi_device = nullptr;
 
 #if SUB_DISPLAY_EN
+#if FORD_VFD_EN
+        FORD_VFD *ford_vfd_ = new FORD_VFD(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
+        ford_vfd_->test();
+#else
         // Log the initialization process
         ESP_LOGI(TAG, "Initialize VFD SPI bus");
 
@@ -516,6 +520,7 @@ private:
 
         // Add the PT6324 device to the SPI bus with the specified configuration
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spi_device));
+#endif
 #endif
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
