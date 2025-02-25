@@ -37,7 +37,7 @@ private:
             },
             .arg = this,
             .dispatch_method = ESP_TIMER_TASK,
-            .name = "Power Save Timer",
+            .name = "power_save_timer",
             .skip_unhandled_events = false,
         };
         ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));

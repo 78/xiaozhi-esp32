@@ -100,6 +100,29 @@ bool Ota::CheckVersion() {
         has_mqtt_config_ = true;
     }
 
+    has_server_time_ = false;
+    cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
+    if (server_time != NULL) {
+        cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
+        cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
+        
+        if (timestamp != NULL) {
+            // 设置系统时间
+            struct timeval tv;
+            double ts = timestamp->valuedouble;
+            
+            // 如果有时区偏移，计算本地时间
+            if (timezone_offset != NULL) {
+                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
+            }
+            
+            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
+            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+            settimeofday(&tv, NULL);
+            has_server_time_ = true;
+        }
+    }
+
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware == NULL) {
         ESP_LOGE(TAG, "Failed to get firmware object");

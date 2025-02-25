@@ -22,18 +22,16 @@
         "LISTENING": "Listening...",
         "SPEAKING": "Speaking...",
 
-        "UNABLE_TO_CONNECT_TO_SERVICE": "Unable to connect to service",
-        "WAITING_FOR_RESPONSE_TIMEOUT": "Waiting for response timeout",
-        "SENDING_FAILED_PLEASE_CHECK_THE_NETWORK": "Sending failed, please check the network",
+        "SERVER_NOT_FOUND": "Looking for available service",
+        "SERVER_NOT_CONNECTED": "Unable to connect to service, please try again later",
+        "SERVER_TIMEOUT": "Waiting for response timeout",
+        "SERVER_ERROR": "Sending failed, please check the network",
 
         "CONNECT_TO_HOTSPOT": "Hotspot: ",
         "ACCESS_VIA_BROWSER": " Config URL: ",
         "WIFI_CONFIG_MODE": "Wi-Fi Configuration Mode",
         "ENTERING_WIFI_CONFIG_MODE": "Entering Wi-Fi configuration mode...",
         "SCANNING_WIFI": "Scanning Wi-Fi...",
-
-        "UNABLE_TO_ESTABLISH_AUDIO_CHANNEL": "Unable to establish audio channel",
-        "TEST": "Test",
 
         "NEW_VERSION": "New version ",
         "OTA_UPGRADE": "OTA Upgrade",

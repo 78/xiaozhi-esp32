@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "driver/gpio.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_check.h"
-#include "esp_lcd_panel_commands.h"
-#include "esp_lcd_panel_interface.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_rgb.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_log.h"
+#include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_check.h>
+#include <esp_lcd_panel_commands.h>
+#include <esp_lcd_panel_interface.h>
+#include <esp_lcd_panel_io.h>
+#include <esp_lcd_panel_vendor.h>
+#include <esp_log.h>
 
 #include "esp_lcd_gc9503.h"
 

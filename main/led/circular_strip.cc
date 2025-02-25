@@ -38,7 +38,7 @@ CircularStrip::CircularStrip(gpio_num_t gpio, uint8_t max_leds) : max_leds_(max_
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Strip Timer",
+        .name = "strip_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&strip_timer_args, &strip_timer_));

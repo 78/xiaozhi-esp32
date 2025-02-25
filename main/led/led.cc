@@ -22,7 +22,7 @@ Led::Led(gpio_num_t gpio, uint8_t max_leds) {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Led Strip Timer",
+        .name = "led_strip_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&led_strip_timer_args, &led_strip_timer_));

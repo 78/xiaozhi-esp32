@@ -1,5 +1,5 @@
 {
-    "target": "esp32c3",
+    "target": "esp32s3",
     "builds": [
         {
             "name": "kevin-yuying-313lcd",

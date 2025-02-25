@@ -9,12 +9,15 @@
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
+#include "axp2101.h"
+#include "i2c_device.h"
 #include <wifi_station.h>
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
+#include "esp_io_expander_tca9554.h"
 
 #define TAG "waveshare_amoled_1_8"
 
@@ -34,7 +37,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
                     esp_lcd_panel_handle_t panel_handle,
@@ -47,7 +50,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_30_4,
@@ -65,8 +68,12 @@ public:
 class waveshare_amoled_1_8 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
+    Axp2101* axp2101_ = nullptr;
+    esp_timer_handle_t power_save_timer_ = nullptr;
+
     Button boot_button_;
     LcdDisplay* display_;
+    esp_io_expander_handle_t io_expander = NULL;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -85,6 +92,64 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
 
+    void InitializeTca9554(void)
+    {
+        esp_err_t ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
+        if(ret != ESP_OK)
+            ESP_LOGE(TAG, "TCA9554 create returned error");        
+        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 |IO_EXPANDER_PIN_NUM_2, IO_EXPANDER_OUTPUT);
+        ESP_ERROR_CHECK(ret);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
+        ESP_ERROR_CHECK(ret);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 0);
+        ESP_ERROR_CHECK(ret);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
+        ESP_ERROR_CHECK(ret);
+    }
+
+    void InitializeAxp2101() {
+        // 使用 ESP_LOGI 宏记录信息日志，TAG 是日志标签，"Init AXP2101" 是日志信息
+        ESP_LOGI(TAG, "Init AXP2101");
+        // 创建一个新的 Axp2101 对象，该对象通过 I2C 总线 i2c_bus_ 和设备地址 0x34 进行初始化
+        // axp2101_ 是一个指向 Axp2101 对象的指针
+        axp2101_ = new Axp2101(codec_i2c_bus_, 0x34);
+    }
+
+    void InitializePowerSaveTimer() {
+        esp_timer_create_args_t power_save_timer_args = {
+            .callback = [](void *arg) {
+                auto board = static_cast<waveshare_amoled_1_8*>(arg);
+                board->PowerSaveCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "Power Save Timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
+    }
+
+    void PowerSaveCheck() {
+        // 电池放电模式下，如果待机超过一定时间，则自动关机
+        const int seconds_to_shutdown = 600;
+        static int seconds = 0;
+        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
+            seconds = 0;
+            return;
+        }
+        if (!axp2101_->IsDischarging()) {
+            seconds = 0;
+            return;
+        }
+        
+        seconds++;
+        if (seconds >= seconds_to_shutdown) {
+            axp2101_->PowerOff();
+        }
+    }
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.sclk_io_num = GPIO_NUM_11;
@@ -152,15 +217,19 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("BoardControl"));
     }
 
 public:
     waveshare_amoled_1_8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
+        InitializeTca9554();
+        InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeIot();
     }
 
@@ -175,6 +244,19 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging) override {
+        static int last_level = 0;
+        static bool last_charging = false;
+        level = axp2101_->GetBatteryLevel();
+        charging = axp2101_->IsCharging();
+        if (level != last_level || charging != last_charging) {
+            last_level = level;
+            last_charging = charging;
+            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+        return true;
     }
 };
 

@@ -17,6 +17,7 @@ public:
     bool HasNewVersion() { return has_new_version_; }
     bool HasMqttConfig() { return has_mqtt_config_; }
     bool HasActivationCode() { return has_activation_code_; }
+    bool HasServerTime() { return has_server_time_; }
     void StartUpgrade(std::function<void(int progress, size_t speed)> callback);
     void MarkCurrentVersionValid();
 
@@ -31,6 +32,7 @@ private:
     std::string activation_code_;
     bool has_new_version_ = false;
     bool has_mqtt_config_ = false;
+    bool has_server_time_ = false;
     bool has_activation_code_ = false;
     std::string current_version_;
     std::string firmware_version_;

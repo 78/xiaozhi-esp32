@@ -20,12 +20,12 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class NV3023Display : public LcdDisplay {
+class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 gpio_num_t backlight_pin, bool backlight_output_invert,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
+        : SpiLcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     {
                         .text_font = &font_puhui_16_4,
