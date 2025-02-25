@@ -418,30 +418,33 @@ public:
         lv_obj_set_style_text_color(screen, lv_color_white(), 0);
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
         lv_obj_set_style_pad_all(screen, 0, 0);
+        lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
 
         lv_obj_t *sub_container_ = lv_obj_create(screen);
         lv_obj_set_style_bg_color(sub_container_, lv_color_black(), 0);
-        lv_obj_set_size(sub_container_, FORD_WIDTH, FORD_HEIGHT);
+        lv_obj_set_width(sub_container_, FORD_WIDTH);
         lv_obj_set_flex_flow(sub_container_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_border_width(sub_container_, 0, 0);
         lv_obj_set_style_pad_all(sub_container_, 0, 0);
 
         lv_obj_t *sub_status_bar_ = lv_obj_create(sub_container_);
         lv_obj_set_style_bg_color(sub_status_bar_, lv_color_black(), 0);
-        lv_obj_set_size(sub_status_bar_, FORD_WIDTH, FORD_HEIGHT);
+        lv_obj_set_width(sub_status_bar_, FORD_WIDTH);
         lv_obj_set_style_radius(sub_status_bar_, 0, 0);
 
         lv_obj_set_flex_flow(sub_status_bar_, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_border_width(sub_status_bar_, 0, 0);
         lv_obj_set_style_pad_all(sub_status_bar_, 0, 0);
 
-        lv_obj_t *sub_status_label_ = lv_label_create(screen);
+        sub_status_label_ = lv_label_create(sub_status_bar_);
+        lv_obj_set_style_border_width(sub_status_label_, 0, 0);
         lv_obj_set_style_bg_color(sub_status_label_, lv_color_black(), 0);
-        lv_obj_set_size(sub_status_label_, FORD_WIDTH, FORD_HEIGHT);
+        lv_obj_set_style_pad_all(sub_status_label_, 0, 0);
+        lv_obj_set_width(sub_status_label_, FORD_WIDTH);
         lv_label_set_long_mode(sub_status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_label_set_text(sub_status_label_, "正在初始化");
         lv_obj_set_style_text_align(sub_status_label_, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_remove_style(sub_status_label_, NULL, LV_PART_SCROLLBAR);
+        lv_obj_set_scrollbar_mode(sub_status_label_, LV_SCROLLBAR_MODE_OFF);
     }
 
     virtual void DrawPoint(int x, int y, uint8_t dot) override
@@ -469,6 +472,7 @@ public:
             symbolhelper(BT, true);
             break;
         case kDeviceStateIdle:
+            SetSubContent("请叫我小智");
             break;
         case kDeviceStateConnecting:
             symbolhelper(TA, true);
@@ -1047,7 +1051,7 @@ public:
         display_->number_show(5, time_str, 4);
         display_->time_blink();
         strftime(time_str, sizeof(time_str), "%m%d", &time_user);
-
+        display_->symbolhelper(POINT1, true);
         display_->number_show(1, time_str, 4, FORD_DOWN2UP);
 #else
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
