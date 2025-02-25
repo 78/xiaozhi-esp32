@@ -93,7 +93,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
+    lv_display_set_default(display_);
     SetBacklight(100);
 
     SetupUI();

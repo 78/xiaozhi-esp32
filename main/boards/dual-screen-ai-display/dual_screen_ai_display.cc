@@ -34,6 +34,7 @@
 
 LV_FONT_DECLARE(font_awesome_16_4);
 LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_14_1);
 
 #define LCD_BIT_PER_PIXEL (16)
 
@@ -53,7 +54,12 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x51, (uint8_t[]){0xFF}, 1, 0},
 };
 
-class CustomLcdDisplay : public LcdDisplay, public HNA_16MM65T, public Led
+class CustomLcdDisplay : public LcdDisplay, public Led,
+#if FORD_VFD_EN
+                         public FORD_VFD
+#else
+                         public HNA_16MM65T
+#endif
 {
 private:
     uint8_t brightness_ = 0;
@@ -62,6 +68,11 @@ private:
     lv_style_t style_assistant;
     std::vector<lv_obj_t *> labelContainer; // 存储 label 指针的容器
     lv_anim_t anim[3];
+
+#if FORD_VFD_EN
+    lv_display_t *subdisplay;
+    lv_obj_t *sub_status_label_;
+#endif
 
     void RemoveOldestLabel()
     {
@@ -97,17 +108,22 @@ public:
                          .icon_font = &font_awesome_16_4,
                          .emoji_font = font_emoji_32_init(),
                      }),
+#if FORD_VFD_EN
+          FORD_VFD(spidevice)
+#else
           HNA_16MM65T(spidevice)
+#endif
     {
-
         DisplayLockGuard lock(this);
         // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
         InitializeBacklight();
-
         SetupUI();
+
+        InitializeSubScreen();
+        SetupSubUI();
     }
 
     void InitializeBacklight()
@@ -166,8 +182,7 @@ public:
         lcd_cmd <<= 8;
         lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
         esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
-
-        pt6324_setbrightness(brightness);
+        SetSubBacklight(brightness);
     }
 
     virtual void SetupUI() override
@@ -272,6 +287,7 @@ public:
     {
         if (role == "")
             return;
+        SetSubContent(content);
         // std::stringstream ss;
         // ss << "role: " << role << ", content: " << content << std::endl;
         // std::string logMessage = ss.str();
@@ -349,6 +365,142 @@ public:
         lv_obj_update_layout(content_);
     }
 
+#if FORD_VFD_EN
+    void SetSubBacklight(uint8_t brightness)
+    {
+        setbrightness(brightness);
+    }
+
+    static void sub_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
+    {
+        uint16_t *buf16 = (uint16_t *)px_map;
+        int32_t x, y;
+        for (y = area->y1; y <= area->y2; y++)
+        {
+            for (x = area->x1; x <= area->x2; x++)
+            {
+                Board::GetInstance().GetDisplay()->DrawPoint(x, y, *buf16);
+                buf16++;
+            }
+        }
+        lv_display_flush_ready(disp);
+    }
+
+    void InitializeSubScreen()
+    {
+        // 创建显示器对象
+        subdisplay = lv_display_create(FORD_WIDTH, FORD_HEIGHT);
+        if (subdisplay == NULL)
+        {
+            ESP_LOGI(TAG, "Failed to create subdisplay");
+            return;
+        }
+        lv_display_set_flush_cb(subdisplay, sub_disp_flush);
+        static uint16_t buf1[FORD_WIDTH * FORD_HEIGHT * 2];
+        static uint16_t buf2[FORD_WIDTH * FORD_HEIGHT * 2];
+        lv_display_set_buffers(subdisplay, buf1, buf2, sizeof(buf1), LV_DISPLAY_RENDER_MODE_FULL);
+        LV_LOG_INFO("Subscreen initialized successfully");
+    }
+
+    void SetSubContent(const std::string &content)
+    {
+        lv_label_set_text(sub_status_label_, content.c_str());
+    }
+
+    void SetupSubUI()
+    {
+        DisplayLockGuard lock(this);
+
+        ESP_LOGI(TAG, "SetupSubUI");
+        auto screen = lv_disp_get_scr_act(subdisplay);
+
+        lv_obj_set_style_text_font(screen, &font_puhui_14_1, 0);
+        lv_obj_set_style_text_color(screen, lv_color_white(), 0);
+        lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+        lv_obj_set_style_pad_all(screen, 0, 0);
+
+        lv_obj_t *sub_container_ = lv_obj_create(screen);
+        lv_obj_set_style_bg_color(sub_container_, lv_color_black(), 0);
+        lv_obj_set_size(sub_container_, FORD_WIDTH, FORD_HEIGHT);
+        lv_obj_set_flex_flow(sub_container_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_border_width(sub_container_, 0, 0);
+        lv_obj_set_style_pad_all(sub_container_, 0, 0);
+
+        lv_obj_t *sub_status_bar_ = lv_obj_create(sub_container_);
+        lv_obj_set_style_bg_color(sub_status_bar_, lv_color_black(), 0);
+        lv_obj_set_size(sub_status_bar_, FORD_WIDTH, FORD_HEIGHT);
+        lv_obj_set_style_radius(sub_status_bar_, 0, 0);
+
+        lv_obj_set_flex_flow(sub_status_bar_, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_border_width(sub_status_bar_, 0, 0);
+        lv_obj_set_style_pad_all(sub_status_bar_, 0, 0);
+
+        lv_obj_t *sub_status_label_ = lv_label_create(screen);
+        lv_obj_set_style_bg_color(sub_status_label_, lv_color_black(), 0);
+        lv_obj_set_size(sub_status_label_, FORD_WIDTH, FORD_HEIGHT);
+        lv_label_set_long_mode(sub_status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_label_set_text(sub_status_label_, "正在初始化");
+        lv_obj_set_style_text_align(sub_status_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_remove_style(sub_status_label_, NULL, LV_PART_SCROLLBAR);
+    }
+
+    virtual void DrawPoint(int x, int y, uint8_t dot) override
+    {
+        draw_point(x, y, dot);
+    }
+
+    virtual void OnStateChanged() override
+    {
+        auto &app = Application::GetInstance();
+        auto device_state = app.GetDeviceState();
+        symbolhelper(DAB, false);
+        symbolhelper(BT, false);
+        symbolhelper(TA, false);
+        symbolhelper(CD0, false);
+        symbolhelper(CD1, false);
+        symbolhelper(CD2, false);
+        symbolhelper(CD3, false);
+        switch (device_state)
+        {
+        case kDeviceStateStarting:
+            symbolhelper(DAB, true);
+            break;
+        case kDeviceStateWifiConfiguring:
+            symbolhelper(BT, true);
+            break;
+        case kDeviceStateIdle:
+            break;
+        case kDeviceStateConnecting:
+            symbolhelper(TA, true);
+            break;
+        case kDeviceStateListening:
+            if (app.IsVoiceDetected())
+            {
+                symbolhelper(CD0, true);
+                symbolhelper(CD1, true);
+            }
+            else
+            {
+                symbolhelper(CD0, true);
+            }
+            break;
+        case kDeviceStateSpeaking:
+            symbolhelper(IPOD, true);
+            break;
+        case kDeviceStateUpgrading:
+            symbolhelper(UDISK, true);
+            break;
+        default:
+            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            return;
+        }
+    }
+#else
+    void SetSubBacklight(uint8_t brightness)
+    {
+        pt6324_setbrightness(brightness);
+    }
+
     virtual void OnStateChanged() override
     {
         auto &app = Application::GetInstance();
@@ -405,6 +557,7 @@ public:
     {
         spectrum_show(buf, size);
     }
+#endif
 };
 
 class DualScreenAIDisplay : public WifiBoard
@@ -438,6 +591,10 @@ private:
         xTaskCreate([](void *arg)
                     {
             sntp_set_time_sync_notification_cb([](struct timeval *t){
+                if (settimeofday(t, NULL) == -1) {
+                    ESP_LOGE(TAG, "Failed to set system time");
+                    return;
+                }
                 struct tm tm_info;
                 localtime_r(&t->tv_sec, &tm_info);
                 char time_str[50];
@@ -497,22 +654,29 @@ private:
         spi_device_handle_t spi_device = nullptr;
 
 #if SUB_DISPLAY_EN
-#if FORD_VFD_EN
-        FORD_VFD *ford_vfd_ = new FORD_VFD(PIN_NUM_VFD_DATA0, PIN_NUM_VFD_PCLK, PIN_NUM_VFD_CS, VFD_HOST);
-        ford_vfd_->test();
-#else
         // Log the initialization process
         ESP_LOGI(TAG, "Initialize VFD SPI bus");
 
         // Set the clock and data pins for the SPI bus
         buscfg.sclk_io_num = PIN_NUM_VFD_PCLK;
         buscfg.data0_io_num = PIN_NUM_VFD_DATA0;
+#if FORD_VFD_EN
+
+        // Set the maximum transfer size in bytes
+        buscfg.max_transfer_sz = 1024;
+
+        // Initialize the SPI device interface configuration structure
+        spi_device_interface_config_t devcfg = {
+            .mode = 0,                      // Set the SPI mode to 3
+            .clock_speed_hz = 400000,       // Set the clock speed to 1MHz
+            .spics_io_num = PIN_NUM_VFD_CS, // Set the chip select pin
+            .flags = 0,
+            .queue_size = 7,
+        };
+#else
 
         // Set the maximum transfer size in bytes
         buscfg.max_transfer_sz = 256;
-
-        // Initialize the SPI bus with the specified configuration
-        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
         // Initialize the SPI device interface configuration structure
         spi_device_interface_config_t devcfg = {
@@ -522,10 +686,13 @@ private:
             .flags = SPI_DEVICE_BIT_LSBFIRST,
             .queue_size = 7,
         };
+#endif
+
+        // Initialize the SPI bus with the specified configuration
+        ESP_ERROR_CHECK(spi_bus_initialize(VFD_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
         // Add the PT6324 device to the SPI bus with the specified configuration
         ESP_ERROR_CHECK(spi_bus_add_device(VFD_HOST, &devcfg, &spi_device));
-#endif
 #endif
         ESP_LOGI(TAG, "Initialize OLED SPI bus");
         buscfg.sclk_io_num = PIN_NUM_LCD_PCLK;
@@ -868,14 +1035,28 @@ public:
     {
         static struct tm time_user;
         if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
-            return false;
+        {
+            time_t now;
+            time(&now);
+            time_user = *localtime(&now);
+        }
+
         char time_str[7];
+#if FORD_VFD_EN
+        strftime(time_str, sizeof(time_str), "%H%M", &time_user);
+        display_->number_show(5, time_str, 4);
+        display_->time_blink();
+        strftime(time_str, sizeof(time_str), "%m%d", &time_user);
+
+        display_->number_show(1, time_str, 4, FORD_DOWN2UP);
+#else
         strftime(time_str, sizeof(time_str), "%H%M%S", &time_user);
         display_->content_show(4, time_str, 6);
         display_->time_blink();
         const char *weekDays[7] = {
             "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
         display_->content_show(0, (char *)weekDays[time_user.tm_wday % 7], 3, HNA_DOWN2UP);
+#endif
         return true;
     }
 };

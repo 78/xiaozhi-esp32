@@ -58,14 +58,24 @@ typedef enum
     FORD_SYMBOL_MAX
 } FORD_Symbols;
 
+typedef struct
+{
+    char current_content;
+    char last_content;
+    int animation_step;
+    FORD_NumAni animation_type;
+} NumberData;
+
 #define CHAR_COUNT (62 + 1)
 #define FORD_WIDTH 142
 #define FORD_HEIGHT 16
 
 class FORD_VFD
 {
+#define NUM_SIZE (9)
 public:
     FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num);
+    FORD_VFD(spi_device_handle_t spi_device);
     void draw_point(int x, int y, uint8_t dot);
     void find_enum_code(FORD_Symbols flag, int *byteIndex, int *bitIndex);
     void symbolhelper(FORD_Symbols symbol, bool is_on);
@@ -73,13 +83,19 @@ public:
     void charhelper(int index, char ch);
     void charhelper(int index, uint8_t code);
     void refrash(uint8_t *gram, int size);
+
+    void time_blink();
+    void number_show(int start, char *buf, int size, FORD_NumAni ani = FORD_CLOCKWISE);
+    uint8_t contentgetpart(uint8_t raw, uint8_t before_raw, uint8_t mask);
     void test();
 
 protected:
+    void contentanimate();
     void init();
     uint8_t find_hex_code(char ch);
     void write_data8(uint8_t dat);
     void write_data8(uint8_t *dat, int len);
+    void setbrightness(uint8_t brightness);
     uint8_t get_oddgroup(int x, uint8_t dot, uint8_t group);
     uint8_t get_evengroup(int x, uint8_t dot, uint8_t group);
 
@@ -89,7 +105,7 @@ private:
     const uint8_t init_data_block1[4] = {0x01, 0xa8, 0x4c, 0x80};
     const uint8_t init_data_block2[4] = {0x81, 0xfc, 0x00, 0x00};
     const uint8_t init_data_block3[2] = {0x41, 0xf4};
-    const uint8_t init_data_block4[2] = {0xcf, 0xff};
+    const uint8_t init_data_block4[2] = {0xcf, 0x00};
     const uint8_t init_data_block5[153 + 154] = {
         0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00,
@@ -205,6 +221,7 @@ private:
     };
     uint8_t dimming = 0;
     spi_device_handle_t spi_device_;
+    NumberData currentData[NUM_SIZE] = {0};
 };
 
 #endif

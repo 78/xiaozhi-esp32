@@ -9,6 +9,8 @@
 #include "rx8900.h"
 #include "esp_log.h"
 
+static uint8_t rx8900_available = 0;
+
 rx8900_handle_t rx8900_create(i2c_bus_handle_t bus, uint8_t dev_addr)
 {
     rx8900_dev_t *sens = (rx8900_dev_t *)calloc(1, sizeof(rx8900_dev_t));
@@ -50,11 +52,14 @@ esp_err_t rx8900_default_init(rx8900_handle_t sensor)
     {
         return ESP_FAIL;
     }
+    rx8900_available = 1;
     return ESP_OK;
 }
 
 esp_err_t rx8900_read_temperature(rx8900_handle_t sensor, float *temperature)
 {
+    if (!rx8900_available)
+        return ESP_FAIL;
     uint8_t data[1] = {0};
     rx8900_dev_t *sens = (rx8900_dev_t *)sensor;
     if (i2c_bus_read_bytes(sens->i2c_dev, RX8900_REG_TEMP, 1, data) != ESP_OK)
@@ -78,6 +83,8 @@ static uint8_t D2B(uint8_t decimal)
 
 esp_err_t rx8900_read_time(rx8900_handle_t sensor, struct tm *tm_local)
 {
+    if (!rx8900_available)
+        return ESP_FAIL;
     uint8_t data[7] = {0};
     rx8900_dev_t *sens = (rx8900_dev_t *)sensor;
     if (i2c_bus_read_bytes(sens->i2c_dev, RX8900_REG_TIME, 7, data) != ESP_OK)
@@ -98,6 +105,8 @@ esp_err_t rx8900_read_time(rx8900_handle_t sensor, struct tm *tm_local)
 
 esp_err_t rx8900_write_time(rx8900_handle_t sensor, struct tm *tm_local)
 {
+    if (!rx8900_available)
+        return ESP_FAIL;
     uint8_t data[7] = {D2B(tm_local->tm_sec), D2B(tm_local->tm_min), D2B(tm_local->tm_hour), (uint8_t)(tm_local->tm_wday), D2B(tm_local->tm_mday), D2B(tm_local->tm_mon + 1), D2B(tm_local->tm_year % 100)};
 
     rx8900_dev_t *sens = (rx8900_dev_t *)sensor;

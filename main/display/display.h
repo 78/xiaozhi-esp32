@@ -32,6 +32,7 @@ public:
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
     virtual void SpectrumShow(float *buf, int size) {}
+    virtual void DrawPoint(int x, int y, uint8_t dot) {}
 
     int width() const { return width_; }
     int height() const { return height_; }

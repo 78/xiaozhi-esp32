@@ -151,7 +151,7 @@ class HNA_16MM65T : protected PT6324Writer
     // Define the number of FFTs
 #define FFT_SIZE (12)
     // Define the number of digits
-#define NUM_SIZE (10)
+#define CONTENT_SIZE (10)
 private:
     bool wavebusy = true;
     uint8_t gram[48] = {0};         // Display buffer
@@ -161,8 +161,8 @@ private:
 
     int64_t content_inhibit_time = 0;
 
-    ContentData currentData[NUM_SIZE] = {0};
-    ContentData tempData[NUM_SIZE] = {0};
+    ContentData currentData[CONTENT_SIZE] = {0};
+    ContentData tempData[CONTENT_SIZE] = {0};
 
     // Hexadecimal code corresponding to each character
     // !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz

@@ -94,7 +94,7 @@ void HNA_16MM65T::contentanimate()
         elapsed_time = current_time - content_inhibit_time;
         if (elapsed_time > 0)
         {
-            for (size_t i = 0; i < NUM_SIZE; i++)
+            for (size_t i = 0; i < CONTENT_SIZE; i++)
             {
                 currentData[i].last_content = currentData[i].current_content;
                 currentData[i].animation_type = tempData[i].animation_type;
@@ -104,7 +104,7 @@ void HNA_16MM65T::contentanimate()
         }
     }
 
-    for (int i = 0; i < NUM_SIZE; i++)
+    for (int i = 0; i < CONTENT_SIZE; i++)
     {
         if (currentData[i].current_content != currentData[i].last_content)
         {
@@ -423,14 +423,14 @@ void HNA_16MM65T::content_show(int start, char *buf, int size, HNA_NumAni ani)
 {
     if (content_inhibit_time != 0)
     {
-        for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+        for (size_t i = 0; i < size && (start + i) < CONTENT_SIZE; i++)
         {
             tempData[start + i].animation_type = ani;
             tempData[start + i].current_content = buf[i];
         }
         return;
     }
-    for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+    for (size_t i = 0; i < size && (start + i) < CONTENT_SIZE; i++)
     {
         currentData[start + i].animation_type = ani;
         currentData[start + i].current_content = buf[i];
@@ -451,7 +451,7 @@ void HNA_16MM65T::content_show(int start, char *buf, int size, HNA_NumAni ani)
 void HNA_16MM65T::noti_show(int start, char *buf, int size, HNA_NumAni ani, int timeout)
 {
     content_inhibit_time = esp_timer_get_time() / 1000 + timeout;
-    for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+    for (size_t i = 0; i < size && (start + i) < CONTENT_SIZE; i++)
     {
         currentData[start + i].animation_type = ani;
         currentData[start + i].current_content = buf[i];
@@ -473,7 +473,7 @@ void HNA_16MM65T::test()
             HNA_16MM65T *vfd = static_cast<HNA_16MM65T *>(arg);
             int rollcounter = 0;
             HNA_NumAni num_ani = HNA_ANTICLOCKWISE;
-            char tempstr[NUM_SIZE];
+            char tempstr[CONTENT_SIZE];
             int64_t start_time = esp_timer_get_time() / 1000;
             while (1)
             {
@@ -486,8 +486,8 @@ void HNA_16MM65T::test()
                     start_time = current_time;
                 }
 
-                snprintf(tempstr, NUM_SIZE, "ABC%dDEF", (rollcounter++) % 100);
-                vfd->content_show(0, tempstr, NUM_SIZE, num_ani);
+                snprintf(tempstr, CONTENT_SIZE, "ABC%dDEF", (rollcounter++) % 100);
+                vfd->content_show(0, tempstr, CONTENT_SIZE, num_ani);
 
                 // for (int i = 0; i < FFT_SIZE; i++)
                 //     testbuff[i] = rand() % 100;

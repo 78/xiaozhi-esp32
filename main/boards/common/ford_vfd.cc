@@ -33,12 +33,51 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 		.queue_size = 7,
 	};
 
-	// Add the PT6324 device to the SPI bus with the specified configuration
 	ESP_ERROR_CHECK(spi_bus_add_device(spi_num, &devcfg, &spi_device_));
-
 	init();
-
 	ESP_LOGI(TAG, "FORD_VFD Initalized");
+	xTaskCreate(
+		[](void *arg)
+		{
+			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
+			vfd->symbolhelper(BT, true);
+			while (true)
+			{
+				vfd->refrash(vfd->gram, sizeof vfd->gram);
+				vTaskDelay(pdMS_TO_TICKS(10));
+				vfd->contentanimate();
+			}
+			vTaskDelete(NULL);
+		},
+		"vfd",
+		4096 - 1024,
+		this,
+		6,
+		nullptr);
+}
+
+FORD_VFD::FORD_VFD(spi_device_handle_t spi_device) : spi_device_(spi_device)
+{
+	init();
+	ESP_LOGI(TAG, "FORD_VFD Initalized");
+	xTaskCreate(
+		[](void *arg)
+		{
+			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
+			vfd->symbolhelper(BT, true);
+			while (true)
+			{
+				vfd->refrash(vfd->gram, sizeof vfd->gram);
+				vTaskDelay(pdMS_TO_TICKS(10));
+				vfd->contentanimate();
+			}
+			vTaskDelete(NULL);
+		},
+		"vfd",
+		4096 - 1024,
+		this,
+		6,
+		nullptr);
 }
 
 void FORD_VFD::write_data8(uint8_t dat)
@@ -68,10 +107,195 @@ void FORD_VFD::write_data8(uint8_t *dat, int len)
 	return;
 }
 
+void FORD_VFD::setbrightness(uint8_t brightness)
+{
+    dimming = brightness * 255 / 100;
+}
+
 void FORD_VFD::refrash(uint8_t *gram, int size)
 {
+    uint8_t data[2] = {0xcf, dimming};
 
+	write_data8((uint8_t *)data, 2);
 	write_data8((uint8_t *)gram, size);
+}
+
+void FORD_VFD::time_blink()
+{
+	static bool time_mark = true;
+	time_mark = !time_mark;
+	// symbolhelper(COLON1, time_mark);
+	symbolhelper(COLON2, time_mark);
+}
+
+void FORD_VFD::number_show(int start, char *buf, int size, FORD_NumAni ani)
+{
+	for (size_t i = 0; i < size && (start + i) < NUM_SIZE; i++)
+	{
+		currentData[start + i].animation_type = ani;
+		currentData[start + i].current_content = buf[i];
+	}
+}
+
+uint8_t FORD_VFD::contentgetpart(uint8_t raw, uint8_t before_raw, uint8_t mask)
+{
+	return (raw & mask) | (before_raw & (~mask));
+}
+
+void FORD_VFD::contentanimate()
+{
+	static int64_t start_time = esp_timer_get_time() / 1000;
+	int64_t current_time = esp_timer_get_time() / 1000;
+	int64_t elapsed_time = current_time - start_time;
+
+	if (elapsed_time >= 30)
+		start_time = current_time;
+	else
+		return;
+
+	for (int i = 0; i < NUM_SIZE; i++)
+	{
+		if (currentData[i].current_content != currentData[i].last_content)
+		{
+			uint8_t before_raw_code = find_hex_code(currentData[i].last_content);
+			uint8_t raw_code = find_hex_code(currentData[i].current_content);
+			uint8_t code = raw_code;
+			if (currentData[i].animation_type == FORD_CLOCKWISE)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 1);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 3);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x43);
+					break;
+				case 3:
+					code = contentgetpart(raw_code, before_raw_code, 0x47);
+					break;
+				case 4:
+					code = contentgetpart(raw_code, before_raw_code, 0x4f);
+					break;
+				case 5:
+					code = contentgetpart(raw_code, before_raw_code, 0x5f);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else if (currentData[i].animation_type == FORD_ANTICLOCKWISE)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 1);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 0x21);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x61);
+					break;
+				case 3:
+					code = contentgetpart(raw_code, before_raw_code, 0x71);
+					break;
+				case 4:
+					code = contentgetpart(raw_code, before_raw_code, 0x79);
+					break;
+				case 5:
+					code = contentgetpart(raw_code, before_raw_code, 0x7d);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else if (currentData[i].animation_type == FORD_UP2DOWN)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 0x1);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 0x21);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x73);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else if (currentData[i].animation_type == FORD_DOWN2UP)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 0x8);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 0xc);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x5e);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else if (currentData[i].animation_type == FORD_LEFT2RT)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 0x10);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 0x18);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x7c);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else if (currentData[i].animation_type == FORD_RT2LEFT)
+			{
+				switch (currentData[i].animation_step)
+				{
+				case 0:
+					code = contentgetpart(raw_code, before_raw_code, 0x4);
+					break;
+				case 1:
+					code = contentgetpart(raw_code, before_raw_code, 0xc);
+					break;
+				case 2:
+					code = contentgetpart(raw_code, before_raw_code, 0x5e);
+					break;
+				default:
+					currentData[i].animation_step = -1;
+					break;
+				}
+			}
+			else
+				currentData[i].animation_step = -1;
+
+			if (currentData[i].animation_step == -1)
+				currentData[i].last_content = currentData[i].current_content;
+
+			charhelper(i, code);
+			currentData[i].animation_step++;
+		}
+	}
 }
 
 void FORD_VFD::init()
@@ -152,6 +376,7 @@ void FORD_VFD::draw_point(int x, int y, uint8_t dot)
 {
 	uint16_t index;
 	uint8_t temp;
+	y = FORD_HEIGHT - 1 - y;
 	index = 2 + 16 * (x / 3) + y / 4 * 3; //+y%16
 	if (index > 480)
 		index += 32;
