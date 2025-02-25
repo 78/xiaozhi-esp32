@@ -1,5 +1,6 @@
 set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
+            "audio_codecs/sensecap_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
@@ -109,6 +110,8 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-wifi")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
+    set(BOARD_TYPE "sensecap-watcher")
 endif()
 file(GLOB BOARD_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc)
 list(APPEND SOURCES ${BOARD_SOURCES})
@@ -139,6 +142,7 @@ file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
 if(CONFIG_IDF_TARGET_ESP32)
     # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                             "audio_codecs/sensecap_audio_codec.cc"
                              "audio_codecs/cores3_audio_codec.cc"
                              "audio_codecs/es8388_audio_codec.cc")
 endif()
