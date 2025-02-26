@@ -1,13 +1,13 @@
-#include "tcircles3_audio_codec.h"
+#include "tcamerapluss3_audio_codec.h"
 
 #include <esp_log.h>
 #include <driver/i2c.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 
-static const char TAG[] = "Tcircles3AudioCodec";
+static const char TAG[] = "Tcamerapluss3AudioCodec";
 
-Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sample_rate,
+Tcamerapluss3AudioCodec::Tcamerapluss3AudioCodec(int input_sample_rate, int output_sample_rate,
     gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
     gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data,
     bool input_reference) {
@@ -19,21 +19,10 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
 
     CreateVoiceHardware(mic_bclk, mic_ws, mic_data, spkr_bclk, spkr_lrclk, spkr_data);
 
-    gpio_config_t config;
-    config.pin_bit_mask = BIT64(45);
-    config.mode = GPIO_MODE_OUTPUT;
-    config.pull_up_en = GPIO_PULLUP_DISABLE;
-    config.pull_down_en = GPIO_PULLDOWN_ENABLE;
-    config.intr_type = GPIO_INTR_DISABLE;
-#if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
-    config.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
-#endif
-    gpio_config(&config);
-    gpio_set_level(gpio_num_t(45), 0);
-    ESP_LOGI(TAG, "Tcircles3AudioCodec initialized");
+    ESP_LOGI(TAG, "Tcamerapluss3AudioCodec initialized");
 }
 
-Tcircles3AudioCodec::~Tcircles3AudioCodec() {
+Tcamerapluss3AudioCodec::~Tcamerapluss3AudioCodec() {
     audio_codec_delete_codec_if(in_codec_if_);
     audio_codec_delete_ctrl_if(in_ctrl_if_);
     audio_codec_delete_codec_if(out_codec_if_);
@@ -42,12 +31,12 @@ Tcircles3AudioCodec::~Tcircles3AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
+void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
     gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data) {
     
-    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(0), I2S_ROLE_MASTER);
+    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     mic_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
-    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(1), I2S_ROLE_MASTER);
+    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
     spkr_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
 
     ESP_ERROR_CHECK(i2s_new_channel(&mic_chan_config, NULL, &rx_handle_));
@@ -62,8 +51,8 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
                 .ext_clk_freq_hz = 0,
             #endif
         },
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
-        .gpio_cfg ={
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = mic_bclk,
             .ws = mic_ws,
@@ -72,7 +61,7 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
-                .ws_inv = false,
+                .ws_inv = true // 默认右通道
             }
         }
     };
@@ -81,10 +70,8 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
         .clk_cfg ={
             .sample_rate_hz = static_cast<uint32_t>(11025),
             .clk_src = I2S_CLK_SRC_DEFAULT,
+            .ext_clk_freq_hz = 0,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-            #ifdef   I2S_HW_VERSION_2    
-                .ext_clk_freq_hz = 0,
-            #endif
         },
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg ={
@@ -106,25 +93,20 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
     ESP_LOGI(TAG, "Voice hardware created");
 }
 
-void Tcircles3AudioCodec::SetOutputVolume(int volume) {
+void Tcamerapluss3AudioCodec::SetOutputVolume(int volume) {
     volume_ = volume;
     AudioCodec::SetOutputVolume(volume);
 }
 
-void Tcircles3AudioCodec::EnableInput(bool enable) {
+void Tcamerapluss3AudioCodec::EnableInput(bool enable) {
     AudioCodec::EnableInput(enable);
 }
 
-void Tcircles3AudioCodec::EnableOutput(bool enable) {
-    if (enable){
-        gpio_set_level(gpio_num_t(45), 1);
-    }else{
-        gpio_set_level(gpio_num_t(45), 0);
-    }
+void Tcamerapluss3AudioCodec::EnableOutput(bool enable) {
     AudioCodec::EnableOutput(enable);
 }
 
-int Tcircles3AudioCodec::Read(int16_t *dest, int samples){
+int Tcamerapluss3AudioCodec::Read(int16_t *dest, int samples){
     if (input_enabled_){
         size_t bytes_read;
         i2s_channel_read(rx_handle_, dest, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
@@ -132,17 +114,17 @@ int Tcircles3AudioCodec::Read(int16_t *dest, int samples){
     return samples;
 }
 
-void AdjustVolume(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
+void VolumeAdjust(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
     for (size_t i = 0; i < samples; i++){
         output_data[i] = (float)input_data[i] * volume;
     }
 }
 
-int Tcircles3AudioCodec::Write(const int16_t *data, int samples){
+int Tcamerapluss3AudioCodec::Write(const int16_t *data, int samples){
     if (output_enabled_){
         size_t bytes_read;
         auto output_data = (int16_t *)malloc(samples * sizeof(int16_t));
-        AdjustVolume(data, output_data, samples, (float)(volume_ / 100.0));
+        VolumeAdjust(data, output_data, samples, (float)(volume_ / 100.0));
         i2s_channel_write(tx_handle_, output_data, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
         free(output_data);
     }
