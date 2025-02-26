@@ -62,7 +62,6 @@ public:
                         .icon_font = &font_awesome_30_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
-
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
@@ -70,8 +69,7 @@ public:
         SetBacklight(100);
     }
 
-    virtual void SetBacklight(uint8_t brightness) override
-    {
+    virtual void SetBacklight(uint8_t brightness) override {
         if (brightness > 100)
         {
             brightness = 100;
@@ -118,13 +116,12 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
 
-    void InitializeTca9554(void)
-    {
+    void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
             ESP_LOGE(TAG, "TCA9554 create returned error");
         ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 |IO_EXPANDER_PIN_NUM_2, IO_EXPANDER_OUTPUT);
-        ret |= esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_4,IO_EXPANDER_INPUT);
+        ret |= esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_4, IO_EXPANDER_INPUT);
         ESP_ERROR_CHECK(ret);
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
         ESP_ERROR_CHECK(ret);
@@ -265,9 +262,7 @@ public:
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
-
         return &audio_codec;
-
     }
 
     virtual Display* GetDisplay() override {
