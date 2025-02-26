@@ -36,48 +36,12 @@ FORD_VFD::FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_devic
 	ESP_ERROR_CHECK(spi_bus_add_device(spi_num, &devcfg, &spi_device_));
 	init();
 	ESP_LOGI(TAG, "FORD_VFD Initalized");
-	xTaskCreate(
-		[](void *arg)
-		{
-			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
-			vfd->symbolhelper(BT, true);
-			while (true)
-			{
-				vfd->refrash(vfd->gram, sizeof vfd->gram);
-				vTaskDelay(pdMS_TO_TICKS(10));
-				vfd->contentanimate();
-			}
-			vTaskDelete(NULL);
-		},
-		"vfd",
-		4096 - 1024,
-		this,
-		6,
-		nullptr);
 }
 
 FORD_VFD::FORD_VFD(spi_device_handle_t spi_device) : spi_device_(spi_device)
 {
 	init();
 	ESP_LOGI(TAG, "FORD_VFD Initalized");
-	xTaskCreate(
-		[](void *arg)
-		{
-			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
-			vfd->symbolhelper(BT, true);
-			while (true)
-			{
-				vfd->refrash(vfd->gram, sizeof vfd->gram);
-				vTaskDelay(pdMS_TO_TICKS(10));
-				vfd->contentanimate();
-			}
-			vTaskDelete(NULL);
-		},
-		"vfd",
-		4096 - 1024,
-		this,
-		6,
-		nullptr);
 }
 
 void FORD_VFD::write_data8(uint8_t dat)
@@ -109,12 +73,12 @@ void FORD_VFD::write_data8(uint8_t *dat, int len)
 
 void FORD_VFD::setbrightness(uint8_t brightness)
 {
-    dimming = brightness * 255 / 100;
+	dimming = brightness * 255 / 100;
 }
 
 void FORD_VFD::refrash(uint8_t *gram, int size)
 {
-    uint8_t data[2] = {0xcf, dimming};
+	uint8_t data[2] = {0xcf, dimming};
 
 	write_data8((uint8_t *)data, 2);
 	write_data8((uint8_t *)gram, size);
@@ -300,24 +264,37 @@ void FORD_VFD::contentanimate()
 
 void FORD_VFD::init()
 {
-
 	write_data8(0x55);
-
 	write_data8((uint8_t *)init_data_block1, sizeof(init_data_block1));
-
 	write_data8((uint8_t *)init_data_block2, sizeof(init_data_block2));
-
 	write_data8((uint8_t *)init_data_block3, sizeof(init_data_block3));
-
 	write_data8((uint8_t *)init_data_block4, sizeof(init_data_block4));
-
 	write_data8((uint8_t *)init_data_block5, sizeof(init_data_block5));
-
 	write_data8((uint8_t *)gram, sizeof(gram));
-
 	write_data8((uint8_t *)init_data_block7, sizeof(init_data_block7));
-
 	write_data8((uint8_t *)init_data_block8, sizeof(init_data_block8));
+	_spectrum = new SpectrumDisplay(FORD_WIDTH, FORD_HEIGHT);
+	_spectrum->setDrawPointCallback([this](int x, int y, uint8_t dot)
+									{ this->draw_point(x, y, dot, FORD_FFT); });
+	xTaskCreate(
+		[](void *arg)
+		{
+			FORD_VFD *vfd = static_cast<FORD_VFD *>(arg);
+			vfd->symbolhelper(BT, true);
+			while (true)
+			{
+				vfd->_spectrum->spectrumProcess();
+				vfd->refrash(vfd->gram, sizeof vfd->gram);
+				vTaskDelay(pdMS_TO_TICKS(10));
+				vfd->contentanimate();
+			}
+			vTaskDelete(NULL);
+		},
+		"vfd",
+		4096 - 1024,
+		this,
+		6,
+		nullptr);
 }
 
 uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t group)
@@ -372,8 +349,10 @@ uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t group)
 	return group & 0x7;
 }
 
-void FORD_VFD::draw_point(int x, int y, uint8_t dot)
+void FORD_VFD::draw_point(int x, int y, uint8_t dot, FORD_Mode mode)
 {
+	if (mode != _mode)
+		return;
 	uint16_t index;
 	uint8_t temp;
 	y = FORD_HEIGHT - 1 - y;

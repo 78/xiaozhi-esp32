@@ -29,6 +29,7 @@
 #include "settings.h"
 #include "hna_16mm65t.h"
 #include "ford_vfd.h"
+#include "spectrumdisplay.h"
 
 #define TAG "DualScreenAIDisplay"
 
@@ -373,16 +374,40 @@ public:
 
     static void sub_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
     {
+        auto display = Board::GetInstance().GetDisplay();
+#if false
         uint16_t *buf16 = (uint16_t *)px_map;
         int32_t x, y;
         for (y = area->y1; y <= area->y2; y++)
         {
             for (x = area->x1; x <= area->x2; x++)
             {
-                Board::GetInstance().GetDisplay()->DrawPoint(x, y, *buf16);
+                display->DrawPoint(x, y, *buf16);
                 buf16++;
             }
         }
+#else
+        int32_t x, y;
+        uint8_t byte_index = 0;
+        uint8_t bit_index = 0;
+
+        for (y = area->y1; y <= area->y2; y++)
+        {
+            for (x = area->x1; x <= area->x2; x++)
+            {
+                uint8_t color = (px_map[byte_index] >> (7 - bit_index)) & 0x01;
+
+                display->DrawPoint(x, y, color);
+
+                bit_index++;
+                if (bit_index == 8)
+                {
+                    bit_index = 0;
+                    byte_index++;
+                }
+            }
+        }
+#endif
         lv_display_flush_ready(disp);
     }
 
@@ -396,8 +421,9 @@ public:
             return;
         }
         lv_display_set_flush_cb(subdisplay, sub_disp_flush);
-        static uint16_t buf1[FORD_WIDTH * FORD_HEIGHT * 2];
-        static uint16_t buf2[FORD_WIDTH * FORD_HEIGHT * 2];
+        lv_display_set_color_format(subdisplay, LV_COLOR_FORMAT_I1);
+        static uint16_t buf1[FORD_WIDTH * FORD_HEIGHT / 8];
+        static uint16_t buf2[FORD_WIDTH * FORD_HEIGHT / 8];
         lv_display_set_buffers(subdisplay, buf1, buf2, sizeof(buf1), LV_DISPLAY_RENDER_MODE_FULL);
         LV_LOG_INFO("Subscreen initialized successfully");
     }
@@ -472,8 +498,8 @@ public:
             symbolhelper(BT, true);
             break;
         case kDeviceStateIdle:
-            SetSubContent("请叫我小智");
-            break;
+            setmode(FORD_FFT);
+            return;
         case kDeviceStateConnecting:
             symbolhelper(TA, true);
             break;
@@ -495,9 +521,11 @@ public:
             symbolhelper(UDISK, true);
             break;
         default:
+            setmode(FORD_CONTENT);
             ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
             return;
         }
+        setmode(FORD_CONTENT);
     }
 #else
     void SetSubBacklight(uint8_t brightness)

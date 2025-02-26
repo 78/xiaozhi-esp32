@@ -16,12 +16,20 @@
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <esp_log.h>
+#include "spectrumdisplay.h"
 
 typedef struct
 {
     int byteIndex; // Byte index
     int bitIndex;  // Bit index
 } FORD_SymbolPosition;
+
+typedef enum
+{
+    FORD_IDLE = -1,
+    FORD_CONTENT,
+    FORD_FFT
+} FORD_Mode;
 
 typedef enum
 {
@@ -76,7 +84,7 @@ class FORD_VFD
 public:
     FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num);
     FORD_VFD(spi_device_handle_t spi_device);
-    void draw_point(int x, int y, uint8_t dot);
+    void FORD_VFD::draw_point(int x, int y, uint8_t dot, FORD_Mode mode = FORD_CONTENT);
     void find_enum_code(FORD_Symbols flag, int *byteIndex, int *bitIndex);
     void symbolhelper(FORD_Symbols symbol, bool is_on);
 
@@ -88,8 +96,13 @@ public:
     void number_show(int start, char *buf, int size, FORD_NumAni ani = FORD_CLOCKWISE);
     uint8_t contentgetpart(uint8_t raw, uint8_t before_raw, uint8_t mask);
     void test();
+    void setmode(FORD_Mode mode)
+    {
+        _mode = mode;
+    }
 
 protected:
+    SpectrumDisplay *_spectrum;
     void contentanimate();
     void init();
     uint8_t find_hex_code(char ch);
@@ -100,6 +113,7 @@ protected:
     uint8_t get_evengroup(int x, uint8_t dot, uint8_t group);
 
 private:
+    FORD_Mode _mode = FORD_CONTENT;
     gpio_num_t _cs;
     const uint8_t init_data_block0[102] = {0};
     const uint8_t init_data_block1[4] = {0x01, 0xa8, 0x4c, 0x80};
