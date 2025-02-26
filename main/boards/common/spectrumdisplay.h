@@ -19,23 +19,24 @@ enum SpectrumStyle
     STYLE_DOT,
     STYLE_POLYGON,
     STYLE_CENTERED_BAR, // 柱状居垂直方向中间的风格
-    STYLE_GRADIENT_BAR  // 渐变柱状图风格
+    STYLE_GRADIENT_BAR, // 渐变柱状图风格
+    STYLE_MAX
 };
 
+#define FFT_FACTOR 0.5f
 class SpectrumDisplay
 {
 private:
     int screenWidth;
     int screenHeight;
-    SpectrumStyle currentStyle;
+    SpectrumStyle currentStyle = STYLE_DOT;
     DrawPointCallback drawPointCallback;
-    float *currentFFTData = nullptr;
-    float *interpolatedData = nullptr;
-    float *targetFFTData = nullptr;
-    int fftSize = 0;
+    float currentFFTData[512 / 2];
+    float interpolatedData[512 / 2];
+    float targetFFTData[512 / 2];
+    const int fftSize = 512 / 2;
     int animationStep = 0;
-    const int totalAnimationSteps = 10;
-    TaskHandle_t spectrumTaskHandle = nullptr;
+    const int totalAnimationSteps = 5;
 
     // 非线性动画函数，先快后慢
     float easeOutQuart(float t)
@@ -53,35 +54,21 @@ private:
             interpolatedData[i] = currentFFTData[i] + (targetFFTData[i] - currentFFTData[i]) * easedProgress;
         }
     }
-
-    // 找到 FFT 数据中的最大值
-    float findMaxValue(const float *data)
-    {
-        float maxVal = 0.0f;
-        for (int i = 0; i < fftSize; ++i)
-        {
-            if (data[i] > maxVal)
-            {
-                maxVal = data[i];
-            }
-        }
-        return maxVal;
-    }
-
     // 绘制柱状图
     void drawBarSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize; ++i)
+        for (int i = 0; i < screenWidth; ++i)
         {
-            int barX = i * (screenWidth / fftSize);
-            float scaledHeight = (data[i] / maxVal) * screenHeight;
+            int x = i * fftSize / screenWidth;
+            float scaledHeight = (data[x] * FFT_FACTOR);
             int barHeight = static_cast<int>(scaledHeight);
-            for (int x = barX; x < barX + 4; ++x)
+            for (int xPos = i; xPos < i + 4; ++xPos)
             {
                 for (int y = 0; y < barHeight; ++y)
                 {
-                    drawPointCallback(x, screenHeight - y - 1, 1);
+                    drawPointCallback(xPos, screenHeight - y - 1, 1);
+                    if (y > screenHeight)
+                        break;
                 }
             }
         }
@@ -90,57 +77,88 @@ private:
     // 绘制折线图
     void drawLineSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize - 1; ++i)
+        for (int i = 0; i < screenWidth - 1; ++i)
         {
-            int x1 = i * (screenWidth / fftSize);
-            int x2 = (i + 1) * (screenWidth / fftSize);
-            float scaledY1 = (data[i] / maxVal) * screenHeight;
-            float scaledY2 = (data[i + 1] / maxVal) * screenHeight;
+            int x1 = i * fftSize / screenWidth;
+            int x2 = (i + 1) * fftSize / screenWidth;
+            float scaledY1 = (data[x1] * FFT_FACTOR);
+            float scaledY2 = (data[x2] * FFT_FACTOR);
             int y1 = static_cast<int>(scaledY1);
             int y2 = static_cast<int>(scaledY2);
-            // 简单的直线绘制，可使用更复杂的算法
-            for (int x = x1; x <= x2; ++x)
+
+            if (x2 - x1 == 0)
             {
-                int y = y1 + (y2 - y1) * (x - x1) / (x2 - x1);
+                continue;
+            }
+            for (int x = i; x <= i + 1; ++x)
+            {
+                int y = y1 + (y2 - y1) * (x - i) / (1);
                 drawPointCallback(x, screenHeight - y - 1, 1);
+                if (y > screenHeight)
+                    break;
             }
         }
     }
 
     // 绘制点状图
+    // 原函数已经是这种形式，无需修改
     void drawDotSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize; ++i)
+        for (int i = 0; i < screenWidth; ++i)
         {
-            int x = i * (screenWidth / fftSize);
-            float scaledY = (data[i] / maxVal) * screenHeight;
-            int y = static_cast<int>(scaledY);
-            drawPointCallback(x, screenHeight - y - 1, 1);
+            int x = i * (fftSize - 10) / screenWidth + 10;
+            int y = static_cast<int>(data[x] * FFT_FACTOR);
+
+            if (y > (screenHeight - 1))
+                y = screenHeight - 1;
+            if (y < 1)
+                y = 0;
+            int startY = (screenHeight - y) / 2;
+
+            for (int j = startY; j < startY + y; j++)
+            {
+                drawPointCallback(i, j, 1);
+                if (j > screenHeight)
+                    break;
+            }
         }
     }
 
     // 绘制多边形图
     void drawPolygonSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize - 1; ++i)
+        for (int i = 0; i < screenWidth - 1; ++i)
         {
-            int x1 = i * (screenWidth / fftSize);
-            int x2 = (i + 1) * (screenWidth / fftSize);
-            float scaledY1 = (data[i] / maxVal) * screenHeight;
-            float scaledY2 = (data[i + 1] / maxVal) * screenHeight;
+            int x1 = i * fftSize / screenWidth;
+            int x2 = (i + 1) * fftSize / screenWidth;
+            float scaledY1 = (data[x1] * FFT_FACTOR);
+            float scaledY2 = (data[x2] * FFT_FACTOR);
             int y1 = static_cast<int>(scaledY1);
             int y2 = static_cast<int>(scaledY2);
-            for (int x = x1; x <= x2; ++x)
+
+            if (x2 - x1 == 0)
             {
-                int y = y1 + (y2 - y1) * (x - x1) / (x2 - x1);
-                drawPointCallback(x, screenHeight - y - 1, 1);
+                continue;
+            }
+
+            for (int x = i; x <= i + 1; ++x)
+            {
+                int y = y1 + (y2 - y1) * (x - i) / (1);
+                if (x >= 0 && x < screenWidth && screenHeight - y - 1 >= 0 && screenHeight - y - 1 < screenHeight)
+                {
+                    drawPointCallback(x, y, 1);
+                    if (y > screenHeight)
+                        break;
+                }
                 // 填充多边形内部
                 for (int j = y; j < screenHeight; ++j)
                 {
-                    drawPointCallback(x, screenHeight - j - 1, 1);
+                    if (x >= 0 && x < screenWidth && screenHeight - j - 1 >= 0 && screenHeight - j - 1 < screenHeight)
+                    {
+                        drawPointCallback(x, j, 1);
+                    }
+                    if (y > screenHeight)
+                        break;
                 }
             }
         }
@@ -149,19 +167,20 @@ private:
     // 绘制垂直居中的柱状图
     void drawCenteredBarSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize; ++i)
+        for (int i = 0; i < screenWidth; ++i)
         {
-            int barX = i * (screenWidth / fftSize);
-            float scaledHeight = (data[i] / maxVal) * screenHeight;
+            int x = i * fftSize / screenWidth;
+            float scaledHeight = (data[x] * FFT_FACTOR);
             int barHeight = static_cast<int>(scaledHeight);
             int centerY = screenHeight / 2;
             int startY = centerY - barHeight / 2;
-            for (int x = barX; x < barX + 4; ++x)
+            for (int xPos = i; xPos < i + 4; ++xPos)
             {
                 for (int y = startY; y < startY + barHeight; ++y)
                 {
-                    drawPointCallback(x, y, 1);
+                    drawPointCallback(xPos, y, 1);
+                    if (y > screenHeight)
+                        break;
                 }
             }
         }
@@ -170,18 +189,18 @@ private:
     // 绘制渐变柱状图
     void drawGradientBarSpectrum(const float *data)
     {
-        float maxVal = findMaxValue(data);
-        for (int i = 0; i < fftSize; ++i)
+        for (int i = 0; i < screenWidth; ++i)
         {
-            int barX = i * (screenWidth / fftSize);
-            float scaledHeight = (data[i] / maxVal) * screenHeight;
+            int x = i * fftSize / screenWidth;
+            float scaledHeight = (data[x] * FFT_FACTOR);
             int barHeight = static_cast<int>(scaledHeight);
-            for (int x = barX; x < barX + 4; ++x)
+            for (int xPos = i; xPos < i + 4; ++xPos)
             {
                 for (int y = 0; y < barHeight; ++y)
                 {
-                    uint8_t dotValue = static_cast<uint8_t>(255 * (1.0f - static_cast<float>(y) / barHeight));
-                    drawPointCallback(x, screenHeight - y - 1, dotValue);
+                    drawPointCallback(xPos, screenHeight - y - 1, barHeight);
+                    if (y > screenHeight)
+                        break;
                 }
             }
         }
@@ -190,27 +209,6 @@ private:
 public:
     SpectrumDisplay(int width, int height) : screenWidth(width), screenHeight(height), currentStyle(STYLE_BAR)
     {
-        interpolatedData = new float[fftSize];
-    }
-
-    ~SpectrumDisplay()
-    {
-        if (spectrumTaskHandle != nullptr)
-        {
-            vTaskDelete(spectrumTaskHandle);
-        }
-        if (currentFFTData != nullptr)
-        {
-            delete[] currentFFTData;
-        }
-        if (targetFFTData != nullptr)
-        {
-            delete[] targetFFTData;
-        }
-        if (interpolatedData != nullptr)
-        {
-            delete[] interpolatedData;
-        }
     }
 
     void setDrawPointCallback(DrawPointCallback callback)
@@ -227,32 +225,14 @@ public:
     void setSpectrumStyle(SpectrumStyle style)
     {
         currentStyle = style;
-        animationStep = 0; 
+        animationStep = 0;
     }
 
     void inputFFTData(const float *data, int size)
     {
-        if (fftSize != size)
-        {
-            if (currentFFTData != nullptr)
-            {
-                delete[] currentFFTData;
-            }
-            if (targetFFTData != nullptr)
-            {
-                delete[] targetFFTData;
-            }
-            currentFFTData = new float[size];
-            targetFFTData = new float[size];
-            fftSize = size;
-        }
         if (animationStep < totalAnimationSteps)
         {
-            // 如果动画还在进行中，将当前插值数据作为新的起始点
-            float *temp = new float[fftSize];
-            calculateInterpolatedData(temp);
-            std::memcpy(currentFFTData, temp, fftSize * sizeof(float));
-            delete[] temp;
+            calculateInterpolatedData(currentFFTData);
         }
         else
         {
@@ -264,6 +244,17 @@ public:
 
     void spectrumProcess(void)
     {
+        static int64_t start_time = esp_timer_get_time() / 1000;
+        int64_t current_time = esp_timer_get_time() / 1000;
+
+        int64_t elapsed_time = current_time - start_time;
+
+        if (elapsed_time >= 5000)
+        {
+            start_time = current_time;
+            currentStyle = (SpectrumStyle)((currentStyle + 1) % STYLE_MAX);
+        }
+
         if (animationStep < totalAnimationSteps)
         {
             calculateInterpolatedData(interpolatedData);

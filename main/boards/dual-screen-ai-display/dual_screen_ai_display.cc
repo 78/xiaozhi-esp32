@@ -27,8 +27,11 @@
 #include "rx8900.h"
 #include "esp_sntp.h"
 #include "settings.h"
-#include "hna_16mm65t.h"
+#if FORD_VFD_EN
 #include "ford_vfd.h"
+#else
+#include "hna_16mm65t.h"
+#endif
 #include "spectrumdisplay.h"
 
 #define TAG "DualScreenAIDisplay"
@@ -367,6 +370,23 @@ public:
     }
 
 #if FORD_VFD_EN
+
+    virtual void ShowNotification(const std::string &notification, int duration_ms = 3000) override
+    {
+        DisplayLockGuard lock(this);
+        if (notification_label_ == nullptr)
+        {
+            return;
+        }
+        lv_label_set_text(notification_label_, notification.c_str());
+        lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+
+        esp_timer_stop(notification_timer_);
+        ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
+        SetSubContent(notification);
+    }
+
     void SetSubBacklight(uint8_t brightness)
     {
         setbrightness(brightness);
@@ -375,18 +395,7 @@ public:
     static void sub_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
     {
         auto display = Board::GetInstance().GetDisplay();
-#if false
-        uint16_t *buf16 = (uint16_t *)px_map;
-        int32_t x, y;
-        for (y = area->y1; y <= area->y2; y++)
-        {
-            for (x = area->x1; x <= area->x2; x++)
-            {
-                display->DrawPoint(x, y, *buf16);
-                buf16++;
-            }
-        }
-#else
+#if 0
         int32_t x, y;
         uint8_t byte_index = 0;
         uint8_t bit_index = 0;
@@ -407,6 +416,17 @@ public:
                 }
             }
         }
+#else
+        uint16_t *buf16 = (uint16_t *)px_map;
+        int32_t x, y;
+        for (y = area->y1; y <= area->y2; y++)
+        {
+            for (x = area->x1; x <= area->x2; x++)
+            {
+                display->DrawPoint(x, y, *buf16);
+                buf16++;
+            }
+        }
 #endif
         lv_display_flush_ready(disp);
     }
@@ -421,15 +441,31 @@ public:
             return;
         }
         lv_display_set_flush_cb(subdisplay, sub_disp_flush);
+#if 0
         lv_display_set_color_format(subdisplay, LV_COLOR_FORMAT_I1);
         static uint16_t buf1[FORD_WIDTH * FORD_HEIGHT / 8];
         static uint16_t buf2[FORD_WIDTH * FORD_HEIGHT / 8];
         lv_display_set_buffers(subdisplay, buf1, buf2, sizeof(buf1), LV_DISPLAY_RENDER_MODE_FULL);
+#else
+        static uint16_t buf[FORD_WIDTH * FORD_HEIGHT];
+        lv_display_set_buffers(subdisplay, buf, nullptr, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+#endif
         LV_LOG_INFO("Subscreen initialized successfully");
     }
 
     void SetSubContent(const std::string &content)
     {
+        DisplayLockGuard lock(this);
+        // lv_anim_t *anim;
+        // lv_anim_init(anim);
+        // lv_anim_set_var(anim, sub_status_label_);
+        // lv_anim_set_early_apply(anim, false);
+        // lv_anim_set_path_cb(anim, lv_anim_path_overshoot);
+        // lv_anim_set_time(anim, 300);
+        // lv_anim_set_values(anim, 0, lv_obj_get_x(sub_status_label_));
+        // lv_anim_set_exec_cb(anim, (lv_anim_exec_xcb_t)set_width);
+        // lv_anim_start(anim);
+
         lv_label_set_text(sub_status_label_, content.c_str());
     }
 
@@ -489,6 +525,8 @@ public:
         symbolhelper(CD1, false);
         symbolhelper(CD2, false);
         symbolhelper(CD3, false);
+        symbolhelper(IPOD, false);
+        symbolhelper(UDISK, false);
         switch (device_state)
         {
         case kDeviceStateStarting:
@@ -508,10 +546,13 @@ public:
             {
                 symbolhelper(CD0, true);
                 symbolhelper(CD1, true);
+                symbolhelper(CD2, true);
+                symbolhelper(CD3, true);
             }
             else
             {
                 symbolhelper(CD0, true);
+                symbolhelper(CD1, true);
             }
             break;
         case kDeviceStateSpeaking:
@@ -526,6 +567,11 @@ public:
             return;
         }
         setmode(FORD_CONTENT);
+    }
+
+    virtual void SpectrumShow(float *buf, int size) override
+    {
+        _spectrum->inputFFTData(buf, size);
     }
 #else
     void SetSubBacklight(uint8_t brightness)
