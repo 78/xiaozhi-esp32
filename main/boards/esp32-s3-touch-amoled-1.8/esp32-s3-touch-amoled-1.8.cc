@@ -18,11 +18,16 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
 #include "esp_io_expander_tca9554.h"
+#include "settings.h"
 
 #define TAG "waveshare_amoled_1_8"
 
 LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
+
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
+#define LCD_OPCODE_READ_CMD (0x03ULL)
+#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
 
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
@@ -39,7 +44,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
 // 在waveshare_amoled_1_8类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
-    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                     esp_lcd_panel_handle_t panel_handle,
                     gpio_num_t backlight_pin,
                     bool backlight_output_invert,
@@ -49,7 +54,7 @@ public:
                     int offset_y,
                     bool mirror_x,
                     bool mirror_y,
-                    bool swap_xy) 
+                    bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
@@ -57,11 +62,30 @@ public:
                         .icon_font = &font_awesome_30_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
-
         DisplayLockGuard lock(this);
-        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+
+        SetBacklight(100);
+    }
+
+    virtual void SetBacklight(uint8_t brightness) override {
+        if (brightness > 100)
+        {
+            brightness = 100;
+        }
+
+        brightness_ = brightness;
+
+        Settings settings("display", true);
+        settings.SetInt("bright", brightness_);
+
+        uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
     }
 };
 
@@ -92,12 +116,12 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
 
-    void InitializeTca9554(void)
-    {
+    void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
-            ESP_LOGE(TAG, "TCA9554 create returned error");        
+            ESP_LOGE(TAG, "TCA9554 create returned error");
         ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 |IO_EXPANDER_PIN_NUM_2, IO_EXPANDER_OUTPUT);
+        ret |= esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_4, IO_EXPANDER_INPUT);
         ESP_ERROR_CHECK(ret);
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
         ESP_ERROR_CHECK(ret);
@@ -144,7 +168,7 @@ private:
             seconds = 0;
             return;
         }
-        
+
         seconds++;
         if (seconds >= seconds_to_shutdown) {
             axp2101_->PowerOff();
@@ -218,6 +242,7 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
     }
 
 public:
@@ -237,9 +262,7 @@ public:
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
-
         return &audio_codec;
-
     }
 
     virtual Display* GetDisplay() override {
