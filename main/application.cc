@@ -36,9 +36,24 @@ static const char* const STATE_STRINGS[] = {
 Application::Application() {
     event_group_ = xEventGroupCreate();
     background_task_ = new BackgroundTask(4096 * 8);
+
+    esp_timer_create_args_t clock_timer_args = {
+        .callback = [](void* arg) {
+            Application* app = (Application*)arg;
+            app->OnClockTimer();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "clock_timer"
+    };
+    esp_timer_create(&clock_timer_args, &clock_timer_handle_);
 }
 
 Application::~Application() {
+    if (clock_timer_handle_ != nullptr) {
+        esp_timer_stop(clock_timer_handle_);
+        esp_timer_delete(clock_timer_handle_);
+    }
     if (background_task_ != nullptr) {
         delete background_task_;
     }
@@ -225,7 +240,6 @@ void Application::ToggleChatState() {
         if (device_state_ == kDeviceStateIdle) {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
-                Alert(Lang::Strings::ERROR, Lang::Strings::UNABLE_TO_ESTABLISH_AUDIO_CHANNEL, "sad");
                 SetDeviceState(kDeviceStateIdle);
                 return;
             }
@@ -259,7 +273,6 @@ void Application::StartListening() {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
                     SetDeviceState(kDeviceStateIdle);
-                    Alert(Lang::Strings::ERROR, Lang::Strings::UNABLE_TO_ESTABLISH_AUDIO_CHANNEL, "sad");
                     return;
                 }
             }
@@ -506,6 +519,33 @@ void Application::Start() {
 #endif
 
     SetDeviceState(kDeviceStateIdle);
+    esp_timer_start_periodic(clock_timer_handle_, 1000000);
+}
+
+void Application::OnClockTimer() {
+    static int count = 0;
+    count++;
+
+    // Print the debug info every 10 seconds
+    if (count % 10 == 0) {
+        // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
+        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+        ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
+
+        // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
+        if (ota_.HasServerTime()) {
+            Schedule([this]() {
+                if (device_state_ == kDeviceStateIdle) {
+                    // Set status to clock "HH:MM"
+                    time_t now = time(NULL);
+                    char time_str[64];
+                    strftime(time_str, sizeof(time_str), "%H:%M  ", localtime(&now));
+                    Board::GetInstance().GetDisplay()->SetStatus(time_str);
+                }
+            });
+        }
+    }
 }
 
 void Application::Schedule(std::function<void()> callback) {

@@ -18,7 +18,7 @@ Through this project, we aim to help more people get started with AI hardware de
 
 Everyone is welcome to participate in the project's development and improvement. If you have any ideas or suggestions, please feel free to raise an Issue or join the chat group.
 
-Learning & Discussion QQ Group: 946599635
+Learning & Discussion QQ Group: 376893254
 
 ## Implemented Features
 
