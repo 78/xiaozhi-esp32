@@ -1,7 +1,7 @@
 #include "ml307_board.h"
 
 #include "audio_codecs/no_audio_codec.h"
-#include "display/lcd_display.h"
+#include "xingzhi_lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -22,7 +22,7 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    LcdDisplay* display_;
+    XINGZHI_1_54_TFT_LcdDisplay* display_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -99,7 +99,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new XINGZHI_1_54_TFT_LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                             {
                                 .text_font = &font_puhui_16_4,
