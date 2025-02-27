@@ -4,7 +4,8 @@
         {
             "name": "sensecap-watcher",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y"
+                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME='partitions_32M_sensecap.csv'"
             ]
         }
     ]

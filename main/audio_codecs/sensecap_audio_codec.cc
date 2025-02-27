@@ -9,7 +9,7 @@ static const char TAG[] = "SensecapAudioCodec";
 SensecapAudioCodec::SensecapAudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
     gpio_num_t pa_pin, uint8_t es8311_addr, uint8_t es7243e_addr, bool input_reference) {
-    duplex_ = false; // 是否双工 TODO
+    duplex_ = true; // 是否双工
     input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
     input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
@@ -155,14 +155,13 @@ void SensecapAudioCodec::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
+            .channel = 2,
+            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1),
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
         };
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 27.0)); //TODO
-
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 27.0));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
@@ -182,11 +181,13 @@ void SensecapAudioCodec::EnableOutput(bool enable) {
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
         };
+        esp_codec_dev_close(output_dev_);
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-    } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-    }
+    } 
+    // else {
+    //     ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_)); // 关闭之后无法唤醒
+    // }
     AudioCodec::EnableOutput(enable);
 }
 

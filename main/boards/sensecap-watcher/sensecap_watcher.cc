@@ -16,6 +16,7 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <wifi_station.h>
+#include <iot_button.h>
 #include "esp_io_expander_tca95xx_16bit.h"
 
 #define TAG "sensecap_watcher"
@@ -27,8 +28,9 @@ LV_FONT_DECLARE(font_awesome_30_4);
 class SensecapWatcher : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    Button boot_button_;
     LcdDisplay* display_;
+    esp_io_expander_handle_t io_exp_handle;
+    button_handle_t btns;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -46,10 +48,57 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
+    esp_err_t exp_io_set_level(uint16_t pin_mask, uint8_t level)
+    {
+        return esp_io_expander_set_level(io_exp_handle, pin_mask, level);
+    }
+
+    uint8_t exp_io_get_level(uint16_t pin_mask) {
+        uint32_t pin_val = 0;
+        esp_io_expander_get_level(io_exp_handle, DRV_IO_EXP_INPUT_MASK, &pin_val);
+        pin_mask &= DRV_IO_EXP_INPUT_MASK;
+        return (uint8_t)((pin_val & pin_mask) ? 1 : 0);
+    }
+    static uint8_t knob_btn_get_key_value(void *param)
+    {
+        SensecapWatcher* obj = static_cast<SensecapWatcher*>(param);
+        return obj->exp_io_get_level(BSP_KNOB_BTN);
+    }
+    static void btn_click_handler(void* button_handle, void* usr_data)
+    {
+        ESP_LOGI(TAG, "Button clicked");
+        SensecapWatcher* obj = static_cast<SensecapWatcher*>(usr_data);
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+            obj->ResetWifiConfiguration();
+        }
+        app.ToggleChatState();
+    }
+
+    static void btn_down_handler(void* button_handle, void* usr_data)
+    {
+        ESP_LOGI(TAG, "Button down");
+        Application::GetInstance().StartListening();
+    }
+    static void btn_up_handler(void* button_handle, void* usr_data)
+    {
+        ESP_LOGI(TAG, "Button up");
+        Application::GetInstance().StopListening();
+    }
+
+    static void btn_long_press_handler(void* button_handle, void* usr_data) {
+        ESP_LOGI(TAG, "Button long pressed");
+        SensecapWatcher* obj = static_cast<SensecapWatcher*>(usr_data);
+        bool is_charging = (obj->exp_io_get_level(BSP_PWR_VBUS_IN_DET) == 0);
+        if (is_charging) {
+            ESP_LOGI(TAG, "charging");
+        } else {
+            obj->exp_io_set_level(BSP_PWR_SYSTEM, 0);
+        }
+    }
 
     void InitializeExpander() {
         esp_err_t ret = ESP_OK;
-        esp_io_expander_handle_t io_exp_handle = NULL;
         esp_io_expander_new_i2c_tca95xx_16bit(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9555_ADDRESS_001, &io_exp_handle);
 
         ret |= esp_io_expander_set_dir(io_exp_handle, DRV_IO_EXP_INPUT_MASK, IO_EXPANDER_INPUT);
@@ -65,6 +114,27 @@ private:
         ESP_LOGI(TAG, "IO expander initialized: %x", DRV_IO_EXP_OUTPUT_MASK | (uint16_t)pin_val);
     
         assert(ret == ESP_OK);
+    }
+
+    void InitializeButton() {
+
+        button_config_t btn_config = {
+            .type = BUTTON_TYPE_CUSTOM,
+            .long_press_time = 1000,
+            .short_press_time = 200,
+            .custom_button_config = {
+                .active_level = 0,
+                .button_custom_init =nullptr,
+                .button_custom_get_key_value = knob_btn_get_key_value,
+                .button_custom_deinit = nullptr,
+                .priv = this,
+            },
+        };
+        btns = iot_button_create(&btn_config);
+        // iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, btn_click_handler, (void *)this);
+        iot_button_register_cb(btns, BUTTON_LONG_PRESS_START, btn_long_press_handler, (void *)this);
+        iot_button_register_cb(btns, BUTTON_PRESS_DOWN, btn_down_handler, (void *)this);
+        iot_button_register_cb(btns, BUTTON_PRESS_UP, btn_up_handler, (void *)this);
     }
 
     void InitializeSpi() {
@@ -140,12 +210,12 @@ private:
     }
 
 public:
-    SensecapWatcher() : boot_button_(BOOT_BUTTON_GPIO) {
+    SensecapWatcher(){
         ESP_LOGI(TAG, "Initialize Sensecap Watcher");
-
         InitializeI2c();
         InitializeSpi();
         InitializeExpander();
+        InitializeButton();
         Initializespd2010Display();
         InitializeIot();
     }
