@@ -193,7 +193,7 @@ private:
         esp_lcd_panel_disp_on_off(ret_panel, true);
         
         //TODO
-        display_ = new LcdDisplay(ret_io, ret_panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(ret_io, ret_panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
                 .text_font = &font_puhui_30_4,
