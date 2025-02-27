@@ -12,6 +12,8 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <esp_camera.h>
+#include "my_camera.h"
 
 #define TAG "esp_sparkbot"
 
@@ -93,8 +95,8 @@ private:
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_CS_GPIO;
         io_config.dc_gpio_num = DISPLAY_DC_GPIO;
-        io_config.spi_mode = 0;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.spi_mode = 2;
+        io_config.pclk_hz = 80 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -128,6 +130,55 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Backlight"));
         thing_manager.AddThing(iot::CreateThing("Chassis"));
+		thing_manager.AddThing(iot::CreateThing("Camera"));
+    }
+
+    void InitializeCamera() {
+        camera_config_t camera_config = {
+            .pin_pwdn = CAM_PIN_PWDN,
+            .pin_reset = CAM_PIN_RESET,
+            .pin_xclk = CAM_PIN_XCLK,
+            .pin_sccb_sda = CAM_PIN_SIOD,
+            .pin_sccb_scl = CAM_PIN_SIOC,
+
+            .pin_d7 = CAM_PIN_D7,
+            .pin_d6 = CAM_PIN_D6,
+            .pin_d5 = CAM_PIN_D5,
+            .pin_d4 = CAM_PIN_D4,
+            .pin_d3 = CAM_PIN_D3,
+            .pin_d2 = CAM_PIN_D2,
+            .pin_d1 = CAM_PIN_D1,
+            .pin_d0 = CAM_PIN_D0,
+            .pin_vsync = CAM_PIN_VSYNC,
+            .pin_href = CAM_PIN_HREF,
+            .pin_pclk = CAM_PIN_PCLK,
+
+            //XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
+            .xclk_freq_hz = 20000000,
+            .ledc_timer = LEDC_TIMER_0,
+            .ledc_channel = LEDC_CHANNEL_0,
+
+            .pixel_format = PIXFORMAT_JPEG, //YUV422,GRAYSCALE,RGB565,JPEG
+            .frame_size = FRAMESIZE_VGA,    //QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
+
+            .jpeg_quality = 6, //0-63, for OV series camera sensors, lower number means higher quality
+            .fb_count = 2,       //When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
+            .fb_location = CAMERA_FB_IN_PSRAM,
+            .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+        #ifdef CAM_SHARE_I2C_PORT
+            .sccb_i2c_port = CAM_I2C_PORT,
+        #endif
+        };
+
+        //initialize the camera
+        esp_err_t err = esp_camera_init(&camera_config);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Camera Init Failed");
+            return;
+        }
+        ESP_LOGI(TAG, "Camera Init Success");
+
     }
 
 public:
@@ -136,6 +187,7 @@ public:
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
+        InitializeCamera();
         InitializeIot();
     }
 
@@ -148,6 +200,12 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Camera* GetCamera() override {
+        static MyCamera camera;
+
+        return &camera;
     }
 };
 
