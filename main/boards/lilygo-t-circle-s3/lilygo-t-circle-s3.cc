@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/tcircles3_audio_codec.h"
+#include "tcircles3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"

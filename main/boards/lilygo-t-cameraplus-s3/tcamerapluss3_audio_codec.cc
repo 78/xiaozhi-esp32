@@ -114,7 +114,7 @@ int Tcamerapluss3AudioCodec::Read(int16_t *dest, int samples){
     return samples;
 }
 
-void VolumeAdjust(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
+void AdjustTcamerapluss3Volume(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
     for (size_t i = 0; i < samples; i++){
         output_data[i] = (float)input_data[i] * volume;
     }
@@ -124,7 +124,7 @@ int Tcamerapluss3AudioCodec::Write(const int16_t *data, int samples){
     if (output_enabled_){
         size_t bytes_read;
         auto output_data = (int16_t *)malloc(samples * sizeof(int16_t));
-        VolumeAdjust(data, output_data, samples, (float)(volume_ / 100.0));
+        AdjustTcamerapluss3Volume(data, output_data, samples, (float)(volume_ / 100.0));
         i2s_channel_write(tx_handle_, output_data, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
         free(output_data);
     }
