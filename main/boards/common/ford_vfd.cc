@@ -283,6 +283,8 @@ void FORD_VFD::init()
 			vfd->symbolhelper(BT, true);
 			while (true)
 			{
+				if (vfd->_mode == FORD_FFT)
+					vfd->clear();
 				vfd->_spectrum->spectrumProcess();
 				vfd->refrash(vfd->gram, sizeof vfd->gram);
 				vTaskDelay(pdMS_TO_TICKS(10));
@@ -291,60 +293,25 @@ void FORD_VFD::init()
 			vTaskDelete(NULL);
 		},
 		"vfd",
-		4096 - 1024,
+		4096,
 		this,
 		6,
 		nullptr);
 }
-
-uint8_t FORD_VFD::get_oddgroup(int x, uint8_t dot, uint8_t group)
+// 合并 get_oddgroup 和 get_evengroup 函数
+uint8_t FORD_VFD::get_group(int x, uint8_t dot, uint8_t group, bool isOdd)
 {
-	if (x % 3 == 0)
+	static const uint8_t oddMasks[] = {2, 4, 1};
+	static const uint8_t evenMasks[] = {2, 1, 4};
+	const uint8_t *masks = isOdd ? oddMasks : evenMasks;
+	int remainder = x % 3;
+	if (dot)
 	{
-		if (dot)
-			group |= 2;
-		else
-			group &= ~2;
+		group |= masks[remainder];
 	}
-	else if (x % 3 == 1)
+	else
 	{
-		if (dot)
-			group |= 4;
-		else
-			group &= ~4;
-	}
-	else if (x % 3 == 2)
-	{
-		if (dot)
-			group |= 1;
-		else
-			group &= ~1;
-	}
-	return group & 0x7;
-}
-
-uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t group)
-{
-	if (x % 3 == 0)
-	{
-		if (dot)
-			group |= 2;
-		else
-			group &= ~2;
-	}
-	else if (x % 3 == 1)
-	{
-		if (dot)
-			group |= 1;
-		else
-			group &= ~1;
-	}
-	else if (x % 3 == 2)
-	{
-		if (dot)
-			group |= 4;
-		else
-			group &= ~4;
+		group &= ~masks[remainder];
 	}
 	return group & 0x7;
 }
@@ -352,6 +319,8 @@ uint8_t FORD_VFD::get_evengroup(int x, uint8_t dot, uint8_t group)
 void FORD_VFD::draw_point(int x, int y, uint8_t dot, FORD_Mode mode)
 {
 	if (mode != _mode)
+		return;
+	if (x >= FORD_WIDTH || y >= FORD_HEIGHT || x < 0 || y < 0)
 		return;
 	uint16_t index;
 	uint8_t temp;
@@ -362,73 +331,88 @@ void FORD_VFD::draw_point(int x, int y, uint8_t dot, FORD_Mode mode)
 	else if (index > 256)
 		index += 16;
 
-	if (y % 4 == 0)
+	bool isOdd = (16 * (x / 3) / 16 % 2) == 1;
+	int remainder = y % 4;
+	switch (remainder)
 	{
-		if (16 * (x / 3) / 16 % 2)
+	case 0:
+		if (isOdd)
 		{
-			temp = (get_oddgroup(x, dot, (gram[index] >> 5) & 0x7) << 5);
+			temp = (get_group(x, dot, (gram[index] >> 5) & 0x7, true) << 5);
 			gram[index] &= ~0xe0;
 			gram[index] |= temp;
-		} // 前三
+		}
 		else
 		{
-			temp = (get_evengroup(x, dot, (gram[index] >> 2) & 0x7) << 2);
+			temp = (get_group(x, dot, (gram[index] >> 2) & 0x7, false) << 2);
 			gram[index] &= ~0x1c;
 			gram[index] |= temp;
 		}
-	}
-	else if (y % 4 == 1)
-	{
-		if (16 * (x / 3) / 16 % 2)
+		break;
+	case 1:
+		if (isOdd)
 		{
-			temp = (get_oddgroup(x, dot, (gram[index] << 1) & 0x7) >> 1);
+			temp = (get_group(x, dot, (gram[index] << 1) & 0x7, true) >> 1);
 			gram[index] &= ~0x3;
 			gram[index] |= temp;
 
-			temp = (get_oddgroup(x, dot, (gram[index + 1] >> 7) & 0x7) << 7);
+			temp = (get_group(x, dot, (gram[index + 1] >> 7) & 0x7, true) << 7);
 			gram[index + 1] &= ~0x80;
 			gram[index + 1] |= temp;
-		} // 前三
+		}
 		else
 		{
-			temp = (get_evengroup(x, dot, (gram[index + 1] >> 4) & 0x7) << 4);
+			temp = (get_group(x, dot, (gram[index + 1] >> 4) & 0x7, false) << 4);
 			gram[index + 1] &= ~0x70;
 			gram[index + 1] |= temp;
 		}
-	}
-	else if (y % 4 == 2)
-	{
-		if (16 * (x / 3) / 16 % 2)
+		break;
+	case 2:
+		if (isOdd)
 		{
-			temp = (get_oddgroup(x, dot, (gram[index + 1] >> 1) & 0x7) << 1);
+			temp = (get_group(x, dot, (gram[index + 1] >> 1) & 0x7, true) << 1);
 			gram[index + 1] &= ~0xe;
 			gram[index + 1] |= temp;
-		} // 前三
+		}
 		else
 		{
-			temp = (get_evengroup(x, dot, (gram[index + 1] << 2) & 0x7) >> 2);
+			temp = (get_group(x, dot, (gram[index + 1] << 2) & 0x7, false) >> 2);
 			gram[index + 1] &= ~0x1;
 			gram[index + 1] |= temp;
-			temp = (get_evengroup(x, dot, (gram[index + 2] >> 6) & 0x7) << 6);
+			temp = (get_group(x, dot, (gram[index + 2] >> 6) & 0x7, false) << 6);
 			gram[index + 2] &= ~0xc0;
 			gram[index + 2] |= temp;
 		}
-	}
-	else if (y % 4 == 3)
-	{
-		if (16 * (x / 3) / 16 % 2)
+		break;
+	case 3:
+		if (isOdd)
 		{
-			temp = (get_oddgroup(x, dot, (gram[index + 2] >> 3) & 0x7) << 3);
+			temp = (get_group(x, dot, (gram[index + 2] >> 3) & 0x7, true) << 3);
 			gram[index + 2] &= ~0x38;
 			gram[index + 2] |= temp;
-		} // 前三
+		}
 		else
 		{
-			temp = (get_evengroup(x, dot, (gram[index + 2]) & 0x7));
+			temp = (get_group(x, dot, (gram[index + 2]) & 0x7, false));
 			gram[index + 2] &= ~0x7;
 			gram[index + 2] |= temp;
 		}
+		break;
 	}
+}
+void FORD_VFD::clear()
+{
+#if 1
+	for (int y = 0; y < FORD_HEIGHT; ++y) {
+		for (int x = 0; x < FORD_WIDTH; ++x) {
+			draw_point(x, y, 0, _mode);
+		}
+	}
+#else
+	memset(&gram[2], 0, 270 - 2);
+	memset(&gram[275], 0, 510 - 275);
+	memset(&gram[515], 0, 814 - 515);
+#endif
 }
 void FORD_VFD::find_enum_code(FORD_Symbols flag, int *byteIndex, int *bitIndex)
 {

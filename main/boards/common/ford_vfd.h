@@ -85,6 +85,7 @@ public:
     FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num);
     FORD_VFD(spi_device_handle_t spi_device);
     void draw_point(int x, int y, uint8_t dot, FORD_Mode mode = FORD_CONTENT);
+    void clear();
     void find_enum_code(FORD_Symbols flag, int *byteIndex, int *bitIndex);
     void symbolhelper(FORD_Symbols symbol, bool is_on);
 
@@ -105,12 +106,11 @@ protected:
     SpectrumDisplay *_spectrum;
     void contentanimate();
     void init();
+    uint8_t get_group(int x, uint8_t dot, uint8_t group, bool isOdd);
     uint8_t find_hex_code(char ch);
     void write_data8(uint8_t dat);
     void write_data8(uint8_t *dat, int len);
     void setbrightness(uint8_t brightness);
-    uint8_t get_oddgroup(int x, uint8_t dot, uint8_t group);
-    uint8_t get_evengroup(int x, uint8_t dot, uint8_t group);
 
 private:
     FORD_Mode _mode = FORD_CONTENT;

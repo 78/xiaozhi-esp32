@@ -99,10 +99,11 @@ void FFTDspProcessor::FFTDspProcessorTask()
 
             for (int i = 0; i < audio_chunksize; i++)
             {
-#if (false)
+#if (true)
                 result_data[i] = sqrt((audio_buffer[i * 2 + 0] * audio_buffer[i * 2 + 0] + audio_buffer[i * 2 + 1] * audio_buffer[i * 2 + 1]));
 #else
                 result_data[i] = 10 * log10f((audio_buffer[i * 2 + 0] * audio_buffer[i * 2 + 0] + audio_buffer[i * 2 + 1] * audio_buffer[i * 2 + 1]) / audio_chunksize);
+                if(result_data[i]<0)result_data[i]=0;
 #endif
             }
             if (output_callback_)
