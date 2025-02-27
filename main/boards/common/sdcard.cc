@@ -17,7 +17,7 @@ static const char *TAG = "Sdcard";
  * @param cdz SD 卡的插入检测引脚。
  */
 Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpio_num_t d2, gpio_num_t d3, gpio_num_t cdz)
-    : cmd(cmd), clk(clk), d0(d0), d1(d1), d2(d2), d3(d3), cdz(cdz), card(nullptr)
+    : _cmd(cmd), _clk(clk), _d0(d0), _d1(d1), _d2(d2), _d3(d3), _cdz(cdz), _card(nullptr)
 {
     // 检查 SD 卡是否插入，如果未插入则直接返回
     if (!isSdCardInserted())
@@ -34,17 +34,17 @@ Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpi
     // 设置数据总线宽度为 4 位
     slot_config.width = 4;
     // 设置命令引脚
-    slot_config.cmd = cmd;
+    slot_config.cmd = _cmd;
     // 设置时钟引脚
-    slot_config.clk = clk;
+    slot_config.clk = _clk;
     // 设置数据 0 引脚
-    slot_config.d0 = d0;
+    slot_config.d0 = _d0;
     // 设置数据 1 引脚
-    slot_config.d1 = d1;
+    slot_config.d1 = _d1;
     // 设置数据 2 引脚
-    slot_config.d2 = d2;
+    slot_config.d2 = _d2;
     // 设置数据 3 引脚
-    slot_config.d3 = d3;
+    slot_config.d3 = _d3;
     // 未使用卡检测引脚
     slot_config.cd = GPIO_NUM_NC;
     // 未使用写保护引脚
@@ -58,14 +58,14 @@ Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpi
     };
 
     // 挂载 SD 卡文件系统，并检查操作是否成功
-    ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card));
+    ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &_card));
 
     // 打印 SD 卡的详细信息
-    sdmmc_card_print_info(stdout, card);
+    sdmmc_card_print_info(stdout, _card);
 }
 
-Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso)
-    : cs(cs), mosi(mosi), clk(clk), miso(miso), card(nullptr)
+Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso, spi_host_device_t spi_num)
+    : _cs(cs), _mosi(mosi), _clk(clk), _miso(miso), _spi_num(spi_num), _card(nullptr)
 {
     // 初始化 SPI 总线
     spi_bus_config_t bus_cfg = {
@@ -104,7 +104,7 @@ Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso)
     };
 
     // 挂载 SD 卡文件系统，并检查操作是否成功
-    ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &card);
+    ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &_card);
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
             ESP_LOGE(TAG, "Failed to mount filesystem. "
@@ -118,7 +118,7 @@ Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso)
     }
 
     // 打印 SD 卡的详细信息
-    sdmmc_card_print_info(stdout, card);
+    sdmmc_card_print_info(stdout, _card);
 }
 
 /**
@@ -129,7 +129,7 @@ Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso)
 Sdcard::~Sdcard()
 {
     // 如果 card 指针为空，说明 SD 卡未挂载，直接返回
-    if (card == nullptr)
+    if (_card == nullptr)
         return;
     // 调用 Unmount 方法卸载 SD 卡
     Unmount();
@@ -143,9 +143,9 @@ Sdcard::~Sdcard()
 void Sdcard::Unmount()
 {
     // 卸载 SD 卡文件系统，并检查操作是否成功
-    ESP_ERROR_CHECK(esp_vfs_fat_sdcard_unmount("/sdcard", card));
+    ESP_ERROR_CHECK(esp_vfs_fat_sdcard_unmount("/sdcard", _card));
     // 将 card 指针置为 nullptr，表示 SD 卡已卸载
-    card = nullptr;
+    _card = nullptr;
     // 打印 SD 卡卸载成功的日志信息
     ESP_LOGI(TAG, "SD card unmounted");
 }
@@ -161,7 +161,7 @@ void Sdcard::Unmount()
 void Sdcard::Write(const char *filename, const char *data)
 {
     // 如果 card 指针为空，说明 SD 卡未挂载，直接返回
-    if (card == nullptr)
+    if (_card == nullptr)
         return;
     // 以追加模式打开文件
     FILE *file = fopen(filename, "a");
@@ -203,7 +203,7 @@ void Sdcard::Write(const char *filename, const char *data)
 void Sdcard::Read(const char *filename, char *buffer, size_t buffer_size)
 {
     // 如果 card 指针为空，说明 SD 卡未挂载，直接返回
-    if (card == nullptr)
+    if (_card == nullptr)
         return;
     // 以只读模式打开文件
     FILE *file = fopen(filename, "r");

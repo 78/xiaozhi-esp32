@@ -6,11 +6,11 @@
 #define AUDIO_INPUT_SAMPLE_RATE 24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-#define SUB_DISPLAY_EN 1
-#define FORD_VFD_EN 1
+#define SUB_DISPLAY_EN 0
+#define FORD_VFD_EN 0
 
-#define ESP_D103 1
-#define ESP_DUAL_DISPLAY 0
+#define ESP_D103 0
+#define ESP_DUAL_DISPLAY 1
 // 如果使用 Duplex I2S 模式，请注释下面一行
 // #define AUDIO_I2S_METHOD_SIMPLEX
 
@@ -122,8 +122,8 @@
 #define USE_TOUCH 1
 #if USE_TOUCH
 #define TOUCH_MASTER_NUM I2C_NUM_1
-#define TOUCH_SDA_NUM GPIO_NUM_45
-#define TOUCH_SCL_NUM GPIO_NUM_48
+#define TOUCH_SDA_NUM GPIO_NUM_3
+#define TOUCH_SCL_NUM GPIO_NUM_8
 #define TOUCH_INT_NUM GPIO_NUM_46
 #endif
 #define ADC_UNIT ADC_UNIT_1
@@ -132,8 +132,8 @@
 #define DEFAULT_VREF 1100              // 参考电压，单位为 mV，可根据实际情况调整
 
 #define IIC_MASTER_NUM I2C_NUM_0
-#define IIC_SDA_NUM GPIO_NUM_3
-#define IIC_SCL_NUM GPIO_NUM_2
+#define IIC_SDA_NUM GPIO_NUM_45
+#define IIC_SCL_NUM GPIO_NUM_48
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master do not need buffer */
 
@@ -148,6 +148,7 @@
 
 #define LCD_HOST SPI2_HOST
 #define VFD_HOST SPI3_HOST
+#define SD_HOST SPI3_HOST
 
 #define DISPLAY_WIDTH 536
 #define DISPLAY_HEIGHT 240
@@ -168,6 +169,7 @@
 #define PIN_NUM_LCD_TE (GPIO_NUM_9)
 #define PIN_NUM_BK_LIGHT (GPIO_NUM_NC)
 #define PIN_NUM_LCD_POWER (GPIO_NUM_NC)
+
 #define PIN_NUM_POWER_EN (GPIO_NUM_4)
 
 #define PIN_NUM_SD_CS (GPIO_NUM_39)

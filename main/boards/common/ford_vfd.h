@@ -84,7 +84,7 @@ class FORD_VFD
 public:
     FORD_VFD(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host_device_t spi_num);
     FORD_VFD(spi_device_handle_t spi_device);
-    void FORD_VFD::draw_point(int x, int y, uint8_t dot, FORD_Mode mode = FORD_CONTENT);
+    void draw_point(int x, int y, uint8_t dot, FORD_Mode mode = FORD_CONTENT);
     void find_enum_code(FORD_Symbols flag, int *byteIndex, int *bitIndex);
     void symbolhelper(FORD_Symbols symbol, bool is_on);
 

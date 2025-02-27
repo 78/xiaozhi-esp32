@@ -24,19 +24,19 @@
 class Sdcard
 {
 private:
-    gpio_num_t cmd;
-    gpio_num_t cs;
-    gpio_num_t mosi;
-    gpio_num_t clk;
-    gpio_num_t miso;
-    gpio_num_t d0;
-    gpio_num_t d1;
-    gpio_num_t d2;
-    gpio_num_t d3;
-    gpio_num_t cdz;
+    gpio_num_t _cmd;
+    gpio_num_t _cs;
+    gpio_num_t _mosi;
+    gpio_num_t _clk;
+    gpio_num_t _miso;
+    gpio_num_t _d0;
+    gpio_num_t _d1;
+    gpio_num_t _d2;
+    gpio_num_t _d3;
+    gpio_num_t _cdz;
+    spi_host_device_t _spi_num;
     // SD 卡设备结构体指针，用于表示已挂载的 SD 卡
-    sdmmc_card_t *card;
-
+    sdmmc_card_t *_card;
     /**
      * @brief 检测 SD 卡是否插入。
      *
@@ -54,7 +54,7 @@ private:
         // 将 GPIO 配置为输入模式
         io_conf.mode = GPIO_MODE_INPUT;
         // 设置要配置的 GPIO 引脚，使用位掩码
-        io_conf.pin_bit_mask = (1ULL << cdz);
+        io_conf.pin_bit_mask = (1ULL << _cdz);
         // 禁用下拉电阻
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         // 启用上拉电阻，确保引脚状态稳定
@@ -63,7 +63,7 @@ private:
         gpio_config(&io_conf);
 
         // 读取 CDZ 引脚的电平
-        int level = gpio_get_level(cdz);
+        int level = gpio_get_level(_cdz);
         // 假设低电平表示 SD 卡已插入，高电平表示未插入
         if (level == 0)
         {
@@ -91,7 +91,7 @@ public:
      */
     Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpio_num_t d2, gpio_num_t d3, gpio_num_t cdz);
 
-    Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso);
+    Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso, spi_host_device_t spi_num);
 
     /**
      * @brief 析构函数，负责释放资源。

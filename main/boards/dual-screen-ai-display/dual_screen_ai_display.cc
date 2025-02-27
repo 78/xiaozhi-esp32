@@ -123,8 +123,10 @@ public:
         InitializeBacklight();
         SetupUI();
 
+#if FORD_VFD_EN
         InitializeSubScreen();
         SetupSubUI();
+#endif
     }
 
     void InitializeBacklight()
@@ -288,7 +290,9 @@ public:
     {
         if (role == "")
             return;
+#if FORD_VFD_EN
         SetSubContent(content);
+#endif
         // std::stringstream ss;
         // ss << "role: " << role << ", content: " << content << std::endl;
         // std::string logMessage = ss.str();
@@ -942,13 +946,13 @@ public:
 
     virtual Led *GetLed() override
     {
-        if (display_ != nullptr)
-            return display_;
-        else
-        {
-            static SingleLed led(BUILTIN_LED_GPIO);
-            return &led;
-        }
+        // if (display_ != nullptr)
+        return display_;
+        // else
+        // {
+        //     static SingleLed led(BUILTIN_LED_GPIO);
+        //     return &led;
+        // }
     }
 
     virtual float GetBarometer() override
@@ -992,7 +996,7 @@ public:
 
     // virtual Sdcard *GetSdcard() override
     // {
-    //     static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO);
+    //     static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO, SD_HOST);
     //     return &sd_card;
     // }
 
@@ -1002,20 +1006,35 @@ public:
 #define V3 3300
 #define V4 3100
 
+    int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
+    {
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    }
+
+    int32_t constrain(int32_t value, int32_t min_value, int32_t max_value)
+    {
+        if (value < min_value)
+        {
+            return min_value;
+        }
+        else if (value > max_value)
+        {
+            return max_value;
+        }
+        return value;
+    }
+
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
         static int last_level = 0;
         static bool last_charging = false;
-        int bat_adc_value, dimm_adc_value;
-        int bat_v = 0, dimm_v = 0;
+        int bat_adc_value;
+        int bat_v = 0;
         ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
         bat_v *= 2;
-        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, DIMM_ADC_CHANNEL, &dimm_adc_value));
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(dimm_adc_cali_handle, dimm_adc_value, &dimm_v));
-        dimm_v *= 2;
+
         // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
-        // ESP_LOGI(TAG, "adc_value dimm: %d, v: %d", dimm_adc_value, dimm_v);
         if (bat_v >= VCHARGE)
         {
             level = last_level;
@@ -1061,6 +1080,21 @@ public:
         if (rx8900_write_time(rx8900, tm_info) == ESP_FAIL)
             return false;
         return true;
+    }
+
+    virtual bool DimmingUpdate() override
+    {
+        static uint8_t last_bl = 0;
+        int dimm_adc_value;
+        int dimm_v = 0;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, DIMM_ADC_CHANNEL, &dimm_adc_value));
+        uint8_t bl = constrain(100 - map(dimm_adc_value, 300, 2400, 0, 100), 0, 100);
+
+        if (last_bl != bl)
+        {
+            last_bl = bl;
+            display_->SetBacklight(bl);
+        }
     }
 
     virtual bool TimeUpdate() override

@@ -47,6 +47,7 @@ public:
     virtual const char *GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool &charging);
     virtual bool TimeUpdate();
+    virtual bool DimmingUpdate();
     virtual bool CalibrateTime(struct tm *tm_info);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;

@@ -43,6 +43,9 @@ Display::Display()
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 500000));
+
+    Settings settings("display", false);
+    autoDimming = settings.GetInt("auto", 0);
 }
 
 Display::~Display()
@@ -158,6 +161,9 @@ void Display::Update()
     }
     if (!timeOffline && !board.TimeUpdate())
         timeOffline = true;
+
+    if (autoDimming)
+        board.DimmingUpdate();
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();

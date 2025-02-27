@@ -6,6 +6,7 @@
 #include <esp_log.h>
 
 #include <string>
+#include "settings.h"
 
 struct DisplayFonts
 {
@@ -18,6 +19,7 @@ class Display
 {
 private:
     bool timeOffline = false;
+    bool autoDimming = false;
 
 public:
     Display();
@@ -33,6 +35,14 @@ public:
     virtual int GetBacklight();
     virtual void SpectrumShow(float *buf, int size) {}
     virtual void DrawPoint(int x, int y, uint8_t dot) {}
+    void SetAutoDimming(bool en)
+    {
+        Settings settings("display", true);
+        settings.SetInt("auto", en);
+        autoDimming = en;
+    }
+
+    bool GetAutoDimming() { return autoDimming; }
 
     int width() const { return width_; }
     int height() const { return height_; }
