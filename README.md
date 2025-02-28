@@ -85,9 +85,6 @@
   <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
     <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
   </a>
-  <a href="docs/lilygo-t-cameraplus-s3.jpg" target="_blank" title="LILYGO LILYGO T-CameraPlus-S3">
-    <img src="docs/lilygo-t-cameraplus-s3.jpg" width="240" />
-  </a>
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
