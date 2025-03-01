@@ -58,7 +58,6 @@ Feishu ドキュメントチュートリアルをご覧ください：
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="マジックボタン 2.4">マジックボタン 2.4</a>
 - <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
-- <a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="T-CameraPlus-S3">LILYGO T-CameraPlus-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="XiaGe Mini C3">XiaGe Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji シャオジー AI 派生版</a>
 
