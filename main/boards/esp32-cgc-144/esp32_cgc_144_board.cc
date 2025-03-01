@@ -128,4 +128,4 @@ public:
     }
 };
 
-DECLARE_BOARD(esp32-cgc-144);
+DECLARE_BOARD(CompactWifiBoardLCD);
