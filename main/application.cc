@@ -777,19 +777,31 @@ void Application::Reboot() {
     esp_restart();
 }
 
-void Application::WakeWordInvoke(const std::string& wake_word) {
+void Application::AsrControlWordInvoke(ControlWordType word_type){
+
     if (device_state_ == kDeviceStateIdle) {
         ToggleChatState();
-        Schedule([this, wake_word]() {
+        Schedule([this]() {
+            std::string wake_word="你好";
             if (protocol_) {
                 protocol_->SendWakeWordDetected(wake_word); 
             }
         }); 
     } else if (device_state_ == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonNone);
-    } else if (device_state_ == kDeviceStateListening) {   
-        if (protocol_) {
-            protocol_->CloseAudioChannel();
+        if(word_type == kControlWordTypeStepback
+               || word_type == kControlWordTypeStepbackRightnow){
+            if (protocol_) {
+                protocol_->CloseAudioChannel();
+            }
         }
-    }
+    } else if (device_state_ == kDeviceStateListening) {
+
+         if(word_type == kControlWordTypeStepbackRightnow){
+            if (protocol_) {
+                 protocol_->CloseAudioChannel();
+            }
+        }
+     }
 }
+
