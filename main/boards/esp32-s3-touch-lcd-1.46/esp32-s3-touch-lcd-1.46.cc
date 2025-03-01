@@ -24,6 +24,7 @@ LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
+LcdDisplay* display_;
 // 在waveshare_lcd_1_46类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
@@ -64,14 +65,57 @@ public:
     }
 };
 
+void PwrDriver(void *parameter)
+{
+    static uint32_t Time_Down = 0;
+    while(1)
+    {
+        if(!gpio_get_level(PWR_KEY_Input_PIN)){
+            Time_Down++;
+            if(Time_Down > 65535)
+                Time_Down = 65535;
+        }
+        else{
+            Time_Down = 0;
+        }
+        if(Time_Down > 50){
+            display_->SetBacklight(0);
+            gpio_set_level(PWR_Control_PIN, false);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    vTaskDelete(NULL);
+}
 class CustomBoard : public WifiBoard {
 private:
  
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
-    LcdDisplay* display_;
 
+    void ConfigureGpio(gpio_num_t pin, gpio_mode_t Mode)
+    {
+        gpio_reset_pin(pin);                                     
+        gpio_set_direction(pin, Mode);                          
+    }
+    void InitializePWR() {
+        ConfigureGpio(PWR_KEY_Input_PIN, GPIO_MODE_INPUT);    
+        ConfigureGpio(PWR_Control_PIN, GPIO_MODE_OUTPUT);
+        // gpio_set_level(PWR_Control_PIN, false);
+        gpio_set_level(PWR_Control_PIN, true);
+        vTaskDelay(100);
+        if(!gpio_get_level(PWR_KEY_Input_PIN)) {              
+            gpio_set_level(PWR_Control_PIN, true);
+        }
+        xTaskCreatePinnedToCore(
+            PwrDriver, 
+            "Other Driver task",
+            4096, 
+            NULL, 
+            3, 
+            NULL, 
+            0);
+    }
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -152,6 +196,8 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    
+        display_->SetBacklight(90);
     }
  
     void InitializeButtons() {
@@ -174,6 +220,7 @@ private:
 public:
     CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePWR();    
         InitializeI2c();
         InitializeTca9554();
         InitializeSpi();

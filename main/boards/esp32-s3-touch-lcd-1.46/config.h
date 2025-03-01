@@ -20,6 +20,9 @@
 #define I2C_SCL_IO          GPIO_NUM_10       
 #define I2C_SDA_IO          GPIO_NUM_11        
 
+#define PWR_KEY_Input_PIN   GPIO_NUM_6
+#define PWR_Control_PIN     GPIO_NUM_7
+
 #define I2C_ADDRESS         ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000
 
 #define DISPLAY_WIDTH       412
