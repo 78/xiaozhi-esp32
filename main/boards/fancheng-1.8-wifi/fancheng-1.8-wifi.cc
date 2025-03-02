@@ -1,7 +1,7 @@
 /*
  * @Date: 2025-03-01 10:58:13
  * @LastEditors: zhouke
- * @LastEditTime: 2025-03-02 07:49:33
+ * @LastEditTime: 2025-03-03 07:27:47
  * @FilePath: \xiaozhi-esp32\main\boards\fancheng-1.8-wifi\fancheng-1.8-wifi.cc
  */
 #include "wifi_board.h"
@@ -112,13 +112,8 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-#ifdef AUDIO_I2S_METHOD_SIMPLEX
-        static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
-#else
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-#endif
         return &audio_codec;
     }
 
