@@ -172,8 +172,6 @@ choice DISPLAY_LCD_TYPE
         bool "ST7735, 分辨率128*128"
     config LCD_ST7735_128X160
         bool "ST7735, 分辨率128*160"
-    config LCD_ST7735_128X128
-        bool "ST7735, 分辨率128*128"    
     config LCD_ST7796_320X480
         bool "ST7796, 分辨率320*480"    
     config LCD_ILI9341_240X320
