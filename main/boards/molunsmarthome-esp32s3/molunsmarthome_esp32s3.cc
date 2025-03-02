@@ -12,12 +12,12 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
-#define TAG "MolunSmartHomeEsp32S3N4"
+#define TAG "MolunSmartHomeESP32S3"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class MolunSmartHomeEsp32S3N4 : public WifiBoard {
+class MolunSmartHomeESP32S3 : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
@@ -95,7 +95,7 @@ private:
     }
 
 public:
-    MolunSmartHomeEsp32S3N4() :
+    MolunSmartHomeESP32S3() :
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -128,4 +128,4 @@ public:
     }
 };
 
-DECLARE_BOARD(MolunSmartHomeEsp32S3N4);
+DECLARE_BOARD(MolunSmartHomeESP32S3);
