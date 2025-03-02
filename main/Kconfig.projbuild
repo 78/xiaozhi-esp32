@@ -108,6 +108,8 @@ choice BOARD_TYPE
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
          bool "LILYGO T-Circle-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
+         bool "LILYGO T-CameraPlus-S3"      
     config BOARD_TYPE_MOLUNSMARTHOME_ESP32S3N4
          bool "默语小智管家"  
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
@@ -160,16 +162,22 @@ choice DISPLAY_LCD_TYPE
         bool "ST7789, 分辨率240*280"   
     config LCD_ST7789_240X240
         bool "ST7789, 分辨率240*240"         
+    config LCD_ST7789_240X240_7PIN
+        bool "ST7789, 分辨率240*240, 7PIN"       
     config LCD_ST7789_240X135
         bool "ST7789, 分辨率240*135"
     config LCD_ST7735_128X160
         bool "ST7735, 分辨率128*160"
+    config LCD_ST7735_128X128
+        bool "ST7735, 分辨率128*128"    
     config LCD_ST7796_320X480
         bool "ST7796, 分辨率320*480"    
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
         bool "ILI9341, 分辨率240*320, 非IPS"    
+    config LCD_GC9A01_240X240
+        bool "GC9A01, 分辨率240*240, 圆屏"            
     config LCD_CUSTOM
         bool "自定义屏幕参数"  
 endchoice

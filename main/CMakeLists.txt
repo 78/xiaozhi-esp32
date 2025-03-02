@@ -4,7 +4,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
-            "audio_codecs/tcircles3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "display/display.cc"
@@ -92,6 +91,8 @@ elseif(CONFIG_BOARD_TYPE_TUDOUZI)
     set(BOARD_TYPE "tudouzi") 
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_TYPE "lilygo-t-circle-s3") 
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
+    set(BOARD_TYPE "lilygo-t-cameraplus-s3") 
 elseif(CONFIG_BOARD_TYPE_MOLUNSMARTHOME_ESP32S3N4)
     set(BOARD_TYPE "molunsmarthome-esp32s3n4") 
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)

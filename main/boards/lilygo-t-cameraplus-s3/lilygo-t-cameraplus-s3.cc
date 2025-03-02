@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "tcircles3_audio_codec.h"
+#include "tcamerapluss3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -8,13 +8,11 @@
 #include "iot/thing_manager.h"
 
 #include <esp_log.h>
+#include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <wifi_station.h>
-#include <esp_lcd_panel_io.h>
-#include <esp_lcd_panel_ops.h>
-#include "esp_lcd_gc9d01n.h"
 
-#define TAG "LilygoTCircleS3Board"
+#define TAG "LilygoTCameraPlusS3Board"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
@@ -53,12 +51,12 @@ private:
     TouchPoint_t tp_;
 };
 
-class LilygoTCircleS3Board : public WifiBoard {
+class LilygoTCameraPlusS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816x *cst816d_;
     LcdDisplay *display_;
-    Button boot_button_;
+    Button key1_button_;
 
     void InitI2c(){
         // Initialize I2C peripheral
@@ -100,7 +98,7 @@ private:
 
     static void touchpad_daemon(void *param) {
         vTaskDelay(pdMS_TO_TICKS(2000));
-        auto &board = (LilygoTCircleS3Board&)Board::GetInstance();
+        auto &board = (LilygoTCameraPlusS3Board&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
         bool was_touched = false;
         while (1) {
@@ -138,61 +136,45 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitGc9d01nDisplay() {
-        ESP_LOGI(TAG, "Init GC9D01N");
-
+    void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-
+        // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_CS;
-        io_config.dc_gpio_num = DISPLAY_DC;
+        io_config.cs_gpio_num = LCD_CS;
+        io_config.dc_gpio_num = LCD_DC;
         io_config.spi_mode = 0;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.pclk_hz = 60 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
+        // 初始化液晶屏驱动芯片ST7789
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_RST;
+        panel_config.reset_gpio_num = LCD_RST;
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9d01n(panel_io, &panel_config, &panel));
-
-        esp_lcd_panel_reset(panel);
-
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                  DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_16_4,
-                                      .icon_font = &font_awesome_16_4,
-                                      .emoji_font = font_emoji_32_init(),
-                                  });
-
-        gpio_config_t config;
-        config.pin_bit_mask = BIT64(DISPLAY_BL);
-        config.mode = GPIO_MODE_OUTPUT;
-        config.pull_up_en = GPIO_PULLUP_DISABLE;
-        config.pull_down_en = GPIO_PULLDOWN_ENABLE;
-        config.intr_type = GPIO_INTR_DISABLE;
-#if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
-        config.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
-#endif
-        gpio_config(&config);
-        gpio_set_level(DISPLAY_BL, 0);
+                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                     {
+                                         .text_font = &font_puhui_16_4,
+                                         .icon_font = &font_awesome_16_4,
+                                         .emoji_font = font_emoji_32_init(),
+                                     });
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        key1_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -208,18 +190,18 @@ private:
     }
 
 public:
-    LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    LilygoTCameraPlusS3Board() : key1_button_(KEY1_BUTTON_GPIO) {
         InitI2c();
         InitCst816d();
         I2cDetect();
         InitSpi();
-        InitGc9d01nDisplay();
+        InitializeSt7789Display();
         InitializeButtons();
         InitializeIot();
     }
 
     virtual AudioCodec *GetAudioCodec() override {
-        static Tcircles3AudioCodec audio_codec(
+        static Tcamerapluss3AudioCodec audio_codec(
             AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_MIC_I2S_GPIO_BCLK,
@@ -241,4 +223,4 @@ public:
     }
 };
 
-DECLARE_BOARD(LilygoTCircleS3Board);
+DECLARE_BOARD(LilygoTCameraPlusS3Board);
