@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "display/lcd_display.h"
+#include "esp32_cgc_144_lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -16,15 +16,15 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
  
-#define TAG "esp32-cgc-144"
+#define TAG "ESP32_CGC_144"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactWifiBoardLCD : public WifiBoard {
+class ESP32_CGC_144 : public WifiBoard {
 private:
     Button boot_button_;
-    LcdDisplay* display_;
+    ESP32_CGC_144_LcdDisplay* display_;
     Button asr_button_;
 
     void InitializeSpi() {
@@ -38,7 +38,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeLcdDisplay() {
+    void InitializeSt7735Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
@@ -67,7 +67,7 @@ private:
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new ESP32_CGC_144_LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_14_1,
@@ -103,23 +103,18 @@ private:
     }
 
 public:
-    CompactWifiBoardLCD() :
+    ESP32_CGC_144() :
 	boot_button_(BOOT_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO) {
         InitializeSpi();
-        InitializeLcdDisplay();
+        InitializeSt7735Display();
         InitializeButtons();
         InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override 
     {
-#ifdef AUDIO_I2S_METHOD_SIMPLEX
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
-#else
-        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-#endif
         return &audio_codec;
     }
 
@@ -128,4 +123,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(ESP32_CGC_144);
