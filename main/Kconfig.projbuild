@@ -109,7 +109,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
-         bool "LILYGO T-Circle-S3"
+        bool "LILYGO T-Circle-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
+        bool "LILYGO T-CameraPlus-S3"
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
          bool "Movecall Moji 小智AI衍生版"  
     config BOARD_TYPE_ATK_DNESP32S3
