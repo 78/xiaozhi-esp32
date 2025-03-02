@@ -153,7 +153,7 @@ void Application::CheckNewVersion() {
 
         SetDeviceState(kDeviceStateIdle);
         display->SetChatMessage("system", "");
-
+        PlaySound(Lang::Sounds::P3_SUCCESS);
         // Exit the loop if upgrade or idle
         break;
     }
@@ -189,7 +189,7 @@ void Application::ShowActivationCode() {
         auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
             [digit](const digit_sound& ds) { return ds.digit == digit; });
         if (it != digit_sounds.end()) {
-            PlayLocalFile(it->sound.data(), it->sound.size());
+            PlaySound(it->sound);
         }
     }
 }
@@ -201,15 +201,25 @@ void Application::Alert(const char* status, const char* message, const char* emo
     display->SetEmotion(emotion);
     display->SetChatMessage("system", message);
     if (!sound.empty()) {
-        PlayLocalFile(sound.data(), sound.size());
+        PlaySound(sound);
     }
 }
 
-void Application::PlayLocalFile(const char* data, size_t size) {
-    ESP_LOGI(TAG, "PlayLocalFile: %zu bytes", size);
+void Application::DismissAlert() {
+    if (device_state_ == kDeviceStateIdle) {
+        auto display = Board::GetInstance().GetDisplay();
+        display->SetStatus(Lang::Strings::STANDBY);
+        display->SetEmotion("neutral");
+        display->SetChatMessage("system", "");
+    }
+}
+
+void Application::PlaySound(const std::string_view& sound) {
     auto codec = Board::GetInstance().GetAudioCodec();
     codec->EnableOutput(true);
     SetDecodeSampleRate(16000);
+    const char* data = sound.data();
+    size_t size = sound.size();
     for (const char* p = data; p < data + size; ) {
         auto p3 = (BinaryProtocol3*)p;
         p += sizeof(BinaryProtocol3);
@@ -240,7 +250,6 @@ void Application::ToggleChatState() {
         if (device_state_ == kDeviceStateIdle) {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
-                SetDeviceState(kDeviceStateIdle);
                 return;
             }
 
@@ -272,7 +281,6 @@ void Application::StartListening() {
             if (!protocol_->IsAudioChannelOpened()) {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
-                    SetDeviceState(kDeviceStateIdle);
                     return;
                 }
             }
@@ -353,7 +361,8 @@ void Application::Start() {
     protocol_ = std::make_unique<MqttProtocol>();
 #endif
     protocol_->OnNetworkError([this](const std::string& message) {
-        Alert(Lang::Strings::ERROR, message.c_str(), "sad");
+        SetDeviceState(kDeviceStateIdle);
+        Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -446,7 +455,7 @@ void Application::Start() {
     ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ota_.SetHeader("Client-Id", board.GetUuid());
-    ota_.SetHeader("X-Language", Lang::CODE);
+    ota_.SetHeader("Accept-Language", Lang::CODE);
 
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
@@ -489,8 +498,6 @@ void Application::Start() {
                 wake_word_detect_.EncodeWakeWordData();
 
                 if (!protocol_->OpenAudioChannel()) {
-                    ESP_LOGE(TAG, "Failed to open audio channel");
-                    SetDeviceState(kDeviceStateIdle);
                     wake_word_detect_.StartDetection();
                     return;
                 }
@@ -535,15 +542,15 @@ void Application::OnClockTimer() {
 
         // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
         if (ota_.HasServerTime()) {
-            Schedule([this]() {
-                if (device_state_ == kDeviceStateIdle) {
+            if (device_state_ == kDeviceStateIdle) {
+                Schedule([this]() {
                     // Set status to clock "HH:MM"
                     time_t now = time(NULL);
                     char time_str[64];
                     strftime(time_str, sizeof(time_str), "%H:%M  ", localtime(&now));
                     Board::GetInstance().GetDisplay()->SetStatus(time_str);
-                }
-            });
+                });
+            }
         }
     }
 }
@@ -721,6 +728,7 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateConnecting:
             display->SetStatus(Lang::Strings::CONNECTING);
+            display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:

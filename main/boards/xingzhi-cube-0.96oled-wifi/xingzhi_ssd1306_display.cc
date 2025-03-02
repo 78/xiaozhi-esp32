@@ -23,6 +23,7 @@
 #include "application.h"
 #include "driver/rtc_io.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
 
 #define TAG "XINGZHI_Ssd1306Display"
 
@@ -356,8 +357,17 @@ void XINGZHI_Ssd1306Display::SetupUI_128x64() {
     chat_message_label_ = lv_label_create(content_right_);
     lv_label_set_text(chat_message_label_, "");
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(chat_message_label_, lv_pct(100));
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_width(chat_message_label_, width_ - 32);
+    lv_obj_set_style_pad_top(chat_message_label_, 14, 0);
+
+    // 延迟一定的时间后开始滚动字幕
+    static lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_delay(&a, 1000);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
+    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -372,12 +382,12 @@ void XINGZHI_Ssd1306Display::SetupUI_128x64() {
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(notification_label_, "通知");
+    lv_label_set_text(notification_label_, "");
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(status_label_, 1);
-    lv_label_set_text(status_label_, "正在初始化");
+    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
 
     mute_label_ = lv_label_create(status_bar_);
@@ -460,10 +470,10 @@ void XINGZHI_Ssd1306Display::SetupUI_128x32() {
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_style_pad_left(status_label_, 2, 0);
-    lv_label_set_text(status_label_, "正在初始化");
+    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
 
     notification_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(notification_label_, "通知");
+    lv_label_set_text(notification_label_, "");
     lv_obj_set_style_pad_left(notification_label_, 2, 0);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
