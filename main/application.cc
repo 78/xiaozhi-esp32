@@ -228,7 +228,7 @@ void Application::PlayLocalFile(const char* data, size_t size) {
 void Application::ToggleChatState() {
     Schedule([this]() {
         if (device_state_ == kDeviceStateActivating) {
-            Reboot();
+            SetDeviceState(kDeviceStateIdle);
             return;
         }
 
@@ -258,7 +258,7 @@ void Application::ToggleChatState() {
 void Application::StartListening() {
     Schedule([this]() {
         if (device_state_ == kDeviceStateActivating) {
-            Reboot();
+            SetDeviceState(kDeviceStateIdle);
             return;
         }
 
