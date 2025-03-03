@@ -12,6 +12,7 @@
 void* create_board();
 class AudioCodec;
 class Display;
+class Camera;
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
@@ -37,6 +38,7 @@ public:
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
     virtual Display* GetDisplay();
+    virtual Camera* GetCamera();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual Mqtt* CreateMqtt() = 0;

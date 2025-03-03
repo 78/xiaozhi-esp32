@@ -2,6 +2,7 @@
 #include "system_info.h"
 #include "settings.h"
 #include "display/no_display.h"
+#include "camera/no_camera.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
@@ -51,6 +52,11 @@ bool Board::GetBatteryLevel(int &level, bool& charging) {
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;
+}
+
+Camera* Board::GetCamera() {
+    static NoCamera camera;
+    return &camera;
 }
 
 Led* Board::GetLed() {
