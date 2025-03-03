@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xiaozhi-tft-aichatbox-wifi",
+            "sdkconfig_append": []
+        }
+    ]
+}
