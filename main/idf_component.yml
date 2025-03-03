@@ -25,4 +25,4 @@ dependencies:
 
   i2c_bus:
     public: true
-  maucke/mpu6050: ^1.0.4
+  maucke/mpu6050: ^1.0.2

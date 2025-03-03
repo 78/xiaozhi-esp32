@@ -19,6 +19,7 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
+#include "driver/rtc_io.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -643,6 +644,7 @@ public:
 #endif
 };
 
+    mpu6050_handle_t mpu6050 = NULL;
 class DualScreenAIDisplay : public WifiBoard
 {
 private:
@@ -653,7 +655,6 @@ private:
     i2c_bus_handle_t i2c_bus = NULL;
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
-    mpu6050_handle_t mpu6050 = NULL;
     void InitializeI2c()
     {
         i2c_config_t conf = {
@@ -673,13 +674,12 @@ private:
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
-        ESP_ERROR_CHECK(mpu6050_config(mpu6050, ACCE_FS_4G, GYRO_FS_500DPS));
+        ESP_LOGI(TAG, "mpu6050_config:%d", mpu6050_config(mpu6050, ACCE_FS_4G, GYRO_FS_500DPS));
         ESP_ERROR_CHECK(mpu6050_wake_up(mpu6050));
-        ESP_ERROR_CHECK(mpu6050_enable_motiondetection(mpu6050, 10, 20));
 
         xTaskCreate([](void *arg)
-                    {
-            sntp_set_time_sync_notification_cb([](struct timeval *t){
+                    { sntp_set_time_sync_notification_cb([](struct timeval *t)
+                                                         {
                 if (settimeofday(t, NULL) == -1) {
                     ESP_LOGE(TAG, "Failed to set system time");
                     return;
@@ -698,20 +698,31 @@ private:
                         CustomLcdDisplay *display = (CustomLcdDisplay*)Board::GetInstance().GetDisplay();
                         if(display != nullptr)
                         display->Notification("SYNC TM OK", 1000);
-                    }
-            });
-            esp_netif_init();
-            esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-            esp_sntp_setservername(0, (char*)NTP_SERVER1);
-            esp_sntp_setservername(1, (char*)NTP_SERVER2);
-            esp_sntp_init();
-            setenv("TZ", DEFAULT_TIMEZONE, 1);
-            tzset();
+                            ESP_LOGI(TAG, "System Sleeped");
+                            display->Sleep();
+                            gpio_set_level(PIN_NUM_POWER_EN, 0);
+                            // i2c_bus_delete(&i2c_bus);
+                            // rtc_gpio_pullup_en(TOUCH_BUTTON_GPIO);
+                            //  esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0); 
+                             rtc_gpio_pullup_en(PIN_NUM_LCD_TE);
+                             esp_sleep_enable_ext0_wakeup(PIN_NUM_LCD_TE, 0); 
+                             ESP_ERROR_CHECK(mpu6050_enable_motiondetection(mpu6050, 5, 5));
+                            esp_deep_sleep_start(); 
+                        } 
+                    });
+        esp_netif_init();
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, (char *)NTP_SERVER1);
+        esp_sntp_setservername(1, (char *)NTP_SERVER2);
+        esp_sntp_init();
+        setenv("TZ", DEFAULT_TIMEZONE, 1);
+        tzset();
         // configTzTime(DEFAULT_TIMEZONE, NTP_SERVER1, NTP_SERVER2);
         vTaskDelete(NULL); }, "timesync", 4096, NULL, 4, nullptr);
     }
 
-    void InitializeButtons()
+    void
+    InitializeButtons()
     {
         // boot_button_.OnClick([this]()
         //                      {
@@ -721,19 +732,19 @@ private:
         //     }
         //     app.ToggleChatState(); });
 
-        // boot_button_.OnLongPress([this]
+        // touch_button_.OnLongPress([this]
         //                          {
         //     ESP_LOGI(TAG, "System Sleeped");
         //     ((CustomLcdDisplay *)GetDisplay())->Sleep();
-        //     gpio_set_level(PIN_NUM_LCD_POWER, 0);
-        //     // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
+        //     gpio_set_level(PIN_NUM_POWER_EN, 0);
         //     i2c_bus_delete(&i2c_bus);
+        // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
         //     esp_deep_sleep_start(); });
 
-        touch_button_.OnPressDown([this]()
-                                  { Application::GetInstance().StartListening(); });
-        touch_button_.OnPressUp([this]()
-                                { Application::GetInstance().StopListening(); });
+        // touch_button_.OnPressDown([this]()
+        //                           { Application::GetInstance().StartListening(); });
+        // touch_button_.OnPressUp([this]()
+        //                         { Application::GetInstance().StopListening(); });
     }
 
     void InitializeDisplay()
@@ -995,6 +1006,32 @@ public:
         InitializeButtons();
         InitializeIot();
         GetWakeupCause();
+        // // 配置GPIO引脚
+        // gpio_config_t io_conf = {};
+        // // 禁用中断
+        // io_conf.intr_type = GPIO_INTR_DISABLE;
+        // // 设置为输出模式876
+        // io_conf.mode = GPIO_MODE_OUTPUT;
+        // // 选择要配置的GPIO引脚
+        // io_conf.pin_bit_mask = (1ULL << GPIO_NUM_43);
+        // // 禁用下拉模式
+        // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        // // 禁用上拉模式
+        // io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        // // 应用配置
+        // gpio_config(&io_conf);
+        // // 禁用中断
+        // io_conf.intr_type = GPIO_INTR_DISABLE;
+        // // 设置为输出模式
+        // io_conf.mode = GPIO_MODE_OUTPUT;
+        // // 选择要配置的GPIO引脚
+        // io_conf.pin_bit_mask = (1ULL << GPIO_NUM_44);
+        // // 禁用下拉模式
+        // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        // // 禁用上拉模式
+        // io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        // // 应用配置
+        // gpio_config(&io_conf);
     }
 
     virtual Led *GetLed() override
@@ -1086,6 +1123,11 @@ public:
         ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
         bat_v *= 2;
+
+        // gpio_dump_io_configuration(stdout, (1ULL << GPIO_NUM_43) | (1ULL << GPIO_NUM_44));
+        // ESP_LOGI(TAG, "GPIO_NUM_43: %d, GPIO_NUM_44: %d", gpio_get_level(GPIO_NUM_43), gpio_get_level(GPIO_NUM_44));
+        // gpio_set_level(GPIO_NUM_43, !gpio_get_level(GPIO_NUM_43));
+        // gpio_set_level(GPIO_NUM_44, 1);
 
         // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
         if (bat_v >= VCHARGE)
