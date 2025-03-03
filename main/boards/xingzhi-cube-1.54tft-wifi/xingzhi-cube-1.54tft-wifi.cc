@@ -1,21 +1,22 @@
 #include "wifi_board.h"
-
 #include "audio_codecs/no_audio_codec.h"
 #include "xingzhi_lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-
-#include <wifi_station.h>
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
+
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
+#include <wifi_station.h>
+
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
 
@@ -52,12 +53,12 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("最大音量");
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
@@ -67,12 +68,12 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
@@ -106,8 +107,8 @@ private:
         display_ = new XINGZHI_1_54_TFT_LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                             {
-                                .text_font = &font_puhui_16_4,
-                                .icon_font = &font_awesome_16_4,
+                                .text_font = &font_puhui_20_4,
+                                .icon_font = &font_awesome_20_4,
                                 .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
                             });
     }

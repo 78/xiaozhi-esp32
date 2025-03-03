@@ -7,6 +7,7 @@
 #include "axp2101.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <driver/gpio.h>
@@ -26,8 +27,8 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    uint8_t _data_buffer[2];
     esp_timer_handle_t power_save_timer_ = nullptr;
+    bool show_low_power_warning_ = false;
 
     void InitializePowerSaveTimer() {
         esp_timer_create_args_t power_save_timer_args = {
@@ -48,15 +49,25 @@ private:
         // 电池放电模式下，如果待机超过一定时间，则自动关机
         const int seconds_to_shutdown = 600;
         static int seconds = 0;
-        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle) {
             seconds = 0;
             return;
         }
         if (!axp2101_->IsDischarging()) {
             seconds = 0;
+            if (show_low_power_warning_) {
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+            }
             return;
         }
-        
+        // 电量低于 10% 时，显示低电量警告
+        if (axp2101_->GetBatteryLevel() <= 10 && !show_low_power_warning_) {
+            app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+            show_low_power_warning_ = true;
+        }
+
         seconds++;
         if (seconds >= seconds_to_shutdown) {
             axp2101_->PowerOff();
@@ -124,12 +135,12 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("最大音量");
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
@@ -139,12 +150,12 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
