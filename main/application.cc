@@ -538,11 +538,10 @@ void Application::Start() {
 }
 
 void Application::OnClockTimer() {
-    static int count = 0;
-    count++;
+    clock_ticks_++;
 
     // Print the debug info every 10 seconds
-    if (count % 10 == 0) {
+    if (clock_ticks_ % 10 == 0) {
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
@@ -717,6 +716,7 @@ void Application::SetDeviceState(DeviceState state) {
         return;
     }
     
+    clock_ticks_ = 0;
     auto previous_state = device_state_;
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
