@@ -58,6 +58,7 @@ public:
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
+    void DismissAlert();
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
@@ -65,6 +66,7 @@ public:
     void UpdateIotStates();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
+    void PlaySound(const std::string_view& sound);
 
 private:
     Application();
@@ -107,7 +109,6 @@ private:
     void CheckNewVersion();
     void ShowActivationCode();
     void OnClockTimer();
-    void PlayLocalFile(const char* data, size_t size);
 };
 
 #endif // _APPLICATION_H_
