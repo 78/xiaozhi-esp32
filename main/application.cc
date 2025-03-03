@@ -302,12 +302,12 @@ void Application::StartListening() {
 }
 
 void Application::StopListening() {
-    if (device_state_ == kDeviceStateListening) {
-        Schedule([this]() {
+    Schedule([this]() {
+        if (device_state_ == kDeviceStateListening) {
             protocol_->SendStopListening();
             SetDeviceState(kDeviceStateIdle);
-        });
-    }
+        }
+    });
 }
 
 void Application::Start() {
