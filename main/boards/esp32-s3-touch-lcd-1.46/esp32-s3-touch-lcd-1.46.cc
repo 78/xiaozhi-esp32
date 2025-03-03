@@ -65,20 +65,18 @@ public:
     }
 };
 
-void PwrDriver(void *parameter)
-{
+void PwrDriver(void *parameter) {
     static uint32_t Time_Down = 0;
-    while(1)
-    {
-        if(!gpio_get_level(PWR_KEY_Input_PIN)){
+    while(1) {
+        if (!gpio_get_level(PWR_KEY_Input_PIN)) {
             Time_Down++;
             if(Time_Down > 65535)
                 Time_Down = 65535;
         }
-        else{
+        else {
             Time_Down = 0;
         }
-        if(Time_Down > 50){
+        if (Time_Down > 50) {
             display_->SetBacklight(0);
             gpio_set_level(PWR_Control_PIN, false);
         }
