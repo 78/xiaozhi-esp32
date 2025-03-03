@@ -100,7 +100,7 @@ void Application::CheckNewVersion() {
 
                 auto& board = Board::GetInstance();
                 board.SetPowerSaveMode(false);
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
                 wake_word_detect_.StopDetection();
 #endif
                 // 预先关闭音频输出，避免升级过程有音频操作
@@ -470,8 +470,7 @@ void Application::Start() {
         vTaskDelete(NULL);
     }, "check_new_version", 4096 * 2, this, 1, nullptr);
 
-
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
         background_task_->Schedule([this, data = std::move(data)]() mutable {
@@ -482,7 +481,9 @@ void Application::Start() {
             });
         });
     });
+#endif
 
+#if CONFIG_USE_WAKE_WORD_DETECT
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
@@ -682,13 +683,15 @@ void Application::InputAudio() {
             data = std::move(resampled);
         }
     }
-    
-#if CONFIG_USE_AUDIO_PROCESSING
-    if (audio_processor_.IsRunning()) {
-        audio_processor_.Input(data);
-    }
+
+#if CONFIG_USE_WAKE_WORD_DETECT
     if (wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
+    }
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
+    if (audio_processor_.IsRunning()) {
+        audio_processor_.Input(data);
     }
 #else
     if (device_state_ == kDeviceStateListening) {
@@ -730,7 +733,7 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
-#ifdef CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Stop();
 #endif
             break;
@@ -744,7 +747,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetEmotion("neutral");
             ResetDecoder();
             opus_encoder_->ResetState();
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Start();
 #endif
             UpdateIotStates();
@@ -757,7 +760,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::SPEAKING);
             ResetDecoder();
             codec->EnableOutput(true);
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Stop();
 #endif
             break;

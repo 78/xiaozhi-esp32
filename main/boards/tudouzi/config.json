@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "tudouzi",
+            "sdkconfig_append": ["CONFIG_USE_WAKE_WORD_DETECT=n"]
+        }
+    ]
+}

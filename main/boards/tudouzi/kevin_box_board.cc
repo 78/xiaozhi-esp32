@@ -10,7 +10,6 @@
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
-#include <esp_spiffs.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
@@ -28,8 +27,8 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    uint8_t _data_buffer[2];
     esp_timer_handle_t power_save_timer_ = nullptr;
+    bool show_low_power_warning_ = false;
 
     void InitializePowerSaveTimer() {
         esp_timer_create_args_t power_save_timer_args = {
@@ -50,29 +49,29 @@ private:
         // 电池放电模式下，如果待机超过一定时间，则自动关机
         const int seconds_to_shutdown = 600;
         static int seconds = 0;
-        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle) {
             seconds = 0;
             return;
         }
         if (!axp2101_->IsDischarging()) {
             seconds = 0;
+            if (show_low_power_warning_) {
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+            }
             return;
         }
-        
-        if (seconds >= seconds_to_shutdown) {
-            axp2101_->PowerOff();
+        // 电量低于 10% 时，显示低电量警告
+        if (axp2101_->GetBatteryLevel() <= 10 && !show_low_power_warning_) {
+            app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+            show_low_power_warning_ = true;
         }
-    }
 
-    void MountStorage() {
-        // Mount the storage partition
-        esp_vfs_spiffs_conf_t conf = {
-            .base_path = "/storage",
-            .partition_label = "storage",
-            .max_files = 5,
-            .format_if_mount_failed = true,
-        };
-        esp_vfs_spiffs_register(&conf);
+        seconds++;
+        if (seconds >= seconds_to_shutdown) {
+            // axp2101_->PowerOff();
+        }
     }
 
     void Enable4GModule() {
@@ -175,7 +174,6 @@ public:
         InitializeCodecI2c();
         axp2101_ = new Axp2101(codec_i2c_bus_, AXP2101_I2C_ADDR);
 
-        MountStorage();
         Enable4GModule();
 
         InitializeButtons();
