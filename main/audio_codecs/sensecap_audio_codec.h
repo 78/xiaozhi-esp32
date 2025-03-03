@@ -17,7 +17,8 @@ private:
 
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
-
+    gpio_num_t pa_pin_ = GPIO_NUM_NC;
+    
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 
     virtual int Read(int16_t* dest, int samples) override;
