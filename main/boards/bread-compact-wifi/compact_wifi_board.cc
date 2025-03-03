@@ -7,6 +7,7 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -63,12 +64,12 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("最大音量");
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
@@ -78,12 +79,12 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
