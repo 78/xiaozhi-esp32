@@ -128,6 +128,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(WIFI)"
     config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
+    config BOARD_TYPE_XIAOZHI_TFT_AICHATBOX_WIFI
+        bool "Ai小智聊天盒"
 endchoice
 
 choice DISPLAY_OLED_TYPE
