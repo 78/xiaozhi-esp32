@@ -72,6 +72,9 @@ SensecapAudioCodec::SensecapAudioCodec(void* i2c_master_handle, int input_sample
     input_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(input_dev_ != NULL);
 
+    esp_codec_set_disable_when_closed(output_dev_, false);
+    esp_codec_set_disable_when_closed(input_dev_, false);
+
     ESP_LOGI(TAG, "SensecapAudioDevice initialized");
 }
 
@@ -127,7 +130,7 @@ void SensecapAudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, 
             .bclk = bclk,
             .ws = ws,
             .dout = dout,
-            .din = din, //TODO
+            .din = din,
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -181,13 +184,18 @@ void SensecapAudioCodec::EnableOutput(bool enable) {
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
         };
-        esp_codec_dev_close(output_dev_);
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 1);
+        }
     } 
-    // else {
-    //     ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_)); // 关闭之后无法唤醒
-    // }
+    else {
+        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 0);
+        }
+    }
     AudioCodec::EnableOutput(enable);
 }
 
