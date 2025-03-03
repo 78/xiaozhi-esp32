@@ -15,6 +15,7 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
+#include <esp_app_desc.h>
 
 #define TAG "Application"
 
@@ -295,8 +296,6 @@ void Application::StartListening() {
         Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
             protocol_->SendStartListening(kListeningModeManualStop);
-            // FIXME: Wait for the speaker to empty the buffer
-            vTaskDelay(pdMS_TO_TICKS(120));
             SetDeviceState(kDeviceStateListening);
         });
     }
@@ -462,6 +461,8 @@ void Application::Start() {
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ota_.SetHeader("Client-Id", board.GetUuid());
     ota_.SetHeader("Accept-Language", Lang::CODE);
+    auto app_desc = esp_app_get_description();
+    ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
 
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
@@ -713,6 +714,7 @@ void Application::SetDeviceState(DeviceState state) {
         return;
     }
     
+    auto previous_state = device_state_;
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
@@ -746,6 +748,10 @@ void Application::SetDeviceState(DeviceState state) {
             audio_processor_.Start();
 #endif
             UpdateIotStates();
+            if (previous_state == kDeviceStateSpeaking) {
+                // FIXME: Wait for the speaker to empty the buffer
+                vTaskDelay(pdMS_TO_TICKS(120));
+            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
