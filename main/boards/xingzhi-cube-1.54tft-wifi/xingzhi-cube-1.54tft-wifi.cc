@@ -15,8 +15,8 @@
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
 
@@ -107,8 +107,8 @@ private:
         display_ = new XINGZHI_1_54_TFT_LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                             {
-                                .text_font = &font_puhui_16_4,
-                                .icon_font = &font_awesome_16_4,
+                                .text_font = &font_puhui_20_4,
+                                .icon_font = &font_awesome_20_4,
                                 .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
                             });
     }
