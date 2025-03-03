@@ -236,18 +236,18 @@ void Application::PlaySound(const std::string_view& sound) {
 }
 
 void Application::ToggleChatState() {
-    Schedule([this]() {
-        if (device_state_ == kDeviceStateActivating) {
-            SetDeviceState(kDeviceStateIdle);
-            return;
-        }
+    if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+        return;
+    }
 
-        if (!protocol_) {
-            ESP_LOGE(TAG, "Protocol not initialized");
-            return;
-        }
+    if (!protocol_) {
+        ESP_LOGE(TAG, "Protocol not initialized");
+        return;
+    }
 
-        if (device_state_ == kDeviceStateIdle) {
+    if (device_state_ == kDeviceStateIdle) {
+        Schedule([this]() {
             SetDeviceState(kDeviceStateConnecting);
             if (!protocol_->OpenAudioChannel()) {
                 return;
@@ -256,28 +256,32 @@ void Application::ToggleChatState() {
             keep_listening_ = true;
             protocol_->SendStartListening(kListeningModeAutoStop);
             SetDeviceState(kDeviceStateListening);
-        } else if (device_state_ == kDeviceStateSpeaking) {
+        });
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
-        } else if (device_state_ == kDeviceStateListening) {
+        });
+    } else if (device_state_ == kDeviceStateListening) {
+        Schedule([this]() {
             protocol_->CloseAudioChannel();
-        }
-    });
+        });
+    }
 }
 
 void Application::StartListening() {
-    Schedule([this]() {
-        if (device_state_ == kDeviceStateActivating) {
-            SetDeviceState(kDeviceStateIdle);
-            return;
-        }
+    if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+        return;
+    }
 
-        if (!protocol_) {
-            ESP_LOGE(TAG, "Protocol not initialized");
-            return;
-        }
-        
-        keep_listening_ = false;
-        if (device_state_ == kDeviceStateIdle) {
+    if (!protocol_) {
+        ESP_LOGE(TAG, "Protocol not initialized");
+        return;
+    }
+    
+    keep_listening_ = false;
+    if (device_state_ == kDeviceStateIdle) {
+        Schedule([this]() {
             if (!protocol_->IsAudioChannelOpened()) {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
@@ -286,23 +290,25 @@ void Application::StartListening() {
             }
             protocol_->SendStartListening(kListeningModeManualStop);
             SetDeviceState(kDeviceStateListening);
-        } else if (device_state_ == kDeviceStateSpeaking) {
+        });
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
             protocol_->SendStartListening(kListeningModeManualStop);
             // FIXME: Wait for the speaker to empty the buffer
             vTaskDelay(pdMS_TO_TICKS(120));
             SetDeviceState(kDeviceStateListening);
-        }
-    });
+        });
+    }
 }
 
 void Application::StopListening() {
-    Schedule([this]() {
-        if (device_state_ == kDeviceStateListening) {
+    if (device_state_ == kDeviceStateListening) {
+        Schedule([this]() {
             protocol_->SendStopListening();
             SetDeviceState(kDeviceStateIdle);
-        }
-    });
+        });
+    }
 }
 
 void Application::Start() {
@@ -794,10 +800,14 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
             }
         }); 
     } else if (device_state_ == kDeviceStateSpeaking) {
-        AbortSpeaking(kAbortReasonNone);
+        Schedule([this]() {
+            AbortSpeaking(kAbortReasonNone);
+        });
     } else if (device_state_ == kDeviceStateListening) {   
-        if (protocol_) {
-            protocol_->CloseAudioChannel();
-        }
+        Schedule([this]() {
+            if (protocol_) {
+                protocol_->CloseAudioChannel();
+            }
+        });
     }
 }
