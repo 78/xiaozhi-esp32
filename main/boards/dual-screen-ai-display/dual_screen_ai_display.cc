@@ -33,6 +33,7 @@
 #include "hna_16mm65t.h"
 #endif
 #include "spectrumdisplay.h"
+#include "mpu6050.h"
 
 #define TAG "DualScreenAIDisplay"
 
@@ -652,7 +653,7 @@ private:
     i2c_bus_handle_t i2c_bus = NULL;
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
-
+    mpu6050_handle_t mpu6050 = NULL;
     void InitializeI2c()
     {
         i2c_config_t conf = {
@@ -670,6 +671,12 @@ private:
         ESP_LOGI(TAG, "bmp280_default_init:%d", bmp280_default_init(bmp280));
         rx8900 = rx8900_create(i2c_bus, RX8900_I2C_ADDRESS_DEFAULT);
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
+
+        mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
+        ESP_ERROR_CHECK(mpu6050_config(mpu6050, ACCE_FS_4G, GYRO_FS_500DPS));
+        ESP_ERROR_CHECK(mpu6050_wake_up(mpu6050));
+        ESP_ERROR_CHECK(mpu6050_enable_motiondetection(mpu6050, 10, 20));
+
         xTaskCreate([](void *arg)
                     {
             sntp_set_time_sync_notification_cb([](struct timeval *t){
