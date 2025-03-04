@@ -94,6 +94,7 @@ private:
             ESP_LOGI(TAG, "charging");
         } else {
             obj->IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            obj->IoExpanderSetLevel(BSP_PWR_LCD, 0);
         }
     }
 
@@ -132,9 +133,9 @@ private:
         };
         btns = iot_button_create(&btn_config);
         iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, KnobBtnClickHandler, (void *)this);
-        // iot_button_register_cb(btns, BUTTON_LONG_PRESS_START, KnobBtnLongPressHandler, (void *)this);
+        iot_button_register_cb(btns, BUTTON_LONG_PRESS_START, KnobBtnLongPressHandler, (void *)this);
         // iot_button_register_cb(btns, BUTTON_PRESS_DOWN, KnobBtnDownHandler, (void *)this);
-        iot_button_register_cb(btns, BUTTON_PRESS_UP, KnobBtnUpHandler, (void *)this);
+        // iot_button_register_cb(btns, BUTTON_PRESS_UP, KnobBtnUpHandler, (void *)this);
     }
 
     void InitializeSpi() {
