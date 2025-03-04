@@ -14,7 +14,7 @@
 #include <driver/spi_common.h>
 #include <wifi_station.h>
 
-#define TAG "Esp32S3BoxBoard"
+#define TAG "EspBoxBoard"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
