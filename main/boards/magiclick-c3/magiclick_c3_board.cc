@@ -70,7 +70,7 @@ private:
     void InitializePowerSaveTimer() {
         esp_timer_create_args_t power_save_timer_args = {
             .callback = [](void *arg) {
-                auto board = static_cast<magiclick_c3_v2*>(arg);
+                auto board = static_cast<magiclick_c3*>(arg);
                 board->PowerSaveCheck();
             },
             .arg = this,
