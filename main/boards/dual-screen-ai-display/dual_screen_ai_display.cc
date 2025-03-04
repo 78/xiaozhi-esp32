@@ -121,12 +121,12 @@ public:
 #endif
     {
         DisplayLockGuard lock(this);
-        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
         InitializeBacklight();
         SetupUI();
+        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
 #if FORD_VFD_EN
         InitializeSubScreen();
