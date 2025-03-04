@@ -107,13 +107,13 @@ public:
                      bool mirror_y,
                      bool swap_xy,
                      spi_device_handle_t spidevice = nullptr)
-        : QspiLcdDisplay(io_handle, panel_handle, tp_handle, backlight_pin, backlight_output_invert,
+        : QspiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
                          width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                          {
                              .text_font = &font_puhui_16_4,
                              .icon_font = &font_awesome_16_4,
                              .emoji_font = font_emoji_32_init(),
-                         }),
+                         }, tp_handle),
 #if FORD_VFD_EN
           FORD_VFD(spidevice)
 #else
@@ -121,12 +121,12 @@ public:
 #endif
     {
         DisplayLockGuard lock(this);
-        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
         InitializeBacklight();
         SetupUI();
+        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
 #if FORD_VFD_EN
         InitializeSubScreen();
@@ -575,10 +575,12 @@ public:
         setmode(FORD_CONTENT);
     }
 
+#if CONFIG_USE_FFT_EFFECT
     virtual void SpectrumShow(float *buf, int size) override
     {
         _spectrum->inputFFTData(buf, size);
     }
+#endif
 #else
     void SetSubBacklight(uint8_t brightness)
     {
@@ -637,10 +639,12 @@ public:
         noti_show(0, (char *)content.c_str(), 10, HNA_UP2DOWN, timeout);
     }
 
+#if CONFIG_USE_FFT_EFFECT
     virtual void SpectrumShow(float *buf, int size) override
     {
         spectrum_show(buf, size);
     }
+#endif
 #endif
 };
 

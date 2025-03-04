@@ -15,7 +15,9 @@
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
-QspiLcdDisplay::QspiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, esp_lcd_touch_handle_t tp, gpio_num_t backlight_pin, bool backlight_output_invert, int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy, DisplayFonts fonts)
+QspiLcdDisplay::QspiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, 
+    gpio_num_t backlight_pin, bool backlight_output_invert, int width, int height, int offset_x, 
+    int offset_y, bool mirror_x, bool mirror_y, bool swap_xy, DisplayFonts fonts, esp_lcd_touch_handle_t tp)
     : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, fonts)
 {
     width_ = width;

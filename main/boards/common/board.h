@@ -9,7 +9,6 @@
 
 #include "sdcard.h"
 #include "led/led.h"
-#include "hna_16mm65t.h"
 
 void *create_board();
 class AudioCodec;

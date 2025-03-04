@@ -26,8 +26,8 @@ public:
     Display();
     virtual ~Display();
 
-    virtual void SetStatus(const char* status);
-    virtual void ShowNotification(const char* notification, int duration_ms = 3000);
+    virtual void SetStatus(const char *status);
+    virtual void ShowNotification(const char *notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
     virtual void SetEmotion(const char *emotion);
     virtual void SetChatMessage(const char *role, const char *content);
@@ -35,8 +35,11 @@ public:
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
+#if CONFIG_USE_FFT_EFFECT
     virtual void SpectrumShow(float *buf, int size) {}
+#endif
     virtual void DrawPoint(int x, int y, uint8_t dot) {}
+
     void SetAutoDimming(bool en)
     {
         Settings settings("display", true);
@@ -56,7 +59,7 @@ protected:
     uint8_t brightness_ = 0;
 
     lv_indev_t *touch_ = nullptr;
-    
+
     esp_pm_lock_handle_t pm_lock_ = nullptr;
     lv_display_t *display_ = nullptr;
 
@@ -66,9 +69,9 @@ protected:
     lv_obj_t *notification_label_ = nullptr;
     lv_obj_t *mute_label_ = nullptr;
     lv_obj_t *battery_label_ = nullptr;
-    lv_obj_t* chat_message_label_ = nullptr;
-    const char* battery_icon_ = nullptr;
-    const char* network_icon_ = nullptr;
+    lv_obj_t *chat_message_label_ = nullptr;
+    const char *battery_icon_ = nullptr;
+    const char *network_icon_ = nullptr;
     bool muted_ = false;
 
     esp_timer_handle_t notification_timer_ = nullptr;

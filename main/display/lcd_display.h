@@ -101,14 +101,8 @@ public:
                    gpio_num_t backlight_pin, bool backlight_output_invert,
                    int width, int height, int offset_x, int offset_y,
                    bool mirror_x, bool mirror_y, bool swap_xy,
-                   DisplayFonts fonts);
-    // QSPI LCD显示器withTouch
-    QspiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                   esp_lcd_touch_handle_t tp,
-                   gpio_num_t backlight_pin, bool backlight_output_invert,
-                   int width, int height, int offset_x, int offset_y,
-                   bool mirror_x, bool mirror_y, bool swap_xy,
-                   DisplayFonts fonts);
+                   DisplayFonts fonts,
+                   esp_lcd_touch_handle_t tp = nullptr);
 };
 
 // MCU8080 LCD显示器
