@@ -644,7 +644,6 @@ public:
 #endif
 };
 
-    mpu6050_handle_t mpu6050 = NULL;
 class DualScreenAIDisplay : public WifiBoard
 {
 private:
@@ -655,6 +654,7 @@ private:
     i2c_bus_handle_t i2c_bus = NULL;
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
+    mpu6050_handle_t mpu6050 = NULL;
     void InitializeI2c()
     {
         i2c_config_t conf = {
@@ -697,17 +697,7 @@ private:
                     {
                         CustomLcdDisplay *display = (CustomLcdDisplay*)Board::GetInstance().GetDisplay();
                         if(display != nullptr)
-                        display->Notification("SYNC TM OK", 1000);
-                            ESP_LOGI(TAG, "System Sleeped");
-                            display->Sleep();
-                            gpio_set_level(PIN_NUM_POWER_EN, 0);
-                            // i2c_bus_delete(&i2c_bus);
-                            // rtc_gpio_pullup_en(TOUCH_BUTTON_GPIO);
-                            //  esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0); 
-                             rtc_gpio_pullup_en(PIN_NUM_LCD_TE);
-                             esp_sleep_enable_ext0_wakeup(PIN_NUM_LCD_TE, 0); 
-                             ESP_ERROR_CHECK(mpu6050_enable_motiondetection(mpu6050, 5, 5));
-                            esp_deep_sleep_start(); 
+                            display->Notification("SYNC TM OK", 1000);
                         } 
                     });
         esp_netif_init();
@@ -1006,32 +996,6 @@ public:
         InitializeButtons();
         InitializeIot();
         GetWakeupCause();
-        // // 配置GPIO引脚
-        // gpio_config_t io_conf = {};
-        // // 禁用中断
-        // io_conf.intr_type = GPIO_INTR_DISABLE;
-        // // 设置为输出模式876
-        // io_conf.mode = GPIO_MODE_OUTPUT;
-        // // 选择要配置的GPIO引脚
-        // io_conf.pin_bit_mask = (1ULL << GPIO_NUM_43);
-        // // 禁用下拉模式
-        // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        // // 禁用上拉模式
-        // io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-        // // 应用配置
-        // gpio_config(&io_conf);
-        // // 禁用中断
-        // io_conf.intr_type = GPIO_INTR_DISABLE;
-        // // 设置为输出模式
-        // io_conf.mode = GPIO_MODE_OUTPUT;
-        // // 选择要配置的GPIO引脚
-        // io_conf.pin_bit_mask = (1ULL << GPIO_NUM_44);
-        // // 禁用下拉模式
-        // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        // // 禁用上拉模式
-        // io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-        // // 应用配置
-        // gpio_config(&io_conf);
     }
 
     virtual Led *GetLed() override
@@ -1114,6 +1078,63 @@ public:
         return value;
     }
 
+    void testmpu()
+    {
+        // mpu6050_acce_value_t acce_value;
+        // mpu6050_gyro_value_t gyro_value;
+        // // complimentary_angle_t complimentary_angle;
+
+        // auto err = mpu6050_get_acce(mpu6050, &acce_value);
+        // if (err != ESP_OK)
+        // {
+        //     ESP_LOGE(TAG, "Failed to read acceleration data: %s", esp_err_to_name(err));
+        // }
+        // else
+        // {
+        //     char acce_str[100];
+        //     snprintf(acce_str, sizeof(acce_str), "Acceleration Data: X = %.2f, Y = %.2f, Z = %.2f",
+        //              (float)acce_value.acce_x, (float)acce_value.acce_y, (float)acce_value.acce_z);
+        //     ESP_LOGI(TAG, "%s", acce_str);
+        // }
+
+        // err = mpu6050_get_gyro(mpu6050, &gyro_value);
+        // if (err != ESP_OK)
+        // {
+        //     ESP_LOGE(TAG, "Failed to read gyroscope data: %s", esp_err_to_name(err));
+        // }
+        // else
+        // {
+        //     char gyro_str[100];
+        //     snprintf(gyro_str, sizeof(gyro_str), "Gyroscope Data: X = %.2f, Y = %.2f, Z = %.2f",
+        //              (float)gyro_value.gyro_x, (float)gyro_value.gyro_y, (float)gyro_value.gyro_z);
+        //     ESP_LOGI(TAG, "%s", gyro_str);
+        // }
+        // err = mpu6050_complimentory_filter(mpu6050, &acce_value, &gyro_value, &complimentary_angle);
+        // if (err != ESP_OK)
+        // {
+        //     ESP_LOGE(TAG, "Failed to apply complimentary filter: %s", esp_err_to_name(err));
+        // }
+
+        // ESP_LOGI(TAG, "Roll: %.2f degrees, Pitch: %.2f degrees", complimentary_angle.roll, complimentary_angle.pitch);
+
+        esp_err_t ret;
+        uint8_t mpu6050_deviceid;
+        mpu6050_acce_value_t acce;
+        mpu6050_gyro_value_t gyro;
+        mpu6050_temp_value_t temp;
+        ret = mpu6050_get_deviceid(mpu6050, &mpu6050_deviceid);
+        ESP_LOGI(TAG, "mpu6050_deviceid:%X\n", mpu6050_deviceid);
+
+        ret = mpu6050_get_acce(mpu6050, &acce);
+        ESP_LOGI(TAG, "acce_x:%.2f, acce_y:%.2f, acce_z:%.2f\n", acce.acce_x, acce.acce_y, acce.acce_z);
+
+        ret = mpu6050_get_gyro(mpu6050, &gyro);
+        ESP_LOGI(TAG, "gyro_x:%.2f, gyro_y:%.2f, gyro_z:%.2f\n", gyro.gyro_x, gyro.gyro_y, gyro.gyro_z);
+
+        ret = mpu6050_get_temp(mpu6050, &temp);
+        ESP_LOGI(TAG, "t:%.2f \n", temp.temp);
+    }
+
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
         static int last_level = 0;
@@ -1123,12 +1144,7 @@ public:
         ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
         bat_v *= 2;
-
-        // gpio_dump_io_configuration(stdout, (1ULL << GPIO_NUM_43) | (1ULL << GPIO_NUM_44));
-        // ESP_LOGI(TAG, "GPIO_NUM_43: %d, GPIO_NUM_44: %d", gpio_get_level(GPIO_NUM_43), gpio_get_level(GPIO_NUM_44));
-        // gpio_set_level(GPIO_NUM_43, !gpio_get_level(GPIO_NUM_43));
-        // gpio_set_level(GPIO_NUM_44, 1);
-
+        // testmpu();
         // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
         if (bat_v >= VCHARGE)
         {
