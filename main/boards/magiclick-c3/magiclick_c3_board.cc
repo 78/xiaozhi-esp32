@@ -14,7 +14,8 @@
 #include "esp_lcd_nv3023.h"
 #include "font_awesome_symbols.h"
 #include <esp_efuse_table.h>
-
+#include <esp_timer.h>
+#include <esp_pm.h>
 #define TAG "magiclick_c3"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -62,6 +63,81 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     NV3023Display* display_;
+    esp_timer_handle_t power_save_timer_ = nullptr;
+    bool sleep_mode_enabled_ = false;
+    int power_save_ticks_ = 0;
+
+    void InitializePowerSaveTimer() {
+        esp_timer_create_args_t power_save_timer_args = {
+            .callback = [](void *arg) {
+                auto board = static_cast<magiclick_c3_v2*>(arg);
+                board->PowerSaveCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "power_save_timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
+    }
+
+    void PowerSaveCheck() {
+        // 如果待机超过一定时间，则进入睡眠模式
+        const int seconds_to_sleep = 120;
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle) {
+            power_save_ticks_ = 0;
+            return;
+        }
+
+        power_save_ticks_++;
+        if (power_save_ticks_ >= seconds_to_sleep) {
+            EnableSleepMode(true);
+        }
+    }
+
+    void EnableSleepMode(bool enable) {
+        power_save_ticks_ = 0;
+        if (!sleep_mode_enabled_ && enable) {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            // 如果是LCD，还可以调节屏幕亮度
+            display->SetBacklight(1);
+            
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
+
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 160,
+                .min_freq_mhz = 40,
+                .light_sleep_enable = true,
+            };
+            esp_pm_configure(&pm_config);
+            sleep_mode_enabled_ = true;
+        } else if (sleep_mode_enabled_ && !enable) {
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 160,
+                .min_freq_mhz = 160,
+                .light_sleep_enable = false,
+            };
+            esp_pm_configure(&pm_config);
+            ESP_LOGI(TAG, "Disabling sleep mode");
+
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
+            
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("happy");
+            // 如果是LCD，还可以调节屏幕亮度
+            display->SetBacklight(50);
+
+            sleep_mode_enabled_ = false;
+        }
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -88,6 +164,7 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
+            EnableSleepMode(false);
             Application::GetInstance().StartListening();
         });
         boot_button_.OnPressUp([this]() {
@@ -153,6 +230,7 @@ public:
 
         InitializeCodecI2c();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
