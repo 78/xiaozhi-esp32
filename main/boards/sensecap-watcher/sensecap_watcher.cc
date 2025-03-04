@@ -48,8 +48,8 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
-    esp_err_t IoExpanderSetLevel(uint16_t pin_mask, uint8_t level)
-    {
+
+    esp_err_t IoExpanderSetLevel(uint16_t pin_mask, uint8_t level) {
         return esp_io_expander_set_level(io_exp_handle, pin_mask, level);
     }
 
@@ -58,44 +58,6 @@ private:
         esp_io_expander_get_level(io_exp_handle, DRV_IO_EXP_INPUT_MASK, &pin_val);
         pin_mask &= DRV_IO_EXP_INPUT_MASK;
         return (uint8_t)((pin_val & pin_mask) ? 1 : 0);
-    }
-    static uint8_t KnobBtnGetValue(void *param)
-    {
-        SensecapWatcher* obj = static_cast<SensecapWatcher*>(param);
-        return obj->IoExpanderGetLevel(BSP_KNOB_BTN);
-    }
-    static void KnobBtnClickHandler(void* button_handle, void* usr_data)
-    {
-        ESP_LOGI(TAG, "Button clicked");
-        SensecapWatcher* obj = static_cast<SensecapWatcher*>(usr_data);
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-            obj->ResetWifiConfiguration();
-        }
-        app.ToggleChatState();
-    }
-
-    static void KnobBtnDownHandler(void* button_handle, void* usr_data)
-    {
-        ESP_LOGI(TAG, "Button down");
-        Application::GetInstance().StartListening();
-    }
-    static void KnobBtnUpHandler(void* button_handle, void* usr_data)
-    {
-        ESP_LOGI(TAG, "Button up");
-        Application::GetInstance().StopListening();
-    }
-
-    static void KnobBtnLongPressHandler(void* button_handle, void* usr_data) {
-        ESP_LOGI(TAG, "Button long pressed");
-        SensecapWatcher* obj = static_cast<SensecapWatcher*>(usr_data);
-        bool is_charging = (obj->IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
-        if (is_charging) {
-            ESP_LOGI(TAG, "charging");
-        } else {
-            obj->IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
-            obj->IoExpanderSetLevel(BSP_PWR_LCD, 0);
-        }
     }
 
     void InitializeExpander() {
@@ -118,32 +80,46 @@ private:
     }
 
     void InitializeButton() {
-
         button_config_t btn_config = {
             .type = BUTTON_TYPE_CUSTOM,
-            .long_press_time = 1000,
-            .short_press_time = 200,
+            .long_press_time = 2000,
+            .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
                 .button_custom_init =nullptr,
-                .button_custom_get_key_value = KnobBtnGetValue,
+                .button_custom_get_key_value = [](void *param) -> uint8_t {
+                    auto self = static_cast<SensecapWatcher*>(param);
+                    return self->IoExpanderGetLevel(BSP_KNOB_BTN);
+                },
                 .button_custom_deinit = nullptr,
                 .priv = this,
             },
         };
         btns = iot_button_create(&btn_config);
-        iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, KnobBtnClickHandler, (void *)this);
-        iot_button_register_cb(btns, BUTTON_LONG_PRESS_START, KnobBtnLongPressHandler, (void *)this);
-        // iot_button_register_cb(btns, BUTTON_PRESS_DOWN, KnobBtnDownHandler, (void *)this);
-        // iot_button_register_cb(btns, BUTTON_PRESS_UP, KnobBtnUpHandler, (void *)this);
+        iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<SensecapWatcher*>(usr_data);
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                self->ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        }, this);
+        iot_button_register_cb(btns, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<SensecapWatcher*>(usr_data);
+            bool is_charging = (self->IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
+            if (is_charging) {
+                ESP_LOGI(TAG, "charging");
+            } else {
+                self->IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+                self->IoExpanderSetLevel(BSP_PWR_LCD, 0);
+            }
+        }, this);
     }
 
     void InitializeSpi() {
-        
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
         spi_bus_config_t qspi_cfg = {0};
-
         qspi_cfg.sclk_io_num = BSP_SPI3_HOST_PCLK;
         qspi_cfg.data0_io_num = BSP_SPI3_HOST_DATA0;
         qspi_cfg.data1_io_num = BSP_SPI3_HOST_DATA1;
@@ -155,7 +131,6 @@ private:
     }
 
     void Initializespd2010Display() {
-        esp_err_t ret = ESP_OK;
         esp_lcd_panel_io_handle_t ret_io;
         esp_lcd_panel_handle_t ret_panel;
 
