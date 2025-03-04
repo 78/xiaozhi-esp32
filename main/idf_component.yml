@@ -18,6 +18,7 @@ dependencies:
   espressif/button: "^3.3.1"
   lvgl/lvgl: "~9.2.2"
   esp_lvgl_port: "~2.4.4"
+  espressif/esp32-camera: "^2.0.15"
   ## Required IDF version
   idf:
     version: ">=5.3"
