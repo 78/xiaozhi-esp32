@@ -60,6 +60,8 @@ choice BOARD_TYPE
         bool "面包板 ESP32 DevKit"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
+    config BOARD_TYPE_ESP32_S3_BOX
+        bool "ESP32-S3-BOX"
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
