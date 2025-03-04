@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "magiclick-2p5",
+            "sdkconfig_append": []
+        }
+    ]
+}

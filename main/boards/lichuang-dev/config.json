@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lichuang-dev",
+            "sdkconfig_append": []
+        }
+    ]
+}

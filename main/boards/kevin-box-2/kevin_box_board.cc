@@ -7,9 +7,9 @@
 #include "axp2101.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
-#include <esp_spiffs.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <esp_timer.h>
@@ -27,8 +27,8 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    uint8_t _data_buffer[2];
     esp_timer_handle_t power_save_timer_ = nullptr;
+    bool show_low_power_warning_ = false;
 
     void InitializePowerSaveTimer() {
         esp_timer_create_args_t power_save_timer_args = {
@@ -38,7 +38,7 @@ private:
             },
             .arg = this,
             .dispatch_method = ESP_TIMER_TASK,
-            .name = "Power Save Timer",
+            .name = "power_save_timer",
             .skip_unhandled_events = false,
         };
         ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
@@ -49,30 +49,30 @@ private:
         // 电池放电模式下，如果待机超过一定时间，则自动关机
         const int seconds_to_shutdown = 600;
         static int seconds = 0;
-        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle) {
             seconds = 0;
             return;
         }
-        if (!axp2101_->IsDischarging()) {
+        if (axp2101_->IsDischarging()) {
+            // 电量低于 10% 时，显示低电量警告
+            if (!show_low_power_warning_ && axp2101_->GetBatteryLevel() <= 10) {
+                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+                show_low_power_warning_ = true;
+            }
+        } else {
             seconds = 0;
+            if (show_low_power_warning_) {
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+            }
             return;
         }
-        
+
         seconds++;
         if (seconds >= seconds_to_shutdown) {
             axp2101_->PowerOff();
         }
-    }
-
-    void MountStorage() {
-        // Mount the storage partition
-        esp_vfs_spiffs_conf_t conf = {
-            .base_path = "/storage",
-            .partition_label = "storage",
-            .max_files = 5,
-            .format_if_mount_failed = true,
-        };
-        esp_vfs_spiffs_register(&conf);
     }
 
     void Enable4GModule() {
@@ -136,12 +136,12 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification("最大音量");
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
@@ -151,12 +151,12 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification("音量 " + std::to_string(volume));
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification("已静音");
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
@@ -164,6 +164,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
@@ -175,7 +176,6 @@ public:
         InitializeCodecI2c();
         axp2101_ = new Axp2101(codec_i2c_bus_, AXP2101_I2C_ADDR);
 
-        MountStorage();
         Enable4GModule();
 
         InitializeButtons();

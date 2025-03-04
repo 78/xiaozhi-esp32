@@ -4,6 +4,7 @@
 #include <cJSON.h>
 #include <string>
 #include <functional>
+#include <chrono>
 
 struct BinaryProtocol3 {
     uint8_t type;
@@ -30,6 +31,9 @@ public:
     inline int server_sample_rate() const {
         return server_sample_rate_;
     }
+    inline const std::string& session_id() const {
+        return session_id_;
+    }
 
     void OnIncomingAudio(std::function<void(std::vector<uint8_t>&& data)> callback);
     void OnIncomingJson(std::function<void(const cJSON* root)> callback);
@@ -37,6 +41,7 @@ public:
     void OnAudioChannelClosed(std::function<void()> callback);
     void OnNetworkError(std::function<void(const std::string& message)> callback);
 
+    virtual void Start() = 0;
     virtual bool OpenAudioChannel() = 0;
     virtual void CloseAudioChannel() = 0;
     virtual bool IsAudioChannelOpened() const = 0;
@@ -56,9 +61,13 @@ protected:
     std::function<void(const std::string& message)> on_network_error_;
 
     int server_sample_rate_ = 16000;
+    bool error_occurred_ = false;
     std::string session_id_;
+    std::chrono::time_point<std::chrono::steady_clock> last_incoming_time_;
 
     virtual void SendText(const std::string& text) = 0;
+    virtual void SetError(const std::string& message);
+    virtual bool IsTimeout() const;
 };
 
 #endif // PROTOCOL_H

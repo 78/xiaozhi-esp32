@@ -60,7 +60,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x51, (uint8_t[]){0xFF}, 1, 0},
 };
 
-class CustomLcdDisplay : public LcdDisplay, public Led,
+class CustomLcdDisplay : public QspiLcdDisplay, public Led,
 #if FORD_VFD_EN
                          public FORD_VFD
 #else
@@ -107,13 +107,13 @@ public:
                      bool mirror_y,
                      bool swap_xy,
                      spi_device_handle_t spidevice = nullptr)
-        : LcdDisplay(io_handle, panel_handle, tp_handle, backlight_pin, backlight_output_invert,
-                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                     {
-                         .text_font = &font_puhui_16_4,
-                         .icon_font = &font_awesome_16_4,
-                         .emoji_font = font_emoji_32_init(),
-                     }),
+        : QspiLcdDisplay(io_handle, panel_handle, tp_handle, backlight_pin, backlight_output_invert,
+                         width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                         {
+                             .text_font = &font_puhui_16_4,
+                             .icon_font = &font_awesome_16_4,
+                             .emoji_font = font_emoji_32_init(),
+                         }),
 #if FORD_VFD_EN
           FORD_VFD(spidevice)
 #else
@@ -291,9 +291,9 @@ public:
         lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
     }
 
-    virtual void SetChatMessage(const std::string &role, const std::string &content) override
+    virtual void SetChatMessage(const char *role, const char *content) override
     {
-        if (role == "")
+        if (role != nullptr && *role == '\0')
             return;
 #if FORD_VFD_EN
         SetSubContent(content);
@@ -320,7 +320,7 @@ public:
         lv_obj_t *label = lv_label_create(container);
         lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
 
-        if (role == "user")
+        if (strcmp(role, "user") == 0)
         {
             lv_obj_add_style(label, &style_user, 0);
             lv_obj_align(label, LV_ALIGN_RIGHT_MID, 0, 0);
@@ -331,7 +331,7 @@ public:
             lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
         }
         lv_obj_set_style_text_font(label, &font_puhui_16_4, 0);
-        lv_label_set_text(label, content.c_str());
+        lv_label_set_text(label, content);
         // lv_obj_center(label);
 
         lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);

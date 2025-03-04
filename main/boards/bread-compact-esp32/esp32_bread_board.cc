@@ -6,18 +6,40 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
-
+#include "display/ssd1306_display.h"
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
 #define TAG "ESP32-MarsbearSupport"
 
+LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_awesome_14_1);
+
 
 class CompactWifiBoard : public WifiBoard {
 private:
     Button boot_button_;
     Button touch_button_;
+    Button asr_button_;
+
+    i2c_master_bus_handle_t display_i2c_bus_;
+
+    void InitializeDisplayI2c() {
+        i2c_master_bus_config_t bus_config = {
+            .i2c_port = (i2c_port_t)0,
+            .sda_io_num = DISPLAY_SDA_PIN,
+            .scl_io_num = DISPLAY_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+    }
 
     void InitializeButtons() {
         
@@ -39,6 +61,12 @@ private:
             gpio_set_level(BUILTIN_LED_GPIO, 1);
             app.ToggleChatState();
         });
+
+        asr_button_.OnClick([this]() {
+            std::string wake_word="你好小智";
+            Application::GetInstance().WakeWordInvoke(wake_word);
+        });
+
         touch_button_.OnPressDown([this]() {
             gpio_set_level(BUILTIN_LED_GPIO, 1);
             Application::GetInstance().StartListening();
@@ -57,8 +85,9 @@ private:
     }
 
 public:
-    CompactWifiBoard() : boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO)
+    CompactWifiBoard() : boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
     {
+        InitializeDisplayI2c();
         InitializeButtons();
         InitializeIot();
     }
@@ -73,6 +102,12 @@ public:
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
 #endif
         return &audio_codec;
+    }
+
+    virtual Display* GetDisplay() override {
+        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+                                    &font_puhui_14_1, &font_awesome_14_1);
+        return &display;
     }
 
 };

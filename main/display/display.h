@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include <esp_timer.h>
 #include <esp_log.h>
+#include <esp_pm.h>
 
 #include <string>
 #include "settings.h"
@@ -25,10 +26,11 @@ public:
     Display();
     virtual ~Display();
 
-    virtual void SetStatus(const std::string &status);
+    virtual void SetStatus(const char* status);
+    virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
-    virtual void SetEmotion(const std::string &emotion);
-    virtual void SetChatMessage(const std::string &role, const std::string &content);
+    virtual void SetEmotion(const char *emotion);
+    virtual void SetChatMessage(const char *role, const char *content);
     virtual void Notification(const std::string &content, int timeout);
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
@@ -44,14 +46,18 @@ public:
 
     bool GetAutoDimming() { return autoDimming; }
 
-    int width() const { return width_; }
-    int height() const { return height_; }
+    inline int width() const { return width_; }
+    inline int height() const { return height_; }
+    inline uint8_t brightness() const { return brightness_; }
 
 protected:
     int width_ = 0;
     int height_ = 0;
+    uint8_t brightness_ = 0;
 
     lv_indev_t *touch_ = nullptr;
+    
+    esp_pm_lock_handle_t pm_lock_ = nullptr;
     lv_display_t *display_ = nullptr;
 
     lv_obj_t *emotion_label_ = nullptr;
@@ -60,8 +66,9 @@ protected:
     lv_obj_t *notification_label_ = nullptr;
     lv_obj_t *mute_label_ = nullptr;
     lv_obj_t *battery_label_ = nullptr;
-    const char *battery_icon_ = nullptr;
-    const char *network_icon_ = nullptr;
+    lv_obj_t* chat_message_label_ = nullptr;
+    const char* battery_icon_ = nullptr;
+    const char* network_icon_ = nullptr;
     bool muted_ = false;
 
     esp_timer_handle_t notification_timer_ = nullptr;

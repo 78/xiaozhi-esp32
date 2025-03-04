@@ -2,7 +2,6 @@
 #include "audio_codecs/cores3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
-#include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -120,7 +119,6 @@ private:
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
-    Button boot_button_;
     esp_timer_handle_t touchpad_timer_;
 
     void InitializeI2c() {
@@ -264,23 +262,13 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
                                         .emoji_font = font_emoji_64_init(),
                                     });
-    }
-
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -290,14 +278,13 @@ private:
     }
 
 public:
-    M5StackCoreS3Board() : boot_button_(GPIO_NUM_1) {
+    M5StackCoreS3Board() {
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
         I2cDetect();
         InitializeSpi();
         InitializeIli9342Display();
-        InitializeButtons();
         InitializeIot();
         InitializeFt6336TouchPad();
     }

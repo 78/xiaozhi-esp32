@@ -12,3 +12,5 @@ releases/
 tools/WpfModuloTool/bin/
 tools/WpfModuloTool/.vs/
 tools/WpfModuloTool/obj/
+main/assets/lang_config.h
+.DS_Store

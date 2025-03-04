@@ -38,7 +38,7 @@ CircularStrip::CircularStrip(gpio_num_t gpio, uint8_t max_leds) : max_leds_(max_
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Strip Timer",
+        .name = "strip_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&strip_timer_args, &strip_timer_));
@@ -211,8 +211,13 @@ void CircularStrip::OnStateChanged() {
             Blink(color, 100);
             break;
         }
+        case kDeviceStateActivating: {
+            StripColor color = { LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS, LOW_BRIGHTNESS };
+            Blink(color, 500);
+            break;
+        }
         default:
-            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
             return;
     }
 }

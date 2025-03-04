@@ -23,6 +23,10 @@ private:
 
 protected:
     Board();
+    std::string GenerateUuid();
+
+    // 软件生成的设备唯一标识
+    std::string uuid_;
 
 public:
     static Board &GetInstance()
@@ -33,6 +37,7 @@ public:
 
     virtual ~Board() = default;
     virtual std::string GetBoardType() = 0;
+    virtual std::string GetUuid() { return uuid_; }
     virtual Led *GetLed();
     virtual AudioCodec *GetAudioCodec() = 0;
     virtual float GetBarometer() { return 0; }

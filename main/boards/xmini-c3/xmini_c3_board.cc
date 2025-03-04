@@ -6,11 +6,15 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "settings.h"
+#include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
+#include <esp_timer.h>
+#include <esp_pm.h>
 
 #define TAG "XminiC3Board"
 
@@ -21,6 +25,75 @@ class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
+    bool press_to_talk_enabled_ = false;
+    esp_timer_handle_t power_save_timer_ = nullptr;
+    bool sleep_mode_enabled_ = false;
+    int power_save_ticks_ = 0;
+
+    void InitializePowerSaveTimer() {
+        esp_timer_create_args_t power_save_timer_args = {
+            .callback = [](void *arg) {
+                auto board = static_cast<XminiC3Board*>(arg);
+                board->PowerSaveCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "power_save_timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
+    }
+
+    void PowerSaveCheck() {
+        // 如果待机超过一定时间，则进入睡眠模式
+        const int seconds_to_sleep = 120;
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle) {
+            power_save_ticks_ = 0;
+            return;
+        }
+
+        power_save_ticks_++;
+        if (power_save_ticks_ >= seconds_to_sleep) {
+            EnableSleepMode(true);
+        }
+    }
+
+    void EnableSleepMode(bool enable) {
+        power_save_ticks_ = 0;
+        if (!sleep_mode_enabled_ && enable) {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            // 如果是LCD，还可以调节屏幕亮度
+            
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
+
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 160,
+                .min_freq_mhz = 40,
+                .light_sleep_enable = true,
+            };
+            esp_pm_configure(&pm_config);
+            sleep_mode_enabled_ = true;
+        } else if (sleep_mode_enabled_ && !enable) {
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 160,
+                .min_freq_mhz = 160,
+                .light_sleep_enable = false,
+            };
+            esp_pm_configure(&pm_config);
+            ESP_LOGI(TAG, "Disabling sleep mode");
+
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
+            sleep_mode_enabled_ = false;
+        }
+    }
+
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -45,20 +118,31 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            app.ToggleChatState();
+            if (!press_to_talk_enabled_) {
+                app.ToggleChatState();
+            }
         });
         boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+            EnableSleepMode(false);
+            if (press_to_talk_enabled_) {
+                Application::GetInstance().StartListening();
+            }
         });
         boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+            if (press_to_talk_enabled_) {
+                Application::GetInstance().StopListening();
+            }
         });
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
+        Settings settings("vendor");
+        press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
+
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("PressToTalk"));
     }
 
 public:
@@ -68,6 +152,7 @@ public:
 
         InitializeCodecI2c();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeIot();
     }
 
@@ -88,6 +173,45 @@ public:
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
+
+    void SetPressToTalkEnabled(bool enabled) {
+        press_to_talk_enabled_ = enabled;
+
+        Settings settings("vendor", true);
+        settings.SetInt("press_to_talk", enabled ? 1 : 0);
+        ESP_LOGI(TAG, "Press to talk enabled: %d", enabled);
+    }
+
+    bool IsPressToTalkEnabled() {
+        return press_to_talk_enabled_;
+    }
 };
 
 DECLARE_BOARD(XminiC3Board);
+
+
+namespace iot {
+
+class PressToTalk : public Thing {
+public:
+    PressToTalk() : Thing("PressToTalk", "控制对话模式，一种是长按对话，一种是单击后连续对话。") {
+        // 定义设备的属性
+        properties_.AddBooleanProperty("enabled", "true 表示长按说话模式，false 表示单击说话模式", []() -> bool {
+            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
+            return board->IsPressToTalkEnabled();
+        });
+
+        // 定义设备可以被远程执行的指令
+        methods_.AddMethod("SetEnabled", "启用或禁用长按说话模式，调用前需要经过用户确认", ParameterList({
+            Parameter("enabled", "true 表示长按说话模式，false 表示单击说话模式", kValueTypeBoolean, true)
+        }), [](const ParameterList& parameters) {
+            bool enabled = parameters["enabled"].boolean();
+            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
+            board->SetPressToTalkEnabled(enabled);
+        });
+    }
+};
+
+} // namespace iot
+
+DECLARE_THING(PressToTalk);
