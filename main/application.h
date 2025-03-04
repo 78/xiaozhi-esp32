@@ -18,8 +18,10 @@
 #include "ota.h"
 #include "background_task.h"
 
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
 #include "audio_processor.h"
 #endif
 
@@ -72,8 +74,10 @@ private:
     Application();
     ~Application();
 
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
     WakeWordDetect wake_word_detect_;
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
     AudioProcessor audio_processor_;
 #endif
     Ota ota_;
@@ -87,6 +91,7 @@ private:
     bool aborted_ = false;
     bool voice_detected_ = false;
     std::string last_iot_states_;
+    int clock_ticks_ = 0;
 
     // Audio encode / decode
     BackgroundTask* background_task_ = nullptr;

@@ -20,6 +20,7 @@ Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, b
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    port_cfg.task_priority = 1;
     lvgl_port_init(&port_cfg);
 
     // SSD1306 config
