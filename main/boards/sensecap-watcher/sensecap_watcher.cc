@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/sensecap_audio_codec.h"
+#include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
 #include "font_awesome_symbols.h"
 #include "application.h"
