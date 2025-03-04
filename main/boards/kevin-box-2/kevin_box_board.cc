@@ -54,18 +54,19 @@ private:
             seconds = 0;
             return;
         }
-        if (!axp2101_->IsDischarging()) {
+        if (axp2101_->IsDischarging()) {
+            // 电量低于 10% 时，显示低电量警告
+            if (!show_low_power_warning_ && axp2101_->GetBatteryLevel() <= 10) {
+                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+                show_low_power_warning_ = true;
+            }
+        } else {
             seconds = 0;
             if (show_low_power_warning_) {
                 app.DismissAlert();
                 show_low_power_warning_ = false;
             }
             return;
-        }
-        // 电量低于 10% 时，显示低电量警告
-        if (axp2101_->GetBatteryLevel() <= 10 && !show_low_power_warning_) {
-            app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
-            show_low_power_warning_ = true;
         }
 
         seconds++;
@@ -163,6 +164,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:

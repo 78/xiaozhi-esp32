@@ -53,7 +53,7 @@ void AudioProcessor::Initialize(int channels, bool reference) {
         auto this_ = (AudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
-    }, "audio_communication", 4096 * 2, this, 1, NULL);
+    }, "audio_communication", 4096 * 2, this, 2, NULL);
 }
 
 AudioProcessor::~AudioProcessor() {

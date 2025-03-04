@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include <esp_timer.h>
 #include <esp_log.h>
+#include <esp_pm.h>
 
 #include <string>
 
@@ -35,6 +36,8 @@ protected:
     int height_ = 0;
     uint8_t brightness_ = 0;
 
+    
+    esp_pm_lock_handle_t pm_lock_ = nullptr;
     lv_display_t *display_ = nullptr;
 
     lv_obj_t *emotion_label_ = nullptr;
