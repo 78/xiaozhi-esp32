@@ -47,7 +47,12 @@ Display::Display() {
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
 
     // Create a power management lock
-    ESP_ERROR_CHECK(esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ml307", &pm_lock_));
+    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ml307", &pm_lock_);
+    if (ret == ESP_ERR_NOT_SUPPORTED) {
+        ESP_LOGI(TAG, "Power management not supported");
+    } else {
+        ESP_ERROR_CHECK(ret);
+    }
 }
 
 Display::~Display() {
