@@ -101,8 +101,8 @@ public:
         InitializeBacklight();
         SetupUI();
         // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+        // lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
+        // lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
     }
 
     void InitializeBacklight()
@@ -261,7 +261,7 @@ public:
 
     virtual void SetChatMessage(const char *role, const char *content) override
     {
-        if (role != nullptr && *role == '\0')
+        if (content != nullptr && *content == '\0')
             return;
         std::stringstream ss;
         ss << "role: " << role << ", content: " << content << std::endl;

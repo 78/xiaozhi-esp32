@@ -125,8 +125,8 @@ public:
         InitializeBacklight();
         SetupUI();
         // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+        // lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
+        // lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
 
 #if FORD_VFD_EN
         InitializeSubScreen();
@@ -293,7 +293,7 @@ public:
 
     virtual void SetChatMessage(const char *role, const char *content) override
     {
-        if (role != nullptr && *role == '\0')
+        if (content != nullptr && *content == '\0')
             return;
 #if FORD_VFD_EN
         SetSubContent(content);
@@ -305,6 +305,7 @@ public:
         // sdcard->Write("/sdcard/log.txt", logMessage.c_str());
         // ESP_LOGI(TAG, "%s", logMessage.c_str());
 
+        // ESP_LOGI(TAG, "%X %X", content[0], content[1]);
         DisplayLockGuard lock(this);
         if (labelContainer.size() >= 10)
         {
@@ -679,7 +680,7 @@ private:
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
         ESP_LOGI(TAG, "mpu6050_config:%d", mpu6050_config(mpu6050, ACCE_FS_4G, GYRO_FS_500DPS));
-        ESP_ERROR_CHECK(mpu6050_wake_up(mpu6050));
+        (mpu6050_wake_up(mpu6050));
 
         xTaskCreate([](void *arg)
                     { sntp_set_time_sync_notification_cb([](struct timeval *t)
@@ -907,6 +908,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Barometer"));
         thing_manager.AddThing(iot::CreateThing("Displayer"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
     }
 
