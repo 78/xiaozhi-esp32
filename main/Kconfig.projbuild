@@ -132,6 +132,22 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_FANCHENG_BOARD_ML307
+        bool "凡诚4G(ML307)开发板"   
+    config BOARD_TYPE_FANCHENG_BOARD_WIFI
+        bool "凡诚WIFI开发板"        
+endchoice
+
+choice FANCHENG_DISPLAY_TYPE
+    depends on BOARD_TYPE_FANCHENG_BOARD_ML307 || BOARD_TYPE_FANCHENG_BOARD_WIFI
+    prompt "Fancheng Display Type"
+    default FANCHENG_OLED_SSD1306_128X64
+    help
+        凡诚开发板屏幕类型选择
+    config FANCHENG_OLED_SSD1306_128X64
+        bool "SSD1306, 分辨率128*64"
+    config FANCHENG_LCD_ST7735_128X160
+        bool "ST7735, 分辨率128*160"
 endchoice
 
 choice DISPLAY_OLED_TYPE
