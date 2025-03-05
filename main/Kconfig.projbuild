@@ -22,7 +22,7 @@ endchoice
 
 choice CONNECTION_TYPE
     prompt "Connection Type"
-    default CONNECTION_TYPE_MQTT_UDP
+    default CONNECTION_TYPE_WEBSOCKET
     help
         网络数据传输协议
     config CONNECTION_TYPE_MQTT_UDP
@@ -34,7 +34,9 @@ endchoice
 config WEBSOCKET_URL
     depends on CONNECTION_TYPE_WEBSOCKET
     string "Websocket URL"
-    default "wss://api.tenclass.net/xiaozhi/v1/"
+    default "wss://www.u2416165.nyat.app:28103"
+    # default "ws://18wu487iv580.vicp.fun:25665"
+    # default "wss://api.tenclass.net/xiaozhi/v1/"
     help
         Communication with the server through websocket after wake up.
 

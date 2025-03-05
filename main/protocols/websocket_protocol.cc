@@ -11,6 +11,10 @@
 
 #define TAG "WS"
 
+// 添加证书配置
+extern const uint8_t server_cert_pem_start[] asm("_binary_server_crt_start");
+extern const uint8_t server_cert_pem_end[] asm("_binary_server_crt_end");
+
 WebsocketProtocol::WebsocketProtocol() {
     event_group_handle_ = xEventGroupCreate();
 }
@@ -64,10 +68,16 @@ bool WebsocketProtocol::OpenAudioChannel() {
     std::string url = CONFIG_WEBSOCKET_URL;
     std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
     websocket_ = Board::GetInstance().CreateWebSocket();
+    
+    // 设置SSL证书
+    // websocket_->SetCertificate((const char*)server_cert_pem_start);
+    
     websocket_->SetHeader("Authorization", token.c_str());
     websocket_->SetHeader("Protocol-Version", "1");
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+    websocket_->SetHeader("Protocol", "websocket");
+    websocket_->SetHeader("Upgrade", "websocket");
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {

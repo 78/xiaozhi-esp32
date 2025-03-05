@@ -183,3 +183,6 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+# # 添加证书文件到项目
+# target_add_binary_data(${COMPONENT_TARGET} "server.crt" TEXT)
