@@ -45,7 +45,8 @@ Application::Application() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "clock_timer"
+        .name = "clock_timer",
+        .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
 }

@@ -113,7 +113,7 @@ public:
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
 
-    const TouchPoint_t& GetTouchPoint() {
+    inline const TouchPoint_t& GetTouchPoint() {
         return tp_;
     }
 
@@ -203,15 +203,13 @@ private:
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    static void touchpad_timer_callback(void* arg) {
-        auto& board = (M5StackCoreS3Board&)Board::GetInstance();
-        auto touchpad = board.GetTouchpad();
+    void PollTouchpad() {
         static bool was_touched = false;
         static int64_t touch_start_time = 0;
         const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
         
-        touchpad->UpdateTouchPoint();
-        auto touch_point = touchpad->GetTouchPoint();
+        ft6336_->UpdateTouchPoint();
+        auto& touch_point = ft6336_->GetTouchPoint();
         
         // 检测触摸开始
         if (touch_point.num > 0 && !was_touched) {
@@ -228,7 +226,7 @@ private:
                 auto& app = Application::GetInstance();
                 if (app.GetDeviceState() == kDeviceStateStarting && 
                     !WifiStation::GetInstance().IsConnected()) {
-                    board.ResetWifiConfiguration();
+                    ResetWifiConfiguration();
                 }
                 app.ToggleChatState();
             }
@@ -241,8 +239,11 @@ private:
         
         // 创建定时器，20ms 间隔
         esp_timer_create_args_t timer_args = {
-            .callback = touchpad_timer_callback,
-            .arg = NULL,
+            .callback = [](void* arg) {
+                M5StackCoreS3Board* board = (M5StackCoreS3Board*)arg;
+                board->PollTouchpad();
+            },
+            .arg = this,
             .dispatch_method = ESP_TIMER_TASK,
             .name = "touchpad_timer",
             .skip_unhandled_events = true,
@@ -373,10 +374,6 @@ public:
     virtual Backlight *GetBacklight() override {
         static CustomBacklight backlight(pmic_);
         return &backlight;
-    }
-
-    Ft6336* GetTouchpad() {
-        return ft6336_;
     }
 };
 
