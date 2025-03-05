@@ -185,6 +185,19 @@
       *     - ESP_OK Success
       *     - ESP_FAIL Fail
       */
+     esp_err_t mpu6050_init(mpu6050_handle_t sensor, const mpu6050_acce_fs_t acce_fs, const mpu6050_gyro_fs_t gyro_fs);
+ 
+     /**
+      * @brief Set accelerometer and gyroscope full scale range
+      *
+      * @param sensor object handle of mpu6050
+      * @param acce_fs accelerometer full scale range
+      * @param gyro_fs gyroscope full scale range
+      *
+      * @return
+      *     - ESP_OK Success
+      *     - ESP_FAIL Fail
+      */
      esp_err_t mpu6050_config(mpu6050_handle_t sensor, const mpu6050_acce_fs_t acce_fs, const mpu6050_gyro_fs_t gyro_fs);
  
      /**

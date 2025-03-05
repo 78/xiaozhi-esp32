@@ -10,7 +10,7 @@
 #include "i2c_bus.h"
 #include <time.h>
 
-#define RX8900_I2C_ADDRESS_DEFAULT   (0x32)     /*The device's I2C address is either 0x76 or 0x77.*/
+#define RX8900_I2C_ADDRESS_DEFAULT   (0x32)     /*The device's I2C address is either 0x64 or 0x65.*/
 
 #define WRITE_BIT      I2C_MASTER_WRITE         /*!< I2C master write */
 #define READ_BIT       I2C_MASTER_READ          /*!< I2C master read */

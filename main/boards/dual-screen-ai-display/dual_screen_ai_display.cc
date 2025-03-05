@@ -23,6 +23,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "assets/lang_config.h"
 #include "bmp280.h"
 #include <esp_wifi.h>
 #include "rx8900.h"
@@ -52,6 +53,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
     // {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
     // {0x35, (uint8_t []){0x00}, 1, 0},
+    {0x34, (uint8_t[]){0x00}, 0, 0},
     {0x36, (uint8_t[]){0xF0}, 1, 0},
     {0x3A, (uint8_t[]){0x55}, 1, 0}, // 16bits-RGB565
     {0x2A, (uint8_t[]){0x00, 0x00, 0x02, 0x17}, 4, 0},
@@ -113,7 +115,8 @@ public:
                              .text_font = &font_puhui_16_4,
                              .icon_font = &font_awesome_16_4,
                              .emoji_font = font_emoji_32_init(),
-                         }, tp_handle),
+                         },
+                         tp_handle),
 #if FORD_VFD_EN
           FORD_VFD(spidevice)
 #else
@@ -181,6 +184,25 @@ public:
         }
         Settings settings("display", true);
         settings.SetInt("bright", brightness_);
+
+        ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
+        // LEDC resolution set to 10bits, thus: 100% = 255
+        uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+        SetSubBacklight(brightness);
+    }
+
+    void SetBacklightWithoutSave(uint8_t brightness)
+    {
+        brightness_ = brightness;
+        if (brightness > 100)
+        {
+            brightness = 100;
+        }
 
         ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
         // LEDC resolution set to 10bits, thus: 100% = 255
@@ -660,6 +682,119 @@ private:
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
     mpu6050_handle_t mpu6050 = NULL;
+
+    esp_timer_handle_t power_save_timer_ = nullptr;
+    bool show_low_power_warning_ = false;
+    bool sleep_mode_enabled_ = false;
+    int power_save_ticks_ = 0;
+
+    const int POWER_SAVE_TIMER_PERIOD_SECONDS = 1;
+    const int SECONDS_TO_SLEEP = 120;
+
+    const int LOW_BATTERY_THRESHOLD_DOWN = 30;
+    const int LOW_BATTERY_THRESHOLD_UP = 35;
+
+    void InitializePowerSaveTimer()
+    {
+        esp_timer_create_args_t power_save_timer_args = {
+            .callback = [](void *arg)
+            {
+                auto board = static_cast<DualScreenAIDisplay *>(arg);
+                board->PowerSaveCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "power_save_timer",
+            .skip_unhandled_events = false,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, POWER_SAVE_TIMER_PERIOD_SECONDS * 1000000));
+    }
+
+    void PowerSaveCheck()
+    {
+        auto &app = Application::GetInstance();
+        if (app.GetDeviceState() != kDeviceStateIdle)
+        {
+            power_save_ticks_ = 0;
+            return;
+        }
+
+        int battery_level;
+        bool charging;
+        GetBatteryLevel(battery_level, charging);
+        if (!charging)
+        {
+            if (!show_low_power_warning_ && battery_level <= LOW_BATTERY_THRESHOLD_DOWN)
+            {
+                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+                EnableSleepMode(true);
+                show_low_power_warning_ = true;
+            }
+            else if (show_low_power_warning_ && battery_level >= LOW_BATTERY_THRESHOLD_UP)
+            {
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+                EnableSleepMode(false);
+            }
+        }
+        else
+        {
+            if (show_low_power_warning_)
+            {
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+                EnableSleepMode(false);
+            }
+        }
+
+        power_save_ticks_++;
+        if (power_save_ticks_ >= SECONDS_TO_SLEEP)
+        {
+            EnableSleepMode(true);
+        }
+    }
+
+    void EnableSleepMode(bool enable)
+    {
+        power_save_ticks_ = 0;
+        if (!sleep_mode_enabled_ && enable)
+        {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+#if FORD_VFD_EN
+#else
+            display->Notification("sleepy", 2000);
+#endif
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
+
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 240,
+                .min_freq_mhz = 40,
+                .light_sleep_enable = true,
+            };
+            esp_pm_configure(&pm_config);
+            sleep_mode_enabled_ = true;
+        }
+        else if (sleep_mode_enabled_ && !enable)
+        {
+            esp_pm_config_t pm_config = {
+                .max_freq_mhz = 240,
+                .min_freq_mhz = 240,
+                .light_sleep_enable = false,
+            };
+            esp_pm_configure(&pm_config);
+            ESP_LOGI(TAG, "Disabling sleep mode");
+
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
+            sleep_mode_enabled_ = false;
+        }
+    }
+
     void InitializeI2c()
     {
         i2c_config_t conf = {
@@ -679,8 +814,9 @@ private:
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
-        ESP_LOGI(TAG, "mpu6050_config:%d", mpu6050_config(mpu6050, ACCE_FS_4G, GYRO_FS_500DPS));
-        (mpu6050_wake_up(mpu6050));
+        ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_init(mpu6050, ACCE_FS_16G, GYRO_FS_250DPS));
+        // (mpu6050_wake_up(mpu6050));
+        mpu6050_enable_motiondetection(mpu6050, 100, 50);
 
         xTaskCreate([](void *arg)
                     { sntp_set_time_sync_notification_cb([](struct timeval *t)
@@ -727,14 +863,16 @@ private:
         //     }
         //     app.ToggleChatState(); });
 
-        // touch_button_.OnLongPress([this]
-        //                          {
-        //     ESP_LOGI(TAG, "System Sleeped");
-        //     ((CustomLcdDisplay *)GetDisplay())->Sleep();
-        //     gpio_set_level(PIN_NUM_POWER_EN, 0);
-        //     i2c_bus_delete(&i2c_bus);
-        // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
-        //     esp_deep_sleep_start(); });
+        touch_button_.OnLongPress([this]
+                                 {
+            ESP_LOGI(TAG, "System Sleeped");
+            ((CustomLcdDisplay *)GetDisplay())->Sleep();
+            gpio_set_level(PIN_NUM_POWER_EN, 0);
+            i2c_bus_delete(&i2c_bus);
+            rtc_gpio_pullup_en(PIN_NUM_LCD_TE);
+            esp_sleep_enable_ext0_wakeup(PIN_NUM_LCD_TE, 0);
+            esp_deep_sleep_start();
+        });
 
         // touch_button_.OnPressDown([this]()
         //                           { Application::GetInstance().StartListening(); });
@@ -1060,12 +1198,6 @@ public:
     //     return &sd_card;
     // }
 
-#define VCHARGE 4050
-#define V1 3800
-#define V2 3500
-#define V3 3300
-#define V4 3100
-
     int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
     {
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -1084,62 +1216,74 @@ public:
         return value;
     }
 
-    void testmpu()
+    esp_err_t testmpu()
     {
-        // mpu6050_acce_value_t acce_value;
-        // mpu6050_gyro_value_t gyro_value;
-        // // complimentary_angle_t complimentary_angle;
+        mpu6050_acce_value_t acce_value;
+        mpu6050_gyro_value_t gyro_value;
+        complimentary_angle_t complimentary_angle;
 
-        // auto err = mpu6050_get_acce(mpu6050, &acce_value);
-        // if (err != ESP_OK)
-        // {
-        //     ESP_LOGE(TAG, "Failed to read acceleration data: %s", esp_err_to_name(err));
-        // }
-        // else
-        // {
-        //     char acce_str[100];
-        //     snprintf(acce_str, sizeof(acce_str), "Acceleration Data: X = %.2f, Y = %.2f, Z = %.2f",
-        //              (float)acce_value.acce_x, (float)acce_value.acce_y, (float)acce_value.acce_z);
-        //     ESP_LOGI(TAG, "%s", acce_str);
-        // }
+        auto ret = mpu6050_get_acce(mpu6050, &acce_value);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to read acceleration data: %s", esp_err_to_name(ret));
+        }
+        else
+        {
+            char acce_str[100];
+            snprintf(acce_str, sizeof(acce_str), "Acceleration Data: X = %.2f, Y = %.2f, Z = %.2f",
+                     (float)acce_value.acce_x, (float)acce_value.acce_y, (float)acce_value.acce_z);
+            ESP_LOGI(TAG, "%s", acce_str);
+        }
 
-        // err = mpu6050_get_gyro(mpu6050, &gyro_value);
-        // if (err != ESP_OK)
-        // {
-        //     ESP_LOGE(TAG, "Failed to read gyroscope data: %s", esp_err_to_name(err));
-        // }
-        // else
-        // {
-        //     char gyro_str[100];
-        //     snprintf(gyro_str, sizeof(gyro_str), "Gyroscope Data: X = %.2f, Y = %.2f, Z = %.2f",
-        //              (float)gyro_value.gyro_x, (float)gyro_value.gyro_y, (float)gyro_value.gyro_z);
-        //     ESP_LOGI(TAG, "%s", gyro_str);
-        // }
-        // err = mpu6050_complimentory_filter(mpu6050, &acce_value, &gyro_value, &complimentary_angle);
-        // if (err != ESP_OK)
-        // {
-        //     ESP_LOGE(TAG, "Failed to apply complimentary filter: %s", esp_err_to_name(err));
-        // }
+        ret = mpu6050_get_gyro(mpu6050, &gyro_value);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to read gyroscope data: %s", esp_err_to_name(ret));
+        }
+        else
+        {
+            char gyro_str[100];
+            snprintf(gyro_str, sizeof(gyro_str), "Gyroscope Data: X = %.2f, Y = %.2f, Z = %.2f",
+                     (float)gyro_value.gyro_x, (float)gyro_value.gyro_y, (float)gyro_value.gyro_z);
+            ESP_LOGI(TAG, "%s", gyro_str);
+        }
+        ret = mpu6050_complimentory_filter(mpu6050, &acce_value, &gyro_value, &complimentary_angle);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to apply complimentary filter: %s", esp_err_to_name(ret));
+        }
 
-        // ESP_LOGI(TAG, "Roll: %.2f degrees, Pitch: %.2f degrees", complimentary_angle.roll, complimentary_angle.pitch);
+        ESP_LOGI(TAG, "Roll: %.2f degrees, Pitch: %.2f degrees", complimentary_angle.roll, complimentary_angle.pitch);
 
-        esp_err_t ret;
-        uint8_t mpu6050_deviceid;
-        mpu6050_acce_value_t acce;
-        mpu6050_gyro_value_t gyro;
-        mpu6050_temp_value_t temp;
-        ret = mpu6050_get_deviceid(mpu6050, &mpu6050_deviceid);
-        ESP_LOGI(TAG, "mpu6050_deviceid:%X\n", mpu6050_deviceid);
+        // esp_err_t ret;
+        // uint8_t mpu6050_deviceid;
+        // mpu6050_raw_acce_value_t acce;
+        // mpu6050_raw_gyro_value_t gyro;
+        // mpu6050_temp_value_t temp;
+        // ret = mpu6050_get_deviceid(mpu6050, &mpu6050_deviceid);
+        // ESP_LOGI(TAG, "mpu6050_deviceid:%X", mpu6050_deviceid);
 
-        ret = mpu6050_get_acce(mpu6050, &acce);
-        ESP_LOGI(TAG, "acce_x:%.2f, acce_y:%.2f, acce_z:%.2f\n", acce.acce_x, acce.acce_y, acce.acce_z);
+        // ret = mpu6050_get_raw_acce(mpu6050, &acce);
+        // ESP_LOGI(TAG, "acce_x:%d, acce_y:%d, acce_z:%d", acce.raw_acce_x, acce.raw_acce_y, acce.raw_acce_z);
 
-        ret = mpu6050_get_gyro(mpu6050, &gyro);
-        ESP_LOGI(TAG, "gyro_x:%.2f, gyro_y:%.2f, gyro_z:%.2f\n", gyro.gyro_x, gyro.gyro_y, gyro.gyro_z);
+        // ret = mpu6050_get_raw_gyro(mpu6050, &gyro);
+        // ESP_LOGI(TAG, "gyro_x:%d, gyro_y:%d, gyro_z:%d", gyro.raw_gyro_x, gyro.raw_gyro_y, gyro.raw_gyro_z);
 
-        ret = mpu6050_get_temp(mpu6050, &temp);
-        ESP_LOGI(TAG, "t:%.2f \n", temp.temp);
+        // ret = mpu6050_get_temp(mpu6050, &temp);
+        // ESP_LOGI(TAG, "t:%.2f", temp.temp);
+
+        return ret;
     }
+
+#define VCHARGE 4200
+#define V1_UP 4000
+#define V1_DOWN 3950
+#define V2_UP 3850
+#define V2_DOWN 3800
+#define V3_UP 3700
+#define V3_DOWN 3650
+#define V4_UP 3550
+#define V4_DOWN 3500
 
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
@@ -1152,37 +1296,84 @@ public:
         bat_v *= 2;
         // testmpu();
         // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
+
+        int new_level;
         if (bat_v >= VCHARGE)
         {
-            level = last_level;
+            new_level = last_level;
             charging = true;
         }
-        else if (bat_v >= V1)
+        else if (last_level >= 100 && bat_v >= V1_DOWN)
         {
-            level = 100;
+            new_level = 100;
             charging = false;
         }
-        else if (bat_v >= V2)
+        else if (last_level < 100 && bat_v >= V1_UP)
         {
-            level = 75;
+            new_level = 100;
             charging = false;
         }
-        else if (bat_v >= V3)
+        else if (last_level >= 75 && bat_v >= V2_DOWN)
         {
-            level = 50;
+            new_level = 75;
             charging = false;
         }
-        else if (bat_v >= V4)
+        else if (last_level < 75 && bat_v >= V2_UP)
         {
-            level = 25;
+            new_level = 75;
+            charging = false;
+        }
+        else if (last_level >= 50 && bat_v >= V3_DOWN)
+        {
+            new_level = 50;
+            charging = false;
+        }
+        else if (last_level < 50 && bat_v >= V3_UP)
+        {
+            new_level = 50;
+            charging = false;
+        }
+        else if (last_level >= 25 && bat_v >= V4_DOWN)
+        {
+            new_level = 25;
+            charging = false;
+        }
+        else if (last_level < 25 && bat_v >= V4_UP)
+        {
+            new_level = 25;
             charging = false;
         }
         else
         {
-            level = 0;
+            new_level = 0;
             charging = false;
+
+            ESP_LOGI(TAG, "Battery too low");
+            display_->Sleep();
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable amoled power");
+                gpio_set_level(PIN_NUM_LCD_POWER, 0);
+            }
+
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable VFD power");
+                gpio_set_level(PIN_NUM_VFD_EN, 0);
+            }
+
+            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable force power");
+                gpio_set_level(PIN_NUM_POWER_EN, 0);
+            }
+            i2c_bus_delete(&i2c_bus);
+            rtc_gpio_pullup_en(TOUCH_INT_NUM);
+            esp_sleep_enable_ext0_wakeup(TOUCH_INT_NUM, 0);
+            esp_deep_sleep_start();
         }
 
+        level = new_level;
         if (level != last_level || charging != last_charging)
         {
             last_level = level;
@@ -1206,11 +1397,12 @@ public:
         ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, DIMM_ADC_CHANNEL, &dimm_adc_value));
         uint8_t bl = constrain(100 - map(dimm_adc_value, 300, 2400, 0, 100), 0, 100);
 
-        if (last_bl != bl)
+        if (abs(bl - last_bl) > 10)
         {
             last_bl = bl;
-            display_->SetBacklight(bl);
+            display_->SetBacklightWithoutSave(bl);
         }
+
         return true;
     }
 
