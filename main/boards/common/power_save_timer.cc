@@ -31,9 +31,12 @@ void PowerSaveTimer::SetEnabled(bool enabled) {
         ticks_ = 0;
         enabled_ = enabled;
         ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
+        ESP_LOGI(TAG, "Power save timer enabled");
     } else if (!enabled && enabled_) {
         ESP_ERROR_CHECK(esp_timer_stop(power_save_timer_));
         enabled_ = enabled;
+        WakeUp();
+        ESP_LOGI(TAG, "Power save timer disabled");
     }
 }
 

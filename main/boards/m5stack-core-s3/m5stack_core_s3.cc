@@ -3,8 +3,10 @@
 #include "display/lcd_display.h"
 #include "application.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "axp2101.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -19,10 +21,10 @@
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class Axp2101 : public I2cDevice {
+class Pmic : public Axp2101 {
 public:
     // Power Init
-    Axp2101(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
         uint8_t data = ReadReg(0x90);
         data |= 0b10110100;
         WriteReg(0x90, data);
@@ -35,39 +37,26 @@ public:
         WriteReg(0x95, 33 - 5);
     }
 
-    int GetBatteryCurrentDirection() {
-        return (ReadReg(0x01) & 0b01100000) >> 5;
-    }
-
-    bool IsCharging() {
-        return GetBatteryCurrentDirection() == 1;
-    }
-
-    int GetBatteryLevel() {
-        return ReadReg(0xA4);
-    }
-
     void SetBrightness(uint8_t brightness) {
         brightness = ((brightness + 641) >> 5);
         WriteReg(0x99, brightness);
     }
 };
 
-class Axp2101Backlight : public Backlight {
+
+class CustomBacklight : public Backlight {
 public:
-    Axp2101Backlight(Axp2101 *axp2101) : axp2101_(axp2101) {}
+    CustomBacklight(Pmic *pmic) : pmic_(pmic) {}
 
-    ~Axp2101Backlight() { ESP_LOGI(TAG, "Destroy Axp2101Backlight"); }
-
-    void SetBrightnessImpl(uint8_t brightness) override;
+    void SetBrightnessImpl(uint8_t brightness) override {
+        pmic_->SetBrightness(target_brightness_);
+        brightness_ = target_brightness_;
+    }
 
 private:
-    Axp2101 *axp2101_;
+    Pmic *pmic_;
 };
-    
-void Axp2101Backlight::SetBrightnessImpl(uint8_t brightness) {
-    axp2101_->SetBrightness(brightness);
-}
+
 
 class Aw9523 : public I2cDevice {
 public:
@@ -133,14 +122,37 @@ private:
     TouchPoint_t tp_;
 };
 
+
 class M5StackCoreS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    Axp2101* axp2101_;
+    Pmic* pmic_;
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
     esp_timer_handle_t touchpad_timer_;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -182,7 +194,7 @@ private:
 
     void InitializeAxp2101() {
         ESP_LOGI(TAG, "Init AXP2101");
-        axp2101_ = new Axp2101(i2c_bus_, 0x34);
+        pmic_ = new Pmic(i2c_bus_, 0x34);
     }
 
     void InitializeAw9523() {
@@ -227,7 +239,7 @@ private:
         ESP_LOGI(TAG, "Init FT6336");
         ft6336_ = new Ft6336(i2c_bus_, 0x38);
         
-        // 创建定时器，10ms 间隔
+        // 创建定时器，20ms 间隔
         esp_timer_create_args_t timer_args = {
             .callback = touchpad_timer_callback,
             .arg = NULL,
@@ -237,7 +249,7 @@ private:
         };
         
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &touchpad_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000)); // 10ms = 10000us
+        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 20 * 1000));
     }
 
     void InitializeSpi() {
@@ -302,6 +314,7 @@ private:
 
 public:
     M5StackCoreS3Board() {
+        InitializePowerSaveTimer();
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
@@ -310,7 +323,7 @@ public:
         InitializeIli9342Display();
         InitializeIot();
         InitializeFt6336TouchPad();
-        GetBacklight()->SetBrightness(100);
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -333,20 +346,32 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        static int last_level = 0;
         static bool last_charging = false;
-        level = axp2101_->GetBatteryLevel();
-        charging = axp2101_->IsCharging();
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
+        charging = pmic_->IsCharging();
+        if (charging != last_charging) {
+            power_save_timer_->WakeUp();
             last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+
+        level = pmic_->GetBatteryLevel();
+
+        if (pmic_->IsDischarging()) {
+            power_save_timer_->SetEnabled(true);
+        } else {
+            power_save_timer_->SetEnabled(false);
         }
         return true;
     }
 
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
+    }
+
     virtual Backlight *GetBacklight() override {
-        static Axp2101Backlight backlight(axp2101_);
+        static CustomBacklight backlight(pmic_);
         return &backlight;
     }
 

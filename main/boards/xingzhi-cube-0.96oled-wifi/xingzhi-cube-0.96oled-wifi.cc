@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "display/ssd1306_display.h"
+#include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -17,52 +17,13 @@
 #include <esp_sleep.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_vendor.h>
 
 #define TAG "XINGZHI_CUBE_0_96OLED_WIFI"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
-
-
-class CustomDisplay : public Ssd1306Display {
-private:
-    lv_obj_t* low_battery_popup_ = nullptr;
-
-public:
-    CustomDisplay(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
-        const lv_font_t* text_font, const lv_font_t* icon_font)
-        : Ssd1306Display(i2c_master_handle, width, height, mirror_x, mirror_y, text_font, icon_font) {
-    }
-
-    void ShowLowBatteryPopup() {
-        DisplayLockGuard lock(this);
-
-        if (low_battery_popup_ == nullptr) {
-            // 创建弹出窗口
-            low_battery_popup_ = lv_obj_create(lv_scr_act());
-            lv_obj_set_size(low_battery_popup_, 120, 30);
-            lv_obj_center(low_battery_popup_);
-            lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
-            lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    
-            // 创建提示文本标签
-            lv_obj_t* label = lv_label_create(low_battery_popup_);
-            lv_label_set_text(label, "电量过低，请充电");
-            lv_obj_set_style_text_color(label, lv_color_white(), 0);
-            lv_obj_center(label);
-        }
-    
-        // 显示弹出窗口
-        lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    void HideLowBatteryPopup() {
-        DisplayLockGuard lock(this);
-        if (low_battery_popup_ != nullptr) {
-            lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-};
 
 
 class XINGZHI_CUBE_0_96OLED_WIFI : public WifiBoard {
@@ -71,11 +32,22 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    CustomDisplay* display_;
+    OledDisplay* display_;
     PowerSaveTimer* power_save_timer_;
-    PowerManager power_manager_;
+    PowerManager* power_manager_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
+
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(GPIO_NUM_38);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
+    }
 
     void InitializePowerSaveTimer() {
         rtc_gpio_init(GPIO_NUM_21);
@@ -119,6 +91,53 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+    }
+
+    void InitializeSsd1306Display() {
+        // SSD1306 config
+        esp_lcd_panel_io_i2c_config_t io_config = {
+            .dev_addr = 0x3C,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 6,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 8,
+            .flags = {
+                .dc_low_on_data = 0,
+                .disable_control_phase = 0,
+            },
+            .scl_speed_hz = 400 * 1000,
+        };
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
+
+        ESP_LOGI(TAG, "Install SSD1306 driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = -1;
+        panel_config.bits_per_pixel = 1;
+
+        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
+            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
+        };
+        panel_config.vendor_config = &ssd1306_config;
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
+        ESP_LOGI(TAG, "SSD1306 driver installed");
+
+        // Reset the display
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+        if (esp_lcd_panel_init(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize display");
+            return;
+        }
+
+        // Set the display to on
+        ESP_LOGI(TAG, "Turning display on");
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+            {&font_puhui_14_1, &font_awesome_14_1});
     }
 
     void InitializeButtons() {
@@ -176,10 +195,11 @@ public:
     XINGZHI_CUBE_0_96OLED_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
-        power_manager_(GPIO_NUM_38) {
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeDisplayI2c();
+        InitializeSsd1306Display();
         InitializeButtons();
         InitializeIot();
     }
@@ -196,44 +216,12 @@ public:
     }
 
     virtual Display* GetDisplay() override {
-        static CustomDisplay display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-                                    &font_puhui_14_1, &font_awesome_14_1);
-        return &display;
+        return display_;
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging) override {
-        static int last_level = 0;
-        static bool last_charging = false;
-
-        charging = power_manager_.IsCharging();
-        if (charging != last_charging) {
-            power_save_timer_->WakeUp();
-        }
-
-        level = power_manager_.ReadBatteryLevel(charging != last_charging);
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
-            last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
-        }
-
-        static bool show_low_power_warning_ = false;
-        if (power_manager_.IsBatteryLevelSteady()) {
-            if (!charging) {
-                // 电量低于 15% 时，显示低电量警告
-                if (!show_low_power_warning_ && level <= 15) {
-                    display_->ShowLowBatteryPopup();
-                    show_low_power_warning_ = true;
-                }
-                power_save_timer_->SetEnabled(true);
-            } else {
-                if (show_low_power_warning_) {
-                    display_->HideLowBatteryPopup();
-                    show_low_power_warning_ = false;
-                }
-                power_save_timer_->SetEnabled(false);
-            }
-        }
+        charging = power_manager_->IsCharging();
+        level = power_manager_->GetBatteryLevel();
         return true;
     }
 

@@ -24,57 +24,27 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class CustomDisplay : public SpiLcdDisplay {
-private:
-    lv_obj_t* low_battery_popup_ = nullptr;
-
-public:
-    CustomDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-          int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-    {
-        .text_font = &font_puhui_20_4,
-        .icon_font = &font_awesome_20_4,
-        .emoji_font = font_emoji_64_init(),
-    }) {
-    }
-
-    void ShowLowBatteryPopup() {
-        DisplayLockGuard lock(this);
-        if (low_battery_popup_ == nullptr) {
-            low_battery_popup_ = lv_obj_create(lv_screen_active());
-            lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, LV_VER_RES * 0.5);
-            lv_obj_center(low_battery_popup_);
-            lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
-            lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-
-            lv_obj_t* label = lv_label_create(low_battery_popup_);
-            lv_label_set_text(label, "电量过低，请充电");
-            lv_obj_set_style_text_color(label, lv_color_white(), 0);
-            lv_obj_center(label);
-        }
-        lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    void HideLowBatteryPopup() {
-        DisplayLockGuard lock(this);
-        if (low_battery_popup_ != nullptr) {
-            lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-};
-
-
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
 private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    CustomDisplay* display_;
+    SpiLcdDisplay* display_;
     PowerSaveTimer* power_save_timer_;
-    PowerManager power_manager_;
+    PowerManager* power_manager_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
+
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(GPIO_NUM_38);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
+    }
 
     void InitializePowerSaveTimer() {
         rtc_gpio_init(GPIO_NUM_21);
@@ -84,15 +54,13 @@ private:
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("sleepy");
             GetBacklight()->SetBrightness(1);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -186,8 +154,13 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
 
-        display_ = new CustomDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
+        {
+            .text_font = &font_puhui_20_4,
+            .icon_font = &font_awesome_20_4,
+            .emoji_font = font_emoji_64_init(),
+        });
     }
 
     void InitializeIot() {
@@ -201,8 +174,8 @@ public:
     XINGZHI_CUBE_1_54TFT_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO),
-        power_manager_(GPIO_NUM_38) {
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeButtons();
@@ -227,38 +200,8 @@ public:
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging) override {
-        static int last_level = 0;
-        static bool last_charging = false;
-
-        charging = power_manager_.IsCharging();
-        if (charging != last_charging) {
-            power_save_timer_->WakeUp();
-        }
-
-        level = power_manager_.ReadBatteryLevel(charging != last_charging);
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
-            last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
-        }
-
-        static bool show_low_power_warning_ = false;
-        if (power_manager_.IsBatteryLevelSteady()) {
-            if (!charging) {
-                // 电量低于 15% 时，显示低电量警告
-                if (!show_low_power_warning_ && level <= 15) {
-                    display_->ShowLowBatteryPopup();
-                    show_low_power_warning_ = true;
-                }
-                power_save_timer_->SetEnabled(true);
-            } else {
-                if (show_low_power_warning_) {
-                    display_->HideLowBatteryPopup();
-                    show_low_power_warning_ = false;
-                }
-                power_save_timer_->SetEnabled(false);
-            }
-        }
+        charging = power_manager_->IsCharging();
+        level = power_manager_->GetBatteryLevel();
         return true;
     }
 
