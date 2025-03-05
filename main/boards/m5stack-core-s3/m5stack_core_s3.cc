@@ -46,7 +46,28 @@ public:
     int GetBatteryLevel() {
         return ReadReg(0xA4);
     }
+
+    void SetBrightness(uint8_t brightness) {
+        brightness = ((brightness + 641) >> 5);
+        WriteReg(0x99, brightness);
+    }
 };
+
+class Axp2101Backlight : public Backlight {
+public:
+    Axp2101Backlight(Axp2101 *axp2101) : axp2101_(axp2101) {}
+
+    ~Axp2101Backlight() { ESP_LOGI(TAG, "Destroy Axp2101Backlight"); }
+
+    void SetBrightnessImpl(uint8_t brightness) override;
+
+private:
+    Axp2101 *axp2101_;
+};
+    
+void Axp2101Backlight::SetBrightnessImpl(uint8_t brightness) {
+    axp2101_->SetBrightness(brightness);
+}
 
 class Aw9523 : public I2cDevice {
 public:
@@ -275,6 +296,8 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
@@ -287,6 +310,7 @@ public:
         InitializeIli9342Display();
         InitializeIot();
         InitializeFt6336TouchPad();
+        GetBacklight()->SetBrightness(100);
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -319,6 +343,11 @@ public:
             ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
         return true;
+    }
+
+    virtual Backlight *GetBacklight() override {
+        static Axp2101Backlight backlight(axp2101_);
+        return &backlight;
     }
 
     Ft6336* GetTouchpad() {
