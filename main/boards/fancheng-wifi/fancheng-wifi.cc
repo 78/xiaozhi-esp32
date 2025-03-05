@@ -186,6 +186,7 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 #endif
 
@@ -210,6 +211,12 @@ public:
         return display_;
 #endif
     }
+#if CONFIG_FANCHENG_LCD_ST7735_128X160
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
+#endif
 };
 
 DECLARE_BOARD(FanChengWifiBoard);
