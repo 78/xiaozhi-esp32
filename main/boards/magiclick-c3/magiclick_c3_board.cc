@@ -6,16 +6,17 @@
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
-#include <esp_lcd_panel_vendor.h>
+#include "power_save_timer.h"
+#include "font_awesome_symbols.h"
+
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp_lcd_nv3023.h"
-#include "font_awesome_symbols.h"
+#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_nv3023.h>
 #include <esp_efuse_table.h>
-#include <esp_timer.h>
-#include <esp_pm.h>
+
 #define TAG "magiclick_c3"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -24,10 +25,8 @@ LV_FONT_DECLARE(font_awesome_16_4);
 class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                gpio_num_t backlight_pin, bool backlight_output_invert,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
@@ -63,80 +62,30 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     NV3023Display* display_;
-    esp_timer_handle_t power_save_timer_ = nullptr;
-    bool sleep_mode_enabled_ = false;
-    int power_save_ticks_ = 0;
+    PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        esp_timer_create_args_t power_save_timer_args = {
-            .callback = [](void *arg) {
-                auto board = static_cast<magiclick_c3*>(arg);
-                board->PowerSaveCheck();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "power_save_timer",
-            .skip_unhandled_events = false,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-    }
-
-    void PowerSaveCheck() {
-        // 如果待机超过一定时间，则进入睡眠模式
-        const int seconds_to_sleep = 120;
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() != kDeviceStateIdle) {
-            power_save_ticks_ = 0;
-            return;
-        }
-
-        power_save_ticks_++;
-        if (power_save_ticks_ >= seconds_to_sleep) {
-            EnableSleepMode(true);
-        }
-    }
-
-    void EnableSleepMode(bool enable) {
-        power_save_ticks_ = 0;
-        if (!sleep_mode_enabled_ && enable) {
+        power_save_timer_ = new PowerSaveTimer(160);
+        power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
-            // 如果是LCD，还可以调节屏幕亮度
-            display->SetBacklight(1);
+            GetBacklight()->SetBrightness(10);
             
             auto codec = GetAudioCodec();
             codec->EnableInput(false);
-
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 160,
-                .min_freq_mhz = 40,
-                .light_sleep_enable = true,
-            };
-            esp_pm_configure(&pm_config);
-            sleep_mode_enabled_ = true;
-        } else if (sleep_mode_enabled_ && !enable) {
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 160,
-                .min_freq_mhz = 160,
-                .light_sleep_enable = false,
-            };
-            esp_pm_configure(&pm_config);
-            ESP_LOGI(TAG, "Disabling sleep mode");
-
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
             auto codec = GetAudioCodec();
             codec->EnableInput(true);
             
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
-            display->SetEmotion("happy");
-            // 如果是LCD，还可以调节屏幕亮度
-            display->SetBacklight(display->brightness());
-
-            sleep_mode_enabled_ = false;
-        }
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->SetEnabled(true);
     }
 
     void InitializeCodecI2c() {
@@ -164,7 +113,7 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            EnableSleepMode(false);
+            power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
         });
         boot_button_.OnPressUp([this]() {
@@ -212,7 +161,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true); 
-        display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new NV3023Display(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -234,6 +183,7 @@ public:
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual Led* GetLed() override {
@@ -250,6 +200,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 };
 

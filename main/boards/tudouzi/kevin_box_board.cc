@@ -3,19 +3,17 @@
 #include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
-#include "config.h"
-#include "axp2101.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "iot/thing_manager.h"
+#include "config.h"
+#include "power_save_timer.h"
+#include "axp2101.h"
 #include "assets/lang_config.h"
 #include "font_awesome_symbols.h"
 
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
-#include <esp_timer.h>
-#include <esp_sleep.h>
-#include <esp_pm.h>
 
 #define TAG "KevinBoxBoard"
 
@@ -30,86 +28,32 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    esp_timer_handle_t power_save_timer_ = nullptr;
-    bool show_low_power_warning_ = false;
-    bool sleep_mode_enabled_ = false;
-    int power_save_ticks_ = 0;
+    PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        esp_timer_create_args_t power_save_timer_args = {
-            .callback = [](void *arg) {
-                auto board = static_cast<KevinBoxBoard*>(arg);
-                board->PowerSaveCheck();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "power_save_timer",
-            .skip_unhandled_events = false,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-    }
-
-    void PowerSaveCheck() {
-        // 电池放电模式下，如果待机超过一定时间，则进入睡眠模式
-        const int seconds_to_sleep = 120;
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() != kDeviceStateIdle) {
-            power_save_ticks_ = 0;
-            return;
-        }
-
-        if (axp2101_->IsDischarging()) {
-            // 电量低于 10% 时，显示低电量警告
-            if (!show_low_power_warning_ && axp2101_->GetBatteryLevel() <= 10) {
-                EnableSleepMode(false);
-                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
-                show_low_power_warning_ = true;
-            }
-        } else {
-            if (show_low_power_warning_) {
-                app.DismissAlert();
-                show_low_power_warning_ = false;
-            }
-        }
-
-        power_save_ticks_++;
-        if (power_save_ticks_ >= seconds_to_sleep) {
-            EnableSleepMode(true);
-        }
-    }
-
-    void EnableSleepMode(bool enable) {
-        power_save_ticks_ = 0;
-        if (!sleep_mode_enabled_ && enable) {
+        power_save_timer_ = new PowerSaveTimer(240, 60, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
+            if (!modem_.Command("AT+MLPMCFG=\"sleepmode\",2,0")) {
+                ESP_LOGE(TAG, "Failed to enable module sleep mode");
+            }
+
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
             
             auto codec = GetAudioCodec();
             codec->EnableInput(false);
-
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 240,
-                .min_freq_mhz = 40,
-                .light_sleep_enable = true,
-            };
-            esp_pm_configure(&pm_config);
-            sleep_mode_enabled_ = true;
-        } else if (sleep_mode_enabled_ && !enable) {
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 240,
-                .min_freq_mhz = 240,
-                .light_sleep_enable = false,
-            };
-            esp_pm_configure(&pm_config);
-            ESP_LOGI(TAG, "Disabling sleep mode");
-
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
             auto codec = GetAudioCodec();
             codec->EnableInput(true);
-            sleep_mode_enabled_ = false;
-        }
+            
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+        });
+        power_save_timer_->SetEnabled(true);
     }
 
     void Enable4GModule() {
@@ -159,13 +103,8 @@ private:
     }
 
     void InitializeButtons() {
-        gpio_wakeup_enable(BOOT_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
-        gpio_wakeup_enable(VOLUME_UP_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
-        gpio_wakeup_enable(VOLUME_DOWN_BUTTON_GPIO, GPIO_INTR_LOW_LEVEL);
-        esp_sleep_enable_gpio_wakeup();
-
         boot_button_.OnPressDown([this]() {
-            EnableSleepMode(false);
+            power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
         });
         boot_button_.OnPressUp([this]() {
@@ -173,6 +112,7 @@ private:
         });
 
         volume_up_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -183,11 +123,13 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -198,6 +140,7 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
@@ -247,12 +190,35 @@ public:
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
         static int last_level = 0;
         static bool last_charging = false;
-        level = axp2101_->GetBatteryLevel();
+
         charging = axp2101_->IsCharging();
+        if (charging != last_charging) {
+            power_save_timer_->WakeUp();
+        }
+
+        level = axp2101_->GetBatteryLevel();
         if (level != last_level || charging != last_charging) {
             last_level = level;
             last_charging = charging;
             ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+
+        static bool show_low_power_warning_ = false;
+        if (axp2101_->IsDischarging()) {
+            // 电量低于 10% 时，显示低电量警告
+            if (!show_low_power_warning_ && level <= 10) {
+                auto& app = Application::GetInstance();
+                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+                show_low_power_warning_ = true;
+            }
+            power_save_timer_->SetEnabled(true);
+        } else {
+            if (show_low_power_warning_) {
+                auto& app = Application::GetInstance();
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+            }
+            power_save_timer_->SetEnabled(false);
         }
         return true;
     }

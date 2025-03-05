@@ -13,10 +13,6 @@
 #define TAG "Display"
 
 Display::Display() {
-    // Load brightness from settings
-    Settings settings("display");
-    brightness_ = settings.GetInt("brightness", 100);
-
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
         .callback = [](void *arg) {
@@ -40,14 +36,14 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "update_display_timer",
+        .name = "display_update_timer",
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
 
     // Create a power management lock
-    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ml307", &pm_lock_);
+    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
     if (ret == ESP_ERR_NOT_SUPPORTED) {
         ESP_LOGI(TAG, "Power management not supported");
     } else {
@@ -235,10 +231,4 @@ void Display::SetChatMessage(const char* role, const char* content) {
         return;
     }
     lv_label_set_text(chat_message_label_, content);
-}
-
-void Display::SetBacklight(uint8_t brightness) {
-    Settings settings("display", true);
-    settings.SetInt("brightness", brightness);
-    brightness_ = brightness;
 }

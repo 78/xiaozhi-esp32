@@ -25,17 +25,13 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void SetIcon(const char* icon);
-    virtual void SetBacklight(uint8_t brightness);
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
-    inline uint8_t brightness() const { return brightness_; }
 
 protected:
     int width_ = 0;
     int height_ = 0;
-    uint8_t brightness_ = 0;
-
     
     esp_pm_lock_handle_t pm_lock_ = nullptr;
     lv_display_t *display_ = nullptr;

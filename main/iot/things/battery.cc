@@ -16,7 +16,7 @@ private:
 public:
     Battery() : Thing("Battery", "电池管理") {
         // 定义设备的属性
-        properties_.AddNumberProperty("level", "当前电量百分比（0-100）", [this]() -> int {
+        properties_.AddNumberProperty("level", "当前电量百分比", [this]() -> int {
             auto& board = Board::GetInstance();
             if (board.GetBatteryLevel(level_, charging_)) {
                 return level_;

@@ -820,3 +820,16 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
         });
     }
 }
+
+bool Application::CanEnterSleepMode() {
+    if (device_state_ != kDeviceStateIdle) {
+        return false;
+    }
+
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        return false;
+    }
+
+    // Now it is safe to enter sleep mode
+    return true;
+}
