@@ -132,9 +132,6 @@ void WakeWordDetect::AudioDetectionTask() {
 
         auto res = esp_afe_sr_v1.fetch(afe_detection_data_);
         if (res == nullptr || res->ret_value == ESP_FAIL) {
-            if (res != nullptr) {
-                ESP_LOGI(TAG, "Error code: %d", res->ret_value);
-            }
             continue;;
         }
 

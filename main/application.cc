@@ -685,7 +685,7 @@ void Application::InputAudio() {
     }
 
 #if CONFIG_USE_WAKE_WORD_DETECT
-    if (wake_word_detect_.IsDetectionRunning()) {
+    if (device_state_ != kDeviceStateListening && wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
     }
 #endif
