@@ -3,10 +3,12 @@
 #include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
-#include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "iot/thing_manager.h"
 #include "settings.h"
+#include "config.h"
+#include "power_save_timer.h"
+#include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -23,6 +25,29 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(160, 60);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
+            
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -52,6 +77,7 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
+            power_save_timer_->WakeUp();
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
             }
@@ -80,12 +106,13 @@ public:
 
         InitializeCodecI2c();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeIot();
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual Display* GetDisplay() override {

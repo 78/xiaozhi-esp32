@@ -4,7 +4,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
-            "audio_codecs/tcircles3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "display/display.cc"
@@ -42,6 +41,8 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")    
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
+elseif(CONFIG_BOARD_TYPE_ESP_BOX)
+    set(BOARD_TYPE "esp-box")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
@@ -92,6 +93,8 @@ elseif(CONFIG_BOARD_TYPE_TUDOUZI)
     set(BOARD_TYPE "tudouzi") 
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_TYPE "lilygo-t-circle-s3") 
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
+    set(BOARD_TYPE "lilygo-t-cameraplus-s3") 
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BOARD_TYPE "movecall-moji-esp32s3") 
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
@@ -112,6 +115,8 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-wifi")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
+    set(BOARD_TYPE "sensecap-watcher")
 endif()
 file(GLOB BOARD_SOURCES 
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -125,8 +130,11 @@ elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
     list(APPEND SOURCES "protocols/websocket_protocol.cc")
 endif()
 
-if(CONFIG_USE_AUDIO_PROCESSING)
-    list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
+if(CONFIG_USE_AUDIO_PROCESSOR)
+    list(APPEND SOURCES "audio_processing/audio_processor.cc")
+endif()
+if(CONFIG_USE_WAKE_WORD_DETECT)
+    list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -139,7 +147,8 @@ endif()
 # 定义生成路径
 set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
-file(GLOB ASSETS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
+file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
+file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
@@ -150,14 +159,14 @@ if(CONFIG_IDF_TARGET_ESP32)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${ASSETS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )
 
-# 使用 target_compile_definitions 来定义 BOARD_TYPE
+# 使用 target_compile_definitions 来定义 BOARD_TYPE, BOARD_NAME
 target_compile_definitions(${COMPONENT_LIB}
-                    PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\"
+                    PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
                     )
 
 # 添加生成规则

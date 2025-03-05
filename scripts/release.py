@@ -106,6 +106,10 @@ def release(board_type, board_config):
             f.write("\n")
             for append in sdkconfig_append:
                 f.write(f"{append}\n")
+        # Build with macro BOARD_NAME defined to name
+        if os.system(f"idf.py -DBOARD_NAME={name} build") != 0:
+            print("build failed")
+            sys.exit(1)
         # Call merge-bin
         if os.system("idf.py merge-bin") != 0:
             print("merge-bin failed")

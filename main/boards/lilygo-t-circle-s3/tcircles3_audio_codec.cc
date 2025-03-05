@@ -54,7 +54,14 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
     ESP_ERROR_CHECK(i2s_new_channel(&spkr_chan_config, &tx_handle_, NULL));
 
     i2s_std_config_t mic_config = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(input_sample_rate_)),
+        .clk_cfg = {
+            .sample_rate_hz = (uint32_t)output_sample_rate_,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            #ifdef   I2S_HW_VERSION_2    
+                .ext_clk_freq_hz = 0,
+            #endif
+        },
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg ={
             .mclk = I2S_GPIO_UNUSED,
@@ -71,7 +78,14 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
     };
 
     i2s_std_config_t spkr_config = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(11025)),
+        .clk_cfg ={
+            .sample_rate_hz = static_cast<uint32_t>(11025),
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            #ifdef   I2S_HW_VERSION_2    
+                .ext_clk_freq_hz = 0,
+            #endif
+        },
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg ={
             .mclk = I2S_GPIO_UNUSED,
@@ -118,7 +132,7 @@ int Tcircles3AudioCodec::Read(int16_t *dest, int samples){
     return samples;
 }
 
-void AdjustVolume(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
+void AdjustTcircles3Volume(const int16_t *input_data, int16_t *output_data, size_t samples, float volume){
     for (size_t i = 0; i < samples; i++){
         output_data[i] = (float)input_data[i] * volume;
     }
@@ -128,7 +142,7 @@ int Tcircles3AudioCodec::Write(const int16_t *data, int samples){
     if (output_enabled_){
         size_t bytes_read;
         auto output_data = (int16_t *)malloc(samples * sizeof(int16_t));
-        AdjustVolume(data, output_data, samples, (float)(volume_ / 100.0));
+        AdjustTcircles3Volume(data, output_data, samples, (float)(volume_ / 100.0));
         i2s_channel_write(tx_handle_, output_data, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
         free(output_data);
     }

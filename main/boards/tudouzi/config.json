@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "tudouzi",
+            "sdkconfig_append": [
+                "CONFIG_USE_WAKE_WORD_DETECT=n",
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y"
+            ]
+        }
+    ]
+}

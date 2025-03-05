@@ -24,6 +24,13 @@ void Protocol::OnNetworkError(std::function<void(const std::string& message)> ca
     on_network_error_ = callback;
 }
 
+void Protocol::SetError(const std::string& message) {
+    error_occurred_ = true;
+    if (on_network_error_ != nullptr) {
+        on_network_error_(message);
+    }
+}
+
 void Protocol::SendAbortSpeaking(AbortReason reason) {
     std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"abort\"";
     if (reason == kAbortReasonWakeWordDetected) {
@@ -66,5 +73,16 @@ void Protocol::SendIotDescriptors(const std::string& descriptors) {
 void Protocol::SendIotStates(const std::string& states) {
     std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"states\":" + states + "}";
     SendText(message);
+}
+
+bool Protocol::IsTimeout() const {
+    const int kTimeoutSeconds = 120;
+    auto now = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_incoming_time_);
+    bool timeout = duration.count() > kTimeoutSeconds;
+    if (timeout) {
+        ESP_LOGE(TAG, "Channel timeout %lld seconds", duration.count());
+    }
+    return timeout;
 }
 

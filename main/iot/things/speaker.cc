@@ -11,7 +11,7 @@ namespace iot {
 // 这里仅定义 Speaker 的属性和方法，不包含具体的实现
 class Speaker : public Thing {
 public:
-    Speaker() : Thing("Speaker", "当前 AI 机器人的扬声器") {
+    Speaker() : Thing("Speaker", "扬声器") {
         // 定义设备的属性
         properties_.AddNumberProperty("volume", "当前音量值", [this]() -> int {
             auto codec = Board::GetInstance().GetAudioCodec();
