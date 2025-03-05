@@ -214,55 +214,45 @@ static const st77916_lcd_init_cmd_t vendor_specific_init_new[] = {
     {0x11, (uint8_t []){0x00}, 1, 120},
     {0x29, (uint8_t []){0x00}, 1, 0},  
 };
-LcdDisplay* display_; 
-
-void PwrDriver(void *parameter) {
-    static uint32_t Time_Down = 0;
-    while(1) {
-        if (!gpio_get_level(PWR_KEY_Input_PIN)) {
-            Time_Down++;
-            if(Time_Down > 65535)
-                Time_Down = 65535;
-        }
-        else {
-            Time_Down = 0;
-        }
-        if (Time_Down > 50){
-            display_->SetBacklight(0);
-            gpio_set_level(PWR_Control_PIN, false);
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-    vTaskDelete(NULL);
-}
 class CustomBoard : public WifiBoard {
 private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
+    LcdDisplay* display_;
 
-    void ConfigureGpio(gpio_num_t pin, gpio_mode_t Mode)
-    {
-        gpio_reset_pin(pin);                                     
-        gpio_set_direction(pin, Mode);                          
+    static void PwrDriver(void *parameter) {
+        CustomBoard* board = static_cast<CustomBoard*>(parameter);
+        uint32_t pwr_pressed_duration  = 0;
+        while(1) {
+            if (!gpio_get_level(PWR_KEY_Input_PIN)) {
+                pwr_pressed_duration++;
+                if(pwr_pressed_duration > 65535)
+                    pwr_pressed_duration = 65535;
+            }
+            else {
+                pwr_pressed_duration = 0;
+            }
+            if (pwr_pressed_duration > 50) {
+                board->display_->SetBacklight(0);
+                gpio_set_level(PWR_Control_PIN, false);
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        vTaskDelete(NULL);
     }
     void InitializePWR() {
-        ConfigureGpio(PWR_KEY_Input_PIN, GPIO_MODE_INPUT);    
-        ConfigureGpio(PWR_Control_PIN, GPIO_MODE_OUTPUT);
+        gpio_reset_pin(PWR_KEY_Input_PIN);                                     
+        gpio_set_direction(PWR_KEY_Input_PIN, GPIO_MODE_INPUT);   
+        gpio_reset_pin(PWR_Control_PIN);                                     
+        gpio_set_direction(PWR_Control_PIN, GPIO_MODE_OUTPUT);    
         // gpio_set_level(PWR_Control_PIN, false);
         gpio_set_level(PWR_Control_PIN, true);
         vTaskDelay(100);
         if(!gpio_get_level(PWR_KEY_Input_PIN)) {              
             gpio_set_level(PWR_Control_PIN, true);
         }
-        xTaskCreatePinnedToCore(
-            PwrDriver, 
-            "Other Driver task",
-            4096, 
-            NULL, 
-            3, 
-            NULL, 
-            0);
+        xTaskCreatePinnedToCore(PwrDriver, "Other Driver task", 4096, this, 3, NULL, 0);
     }
     void InitializeI2c() {
         // Initialize I2C peripheral
