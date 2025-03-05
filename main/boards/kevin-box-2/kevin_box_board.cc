@@ -3,16 +3,16 @@
 #include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
-#include "config.h"
-#include "axp2101.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "iot/thing_manager.h"
+#include "config.h"
+#include "power_save_timer.h"
+#include "axp2101.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
-#include <esp_timer.h>
 
 #define TAG "KevinBoxBoard"
 
@@ -27,52 +27,14 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    esp_timer_handle_t power_save_timer_ = nullptr;
-    bool show_low_power_warning_ = false;
+    PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        esp_timer_create_args_t power_save_timer_args = {
-            .callback = [](void *arg) {
-                auto board = static_cast<KevinBoxBoard*>(arg);
-                board->PowerSaveCheck();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "power_save_timer",
-            .skip_unhandled_events = false,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-    }
-
-    void PowerSaveCheck() {
-        // 电池放电模式下，如果待机超过一定时间，则自动关机
-        const int seconds_to_shutdown = 600;
-        static int seconds = 0;
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() != kDeviceStateIdle) {
-            seconds = 0;
-            return;
-        }
-        if (axp2101_->IsDischarging()) {
-            // 电量低于 10% 时，显示低电量警告
-            if (!show_low_power_warning_ && axp2101_->GetBatteryLevel() <= 10) {
-                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
-                show_low_power_warning_ = true;
-            }
-        } else {
-            seconds = 0;
-            if (show_low_power_warning_) {
-                app.DismissAlert();
-                show_low_power_warning_ = false;
-            }
-            return;
-        }
-
-        seconds++;
-        if (seconds >= seconds_to_shutdown) {
+        power_save_timer_ = new PowerSaveTimer(240, -1, 600);
+        power_save_timer_->OnShutdownRequest([this]() {
             axp2101_->PowerOff();
-        }
+        });
+        power_save_timer_->SetEnabled(true);
     }
 
     void Enable4GModule() {
@@ -123,6 +85,7 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnPressDown([this]() {
+            power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
         });
         boot_button_.OnPressUp([this]() {
@@ -130,6 +93,7 @@ private:
         });
 
         volume_up_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -140,11 +104,13 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -155,6 +121,7 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
@@ -182,7 +149,7 @@ public:
         InitializePowerSaveTimer();
         InitializeIot();
     }
-    
+
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
@@ -204,12 +171,35 @@ public:
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
         static int last_level = 0;
         static bool last_charging = false;
-        level = axp2101_->GetBatteryLevel();
+
         charging = axp2101_->IsCharging();
+        if (charging != last_charging) {
+            power_save_timer_->WakeUp();
+        }
+
+        level = axp2101_->GetBatteryLevel();
         if (level != last_level || charging != last_charging) {
             last_level = level;
             last_charging = charging;
             ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+
+        static bool show_low_power_warning_ = false;
+        if (axp2101_->IsDischarging()) {
+            // 电量低于 10% 时，显示低电量警告
+            if (!show_low_power_warning_ && level <= 10) {
+                auto& app = Application::GetInstance();
+                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
+                show_low_power_warning_ = true;
+            }
+            power_save_timer_->SetEnabled(true);
+        } else {
+            if (show_low_power_warning_) {
+                auto& app = Application::GetInstance();
+                app.DismissAlert();
+                show_low_power_warning_ = false;
+            }
+            power_save_timer_->SetEnabled(false);
         }
         return true;
     }

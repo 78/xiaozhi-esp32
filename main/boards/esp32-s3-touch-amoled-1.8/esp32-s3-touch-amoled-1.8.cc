@@ -46,8 +46,6 @@ class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
@@ -55,7 +53,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy)
-        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_30_4,
@@ -65,21 +63,17 @@ public:
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
-
-        SetBacklight(100);
     }
+};
 
-    virtual void SetBacklight(uint8_t brightness) override {
-        if (brightness > 100)
-        {
-            brightness = 100;
-        }
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(esp_lcd_panel_io_handle_t panel_io) : Backlight(), panel_io_(panel_io) {}
 
-        brightness_ = brightness;
+protected:
+    esp_lcd_panel_io_handle_t panel_io_;
 
-        Settings settings("display", true);
-        settings.SetInt("bright", brightness_);
-
+    virtual void SetBrightnessImpl(uint8_t brightness) override {
         uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
         int lcd_cmd = 0x51;
         lcd_cmd &= 0xff;
@@ -96,7 +90,8 @@ private:
     esp_timer_handle_t power_save_timer_ = nullptr;
 
     Button boot_button_;
-    LcdDisplay* display_;
+    CustomLcdDisplay* display_;
+    CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
 
     void InitializeCodecI2c() {
@@ -233,8 +228,10 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        backlight_ = new CustomBacklight(panel_io);
+        backlight_->RestoreBrightness();
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -243,6 +240,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
         thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
@@ -280,6 +278,10 @@ public:
             ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
         return true;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        return backlight_;
     }
 };
 
