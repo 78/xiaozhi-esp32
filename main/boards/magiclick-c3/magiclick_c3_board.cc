@@ -133,7 +133,7 @@ private:
             display->SetChatMessage("system", "");
             display->SetEmotion("happy");
             // 如果是LCD，还可以调节屏幕亮度
-            display->SetBacklight(50);
+            display->SetBacklight(display->brightness());
 
             sleep_mode_enabled_ = false;
         }
