@@ -119,7 +119,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
     config BOARD_TYPE_DU_CHATX
-        bool "嘟嘟开发板CHATX(wifi)"       
+        bool "嘟嘟开发板CHATX(wifi)" 
+    config BOARD_TYPE_DU_CHATES
+        bool "嘟嘟开发板CHATES(wifi)"                   
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
     config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
