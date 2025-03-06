@@ -4,13 +4,13 @@
         {
             "name": "molunsmarthome-esp32s3",
             "sdkconfig_append": [
-                "CONFIG_OLED_SSD1306_128X32=y"
+                "CONFIG_OLED_SSD1306_128X64=y"
             ]
         },
         {
-            "name": "molunsmarthome-esp32s3-128x64",
+            "name": "molunsmarthome-esp32s3-128x32",
             "sdkconfig_append": [
-                "CONFIG_OLED_SSD1306_128X64=y"
+                "CONFIG_OLED_SSD1306_128X32=y"
             ]
         }
     ]
