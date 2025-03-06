@@ -57,16 +57,15 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 };
 #endif
  
-#define TAG "esp32-cgc"
+#define TAG "ESP32_CGC"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactWifiBoardLCD : public WifiBoard {
+class ESP32_CGC : public WifiBoard {
 private:
     Button boot_button_;
     LcdDisplay* display_;
-    Button touch_button_;
     Button asr_button_;
 
     void InitializeSpi() {
@@ -123,7 +122,7 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_14_1,
@@ -149,30 +148,30 @@ private:
             Application::GetInstance().WakeWordInvoke(wake_word);
         });
 
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
         thing_manager.AddThing(iot::CreateThing("Backlight"));
+#endif
+
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
         // thing_manager.AddThing(iot::CreateThing("Newfan"));
     }
 
 public:
-    CompactWifiBoardLCD() :
-	boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO) {
+    ESP32_CGC() :
+	boot_button_(BOOT_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
+#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
+        GetBacklight()->RestoreBrightness();
+#endif
     }
 
     virtual AudioCodec* GetAudioCodec() override 
@@ -190,6 +189,13 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
+
+#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
+#endif
 };
 
-DECLARE_BOARD(CompactWifiBoardLCD);
+DECLARE_BOARD(ESP32_CGC);
