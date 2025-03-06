@@ -1,6 +1,6 @@
 #include "ml307_board.h"
 #include "audio_codecs/box_audio_codec.h"
-#include "display/ssd1306_display.h"
+#include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
@@ -14,17 +14,52 @@
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_vendor.h>
 
 #define TAG "KevinBoxBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
+
+class Pmic : public Axp2101 {
+public:
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
+        // ** EFUSE defaults **
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
+    
+        WriteReg(0x93, 0x1C); // 配置 aldo2 输出为 3.3V
+    
+        uint8_t value = ReadReg(0x90); // XPOWERS_AXP2101_LDO_ONOFF_CTRL0
+        value = value | 0x02; // set bit 1 (ALDO2)
+        WriteReg(0x90, value);  // and power channels now enabled
+    
+        WriteReg(0x64, 0x03); // CV charger voltage setting to 4.2V
+        
+        WriteReg(0x61, 0x05); // set Main battery precharge current to 125mA
+        WriteReg(0x62, 0x0A); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x15); // set Main battery term charge current to 125mA
+    
+        WriteReg(0x14, 0x00); // set minimum system voltage to 4.1V (default 4.7V), for poor USB cables
+        WriteReg(0x15, 0x00); // set input voltage limit to 3.88v, for poor USB cables
+        WriteReg(0x16, 0x05); // set input current limit to 2000mA
+    
+        WriteReg(0x24, 0x01); // set Vsys for PWROFF threshold to 3.2V (default - 2.6V and kill battery)
+        WriteReg(0x50, 0x14); // set TS pin to EXTERNAL input (not temperature)
+    }
+};
+
+
 class KevinBoxBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Axp2101* axp2101_ = nullptr;
+    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+    esp_lcd_panel_handle_t panel_ = nullptr;
+    OledDisplay* display_ = nullptr;
+    Pmic* pmic_ = nullptr;
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -83,6 +118,53 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+    }
+
+    void InitializeSsd1306Display() {
+        // SSD1306 config
+        esp_lcd_panel_io_i2c_config_t io_config = {
+            .dev_addr = 0x3C,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 6,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 8,
+            .flags = {
+                .dc_low_on_data = 0,
+                .disable_control_phase = 0,
+            },
+            .scl_speed_hz = 400 * 1000,
+        };
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
+
+        ESP_LOGI(TAG, "Install SSD1306 driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = -1;
+        panel_config.bits_per_pixel = 1;
+
+        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
+            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
+        };
+        panel_config.vendor_config = &ssd1306_config;
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
+        ESP_LOGI(TAG, "SSD1306 driver installed");
+
+        // Reset the display
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+        if (esp_lcd_panel_init(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize display");
+            return;
+        }
+
+        // Set the display to on
+        ESP_LOGI(TAG, "Turning display on");
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+            {&font_puhui_14_1, &font_awesome_14_1});
     }
 
     void InitializeCodecI2c() {
@@ -159,8 +241,9 @@ public:
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializeDisplayI2c();
+        InitializeSsd1306Display();
         InitializeCodecI2c();
-        axp2101_ = new Axp2101(codec_i2c_bus_, AXP2101_I2C_ADDR);
+        pmic_ = new Pmic(codec_i2c_bus_, AXP2101_I2C_ADDR);
 
         Enable4GModule();
 
@@ -182,42 +265,22 @@ public:
     }
 
     virtual Display* GetDisplay() override {
-        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-                                    &font_puhui_14_1, &font_awesome_14_1);
-        return &display;
+        return display_;
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        static int last_level = 0;
         static bool last_charging = false;
-
-        charging = axp2101_->IsCharging();
+        charging = pmic_->IsCharging();
         if (charging != last_charging) {
             power_save_timer_->WakeUp();
-        }
-
-        level = axp2101_->GetBatteryLevel();
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
             last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
 
-        static bool show_low_power_warning_ = false;
-        if (axp2101_->IsDischarging()) {
-            // 电量低于 10% 时，显示低电量警告
-            if (!show_low_power_warning_ && level <= 10) {
-                auto& app = Application::GetInstance();
-                app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
-                show_low_power_warning_ = true;
-            }
+        level = pmic_->GetBatteryLevel();
+
+        if (pmic_->IsDischarging()) {
             power_save_timer_->SetEnabled(true);
         } else {
-            if (show_low_power_warning_) {
-                auto& app = Application::GetInstance();
-                app.DismissAlert();
-                show_low_power_warning_ = false;
-            }
             power_save_timer_->SetEnabled(false);
         }
         return true;

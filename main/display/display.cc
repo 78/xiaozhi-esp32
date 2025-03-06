@@ -2,6 +2,7 @@
 #include <esp_err.h>
 #include <string>
 #include <cstdlib>
+#include <cstring>
 
 #include "display.h"
 #include "board.h"
@@ -9,6 +10,7 @@
 #include "font_awesome_symbols.h"
 #include "audio_codec.h"
 #include "settings.h"
+#include "assets/lang_config.h"
 
 #define TAG "Display"
 
@@ -145,6 +147,21 @@ void Display::Update() {
         if (battery_label_ != nullptr && battery_icon_ != icon) {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
+        }
+
+        if (low_battery_popup_ != nullptr) {
+            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0) {
+                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                    auto& app = Application::GetInstance();
+                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                }
+            } else {
+                // Hide the low battery popup when the battery is not empty
+                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                }
+            }
         }
     }
 

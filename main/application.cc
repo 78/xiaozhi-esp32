@@ -45,7 +45,8 @@ Application::Application() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "clock_timer"
+        .name = "clock_timer",
+        .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
 }
@@ -684,7 +685,7 @@ void Application::InputAudio() {
     }
 
 #if CONFIG_USE_WAKE_WORD_DETECT
-    if (wake_word_detect_.IsDetectionRunning()) {
+    if (device_state_ != kDeviceStateListening && wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
     }
 #endif
