@@ -27,8 +27,7 @@ LV_FONT_DECLARE(font_awesome_16_4);
 // 在waveshare_lcd_1_46类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
-    static void rounder_event_cb(lv_event_t * e)
-    {
+    static void rounder_event_cb(lv_event_t * e) {
         lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
         uint16_t x1 = area->x1;
         uint16_t x2 = area->x2;
@@ -39,8 +38,6 @@ public:
 
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
@@ -48,25 +45,20 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
-
         DisplayLockGuard lock(this);
-
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
-
-        
     }
 };
 
 class CustomBoard : public WifiBoard {
 private:
- 
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
@@ -85,7 +77,7 @@ private:
                 pwr_pressed_duration = 0;
             }
             if (pwr_pressed_duration > 50) {
-                board->display_->SetBacklight(0);
+                board->GetBacklight()->SetBrightness(0, 0);
                 gpio_set_level(PWR_Control_PIN, false);
             }
             vTaskDelay(pdMS_TO_TICKS(100));
@@ -116,8 +108,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
     
-    void InitializeTca9554(void)
-    {
+    void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
             ESP_LOGE(TAG, "TCA9554 create returned error");        
@@ -183,9 +174,8 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-        display_->SetBacklight(90);
     }
  
     void InitializeButtons() {
@@ -215,6 +205,7 @@ public:
         Initializespd2010Display();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -224,11 +215,14 @@ public:
         return &audio_codec;
     }
 
-
     virtual Display* GetDisplay() override {
         return display_;
     }
     
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
 };
 
 DECLARE_BOARD(CustomBoard);
