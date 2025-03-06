@@ -164,6 +164,10 @@ idf_component_register(SRCS ${SOURCES}
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE, BOARD_NAME
+# 如果 BOARD_NAME 为空，则使用 BOARD_TYPE
+if(NOT BOARD_NAME)
+    set(BOARD_NAME ${BOARD_TYPE})
+endif()
 target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
                     )
