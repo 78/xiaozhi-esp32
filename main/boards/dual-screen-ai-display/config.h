@@ -125,6 +125,9 @@
 #define TOUCH_SDA_NUM GPIO_NUM_3
 #define TOUCH_SCL_NUM GPIO_NUM_8
 #define TOUCH_INT_NUM GPIO_NUM_9
+#define TOUCH_MIRROR_X false
+#define TOUCH_MIRROR_Y false
+#define TOUCH_SWAP_XY true
 #endif
 #define ADC_UNIT ADC_UNIT_1
 #define BAT_ADC_CHANNEL ADC_CHANNEL_1  // GPIO_NUM_2
@@ -152,7 +155,7 @@
 
 #define DISPLAY_WIDTH 536
 #define DISPLAY_HEIGHT 240
-#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY true
 

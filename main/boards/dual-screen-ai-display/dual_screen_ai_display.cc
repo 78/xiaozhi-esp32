@@ -814,8 +814,8 @@ private:
         ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
-        ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_init(mpu6050, ACCE_FS_16G, GYRO_FS_250DPS));
-        // (mpu6050_wake_up(mpu6050));
+        ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_config(mpu6050, ACCE_FS_16G, GYRO_FS_250DPS));
+        (mpu6050_wake_up(mpu6050));
         mpu6050_enable_motiondetection(mpu6050, 100, 50);
 
         xTaskCreate([](void *arg)
@@ -971,7 +971,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         esp_lcd_panel_invert_color(panel, false);
-        // esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
 
@@ -1010,9 +1010,9 @@ private:
                 .interrupt = 0,
             },
             .flags = {
-                .swap_xy = 1,
-                .mirror_x = 1,
-                .mirror_y = 0,
+                .swap_xy = TOUCH_SWAP_XY,
+                .mirror_x = TOUCH_MIRROR_X,
+                .mirror_y = TOUCH_MIRROR_Y,
             },
         };
 
@@ -1278,12 +1278,12 @@ public:
 #define VCHARGE 4200
 #define V1_UP 4000
 #define V1_DOWN 3950
-#define V2_UP 3850
-#define V2_DOWN 3800
-#define V3_UP 3700
-#define V3_DOWN 3650
-#define V4_UP 3550
-#define V4_DOWN 3500
+#define V2_UP 3750
+#define V2_DOWN 3700
+#define V3_UP 3500
+#define V3_DOWN 3450
+#define V4_UP 3250
+#define V4_DOWN 3200
 
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
