@@ -1,42 +1,24 @@
 #include "lcd_display.h"
 
+#include <vector>
 #include <font_awesome_symbols.h>
 #include <esp_log.h>
 #include <esp_err.h>
-#include <driver/ledc.h>
-#include <vector>
 #include <esp_lvgl_port.h>
-#include <esp_timer.h>
 #include "assets/lang_config.h"
 
 #include "board.h"
 
 #define TAG "LcdDisplay"
-#define LCD_LEDC_CH LEDC_CHANNEL_0
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           gpio_num_t backlight_pin, bool backlight_output_invert,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, fonts) {
+    : LcdDisplay(panel_io, panel, fonts) {
     width_ = width;
     height_ = height;
-
-    // 创建背光渐变定时器
-    const esp_timer_create_args_t timer_args = {
-        .callback = [](void* arg) {
-            LcdDisplay* display = static_cast<LcdDisplay*>(arg);
-            display->OnBacklightTimer();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "backlight_timer",
-        .skip_unhandled_events = true,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &backlight_timer_));
-    InitializeBacklight(backlight_pin);
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -53,6 +35,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    port_cfg.task_priority = 1;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD screen");
@@ -93,33 +76,16 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     }
 
     SetupUI();
-
-    SetBacklight(brightness_);
 }
 
 // RGB LCD实现
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           gpio_num_t backlight_pin, bool backlight_output_invert,
                            int width, int height, int offset_x, int offset_y,
                            bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, fonts) {
+    : LcdDisplay(panel_io, panel, fonts) {
     width_ = width;
     height_ = height;
-
-        // 创建背光渐变定时器
-    const esp_timer_create_args_t timer_args = {
-        .callback = [](void* arg) {
-            LcdDisplay* display = static_cast<LcdDisplay*>(arg);
-            display->OnBacklightTimer();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "backlight_timer",
-        .skip_unhandled_events = true,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &backlight_timer_));
-    InitializeBacklight(backlight_pin);
     
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -132,6 +98,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    port_cfg.task_priority = 1;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD screen");
@@ -173,15 +140,9 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     }
 
     SetupUI();
-
-    SetBacklight(brightness_);
 }
 
 LcdDisplay::~LcdDisplay() {
-    if (backlight_timer_ != nullptr) {
-        esp_timer_stop(backlight_timer_);
-        esp_timer_delete(backlight_timer_);
-    }
     // 然后再清理 LVGL 对象
     if (content_ != nullptr) {
         lv_obj_del(content_);
@@ -205,72 +166,6 @@ LcdDisplay::~LcdDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
-}
-
-void LcdDisplay::InitializeBacklight(gpio_num_t backlight_pin) {
-    if (backlight_pin == GPIO_NUM_NC) {
-        return;
-    }
-
-    // Setup LEDC peripheral for PWM backlight control
-    const ledc_channel_config_t backlight_channel = {
-        .gpio_num = backlight_pin,
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = LCD_LEDC_CH,
-        .intr_type = LEDC_INTR_DISABLE,
-        .timer_sel = LEDC_TIMER_0,
-        .duty = 0,
-        .hpoint = 0,
-        .flags = {
-            .output_invert = backlight_output_invert_,
-        }
-    };
-    const ledc_timer_config_t backlight_timer = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .duty_resolution = LEDC_TIMER_10_BIT,
-        .timer_num = LEDC_TIMER_0,
-        .freq_hz = 20000, //背光pwm频率需要高一点，防止电感啸叫
-        .clk_cfg = LEDC_AUTO_CLK,
-        .deconfigure = false
-    };
-
-    ESP_ERROR_CHECK(ledc_timer_config(&backlight_timer));
-    ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
-}
-
-void LcdDisplay::OnBacklightTimer() {
-    if (current_brightness_ < brightness_) {
-        current_brightness_++;
-    } else if (current_brightness_ > brightness_) {
-        current_brightness_--;
-    }
-    
-    // LEDC resolution set to 10bits, thus: 100% = 1023
-    uint32_t duty_cycle = (1023 * current_brightness_) / 100;
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH, duty_cycle);
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH);
-    
-    if (current_brightness_ == brightness_) {
-        esp_timer_stop(backlight_timer_);
-    }
-}
-
-void LcdDisplay::SetBacklight(uint8_t brightness) {
-    if (backlight_pin_ == GPIO_NUM_NC) {
-        return;
-    }
-
-    if (brightness > 100) {
-        brightness = 100;
-    }
-
-    ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness);
-    // 停止现有的定时器（如果正在运行）
-    esp_timer_stop(backlight_timer_);
-
-    Display::SetBacklight(brightness);
-    // 启动定时器，每 5ms 更新一次
-    ESP_ERROR_CHECK(esp_timer_start_periodic(backlight_timer_, 5 * 1000));
 }
 
 bool LcdDisplay::Lock(int timeout_ms) {
@@ -351,6 +246,18 @@ void LcdDisplay::SetupUI() {
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+
+    low_battery_popup_ = lv_obj_create(screen);
+    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
+    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
+    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
+    lv_obj_center(low_battery_label);
+    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void LcdDisplay::SetEmotion(const char* emotion) {

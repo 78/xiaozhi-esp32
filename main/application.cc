@@ -15,6 +15,7 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
+#include <esp_app_desc.h>
 
 #define TAG "Application"
 
@@ -44,7 +45,8 @@ Application::Application() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "clock_timer"
+        .name = "clock_timer",
+        .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
 }
@@ -99,7 +101,7 @@ void Application::CheckNewVersion() {
 
                 auto& board = Board::GetInstance();
                 board.SetPowerSaveMode(false);
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
                 wake_word_detect_.StopDetection();
 #endif
                 // 预先关闭音频输出，避免升级过程有音频操作
@@ -295,20 +297,18 @@ void Application::StartListening() {
         Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
             protocol_->SendStartListening(kListeningModeManualStop);
-            // FIXME: Wait for the speaker to empty the buffer
-            vTaskDelay(pdMS_TO_TICKS(120));
             SetDeviceState(kDeviceStateListening);
         });
     }
 }
 
 void Application::StopListening() {
-    if (device_state_ == kDeviceStateListening) {
-        Schedule([this]() {
+    Schedule([this]() {
+        if (device_state_ == kDeviceStateListening) {
             protocol_->SendStopListening();
             SetDeviceState(kDeviceStateIdle);
-        });
-    }
+        }
+    });
 }
 
 void Application::Start() {
@@ -354,7 +354,7 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL);
-    }, "main_loop", 4096 * 2, this, 2, nullptr);
+    }, "main_loop", 4096 * 2, this, 3, nullptr);
 
     /* Wait for the network to be ready */
     board.StartNetwork();
@@ -462,15 +462,16 @@ void Application::Start() {
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ota_.SetHeader("Client-Id", board.GetUuid());
     ota_.SetHeader("Accept-Language", Lang::CODE);
+    auto app_desc = esp_app_get_description();
+    ota_.SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
 
     xTaskCreate([](void* arg) {
         Application* app = (Application*)arg;
         app->CheckNewVersion();
         vTaskDelete(NULL);
-    }, "check_new_version", 4096 * 2, this, 1, nullptr);
+    }, "check_new_version", 4096 * 2, this, 2, nullptr);
 
-
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_.Initialize(codec->input_channels(), codec->input_reference());
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
         background_task_->Schedule([this, data = std::move(data)]() mutable {
@@ -481,7 +482,9 @@ void Application::Start() {
             });
         });
     });
+#endif
 
+#if CONFIG_USE_WAKE_WORD_DETECT
     wake_word_detect_.Initialize(codec->input_channels(), codec->input_reference());
     wake_word_detect_.OnVadStateChange([this](bool speaking) {
         Schedule([this, speaking]() {
@@ -536,11 +539,10 @@ void Application::Start() {
 }
 
 void Application::OnClockTimer() {
-    static int count = 0;
-    count++;
+    clock_ticks_++;
 
     // Print the debug info every 10 seconds
-    if (count % 10 == 0) {
+    if (clock_ticks_ % 10 == 0) {
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
@@ -681,13 +683,15 @@ void Application::InputAudio() {
             data = std::move(resampled);
         }
     }
-    
-#if CONFIG_USE_AUDIO_PROCESSING
+
+#if CONFIG_USE_WAKE_WORD_DETECT
+    if (device_state_ != kDeviceStateListening && wake_word_detect_.IsDetectionRunning()) {
+        wake_word_detect_.Feed(data);
+    }
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
     if (audio_processor_.IsRunning()) {
         audio_processor_.Input(data);
-    }
-    if (wake_word_detect_.IsDetectionRunning()) {
-        wake_word_detect_.Feed(data);
     }
 #else
     if (device_state_ == kDeviceStateListening) {
@@ -713,6 +717,8 @@ void Application::SetDeviceState(DeviceState state) {
         return;
     }
     
+    clock_ticks_ = 0;
+    auto previous_state = device_state_;
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
@@ -728,7 +734,7 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
-#ifdef CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Stop();
 #endif
             break;
@@ -742,16 +748,20 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetEmotion("neutral");
             ResetDecoder();
             opus_encoder_->ResetState();
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Start();
 #endif
             UpdateIotStates();
+            if (previous_state == kDeviceStateSpeaking) {
+                // FIXME: Wait for the speaker to empty the buffer
+                vTaskDelay(pdMS_TO_TICKS(120));
+            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
             ResetDecoder();
             codec->EnableOutput(true);
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Stop();
 #endif
             break;
@@ -810,4 +820,17 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
             }
         });
     }
+}
+
+bool Application::CanEnterSleepMode() {
+    if (device_state_ != kDeviceStateIdle) {
+        return false;
+    }
+
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        return false;
+    }
+
+    // Now it is safe to enter sleep mode
+    return true;
 }

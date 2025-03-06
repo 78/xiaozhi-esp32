@@ -43,6 +43,7 @@
         "BATTERY_LOW": "Low battery",
         "BATTERY_CHARGING": "Charging",
         "BATTERY_FULL": "Battery full",
+        "BATTERY_NEED_CHARGE": "Low battery, please charge",
 
         "VOLUME": "Volume ",
         "MUTED": "Muted",

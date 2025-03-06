@@ -1,68 +1,25 @@
-#include "ssd1306_display.h"
+#include "oled_display.h"
 #include "font_awesome_symbols.h"
 
 #include <esp_log.h>
 #include <esp_err.h>
-#include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
 #include <esp_lvgl_port.h>
 #include "assets/lang_config.h"
 
-#define TAG "Ssd1306Display"
+#define TAG "OledDisplay"
 
 LV_FONT_DECLARE(font_awesome_30_1);
 
-Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
-                               const lv_font_t* text_font, const lv_font_t* icon_font)
-    : text_font_(text_font), icon_font_(icon_font) {
+OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+    int width, int height, bool mirror_x, bool mirror_y, DisplayFonts fonts)
+    : panel_io_(panel_io), panel_(panel), fonts_(fonts) {
     width_ = width;
     height_ = height;
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    port_cfg.task_priority = 1;
     lvgl_port_init(&port_cfg);
-
-    // SSD1306 config
-    esp_lcd_panel_io_i2c_config_t io_config = {
-        .dev_addr = 0x3C,
-        .on_color_trans_done = nullptr,
-        .user_ctx = nullptr,
-        .control_phase_bytes = 1,
-        .dc_bit_offset = 6,
-        .lcd_cmd_bits = 8,
-        .lcd_param_bits = 8,
-        .flags = {
-            .dc_low_on_data = 0,
-            .disable_control_phase = 0,
-        },
-        .scl_speed_hz = 400 * 1000,
-    };
-
-    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2((i2c_master_bus_t*)i2c_master_handle, &io_config, &panel_io_));
-
-    ESP_LOGI(TAG, "Install SSD1306 driver");
-    esp_lcd_panel_dev_config_t panel_config = {};
-    panel_config.reset_gpio_num = -1;
-    panel_config.bits_per_pixel = 1;
-
-    esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-        .height = static_cast<uint8_t>(height_),
-    };
-    panel_config.vendor_config = &ssd1306_config;
-
-    ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
-    ESP_LOGI(TAG, "SSD1306 driver installed");
-
-    // Reset the display
-    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-    if (esp_lcd_panel_init(panel_) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize display");
-        return;
-    }
-
-    // Set the display to on
-    ESP_LOGI(TAG, "Turning display on");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
     ESP_LOGI(TAG, "Adding LCD screen");
     const lvgl_port_display_cfg_t display_cfg = {
@@ -102,7 +59,7 @@ Ssd1306Display::Ssd1306Display(void* i2c_master_handle, int width, int height, b
     }
 }
 
-Ssd1306Display::~Ssd1306Display() {
+OledDisplay::~OledDisplay() {
     if (content_ != nullptr) {
         lv_obj_del(content_);
     }
@@ -125,15 +82,15 @@ Ssd1306Display::~Ssd1306Display() {
     lvgl_port_deinit();
 }
 
-bool Ssd1306Display::Lock(int timeout_ms) {
+bool OledDisplay::Lock(int timeout_ms) {
     return lvgl_port_lock(timeout_ms);
 }
 
-void Ssd1306Display::Unlock() {
+void OledDisplay::Unlock() {
     lvgl_port_unlock();
 }
 
-void Ssd1306Display::SetChatMessage(const char* role, const char* content) {
+void OledDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
@@ -150,11 +107,11 @@ void Ssd1306Display::SetChatMessage(const char* role, const char* content) {
     }
 }
 
-void Ssd1306Display::SetupUI_128x64() {
+void OledDisplay::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, text_font_, 0);
+    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
     /* Container */
@@ -225,7 +182,7 @@ void Ssd1306Display::SetupUI_128x64() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -240,18 +197,30 @@ void Ssd1306Display::SetupUI_128x64() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+
+    low_battery_popup_ = lv_obj_create(screen);
+    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
+    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
+    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
+    lv_obj_center(low_battery_label);
+    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
-void Ssd1306Display::SetupUI_128x32() {
+void OledDisplay::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, text_font_, 0);
+    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -293,15 +262,15 @@ void Ssd1306Display::SetupUI_128x32() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
+    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
 
     status_label_ = lv_label_create(status_bar_);
     lv_obj_set_style_pad_left(status_label_, 2, 0);

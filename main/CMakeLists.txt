@@ -9,7 +9,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/display.cc"
             "display/no_display.cc"
             "display/lcd_display.cc"
-            "display/ssd1306_display.cc"
+            "display/oled_display.cc"
             "protocols/protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
@@ -41,6 +41,8 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")    
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
+elseif(CONFIG_BOARD_TYPE_ESP_BOX)
+    set(BOARD_TYPE "esp-box")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
@@ -113,6 +115,8 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-wifi")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
+    set(BOARD_TYPE "sensecap-watcher")
 endif()
 file(GLOB BOARD_SOURCES 
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -126,8 +130,11 @@ elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
     list(APPEND SOURCES "protocols/websocket_protocol.cc")
 endif()
 
-if(CONFIG_USE_AUDIO_PROCESSING)
-    list(APPEND SOURCES "audio_processing/audio_processor.cc" "audio_processing/wake_word_detect.cc")
+if(CONFIG_USE_AUDIO_PROCESSOR)
+    list(APPEND SOURCES "audio_processing/audio_processor.cc")
+endif()
+if(CONFIG_USE_WAKE_WORD_DETECT)
+    list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
 
 # 根据Kconfig选择语言目录

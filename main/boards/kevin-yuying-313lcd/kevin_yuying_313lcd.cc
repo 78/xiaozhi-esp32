@@ -27,7 +27,6 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
 
-    
     void InitializeRGB_GC9503V_Display() {
         ESP_LOGI(TAG, "Init GC9503V");
 
@@ -103,7 +102,7 @@ private:
         (esp_lcd_panel_reset(panel_handle));
         (esp_lcd_panel_init(panel_handle));
 
-        display_ = new RgbLcdDisplay(panel_io, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
                                   DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                   {
@@ -157,6 +156,7 @@ public:
         InitializeButtons();
         InitializeIot();
         InitializeRGB_GC9503V_Display();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -165,13 +165,15 @@ public:
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
+
     virtual Display* GetDisplay() override {
         return display_;
     }
-
-    // virtual Display* GetDisplayType() override {
-    //     return display_;
-    // }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
 };
 
 DECLARE_BOARD(Yuying_313lcd);

@@ -18,6 +18,7 @@ dependencies:
   espressif/button: "^3.3.1"
   lvgl/lvgl: "~9.2.2"
   esp_lvgl_port: "~2.4.4"
+  espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
   ## Required IDF version
   idf:
     version: ">=5.3"
