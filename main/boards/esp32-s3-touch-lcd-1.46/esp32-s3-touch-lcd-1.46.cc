@@ -77,8 +77,15 @@ private:
                 pwr_pressed_duration = 0;
             }
             if (pwr_pressed_duration > 50) {
-                board->GetBacklight()->SetBrightness(0, 0);
-                gpio_set_level(PWR_Control_PIN, false);
+                if(board->GetBacklight()->brightness()){
+                    board->GetBacklight()->SetBrightness(0, 0);
+                    gpio_set_level(PWR_Control_PIN, false);
+                }
+                else {
+                    board->GetBacklight()->SetBrightness(90, 0);
+                    gpio_set_level(PWR_Control_PIN, true);
+                }
+                pwr_pressed_duration = 0;
             }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
