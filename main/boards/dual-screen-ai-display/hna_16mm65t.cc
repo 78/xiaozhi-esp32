@@ -316,7 +316,8 @@ HNA_16MM65T::HNA_16MM65T(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host
  */
 HNA_16MM65T::HNA_16MM65T(spi_device_handle_t spi_device) : PT6324Writer(spi_device)
 {
-    if(!spi_device){
+    if (!spi_device)
+    {
         ESP_LOGE(TAG, "VFD spi is null");
         return;
     }
@@ -356,7 +357,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size)
     wave_start_time = esp_timer_get_time() / 1000;
     if (size < 512)
         return;
-    static float fft_gain[FFT_SIZE] = {1.8f * 2, 2.2f * 2, 2.6f * 2, 2.8f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2};
+    static float fft_gain[FFT_SIZE] = {1.5f * 2, 1.6f * 2, 2.6f * 2, 2.8f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2, 3.0f * 2};
     static uint8_t fft_postion[FFT_SIZE] = {0, 2, 4, 6, 8, 10, 11, 9, 7, 5, 3, 1};
     static float max = 0;
     float fft_buf[FFT_SIZE];
@@ -383,7 +384,7 @@ void HNA_16MM65T::spectrum_show(float *buf, int size)
     for (size_t i = 0; i < FFT_SIZE; i++)
     {
         waveData[i].last_value = waveData[i].target_value;
-        waveData[i].target_value = fft_buf[fft_postion[i]] * fft_gain[fft_postion[i]];
+        waveData[i].target_value = fft_buf[fft_postion[i]] * fft_gain[fft_postion[i]] * 0.25f;
         waveData[i].animation_step = 0;
     }
 }

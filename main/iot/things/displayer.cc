@@ -3,7 +3,6 @@
 #include "board.h"
 #include "audio_codec.h"
 #include <string>
-#include "display/lcd_display.h"
 
 #include <esp_log.h>
 #define TAG "Displayer"
@@ -35,20 +34,28 @@ namespace iot
                 sprintf(tempstr, "BRIGHT:%d", brightness);
                 display->Notification((std::string)tempstr,2000); });
 
-            properties_.AddBooleanProperty("autodimming", "自动亮度是否打开", [this]() -> bool {
+            properties_.AddBooleanProperty("autodimming", "自动亮度是否打开", [this]() -> bool
+                                           {
                 auto display = Board::GetInstance().GetDisplay();
-                return display->GetAutoDimming();
-            });
+                return display->GetAutoDimming(); });
 
-            methods_.AddMethod("TurnOn", "打开自动亮度", ParameterList(), [this](const ParameterList& parameters) {
+            methods_.AddMethod("TurnOn", "打开自动亮度", ParameterList(), [this](const ParameterList &parameters)
+                               {
                 auto display = Board::GetInstance().GetDisplay();
                 display->SetAutoDimming(true);
-            });
+                char tempstr[11] = {0};
+                sprintf(tempstr, "AutoDimmON");
+                display->Notification((std::string)tempstr,2000); });
 
-            methods_.AddMethod("TurnOff", "关闭自动亮度", ParameterList(), [this](const ParameterList& parameters) {
+            methods_.AddMethod("TurnOff", "关闭自动亮度", ParameterList(), [this](const ParameterList &parameters)
+                               {
                 auto display = Board::GetInstance().GetDisplay();
                 display->SetAutoDimming(false);
-            });
+                char tempstr[11] = {0};
+                sprintf(tempstr, "AutoDimmOF");
+                display->Notification((std::string)tempstr,2000); 
+                display->SetBacklight(display->GetBacklight()); 
+             });
         }
     };
 

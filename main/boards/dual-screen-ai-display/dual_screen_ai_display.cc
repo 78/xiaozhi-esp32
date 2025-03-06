@@ -71,7 +71,6 @@ class CustomLcdDisplay : public QspiLcdDisplay, public Led,
 {
 private:
     uint8_t brightness_ = 0;
-    lv_obj_t *time_label_ = nullptr;
     lv_style_t style_user;
     lv_style_t style_assistant;
     std::vector<lv_obj_t *> labelContainer; // 存储 label 指针的容器
@@ -153,14 +152,6 @@ public:
         lcd_cmd <<= 8;
         lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
         esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
-    }
-
-    void UpdateTime(struct tm *time)
-    {
-        char time_str[6];
-        strftime(time_str, sizeof(time_str), "%H:%M", time);
-        DisplayLockGuard lock(this);
-        lv_label_set_text(time_label_, time_str);
     }
 
     static void set_width(void *var, int32_t v)
@@ -262,10 +253,6 @@ public:
         network_label_ = lv_label_create(status_bar_);
         lv_label_set_text(network_label_, "");
         lv_obj_set_style_text_font(network_label_, &font_awesome_16_4, 0);
-
-        time_label_ = lv_label_create(status_bar_);
-        lv_label_set_text(time_label_, "");
-        lv_obj_set_style_text_font(time_label_, &font_puhui_16_4, 0);
 
         notification_label_ = lv_label_create(status_bar_);
         lv_obj_set_flex_grow(notification_label_, 1);
@@ -809,9 +796,27 @@ private:
         conf.master.clk_speed = 400000,
         i2c_bus = i2c_bus_create(IIC_MASTER_NUM, &conf);
         bmp280 = bmp280_create(i2c_bus, BMP280_I2C_ADDRESS_DEFAULT);
-        ESP_LOGI(TAG, "bmp280_default_init:%d", bmp280_default_init(bmp280));
+        esp_err_t ret = bmp280_default_init(bmp280);
+        ESP_LOGI(TAG, "bmp280_default_init:%d", ret);
         rx8900 = rx8900_create(i2c_bus, RX8900_I2C_ADDRESS_DEFAULT);
-        ESP_LOGI(TAG, "rx8900_default_init:%d", rx8900_default_init(rx8900));
+        ret = rx8900_default_init(rx8900);
+        ESP_LOGI(TAG, "rx8900_default_init:%d", ret);
+        if (ret == ESP_OK)
+        {
+            struct tm time_user;
+            if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
+            {
+                time_t timestamp = mktime(&time_user);
+                struct timeval tv;
+                tv.tv_sec = timestamp;
+                tv.tv_usec = 0;
+                if (settimeofday(&tv, NULL) == ESP_FAIL)
+                {
+                    ESP_LOGE(TAG, "Failed to set system time");
+                    return;
+                }
+            }
+        }
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
         ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_config(mpu6050, ACCE_FS_16G, GYRO_FS_250DPS));
@@ -864,15 +869,14 @@ private:
         //     app.ToggleChatState(); });
 
         touch_button_.OnLongPress([this]
-                                 {
+                                  {
             ESP_LOGI(TAG, "System Sleeped");
             ((CustomLcdDisplay *)GetDisplay())->Sleep();
             gpio_set_level(PIN_NUM_POWER_EN, 0);
             i2c_bus_delete(&i2c_bus);
             rtc_gpio_pullup_en(PIN_NUM_LCD_TE);
             esp_sleep_enable_ext0_wakeup(PIN_NUM_LCD_TE, 0);
-            esp_deep_sleep_start();
-        });
+            esp_deep_sleep_start(); });
 
         // touch_button_.OnPressDown([this]()
         //                           { Application::GetInstance().StartListening(); });
@@ -1282,8 +1286,8 @@ public:
 #define V2_DOWN 3700
 #define V3_UP 3500
 #define V3_DOWN 3450
-#define V4_UP 3250
-#define V4_DOWN 3200
+#define V4_UP 3050
+#define V4_DOWN 3000
 
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {
@@ -1409,13 +1413,8 @@ public:
     virtual bool TimeUpdate() override
     {
         static struct tm time_user;
-        if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
-        {
-            time_t now;
-            time(&now);
-            time_user = *localtime(&now);
-        }
-
+        time_t now = time(NULL);
+        time_user = *localtime(&now);
         char time_str[7];
 #if FORD_VFD_EN
         strftime(time_str, sizeof(time_str), "%H%M", &time_user);

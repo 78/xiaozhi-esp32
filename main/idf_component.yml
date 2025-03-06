@@ -1,7 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
   maucke/encoder: 1.0.0
-  maucke/bmp280: 1.0.1
+  maucke/bmp280: 1.0.0
   maucke/mpu6050: 1.1.0
   maucke/rx8900: 1.0.0
   maucke/esp_lcd_sh8601: 1.0.4
