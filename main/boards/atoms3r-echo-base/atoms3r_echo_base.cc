@@ -176,7 +176,7 @@ private:
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
-
+        GetBacklight()->SetBrightness(100);
         display_->SetStatus(Lang::Strings::ERROR);
         display_->SetEmotion("sad");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
