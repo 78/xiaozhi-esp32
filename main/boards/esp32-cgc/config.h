@@ -29,9 +29,7 @@
 #endif
 
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_15
 #define ASR_BUTTON_GPIO         GPIO_NUM_13
-#define BUILTIN_LED_GPIO        GPIO_NUM_NC
 
 #define DISPLAY_SDA_PIN         GPIO_NUM_NC
 #define DISPLAY_SCL_PIN         GPIO_NUM_NC
