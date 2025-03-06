@@ -197,15 +197,4 @@ config USE_WAKE_WORD_DETECT
     depends on IDF_TARGET_ESP32S3 && USE_AFE
     help
         需要 ESP32 S3 与 AFE 支持
-
-choice I2S_RECORD_MODE
-    prompt "I2S 录音通信模式"
-    default I2S_RECORD_MODE_DEFAULT
-    help
-        I2S 录音通信模式
-    config I2S_RECORD_MODE_DEFAULT
-        bool "默认"
-    config I2S_RECORD_MODE_PDM
-        bool "PDM"
-endchoice
 endmenu

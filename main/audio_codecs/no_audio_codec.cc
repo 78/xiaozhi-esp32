@@ -357,7 +357,6 @@ int NoAudioCodec::Write(const int16_t* data, int samples) {
     return bytes_written / sizeof(int32_t);
 }
 
-#ifndef CONFIG_I2S_RECORD_MODE_PDM
 int NoAudioCodec::Read(int16_t* dest, int samples) {
     size_t bytes_read;
 
@@ -374,8 +373,8 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
     }
     return samples;
 }
-#else
-int NoAudioCodec::Read(int16_t* dest, int samples) {
+
+int NoAudioCodecSimplexPdm::Read(int16_t* dest, int samples) {
     size_t bytes_read;
 
     // PDM 解调后的数据位宽为 16 位
@@ -393,4 +392,3 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
 
     return samples;
 }
-#endif
