@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "esp32_cgc_no_audio_codec.h"
-#include "esp32_cgc_144_lcd_display.h"
+#include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -24,7 +24,7 @@ LV_FONT_DECLARE(font_awesome_14_1);
 class ESP32_CGC_144 : public WifiBoard {
 private:
     Button boot_button_;
-    ESP32_CGC_144_LcdDisplay* display_;
+    LcdDisplay* display_;
     Button asr_button_;
 
     void InitializeSpi() {
@@ -67,7 +67,7 @@ private:
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new ESP32_CGC_144_LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_14_1,
@@ -75,6 +75,7 @@ private:
                                         .emoji_font = font_emoji_32_init(),
                                     });
     }
+
 
 
  
@@ -99,7 +100,6 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
     }
 
@@ -110,6 +110,7 @@ public:
         InitializeSt7735Display();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override 
@@ -122,6 +123,12 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
+
 };
 
 DECLARE_BOARD(ESP32_CGC_144);
