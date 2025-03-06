@@ -2,6 +2,7 @@
 
 #include <esp_log.h>
 #include <cmath>
+#include <cstring>
 
 #define TAG "NoAudioCodec"
 
@@ -35,7 +36,7 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
+			#ifdef   I2S_HW_VERSION_2
 				.ext_clk_freq_hz = 0,
 			#endif
 
@@ -48,7 +49,7 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
+            #ifdef   I2S_HW_VERSION_2
                 .left_align = true,
                 .big_endian = false,
                 .bit_order_lsb = false
@@ -94,7 +95,7 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
+			#ifdef   I2S_HW_VERSION_2
 				.ext_clk_freq_hz = 0,
 			#endif
         },
@@ -106,7 +107,7 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
+            #ifdef   I2S_HW_VERSION_2
                 .left_align = true,
                 .big_endian = false,
                 .bit_order_lsb = false
@@ -153,7 +154,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
+			#ifdef   I2S_HW_VERSION_2
 				.ext_clk_freq_hz = 0,
 			#endif
 
@@ -166,7 +167,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
+            #ifdef   I2S_HW_VERSION_2
                 .left_align = true,
                 .big_endian = false,
                 .bit_order_lsb = false
@@ -222,7 +223,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
+			#ifdef   I2S_HW_VERSION_2
 				.ext_clk_freq_hz = 0,
 			#endif
 
@@ -235,7 +236,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2   
+            #ifdef   I2S_HW_VERSION_2
                 .left_align = true,
                 .big_endian = false,
                 .bit_order_lsb = false
@@ -290,7 +291,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2    
+			#ifdef   I2S_HW_VERSION_2
 				.ext_clk_freq_hz = 0,
 			#endif
 
@@ -321,7 +322,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
         .gpio_cfg = {
             .clk = mic_sck,
             .din = mic_din,
- 
+
             .invert_flags = {
                 .clk_inv = false,
             },
@@ -370,5 +371,24 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
         int32_t value = bit32_buffer[i] >> 12;
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
+    return samples;
+}
+
+int NoAudioCodecSimplexPdm::Read(int16_t* dest, int samples) {
+    size_t bytes_read;
+
+    // PDM 解调后的数据位宽为 16 位
+    std::vector<int16_t> bit16_buffer(samples);
+    if (i2s_channel_read(rx_handle_, bit16_buffer.data(), samples * sizeof(int16_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
+        ESP_LOGE(TAG, "Read Failed!");
+        return 0;
+    }
+
+    // 计算实际读取的样本数
+    samples = bytes_read / sizeof(int16_t);
+
+    // 将 16 位数据直接复制到目标缓冲区
+    memcpy(dest, bit16_buffer.data(), samples * sizeof(int16_t));
+
     return samples;
 }
