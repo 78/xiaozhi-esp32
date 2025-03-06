@@ -154,12 +154,8 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
         thing_manager.AddThing(iot::CreateThing("Backlight"));
-#endif
-
         // thing_manager.AddThing(iot::CreateThing("Lamp"));
-        // thing_manager.AddThing(iot::CreateThing("Newfan"));
     }
 
 public:
@@ -169,9 +165,7 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
-#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
         GetBacklight()->RestoreBrightness();
-#endif
     }
 
     virtual AudioCodec* GetAudioCodec() override 
@@ -190,12 +184,10 @@ public:
         return display_;
     }
 
-#if DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
-#endif
 };
 
 DECLARE_BOARD(ESP32_CGC);
