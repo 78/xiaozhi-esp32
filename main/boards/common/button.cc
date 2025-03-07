@@ -3,6 +3,7 @@
 #include <esp_log.h>
 
 static const char* TAG = "Button";
+#if CONFIG_SOC_ADC_SUPPORTED
 Button::Button(const button_adc_config_t& adc_cfg) {
     button_config_t button_config = {
         .type = BUTTON_TYPE_ADC,
@@ -16,6 +17,7 @@ Button::Button(const button_adc_config_t& adc_cfg) {
         return;
     }
 }
+#endif
 
 Button::Button(gpio_num_t gpio_num, bool active_high) : gpio_num_(gpio_num) {
     if (gpio_num == GPIO_NUM_NC) {

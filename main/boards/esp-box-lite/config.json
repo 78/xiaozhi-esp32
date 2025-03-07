@@ -3,7 +3,7 @@
     "builds": [
         {
             "name": "esp-box-lite",
-            "sdkconfig_append": []
+            "sdkconfig_append": ["CONFIG_SOC_ADC_SUPPORTED=y"]
         }
     ]
 }
