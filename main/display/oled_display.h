@@ -1,12 +1,12 @@
-#ifndef SSD1306_DISPLAY_H
-#define SSD1306_DISPLAY_H
+#ifndef OLED_DISPLAY_H
+#define OLED_DISPLAY_H
 
 #include "display.h"
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 
-class Ssd1306Display : public Display {
+class OledDisplay : public Display {
 private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
@@ -18,8 +18,7 @@ private:
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
 
-    const lv_font_t* text_font_ = nullptr;
-    const lv_font_t* icon_font_ = nullptr;
+    DisplayFonts fonts_;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -28,11 +27,11 @@ private:
     void SetupUI_128x32();
 
 public:
-    Ssd1306Display(void* i2c_master_handle, int width, int height, bool mirror_x, bool mirror_y,
-                   const lv_font_t* text_font, const lv_font_t* icon_font);
-    ~Ssd1306Display();
+    OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y,
+                DisplayFonts fonts);
+    ~OledDisplay();
 
     virtual void SetChatMessage(const char* role, const char* content) override;
 };
 
-#endif // SSD1306_DISPLAY_H
+#endif // OLED_DISPLAY_H

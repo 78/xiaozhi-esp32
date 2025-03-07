@@ -3,15 +3,16 @@
         "type": "en-US"
     },
     "strings": {
+        "WARNING": "Warning",
+        "INFO": "Information",
+        "ERROR": "Error",
         "VERSION": "Ver ",
         "LOADING_PROTOCOL": "Loading Protocol...",
         "INITIALIZING": "Initializing...",
-        "DETECTING_MODULE": "Detecting module...",
-        "REGISTERING_NETWORK": "Waiting for network...",
-        
-        "ERROR": "Error",
         "PIN_ERROR": "Please insert SIM card",
         "REG_ERROR": "Unable to access network, please check SIM card status",
+        "DETECTING_MODULE": "Detecting module...",
+        "REGISTERING_NETWORK": "Waiting for network...",
 
         "STANDBY": "Standby",
         "CONNECT_TO": "Connect to ",
@@ -37,6 +38,15 @@
         "OTA_UPGRADE": "OTA Upgrade",
         "UPGRADING": "System is upgrading...",
         "UPGRADE_FAILED": "Upgrade failed",
-        "ACTIVATION": "Activation"
+        "ACTIVATION": "Activation",
+
+        "BATTERY_LOW": "Low battery",
+        "BATTERY_CHARGING": "Charging",
+        "BATTERY_FULL": "Battery full",
+        "BATTERY_NEED_CHARGE": "Low battery, please charge",
+
+        "VOLUME": "Volume ",
+        "MUTED": "Muted",
+        "MAX_VOLUME": "Max volume"
     }
 }

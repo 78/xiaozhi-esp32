@@ -88,7 +88,7 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
         auto this_ = (WakeWordDetect*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096 * 2, this, 1, nullptr);
+    }, "audio_detection", 4096 * 2, this, 2, nullptr);
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
@@ -132,9 +132,6 @@ void WakeWordDetect::AudioDetectionTask() {
 
         auto res = esp_afe_sr_v1.fetch(afe_detection_data_);
         if (res == nullptr || res->ret_value == ESP_FAIL) {
-            if (res != nullptr) {
-                ESP_LOGI(TAG, "Error code: %d", res->ret_value);
-            }
             continue;;
         }
 
@@ -202,7 +199,7 @@ void WakeWordDetect::EncodeWakeWordData() {
             this_->wake_word_cv_.notify_all();
         }
         vTaskDelete(NULL);
-    }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
+    }, "encode_detect_packets", 4096 * 8, this, 2, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
 
 bool WakeWordDetect::GetWakeWordOpus(std::vector<uint8_t>& opus) {
