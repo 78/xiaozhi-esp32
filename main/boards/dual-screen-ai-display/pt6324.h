@@ -48,6 +48,7 @@ public:
      */
     void pt6324_init();
     void pt6324_setbrightness(uint8_t brightness);
+    void pt6324_setsleep(bool en);
 
 private:
     uint8_t dimming = 0;
@@ -64,6 +65,8 @@ private:
     void pt6324_write_data(uint8_t *dat, int len);
 
 protected:
+    bool dimmen = false;
+    uint8_t gram[48] = {0}; // Display buffer
     /**
      * @brief Refreshes the display of the PT6324 device.
      *

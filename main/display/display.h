@@ -19,8 +19,8 @@ struct DisplayFonts
 class Display
 {
 private:
-    bool timeOffline = false;
-    bool autoDimming = false;
+    bool timeOffline_ = false;
+    bool autoDimming_ = false;
 
 public:
     Display();
@@ -35,6 +35,8 @@ public:
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
+
+    virtual void SetSleep(bool en) { sleep_ = en; }
 #if CONFIG_USE_FFT_EFFECT
     virtual void SpectrumShow(float *buf, int size) {}
 #endif
@@ -44,10 +46,10 @@ public:
     {
         Settings settings("display", true);
         settings.SetInt("auto", en);
-        autoDimming = en;
+        autoDimming_ = en;
     }
 
-    bool GetAutoDimming() { return autoDimming; }
+    bool GetAutoDimming() { return autoDimming_; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -77,6 +79,7 @@ protected:
     esp_timer_handle_t notification_timer_ = nullptr;
     esp_timer_handle_t update_timer_ = nullptr;
 
+    bool sleep_ = false;
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;
     virtual void Unlock() = 0;

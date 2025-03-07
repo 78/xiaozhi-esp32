@@ -12,11 +12,12 @@
 
 #define TAG "Display"
 
-Display::Display() {
+Display::Display()
+{
     // Load brightness from settings
     Settings settings("display");
     brightness_ = settings.GetInt("brightness", 100);
-    autoDimming = settings.GetInt("auto", 0);
+    autoDimming_ = settings.GetInt("auto", 0);
 
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
@@ -51,9 +52,12 @@ Display::Display() {
 
     // Create a power management lock
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ml307", &pm_lock_);
-    if (ret == ESP_ERR_NOT_SUPPORTED) {
+    if (ret == ESP_ERR_NOT_SUPPORTED)
+    {
         ESP_LOGI(TAG, "Power management not supported");
-    } else {
+    }
+    else
+    {
         ESP_ERROR_CHECK(ret);
     }
 }
@@ -81,12 +85,14 @@ Display::~Display()
         lv_obj_del(emotion_label_);
     }
 
-    if (pm_lock_ != nullptr) {
+    if (pm_lock_ != nullptr)
+    {
         esp_pm_lock_delete(pm_lock_);
     }
 }
 
-void Display::SetStatus(const char* status) {
+void Display::SetStatus(const char *status)
+{
     DisplayLockGuard lock(this);
     if (status_label_ == nullptr)
     {
@@ -97,11 +103,13 @@ void Display::SetStatus(const char* status) {
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
-void Display::ShowNotification(const std::string &notification, int duration_ms) {
+void Display::ShowNotification(const std::string &notification, int duration_ms)
+{
     ShowNotification(notification.c_str(), duration_ms);
 }
 
-void Display::ShowNotification(const char* notification, int duration_ms) {
+void Display::ShowNotification(const char *notification, int duration_ms)
+{
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr)
     {
@@ -175,10 +183,10 @@ void Display::Update()
             lv_label_set_text(battery_label_, battery_icon_);
         }
     }
-    if (!timeOffline && !board.TimeUpdate())
-        timeOffline = true;
+    if (!timeOffline_ && !board.TimeUpdate())
+        timeOffline_ = true;
 
-    if (autoDimming)
+    if (autoDimming_)
         board.DimmingUpdate();
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
@@ -192,7 +200,8 @@ void Display::Update()
     if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end())
     {
         icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
+        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon)
+        {
             DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
@@ -202,10 +211,12 @@ void Display::Update()
     esp_pm_lock_release(pm_lock_);
 }
 
-void Display::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
+void Display::SetEmotion(const char *emotion)
+{
+    struct Emotion
+    {
+        const char *icon;
+        const char *text;
     };
 
     static const std::vector<Emotion> emotions = {
@@ -236,9 +247,11 @@ void Display::SetEmotion(const char* emotion) {
     // 查找匹配的表情
     std::string_view emotion_view(emotion);
     auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-    
-    if (emotion_label_ == nullptr) {
+                           [&emotion_view](const Emotion &e)
+                           { return e.text == emotion_view; });
+
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
 
@@ -263,15 +276,18 @@ void Display::SetIcon(const char *icon)
     lv_label_set_text(emotion_label_, icon);
 }
 
-void Display::SetChatMessage(const char* role, const char* content) {
+void Display::SetChatMessage(const char *role, const char *content)
+{
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
+    if (chat_message_label_ == nullptr)
+    {
         return;
     }
     lv_label_set_text(chat_message_label_, content);
 }
 
-void Display::SetBacklight(uint8_t brightness) {
+void Display::SetBacklight(uint8_t brightness)
+{
     Settings settings("display", true);
     settings.SetInt("brightness", brightness);
     brightness_ = brightness;

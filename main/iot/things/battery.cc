@@ -1,6 +1,5 @@
 #include "iot/thing.h"
 #include "board.h"
-#include "display/lcd_display.h"
 
 #include <esp_log.h>
 
@@ -23,11 +22,7 @@ namespace iot
             properties_.AddNumberProperty("level", "当前电量百分比（0-100）", [this]() -> int
                                           {
             auto& board = Board::GetInstance();
-            auto display = board.GetDisplay();
-            char tempstr[11] = {0};
             if (board.GetBatteryLevel(level_, charging_)) {
-                sprintf(tempstr, "BATTERY%d", level_);
-                display->Notification((std::string)tempstr,2000); 
                 return level_;
             }
             return 0; });

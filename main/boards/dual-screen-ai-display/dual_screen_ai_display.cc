@@ -143,7 +143,7 @@ public:
         SetBacklight(brightness_);
     }
 
-    void Sleep()
+    virtual void SetSleep(bool en) override
     {
         ESP_LOGI(TAG, "LCD sleep");
         uint8_t data[1] = {1};
@@ -151,7 +151,23 @@ public:
         lcd_cmd &= 0xff;
         lcd_cmd <<= 8;
         lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
-        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+        if (en)
+        {
+            data[0] = 1;
+            esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+
+            SetBacklightWithoutSave(0);
+        }
+        else
+        {
+            data[0] = 0;
+            esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+
+            SetBacklightWithoutSave(GetBacklight());
+        }
+
+        SetSubSleep(en);
+        sleep_ = en;
     }
 
     static void set_width(void *var, int32_t v)
@@ -592,6 +608,11 @@ public:
     }
 #endif
 #else
+    void SetSubSleep(bool en = true)
+    {
+        pt6324_setsleep(en);
+    }
+
     void SetSubBacklight(uint8_t brightness)
     {
         pt6324_setbrightness(brightness);
@@ -724,6 +745,10 @@ private:
                 show_low_power_warning_ = false;
                 EnableSleepMode(false);
             }
+            else if (battery_level == 0)
+            {
+                EnableDeepSleep();
+            }
         }
         else
         {
@@ -745,18 +770,36 @@ private:
     void EnableSleepMode(bool enable)
     {
         power_save_ticks_ = 0;
+        auto display = GetDisplay();
         if (!sleep_mode_enabled_ && enable)
         {
             ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
 #if FORD_VFD_EN
 #else
             display->Notification("sleepy", 2000);
 #endif
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            display->SetSleep(true);
+            mpu6050_sleep(mpu6050);
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable amoled power");
+                gpio_set_level(PIN_NUM_LCD_POWER, 0);
+            }
+
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable VFD power");
+                gpio_set_level(PIN_NUM_VFD_EN, 0);
+            }
+
+            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Disable force power");
+                gpio_set_level(PIN_NUM_POWER_EN, 0);
+            }
 
             esp_pm_config_t pm_config = {
                 .max_freq_mhz = 240,
@@ -768,6 +811,24 @@ private:
         }
         else if (sleep_mode_enabled_ && !enable)
         {
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Enable amoled power");
+                gpio_set_level(PIN_NUM_LCD_POWER, 1);
+            }
+
+            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Enable VFD power");
+                gpio_set_level(PIN_NUM_VFD_EN, 1);
+            }
+
+            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
+            {
+                ESP_LOGI(TAG, "Enable force power");
+                gpio_set_level(PIN_NUM_POWER_EN, 1);
+            }
+            display->SetSleep(false);
             esp_pm_config_t pm_config = {
                 .max_freq_mhz = 240,
                 .min_freq_mhz = 240,
@@ -776,10 +837,38 @@ private:
             esp_pm_configure(&pm_config);
             ESP_LOGI(TAG, "Disabling sleep mode");
 
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
+            // auto codec = GetAudioCodec();
+            // codec->EnableInput(true);
             sleep_mode_enabled_ = false;
         }
+    }
+
+    void EnableDeepSleep()
+    {
+        ESP_LOGI(TAG, "Battery too low, Deep sleep");
+        mpu6050_sleep(mpu6050);
+        display_->SetSleep(true);
+        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+        {
+            ESP_LOGI(TAG, "Disable amoled power");
+            gpio_set_level(PIN_NUM_LCD_POWER, 0);
+        }
+
+        if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
+        {
+            ESP_LOGI(TAG, "Disable VFD power");
+            gpio_set_level(PIN_NUM_VFD_EN, 0);
+        }
+
+        if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
+        {
+            ESP_LOGI(TAG, "Disable force power");
+            gpio_set_level(PIN_NUM_POWER_EN, 0);
+        }
+        i2c_bus_delete(&i2c_bus);
+        rtc_gpio_pullup_en(TOUCH_INT_NUM);
+        esp_sleep_enable_ext0_wakeup(TOUCH_INT_NUM, 0);
+        esp_deep_sleep_start();
     }
 
     void InitializeI2c()
@@ -826,7 +915,7 @@ private:
         xTaskCreate([](void *arg)
                     { sntp_set_time_sync_notification_cb([](struct timeval *t)
                                                          {
-                if (settimeofday(t, NULL) == -1) {
+                if (settimeofday(t, NULL) == ESP_FAIL) {
                     ESP_LOGE(TAG, "Failed to set system time");
                     return;
                 }
@@ -868,20 +957,18 @@ private:
         //     }
         //     app.ToggleChatState(); });
 
-        touch_button_.OnLongPress([this]
-                                  {
-            ESP_LOGI(TAG, "System Sleeped");
-            ((CustomLcdDisplay *)GetDisplay())->Sleep();
-            gpio_set_level(PIN_NUM_POWER_EN, 0);
-            i2c_bus_delete(&i2c_bus);
-            rtc_gpio_pullup_en(PIN_NUM_LCD_TE);
-            esp_sleep_enable_ext0_wakeup(PIN_NUM_LCD_TE, 0);
-            esp_deep_sleep_start(); });
+        // touch_button_.OnLongPress([this]
+        //                           { EnableDeepSleep(); });
 
-        // touch_button_.OnPressDown([this]()
-        //                           { Application::GetInstance().StartListening(); });
-        // touch_button_.OnPressUp([this]()
-        //                         { Application::GetInstance().StopListening(); });
+        touch_button_.OnPressDown([this]()
+                                  { Application::GetInstance().StartListening(); });
+        touch_button_.OnPressUp([this]()
+                                { Application::GetInstance().StopListening(); });
+    }
+
+    static void tp_interrupt_callback(esp_lcd_touch_handle_t tp)
+    {
+        
     }
 
     void InitializeDisplay()
@@ -1018,6 +1105,7 @@ private:
                 .mirror_x = TOUCH_MIRROR_X,
                 .mirror_y = TOUCH_MIRROR_Y,
             },
+            .interrupt_callback = tp_interrupt_callback,
         };
 
         ESP_LOGI(TAG, "Initialize touch controller");
@@ -1142,6 +1230,7 @@ public:
         InitializeI2c();
         InitializeDisplay();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeIot();
         GetWakeupCause();
     }
@@ -1351,30 +1440,6 @@ public:
         {
             new_level = 0;
             charging = false;
-
-            ESP_LOGI(TAG, "Battery too low");
-            display_->Sleep();
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable amoled power");
-                gpio_set_level(PIN_NUM_LCD_POWER, 0);
-            }
-
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable VFD power");
-                gpio_set_level(PIN_NUM_VFD_EN, 0);
-            }
-
-            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable force power");
-                gpio_set_level(PIN_NUM_POWER_EN, 0);
-            }
-            i2c_bus_delete(&i2c_bus);
-            rtc_gpio_pullup_en(TOUCH_INT_NUM);
-            esp_sleep_enable_ext0_wakeup(TOUCH_INT_NUM, 0);
-            esp_deep_sleep_start();
         }
 
         level = new_level;

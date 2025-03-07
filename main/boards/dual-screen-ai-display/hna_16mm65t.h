@@ -154,7 +154,6 @@ class HNA_16MM65T : protected PT6324Writer
 #define CONTENT_SIZE (10)
 private:
     bool wavebusy = true;
-    uint8_t gram[48] = {0};         // Display buffer
     const int wave_total_steps = 5; // Total number of animation steps
     int64_t wave_start_time = 0;
     WaveFFTData waveData[FFT_SIZE] = {0};

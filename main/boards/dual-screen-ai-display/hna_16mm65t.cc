@@ -293,9 +293,12 @@ HNA_16MM65T::HNA_16MM65T(gpio_num_t din, gpio_num_t clk, gpio_num_t cs, spi_host
             vfd->symbolhelper(LBAR_RBAR, true);
             while (true)
             {
-                vfd->pt6324_refrash(vfd->gram);
-                vfd->contentanimate();
-                vfd->waveanimate();
+                if (vfd->dimmen)
+                {
+                    vfd->pt6324_refrash(vfd->gram);
+                    vfd->contentanimate();
+                    vfd->waveanimate();
+                }
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
             vTaskDelete(NULL);

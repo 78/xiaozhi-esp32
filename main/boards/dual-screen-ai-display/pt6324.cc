@@ -93,7 +93,7 @@ void PT6324Writer::pt6324_init()
 {
     // Define the initialization data to set the brightness
     uint8_t data[] = {0x0F, 0x0F, 0x40};
-
+    dimmen = true;
     // Send the initialization data to the PT6324 device
     pt6324_write_data(data, (sizeof data) * 8);
 }
@@ -105,6 +105,16 @@ void PT6324Writer::pt6324_setbrightness(uint8_t brightness)
         dimming = 7;
     else if (dimming < 1)
         dimming = 1;
+}
+
+void PT6324Writer::pt6324_setsleep(bool en)
+{
+    dimmen = !en;
+    if (!dimmen)
+    {
+        memset(gram, 0, sizeof gram);
+        // pt6324_refrash(gram);
+    }
 }
 
 /**
@@ -132,8 +142,8 @@ void PT6324Writer::pt6324_refrash(uint8_t *gram)
     // Define the command to turn on the display
     uint8_t data[1] = {0x80};
 
-    data[0] |= dimming | 0x8;
-
+    data[0] |= dimming | (dimmen ? 0x8 : 0);
+    
     // Send the display on command to the PT6324 device
     pt6324_write_data(data, (sizeof data) * 8);
 }
