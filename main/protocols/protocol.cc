@@ -95,7 +95,7 @@ void Protocol::SendIotDescriptors(const std::string& descriptors) {
         cJSON_AddItemToArray(descriptorArray, cJSON_Duplicate(descriptor, 1));
         cJSON_AddItemToObject(messageRoot, "descriptors", descriptorArray);
 
-        char* message = cJSON_Print(messageRoot);
+        char* message = cJSON_PrintUnformatted(messageRoot);
         if (message == nullptr) {
             ESP_LOGE(TAG, "Failed to print JSON message for IoT descriptor at index %d", i);
             cJSON_Delete(messageRoot);
@@ -111,7 +111,7 @@ void Protocol::SendIotDescriptors(const std::string& descriptors) {
 }
 
 void Protocol::SendIotStates(const std::string& states) {
-    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"states\":" + states + "}";
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"update\":true,\"states\":" + states + "}";
     SendText(message);
 }
 
