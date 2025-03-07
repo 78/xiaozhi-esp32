@@ -41,9 +41,7 @@ BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_r
     es8156_codec_cfg_t cfg = {};
     cfg.ctrl_if = out_ctrl_if_;
     cfg.gpio_if = gpio_if_;
-    //cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;
     cfg.pa_pin = pa_pin;
-    //cfg.use_mclk = true;
     cfg.hw_gain.pa_voltage = 5.0;
     cfg.hw_gain.codec_dac_voltage = 3.3;
     out_codec_if_ = es8156_codec_new(&cfg);
@@ -64,7 +62,6 @@ BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_r
 
     es7243e_codec_cfg_t es7243_cfg = {};
     es7243_cfg.ctrl_if = in_ctrl_if_;
-    //es7243_cfg.mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3 | ES7120_SEL_MIC4;
     in_codec_if_ = es7243e_codec_new(&es7243_cfg);
     assert(in_codec_if_ != NULL);
 
@@ -199,7 +196,8 @@ void BoxAudioCodecLite::EnableInput(bool enable) {
             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        //ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 40.0));
+        // 不支持设置gain，暂时注释
+        // ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 40.0));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }

@@ -99,7 +99,7 @@ private:
         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
     }
     
-    void TogleState(){
+    void TogleState() {
         auto& app = Application::GetInstance();
         if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
             ResetWifiConfiguration();
@@ -108,7 +108,7 @@ private:
     }
 
     void InitializeButtons() {
-        /* Initialize ADC */
+        /* Initialize ADC  esp-box lite的前三个按钮采用是的adc按钮，而非gpio */
         button_adc_config_t adc_cfg;
         adc_cfg.adc_channel = ADC_CHANNEL_0; // ADC1 channel 0 is GPIO1
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)        
