@@ -7,6 +7,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "led/circular_strip.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -141,6 +142,11 @@ public:
         InitializeIli9341Display();
         InitializeButtons();
         InitializeIot();
+    }
+
+    virtual Led* GetLed() override {
+        static CircularStrip led(BUILTIN_LED_GPIO, 3);
+        return &led;
     }
 
     virtual AudioCodec *GetAudioCodec() override {
