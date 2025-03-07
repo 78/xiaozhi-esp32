@@ -1,6 +1,3 @@
-<a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
-
-
 # 编译配置命令
 
 **配置编译目标为 ESP32S3：**
@@ -27,3 +24,5 @@ Xiaozhi Assistant -> Board Type -> LILYGO T-Circle-S3
 ```bash
 idf.py build
 ```
+
+<a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>

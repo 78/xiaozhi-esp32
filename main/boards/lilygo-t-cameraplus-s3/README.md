@@ -1,5 +1,3 @@
-<a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-CameraPlus-S3</a>
-
 # 编译配置命令
 
 **配置编译目标为 ESP32S3：**
@@ -31,3 +29,5 @@ Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Quad Mode 
 ```bash
 idf.py build
 ```
+
+<a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-CameraPlus-S3</a>
