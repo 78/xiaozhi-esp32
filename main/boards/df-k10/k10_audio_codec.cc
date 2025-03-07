@@ -51,7 +51,7 @@ K10AudioCodec::K10AudioCodec(void* i2c_master_handle, int input_sample_rate, int
 
     assert(input_dev_ != NULL);
 
-    ESP_LOGI(TAG, "BoxAudioDevice initialized");
+    ESP_LOGI(TAG, "DF-K10 AudioDevice initialized");
 }
 
 K10AudioCodec::~K10AudioCodec() {
@@ -188,7 +188,7 @@ void K10AudioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
     }
-    AudioCodec::SetOutputVolume(100);
+    AudioCodec::SetOutputVolume(output_volume_);
     AudioCodec::EnableOutput(enable);
 }
 
@@ -199,57 +199,29 @@ int K10AudioCodec::Read(int16_t* dest, int samples) {
     return samples;
 }
 
-// int K10AudioCodec::Write(const int16_t* data, int samples) {
-//     // if (output_enabled_) {
-//         // ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
-//             std::vector<int32_t> buffer(samples);
-
-//         // output_volume_: 0-100
-//         // volume_factor_: 0-65536
-//         int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
-//         for (int i = 0; i < samples; i++) {
-//             int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
-//             if (temp > INT32_MAX) {
-//                 buffer[i] = INT32_MAX;
-//             } else if (temp < INT32_MIN) {
-//                 buffer[i] = INT32_MIN;
-//             } else {
-//                 buffer[i] = static_cast<int32_t>(temp);
-//             }
-//         }
-
-//         size_t bytes_written;
-//         ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
-//         return bytes_written / sizeof(int32_t);
-//     // }
-//     // return samples;
-// }
-
-
-
 int K10AudioCodec::Write(const int16_t* data, int samples) {
-  // if (output_enabled_) {
-  std::vector<int32_t> buffer(samples * 2);  // Allocate buffer for 2x samples
+    if (output_enabled_) {
+        std::vector<int32_t> buffer(samples * 2);  // Allocate buffer for 2x samples
 
-  // Apply volume adjustment (same as before)
-  int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
-  for (int i = 0; i < samples; i++) {
-    int64_t temp = int64_t(data[i]) * volume_factor;
-    if (temp > INT32_MAX) {
-      buffer[i * 2] = INT32_MAX;
-    } else if (temp < INT32_MIN) {
-      buffer[i * 2] = INT32_MIN;
-    } else {
-      buffer[i * 2] = static_cast<int32_t>(temp);
+        // Apply volume adjustment (same as before)
+        int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
+        for (int i = 0; i < samples; i++) {
+            int64_t temp = int64_t(data[i]) * volume_factor;
+            if (temp > INT32_MAX) {
+            buffer[i * 2] = INT32_MAX;
+            } else if (temp < INT32_MIN) {
+            buffer[i * 2] = INT32_MIN;
+            } else {
+            buffer[i * 2] = static_cast<int32_t>(temp);
+            }
+
+            // Repeat each sample for slow playback (assuming mono audio)
+            buffer[i * 2 + 1] = buffer[i * 2];
+        }
+
+        size_t bytes_written;
+        ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * 2 * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+        return bytes_written / sizeof(int32_t);
     }
-
-    // Repeat each sample for slow playback (assuming mono audio)
-    buffer[i * 2 + 1] = buffer[i * 2];
-  }
-
-  size_t bytes_written;
-  ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * 2 * sizeof(int32_t), &bytes_written, portMAX_DELAY));
-  return bytes_written / sizeof(int32_t);
-  // }
-  // return samples;
+    return samples;
 }
