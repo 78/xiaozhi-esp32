@@ -89,6 +89,7 @@ void Protocol::SendIotDescriptors(const std::string& descriptors) {
         cJSON* messageRoot = cJSON_CreateObject();
         cJSON_AddStringToObject(messageRoot, "session_id", session_id_.c_str());
         cJSON_AddStringToObject(messageRoot, "type", "iot");
+        cJSON_AddBoolToObject(messageRoot, "update", true);
 
         cJSON* descriptorArray = cJSON_CreateArray();
         cJSON_AddItemToArray(descriptorArray, cJSON_Duplicate(descriptor, 1));
