@@ -62,6 +62,8 @@ choice BOARD_TYPE
         bool "ESP BOX 3"
     config BOARD_TYPE_ESP_BOX
         bool "ESP BOX"
+    config BOARD_TYPE_ESP_BOX_LITE
+        bool "ESP BOX Lite"        
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
