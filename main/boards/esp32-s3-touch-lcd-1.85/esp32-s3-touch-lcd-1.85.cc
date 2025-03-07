@@ -408,11 +408,11 @@ private:
         };
         pwr_btn = iot_button_create(&btns_config);
         iot_button_register_cb(pwr_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
-            // auto self = static_cast<CustomBoard*>(usr_data);
-            // if(self->GetBacklight()->brightness() > 1)
-            //     self->GetBacklight()->SetBrightness(1);
+            // auto self = static_cast<CustomBoard*>(usr_data);                                     // 以下程序实现供用户参考 ，实现单击pwr按键调整亮度               
+            // if(self->GetBacklight()->brightness() > 1)                                           // 如果亮度不为0
+            //     self->GetBacklight()->SetBrightness(1);                                          // 设置亮度为1         
             // else
-            //     self->GetBacklight()->RestoreBrightness();
+            //     self->GetBacklight()->RestoreBrightness();                                       // 恢复原本亮度
             // 短按无处理
         }, this);
         iot_button_register_cb(pwr_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
