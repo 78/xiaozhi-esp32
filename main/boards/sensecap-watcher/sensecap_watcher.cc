@@ -54,8 +54,13 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            IoExpanderSetLevel(BSP_PWR_LCD, 0);
-            IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            bool is_charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
+            if (is_charging) {
+                ESP_LOGI(TAG, "charging");
+                GetBacklight()->SetBrightness(0);
+            } else {
+                IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            }
         });
         power_save_timer_->SetEnabled(true);
     }
