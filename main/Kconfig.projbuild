@@ -34,8 +34,8 @@ endchoice
 config WEBSOCKET_URL
     depends on CONNECTION_TYPE_WEBSOCKET
     string "Websocket URL"
-    default "wss://www.u2416165.nyat.app:28103"
-    # default "ws://18wu487iv580.vicp.fun:25665"
+    # default "wss://www.u2416165.nyat.app:28103"
+    default "ws://192.168.8.198:8000"
     # default "wss://api.tenclass.net/xiaozhi/v1/"
     help
         Communication with the server through websocket after wake up.
