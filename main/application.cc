@@ -520,7 +520,7 @@ void Application::Start() {
                 protocol_->SendWakeWordDetected(wake_word);
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
                 keep_listening_ = true;
-                SetDeviceState(kDeviceStateListening);
+                SetDeviceState(kDeviceStateIdle);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
             } else if (device_state_ == kDeviceStateActivating) {
@@ -685,7 +685,7 @@ void Application::InputAudio() {
     }
 
 #if CONFIG_USE_WAKE_WORD_DETECT
-    if (device_state_ != kDeviceStateListening && wake_word_detect_.IsDetectionRunning()) {
+    if (wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
     }
 #endif

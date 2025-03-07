@@ -1,6 +1,7 @@
 set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
+            "audio_codecs/box_audio_codec_lite.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "audio_codecs/cores3_audio_codec.cc"
@@ -44,6 +45,8 @@ elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX)
     set(BOARD_TYPE "esp-box")
+elseif(CONFIG_BOARD_TYPE_ESP_BOX_LITE)
+    set(BOARD_TYPE "esp-box-lite")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
@@ -52,6 +55,8 @@ elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
     set(BOARD_TYPE "kevin-c3")
 elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
     set(BOARD_TYPE "kevin-sp-v3-dev")
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V4_DEV)
+    set(BOARD_TYPE "kevin-sp-v4-dev")
 elseif(CONFIG_BOARD_TYPE_KEVIN_YUYING_313LCD)
     set(BOARD_TYPE "kevin-yuying-313lcd")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
