@@ -8,6 +8,7 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/circular_strip.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -22,12 +23,13 @@
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-static void pin_2_12_status_task(void *arg);
-
 class Df_K10Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
+    esp_io_expander_handle_t io_expander;
     LcdDisplay *display_;
+    button_handle_t btn_a;
+    button_handle_t btn_b;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -56,6 +58,18 @@ private:
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
+
+    esp_err_t IoExpanderSetLevel(uint16_t pin_mask, uint8_t level) {
+        return esp_io_expander_set_level(io_expander, pin_mask, level);
+    }
+
+    uint8_t IoExpanderGetLevel(uint16_t pin_mask) {
+        uint32_t pin_val = 0;
+        esp_io_expander_get_level(io_expander, DRV_IO_EXP_INPUT_MASK, &pin_val);
+        pin_mask &= DRV_IO_EXP_INPUT_MASK;
+        return (uint8_t)((pin_val & pin_mask) ? 1 : 0);
+    }
+
     void InitializeIoExpander() {
         esp_io_expander_new_i2c_tca95xx_16bit(
                 i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9555_ADDRESS_000, &io_expander);
@@ -75,16 +89,84 @@ private:
             ESP_LOGE(TAG, "Set level failed: %s", esp_err_to_name(ret));
         }
         ret = esp_io_expander_set_dir(
-                io_expander, (IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_12),
+                io_expander, DRV_IO_EXP_INPUT_MASK,
                 IO_EXPANDER_INPUT);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Set direction failed: %s", esp_err_to_name(ret));
         }
-
-        xTaskCreate(pin_2_12_status_task, "pin_2_12_status_task", 8*1024,
-                                (void *)this, 5, NULL);
     }
     void InitializeButtons() {
+        // Button A
+        button_config_t btn_a_config = {
+            .type = BUTTON_TYPE_CUSTOM,
+            .long_press_time = 1000,
+            .short_press_time = 50,
+            .custom_button_config = {
+                .active_level = 0,
+                .button_custom_init =nullptr,
+                .button_custom_get_key_value = [](void *param) -> uint8_t {
+                    auto self = static_cast<Df_K10Board*>(param);
+                    return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
+                },
+                .button_custom_deinit = nullptr,
+                .priv = this,
+            },
+        };
+        btn_a = iot_button_create(&btn_a_config);
+        iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<Df_K10Board*>(usr_data);
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                self->ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        }, this);
+        iot_button_register_cb(btn_a, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<Df_K10Board*>(usr_data);
+            auto codec = self->GetAudioCodec();
+            auto volume = codec->output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            codec->SetOutputVolume(volume);
+            self->GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        }, this);
+
+        // Button B
+        button_config_t btn_b_config = {
+            .type = BUTTON_TYPE_CUSTOM,
+            .long_press_time = 1000,
+            .short_press_time = 50,
+            .custom_button_config = {
+                .active_level = 0,
+                .button_custom_init =nullptr,
+                .button_custom_get_key_value = [](void *param) -> uint8_t {
+                    auto self = static_cast<Df_K10Board*>(param);
+                    return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
+                },
+                .button_custom_deinit = nullptr,
+                .priv = this,
+            },
+        };
+        btn_b = iot_button_create(&btn_b_config);
+        iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<Df_K10Board*>(usr_data);
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                self->ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        }, this);
+        iot_button_register_cb(btn_b, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<Df_K10Board*>(usr_data);
+            auto codec = self->GetAudioCodec();
+            auto volume = codec->output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
+            }
+            codec->SetOutputVolume(volume);
+            self->GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        }, this);
     }
 
     void InitializeIli9341Display() {
@@ -134,7 +216,6 @@ private:
     }
 
 public:
-    esp_io_expander_handle_t io_expander;
     Df_K10Board() {
         InitializeI2c();
         InitializeIoExpander();
@@ -170,70 +251,5 @@ public:
         return display_;
     }
 };
-
-static void pin_2_12_status_task(void *arg) {
-    Df_K10Board *board = (Df_K10Board *)arg;    // Use pointer to the board object
-    uint32_t input_level_mask = 0;
-    uint32_t prev_input_level_mask = 0; // To store the previous state
-    uint32_t debounce_delay = 50 / portTICK_PERIOD_MS; // Set debounce time (50 ms)
-
-    while (1) {
-        vTaskDelay(20 / portTICK_PERIOD_MS); // Regular task delay
-
-        esp_err_t ret = esp_io_expander_get_level(
-                board->io_expander, (IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_12),
-                &input_level_mask);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get level mask: %s", esp_err_to_name(ret));
-            continue;
-        }
-
-        // If the state has changed, start debounce process
-        if (input_level_mask != prev_input_level_mask) {
-            // State changed, wait for debounce time
-            vTaskDelay(debounce_delay);
-
-            // Re-check the state after debounce time
-            ret = esp_io_expander_get_level(
-                    board->io_expander, (IO_EXPANDER_PIN_NUM_2 | IO_EXPANDER_PIN_NUM_12),
-                    &input_level_mask);
-            if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to get level mask: %s", esp_err_to_name(ret));
-                continue;
-            }
-
-            // If the state is still the same, consider it stable and log
-            if (input_level_mask != prev_input_level_mask) {
-                prev_input_level_mask = input_level_mask;
-
-                // Now check the stable state and log the button press
-                if (!(input_level_mask & IO_EXPANDER_PIN_NUM_2)) {
-                    ESP_LOGI(TAG, "Button B pressed");
-                    auto &app = Application::GetInstance();
-                        if (app.GetDeviceState() == kDeviceStateStarting &&
-                                !WifiStation::GetInstance().IsConnected()) {
-                             board->ResetWifiConfiguration();
-
-                        }
-                    app.ToggleChatState();
-                }
-
-                if (!(input_level_mask & IO_EXPANDER_PIN_NUM_12)) {
-                    ESP_LOGI(TAG, "Button A pressed");
-                    auto &app = Application::GetInstance();
-                        if (app.GetDeviceState() == kDeviceStateStarting &&
-                                !WifiStation::GetInstance().IsConnected()) {
-                            board->ResetWifiConfiguration();
-                        }
-                    app.ToggleChatState();
-                }
-            }
-        }
-
-        // No change in state, simply continue with the loop
-    }
-}
-
-
 
 DECLARE_BOARD(Df_K10Board);
