@@ -143,7 +143,7 @@ public:
         SetBacklight(brightness_);
     }
 
-    virtual void SetSleep(bool en) override
+    void SetSleep(bool en)
     {
         ESP_LOGI(TAG, "LCD sleep");
         uint8_t data[1] = {1};
@@ -167,7 +167,6 @@ public:
         }
 
         SetSubSleep(en);
-        sleep_ = en;
     }
 
     static void set_width(void *var, int32_t v)
@@ -699,8 +698,8 @@ private:
     const int POWER_SAVE_TIMER_PERIOD_SECONDS = 1;
     const int SECONDS_TO_SLEEP = 120;
 
-    const int LOW_BATTERY_THRESHOLD_DOWN = 30;
-    const int LOW_BATTERY_THRESHOLD_UP = 35;
+    const int LOW_BATTERY_THRESHOLD_DOWN = 20;
+    const int LOW_BATTERY_THRESHOLD_UP = 25;
 
     void InitializePowerSaveTimer()
     {
@@ -735,18 +734,22 @@ private:
         {
             if (!show_low_power_warning_ && battery_level <= LOW_BATTERY_THRESHOLD_DOWN)
             {
+                ESP_LOGI(TAG, "Battery too low, Deep sleep");
                 app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
-                EnableSleepMode(true);
                 show_low_power_warning_ = true;
+
+                EnableDeepSleep();
             }
             else if (show_low_power_warning_ && battery_level >= LOW_BATTERY_THRESHOLD_UP)
             {
                 app.DismissAlert();
                 show_low_power_warning_ = false;
-                EnableSleepMode(false);
             }
-            else if (battery_level == 0)
+
+            power_save_ticks_++;
+            if (power_save_ticks_ >= SECONDS_TO_SLEEP)
             {
+                ESP_LOGI(TAG, "Timeout, Deep sleep");
                 EnableDeepSleep();
             }
         }
@@ -756,96 +759,19 @@ private:
             {
                 app.DismissAlert();
                 show_low_power_warning_ = false;
-                EnableSleepMode(false);
             }
-        }
-
-        power_save_ticks_++;
-        if (power_save_ticks_ >= SECONDS_TO_SLEEP)
-        {
-            EnableSleepMode(true);
-        }
-    }
-
-    void EnableSleepMode(bool enable)
-    {
-        power_save_ticks_ = 0;
-        auto display = GetDisplay();
-        if (!sleep_mode_enabled_ && enable)
-        {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-#if FORD_VFD_EN
-#else
-            display->Notification("sleepy", 2000);
-#endif
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            display->SetSleep(true);
-            mpu6050_sleep(mpu6050);
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable amoled power");
-                gpio_set_level(PIN_NUM_LCD_POWER, 0);
-            }
-
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable VFD power");
-                gpio_set_level(PIN_NUM_VFD_EN, 0);
-            }
-
-            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Disable force power");
-                gpio_set_level(PIN_NUM_POWER_EN, 0);
-            }
-
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 240,
-                .min_freq_mhz = 40,
-                .light_sleep_enable = true,
-            };
-            esp_pm_configure(&pm_config);
-            sleep_mode_enabled_ = true;
-        }
-        else if (sleep_mode_enabled_ && !enable)
-        {
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Enable amoled power");
-                gpio_set_level(PIN_NUM_LCD_POWER, 1);
-            }
-
-            if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Enable VFD power");
-                gpio_set_level(PIN_NUM_VFD_EN, 1);
-            }
-
-            if (PIN_NUM_POWER_EN != GPIO_NUM_NC)
-            {
-                ESP_LOGI(TAG, "Enable force power");
-                gpio_set_level(PIN_NUM_POWER_EN, 1);
-            }
-            display->SetSleep(false);
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 240,
-                .min_freq_mhz = 240,
-                .light_sleep_enable = false,
-            };
-            esp_pm_configure(&pm_config);
-            ESP_LOGI(TAG, "Disabling sleep mode");
-
-            // auto codec = GetAudioCodec();
-            // codec->EnableInput(true);
-            sleep_mode_enabled_ = false;
         }
     }
 
     void EnableDeepSleep()
     {
-        ESP_LOGI(TAG, "Battery too low, Deep sleep");
+        display_->SetChatMessage("system", "");
+        display_->SetEmotion("sleepy");
+#if FORD_VFD_EN
+#else
+        display_->Notification("sleepy", 2000);
+#endif
+        vTaskDelay(pdMS_TO_TICKS(2000));
         mpu6050_sleep(mpu6050);
         display_->SetSleep(true);
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
@@ -868,6 +794,8 @@ private:
         i2c_bus_delete(&i2c_bus);
         rtc_gpio_pullup_en(TOUCH_INT_NUM);
         esp_sleep_enable_ext0_wakeup(TOUCH_INT_NUM, 0);
+        // rtc_gpio_pullup_en(TOUCH_BUTTON_GPIO);
+        // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
         esp_deep_sleep_start();
     }
 
@@ -957,18 +885,19 @@ private:
         //     }
         //     app.ToggleChatState(); });
 
-        // touch_button_.OnLongPress([this]
-        //                           { EnableDeepSleep(); });
+        touch_button_.OnLongPress([this]
+                                  {
+                                    ESP_LOGI(TAG, "Button long pressed, Deep sleep");
+                                     EnableDeepSleep(); });
 
-        touch_button_.OnPressDown([this]()
-                                  { Application::GetInstance().StartListening(); });
-        touch_button_.OnPressUp([this]()
-                                { Application::GetInstance().StopListening(); });
+        // touch_button_.OnPressDown([this]()
+        //                           { Application::GetInstance().StartListening(); });
+        // touch_button_.OnPressUp([this]()
+        //                         { Application::GetInstance().StopListening(); });
     }
 
     static void tp_interrupt_callback(esp_lcd_touch_handle_t tp)
     {
-        
     }
 
     void InitializeDisplay()
@@ -1233,6 +1162,7 @@ public:
         InitializePowerSaveTimer();
         InitializeIot();
         GetWakeupCause();
+        // GetSdcard();
     }
 
     virtual Led *GetLed() override
@@ -1285,11 +1215,12 @@ public:
         return display_;
     }
 
-    // virtual Sdcard *GetSdcard() override
-    // {
-    //     static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO, SD_HOST);
-    //     return &sd_card;
-    // }
+    virtual Sdcard *GetSdcard() override
+    {
+        // static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO, SD_HOST);
+        static Sdcard sd_card(PIN_NUM_SD_CMD, PIN_NUM_SD_CLK, PIN_NUM_SD_D0, PIN_NUM_SD_D1, PIN_NUM_SD_D2, PIN_NUM_SD_D3, PIN_NUM_SD_CDZ);
+        return &sd_card;
+    }
 
     int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
     {

@@ -29,26 +29,14 @@ Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpi
     // 提高 SD 卡频率，可根据实际情况调整
     host.max_freq_khz = SDMMC_FREQ_PROBING;
 
-    // 配置 SD 卡插槽，使用默认配置
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-    // 设置数据总线宽度为 4 位
     slot_config.width = 4;
-    // 设置命令引脚
     slot_config.cmd = _cmd;
-    // 设置时钟引脚
     slot_config.clk = _clk;
-    // 设置数据 0 引脚
     slot_config.d0 = _d0;
-    // 设置数据 1 引脚
     slot_config.d1 = _d1;
-    // 设置数据 2 引脚
     slot_config.d2 = _d2;
-    // 设置数据 3 引脚
     slot_config.d3 = _d3;
-    // 未使用卡检测引脚
-    slot_config.cd = GPIO_NUM_NC;
-    // 未使用写保护引脚
-    slot_config.wp = GPIO_NUM_NC;
 
     // 初始化文件系统挂载配置
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
@@ -58,9 +46,24 @@ Sdcard::Sdcard(gpio_num_t cmd, gpio_num_t clk, gpio_num_t d0, gpio_num_t d1, gpi
     };
 
     // 挂载 SD 卡文件系统，并检查操作是否成功
-    ESP_ERROR_CHECK(esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &_card));
+    esp_err_t ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &_card);
 
-    // 打印 SD 卡的详细信息
+    if (ret != ESP_OK)
+    {
+        if (ret == ESP_FAIL)
+        {
+            ESP_LOGE(TAG, "Failed to mount filesystem. "
+                          "If you want the card to be formatted, set format_if_mount_failed = true.");
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                          "Make sure SD card lines have pull-up resistors in place.",
+                     esp_err_to_name(ret));
+        }
+        return;
+    }
+
     sdmmc_card_print_info(stdout, _card);
 }
 
@@ -69,27 +72,28 @@ Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso, 
 {
     // 初始化 SPI 总线
     spi_bus_config_t bus_cfg = {
-       .mosi_io_num = mosi,
-       .miso_io_num = miso,
-       .sclk_io_num = clk,
-       .quadwp_io_num = -1,
-       .quadhd_io_num = -1,
-       .max_transfer_sz = 4000,
+        .mosi_io_num = mosi,
+        .miso_io_num = miso,
+        .sclk_io_num = clk,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 4000,
     };
-    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
-    if (ret != ESP_OK) {
+    esp_err_t ret = spi_bus_initialize(spi_num, &bus_cfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return;
     }
 
     // 初始化 SD 卡主机配置
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    host.slot = SPI3_HOST;
+    host.slot = spi_num;
     host.max_freq_khz = SDMMC_FREQ_PROBING;
 
     // 配置 SD 卡插槽
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.host_id = SPI3_HOST;
+    slot_config.host_id = spi_num;
     slot_config.gpio_cs = cs;
     slot_config.gpio_cd = GPIO_NUM_NC;
     slot_config.gpio_wp = GPIO_NUM_NC;
@@ -98,22 +102,27 @@ Sdcard::Sdcard(gpio_num_t cs, gpio_num_t mosi, gpio_num_t clk, gpio_num_t miso, 
 
     // 初始化文件系统挂载配置
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
-       .format_if_mount_failed = false,  // 挂载失败时不格式化
-       .max_files = 5,                   // 最大打开文件数为 5
-       .allocation_unit_size = 16 * 1024 // 分配单元大小为 16KB
+        .format_if_mount_failed = false,  // 挂载失败时不格式化
+        .max_files = 5,                   // 最大打开文件数为 5
+        .allocation_unit_size = 16 * 1024 // 分配单元大小为 16KB
     };
 
     // 挂载 SD 卡文件系统，并检查操作是否成功
     ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &_card);
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
+    if (ret != ESP_OK)
+    {
+        if (ret == ESP_FAIL)
+        {
             ESP_LOGE(TAG, "Failed to mount filesystem. "
                           "If you want the card to be formatted, set format_if_mount_failed = true.");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
-                          "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
         }
-        spi_bus_free(SPI3_HOST);
+        else
+        {
+            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                          "Make sure SD card lines have pull-up resistors in place.",
+                     esp_err_to_name(ret));
+        }
+        spi_bus_free(spi_num);
         return;
     }
 

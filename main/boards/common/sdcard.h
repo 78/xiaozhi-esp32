@@ -47,6 +47,8 @@ private:
      */
     bool isSdCardInserted()
     {
+        if (_cdz == GPIO_NUM_NC)
+            return true;
         // 定义 GPIO 配置结构体
         gpio_config_t io_conf;
         // 禁用 GPIO 中断

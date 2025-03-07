@@ -35,8 +35,6 @@ public:
     virtual void SetIcon(const char *icon);
     virtual void SetBacklight(uint8_t brightness);
     virtual int GetBacklight();
-
-    virtual void SetSleep(bool en) { sleep_ = en; }
 #if CONFIG_USE_FFT_EFFECT
     virtual void SpectrumShow(float *buf, int size) {}
 #endif
@@ -79,7 +77,6 @@ protected:
     esp_timer_handle_t notification_timer_ = nullptr;
     esp_timer_handle_t update_timer_ = nullptr;
 
-    bool sleep_ = false;
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;
     virtual void Unlock() = 0;
