@@ -2,6 +2,7 @@
 #include <esp_err.h>
 #include <string>
 #include <cstdlib>
+#include <cstring>
 
 #include "display.h"
 #include "board.h"
@@ -9,14 +10,11 @@
 #include "font_awesome_symbols.h"
 #include "audio_codec.h"
 #include "settings.h"
+#include "assets/lang_config.h"
 
 #define TAG "Display"
 
 Display::Display() {
-    // Load brightness from settings
-    Settings settings("display");
-    brightness_ = settings.GetInt("brightness", 100);
-
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
         .callback = [](void *arg) {
@@ -40,11 +38,19 @@ Display::Display() {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "update_display_timer",
+        .name = "display_update_timer",
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
+
+    // Create a power management lock
+    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
+    if (ret == ESP_ERR_NOT_SUPPORTED) {
+        ESP_LOGI(TAG, "Power management not supported");
+    } else {
+        ESP_ERROR_CHECK(ret);
+    }
 }
 
 Display::~Display() {
@@ -64,6 +70,10 @@ Display::~Display() {
         lv_obj_del(mute_label_);
         lv_obj_del(battery_label_);
         lv_obj_del(emotion_label_);
+    }
+
+    if (pm_lock_ != nullptr) {
+        esp_pm_lock_delete(pm_lock_);
     }
 }
 
@@ -114,6 +124,7 @@ void Display::Update() {
         }
     }
 
+    esp_pm_lock_acquire(pm_lock_);
     // 更新电池图标
     int battery_level;
     bool charging;
@@ -137,6 +148,21 @@ void Display::Update() {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
+
+        if (low_battery_popup_ != nullptr) {
+            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0) {
+                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                    auto& app = Application::GetInstance();
+                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                }
+            } else {
+                // Hide the low battery popup when the battery is not empty
+                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+        }
     }
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
@@ -149,12 +175,14 @@ void Display::Update() {
     };
     if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
         icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && network_icon_ != icon) {
+        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
             DisplayLockGuard lock(this);
             network_icon_ = icon;
             lv_label_set_text(network_label_, network_icon_);
         }
     }
+
+    esp_pm_lock_release(pm_lock_);
 }
 
 
@@ -220,10 +248,4 @@ void Display::SetChatMessage(const char* role, const char* content) {
         return;
     }
     lv_label_set_text(chat_message_label_, content);
-}
-
-void Display::SetBacklight(uint8_t brightness) {
-    Settings settings("display", true);
-    settings.SetInt("brightness", brightness);
-    brightness_ = brightness;
 }

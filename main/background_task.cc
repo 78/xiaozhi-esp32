@@ -1,6 +1,7 @@
 #include "background_task.h"
 
 #include <esp_log.h>
+#include <esp_task_wdt.h>
 
 #define TAG "BackgroundTask"
 
@@ -8,7 +9,7 @@ BackgroundTask::BackgroundTask(uint32_t stack_size) {
     xTaskCreate([](void* arg) {
         BackgroundTask* task = (BackgroundTask*)arg;
         task->BackgroundTaskLoop();
-    }, "background_task", stack_size, this, 1, &background_task_handle_);
+    }, "background_task", stack_size, this, 2, &background_task_handle_);
 }
 
 BackgroundTask::~BackgroundTask() {

@@ -18,7 +18,7 @@ Board::Board() {
         uuid_ = GenerateUuid();
         settings.SetString("uuid", uuid_);
     }
-    ESP_LOGI(TAG, "UUID: %s", uuid_.c_str());
+    ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
 }
 
 std::string Board::GenerateUuid() {

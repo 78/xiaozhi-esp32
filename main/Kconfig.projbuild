@@ -12,7 +12,7 @@ choice
     default LANGUAGE_ZH_CN
     help
         Select device display language
-        
+
     config LANGUAGE_ZH_CN
         bool "Chinese"
     config LANGUAGE_EN_US
@@ -60,6 +60,8 @@ choice BOARD_TYPE
         bool "面包板 ESP32 DevKit"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
+    config BOARD_TYPE_ESP_BOX
+        bool "ESP BOX"
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
@@ -77,11 +79,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"
     config BOARD_TYPE_MAGICLICK_2P5
-        bool "神奇按钮 Magiclick_2.5"  
+        bool "神奇按钮 Magiclick_2.5"
     config BOARD_TYPE_MAGICLICK_C3
         bool "神奇按钮 Magiclick_C3"
     config BOARD_TYPE_MAGICLICK_C3_V2
-        bool "神奇按钮 Magiclick_C3_v2"  
+        bool "神奇按钮 Magiclick_C3_v2"
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
@@ -95,7 +97,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_KORVO2_V3
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot开发板"    
+        bool "ESP-SparkBot开发板"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
@@ -107,15 +109,17 @@ choice BOARD_TYPE
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
-         bool "LILYGO T-Circle-S3"
+        bool "LILYGO T-Circle-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
+        bool "LILYGO T-CameraPlus-S3"
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
-         bool "Movecall Moji 小智AI衍生版"  
+         bool "Movecall Moji 小智AI衍生版"
     config BOARD_TYPE_ATK_DNESP32S3
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
     config BOARD_TYPE_DU_CHATX
-        bool "嘟嘟开发板CHATX(wifi)"       
+        bool "嘟嘟开发板CHATX(wifi)"
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
     config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
@@ -126,6 +130,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(WIFI)"
     config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
+    config BOARD_TYPE_SENSECAP_WATCHER
+        bool "SenseCAP Watcher"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -149,31 +155,44 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7789_240X320
         bool "ST7789, 分辨率240*320, IPS"
     config LCD_ST7789_240X320_NO_IPS
-        bool "ST7789, 分辨率240*320, 非IPS"    
+        bool "ST7789, 分辨率240*320, 非IPS"
     config LCD_ST7789_170X320
-        bool "ST7789, 分辨率170*320"    
+        bool "ST7789, 分辨率170*320"
     config LCD_ST7789_172X320
-        bool "ST7789, 分辨率172*320"       
+        bool "ST7789, 分辨率172*320"
     config LCD_ST7789_240X280
-        bool "ST7789, 分辨率240*280"   
+        bool "ST7789, 分辨率240*280"
     config LCD_ST7789_240X240
-        bool "ST7789, 分辨率240*240"         
+        bool "ST7789, 分辨率240*240"
+    config LCD_ST7789_240X240_7PIN
+        bool "ST7789, 分辨率240*240, 7PIN"
     config LCD_ST7789_240X135
         bool "ST7789, 分辨率240*135"
     config LCD_ST7735_128X160
         bool "ST7735, 分辨率128*160"
+    config LCD_ST7735_128X128
+        bool "ST7735, 分辨率128*128"
     config LCD_ST7796_320X480
-        bool "ST7796, 分辨率320*480"    
+        bool "ST7796, 分辨率320*480"
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
-        bool "ILI9341, 分辨率240*320, 非IPS"    
+        bool "ILI9341, 分辨率240*320, 非IPS"
+    config LCD_GC9A01_240X240
+        bool "GC9A01, 分辨率240*240, 圆屏"
     config LCD_CUSTOM
-        bool "自定义屏幕参数"  
+        bool "自定义屏幕参数"
 endchoice
 
-config USE_AUDIO_PROCESSING
-    bool "启用语音唤醒与音频处理"
+config USE_AUDIO_PROCESSOR
+    bool "启用音频降噪、增益处理"
+    default y
+    depends on IDF_TARGET_ESP32S3 && USE_AFE
+    help
+        需要 ESP32 S3 与 AFE 支持
+
+config USE_WAKE_WORD_DETECT
+    bool "启用唤醒词检测"
     default y
     depends on IDF_TARGET_ESP32S3 && USE_AFE
     help

@@ -3,6 +3,8 @@
         "type" :"zh-CN"
     },
     "strings": {
+        "WARNING":"警告",
+        "INFO":"信息",
         "ERROR":"错误",
         "VERSION": "版本 ",
         "LOADING_PROTOCOL":"加载协议...",
@@ -35,6 +37,15 @@
         "OTA_UPGRADE":"OTA 升级",
         "UPGRADING":"正在升级系统...",
         "UPGRADE_FAILED":"升级失败",
-        "ACTIVATION":"激活设备"
+        "ACTIVATION":"激活设备",
+
+        "BATTERY_LOW":"电量不足",
+        "BATTERY_CHARGING":"正在充电",
+        "BATTERY_FULL":"电量已满",
+        "BATTERY_NEED_CHARGE":"电量低，请充电",
+
+        "VOLUME":"音量 ",
+        "MUTED":"已静音",
+        "MAX_VOLUME":"最大音量"
     }
 }
