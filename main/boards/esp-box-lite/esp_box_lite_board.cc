@@ -7,7 +7,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
-
+#include "assets/lang_config.h"
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
@@ -18,6 +18,14 @@
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
+
+/* ADC Buttons */
+typedef enum {
+    BSP_ADC_BUTTON_PREV,
+    BSP_ADC_BUTTON_ENTER,
+    BSP_ADC_BUTTON_NEXT,
+    BSP_ADC_BUTTON_NUM
+} bsp_adc_button_t;
 
 // Init ili9341 by custom cmd
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
@@ -44,6 +52,10 @@ class EspBoxBoardLite : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
+    Button* adc_button_[BSP_ADC_BUTTON_NUM];
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    adc_oneshot_unit_handle_t bsp_adc_handle = NULL;
+#endif
     LcdDisplay* display_;
 
     void InitializeI2c() {
@@ -74,14 +86,70 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
+    void changeVol(int val) {
+        auto codec = GetAudioCodec();
+        auto volume = codec->output_volume() + val;
+        if (volume > 100) {
+            volume = 100;
+        }
+        if (volume < 0) {
+            volume = 0;
+        }
+        codec->SetOutputVolume(volume);
+        GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+    }
+    
+    void TogleState(){
+        auto& app = Application::GetInstance();
+        if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+            ResetWifiConfiguration();
+        }
+        app.ToggleChatState();        
+    }
+
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
+        /* Initialize ADC */
+        button_adc_config_t adc_cfg;
+        adc_cfg.adc_channel = ADC_CHANNEL_0; // ADC1 channel 0 is GPIO1
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)        
+        const adc_oneshot_unit_init_cfg_t init_config1 = {
+            .unit_id = ADC_UNIT_1,
+        };
+        adc_oneshot_new_unit(&init_config1, &bsp_adc_handle);
+        adc_cfg.adc_handle = &bsp_adc_handle;
+#endif
+        adc_cfg.button_index = BSP_ADC_BUTTON_PREV;
+        adc_cfg.min = 2310; // middle is 2410mV
+        adc_cfg.max = 2510;
+        adc_button_[0] = new Button(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_ENTER;
+        adc_cfg.min = 1880; // middle is 1980mV
+        adc_cfg.max = 2080;
+        adc_button_[1] = new Button(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_NEXT;
+        adc_cfg.min = 720; // middle is 820mV
+        adc_cfg.max = 920;
+        adc_button_[2] = new Button(adc_cfg);
+
+        auto volume_up_button = adc_button_[BSP_ADC_BUTTON_NEXT];
+        volume_up_button->OnClick([this]() {changeVol(10);});
+        volume_up_button->OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
+
+        auto volume_down_button = adc_button_[BSP_ADC_BUTTON_PREV];
+        volume_down_button->OnClick([this]() {changeVol(-10);});
+        volume_down_button->OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(0);
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+        });
+
+        auto break_button = adc_button_[BSP_ADC_BUTTON_ENTER];
+        break_button->OnClick([this]() {TogleState();});
+        boot_button_.OnClick([this]() {TogleState();});
     }
 
     void InitializeIli9341Display() {
@@ -146,6 +214,15 @@ public:
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
+    }
+
+    ~EspBoxBoardLite() {
+        for (int i =0; i<BSP_ADC_BUTTON_NUM; i++) {
+            if (adc_button_[i]) {
+                delete adc_button_[i];
+                adc_button_[i] = nullptr;
+            }
+        }
     }
 
     virtual AudioCodec* GetAudioCodec() override {

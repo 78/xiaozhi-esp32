@@ -7,6 +7,7 @@
 
 class Button {
 public:
+    Button(const button_adc_config_t& cfg);
     Button(gpio_num_t gpio_num, bool active_high = false);
     ~Button();
 
