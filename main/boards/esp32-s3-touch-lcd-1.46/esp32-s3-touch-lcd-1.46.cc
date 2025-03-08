@@ -21,20 +21,7 @@
 #include <iot_button.h>
 
 #define TAG "waveshare_lcd_1_46"
-#include "../assets/lang_config.h"
-
-#if (defined  zh_tw)
-    LV_FONT_DECLARE(font_lxgw_16_4_zh_tw);
-    #define FONT font_lxgw_16_4_zh_tw
-#elif (defined  ja_jp)
-    LV_FONT_DECLARE(font_noto_16_4_ja_jp);
-    #define FONT font_noto_16_4_ja_jp
-#else
-    LV_FONT_DECLARE(font_puhui_16_4_zh_cn);
-    #define FONT font_puhui_16_4_zh_cn
-#endif
-
-
+LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
