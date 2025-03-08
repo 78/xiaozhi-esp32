@@ -1,0 +1,51 @@
+{
+    "language": {
+        "type": "zh-TW"
+    },
+    "strings": {
+        "WARNING": "警告",
+        "INFO": "資訊",
+        "ERROR": "錯誤",
+        "VERSION": "版本 ",
+        "LOADING_PROTOCOL": "加載協議...",
+        "INITIALIZING": "正在初始化...",
+        "PIN_ERROR": "請插入 SIM 卡",
+        "REG_ERROR": "無法接入網絡，請檢查網路狀態",
+        "DETECTING_MODULE": "檢測模組...",
+        "REGISTERING_NETWORK": "等待網絡...",
+
+        "STANDBY": "待命",
+        "CONNECT_TO": "連接 ",
+        "CONNECTING": "連接中...",
+        "CONNECTED_TO": "已連接 ",
+
+        "LISTENING": "聆聽中...",
+        "SPEAKING": "說話中...",
+
+        "SERVER_NOT_FOUND": "正在尋找可用服務",
+        "SERVER_NOT_CONNECTED": "無法連接服務，請稍後再試",
+        "SERVER_TIMEOUT": "等待響應超時",
+        "SERVER_ERROR": "發送失敗，請檢查網絡",
+
+        "CONNECT_TO_HOTSPOT": "手機連接WiFi ",
+        "ACCESS_VIA_BROWSER": "，瀏覽器訪問 ",
+        "WIFI_CONFIG_MODE": "網路設定模式",
+        "ENTERING_WIFI_CONFIG_MODE": "正在設定網路...",
+        "SCANNING_WIFI": "掃描 Wi-Fi...",
+
+        "NEW_VERSION": "新版本 ",
+        "OTA_UPGRADE": "OTA 升級",
+        "UPGRADING": "正在升級系統...",
+        "UPGRADE_FAILED": "升級失敗",
+        "ACTIVATION": "啟用設備",
+
+        "BATTERY_LOW": "電量不足",
+        "BATTERY_CHARGING": "正在充電",
+        "BATTERY_FULL": "電量已滿",
+        "BATTERY_NEED_CHARGE": "電量低，請充電",
+
+        "VOLUME": "音量 ",
+        "MUTED": "已靜音",
+        "MAX_VOLUME": "最大音量"
+    }
+}
