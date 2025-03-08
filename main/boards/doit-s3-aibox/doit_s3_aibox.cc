@@ -5,8 +5,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
-#include "led/single_led.h"
-// #include "led/gpio_led.h"
+#include "led/gpio_led.h"
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -105,8 +104,6 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-        thing_manager.AddThing(iot::CreateThing("SystemCmd"));
     }
 
 
@@ -135,8 +132,7 @@ public:
     }
 
     virtual Led* GetLed() override {
-        // static GpioLed led(BUILTIN_LED_GPIO, 1);
-        static SingleLed led(BUILTIN_LED_GPIO);
+        static GpioLed led(BUILTIN_LED_GPIO, 1);
         return &led;
     }
 
