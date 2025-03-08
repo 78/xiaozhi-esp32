@@ -161,6 +161,7 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                             "audio_codecs/box_audio_codec_lite.cc"
                              "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
