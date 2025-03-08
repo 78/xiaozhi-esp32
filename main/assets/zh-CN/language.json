@@ -1,6 +1,7 @@
 {
     "language": {
         "type" :"zh-CN"
+    },
     "strings": {
         "WARNING":"警告",
         "INFO":"信息",
