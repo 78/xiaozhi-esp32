@@ -15,8 +15,12 @@ choice
 
     config LANGUAGE_ZH_CN
         bool "Chinese"
+    config LANGUAGE_ZH_TW
+        bool "Chinese Traditional"
     config LANGUAGE_EN_US
         bool "English"
+    config LANGUAGE_JA_JP
+        bool "Japanese"
 endchoice
 
 
