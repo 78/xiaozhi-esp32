@@ -383,10 +383,12 @@ void Application::Start() {
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
         SetDecodeSampleRate(protocol_->server_sample_rate());
-        // IoT device descriptors
-        last_iot_states_.clear();
         auto& thing_manager = iot::ThingManager::GetInstance();
         protocol_->SendIotDescriptors(thing_manager.GetDescriptorsJson());
+        std::string states;
+        if (thing_manager.GetStatesJson(states, false)) {
+            protocol_->SendIotStates(states);
+        }
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
@@ -520,7 +522,7 @@ void Application::Start() {
                 protocol_->SendWakeWordDetected(wake_word);
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
                 keep_listening_ = true;
-                SetDeviceState(kDeviceStateListening);
+                SetDeviceState(kDeviceStateIdle);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
             } else if (device_state_ == kDeviceStateActivating) {
@@ -685,7 +687,7 @@ void Application::InputAudio() {
     }
 
 #if CONFIG_USE_WAKE_WORD_DETECT
-    if (device_state_ != kDeviceStateListening && wake_word_detect_.IsDetectionRunning()) {
+    if (wake_word_detect_.IsDetectionRunning()) {
         wake_word_detect_.Feed(data);
     }
 #endif
@@ -789,9 +791,8 @@ void Application::SetDecodeSampleRate(int sample_rate) {
 
 void Application::UpdateIotStates() {
     auto& thing_manager = iot::ThingManager::GetInstance();
-    auto states = thing_manager.GetStatesJson();
-    if (states != last_iot_states_) {
-        last_iot_states_ = states;
+    std::string states;
+    if (thing_manager.GetStatesJson(states, true)) {
         protocol_->SendIotStates(states);
     }
 }
