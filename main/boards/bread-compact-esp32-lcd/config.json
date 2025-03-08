@@ -1,0 +1,13 @@
+{
+    "target": "esp32",
+    "builds": [
+        {
+            "name": "bread-compact-esp32-lcd",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_4M.csv\"",
+                "LCD_ST7789_240X240_7PIN=y"
+            ]
+        }
+    ]
+}
