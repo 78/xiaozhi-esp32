@@ -74,7 +74,7 @@ private:
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
-                volume = 0;
+                volume = 100;
             }
             codec->SetOutputVolume(volume);
         });
