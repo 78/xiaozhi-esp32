@@ -71,6 +71,21 @@ bool Ota::CheckVersion() {
         return false;
     }
 
+    has_activation_code_ = false;
+    cJSON *activation = cJSON_GetObjectItem(root, "activation");
+    if (activation != NULL) {
+        cJSON* message = cJSON_GetObjectItem(activation, "message");
+        if (message != NULL) {
+            activation_message_ = message->valuestring;
+        }
+        cJSON* code = cJSON_GetObjectItem(activation, "code");
+        if (code != NULL) {
+            activation_code_ = code->valuestring;
+        }
+        has_activation_code_ = true;
+    }
+
+    has_mqtt_config_ = false;
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
     if (mqtt != NULL) {
         Settings settings("mqtt", true);
@@ -83,6 +98,29 @@ bool Ota::CheckVersion() {
             }
         }
         has_mqtt_config_ = true;
+    }
+
+    has_server_time_ = false;
+    cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
+    if (server_time != NULL) {
+        cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
+        cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
+        
+        if (timestamp != NULL) {
+            // 设置系统时间
+            struct timeval tv;
+            double ts = timestamp->valuedouble;
+            
+            // 如果有时区偏移，计算本地时间
+            if (timezone_offset != NULL) {
+                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
+            }
+            
+            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
+            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+            settimeofday(&tv, NULL);
+            has_server_time_ = true;
+        }
     }
 
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
@@ -165,11 +203,11 @@ void Ota::Upgrade(const std::string& firmware_url) {
         return;
     }
 
-    std::vector<char> buffer(4096);
+    char buffer[512];
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
-        int ret = http->Read(buffer.data(), buffer.size());
+        int ret = http->Read(buffer, sizeof(buffer));
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
             delete http;
@@ -193,9 +231,8 @@ void Ota::Upgrade(const std::string& firmware_url) {
             break;
         }
 
-
         if (!image_header_checked) {
-            image_header.append(buffer.data(), ret);
+            image_header.append(buffer, ret);
             if (image_header.size() >= sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
                 esp_app_desc_t new_app_info;
                 memcpy(&new_app_info, image_header.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(esp_app_desc_t));
@@ -216,9 +253,10 @@ void Ota::Upgrade(const std::string& firmware_url) {
                 }
 
                 image_header_checked = true;
+                std::string().swap(image_header);
             }
         }
-        auto err = esp_ota_write(update_handle, buffer.data(), ret);
+        auto err = esp_ota_write(update_handle, buffer, ret);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
             esp_ota_abort(update_handle);

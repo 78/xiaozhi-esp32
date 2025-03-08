@@ -3,6 +3,7 @@
 #include "application.h"
 #include "display.h"
 #include "font_awesome_symbols.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -11,33 +12,20 @@
 #include <web_socket.h>
 #include <ml307_mqtt.h>
 #include <ml307_udp.h>
+#include <opus_encoder.h>
 
 static const char *TAG = "Ml307Board";
-
-static std::string csq_to_string(int csq) {
-    if (csq == -1) {
-        return "No network";
-    } else if (csq >= 0 && csq <= 9) {
-        return "Very bad";
-    } else if (csq >= 10 && csq <= 14) {
-        return "Bad";
-    } else if (csq >= 15 && csq <= 19) {
-        return "Fair";
-    } else if (csq >= 20 && csq <= 24) {
-        return "Good";
-    } else if (csq >= 25 && csq <= 31) {
-        return "Very good";
-    }
-    return "Invalid";
-}
-
 
 Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, size_t rx_buffer_size) : modem_(tx_pin, rx_pin, rx_buffer_size) {
 }
 
+std::string Ml307Board::GetBoardType() {
+    return "ml307";
+}
+
 void Ml307Board::StartNetwork() {
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus("初始化模块");
+    display->SetStatus(Lang::Strings::DETECTING_MODULE);
     modem_.SetDebug(false);
     modem_.SetBaudRate(921600);
 
@@ -57,13 +45,13 @@ void Ml307Board::StartNetwork() {
 void Ml307Board::WaitForNetworkReady() {
     auto& application = Application::GetInstance();
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus("等待网络...");
+    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
     int result = modem_.WaitForNetworkReady();
     if (result == -1) {
-        application.Alert("Error", "PIN is not ready");
+        application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::P3_ERR_PIN);
         return;
     } else if (result == -2) {
-        application.Alert("Error", "Registration denied");
+        application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::P3_ERR_REG);
         return;
     }
 
@@ -95,16 +83,6 @@ Udp* Ml307Board::CreateUdp() {
     return new Ml307Udp(modem_, 0);
 }
 
-bool Ml307Board::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
-    if (!modem_.network_ready()) {
-        return false;
-    }
-    network_name = modem_.GetCarrierName();
-    signal_quality = modem_.GetCsq();
-    signal_quality_text = csq_to_string(signal_quality);
-    return signal_quality != -1;
-}
-
 const char* Ml307Board::GetNetworkStateIcon() {
     if (!modem_.network_ready()) {
         return FONT_AWESOME_SIGNAL_OFF;
@@ -112,16 +90,14 @@ const char* Ml307Board::GetNetworkStateIcon() {
     int csq = modem_.GetCsq();
     if (csq == -1) {
         return FONT_AWESOME_SIGNAL_OFF;
-    } else if (csq >= 0 && csq <= 9) {
+    } else if (csq >= 0 && csq <= 14) {
         return FONT_AWESOME_SIGNAL_1;
-    } else if (csq >= 10 && csq <= 14) {
-        return FONT_AWESOME_SIGNAL_2;
     } else if (csq >= 15 && csq <= 19) {
-        return FONT_AWESOME_SIGNAL_3;
+        return FONT_AWESOME_SIGNAL_2;
     } else if (csq >= 20 && csq <= 24) {
-        return FONT_AWESOME_SIGNAL_4;
+        return FONT_AWESOME_SIGNAL_3;
     } else if (csq >= 25 && csq <= 31) {
-        return FONT_AWESOME_SIGNAL_FULL;
+        return FONT_AWESOME_SIGNAL_4;
     }
 
     ESP_LOGW(TAG, "Invalid CSQ: %d", csq);
@@ -130,8 +106,8 @@ const char* Ml307Board::GetNetworkStateIcon() {
 
 std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
-    std::string board_type = BOARD_TYPE;
-    std::string board_json = std::string("{\"type\":\"" + board_type + "\",");
+    std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
+    board_json += "\"name\":\"" BOARD_NAME "\",";
     board_json += "\"revision\":\"" + modem_.GetModuleName() + "\",";
     board_json += "\"carrier\":\"" + modem_.GetCarrierName() + "\",";
     board_json += "\"csq\":\"" + std::to_string(modem_.GetCsq()) + "\",";

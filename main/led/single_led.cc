@@ -34,7 +34,7 @@ SingleLed::SingleLed(gpio_num_t gpio) {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Blink Timer",
+        .name = "blink_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));
@@ -151,8 +151,12 @@ void SingleLed::OnStateChanged() {
             SetColor(0, DEFAULT_BRIGHTNESS, 0);
             StartContinuousBlink(100);
             break;
+        case kDeviceStateActivating:
+            SetColor(0, DEFAULT_BRIGHTNESS, 0);
+            StartContinuousBlink(500);
+            break;
         default:
-            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
             return;
     }
 }

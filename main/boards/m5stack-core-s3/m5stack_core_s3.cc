@@ -1,24 +1,30 @@
 #include "wifi_board.h"
-#include "audio_codecs/cores3_audio_codec.h"
+#include "cores3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
-#include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "axp2101.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
+#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "esp_lcd_ili9341.h"
+#include <esp_lcd_ili9341.h>
+#include <esp_timer.h>
 
 #define TAG "M5StackCoreS3Board"
 
-class Axp2101 : public I2cDevice {
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
+
+class Pmic : public Axp2101 {
 public:
     // Power Init
-    Axp2101(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
         uint8_t data = ReadReg(0x90);
         data |= 0b10110100;
         WriteReg(0x90, data);
@@ -31,18 +37,26 @@ public:
         WriteReg(0x95, 33 - 5);
     }
 
-    int GetBatteryCurrentDirection() {
-        return (ReadReg(0x01) & 0b01100000) >> 5;
-    }
-
-    bool IsCharging() {
-        return GetBatteryCurrentDirection() == 1;
-    }
-
-    int GetBatteryLevel() {
-        return ReadReg(0xA4);
+    void SetBrightness(uint8_t brightness) {
+        brightness = ((brightness + 641) >> 5);
+        WriteReg(0x99, brightness);
     }
 };
+
+
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(Pmic *pmic) : pmic_(pmic) {}
+
+    void SetBrightnessImpl(uint8_t brightness) override {
+        pmic_->SetBrightness(target_brightness_);
+        brightness_ = target_brightness_;
+    }
+
+private:
+    Pmic *pmic_;
+};
+
 
 class Aw9523 : public I2cDevice {
 public:
@@ -99,7 +113,7 @@ public:
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
 
-    const TouchPoint_t& GetTouchPoint() {
+    inline const TouchPoint_t& GetTouchPoint() {
         return tp_;
     }
 
@@ -108,14 +122,37 @@ private:
     TouchPoint_t tp_;
 };
 
+
 class M5StackCoreS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    Axp2101* axp2101_;
+    Pmic* pmic_;
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
-    Button boot_button_;
+    esp_timer_handle_t touchpad_timer_;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -157,7 +194,7 @@ private:
 
     void InitializeAxp2101() {
         ESP_LOGI(TAG, "Init AXP2101");
-        axp2101_ = new Axp2101(i2c_bus_, 0x34);
+        pmic_ = new Pmic(i2c_bus_, 0x34);
     }
 
     void InitializeAw9523() {
@@ -166,33 +203,54 @@ private:
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    static void touchpad_daemon(void* param) {
-        vTaskDelay(pdMS_TO_TICKS(2000));
-        auto& board = (M5StackCoreS3Board&)Board::GetInstance();
-        auto touchpad = board.GetTouchpad();
-        bool was_touched = false;
-        while (1) {
-            touchpad->UpdateTouchPoint();
-            if (touchpad->GetTouchPoint().num > 0) {
-                // On press
-                if (!was_touched) {
-                    was_touched = true;
-                    Application::GetInstance().ToggleChatState();
+    void PollTouchpad() {
+        static bool was_touched = false;
+        static int64_t touch_start_time = 0;
+        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
+        
+        ft6336_->UpdateTouchPoint();
+        auto& touch_point = ft6336_->GetTouchPoint();
+        
+        // 检测触摸开始
+        if (touch_point.num > 0 && !was_touched) {
+            was_touched = true;
+            touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
+        } 
+        // 检测触摸释放
+        else if (touch_point.num == 0 && was_touched) {
+            was_touched = false;
+            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
+            
+            // 只有短触才触发
+            if (touch_duration < TOUCH_THRESHOLD_MS) {
+                auto& app = Application::GetInstance();
+                if (app.GetDeviceState() == kDeviceStateStarting && 
+                    !WifiStation::GetInstance().IsConnected()) {
+                    ResetWifiConfiguration();
                 }
+                app.ToggleChatState();
             }
-            // On release
-            else if (was_touched) {
-                was_touched = false;
-            }
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
-        vTaskDelete(NULL);
     }
 
     void InitializeFt6336TouchPad() {
         ESP_LOGI(TAG, "Init FT6336");
         ft6336_ = new Ft6336(i2c_bus_, 0x38);
-        xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
+        
+        // 创建定时器，20ms 间隔
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void* arg) {
+                M5StackCoreS3Board* board = (M5StackCoreS3Board*)arg;
+                board->PollTouchpad();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "touchpad_timer",
+            .skip_unhandled_events = true,
+        };
+        
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &touchpad_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 20 * 1000));
     }
 
     void InitializeSpi() {
@@ -226,7 +284,7 @@ private:
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(panel_io, &panel_config, &panel));
         
@@ -238,48 +296,50 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-    }
-
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
+        display_ = new SpiLcdDisplay(panel_io, panel,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    {
+                                        .text_font = &font_puhui_20_4,
+                                        .icon_font = &font_awesome_20_4,
+                                        .emoji_font = font_emoji_64_init(),
+                                    });
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
-    M5StackCoreS3Board() : boot_button_(GPIO_NUM_1) {
+    M5StackCoreS3Board() {
+        InitializePowerSaveTimer();
         InitializeI2c();
         InitializeAxp2101();
         InitializeAw9523();
-        InitializeFt6336TouchPad();
         I2cDetect();
         InitializeSpi();
         InitializeIli9342Display();
-        InitializeButtons();
         InitializeIot();
+        InitializeFt6336TouchPad();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static CoreS3AudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            aw9523_->ResetAw88298();
-            audio_codec = new CoreS3AudioCodec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                AUDIO_CODEC_AW88298_ADDR, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-        }
-        return audio_codec;
+        static CoreS3AudioCodec audio_codec(i2c_bus_,
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_AW88298_ADDR,
+            AUDIO_CODEC_ES7210_ADDR,
+            AUDIO_INPUT_REFERENCE);
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {
@@ -287,20 +347,33 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        static int last_level = 0;
         static bool last_charging = false;
-        level = axp2101_->GetBatteryLevel();
-        charging = axp2101_->IsCharging();
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
+        charging = pmic_->IsCharging();
+        if (charging != last_charging) {
+            power_save_timer_->WakeUp();
             last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+        }
+
+        level = pmic_->GetBatteryLevel();
+
+        if (pmic_->IsDischarging()) {
+            power_save_timer_->SetEnabled(true);
+        } else {
+            power_save_timer_->SetEnabled(false);
         }
         return true;
     }
 
-    Ft6336* GetTouchpad() {
-        return ft6336_;
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
+    }
+
+    virtual Backlight *GetBacklight() override {
+        static CustomBacklight backlight(pmic_);
+        return &backlight;
     }
 };
 

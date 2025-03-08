@@ -88,7 +88,7 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
         auto this_ = (WakeWordDetect*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096 * 2, this, 1, nullptr);
+    }, "audio_detection", 4096 * 2, this, 2, nullptr);
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
@@ -114,25 +114,24 @@ bool WakeWordDetect::IsDetectionRunning() {
 void WakeWordDetect::Feed(const std::vector<int16_t>& data) {
     input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
 
-    auto chunk_size = esp_afe_sr_v1.get_feed_chunksize(afe_detection_data_) * channels_;
-    while (input_buffer_.size() >= chunk_size) {
+    auto feed_size = esp_afe_sr_v1.get_feed_chunksize(afe_detection_data_) * channels_;
+    while (input_buffer_.size() >= feed_size) {
         esp_afe_sr_v1.feed(afe_detection_data_, input_buffer_.data());
-        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + feed_size);
     }
 }
 
 void WakeWordDetect::AudioDetectionTask() {
-    auto chunk_size = esp_afe_sr_v1.get_fetch_chunksize(afe_detection_data_);
-    ESP_LOGI(TAG, "Audio detection task started, chunk size: %d", chunk_size);
+    auto fetch_size = esp_afe_sr_v1.get_fetch_chunksize(afe_detection_data_);
+    auto feed_size = esp_afe_sr_v1.get_feed_chunksize(afe_detection_data_);
+    ESP_LOGI(TAG, "Audio detection task started, feed size: %d fetch size: %d",
+        feed_size, fetch_size);
 
     while (true) {
         xEventGroupWaitBits(event_group_, DETECTION_RUNNING_EVENT, pdFALSE, pdTRUE, portMAX_DELAY);
 
         auto res = esp_afe_sr_v1.fetch(afe_detection_data_);
         if (res == nullptr || res->ret_value == ESP_FAIL) {
-            if (res != nullptr) {
-                ESP_LOGI(TAG, "Error code: %d", res->ret_value);
-            }
             continue;;
         }
 
@@ -200,7 +199,7 @@ void WakeWordDetect::EncodeWakeWordData() {
             this_->wake_word_cv_.notify_all();
         }
         vTaskDelete(NULL);
-    }, "encode_detect_packets", 4096 * 8, this, 1, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
+    }, "encode_detect_packets", 4096 * 8, this, 2, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
 
 bool WakeWordDetect::GetWakeWordOpus(std::vector<uint8_t>& opus) {

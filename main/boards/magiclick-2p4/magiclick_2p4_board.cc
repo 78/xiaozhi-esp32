@@ -3,22 +3,66 @@
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led/single_led.h"
+#include "led/circular_strip.h"
 #include "iot/thing_manager.h"
 #include "config.h"
+#include "font_awesome_symbols.h"
+#include "assets/lang_config.h"
+
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp_lcd_nv3023.h"
+#include <esp_lcd_nv3023.h>
+
 #define TAG "magiclick_2p4"
+
+LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_awesome_16_4);
+
+class NV3023Display : public SpiLcdDisplay {
+public:
+    NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = font_emoji_32_init(),
+                    }) {
+
+        DisplayLockGuard lock(this);
+        // 只需要覆盖颜色相关的样式
+        auto screen = lv_disp_get_scr_act(lv_disp_get_default());
+        lv_obj_set_style_text_color(screen, lv_color_black(), 0);
+
+        // 设置容器背景色
+        lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+
+        // 设置状态栏背景色和文本颜色
+        lv_obj_set_style_bg_color(status_bar_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(network_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(notification_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(status_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(mute_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_color(battery_label_, lv_color_black(), 0);
+
+        // 设置内容区背景色和文本颜色
+        lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
+        lv_obj_set_style_border_width(content_, 0, 0);
+        lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+    }
+};
 
 class magiclick_2p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Button boot_button_;
-    LcdDisplay* display_;
+    Button main_button_;
+    Button left_button_;
+    Button right_button_;
+    NV3023Display* display_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -38,17 +82,45 @@ private:
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        main_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        main_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
+        });
+
+        left_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+
+        left_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(0);
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+
+        right_button_.OnClick([this]() {
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        });
+
+        right_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
     }
 
@@ -79,7 +151,7 @@ private:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = 0;
-        io_config.pclk_hz = 20 * 1000 * 1000;
+        io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -89,19 +161,18 @@ private:
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_RGB;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_nv3023(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
 
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new NV3023Display(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -109,21 +180,25 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
     }
 
 public:
     magiclick_2p4() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        main_button_(MAIN_BUTTON_GPIO),
+        left_button_(LEFT_BUTTON_GPIO), 
+        right_button_(RIGHT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
         InitializeLedPower();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
+        static CircularStrip led(BUILTIN_LED_GPIO, BUILTIN_LED_NUM);
         return &led;
     }
 
@@ -136,6 +211,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 };
 
