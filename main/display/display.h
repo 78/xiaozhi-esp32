@@ -75,4 +75,12 @@ private:
     Display *display_;
 };
 
+class NoDisplay : public Display {
+private:
+    virtual bool Lock(int timeout_ms = 0) override {
+        return true;
+    }
+    virtual void Unlock() override {}
+};
+
 #endif

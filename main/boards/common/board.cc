@@ -1,7 +1,7 @@
 #include "board.h"
 #include "system_info.h"
 #include "settings.h"
-#include "display/no_display.h"
+#include "display/display.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>

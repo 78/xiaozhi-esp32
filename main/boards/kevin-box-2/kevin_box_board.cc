@@ -57,7 +57,7 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    OledDisplay* display_ = nullptr;
+    Display* display_ = nullptr;
     Pmic* pmic_ = nullptr;
     Button boot_button_;
     Button volume_up_button_;
@@ -137,6 +137,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
         if (esp_lcd_panel_init(panel_) != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize display");
+            display_ = new NoDisplay();
             return;
         }
 
