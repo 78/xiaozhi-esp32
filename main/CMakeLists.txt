@@ -4,7 +4,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec_lite.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
-            "audio_codecs/cores3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -41,6 +40,8 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")
+elseif(CONFIG_BOARD_TYPE_DF_K10)
+    set(BOARD_TYPE "df-k10")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX)
@@ -160,10 +161,10 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
-    # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
-                             "audio_codecs/cores3_audio_codec.cc"
-                             "audio_codecs/es8388_audio_codec.cc")
+                             "audio_codecs/es8388_audio_codec.cc"
+                             "led/gpio_led.cc"
+                             )
 endif()
 
 idf_component_register(SRCS ${SOURCES}
