@@ -9,6 +9,7 @@
 #include "iot/thing_manager.h"
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -218,6 +219,20 @@ private:
         thing_manager.AddThing(iot::CreateThing("Environment"));
     }
 
+    void InitializeSensor() {
+        ath20_ = new AHT20(i2c_bus_, 0x38);
+
+        Settings settings("environment", true);
+        if(settings.GetInt("set_diff", 0) == 0) {
+            settings.SetInt("set_diff", 1);
+            settings.SetInt("temp_diff", -80);    // 默认温度值偏移量 * 10
+            settings.SetInt("humi_diff", 100);  // 默认是渎职偏移量 * 10
+
+            ESP_LOGI(TAG, "Set default temperature_diff to -8");
+            ESP_LOGI(TAG, "Set default humidity_diff to 10");
+        }
+    }
+
 public:
     Df_K10Board() {
         InitializeI2c();
@@ -225,8 +240,8 @@ public:
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeSensor();
         InitializeIot();
-        ath20_ = new AHT20(i2c_bus_, 0x38);
     }
 
     virtual Led* GetLed() override {
