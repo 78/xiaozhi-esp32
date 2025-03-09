@@ -6,13 +6,15 @@
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
-#include <esp_lcd_panel_vendor.h>
+#include "power_save_timer.h"
+#include "font_awesome_symbols.h"
+
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp_lcd_nv3023.h"
-#include "font_awesome_symbols.h"
+#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_nv3023.h>
 #include <esp_efuse_table.h>
 
 #define TAG "magiclick_c3"
@@ -20,13 +22,11 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class NV3023Display : public LcdDisplay {
+class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                gpio_num_t backlight_pin, bool backlight_output_invert,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
@@ -62,6 +62,31 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     NV3023Display* display_;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(160);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+            
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
+            
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -88,6 +113,7 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
+            power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
         });
         boot_button_.OnPressUp([this]() {
@@ -135,7 +161,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true); 
-        display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new NV3023Display(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -153,9 +179,11 @@ public:
 
         InitializeCodecI2c();
         InitializeButtons();
+        InitializePowerSaveTimer();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual Led* GetLed() override {
@@ -172,6 +200,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 };
 

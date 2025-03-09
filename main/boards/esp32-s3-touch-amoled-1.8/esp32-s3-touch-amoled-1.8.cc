@@ -9,17 +9,33 @@
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
+#include "power_save_timer.h"
+#include "axp2101.h"
+#include "i2c_device.h"
 #include <wifi_station.h>
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
+#include "esp_io_expander_tca9554.h"
+#include "settings.h"
 
 #define TAG "waveshare_amoled_1_8"
 
 LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
+
+class Pmic : public Axp2101 {
+public:
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
+        // TODO: Configure the power management IC here...
+    }
+};
+
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
+#define LCD_OPCODE_READ_CMD (0x03ULL)
+#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
 
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x11, (uint8_t[]){0x00}, 0, 120},
@@ -34,39 +50,77 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
-    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
                     int offset_y,
                     bool mirror_x,
                     bool mirror_y,
-                    bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+                    bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_30_4,
                         .icon_font = &font_awesome_30_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
-
         DisplayLockGuard lock(this);
-        // 由于屏幕是带圆角的，所以状态栏需要增加左右内边距
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+    }
+};
+
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(esp_lcd_panel_io_handle_t panel_io) : Backlight(), panel_io_(panel_io) {}
+
+protected:
+    esp_lcd_panel_io_handle_t panel_io_;
+
+    virtual void SetBrightnessImpl(uint8_t brightness) override {
+        uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
     }
 };
 
 class waveshare_amoled_1_8 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
+    Pmic* pmic_ = nullptr;
     Button boot_button_;
-    LcdDisplay* display_;
+    CustomLcdDisplay* display_;
+    CustomBacklight* backlight_;
+    esp_io_expander_handle_t io_expander = NULL;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -83,6 +137,28 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+    }
+
+    void InitializeTca9554(void) {
+        esp_err_t ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
+        if(ret != ESP_OK)
+            ESP_LOGE(TAG, "TCA9554 create returned error");
+        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 |IO_EXPANDER_PIN_NUM_2, IO_EXPANDER_OUTPUT);
+        ret |= esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_4, IO_EXPANDER_INPUT);
+        ESP_ERROR_CHECK(ret);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
+        ESP_ERROR_CHECK(ret);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 0);
+        ESP_ERROR_CHECK(ret);
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1|IO_EXPANDER_PIN_NUM_2, 1);
+        ESP_ERROR_CHECK(ret);
+    }
+
+    void InitializeAxp2101() {
+        ESP_LOGI(TAG, "Init AXP2101");
+        pmic_ = new Pmic(codec_i2c_bus_, 0x34);
     }
 
     void InitializeSpi() {
@@ -144,20 +220,28 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        backlight_ = new CustomBacklight(panel_io);
+        backlight_->RestoreBrightness();
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("BoardControl"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
     waveshare_amoled_1_8() :
         boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePowerSaveTimer();
         InitializeCodecI2c();
+        InitializeTca9554();
+        InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
         InitializeButtons();
@@ -168,13 +252,35 @@ public:
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
-
         return &audio_codec;
-
     }
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        return backlight_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = pmic_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 

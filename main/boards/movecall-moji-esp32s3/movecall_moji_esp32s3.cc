@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "display/no_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -26,12 +25,10 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
@@ -39,8 +36,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_20_4,
                         .icon_font = &font_awesome_20_4,
@@ -109,7 +105,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, false));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
-        display_ = new LcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(io_handle, panel_handle,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
@@ -137,12 +133,12 @@ private:
 
 public:
     MovecallMojiESP32S3() : boot_button_(BOOT_BUTTON_GPIO) {  
-
         InitializeCodecI2c();
         InitializeSpi();
         InitializeGc9a01Display();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual Led* GetLed() override {
@@ -152,6 +148,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

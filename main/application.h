@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
+#include <esp_timer.h>
 
 #include <string>
 #include <mutex>
@@ -17,8 +18,10 @@
 #include "ota.h"
 #include "background_task.h"
 
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
 #include "audio_processor.h"
 #endif
 
@@ -56,7 +59,8 @@ public:
     bool IsVoiceDetected() const { return voice_detected_; }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
-    void Alert(const std::string& status, const std::string& message, const std::string& emotion = "", const std::string_view& sound = "");
+    void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
+    void DismissAlert();
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
@@ -64,25 +68,30 @@ public:
     void UpdateIotStates();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
+    void PlaySound(const std::string_view& sound);
+    bool CanEnterSleepMode();
 
 private:
     Application();
     ~Application();
 
-#if CONFIG_USE_AUDIO_PROCESSING
+#if CONFIG_USE_WAKE_WORD_DETECT
     WakeWordDetect wake_word_detect_;
+#endif
+#if CONFIG_USE_AUDIO_PROCESSOR
     AudioProcessor audio_processor_;
 #endif
     Ota ota_;
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
-    EventGroupHandle_t event_group_;
+    EventGroupHandle_t event_group_ = nullptr;
+    esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     bool keep_listening_ = false;
     bool aborted_ = false;
     bool voice_detected_ = false;
-    std::string last_iot_states_;
+    int clock_ticks_ = 0;
 
     // Audio encode / decode
     BackgroundTask* background_task_ = nullptr;
@@ -104,8 +113,7 @@ private:
     void SetDecodeSampleRate(int sample_rate);
     void CheckNewVersion();
     void ShowActivationCode();
-
-    void PlayLocalFile(const char* data, size_t size);
+    void OnClockTimer();
 };
 
 #endif // _APPLICATION_H_

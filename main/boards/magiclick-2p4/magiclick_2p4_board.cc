@@ -3,29 +3,29 @@
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led/single_led.h"
+#include "led/circular_strip.h"
 #include "iot/thing_manager.h"
 #include "config.h"
+#include "font_awesome_symbols.h"
+#include "assets/lang_config.h"
+
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp_lcd_nv3023.h"
-#include "font_awesome_symbols.h"
+#include <esp_lcd_nv3023.h>
 
 #define TAG "magiclick_2p4"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class NV3023Display : public LcdDisplay {
+class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                gpio_num_t backlight_pin, bool backlight_output_invert,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : LcdDisplay(panel_io, panel, backlight_pin, backlight_output_invert, 
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
@@ -59,7 +59,9 @@ public:
 class magiclick_2p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Button boot_button_;
+    Button main_button_;
+    Button left_button_;
+    Button right_button_;
     NV3023Display* display_;
 
     void InitializeCodecI2c() {
@@ -80,17 +82,45 @@ private:
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        main_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening();
+        });
+        main_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening();
+        });
+
+        left_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() - 10;
+            if (volume < 0) {
+                volume = 0;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+
+        left_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(0);
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+
+        right_button_.OnClick([this]() {
+            auto codec = GetAudioCodec();
+            auto volume = codec->output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
+            }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+        });
+
+        right_button_.OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
     }
 
@@ -142,7 +172,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new NV3023Display(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new NV3023Display(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -155,17 +185,20 @@ private:
 
 public:
     magiclick_2p4() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        main_button_(MAIN_BUTTON_GPIO),
+        left_button_(LEFT_BUTTON_GPIO), 
+        right_button_(RIGHT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
         InitializeLedPower();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
+        static CircularStrip led(BUILTIN_LED_GPIO, BUILTIN_LED_NUM);
         return &led;
     }
 
@@ -178,6 +211,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 };
 

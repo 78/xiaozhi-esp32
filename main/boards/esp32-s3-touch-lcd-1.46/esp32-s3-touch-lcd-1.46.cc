@@ -18,6 +18,8 @@
 #include <esp_timer.h>
 #include "esp_io_expander_tca9554.h"
 #include "lcd_display.h"
+#include <iot_button.h>
+
 #define TAG "waveshare_lcd_1_46"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -25,10 +27,9 @@ LV_FONT_DECLARE(font_awesome_16_4);
 
 
 // 在waveshare_lcd_1_46类之前添加新的显示类
-class CustomLcdDisplay : public LcdDisplay {
+class CustomLcdDisplay : public SpiLcdDisplay {
 public:
-    static void rounder_event_cb(lv_event_t * e)
-    {
+    static void rounder_event_cb(lv_event_t * e) {
         lv_area_t * area = (lv_area_t *)lv_event_get_param(e);
         uint16_t x1 = area->x1;
         uint16_t x2 = area->x2;
@@ -39,8 +40,6 @@ public:
 
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
@@ -48,29 +47,24 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : LcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_16_4,
                         .icon_font = &font_awesome_16_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
-
         DisplayLockGuard lock(this);
-
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
-
-        
     }
 };
 
 class CustomBoard : public WifiBoard {
 private:
- 
-    Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
+    button_handle_t boot_btn,pwr_btn;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -83,8 +77,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
     
-    void i2c_dev_tca9554_init(void)
-    {
+    void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
             ESP_LOGE(TAG, "TCA9554 create returned error");        
@@ -150,18 +143,73 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
  
+    void InitializeButtonsCustom() {
+        gpio_reset_pin(BOOT_BUTTON_GPIO);                                     
+        gpio_set_direction(BOOT_BUTTON_GPIO, GPIO_MODE_INPUT);   
+        gpio_reset_pin(PWR_BUTTON_GPIO);                                     
+        gpio_set_direction(PWR_BUTTON_GPIO, GPIO_MODE_INPUT);   
+        gpio_reset_pin(PWR_Control_PIN);                                     
+        gpio_set_direction(PWR_Control_PIN, GPIO_MODE_OUTPUT);     
+        // gpio_set_level(PWR_Control_PIN, false);
+        gpio_set_level(PWR_Control_PIN, true);
+    }
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        InitializeButtonsCustom();
+        button_config_t btns_config = {
+            .type = BUTTON_TYPE_CUSTOM,
+            .long_press_time = 2000,
+            .short_press_time = 50,
+            .custom_button_config = {
+                .active_level = 0,
+                .button_custom_init = nullptr,
+                .button_custom_get_key_value = [](void *param) -> uint8_t {
+                    return gpio_get_level(BOOT_BUTTON_GPIO);
+                },
+                .button_custom_deinit = nullptr,
+                .priv = this,
+            },
+        };
+        boot_btn = iot_button_create(&btns_config);
+        iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<CustomBoard*>(usr_data);
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+                self->ResetWifiConfiguration();
             }
             app.ToggleChatState();
-        });
+        }, this);
+        iot_button_register_cb(boot_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+            // 长按无处理
+        }, this);
+
+        btns_config.long_press_time = 5000;
+        btns_config.custom_button_config.button_custom_get_key_value = [](void *param) -> uint8_t {
+            return gpio_get_level(PWR_BUTTON_GPIO);
+        };
+        pwr_btn = iot_button_create(&btns_config);
+        iot_button_register_cb(pwr_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+            // auto self = static_cast<CustomBoard*>(usr_data);                                     // 以下程序实现供用户参考 ，实现单击pwr按键调整亮度               
+            // if(self->GetBacklight()->brightness() > 1)                                           // 如果亮度不为0
+            //     self->GetBacklight()->SetBrightness(1);                                          // 设置亮度为1         
+            // else
+            //     self->GetBacklight()->RestoreBrightness();                                       // 恢复原本亮度
+            // 短按无处理
+        }, this);
+        iot_button_register_cb(pwr_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+            auto self = static_cast<CustomBoard*>(usr_data);
+            if(self->GetBacklight()->brightness() > 0) {
+                self->GetBacklight()->SetBrightness(0);
+                gpio_set_level(PWR_Control_PIN, false);
+            }
+            else {
+                self->GetBacklight()->RestoreBrightness();
+                gpio_set_level(PWR_Control_PIN, true);
+            }
+        }, this);
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -172,14 +220,14 @@ private:
     }
 
 public:
-    CustomBoard() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+    CustomBoard() { 
         InitializeI2c();
-        i2c_dev_tca9554_init();
+        InitializeTca9554();
         InitializeSpi();
         Initializespd2010Display();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -189,11 +237,14 @@ public:
         return &audio_codec;
     }
 
-
     virtual Display* GetDisplay() override {
         return display_;
     }
     
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
 };
 
 DECLARE_BOARD(CustomBoard);
