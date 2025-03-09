@@ -46,6 +46,9 @@ public:
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging);
+    virtual bool GetTemperature(float &temperature);
+    virtual bool GetHumidity(float &humidity);
+    virtual bool GetLight(float &light);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
 };
