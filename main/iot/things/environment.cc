@@ -1,5 +1,6 @@
 #include "iot/thing.h"
 #include "board.h"
+#include "settings.h"
 
 #include <esp_log.h>
 
@@ -17,8 +18,20 @@ private:
     float light_ = 0;
     float light_diff_ = 0;
 
+    void InitializeDiff() {
+        Settings settings("environment", true);
+        temperature_diff_ = settings.GetInt("temp_diff", 0) / 10;
+        humidity_diff_ = settings.GetInt("humi_diff", 0) / 10;
+
+        ESP_LOGI(TAG, "Get stored temperature_diff is %.1f", temperature_diff_);
+        ESP_LOGI(TAG, "Get stored humidity_diff is %.1f", humidity_diff_);
+    }
+
 public:
     Environment() : Thing("Environment", "当前环境信息") {
+        // 获取diff初始值
+        InitializeDiff();
+
         // 定义设备的属性
         properties_.AddNumberProperty("temperature", "当前环境温度", [this]() -> float {
             auto& board = Board::GetInstance();
@@ -60,15 +73,31 @@ public:
         methods_.AddMethod("SetTemperatureDiff", "设置温度偏移量", ParameterList({
             Parameter("temperature_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
-            temperature_diff_ = parameters["temperature_diff"].number();
-            ESP_LOGI(TAG, "Set Temperature diff to %.1f°C", temperature_diff_);
+            float tmp = parameters["temperature_diff"].number();
+            if(tmp>=-50 && tmp<=50) {
+                temperature_diff_ = parameters["temperature_diff"].number();
+
+                Settings settings("environment", true);
+                settings.SetInt("temp_diff", (int)(temperature_diff_*10));
+                ESP_LOGI(TAG, "Set Temperature diff to %.1f°C", temperature_diff_);
+            } else {
+                ESP_LOGE(TAG, "Temperature diff value %.1f°C is invalid", temperature_diff_);
+            }
         });
 
         methods_.AddMethod("SetHumidityDiff", "设置湿度偏移量", ParameterList({
             Parameter("humidity_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
-            humidity_diff_ = parameters["humidity_diff"].number();
-            ESP_LOGI(TAG, "Set Humidity diff to %.1f%%", humidity_diff_);
+            float tmp = parameters["humidity_diff"].number();
+            if(tmp>=-50 && tmp<=50) {
+                humidity_diff_ = parameters["humidity_diff"].number();
+
+                Settings settings("environment", true);
+                settings.SetInt("humi_diff", (int)(humidity_diff_*10));
+                ESP_LOGI(TAG, "Set Humidity diff to %.1f%%", humidity_diff_);
+            } else {
+                ESP_LOGE(TAG, "Humidity_diff value %.1f%% is invalid", humidity_diff_);
+            }
         });
     }
 };
