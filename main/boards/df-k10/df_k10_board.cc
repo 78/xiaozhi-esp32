@@ -17,6 +17,7 @@
 #include <wifi_station.h>
 
 #include "esp_io_expander_tca95xx_16bit.h"
+#include "aht20.h"
 
 #define TAG "DF-K10"
 
@@ -30,6 +31,7 @@ private:
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    AHT20* ath20_  = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -213,6 +215,7 @@ private:
     void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Environment"));
     }
 
 public:
@@ -223,6 +226,7 @@ public:
         InitializeIli9341Display();
         InitializeButtons();
         InitializeIot();
+        ath20_ = new AHT20(i2c_bus_, 0x38);
     }
 
     virtual Led* GetLed() override {
@@ -249,6 +253,30 @@ public:
 
     virtual Display *GetDisplay() override {
         return display_;
+    }
+
+    virtual bool GetTemperature(float& temperature) override {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(temp, humi)) {
+            temperature = temp;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
+    }
+
+    virtual bool GetHumidity(float& humidity) override {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(temp, humi)) {
+            humidity = humi;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
     }
 };
 
