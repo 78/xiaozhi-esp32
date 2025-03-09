@@ -220,7 +220,19 @@ public:
         esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
         SetSubBacklight(brightness);
     }
+    static void btn_pressed_cb(lv_event_t *e)
+    {
+        ESP_LOGI(TAG, "Button pressed");
+        Application::GetInstance().StartListening();
+    }
 
+    // 按键抬起回调函数
+    static void btn_released_cb(lv_event_t *e)
+    {
+        ESP_LOGI(TAG, "Button released");
+        Application::GetInstance().StopListening();
+    }
+#define BTNWIDTH 150
     virtual void SetupUI() override
     {
         DisplayLockGuard lock(this);
@@ -233,16 +245,19 @@ public:
 
         /* Container */
         container_ = lv_obj_create(screen);
-        lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_size(container_, LV_HOR_RES - BTNWIDTH, LV_VER_RES);
         lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_all(container_, 0, 0);
+        lv_obj_set_style_pad_right(container_, 5, 0);
         lv_obj_set_style_border_width(container_, 0, 0);
         lv_obj_set_style_pad_row(container_, 0, 0);
+        lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
 
         /* Status bar */
         status_bar_ = lv_obj_create(container_);
-        lv_obj_set_size(status_bar_, LV_HOR_RES, 18 + 2);
+        lv_obj_set_size(status_bar_, LV_HOR_RES - BTNWIDTH - 5, 18 + 2);
         lv_obj_set_style_radius(status_bar_, 0, 0);
+        lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
 
         /* Status bar */
         lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -253,14 +268,15 @@ public:
         /* Content */
         content_ = lv_obj_create(container_);
         lv_obj_set_style_radius(content_, 0, 0);
-        lv_obj_set_size(content_, LV_HOR_RES, LV_VER_RES - (18 + 2));
+        lv_obj_set_size(content_, LV_HOR_RES - BTNWIDTH - 5, LV_VER_RES - (18 + 2));
         lv_obj_set_flex_grow(content_, 1);
+        lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
 
         /* Content */
         lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
         lv_obj_set_style_pad_all(content_, 0, 0);
-        lv_obj_set_style_border_width(content_, 1, 0);
+        lv_obj_set_style_border_width(content_, 0, 0);
         lv_obj_add_flag(content_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_scroll_dir(content_, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_ACTIVE);
@@ -313,8 +329,27 @@ public:
 
         lv_style_set_text_color(&style_assistant, lv_color_hex(0));
         lv_style_set_bg_color(&style_assistant, lv_color_hex(0xE0E0E0));
-    }
 
+        lv_obj_t *btncontainer_ = lv_obj_create(screen);
+        lv_obj_set_size(btncontainer_, BTNWIDTH, LV_VER_RES);
+        lv_obj_set_style_pad_all(btncontainer_, 0, 0);
+        lv_obj_set_style_pad_left(btncontainer_, 5, 0);
+        lv_obj_align(btncontainer_, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_set_style_border_width(btncontainer_, 0, 0);
+        lv_obj_set_style_bg_color(btncontainer_, lv_color_black(), 0);
+
+        lv_obj_t *btn = lv_obj_create(btncontainer_);
+        lv_obj_set_size(btn, BTNWIDTH - 5, LV_VER_RES);
+        lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+        lv_obj_t *mic_label = lv_label_create(btn);
+        lv_label_set_text(mic_label, "按下说话");
+        lv_obj_set_style_text_font(mic_label, &font_puhui_16_4, 0);
+        lv_obj_center(mic_label);
+
+        lv_obj_add_event_cb(btn, btn_pressed_cb, LV_EVENT_PRESSED, NULL);
+        lv_obj_add_event_cb(btn, btn_released_cb, LV_EVENT_RELEASED, NULL);
+    }
     virtual void SetChatMessage(const char *role, const char *content) override
     {
         if (content != nullptr && *content == '\0')
@@ -336,10 +371,11 @@ public:
             RemoveOldestLabel(); // 当 label 数量达到 10 时移除最早的
         }
         lv_obj_t *container = lv_obj_create(content_);
+        lv_obj_set_style_bg_color(container, lv_color_black(), 0);
         lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_style_radius(container, 0, 0);
         lv_obj_set_style_border_width(container, 0, 0);
-        lv_obj_set_width(container, LV_HOR_RES - 2);
+        lv_obj_set_width(container, LV_HOR_RES - BTNWIDTH - 5 - 2);
         lv_obj_set_style_pad_all(container, 0, 0);
 
         lv_obj_t *label = lv_label_create(container);
@@ -362,9 +398,9 @@ public:
         lv_obj_set_style_pad_all(label, 5, LV_PART_MAIN);
 
         lv_obj_update_layout(label);
-        // ESP_LOGI(TAG, "Label Width: %ld-%ld", lv_obj_get_width(label), (LV_HOR_RES - 2));
-        if (lv_obj_get_width(label) >= (LV_HOR_RES - 2))
-            lv_obj_set_width(label, (LV_HOR_RES - 2));
+        // ESP_LOGI(TAG, "Label Width: %ld-%ld", lv_obj_get_width(label), (LV_HOR_RES -BTNWIDTH - 5 - 2));
+        if (lv_obj_get_width(label) >= (LV_HOR_RES - BTNWIDTH - 5 - 2))
+            lv_obj_set_width(label, (LV_HOR_RES - BTNWIDTH - 5 - 2));
         lv_obj_scroll_to_view(container, LV_ANIM_ON);
 
         for (size_t i = 0; i < 2; i++)
@@ -698,9 +734,6 @@ private:
     const int POWER_SAVE_TIMER_PERIOD_SECONDS = 1;
     const int SECONDS_TO_SLEEP = 120;
 
-    const int LOW_BATTERY_THRESHOLD_DOWN = 20;
-    const int LOW_BATTERY_THRESHOLD_UP = 25;
-
     void InitializePowerSaveTimer()
     {
         esp_timer_create_args_t power_save_timer_args = {
@@ -732,18 +765,13 @@ private:
         GetBatteryLevel(battery_level, charging);
         if (!charging)
         {
-            if (!show_low_power_warning_ && battery_level <= LOW_BATTERY_THRESHOLD_DOWN)
+            if (battery_level == 0)
             {
                 ESP_LOGI(TAG, "Battery too low, Deep sleep");
                 app.Alert(Lang::Strings::WARNING, Lang::Strings::BATTERY_LOW, "sad", Lang::Sounds::P3_VIBRATION);
                 show_low_power_warning_ = true;
 
                 EnableDeepSleep();
-            }
-            else if (show_low_power_warning_ && battery_level >= LOW_BATTERY_THRESHOLD_UP)
-            {
-                app.DismissAlert();
-                show_low_power_warning_ = false;
             }
 
             power_save_ticks_++;
@@ -765,15 +793,16 @@ private:
 
     void EnableDeepSleep()
     {
-        display_->SetChatMessage("system", "");
+        display_->SetChatMessage("system", "sleepy");
         display_->SetEmotion("sleepy");
 #if FORD_VFD_EN
 #else
-        display_->Notification("sleepy", 2000);
+        display_->Notification("  sleepy  ", 4000);
 #endif
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(4000));
         mpu6050_sleep(mpu6050);
         display_->SetSleep(true);
+        vTaskDelay(pdMS_TO_TICKS(100));
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
         {
             ESP_LOGI(TAG, "Disable amoled power");
@@ -821,15 +850,20 @@ private:
         if (ret == ESP_OK)
         {
             struct tm time_user;
-            if (rx8900_read_time(rx8900, &time_user) == ESP_FAIL)
+            ret = rx8900_read_time(rx8900, &time_user);
+            ESP_LOGI(TAG, "rx8900_read_time:%d", ret);
+            if (ret == ESP_OK)
             {
+                setenv("TZ", DEFAULT_TIMEZONE, 1);
+                tzset();
+                ESP_LOGI(TAG, "Sync system time");
                 time_t timestamp = mktime(&time_user);
                 struct timeval tv;
                 tv.tv_sec = timestamp;
                 tv.tv_usec = 0;
                 if (settimeofday(&tv, NULL) == ESP_FAIL)
                 {
-                    ESP_LOGE(TAG, "Failed to set system time");
+                    ESP_LOGI(TAG, "Failed to set system time");
                     return;
                 }
             }
@@ -841,8 +875,7 @@ private:
         mpu6050_enable_motiondetection(mpu6050, 100, 50);
 
         xTaskCreate([](void *arg)
-                    { sntp_set_time_sync_notification_cb([](struct timeval *t)
-                                                         {
+                    { sntp_set_time_sync_notification_cb([](struct timeval *t) {
                 if (settimeofday(t, NULL) == ESP_FAIL) {
                     ESP_LOGE(TAG, "Failed to set system time");
                     return;
@@ -921,7 +954,7 @@ private:
         // Initialize the SPI device interface configuration structure
         spi_device_interface_config_t devcfg = {
             .mode = 0,                      // Set the SPI mode to 3
-            .clock_speed_hz = 400000,       // Set the clock speed to 1MHz
+            .clock_speed_hz = 600000,       // Set the clock speed to 1MHz
             .spics_io_num = PIN_NUM_VFD_CS, // Set the chip select pin
             .flags = 0,
             .queue_size = 7,
@@ -1299,15 +1332,15 @@ public:
         return ret;
     }
 
-#define VCHARGE 4200
+#define VCHARGE 4210
 #define V1_UP 4000
-#define V1_DOWN 3950
+#define V1_DOWN 3850
 #define V2_UP 3750
-#define V2_DOWN 3700
-#define V3_UP 3500
-#define V3_DOWN 3450
-#define V4_UP 3050
-#define V4_DOWN 3000
+#define V2_DOWN 3600
+#define V3_UP 3550
+#define V3_DOWN 3350
+#define V4_UP 3100
+#define V4_DOWN 2900
 
     virtual bool GetBatteryLevel(int &level, bool &charging) override
     {

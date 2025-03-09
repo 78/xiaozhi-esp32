@@ -103,8 +103,9 @@ void PT6324Writer::pt6324_setbrightness(uint8_t brightness)
     dimming = brightness * 8 / 100;
     if (dimming > 7)
         dimming = 7;
-    else if (dimming < 1)
-        dimming = 1;
+    // else if (dimming < 1)
+    //     dimming = 1;
+    // ESP_LOGI(TAG, "dimming %d", dimming);
 }
 
 void PT6324Writer::pt6324_setsleep(bool en)
@@ -143,7 +144,7 @@ void PT6324Writer::pt6324_refrash(uint8_t *gram)
     uint8_t data[1] = {0x80};
 
     data[0] |= dimming | (dimmen ? 0x8 : 0);
-    
+
     // Send the display on command to the PT6324 device
     pt6324_write_data(data, (sizeof data) * 8);
 }

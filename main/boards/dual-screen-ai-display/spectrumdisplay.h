@@ -79,8 +79,8 @@ private:
     {
         for (int i = 0; i < screenWidth - 1; ++i)
         {
-            int x1 = i * fftSize / screenWidth;
-            int x2 = (i + 1) * fftSize / screenWidth;
+            int x1 = i * (fftSize - 40) / screenWidth + 40;
+            int x2 = (i + 1) * (fftSize - 40) / screenWidth + 40;
             float scaledY1 = (data[x1] * FFT_FACTOR);
             float scaledY2 = (data[x2] * FFT_FACTOR);
             int y1 = static_cast<int>(scaledY1);
@@ -106,7 +106,7 @@ private:
     {
         for (int i = 0; i < screenWidth; ++i)
         {
-            int x = i * (fftSize - 10) / screenWidth + 10;
+            int x = i * (fftSize - 40) / screenWidth + 40;
             int y = static_cast<int>(data[x] * FFT_FACTOR);
 
             if (y > (screenHeight - 1))
@@ -258,29 +258,29 @@ public:
         if (animationStep < totalAnimationSteps)
         {
             calculateInterpolatedData(interpolatedData);
-            switch (currentStyle)
-            {
-            case STYLE_BAR:
-                drawBarSpectrum(interpolatedData);
-                break;
-            case STYLE_LINE:
-                drawLineSpectrum(interpolatedData);
-                break;
-            case STYLE_DOT:
-                drawDotSpectrum(interpolatedData);
-                break;
-            case STYLE_POLYGON:
-                drawPolygonSpectrum(interpolatedData);
-                break;
-            case STYLE_CENTERED_BAR:
-                drawCenteredBarSpectrum(interpolatedData);
-                break;
-            case STYLE_GRADIENT_BAR:
-                drawGradientBarSpectrum(interpolatedData);
-                break;
-            default:
-                break;
-            }
+            // switch (currentStyle)
+            // {
+            // case STYLE_BAR:
+            //    drawBarSpectrum(interpolatedData);
+            //     break;
+            // case STYLE_LINE:
+                 drawLineSpectrum(interpolatedData);
+            //     break;
+            // case STYLE_DOT:
+            //    drawDotSpectrum(interpolatedData);
+            //     break;
+            // case STYLE_POLYGON:
+            //     drawPolygonSpectrum(interpolatedData);
+            //     break;
+            // case STYLE_CENTERED_BAR:
+            //     drawCenteredBarSpectrum(interpolatedData);
+            //     break;
+            // case STYLE_GRADIENT_BAR:
+            //     drawGradientBarSpectrum(interpolatedData);
+            //     break;
+            // default:
+            //     break;
+            // }
             animationStep++;
         }
     }

@@ -126,7 +126,7 @@
 #define TOUCH_SCL_NUM GPIO_NUM_8
 #define TOUCH_INT_NUM GPIO_NUM_9
 #define TOUCH_MIRROR_X false
-#define TOUCH_MIRROR_Y false
+#define TOUCH_MIRROR_Y true
 #define TOUCH_SWAP_XY true
 #endif
 #define ADC_UNIT ADC_UNIT_1
