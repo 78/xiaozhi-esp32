@@ -220,8 +220,14 @@ public:
         return display_;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
         charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
         level = power_manager_->GetBatteryLevel();
         return true;
     }
