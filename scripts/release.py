@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import zipfile
 
 # 切换到项目根目录
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,14 +31,11 @@ def merge_bin():
         sys.exit(1)
 
 def zip_bin(board_type, project_version):
-    if not os.path.exists("releases"):
-        os.makedirs("releases")
     output_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(output_path):
         os.remove(output_path)
-    if os.system(f"zip -j {output_path} build/merged-binary.bin") != 0:
-        print("zip bin failed")
-        sys.exit(1)
+    with zipfile.ZipFile(output_path, 'w') as zipf:
+        zipf.write("build/merged-binary.bin", arcname="merged-binary.bin")
     print(f"zip bin to {output_path} done")
     
 
