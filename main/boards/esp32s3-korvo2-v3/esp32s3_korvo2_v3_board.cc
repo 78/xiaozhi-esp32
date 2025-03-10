@@ -3,7 +3,6 @@
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
-#include "esp_lcd_ili9341.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -11,6 +10,7 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_io_expander_tca9554.h>
+#include <esp_lcd_ili9341.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <wifi_station.h>
