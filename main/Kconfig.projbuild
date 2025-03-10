@@ -60,6 +60,8 @@ choice BOARD_TYPE
         bool "面包板新版接线（WiFi）+ LCD"
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
+    config BOARD_TYPE_BREAD_COMPACT_ML307_LCD
+        bool "面包板新版接线（ML307 AT）+ LCD"    
     config BOARD_TYPE_BREAD_COMPACT_ESP32
         bool "面包板 ESP32 DevKit"
     config BOARD_TYPE_ESP_BOX_3
@@ -157,7 +159,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ML307_LCD
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
