@@ -201,7 +201,7 @@ choice DISPLAY_ESP32S3_KORVO2_V3
     help
         屏幕类型选择
     config LCD_ST7789
-        bool "ST7789, 分辨率240*320"
+        bool "ST7789, 分辨率240*280"
     config LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
 endchoice
