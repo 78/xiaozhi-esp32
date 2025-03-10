@@ -54,9 +54,27 @@ public:
         WriteReg(0x08, data);
     }
 
-    void SetLcdBacklight(uint8_t brightness) {
+    void SetBrightness(uint8_t brightness) {
+        // Map 0~100 to 0~255
+        brightness = brightness * 255 / 100;
         WriteReg(0x0E, brightness);
     }
+};
+
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(Lp5562* lp5562) : lp5562_(lp5562) {}
+
+    void SetBrightnessImpl(uint8_t brightness) override {
+        if (lp5562_) {
+            lp5562_->SetBrightness(brightness);
+        } else {
+            ESP_LOGE(TAG, "LP5562 not available");
+        }
+    }
+
+private:
+    Lp5562* lp5562_ = nullptr;
 };
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
@@ -92,9 +110,9 @@ class AtomS3rEchoBaseBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     i2c_master_bus_handle_t i2c_bus_internal_;
-    Pi4ioe* pi4ioe_;
-    Lp5562* lp5562_;
-    Display* display_;
+    Pi4ioe* pi4ioe_ = nullptr;
+    Lp5562* lp5562_ = nullptr;
+    Display* display_ = nullptr;
     Button boot_button_;
     bool is_echo_base_connected_ = false;
     void InitializeI2c() {
@@ -158,7 +176,7 @@ private:
         InitializeSpi();
         InitializeGc9107Display();
         InitializeButtons();
-
+        GetBacklight()->SetBrightness(100);
         display_->SetStatus(Lang::Strings::ERROR);
         display_->SetEmotion("sad");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
@@ -190,7 +208,6 @@ private:
     void InitializeLp5562() {
         ESP_LOGI(TAG, "Init LP5562");
         lp5562_ = new Lp5562(i2c_bus_internal_, 0x30);
-        lp5562_->SetLcdBacklight(255);
     }
 
     void InitializeSpi() {
@@ -237,7 +254,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
-        display_ = new SpiLcdDisplay(io_handle, panel_handle, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(io_handle, panel_handle,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_16_4,
@@ -260,6 +277,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
     }
 
 public:
@@ -273,6 +291,7 @@ public:
         InitializeGc9107Display();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -294,6 +313,11 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight *GetBacklight() override {
+        static CustomBacklight backlight(lp5562_);
+        return &backlight;
     }
 };
 

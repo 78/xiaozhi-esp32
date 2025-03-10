@@ -18,10 +18,10 @@ I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
 {
     // 定义 I2C 设备的配置结构体
     i2c_device_config_t i2c_device_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7, // 设备地址长度为 7 位
-        .device_address = addr,                // 设备的 7 位地址
-        .scl_speed_hz = 100000,                // SCL 时钟频率为 100kHz
-        .scl_wait_us = 0,                      // SCL 等待时间为 0 微秒
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = addr,
+        .scl_speed_hz = 400 * 1000,
+        .scl_wait_us = 0,
         .flags = {
             .disable_ack_check = 0, // 不禁用 ACK 检查
         },

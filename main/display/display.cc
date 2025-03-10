@@ -2,6 +2,7 @@
 #include <esp_err.h>
 #include <string>
 #include <cstdlib>
+#include <cstring>
 
 #include "display.h"
 #include "board.h"
@@ -9,6 +10,7 @@
 #include "font_awesome_symbols.h"
 #include "audio_codec.h"
 #include "settings.h"
+#include "assets/lang_config.h"
 
 #define TAG "Display"
 
@@ -44,16 +46,15 @@ Display::Display()
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "update_display_timer",
+        .name = "display_update_timer",
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
     ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
 
     // Create a power management lock
-    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "ml307", &pm_lock_);
-    if (ret == ESP_ERR_NOT_SUPPORTED)
-    {
+    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
+    if (ret == ESP_ERR_NOT_SUPPORTED) {
         ESP_LOGI(TAG, "Power management not supported");
     }
     else
@@ -156,12 +157,10 @@ void Display::Update()
     esp_pm_lock_acquire(pm_lock_);
     // 更新电池图标
     int battery_level;
-    bool charging;
-    const char *icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging))
-    {
-        if (charging)
-        {
+    bool charging, discharging;
+    const char* icon = nullptr;
+    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+        if (charging) {
             icon = FONT_AWESOME_BATTERY_CHARGING;
         }
         else
@@ -181,6 +180,21 @@ void Display::Update()
         {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
+        }
+
+        if (low_battery_popup_ != nullptr) {
+            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
+                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
+                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                    auto& app = Application::GetInstance();
+                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                }
+            } else {
+                // Hide the low battery popup when the battery is not empty
+                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
+                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                }
+            }
         }
     }
     if (!timeOffline_ && !board.TimeUpdate())

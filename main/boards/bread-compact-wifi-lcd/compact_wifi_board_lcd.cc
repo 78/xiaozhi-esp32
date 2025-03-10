@@ -122,7 +122,7 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_16_4,
@@ -147,7 +147,10 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Lamp"));
+        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
+            thing_manager.AddThing(iot::CreateThing("Backlight"));
+        }
     }
 
 public:
@@ -157,6 +160,10 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
+        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
+            GetBacklight()->RestoreBrightness();
+        }
+        
     }
 
     virtual Led* GetLed() override {
@@ -177,6 +184,14 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
+            static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+            return &backlight;
+        }
+        return nullptr;
     }
 };
 

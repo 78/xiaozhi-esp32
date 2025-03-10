@@ -24,7 +24,7 @@ def encode_audio_to_opus(input_file, output_file):
     audio = (audio * 32767).astype(np.int16)
     
     # Initialize Opus encoder
-    encoder = opuslib.Encoder(sample_rate, 1, opuslib.APPLICATION_VOIP)
+    encoder = opuslib.Encoder(sample_rate, 1, opuslib.APPLICATION_AUDIO)
 
     # Encode audio data to Opus packets
     # Save encoded data to file

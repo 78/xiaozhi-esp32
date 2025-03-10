@@ -66,12 +66,52 @@ void Protocol::SendStopListening() {
 }
 
 void Protocol::SendIotDescriptors(const std::string& descriptors) {
-    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"descriptors\":" + descriptors + "}";
-    SendText(message);
+    cJSON* root = cJSON_Parse(descriptors.c_str());
+    if (root == nullptr) {
+        ESP_LOGE(TAG, "Failed to parse IoT descriptors: %s", descriptors.c_str());
+        return;
+    }
+
+    if (!cJSON_IsArray(root)) {
+        ESP_LOGE(TAG, "IoT descriptors should be an array");
+        cJSON_Delete(root);
+        return;
+    }
+
+    int arraySize = cJSON_GetArraySize(root);
+    for (int i = 0; i < arraySize; ++i) {
+        cJSON* descriptor = cJSON_GetArrayItem(root, i);
+        if (descriptor == nullptr) {
+            ESP_LOGE(TAG, "Failed to get IoT descriptor at index %d", i);
+            continue;
+        }
+
+        cJSON* messageRoot = cJSON_CreateObject();
+        cJSON_AddStringToObject(messageRoot, "session_id", session_id_.c_str());
+        cJSON_AddStringToObject(messageRoot, "type", "iot");
+        cJSON_AddBoolToObject(messageRoot, "update", true);
+
+        cJSON* descriptorArray = cJSON_CreateArray();
+        cJSON_AddItemToArray(descriptorArray, cJSON_Duplicate(descriptor, 1));
+        cJSON_AddItemToObject(messageRoot, "descriptors", descriptorArray);
+
+        char* message = cJSON_PrintUnformatted(messageRoot);
+        if (message == nullptr) {
+            ESP_LOGE(TAG, "Failed to print JSON message for IoT descriptor at index %d", i);
+            cJSON_Delete(messageRoot);
+            continue;
+        }
+
+        SendText(std::string(message));
+        cJSON_free(message);
+        cJSON_Delete(messageRoot);
+    }
+
+    cJSON_Delete(root);
 }
 
 void Protocol::SendIotStates(const std::string& states) {
-    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"states\":" + states + "}";
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"iot\",\"update\":true,\"states\":" + states + "}";
     SendText(message);
 }
 

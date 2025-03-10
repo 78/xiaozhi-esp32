@@ -9,6 +9,7 @@
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "axp2101.h"
 #include "i2c_device.h"
 #include <wifi_station.h>
@@ -24,6 +25,13 @@
 
 LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
+
+class Pmic : public Axp2101 {
+public:
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
+        // TODO: Configure the power management IC here...
+    }
+};
 
 #define LCD_OPCODE_WRITE_CMD (0x02ULL)
 #define LCD_OPCODE_READ_CMD (0x03ULL)
@@ -46,8 +54,6 @@ class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                     esp_lcd_panel_handle_t panel_handle,
-                    gpio_num_t backlight_pin,
-                    bool backlight_output_invert,
                     int width,
                     int height,
                     int offset_x,
@@ -55,7 +61,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy)
-        : SpiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
                         .text_font = &font_puhui_30_4,
@@ -65,21 +71,17 @@ public:
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
-
-        SetBacklight(100);
     }
+};
 
-    virtual void SetBacklight(uint8_t brightness) override {
-        if (brightness > 100)
-        {
-            brightness = 100;
-        }
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(esp_lcd_panel_io_handle_t panel_io) : Backlight(), panel_io_(panel_io) {}
 
-        brightness_ = brightness;
+protected:
+    esp_lcd_panel_io_handle_t panel_io_;
 
-        Settings settings("display", true);
-        settings.SetInt("bright", brightness_);
-
+    virtual void SetBrightnessImpl(uint8_t brightness) override {
         uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
         int lcd_cmd = 0x51;
         lcd_cmd &= 0xff;
@@ -92,12 +94,33 @@ public:
 class waveshare_amoled_1_8 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Axp2101* axp2101_ = nullptr;
-    esp_timer_handle_t power_save_timer_ = nullptr;
-
+    Pmic* pmic_ = nullptr;
     Button boot_button_;
-    LcdDisplay* display_;
+    CustomLcdDisplay* display_;
+    CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -134,46 +157,10 @@ private:
     }
 
     void InitializeAxp2101() {
-        // 使用 ESP_LOGI 宏记录信息日志，TAG 是日志标签，"Init AXP2101" 是日志信息
         ESP_LOGI(TAG, "Init AXP2101");
-        // 创建一个新的 Axp2101 对象，该对象通过 I2C 总线 i2c_bus_ 和设备地址 0x34 进行初始化
-        // axp2101_ 是一个指向 Axp2101 对象的指针
-        axp2101_ = new Axp2101(codec_i2c_bus_, 0x34);
+        pmic_ = new Pmic(codec_i2c_bus_, 0x34);
     }
 
-    void InitializePowerSaveTimer() {
-        esp_timer_create_args_t power_save_timer_args = {
-            .callback = [](void *arg) {
-                auto board = static_cast<waveshare_amoled_1_8*>(arg);
-                board->PowerSaveCheck();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "Power Save Timer",
-            .skip_unhandled_events = false,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-    }
-
-    void PowerSaveCheck() {
-        // 电池放电模式下，如果待机超过一定时间，则自动关机
-        const int seconds_to_shutdown = 600;
-        static int seconds = 0;
-        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
-            seconds = 0;
-            return;
-        }
-        if (!axp2101_->IsDischarging()) {
-            seconds = 0;
-            return;
-        }
-
-        seconds++;
-        if (seconds >= seconds_to_shutdown) {
-            axp2101_->PowerOff();
-        }
-    }
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.sclk_io_num = GPIO_NUM_11;
@@ -233,8 +220,10 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        backlight_ = new CustomBacklight(panel_io);
+        backlight_->RestoreBrightness();
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -243,18 +232,19 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
         thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
     waveshare_amoled_1_8() :
         boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePowerSaveTimer();
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
         InitializeButtons();
-        InitializePowerSaveTimer();
         InitializeIot();
     }
 
@@ -269,17 +259,28 @@ public:
         return display_;
     }
 
-    virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        static int last_level = 0;
-        static bool last_charging = false;
-        level = axp2101_->GetBatteryLevel();
-        charging = axp2101_->IsCharging();
-        if (level != last_level || charging != last_charging) {
-            last_level = level;
-            last_charging = charging;
-            ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+    virtual Backlight* GetBacklight() override {
+        return backlight_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
         }
+
+        level = pmic_->GetBatteryLevel();
         return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 

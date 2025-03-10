@@ -98,8 +98,6 @@ public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
                      esp_lcd_panel_handle_t panel_handle,
                      esp_lcd_touch_handle_t tp_handle,
-                     gpio_num_t backlight_pin,
-                     bool backlight_output_invert,
                      int width,
                      int height,
                      int offset_x,
@@ -108,7 +106,7 @@ public:
                      bool mirror_y,
                      bool swap_xy,
                      spi_device_handle_t spidevice = nullptr)
-        : QspiLcdDisplay(io_handle, panel_handle, backlight_pin, backlight_output_invert,
+        : QspiLcdDisplay(io_handle, panel_handle,
                          width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                          {
                              .text_font = &font_puhui_16_4,
@@ -761,8 +759,8 @@ private:
         }
 
         int battery_level;
-        bool charging;
-        GetBatteryLevel(battery_level, charging);
+        bool charging, discharging;
+        GetBatteryLevel(battery_level, charging, discharging);
         if (!charging)
         {
             if (battery_level == 0)
@@ -1075,7 +1073,7 @@ private:
         (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
 #endif
 
-        display_ = new CustomLcdDisplay(panel_io, panel, tp, GPIO_NUM_NC, false,
+        display_ = new CustomLcdDisplay(panel_io, panel, tp, 
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, spi_device);
 
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
@@ -1342,7 +1340,7 @@ public:
 #define V4_UP 3100
 #define V4_DOWN 2900
 
-    virtual bool GetBatteryLevel(int &level, bool &charging) override
+    virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override
     {
         static int last_level = 0;
         static bool last_charging = false;
@@ -1413,6 +1411,7 @@ public:
             last_charging = charging;
             // ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
         }
+        discharging = !charging;
         return true;
     }
 

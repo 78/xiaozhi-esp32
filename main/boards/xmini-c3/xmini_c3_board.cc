@@ -1,20 +1,21 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
-#include "display/ssd1306_display.h"
+#include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
-#include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "iot/thing_manager.h"
 #include "settings.h"
+#include "config.h"
+#include "power_save_timer.h"
 #include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
-#include <esp_timer.h>
-#include <esp_pm.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_vendor.h>
 
 #define TAG "XminiC3Board"
 
@@ -24,76 +25,34 @@ LV_FONT_DECLARE(font_awesome_14_1);
 class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
+    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+    esp_lcd_panel_handle_t panel_ = nullptr;
+    Display* display_ = nullptr;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
-    esp_timer_handle_t power_save_timer_ = nullptr;
-    bool sleep_mode_enabled_ = false;
-    int power_save_ticks_ = 0;
+    PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        esp_timer_create_args_t power_save_timer_args = {
-            .callback = [](void *arg) {
-                auto board = static_cast<XminiC3Board*>(arg);
-                board->PowerSaveCheck();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "power_save_timer",
-            .skip_unhandled_events = false,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&power_save_timer_args, &power_save_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-    }
-
-    void PowerSaveCheck() {
-        // 如果待机超过一定时间，则进入睡眠模式
-        const int seconds_to_sleep = 120;
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() != kDeviceStateIdle) {
-            power_save_ticks_ = 0;
-            return;
-        }
-
-        power_save_ticks_++;
-        if (power_save_ticks_ >= seconds_to_sleep) {
-            EnableSleepMode(true);
-        }
-    }
-
-    void EnableSleepMode(bool enable) {
-        power_save_ticks_ = 0;
-        if (!sleep_mode_enabled_ && enable) {
+        power_save_timer_ = new PowerSaveTimer(160, 60);
+        power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
-            // 如果是LCD，还可以调节屏幕亮度
             
             auto codec = GetAudioCodec();
             codec->EnableInput(false);
-
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 160,
-                .min_freq_mhz = 40,
-                .light_sleep_enable = true,
-            };
-            esp_pm_configure(&pm_config);
-            sleep_mode_enabled_ = true;
-        } else if (sleep_mode_enabled_ && !enable) {
-            esp_pm_config_t pm_config = {
-                .max_freq_mhz = 160,
-                .min_freq_mhz = 160,
-                .light_sleep_enable = false,
-            };
-            esp_pm_configure(&pm_config);
-            ESP_LOGI(TAG, "Disabling sleep mode");
-
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
             auto codec = GetAudioCodec();
             codec->EnableInput(true);
-            sleep_mode_enabled_ = false;
-        }
+            
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+        });
+        power_save_timer_->SetEnabled(true);
     }
-
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -112,6 +71,54 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
 
+    void InitializeSsd1306Display() {
+        // SSD1306 config
+        esp_lcd_panel_io_i2c_config_t io_config = {
+            .dev_addr = 0x3C,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 6,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 8,
+            .flags = {
+                .dc_low_on_data = 0,
+                .disable_control_phase = 0,
+            },
+            .scl_speed_hz = 400 * 1000,
+        };
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(codec_i2c_bus_, &io_config, &panel_io_));
+
+        ESP_LOGI(TAG, "Install SSD1306 driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = -1;
+        panel_config.bits_per_pixel = 1;
+
+        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
+            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
+        };
+        panel_config.vendor_config = &ssd1306_config;
+
+        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
+        ESP_LOGI(TAG, "SSD1306 driver installed");
+
+        // Reset the display
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+        if (esp_lcd_panel_init(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize display");
+            display_ = new NoDisplay();
+            return;
+        }
+
+        // Set the display to on
+        ESP_LOGI(TAG, "Turning display on");
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+            {&font_puhui_14_1, &font_awesome_14_1});
+    }
+
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -123,7 +130,7 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            EnableSleepMode(false);
+            power_save_timer_->WakeUp();
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
             }
@@ -151,20 +158,19 @@ public:
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
 
         InitializeCodecI2c();
+        InitializeSsd1306Display();
         InitializeButtons();
         InitializePowerSaveTimer();
         InitializeIot();
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual Display* GetDisplay() override {
-        static Ssd1306Display display(codec_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-                                    &font_puhui_14_1, &font_awesome_14_1);
-        return &display;
+        return display_;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

@@ -70,6 +70,7 @@ public:
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
+    bool CanEnterSleepMode();
 
 private:
     Application();
@@ -92,7 +93,6 @@ private:
     bool keep_listening_ = false;
     bool aborted_ = false;
     bool voice_detected_ = false;
-    std::string last_iot_states_;
     int clock_ticks_ = 0;
 
     // Audio encode / decode
