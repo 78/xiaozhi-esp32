@@ -167,6 +167,11 @@ public:
         return is_charging_;
     }
 
+    bool IsDischarging() {
+        // 没有区分充电和放电，所以直接返回相反状态
+        return !is_charging_;
+    }
+
     uint8_t GetBatteryLevel() {
         return battery_level_;
     }

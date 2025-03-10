@@ -22,16 +22,32 @@ std::string ThingManager::GetDescriptorsJson() {
     return json_str;
 }
 
-std::string ThingManager::GetStatesJson() {
-    std::string json_str = "[";
+bool ThingManager::GetStatesJson(std::string& json, bool delta) {
+    if (!delta) {
+        last_states_.clear();
+    }
+    bool changed = false;
+    json = "[";
+    // 枚举thing，获取每个thing的state，如果发生变化，则更新，保存到last_states_
+    // 如果delta为true，则只返回变化的部分
     for (auto& thing : things_) {
-        json_str += thing->GetStateJson() + ",";
+        std::string state = thing->GetStateJson();
+        if (delta) {
+            // 如果delta为true，则只返回变化的部分
+            auto it = last_states_.find(thing->name());
+            if (it != last_states_.end() && it->second == state) {
+                continue;
+            }
+            changed = true;
+            last_states_[thing->name()] = state;
+        }
+        json += state + ",";
     }
-    if (json_str.back() == ',') {
-        json_str.pop_back();
+    if (json.back() == ',') {
+        json.pop_back();
     }
-    json_str += "]";
-    return json_str;
+    json += "]";
+    return changed;
 }
 
 void ThingManager::Invoke(const cJSON* command) {
