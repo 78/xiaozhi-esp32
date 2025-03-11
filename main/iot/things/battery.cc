@@ -12,13 +12,14 @@ class Battery : public Thing {
 private:
     int level_ = 0;
     bool charging_ = false;
+    bool discharging_ = false;
 
 public:
     Battery() : Thing("Battery", "电池管理") {
         // 定义设备的属性
         properties_.AddNumberProperty("level", "当前电量百分比", [this]() -> int {
             auto& board = Board::GetInstance();
-            if (board.GetBatteryLevel(level_, charging_)) {
+            if (board.GetBatteryLevel(level_, charging_, discharging_)) {
                 return level_;
             }
             return 0;
