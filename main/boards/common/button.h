@@ -7,6 +7,9 @@
 
 class Button {
 public:
+#if CONFIG_SOC_ADC_SUPPORTED
+    Button(const button_adc_config_t& cfg);
+#endif
     Button(gpio_num_t gpio_num, bool active_high = false);
     ~Button();
 

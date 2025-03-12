@@ -3,11 +3,10 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
-            "audio_codecs/cores3_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
+            "led/gpio_led.cc"
             "display/display.cc"
-            "display/no_display.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
@@ -38,19 +37,25 @@ if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
-    set(BOARD_TYPE "bread-compact-esp32")    
+    set(BOARD_TYPE "bread-compact-esp32")
+elseif(CONFIG_BOARD_TYPE_DF_K10)
+    set(BOARD_TYPE "df-k10")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
     set(BOARD_TYPE "esp-box-3")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX)
     set(BOARD_TYPE "esp-box")
+elseif(CONFIG_BOARD_TYPE_ESP_BOX_LITE)
+    set(BOARD_TYPE "esp-box-lite")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
     set(BOARD_TYPE "kevin-box-2")
 elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
-    set(BOARD_TYPE "kevin-c3") 
+    set(BOARD_TYPE "kevin-c3")
 elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
     set(BOARD_TYPE "kevin-sp-v3-dev")
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V4_DEV)
+    set(BOARD_TYPE "kevin-sp-v4-dev")
 elseif(CONFIG_BOARD_TYPE_KEVIN_YUYING_313LCD)
     set(BOARD_TYPE "kevin-yuying-313lcd")
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV)
@@ -72,13 +77,13 @@ elseif(CONFIG_BOARD_TYPE_ATOMS3_ECHO_BASE)
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-echo-base")
 elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
-    set(BOARD_TYPE "atommatrix-echo-base") 
+    set(BOARD_TYPE "atommatrix-echo-base")
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     set(BOARD_TYPE "esp32s3-korvo2-v3")
 elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
-    set(BOARD_TYPE "esp-sparkbot")    
+    set(BOARD_TYPE "esp-sparkbot")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -88,21 +93,21 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.46")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
-    set(BOARD_TYPE "bread-compact-wifi-lcd")    
+    set(BOARD_TYPE "bread-compact-wifi-lcd")
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
-    set(BOARD_TYPE "tudouzi") 
+    set(BOARD_TYPE "tudouzi")
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
-    set(BOARD_TYPE "lilygo-t-circle-s3") 
+    set(BOARD_TYPE "lilygo-t-circle-s3")
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
-    set(BOARD_TYPE "lilygo-t-cameraplus-s3") 
+    set(BOARD_TYPE "lilygo-t-cameraplus-s3")
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
-    set(BOARD_TYPE "movecall-moji-esp32s3") 
+    set(BOARD_TYPE "movecall-moji-esp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
     set(BOARD_TYPE "atk-dnesp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
-    set(BOARD_TYPE "atk-dnesp32s3-box") 
+    set(BOARD_TYPE "atk-dnesp32s3-box")
 elseif(CONFIG_BOARD_TYPE_DU_CHATX)
-    set(BOARD_TYPE "du-chatx")     
+    set(BOARD_TYPE "du-chatx")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
     set(BOARD_TYPE "taiji-pi-s3")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI)
@@ -124,7 +129,7 @@ elseif(CONFIG_BOARD_TYPE_FANCHENG_1_8LCD_ML307)
 elseif(CONFIG_BOARD_TYPE_FANCHENG_1_8LCD_WIFI)
     set(BOARD_TYPE "fancheng-1.8-wifi")     
 endif()
-file(GLOB BOARD_SOURCES 
+file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
@@ -146,8 +151,12 @@ endif()
 # 根据Kconfig选择语言目录
 if(CONFIG_LANGUAGE_ZH_CN)
     set(LANG_DIR "zh-CN")
+elseif(CONFIG_LANGUAGE_ZH_TW)
+    set(LANG_DIR "zh-TW")
 elseif(CONFIG_LANGUAGE_EN_US)
     set(LANG_DIR "en-US")
+elseif(CONFIG_LANGUAGE_JA_JP)
+    set(LANG_DIR "ja-JP")
 endif()
 
 # 定义生成路径
@@ -158,10 +167,10 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
-    # 排除 "audio_codecs/box_audio_codec.cc" 和 "audio_codecs/cores3_audio_codec.cc"
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
-                             "audio_codecs/cores3_audio_codec.cc"
-                             "audio_codecs/es8388_audio_codec.cc")
+                             "audio_codecs/es8388_audio_codec.cc"
+                             "led/gpio_led.cc"
+                             )
 endif()
 
 idf_component_register(SRCS ${SOURCES}
@@ -171,6 +180,10 @@ idf_component_register(SRCS ${SOURCES}
                     )
 
 # 使用 target_compile_definitions 来定义 BOARD_TYPE, BOARD_NAME
+# 如果 BOARD_NAME 为空，则使用 BOARD_TYPE
+if(NOT BOARD_NAME)
+    set(BOARD_NAME ${BOARD_TYPE})
+endif()
 target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
                     )
@@ -181,7 +194,7 @@ add_custom_command(
     COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
             --input "${LANG_JSON}"
             --output "${LANG_HEADER}"
-    DEPENDS 
+    DEPENDS
         ${LANG_JSON}
         ${PROJECT_DIR}/scripts/gen_lang.py
     COMMENT "Generating ${LANG_DIR} language config"

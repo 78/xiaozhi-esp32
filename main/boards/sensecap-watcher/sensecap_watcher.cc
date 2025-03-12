@@ -54,8 +54,13 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            IoExpanderSetLevel(BSP_PWR_LCD, 0);
-            IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            bool is_charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
+            if (is_charging) {
+                ESP_LOGI(TAG, "charging");
+                GetBacklight()->SetBrightness(0);
+            } else {
+                IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            }
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -123,6 +128,13 @@ private:
                 .priv = this,
             },
         };
+        
+        //watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
+        ESP_LOGI(TAG, "waiting for knob button release");
+        while(IoExpanderGetLevel(BSP_KNOB_BTN) == 0) {
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+
         btns = iot_button_create(&btn_config);
         iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
             auto self = static_cast<SensecapWatcher*>(usr_data);
