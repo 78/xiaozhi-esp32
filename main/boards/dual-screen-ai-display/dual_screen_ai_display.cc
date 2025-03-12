@@ -36,6 +36,8 @@
 #endif
 #include "spectrumdisplay.h"
 #include "mpu6050.h"
+#include "ina3221.h"
+#include "pcf8574.h"
 
 #define TAG "DualScreenAIDisplay"
 
@@ -60,6 +62,17 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x2B, (uint8_t[]){0x00, 0x00, 0x00, 0xEF}, 4, 0},
     {0x29, (uint8_t[]){0x00}, 0, 10},
     {0x51, (uint8_t[]){0xFF}, 1, 0},
+};
+
+enum ExternalIO
+{
+    TPS_EN = 0,
+    VCC_DECT,
+    SD_EN = 3,
+    MIC_EN,
+    OLED_RST,
+    OLED_EN,
+    VFD_EN,
 };
 
 class CustomLcdDisplay : public QspiLcdDisplay, public Led,
@@ -872,6 +885,16 @@ private:
         (mpu6050_wake_up(mpu6050));
         mpu6050_enable_motiondetection(mpu6050, 100, 50);
 
+        INA3221 *ina3221 = new INA3221(i2c_bus);
+        ESP_LOGD(TAG, "ina3221 begin: %d", ina3221->begin());
+        float voltage = 0.0f, current = 0.0f;
+        for (size_t i = 0; i < 3; i++)
+        {
+            voltage = ina3221->getBusVoltage(i);
+            current = ina3221->getCurrent(i);
+            ESP_LOGI(TAG, "channel: %d, voltage: %.2f, current: %.2f", i, voltage, current);
+        }
+
         xTaskCreate([](void *arg)
                     { sntp_set_time_sync_notification_cb([](struct timeval *t) {
                 if (settimeofday(t, NULL) == ESP_FAIL) {
@@ -1073,7 +1096,7 @@ private:
         (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
 #endif
 
-        display_ = new CustomLcdDisplay(panel_io, panel, tp, 
+        display_ = new CustomLcdDisplay(panel_io, panel, tp,
                                         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, spi_device);
 
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)

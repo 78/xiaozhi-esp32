@@ -1,5 +1,8 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  maucke/ina3221: 1.0.0
+    # path: ../components/ina3221
+
   maucke/encoder: 1.0.0
   maucke/bmp280: 1.0.1
   maucke/mpu6050: 1.1.0
@@ -23,12 +26,12 @@ dependencies:
   lvgl/lvgl: ~9.2.2
   esp_lvgl_port: ~2.4.4
   esp_lcd_touch_ft5x06:
-    version: '*'
+    version: "*"
     public: true
 
   ## Required IDF version
   idf:
-    version: '>=5.3'
+    version: ">=5.3"
 
   i2c_bus:
     public: true
