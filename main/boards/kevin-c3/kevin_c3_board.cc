@@ -5,6 +5,7 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/circular_strip.h"
+#include "led_strip_control.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -17,6 +18,7 @@ class KevinBoxBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
+    CircularStrip* led_strip_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -54,6 +56,10 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+
+        led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 8);
+        auto led_strip_control = new LedStripControl(led_strip_);
+        thing_manager.AddThing(led_strip_control);
     }
 
 public:
@@ -67,8 +73,7 @@ public:
     }
 
     virtual Led* GetLed() override {
-        static CircularStrip led(BUILTIN_LED_GPIO, 8);
-        return &led;
+        return led_strip_;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

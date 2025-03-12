@@ -61,7 +61,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
     config BOARD_TYPE_BREAD_COMPACT_ESP32
-        bool "面包板 ESP32 DevKit"
+        bool "面包板（WiFi） ESP32 DevKit"
+    config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
+        bool "面包板（WiFi+ LCD） ESP32 DevKit"
+    config BOARD_TYPE_ESP32_CGC
+        bool "ESP32 CGC"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
     config BOARD_TYPE_ESP_BOX
@@ -157,7 +161,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -192,6 +196,18 @@ choice DISPLAY_LCD_TYPE
         bool "GC9A01, 分辨率240*240, 圆屏"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
+endchoice
+
+choice DISPLAY_ESP32S3_KORVO2_V3
+    depends on BOARD_TYPE_ESP32S3_KORVO2_V3
+    prompt "ESP32S3_KORVO2_V3 LCD Type"
+    default LCD_ST7789
+    help
+        屏幕类型选择
+    config LCD_ST7789
+        bool "ST7789, 分辨率240*280"
+    config LCD_ILI9341
+        bool "ILI9341, 分辨率240*320"
 endchoice
 
 config USE_AUDIO_PROCESSOR
