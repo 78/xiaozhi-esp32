@@ -48,15 +48,15 @@ bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
     return false;
 }
 
-bool Board::GetTemperature(float &temperature) {
+bool Board::GetTemperature(float *temperature) {
     return false;
 }
 
-bool Board::GetHumidity(float &humidity) {
+bool Board::GetHumidity(float *humidity) {
     return false;
 }
 
-bool Board::GetLight(float &light) {
+bool Board::GetLight(float *light) {
     return false;
 }
 

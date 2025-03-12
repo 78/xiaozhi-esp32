@@ -7,7 +7,7 @@
 #include <esp_codec_dev_defaults.h>
 
 class K10AudioCodec : public AudioCodec {
-private:
+ private:
     const audio_codec_data_if_t* data_if_ = nullptr;
     const audio_codec_ctrl_if_t* out_ctrl_if_ = nullptr;
     const audio_codec_if_t* out_codec_if_ = nullptr;
@@ -23,7 +23,7 @@ private:
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
 
-public:
+ public:
     K10AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
         gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
         gpio_num_t pa_pin, uint8_t es8311_addr, uint8_t es7210_addr, bool input_reference);
@@ -34,4 +34,4 @@ public:
     virtual void EnableOutput(bool enable) override;
 };
 
-#endif // _BOX_AUDIO_CODEC_H
+#endif  // _BOX_AUDIO_CODEC_H

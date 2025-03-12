@@ -26,7 +26,7 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 class Df_K10Board : public WifiBoard {
-private:
+ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander;
     LcdDisplay *display_;
@@ -106,7 +106,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
@@ -142,7 +142,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
@@ -204,7 +204,9 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                 {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
@@ -223,7 +225,7 @@ private:
         ath20_ = new AHT20(i2c_bus_, 0x38);
 
         Settings settings("environment", true);
-        if(settings.GetInt("set_diff", 0) == 0) {
+        if (settings.GetInt("set_diff", 0) == 0) {
             settings.SetInt("set_diff", 1);
             settings.SetInt("temp_diff", -80);    // 默认温度值偏移量 * 10
             settings.SetInt("humi_diff", 100);  // 默认是渎职偏移量 * 10
@@ -233,7 +235,7 @@ private:
         }
     }
 
-public:
+ public:
     Df_K10Board() {
         InitializeI2c();
         InitializeIoExpander();
@@ -270,11 +272,11 @@ public:
         return display_;
     }
 
-    virtual bool GetTemperature(float& temperature) override {
+    virtual bool GetTemperature(float *temperature) override {
         // 读取数据
         float temp, humi;
-        if (ath20_->get_measurements(temp, humi)) {
-            temperature = temp;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (temperature) *temperature = temp;
             return true;
         } else {
             ESP_LOGE(TAG, "Failed to read sensor");
@@ -282,11 +284,11 @@ public:
         }
     }
 
-    virtual bool GetHumidity(float& humidity) override {
+    virtual bool GetHumidity(float *humidity) override {
         // 读取数据
         float temp, humi;
-        if (ath20_->get_measurements(temp, humi)) {
-            humidity = humi;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (humidity) *humidity = humi;
             return true;
         } else {
             ESP_LOGE(TAG, "Failed to read sensor");

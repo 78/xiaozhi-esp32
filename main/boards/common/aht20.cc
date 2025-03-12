@@ -11,7 +11,7 @@ AHT20::AHT20(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
 bool AHT20::begin() {
     if (_initialized) return true;
 
-    reset(); // 软复位确保设备状态
+    reset();  // 软复位确保设备状态
 
     // 检查校准状态
     if (!_check_calibration()) {
@@ -43,7 +43,7 @@ bool AHT20::_start_measurement(bool crc_en) {
     int retry_count = 0;
 
     // 检查返回数据状态
-    while(true) {
+    while (true) {
         vTaskDelay(pdMS_TO_TICKS(CMD_MEASUREMENT_TIME));
 
         // 读取数据（6字节数据 + 可选1字节CRC）
@@ -68,14 +68,14 @@ bool AHT20::_start_measurement(bool crc_en) {
     }
 
     // 解析湿度（20bit）
-    uint32_t raw_hum = ((uint32_t)buffer[1] << 12) |
-                      ((uint32_t)buffer[2] << 4) |
+    uint32_t raw_hum = (static_cast<uint32_t>(buffer[1]) << 12) |
+                      (static_cast<uint32_t>(buffer[2]) << 4) |
                       (buffer[3] >> 4);
     _humidity = (raw_hum * 100.0f) / 0x100000;
 
     // 解析温度（20bit）
-    uint32_t raw_temp = ((uint32_t)(buffer[3] & 0x0F) << 16) |
-                       ((uint32_t)buffer[4] << 8) |
+    uint32_t raw_temp = (static_cast<uint32_t>(buffer[3] & 0x0F) << 16) |
+                       (static_cast<uint32_t>(buffer[4]) << 8) |
                        buffer[5];
     _temperature = (raw_temp * 200.0f) / 0x100000 - 50.0f;
 
@@ -102,9 +102,6 @@ bool AHT20::_check_crc(uint8_t crc, uint8_t *data, size_t len) {
 bool AHT20::_is_device_ready() {
     status_reg_t status;
     status.raw = _read_status();
-    if((status.raw & 0x18) != 0x18) {
-
-    }
     return !status.busy;
 }
 
@@ -136,7 +133,7 @@ void AHT20::_send_command(uint8_t cmd, uint8_t arg1, uint8_t arg2) {
     WriteValues(data, 3);
 }
 
-bool AHT20::get_measurements(float &temperature, float &humidity, bool crc_en) {
+bool AHT20::get_measurements(float *temperature, float *humidity, bool crc_en) {
     if (!_initialized && !begin()) {
         ESP_LOGE(TAG, "Device not initialized");
         return false;
@@ -154,7 +151,7 @@ bool AHT20::get_measurements(float &temperature, float &humidity, bool crc_en) {
         return false;
     }
 
-    temperature = _temperature;
-    humidity = _humidity;
+    if (temperature) *temperature = _temperature;
+    if (humidity) *humidity = _humidity;
     return true;
 }
