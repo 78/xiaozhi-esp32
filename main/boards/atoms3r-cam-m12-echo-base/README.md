@@ -30,7 +30,7 @@ idf.py menuconfig
 
 分别配置如下选项：
 
-- `Xiaozi Assistant` → `Board Type` → 选择 `AtomS3R CAM/M12 + Echo Base`
+- `Xiaozhi Assistant` → `Board Type` → 选择 `AtomS3R CAM/M12 + Echo Base`
 - `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions_8M.csv`
 - `Serial flasher config` → `Flash size` → 选择 `8 MB`
 
