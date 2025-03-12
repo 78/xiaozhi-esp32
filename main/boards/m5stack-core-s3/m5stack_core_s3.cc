@@ -346,21 +346,16 @@ public:
         return display_;
     }
 
-    virtual bool GetBatteryLevel(int &level, bool& charging) override {
-        static bool last_charging = false;
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
         charging = pmic_->IsCharging();
-        if (charging != last_charging) {
-            power_save_timer_->WakeUp();
-            last_charging = charging;
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
         }
 
         level = pmic_->GetBatteryLevel();
-
-        if (pmic_->IsDischarging()) {
-            power_save_timer_->SetEnabled(true);
-        } else {
-            power_save_timer_->SetEnabled(false);
-        }
         return true;
     }
 

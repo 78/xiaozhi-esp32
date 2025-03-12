@@ -27,7 +27,7 @@ Xiaozhi Assistant -> Board Type -> DFRobot 行空板 K10
 **修改 psram 配置：**
 
 ```
-Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Quad Mode PSRAM
+Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Octal Mode PSRAM
 ```
 
 **编译：**
