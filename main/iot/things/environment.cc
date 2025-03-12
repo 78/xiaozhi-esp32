@@ -59,11 +59,11 @@ class Environment : public Thing {
             return 0;
         });
 
-        properties_.AddNumberProperty("temperature_diff", "温度偏移量", [this]() -> float {
+        properties_.AddNumberProperty("temperature_diff", "温度偏差", [this]() -> float {
             return temperature_diff_;
         });
 
-        properties_.AddNumberProperty("humidity_diff", "湿度偏移量", [this]() -> float {
+        properties_.AddNumberProperty("humidity_diff", "湿度偏差", [this]() -> float {
             return humidity_diff_;
         });
 
@@ -76,7 +76,7 @@ class Environment : public Thing {
         });
 
         // 定义设备可以被远程执行的指令
-        methods_.AddMethod("SetTemperatureDiff", "设置温度偏移量", ParameterList({
+        methods_.AddMethod("SetTemperatureDiff", "设置温度偏差", ParameterList({
             Parameter("temperature_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
             float tmp = parameters["temperature_diff"].number();
@@ -91,7 +91,7 @@ class Environment : public Thing {
             }
         });
 
-        methods_.AddMethod("SetHumidityDiff", "设置湿度偏移量", ParameterList({
+        methods_.AddMethod("SetHumidityDiff", "设置湿度偏差", ParameterList({
             Parameter("humidity_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
         }), [this](const ParameterList& parameters) {
             float tmp = parameters["humidity_diff"].number();
