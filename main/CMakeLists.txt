@@ -124,6 +124,10 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")  
+elseif(CONFIG_BOARD_TYPE_MINSI_K08_WIFI)
+    set(BOARD_TYPE "minsi-k08-wifi")
+elseif(CONFIG_BOARD_TYPE_MINSI_K08_ML307)
+    set(BOARD_TYPE "minsi-k08-ml307")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
