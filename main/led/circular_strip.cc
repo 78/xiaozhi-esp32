@@ -4,10 +4,6 @@
 
 #define TAG "CircularStrip"
 
-#define DEFAULT_BRIGHTNESS 4
-#define HIGH_BRIGHTNESS 16
-#define LOW_BRIGHTNESS 1
-
 #define BLINK_INFINITE -1
 
 CircularStrip::CircularStrip(gpio_num_t gpio, uint8_t max_leds) : max_leds_(max_leds) {
@@ -52,13 +48,21 @@ CircularStrip::~CircularStrip() {
 }
 
 
-void CircularStrip::StaticColor(StripColor color) {
+void CircularStrip::SetAllColor(StripColor color) {
     std::lock_guard<std::mutex> lock(mutex_);
     esp_timer_stop(strip_timer_);
     for (int i = 0; i < max_leds_; i++) {
         colors_[i] = color;
         led_strip_set_pixel(led_strip_, i, color.red, color.green, color.blue);
     }
+    led_strip_refresh(led_strip_);
+}
+
+void CircularStrip::SetSingleColor(uint8_t index, StripColor color) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(strip_timer_);
+    colors_[index] = color;
+    led_strip_set_pixel(led_strip_, index, color.red, color.green, color.blue);
     led_strip_refresh(led_strip_);
 }
 
@@ -172,6 +176,11 @@ void CircularStrip::StartStripTask(int interval_ms, std::function<void()> cb) {
     esp_timer_start_periodic(strip_timer_, interval_ms * 1000);
 }
 
+void CircularStrip::SetBrightness(uint8_t default_brightness, uint8_t low_brightness) {
+    default_brightness_ = default_brightness;
+    low_brightness_ = low_brightness;
+    OnStateChanged();
+}
 
 void CircularStrip::OnStateChanged() {
     auto& app = Application::GetInstance();
@@ -179,12 +188,12 @@ void CircularStrip::OnStateChanged() {
     switch (device_state) {
         case kDeviceStateStarting: {
             StripColor low = { 0, 0, 0 };
-            StripColor high = { LOW_BRIGHTNESS, LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS };
+            StripColor high = { low_brightness_, low_brightness_, default_brightness_ };
             Scroll(low, high, 3, 100);
             break;
         }
         case kDeviceStateWifiConfiguring: {
-            StripColor color = { LOW_BRIGHTNESS, LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS };
+            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
             Blink(color, 500);
             break;
         }
@@ -192,27 +201,27 @@ void CircularStrip::OnStateChanged() {
             FadeOut(50);
             break;
         case kDeviceStateConnecting: {
-            StripColor color = { LOW_BRIGHTNESS, LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS };
-            StaticColor(color);
+            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
+            SetAllColor(color);
             break;
         }
         case kDeviceStateListening: {
-            StripColor color = { DEFAULT_BRIGHTNESS, LOW_BRIGHTNESS, LOW_BRIGHTNESS };
-            StaticColor(color);
+            StripColor color = { default_brightness_, low_brightness_, low_brightness_ };
+            SetAllColor(color);
             break;
         }
         case kDeviceStateSpeaking: {
-            StripColor color = { LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS, LOW_BRIGHTNESS };
-            StaticColor(color);
+            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
+            SetAllColor(color);
             break;
         }
         case kDeviceStateUpgrading: {
-            StripColor color = { LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS, LOW_BRIGHTNESS };
+            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
             Blink(color, 100);
             break;
         }
         case kDeviceStateActivating: {
-            StripColor color = { LOW_BRIGHTNESS, DEFAULT_BRIGHTNESS, LOW_BRIGHTNESS };
+            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
             Blink(color, 500);
             break;
         }
