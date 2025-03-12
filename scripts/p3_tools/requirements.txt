@@ -3,3 +3,5 @@ opuslib>=3.0.1
 numpy>=1.20.0
 tqdm>=4.62.0
 sounddevice>=0.4.4 
+pyloudnorm>=0.1.1
+soundfile>=0.13.1

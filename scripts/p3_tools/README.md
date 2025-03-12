@@ -4,13 +4,20 @@
 
 ## 1. 音频转换工具 (convert_audio_to_p3.py)
 
-将普通音频文件转换为P3格式（4字节header + Opus数据包的流式结构）。
+将普通音频文件转换为P3格式（4字节header + Opus数据包的流式结构）并进行响度标准化。
 
 ### 使用方法
 
 ```bash
-python convert_audio_to_p3.py <输入音频文件> <输出P3文件>
+python convert_audio_to_p3.py <输入音频文件> <输出P3文件> [-l LUFS] [-d]
 ```
+
+其中，可选选项 `-l` 用于指定响度标准化的目标响度，默认为 -16 LUFS；可选选项 `-d` 可以禁用响度标准化。
+
+如果输入的音频文件符合下面的任一条件，建议使用 `-d` 禁用响度标准化：
+- 音频过短
+- 音频已经调整过响度
+- 音频来自默认 TTS （小智当前使用的 TTS 的默认响度已是 -16 LUFS）
 
 例如：
 ```bash
@@ -38,12 +45,29 @@ python play_p3.py <P3文件路径>
 python play_p3.py output.p3
 ```
 
+## 3. 音频转回工具 (convert_p3_to_audio.py)
+
+将P3格式转换回普通音频文件。
+
+### 使用方法
+
+```bash
+python convert_p3_to_audio.py <输入P3文件> <输出音频文件>
+```
+
+输出音频文件需要有扩展名。
+
+例如：
+```bash
+python convert_p3_to_audio.py input.p3 output.wav
+```
+
 ## 依赖安装
 
 在使用这些脚本前，请确保安装了所需的Python库：
 
 ```bash
-pip install librosa opuslib numpy tqdm sounddevice
+pip install librosa opuslib numpy tqdm sounddevice pyloudnorm soundfile
 ```
 
 或者使用提供的requirements.txt文件：
