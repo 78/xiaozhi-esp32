@@ -13,8 +13,9 @@
 
 #include "esp_lcd_gc9d01n.h"
 
-static const char *TAG = "gc9d01n";
+static const char *TAG = "gc9d01n"; // 日志标签
 
+// 函数声明
 static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel);
 static esp_err_t panel_gc9d01n_reset(esp_lcd_panel_t *panel);
 static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel);
@@ -25,37 +26,43 @@ static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes);
 static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap);
 static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool off);
 
-typedef struct{
-    esp_lcd_panel_t base;
-    esp_lcd_panel_io_handle_t io;
-    int reset_gpio_num;
-    bool reset_level;
-    int x_gap;
-    int y_gap;
-    uint8_t fb_bits_per_pixel;
-    uint8_t madctl_val; // save current value of LCD_CMD_MADCTL register
-    uint8_t colmod_val; // save current value of LCD_CMD_COLMOD register
-    const gc9d01n_lcd_init_cmd_t *init_cmds;
-    uint16_t init_cmds_size;
+// GC9D01N 面板结构体
+typedef struct {
+    esp_lcd_panel_t base; // LCD 面板基类
+    esp_lcd_panel_io_handle_t io; // LCD 面板 IO 句柄
+    int reset_gpio_num; // 复位 GPIO 引脚号
+    bool reset_level; // 复位电平
+    int x_gap; // X 轴偏移
+    int y_gap; // Y 轴偏移
+    uint8_t fb_bits_per_pixel; // 帧缓冲区每个像素的位数
+    uint8_t madctl_val; // 当前 LCD_CMD_MADCTL 寄存器的值
+    uint8_t colmod_val; // 当前 LCD_CMD_COLMOD 寄存器的值
+    const gc9d01n_lcd_init_cmd_t *init_cmds; // 初始化命令数组
+    uint16_t init_cmds_size; // 初始化命令数组的大小
 } gc9d01n_panel_t;
 
-esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config, esp_lcd_panel_handle_t *ret_panel){
+// 创建新的 GC9D01N 面板
+esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config, esp_lcd_panel_handle_t *ret_panel) {
     esp_err_t ret = ESP_OK;
     gc9d01n_panel_t *gc9d01n = NULL;
     gpio_config_t io_conf = {0};
 
+    // 检查输入参数是否有效
     ESP_GOTO_ON_FALSE(io && panel_dev_config && ret_panel, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
+    // 分配内存给 GC9D01N 面板结构体
     gc9d01n = (gc9d01n_panel_t *)calloc(1, sizeof(gc9d01n_panel_t));
     ESP_GOTO_ON_FALSE(gc9d01n, ESP_ERR_NO_MEM, err, TAG, "no mem for gc9d01n panel");
 
-    if (panel_dev_config->reset_gpio_num >= 0){
+    // 配置复位 GPIO 引脚
+    if (panel_dev_config->reset_gpio_num >= 0) {
         io_conf.mode = GPIO_MODE_OUTPUT;
         io_conf.pin_bit_mask = 1ULL << panel_dev_config->reset_gpio_num;
         ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "configure GPIO for RST line failed");
     }
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    switch (panel_dev_config->color_space){
+    // 根据颜色空间设置 MADCTL 寄存器的值
+    switch (panel_dev_config->color_space) {
     case ESP_LCD_COLOR_SPACE_RGB:
         gc9d01n->madctl_val = 0;
         break;
@@ -67,7 +74,8 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
         break;
     }
 #else
-    switch (panel_dev_config->rgb_endian){
+    // 根据 RGB 字节序设置 MADCTL 寄存器的值
+    switch (panel_dev_config->rgb_endian) {
     case LCD_RGB_ENDIAN_RGB:
         gc9d01n->madctl_val = 0;
         break;
@@ -80,28 +88,30 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
     }
 #endif
 
-    switch (panel_dev_config->bits_per_pixel){
+    // 根据每个像素的位数设置 COLMOD 寄存器的值
+    switch (panel_dev_config->bits_per_pixel) {
     case 16: // RGB565
         gc9d01n->colmod_val = 0x55;
         gc9d01n->fb_bits_per_pixel = 16;
         break;
     case 18: // RGB666
         gc9d01n->colmod_val = 0x66;
-        // each color component (R/G/B) should occupy the 6 high bits of a byte, which means 3 full bytes are required for a pixel
-        gc9d01n->fb_bits_per_pixel = 24;
+        gc9d01n->fb_bits_per_pixel = 24; // 每个颜色分量占用 6 位，因此每个像素需要 3 个字节
         break;
     default:
         ESP_GOTO_ON_FALSE(false, ESP_ERR_NOT_SUPPORTED, err, TAG, "unsupported pixel width");
         break;
     }
 
+    // 初始化 GC9D01N 面板结构体的其他字段
     gc9d01n->io = io;
     gc9d01n->reset_gpio_num = panel_dev_config->reset_gpio_num;
     gc9d01n->reset_level = panel_dev_config->flags.reset_active_high;
-    if (panel_dev_config->vendor_config){
+    if (panel_dev_config->vendor_config) {
         gc9d01n->init_cmds = ((gc9d01n_vendor_config_t *)panel_dev_config->vendor_config)->init_cmds;
         gc9d01n->init_cmds_size = ((gc9d01n_vendor_config_t *)panel_dev_config->vendor_config)->init_cmds_size;
     }
+    // 设置面板操作函数
     gc9d01n->base.del = panel_gc9d01n_del;
     gc9d01n->base.reset = panel_gc9d01n_reset;
     gc9d01n->base.init = panel_gc9d01n_init;
@@ -115,17 +125,15 @@ esp_err_t esp_lcd_new_panel_gc9d01n(const esp_lcd_panel_io_handle_t io, const es
 #else
     gc9d01n->base.disp_on_off = panel_gc9d01n_disp_on_off;
 #endif
-    *ret_panel = &(gc9d01n->base);
-    ESP_LOGD(TAG, "new gc9d01n panel @%p", gc9d01n);
-
-    // ESP_LOGI(TAG, "LCD panel create success, version: %d.%d.%d", ESP_LCD_GC9D01N_VER_MAJOR, ESP_LCD_GC9D01N_VER_MINOR,
-    //          ESP_LCD_GC9D01N_VER_PATCH);
+    *ret_panel = &(gc9d01n->base); // 返回面板句柄
+    ESP_LOGD(TAG, "new gc9d01n panel @%p", gc9d01n); // 打印日志
 
     return ESP_OK;
 
 err:
-    if (gc9d01n){
-        if (panel_dev_config->reset_gpio_num >= 0){
+    // 错误处理
+    if (gc9d01n) {
+        if (panel_dev_config->reset_gpio_num >= 0) {
             gpio_reset_pin(panel_dev_config->reset_gpio_num);
         }
         free(gc9d01n);
@@ -133,39 +141,42 @@ err:
     return ret;
 }
 
-static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel){
+// 删除 GC9D01N 面板
+static esp_err_t panel_gc9d01n_del(esp_lcd_panel_t *panel) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
 
-    if (gc9d01n->reset_gpio_num >= 0){
+    // 复位 GPIO 引脚
+    if (gc9d01n->reset_gpio_num >= 0) {
         gpio_reset_pin(gc9d01n->reset_gpio_num);
     }
-    ESP_LOGD(TAG, "del gc9d01n panel @%p", gc9d01n);
-    free(gc9d01n);
+    ESP_LOGD(TAG, "del gc9d01n panel @%p", gc9d01n); // 打印日志
+    free(gc9d01n); // 释放内存
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_reset(esp_lcd_panel_t *panel){
+// 复位 GC9D01N 面板
+static esp_err_t panel_gc9d01n_reset(esp_lcd_panel_t *panel) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
 
-    // perform hardware reset
-    if (gc9d01n->reset_gpio_num >= 0){
+    // 执行硬件复位
+    if (gc9d01n->reset_gpio_num >= 0) {
         gpio_set_level(gc9d01n->reset_gpio_num, gc9d01n->reset_level);
         vTaskDelay(pdMS_TO_TICKS(10));
         gpio_set_level(gc9d01n->reset_gpio_num, !gc9d01n->reset_level);
         vTaskDelay(pdMS_TO_TICKS(10));
-    }
-    else{ // perform software reset
+    } else { // 执行软件复位
         ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_SWRESET, NULL, 0), TAG, "send command failed");
-        vTaskDelay(pdMS_TO_TICKS(20)); // spec, wait at least 5ms before sending new command
+        vTaskDelay(pdMS_TO_TICKS(20)); // 等待至少 5ms 再发送新命令
     }
 
     return ESP_OK;
 }
 
+// 默认的初始化命令序列
 static const gc9d01n_lcd_init_cmd_t vendor_specific_init_default[] = {
     //  {cmd, { data }, data_size, delay_ms}
-    // Enable Inter Register
+    // 启用内部寄存器
     {0xFE, (uint8_t[]){0x00}, 0, 0},
     {0xEF, (uint8_t[]){0x00}, 0, 0},
     {0x80, (uint8_t[]){0xFF}, 1, 0},
@@ -216,30 +227,33 @@ static const gc9d01n_lcd_init_cmd_t vendor_specific_init_default[] = {
     {0x2C, (uint8_t[]){0x00}, 0, 20},
 };
 
-static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel){
+// 初始化 GC9D01N 面板
+static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
 
-    // LCD goes into sleep mode and display will be turned off after power on reset, exit sleep mode first
+    // 退出睡眠模式
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_SLPOUT, NULL, 0), TAG, "send command failed");
     vTaskDelay(pdMS_TO_TICKS(100));
+    // 设置 MADCTL 和 COLMOD 寄存器
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val,},1),TAG, "send command failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_COLMOD, (uint8_t[]){gc9d01n->colmod_val,},1),TAG, "send command failed");
 
+    // 使用默认初始化命令或外部提供的初始化命令
     const gc9d01n_lcd_init_cmd_t *init_cmds = NULL;
     uint16_t init_cmds_size = 0;
-    if (gc9d01n->init_cmds){
+    if (gc9d01n->init_cmds) {
         init_cmds = gc9d01n->init_cmds;
         init_cmds_size = gc9d01n->init_cmds_size;
-    }else{
+    } else {
         init_cmds = vendor_specific_init_default;
         init_cmds_size = sizeof(vendor_specific_init_default) / sizeof(gc9d01n_lcd_init_cmd_t);
     }
 
     bool is_cmd_overwritten = false;
-    for (int i = 0; i < init_cmds_size; i++){
-        // Check if the command has been used or conflicts with the internal
-        switch (init_cmds[i].cmd){
+    for (int i = 0; i < init_cmds_size; i++) {
+        // 检查命令是否被使用或与内部命令冲突
+        switch (init_cmds[i].cmd) {
         case LCD_CMD_MADCTL:
             is_cmd_overwritten = true;
             gc9d01n->madctl_val = ((uint8_t *)init_cmds[i].data)[0];
@@ -253,88 +267,96 @@ static esp_err_t panel_gc9d01n_init(esp_lcd_panel_t *panel){
             break;
         }
 
-        if (is_cmd_overwritten){
+        if (is_cmd_overwritten) {
             ESP_LOGW(TAG, "The %02Xh command has been used and will be overwritten by external initialization sequence", init_cmds[i].cmd);
         }
 
+        // 发送初始化命令
         ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, init_cmds[i].cmd, init_cmds[i].data, init_cmds[i].data_bytes), TAG, "send command failed");
         vTaskDelay(pdMS_TO_TICKS(init_cmds[i].delay_ms));
     }
-    ESP_LOGD(TAG, "send init commands success");
+    ESP_LOGD(TAG, "send init commands success"); // 打印日志
 
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, int y_start, int x_end, int y_end, const void *color_data){
+// 绘制位图
+static esp_err_t panel_gc9d01n_draw_bitmap(esp_lcd_panel_t *panel, int x_start, int y_start, int x_end, int y_end, const void *color_data) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     assert((x_start < x_end) && (y_start < y_end) && "start position must be smaller than end position");
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
 
+    // 调整起始和结束位置
     x_start += gc9d01n->x_gap;
     x_end += gc9d01n->x_gap;
     y_start += gc9d01n->y_gap;
     y_end += gc9d01n->y_gap;
 
-    // define an area of frame memory where MCU can access
+    // 定义帧内存区域
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_CASET, (uint8_t[]){(x_start >> 8) & 0xFF,x_start & 0xFF,((x_end - 1) >> 8) & 0xFF,(x_end - 1) & 0xFF,},4),TAG, "send command failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_RASET, (uint8_t[]){(y_start >> 8) & 0xFF,y_start & 0xFF,((y_end - 1) >> 8) & 0xFF,(y_end - 1) & 0xFF,},4),TAG, "send command failed");
-    // transfer frame buffer
+    // 传输帧缓冲区
     size_t len = (x_end - x_start) * (y_end - y_start) * gc9d01n->fb_bits_per_pixel / 8;
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_color(io, LCD_CMD_RAMWR, color_data, len), TAG, "send color failed");
 
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_invert_color(esp_lcd_panel_t *panel, bool invert_color_data){
+// 反转颜色
+static esp_err_t panel_gc9d01n_invert_color(esp_lcd_panel_t *panel, bool invert_color_data) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
     int command = 0;
-    if (invert_color_data){
+    if (invert_color_data) {
         command = LCD_CMD_INVON;
-    }else{
+    } else {
         command = LCD_CMD_INVOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y){
+// 镜像显示
+static esp_err_t panel_gc9d01n_mirror(esp_lcd_panel_t *panel, bool mirror_x, bool mirror_y) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
-    if (mirror_x){
+    if (mirror_x) {
         gc9d01n->madctl_val |= LCD_CMD_MX_BIT;
-    }else{
+    } else {
         gc9d01n->madctl_val &= ~LCD_CMD_MX_BIT;
     }
-    if (mirror_y){
+    if (mirror_y) {
         gc9d01n->madctl_val |= LCD_CMD_MY_BIT;
-    }else{
+    } else {
         gc9d01n->madctl_val &= ~LCD_CMD_MY_BIT;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val}, 1), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes){
+// 交换 XY 轴
+static esp_err_t panel_gc9d01n_swap_xy(esp_lcd_panel_t *panel, bool swap_axes) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
-    if (swap_axes){
+    if (swap_axes) {
         gc9d01n->madctl_val |= LCD_CMD_MV_BIT;
-    }else{
+    } else {
         gc9d01n->madctl_val &= ~LCD_CMD_MV_BIT;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, LCD_CMD_MADCTL, (uint8_t[]){gc9d01n->madctl_val}, 1), TAG, "send command failed");
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap){
+// 设置显示偏移
+static esp_err_t panel_gc9d01n_set_gap(esp_lcd_panel_t *panel, int x_gap, int y_gap) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     gc9d01n->x_gap = x_gap;
     gc9d01n->y_gap = y_gap;
     return ESP_OK;
 }
 
-static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off){
+// 打开或关闭显示
+static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off) {
     gc9d01n_panel_t *gc9d01n = __containerof(panel, gc9d01n_panel_t, base);
     esp_lcd_panel_io_handle_t io = gc9d01n->io;
     int command = 0;
@@ -343,9 +365,9 @@ static esp_err_t panel_gc9d01n_disp_on_off(esp_lcd_panel_t *panel, bool on_off){
     on_off = !on_off;
 #endif
 
-    if (on_off){
+    if (on_off) {
         command = LCD_CMD_DISPON;
-    }else{
+    } else {
         command = LCD_CMD_DISPOFF;
     }
     ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(io, command, NULL, 0), TAG, "send command failed");

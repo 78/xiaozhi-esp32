@@ -1,11 +1,11 @@
 #! /usr/bin/env python3
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv()  # 加载环境变量文件 .env
 
 import os
 import struct
 import zipfile
-import oss2
+import oss2  # 阿里云 OSS SDK
 import json
 import requests
 from requests.exceptions import RequestException
@@ -14,6 +14,12 @@ from requests.exceptions import RequestException
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def get_chip_id_string(chip_id):
+    """
+    根据芯片 ID 获取芯片名称。
+    参数:
+    - chip_id: 芯片 ID
+    返回值: 芯片名称字符串
+    """
     return {
         0x0000: "esp32",
         0x0002: "esp32s2",
@@ -28,6 +34,12 @@ def get_chip_id_string(chip_id):
     }[chip_id]
 
 def get_flash_size(flash_size):
+    """
+    根据 Flash 大小编码获取实际 Flash 大小。
+    参数:
+    - flash_size: Flash 大小编码
+    返回值: Flash 大小（字节数）
+    """
     MB = 1024 * 1024
     return {
         0x00: 1 * MB,
@@ -41,6 +53,12 @@ def get_flash_size(flash_size):
     }[flash_size]
 
 def get_app_desc(data):
+    """
+    从二进制数据中提取应用程序描述信息。
+    参数:
+    - data: 二进制数据
+    返回值: 包含应用程序描述信息的字典
+    """
     magic = struct.unpack("<I", data[0x00:0x04])[0]
     if magic != 0xabcd5432:
         raise Exception("Invalid app desc magic")
@@ -59,6 +77,12 @@ def get_app_desc(data):
     }
 
 def get_board_name(folder):
+    """
+    根据文件夹名称获取板子名称。
+    参数:
+    - folder: 文件夹路径
+    返回值: 板子名称字符串
+    """
     basename = os.path.basename(folder)
     if basename.startswith("v0.2"):
         return "bread-simple"
@@ -74,15 +98,21 @@ def get_board_name(folder):
     raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):
+    """
+    读取二进制文件并提取固件信息。
+    参数:
+    - dir_path: 文件夹路径
+    返回值: 包含固件信息的字典
+    """
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
     data = open(merged_bin_path, "rb").read()[0x100000:]
     if data[0] != 0xE9:
         print(dir_path, "is not a valid image")
         return
-    # get flash size
+    # 获取 Flash 大小
     flash_size = get_flash_size(data[0x3] >> 4)
     chip_id = get_chip_id_string(data[0xC])
-    # get segments
+    # 获取段信息
     segment_count = data[0x1]
     segments = []
     offset = 0x18
@@ -94,13 +124,13 @@ def read_binary(dir_path):
         segments.append(segment_data)
     assert offset < len(data), "offset is out of bounds"
     
-    # extract bin file
+    # 提取 bin 文件
     bin_path = os.path.join(dir_path, "xiaozhi.bin")
     if not os.path.exists(bin_path):
         print("extract bin file to", bin_path)
         open(bin_path, "wb").write(data)
 
-    # The app desc is in the first segment
+    # 应用程序描述信息在第一个段中
     desc = get_app_desc(segments[0])
     return {
         "chip_id": chip_id,
@@ -111,6 +141,12 @@ def read_binary(dir_path):
     }
 
 def extract_zip(zip_path, extract_path):
+    """
+    解压 ZIP 文件到指定目录。
+    参数:
+    - zip_path: ZIP 文件路径
+    - extract_path: 解压目标路径
+    """
     if not os.path.exists(extract_path):
         os.makedirs(extract_path)
     print(f"Extracting {zip_path} to {extract_path}")
@@ -118,6 +154,12 @@ def extract_zip(zip_path, extract_path):
         zip_ref.extractall(extract_path)
 
 def upload_dir_to_oss(source_dir, target_dir):
+    """
+    将目录中的文件上传到阿里云 OSS。
+    参数:
+    - source_dir: 本地目录路径
+    - target_dir: OSS 目标目录路径
+    """
     auth = oss2.Auth(os.environ['OSS_ACCESS_KEY_ID'], os.environ['OSS_ACCESS_KEY_SECRET'])
     bucket = oss2.Bucket(auth, os.environ['OSS_ENDPOINT'], os.environ['OSS_BUCKET_NAME'])
     for filename in os.listdir(source_dir):
@@ -127,13 +169,12 @@ def upload_dir_to_oss(source_dir, target_dir):
 
 def post_info_to_server(info):
     """
-    将固件信息发送到服务器
-    
-    Args:
-        info: 包含固件信息的字典
+    将固件信息发送到服务器。
+    参数:
+    - info: 包含固件信息的字典
     """
     try:
-        # 从环境变量获取服务器URL和token
+        # 从环境变量获取服务器 URL 和 token
         server_url = os.environ.get('VERSIONS_SERVER_URL')
         server_token = os.environ.get('VERSIONS_TOKEN')
         
@@ -146,7 +187,7 @@ def post_info_to_server(info):
             'Content-Type': 'application/json'
         }
         
-        # 发送POST请求
+        # 发送 POST 请求
         response = requests.post(
             server_url,
             headers=headers,
@@ -170,8 +211,11 @@ def post_info_to_server(info):
         raise
 
 def main():
+    """
+    主函数，处理固件发布流程。
+    """
     release_dir = "releases"
-    # look for zip files startswith "v"
+    # 查找以 "v" 开头并以 ".zip" 结尾的文件
     for name in os.listdir(release_dir):
         if name.startswith("v") and name.endswith(".zip"):
             tag = name[:-4]
@@ -186,14 +230,12 @@ def main():
                 info["tag"] = tag
                 info["url"] = os.path.join(os.environ['OSS_BUCKET_URL'], target_dir, "xiaozhi.bin")
                 open(info_path, "w").write(json.dumps(info, indent=4))
-                # upload all file to oss
+                # 上传所有文件到 OSS
                 upload_dir_to_oss(folder, target_dir)
-                # read info.json
+                # 读取 info.json
                 info = json.load(open(info_path))
-                # post info.json to server
+                # 将 info.json 发送到服务器
                 post_info_to_server(info)
-
-
 
 if __name__ == "__main__":
     main()

@@ -16,40 +16,51 @@
 
 #define TAG "Ota"
 
-
+// Ota类的构造函数
 Ota::Ota() {
 }
 
+// Ota类的析构函数
 Ota::~Ota() {
 }
 
+// 设置检查版本的URL
 void Ota::SetCheckVersionUrl(std::string check_version_url) {
     check_version_url_ = check_version_url;
 }
 
+// 设置HTTP请求头
 void Ota::SetHeader(const std::string& key, const std::string& value) {
     headers_[key] = value;
 }
 
+// 设置POST请求的数据
 void Ota::SetPostData(const std::string& post_data) {
     post_data_ = post_data;
 }
 
+// 检查是否有新版本
 bool Ota::CheckVersion() {
+    // 获取当前固件版本
     current_version_ = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
+    // 检查URL是否有效
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
     }
 
+    // 创建HTTP对象
     auto http = Board::GetInstance().CreateHttp();
+    // 设置HTTP请求头
     for (const auto& header : headers_) {
         http->SetHeader(header.first, header.second);
     }
 
+    // 设置Content-Type为application/json
     http->SetHeader("Content-Type", "application/json");
+    // 根据是否有POST数据选择请求方法
     std::string method = post_data_.length() > 0 ? "POST" : "GET";
     if (!http->Open(method, check_version_url_, post_data_)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
@@ -57,20 +68,19 @@ bool Ota::CheckVersion() {
         return false;
     }
 
+    // 获取HTTP响应
     auto response = http->GetBody();
     http->Close();
     delete http;
 
-    // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
-    // Parse the JSON response and check if the version is newer
-    // If it is, set has_new_version_ to true and store the new version and URL
-    
+    // 解析JSON响应
     cJSON *root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
         return false;
     }
 
+    // 检查是否有激活码
     has_activation_code_ = false;
     cJSON *activation = cJSON_GetObjectItem(root, "activation");
     if (activation != NULL) {
@@ -85,6 +95,7 @@ bool Ota::CheckVersion() {
         has_activation_code_ = true;
     }
 
+    // 检查是否有MQTT配置
     has_mqtt_config_ = false;
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
     if (mqtt != NULL) {
@@ -100,6 +111,7 @@ bool Ota::CheckVersion() {
         has_mqtt_config_ = true;
     }
 
+    // 检查是否有服务器时间
     has_server_time_ = false;
     cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
     if (server_time != NULL) {
@@ -123,6 +135,7 @@ bool Ota::CheckVersion() {
         }
     }
 
+    // 获取固件信息
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware == NULL) {
         ESP_LOGE(TAG, "Failed to get firmware object");
@@ -142,11 +155,12 @@ bool Ota::CheckVersion() {
         return false;
     }
 
+    // 获取新固件版本和URL
     firmware_version_ = version->valuestring;
     firmware_url_ = url->valuestring;
     cJSON_Delete(root);
 
-    // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+    // 检查是否有新版本
     has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
     if (has_new_version_) {
         ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
@@ -156,6 +170,7 @@ bool Ota::CheckVersion() {
     return true;
 }
 
+// 标记当前版本为有效
 void Ota::MarkCurrentVersionValid() {
     auto partition = esp_ota_get_running_partition();
     if (strcmp(partition->label, "factory") == 0) {
@@ -176,6 +191,7 @@ void Ota::MarkCurrentVersionValid() {
     }
 }
 
+// 升级固件
 void Ota::Upgrade(const std::string& firmware_url) {
     ESP_LOGI(TAG, "Upgrading firmware from %s", firmware_url.c_str());
     esp_ota_handle_t update_handle = 0;
@@ -214,7 +230,7 @@ void Ota::Upgrade(const std::string& firmware_url) {
             return;
         }
 
-        // Calculate speed and progress every second
+        // 每秒计算一次速度和进度
         recent_read += ret;
         total_read += ret;
         if (esp_timer_get_time() - last_calc_time >= 1000000 || ret == 0) {
@@ -287,11 +303,13 @@ void Ota::Upgrade(const std::string& firmware_url) {
     esp_restart();
 }
 
+// 开始升级固件
 void Ota::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
     upgrade_callback_ = callback;
     Upgrade(firmware_url_);
 }
 
+// 解析版本字符串为整数数组
 std::vector<int> Ota::ParseVersion(const std::string& version) {
     std::vector<int> versionNumbers;
     std::stringstream ss(version);
@@ -304,6 +322,7 @@ std::vector<int> Ota::ParseVersion(const std::string& version) {
     return versionNumbers;
 }
 
+// 检查是否有新版本可用
 bool Ota::IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion) {
     std::vector<int> current = ParseVersion(currentVersion);
     std::vector<int> newer = ParseVersion(newVersion);

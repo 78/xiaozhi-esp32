@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codecs/es8311_audio_codec.h"
-#include "display/oled_display.h"
+#include "display/ssd1306_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
@@ -14,48 +14,46 @@
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
-#include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
 
-#define TAG "XminiC3Board"
+#define TAG "XminiC3Board"  // 定义日志标签
 
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
+LV_FONT_DECLARE(font_puhui_14_1);  // 声明字体
+LV_FONT_DECLARE(font_awesome_14_1);  // 声明字体
 
+// XminiC3Board 类继承自 WifiBoard，用于管理设备功能
 class XminiC3Board : public WifiBoard {
 private:
-    i2c_master_bus_handle_t codec_i2c_bus_;
-    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-    esp_lcd_panel_handle_t panel_ = nullptr;
-    Display* display_ = nullptr;
-    Button boot_button_;
-    bool press_to_talk_enabled_ = false;
-    PowerSaveTimer* power_save_timer_;
+    i2c_master_bus_handle_t codec_i2c_bus_;  // I2C总线句柄
+    Button boot_button_;  // 启动按钮
+    bool press_to_talk_enabled_ = false;  // 长按说话模式是否启用
+    PowerSaveTimer* power_save_timer_;  // 节能定时器
 
+    // 初始化节能定时器
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(160, 60);
-        power_save_timer_->OnEnterSleepMode([this]() {
+        power_save_timer_ = new PowerSaveTimer(160, 60);  // 创建节能定时器
+        power_save_timer_->OnEnterSleepMode([this]() {  // 进入睡眠模式回调
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
             
             auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            codec->EnableInput(false);  // 禁用音频输入
         });
-        power_save_timer_->OnExitSleepMode([this]() {
+        power_save_timer_->OnExitSleepMode([this]() {  // 退出睡眠模式回调
             auto codec = GetAudioCodec();
-            codec->EnableInput(true);
+            codec->EnableInput(true);  // 启用音频输入
             
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("neutral");
         });
-        power_save_timer_->SetEnabled(true);
+        power_save_timer_->SetEnabled(true);  // 启用节能定时器
     }
 
+    // 初始化音频编解码器的I2C总线
     void InitializeCodecI2c() {
-        // Initialize I2C peripheral
+        // 配置I2C总线
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = I2C_NUM_0,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
@@ -65,146 +63,108 @@ private:
             .intr_priority = 0,
             .trans_queue_depth = 0,
             .flags = {
-                .enable_internal_pullup = 1,
+                .enable_internal_pullup = 1,  // 启用内部上拉
             },
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));  // 初始化I2C总线
     }
 
-    void InitializeSsd1306Display() {
-        // SSD1306 config
-        esp_lcd_panel_io_i2c_config_t io_config = {
-            .dev_addr = 0x3C,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 6,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-            .flags = {
-                .dc_low_on_data = 0,
-                .disable_control_phase = 0,
-            },
-            .scl_speed_hz = 400 * 1000,
-        };
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(codec_i2c_bus_, &io_config, &panel_io_));
-
-        ESP_LOGI(TAG, "Install SSD1306 driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = -1;
-        panel_config.bits_per_pixel = 1;
-
-        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
-        };
-        panel_config.vendor_config = &ssd1306_config;
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
-        ESP_LOGI(TAG, "SSD1306 driver installed");
-
-        // Reset the display
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-        if (esp_lcd_panel_init(panel_) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize display");
-            display_ = new NoDisplay();
-            return;
-        }
-
-        // Set the display to on
-        ESP_LOGI(TAG, "Turning display on");
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
-
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
-    }
-
+    // 初始化按钮
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {  // 启动按钮点击回调
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+                ResetWifiConfiguration();  // 重置WiFi配置
             }
             if (!press_to_talk_enabled_) {
-                app.ToggleChatState();
+                app.ToggleChatState();  // 切换聊天状态
             }
         });
-        boot_button_.OnPressDown([this]() {
-            power_save_timer_->WakeUp();
+        boot_button_.OnPressDown([this]() {  // 启动按钮按下回调
+            power_save_timer_->WakeUp();  // 唤醒设备
             if (press_to_talk_enabled_) {
-                Application::GetInstance().StartListening();
+                Application::GetInstance().StartListening();  // 开始监听
             }
         });
-        boot_button_.OnPressUp([this]() {
+        boot_button_.OnPressUp([this]() {  // 启动按钮释放回调
             if (press_to_talk_enabled_) {
-                Application::GetInstance().StopListening();
+                Application::GetInstance().StopListening();  // 停止监听
             }
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
+    // 初始化物联网设备
     void InitializeIot() {
-        Settings settings("vendor");
-        press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
+        Settings settings("vendor");  // 加载设置
+        press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;  // 获取长按说话模式设置
 
         auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("PressToTalk"));
+        thing_manager.AddThing(iot::CreateThing("Speaker"));  // 添加扬声器设备
+        thing_manager.AddThing(iot::CreateThing("PressToTalk"));  // 添加长按说话设备
     }
 
 public:
+    // 构造函数，初始化设备
     XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
-        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        // 将ESP32C3的VDD SPI引脚作为普通GPIO口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
 
-        InitializeCodecI2c();
-        InitializeSsd1306Display();
-        InitializeButtons();
-        InitializePowerSaveTimer();
-        InitializeIot();
+        InitializeCodecI2c();  // 初始化音频编解码器的I2C总线
+        InitializeButtons();  // 初始化按钮
+        InitializePowerSaveTimer();  // 初始化节能定时器
+        InitializeIot();  // 初始化物联网设备
     }
 
+    // 获取LED对象
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
+        static SingleLed led(BUILTIN_LED_GPIO);  // 创建LED对象
         return &led;
     }
 
+    // 获取显示对象
     virtual Display* GetDisplay() override {
-        return display_;
+        static Ssd1306Display display(codec_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+                                    &font_puhui_14_1, &font_awesome_14_1);  // 创建SSD1306显示对象
+        return &display;
     }
 
+    // 获取音频编解码器对象
     virtual AudioCodec* GetAudioCodec() override {
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);  // 创建ES8311音频编解码器对象
         return &audio_codec;
     }
 
+    // 设置长按说话模式是否启用
     void SetPressToTalkEnabled(bool enabled) {
         press_to_talk_enabled_ = enabled;
 
-        Settings settings("vendor", true);
+        Settings settings("vendor", true);  // 保存设置
         settings.SetInt("press_to_talk", enabled ? 1 : 0);
-        ESP_LOGI(TAG, "Press to talk enabled: %d", enabled);
+        ESP_LOGI(TAG, "Press to talk enabled: %d", enabled);  // 记录日志
     }
 
+    // 获取长按说话模式是否启用
     bool IsPressToTalkEnabled() {
         return press_to_talk_enabled_;
     }
 };
 
+// 声明设备
 DECLARE_BOARD(XminiC3Board);
 
-
+// 物联网设备命名空间
 namespace iot {
 
+// PressToTalk 类继承自 Thing，用于管理长按说话模式
 class PressToTalk : public Thing {
 public:
     PressToTalk() : Thing("PressToTalk", "控制对话模式，一种是长按对话，一种是单击后连续对话。") {
         // 定义设备的属性
         properties_.AddBooleanProperty("enabled", "true 表示长按说话模式，false 表示单击说话模式", []() -> bool {
             auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
-            return board->IsPressToTalkEnabled();
+            return board->IsPressToTalkEnabled();  // 获取长按说话模式状态
         });
 
         // 定义设备可以被远程执行的指令
@@ -213,11 +173,12 @@ public:
         }), [](const ParameterList& parameters) {
             bool enabled = parameters["enabled"].boolean();
             auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
-            board->SetPressToTalkEnabled(enabled);
+            board->SetPressToTalkEnabled(enabled);  // 设置长按说话模式状态
         });
     }
 };
 
 } // namespace iot
 
+// 声明物联网设备
 DECLARE_THING(PressToTalk);

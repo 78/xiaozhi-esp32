@@ -25,7 +25,7 @@ public:
     void AddThing(Thing* thing);
 
     std::string GetDescriptorsJson();
-    bool GetStatesJson(std::string& json, bool delta = false);
+    std::string GetStatesJson();
     void Invoke(const cJSON* command);
 
 private:
@@ -33,7 +33,6 @@ private:
     ~ThingManager() = default;
 
     std::vector<Thing*> things_;
-    std::map<std::string, std::string> last_states_;
 };
 
 

@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "display/oled_display.h"
+#include "display/ssd1306_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -12,173 +12,139 @@
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
 
-#define TAG "CompactWifiBoard"
+#define TAG "CompactWifiBoard" // 日志标签
 
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
+LV_FONT_DECLARE(font_puhui_14_1); // 声明普黑字体
+LV_FONT_DECLARE(font_awesome_14_1); // 声明Font Awesome字体
 
+// CompactWifiBoard开发板类
 class CompactWifiBoard : public WifiBoard {
 private:
-    i2c_master_bus_handle_t display_i2c_bus_;
-    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-    esp_lcd_panel_handle_t panel_ = nullptr;
-    Display* display_ = nullptr;
-    Button boot_button_;
-    Button touch_button_;
-    Button volume_up_button_;
-    Button volume_down_button_;
+    i2c_master_bus_handle_t display_i2c_bus_; // 显示屏I2C总线句柄
+    Button boot_button_; // 启动按钮
+    Button touch_button_; // 触摸按钮
+    Button volume_up_button_; // 音量增加按钮
+    Button volume_down_button_; // 音量减少按钮
 
+    // 初始化显示屏I2C外设
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
-            .i2c_port = (i2c_port_t)0,
-            .sda_io_num = DISPLAY_SDA_PIN,
-            .scl_io_num = DISPLAY_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
+            .i2c_port = (i2c_port_t)0, // I2C端口号
+            .sda_io_num = DISPLAY_SDA_PIN, // SDA引脚
+            .scl_io_num = DISPLAY_SCL_PIN, // SCL引脚
+            .clk_source = I2C_CLK_SRC_DEFAULT, // 时钟源
+            .glitch_ignore_cnt = 7, // 毛刺忽略计数
+            .intr_priority = 0, // 中断优先级
+            .trans_queue_depth = 0, // 传输队列深度
             .flags = {
-                .enable_internal_pullup = 1,
+                .enable_internal_pullup = 1, // 启用内部上拉
             },
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
+        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_)); // 创建I2C总线
     }
 
-    void InitializeSsd1306Display() {
-        // SSD1306 config
-        esp_lcd_panel_io_i2c_config_t io_config = {
-            .dev_addr = 0x3C,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 6,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-            .flags = {
-                .dc_low_on_data = 0,
-                .disable_control_phase = 0,
-            },
-            .scl_speed_hz = 400 * 1000,
-        };
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
-
-        ESP_LOGI(TAG, "Install SSD1306 driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = -1;
-        panel_config.bits_per_pixel = 1;
-
-        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
-        };
-        panel_config.vendor_config = &ssd1306_config;
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
-        ESP_LOGI(TAG, "SSD1306 driver installed");
-
-        // Reset the display
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-        if (esp_lcd_panel_init(panel_) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize display");
-            display_ = new NoDisplay();
-            return;
-        }
-
-        // Set the display to on
-        ESP_LOGI(TAG, "Turning display on");
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
-
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
-    }
-
+    // 初始化按钮
     void InitializeButtons() {
+        // 启动按钮点击事件
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+                ResetWifiConfiguration(); // 重置WiFi配置
             }
-            app.ToggleChatState();
-        });
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+            app.ToggleChatState(); // 切换聊天状态
         });
 
+        // 触摸按钮按下事件
+        touch_button_.OnPressDown([this]() {
+            Application::GetInstance().StartListening(); // 开始监听
+        });
+
+        // 触摸按钮释放事件
+        touch_button_.OnPressUp([this]() {
+            Application::GetInstance().StopListening(); // 停止监听
+        });
+
+        // 音量增加按钮点击事件
         volume_up_button_.OnClick([this]() {
             auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
+            auto volume = codec->output_volume() + 10; // 音量增加10
             if (volume > 100) {
-                volume = 100;
+                volume = 100; // 音量最大为100
             }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+            codec->SetOutputVolume(volume); // 设置音量
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume)); // 显示音量通知
         });
 
+        // 音量增加按钮长按事件
         volume_up_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+            GetAudioCodec()->SetOutputVolume(100); // 设置音量为最大值
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME); // 显示最大音量通知
         });
 
+        // 音量减少按钮点击事件
         volume_down_button_.OnClick([this]() {
             auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() - 10;
+            auto volume = codec->output_volume() - 10; // 音量减少10
             if (volume < 0) {
-                volume = 0;
+                volume = 0; // 音量最小为0
             }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+            codec->SetOutputVolume(volume); // 设置音量
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume)); // 显示音量通知
         });
 
+        // 音量减少按钮长按事件
         volume_down_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+            GetAudioCodec()->SetOutputVolume(0); // 设置音量为0（静音）
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED); // 显示静音通知
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
+    // 初始化物联网设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
+        thing_manager.AddThing(iot::CreateThing("Speaker")); // 添加扬声器设备
+        thing_manager.AddThing(iot::CreateThing("Lamp")); // 添加灯设备
     }
 
 public:
+    // 构造函数
     CompactWifiBoard() :
-        boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),
-        volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
-        InitializeDisplayI2c();
-        InitializeSsd1306Display();
-        InitializeButtons();
-        InitializeIot();
+        boot_button_(BOOT_BUTTON_GPIO), // 初始化启动按钮
+        touch_button_(TOUCH_BUTTON_GPIO), // 初始化触摸按钮
+        volume_up_button_(VOLUME_UP_BUTTON_GPIO), // 初始化音量增加按钮
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) { // 初始化音量减少按钮
+        InitializeDisplayI2c(); // 初始化显示屏I2C
+        InitializeButtons(); // 初始化按钮
+        InitializeIot(); // 初始化物联网设备
     }
 
+    // 获取LED对象
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
+        static SingleLed led(BUILTIN_LED_GPIO); // 创建单LED对象
         return &led;
     }
 
+    // 获取音频编解码器对象
     virtual AudioCodec* GetAudioCodec() override {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
+        // 单工模式音频编解码器
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
 #else
+        // 双工模式音频编解码器
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
 #endif
         return &audio_codec;
     }
 
+    // 获取显示屏对象
     virtual Display* GetDisplay() override {
-        return display_;
+        static Ssd1306Display display(display_i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
+                                    &font_puhui_14_1, &font_awesome_14_1); // 创建SSD1306显示屏对象
+        return &display;
     }
 };
 
-DECLARE_BOARD(CompactWifiBoard);
+DECLARE_BOARD(CompactWifiBoard); // 声明开发板

@@ -8,10 +8,6 @@ HEADER_TEMPLATE = """// Auto-generated language config
 
 #include <string_view>
 
-#ifndef {lang_code_for_font}
-    #define {lang_code_for_font}  // 預設語言
-#endif
-
 namespace Lang {{
     // 语言元数据
     constexpr const char* CODE = "{lang_code}";
@@ -72,7 +68,6 @@ def generate_header(input_path, output_path):
     # 填充模板
     content = HEADER_TEMPLATE.format(
         lang_code=lang_code,
-        lang_code_for_font=lang_code.replace('-', '_').lower(),
         strings="\n".join(sorted(strings)),
         sounds="\n".join(sorted(sounds))
     )
