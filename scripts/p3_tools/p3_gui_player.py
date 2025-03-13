@@ -92,6 +92,7 @@ class P3PlayerApp:
         self.is_paused = False
         self.stop_event = threading.Event()
         self.pause_event = threading.Event()
+        self.loop_playback = tk.BooleanVar(value=False)  # 循环播放复选框的状态
 
         # 创建界面组件
         self.create_widgets()
@@ -114,6 +115,10 @@ class P3PlayerApp:
         self.remove_button = tk.Button(self.checkbox_frame, text="移除文件", command=self.remove_files)
         self.remove_button.pack(side=tk.LEFT, padx=5)
 
+        # 循环播放复选框
+        self.loop_checkbox = tk.Checkbutton(self.checkbox_frame, text="循环播放", variable=self.loop_playback)
+        self.loop_checkbox.pack(side=tk.LEFT, padx=5)
+
         # 控制按钮
         self.control_frame = tk.Frame(self.root)
         self.control_frame.pack(pady=10)
@@ -129,9 +134,6 @@ class P3PlayerApp:
 
         self.stop_button = tk.Button(self.control_frame, text="停止", command=self.stop)
         self.stop_button.grid(row=0, column=3, padx=5)
-
-        self.next_button = tk.Button(self.control_frame, text="下一首", command=self.next)
-        self.next_button.grid(row=0, column=4, padx=5)
 
         # 状态标签
         self.status_label = tk.Label(self.root, text="未在播放", fg="blue")
@@ -175,7 +177,7 @@ class P3PlayerApp:
         self.update_status(f"正在播放：{os.path.basename(self.playlist[self.current_index])}", "green")
 
     def play_audio(self):
-        while self.current_index < len(self.playlist):
+        while True:
             if self.stop_event.is_set():
                 break
 
@@ -183,17 +185,30 @@ class P3PlayerApp:
                 time.sleep(0.1)
                 continue
 
+            # 检查当前索引是否有效
+            if self.current_index >= len(self.playlist):
+                if self.loop_playback.get():  # 如果勾选了循环播放
+                    self.current_index = 0  # 回到第一首
+                else:
+                    break  # 否则停止播放
+
             file = self.playlist[self.current_index]
             self.playlist_listbox.selection_clear(0, tk.END)
             self.playlist_listbox.selection_set(self.current_index)
             self.playlist_listbox.activate(self.current_index)
-
+            self.update_status(f"正在播放：{os.path.basename(self.playlist[self.current_index])}", "green")
             play_p3_file(file, self.stop_event, self.pause_event)
 
             if self.stop_event.is_set():
                 break
 
+            if not self.loop_playback.get():  # 如果没有勾选循环播放
+                break  # 播放完当前文件后停止
+
             self.current_index += 1
+            if self.current_index >= len(self.playlist):
+                if self.loop_playback.get():  # 如果勾选了循环播放
+                    self.current_index = 0  # 回到第一首
 
         self.is_playing = False
         self.is_paused = False
@@ -216,17 +231,6 @@ class P3PlayerApp:
             self.stop_event.set()
             self.pause_event.clear()
             self.update_status("播放已停止", "red")
-
-    def next(self):
-        if self.is_playing or self.is_paused:
-            self.stop()
-            time.sleep(0.1)  # 等待停止
-
-        self.current_index += 1
-        if self.current_index >= len(self.playlist):
-            self.current_index = 0
-
-        self.play()
 
     def remove_files(self):
         selected_indices = self.playlist_listbox.curselection()
