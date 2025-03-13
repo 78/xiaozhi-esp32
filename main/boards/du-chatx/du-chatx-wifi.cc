@@ -7,14 +7,14 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "power_manager.h"
+#include "power_save_timer.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
-#include "power_manager.h"
-#include "power_save_timer.h"
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
@@ -23,14 +23,13 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class DuChatX : public WifiBoard
-{
+class DuChatX : public WifiBoard {
 private:
     Button boot_button_;
     LcdDisplay *display_;
     PowerManager *power_manager_;
     PowerSaveTimer *power_save_timer_;
-    esp_lcd_panel_handle_t panel = nullptr;
+    esp_lcd_panel_handle_t panel_ = nullptr;
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(GPIO_NUM_6);
@@ -64,7 +63,7 @@ private:
             rtc_gpio_set_level(GPIO_NUM_1, 0);
             // 启用保持功能，确保睡眠期间电平不变
             rtc_gpio_hold_en(GPIO_NUM_1);
-            esp_lcd_panel_disp_on_off(panel, false); //关闭显示
+            esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
             esp_deep_sleep_start(); 
         });
         power_save_timer_->SetEnabled(true);
@@ -83,7 +82,7 @@ private:
     void InitializeLcdDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         // 液晶屏控制IO初始化
-        ESP_LOGD(TAG, "Install panel IO");
+        ESP_LOGD(TAG, "Install panel_ IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
@@ -100,13 +99,13 @@ private:
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        esp_lcd_panel_reset(panel);
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel,DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel_));
+        esp_lcd_panel_reset(panel_);
+        esp_lcd_panel_init(panel_);
+        esp_lcd_panel_invert_color(panel_, DISPLAY_INVERT_COLOR);
+        esp_lcd_panel_swap_xy(panel_, DISPLAY_SWAP_XY);
+        esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        display_ = new SpiLcdDisplay(panel_io, panel_,DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {   
                 .text_font = &font_puhui_16_4,
                 .icon_font = &font_awesome_16_4,
@@ -140,8 +139,8 @@ public:
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
-        InitializePowerManager();
         InitializePowerSaveTimer();
+        InitializePowerManager();
     }
 
     virtual Led *GetLed() override {
