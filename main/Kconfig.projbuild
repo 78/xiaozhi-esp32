@@ -104,6 +104,8 @@ choice BOARD_TYPE
         bool "AtomS3 + Echo Base"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
         bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
+        bool "AtomS3R CAM/M12 + Echo Base"
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
     config BOARD_TYPE_XMINI_C3
