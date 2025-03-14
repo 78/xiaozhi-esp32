@@ -13,7 +13,7 @@ namespace iot {
 class Lamp : public Thing {
 private:
 #ifdef CONFIG_IDF_TARGET_ESP32
-    gpio_num_t gpio_num_ = GPIO_NUM_35;
+    gpio_num_t gpio_num_ = GPIO_NUM_12;
 #else
     gpio_num_t gpio_num_ = GPIO_NUM_18;
 #endif
