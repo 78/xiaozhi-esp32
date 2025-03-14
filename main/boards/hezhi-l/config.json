@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "hezhi-l",
+            "sdkconfig_append": []
+        }
+    ]
+}
