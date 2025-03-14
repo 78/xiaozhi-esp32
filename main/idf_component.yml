@@ -1,25 +1,61 @@
-## IDF Component Manager Manifest File
 dependencies:
+  # Waveshare 提供的 SH8601 LCD 驱动库，版本 1.0.2
   waveshare/esp_lcd_sh8601: "1.0.2"
-  espressif/esp_lcd_ili9341: "==1.2.0"
-  espressif/esp_lcd_gc9a01: "^2.0.1"
-  espressif/esp_lcd_st77916: "^1.0.1"
-  espressif/esp_lcd_spd2010: "==1.0.2"
-  espressif/esp_io_expander_tca9554: "==2.0.0"
-  espressif/esp_lcd_panel_io_additions: "^1.0.1"
-  78/esp_lcd_nv3023: "~1.0.0"
-  78/esp-wifi-connect: "~2.3.1"
-  78/esp-opus-encoder: "~2.1.0"
-  78/esp-ml307: "~1.7.2"
-  78/xiaozhi-fonts: "~1.3.2"
-  espressif/led_strip: "^2.4.1"
-  espressif/esp_codec_dev: "~1.3.2"
-  espressif/esp-sr: "^1.9.0"
-  espressif/button: "^3.3.1"
-  lvgl/lvgl: "~9.2.2"
-  esp_lvgl_port: "~2.4.4"
-  espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
-  ## Required IDF version
-  idf:
-    version: ">=5.3"
 
+  # Espressif 提供的 ILI9341 LCD 驱动库，严格匹配版本 1.2.0
+  espressif/esp_lcd_ili9341: "==1.2.0"
+
+  # Espressif 提供的 GC9A01 LCD 驱动库，兼容 2.0.1 及以上版本
+  espressif/esp_lcd_gc9a01: "^2.0.1"
+
+  # Espressif 提供的 ST77916 LCD 驱动库，兼容 1.0.1 及以上版本
+  espressif/esp_lcd_st77916: "^1.0.1"
+
+  # Espressif 提供的 SPD2010 LCD 驱动库，严格匹配版本 1.0.2
+  espressif/esp_lcd_spd2010: "==1.0.2"
+
+  # Espressif 提供的 TCA9554 IO 扩展器驱动库，严格匹配版本 2.0.0
+  espressif/esp_io_expander_tca9554: "==2.0.0"
+
+  # Espressif 提供的 LCD 面板 IO 附加功能库，兼容 1.0.1 及以上版本
+  espressif/esp_lcd_panel_io_additions: "^1.0.1"
+
+  # 78 提供的 NV3023 LCD 驱动库，兼容 1.0.0 及以上版本
+  78/esp_lcd_nv3023: "~1.0.0"
+
+  # 78 提供的 Wi-Fi 连接库，兼容 2.3.1 及以上版本
+  78/esp-wifi-connect: "~2.3.1"
+
+  # 78 提供的 Opus 编码器库，兼容 2.1.0 及以上版本
+  78/esp-opus-encoder: "~2.1.0"
+
+  # 78 提供的 ML307 模块驱动库，兼容 1.7.2 及以上版本
+  78/esp-ml307: "~1.7.2"
+
+  # 78 提供的小智字体库，兼容 1.3.2 及以上版本
+  78/xiaozhi-fonts: "~1.3.2"
+
+  # Espressif 提供的 LED 灯带驱动库，兼容 2.4.1 及以上版本
+  espressif/led_strip: "^2.4.1"
+
+  # Espressif 提供的音频编解码器设备库，兼容 1.3.2 及以上版本
+  espressif/esp_codec_dev: "~1.3.2"
+
+  # Espressif 提供的语音识别库，兼容 1.9.0 及以上版本
+  espressif/esp-sr: "^1.9.0"
+
+  # Espressif 提供的按钮驱动库，兼容 3.3.1 及以上版本
+  espressif/button: "^3.3.1"
+
+  # LVGL 图形库，兼容 9.2.2 及以上版本
+  lvgl/lvgl: "~9.2.2"
+
+  # ESP LVGL 移植库，兼容 2.4.4 及以上版本
+  esp_lvgl_port: "~2.4.4"
+
+  # Espressif 提供的 TCA95xx 16位 IO 扩展器驱动库，兼容 2.0.0 及以上版本
+  espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
+
+  ## 所需的 ESP-IDF 版本
+  idf:
+    version: ">=5.3"  # 要求 ESP-IDF 版本为 5.3 或更高
