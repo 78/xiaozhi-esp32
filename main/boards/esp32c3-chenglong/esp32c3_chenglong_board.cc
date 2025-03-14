@@ -75,7 +75,7 @@ private:
                     // 发送握手响应
                     uint8_t response[] = {0xA5, 0xFA, 0x00, 0x82, 0x01, 0x00, 0x21, 0xFB};
                     board->SendUartResponse(response, sizeof(response));
-                    // ESP_LOGI(TAG, "Sent handshake response");   注意期间不能任何有打印，否则会送到串口到CI1302了，UART这个引脚会默认吧日志也往这里送，会干扰，一定要小心注意，不应该使用这个引脚来通讯
+                    // ESP_LOGI(TAG, "Sent handshake response");   
                 }
                 // 检查是否收到唤醒请求 A5 FA 00 81 01 00 21 FB
                 if (length == 8 && data[0] == 0xA5 && data[1] == 0xFA && 
@@ -86,7 +86,7 @@ private:
                     // 发送唤醒响应A5 FA 00 82 01 00 22 FB
                     uint8_t response[] = {0xA5, 0xFA, 0x00, 0x82, 0x01, 0x00, 0x22, 0xFB};
                     board->SendUartResponse(response, sizeof(response));
-                    // ESP_LOGI(TAG, "收到唤醒词，开始对话"); 注意这期间能任何有打印，否则会送到串口到CI1302了，因为用了urtx0发的，需要配置禁止往串口写日志才能不会被影响。
+                    // ESP_LOGI(TAG, "收到唤醒词，开始对话");
 
                     Application::GetInstance().WakeWordInvoke("你好");
                 }
