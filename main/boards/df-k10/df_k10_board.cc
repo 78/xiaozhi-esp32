@@ -9,6 +9,7 @@
 #include "iot/thing_manager.h"
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -17,6 +18,7 @@
 #include <wifi_station.h>
 
 #include "esp_io_expander_tca95xx_16bit.h"
+#include "aht20.h"
 
 #define TAG "DF-K10"
 
@@ -24,12 +26,13 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 class Df_K10Board : public WifiBoard {
-private:
+ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander;
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    AHT20* ath20_  = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -103,7 +106,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
@@ -139,7 +142,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
@@ -201,7 +204,9 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                 {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
@@ -213,15 +218,31 @@ private:
     void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Environment"));
     }
 
-public:
+    void InitializeSensor() {
+        ath20_ = new AHT20(i2c_bus_, 0x38);
+
+        Settings settings("environment", true);
+        if (settings.GetInt("set_diff", 0) == 0) {
+            settings.SetInt("set_diff", 1);
+            settings.SetInt("temp_diff", -80);    // 默认温度值偏移量 * 10
+            settings.SetInt("humi_diff", 100);  // 默认是渎职偏移量 * 10
+
+            ESP_LOGI(TAG, "Set default temperature_diff to -8");
+            ESP_LOGI(TAG, "Set default humidity_diff to 10");
+        }
+    }
+
+ public:
     Df_K10Board() {
         InitializeI2c();
         InitializeIoExpander();
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeSensor();
         InitializeIot();
     }
 
@@ -249,6 +270,30 @@ public:
 
     virtual Display *GetDisplay() override {
         return display_;
+    }
+
+    virtual bool GetTemperature(float *temperature) override {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (temperature) *temperature = temp;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
+    }
+
+    virtual bool GetHumidity(float *humidity) override {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (humidity) *humidity = humi;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
     }
 };
 

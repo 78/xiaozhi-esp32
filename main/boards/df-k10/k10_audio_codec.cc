@@ -4,15 +4,16 @@
 #include <driver/i2c.h>
 #include <driver/i2s_tdm.h>
 #include <cmath>
+#include <vector>
 
 static const char TAG[] = "K10AudioCodec";
 
 K10AudioCodec::K10AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
     gpio_num_t pa_pin, uint8_t es8311_addr, uint8_t es7210_addr, bool input_reference) {
-    duplex_ = true; // 是否双工
-    input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
-    input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
+    duplex_ = true;  // 是否双工
+    input_reference_ = input_reference;  // 是否使用参考输入，实现回声消除
+    input_channels_ = input_reference_ ? 2 : 1;  // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
@@ -68,7 +69,8 @@ K10AudioCodec::~K10AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void K10AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void K10AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws,
+                                            gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -84,7 +86,7 @@ void K10AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
+            .sample_rate_hz = static_cast<uint32_t>(output_sample_rate_),
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .ext_clk_freq_hz = 0,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256
@@ -117,7 +119,7 @@ void K10AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_
 
     i2s_tdm_config_t tdm_cfg = {
         .clk_cfg = {
-            .sample_rate_hz = (uint32_t)input_sample_rate_,
+            .sample_rate_hz = static_cast<uint32_t>(input_sample_rate_),
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .ext_clk_freq_hz = 0,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
@@ -169,7 +171,7 @@ void K10AudioCodec::EnableInput(bool enable) {
             .bits_per_sample = 16,
             .channel = 4,
             .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
-            .sample_rate = (uint32_t)output_sample_rate_,
+            .sample_rate = static_cast<uint32_t>(output_sample_rate_),
             .mclk_multiple = 0,
         };
         if (input_reference_) {
@@ -193,7 +195,8 @@ void K10AudioCodec::EnableOutput(bool enable) {
 
 int K10AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_,
+                                        static_cast<void*>(dest), samples * sizeof(int16_t)));
     }
     return samples;
 }
@@ -203,9 +206,9 @@ int K10AudioCodec::Write(const int16_t* data, int samples) {
         std::vector<int32_t> buffer(samples * 2);  // Allocate buffer for 2x samples
 
         // Apply volume adjustment (same as before)
-        int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
+        int32_t volume_factor = pow(static_cast<double>(output_volume_) / 100.0, 2) * 65536;
         for (int i = 0; i < samples; i++) {
-            int64_t temp = int64_t(data[i]) * volume_factor;
+            int64_t temp = static_cast<int64_t>(data[i]) * volume_factor;
             if (temp > INT32_MAX) {
             buffer[i * 2] = INT32_MAX;
             } else if (temp < INT32_MIN) {
@@ -219,7 +222,8 @@ int K10AudioCodec::Write(const int16_t* data, int samples) {
         }
 
         size_t bytes_written;
-        ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * 2 * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+        ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * 2 * sizeof(int32_t),
+                                            &bytes_written, portMAX_DELAY));
         return bytes_written / sizeof(int32_t);
     }
     return samples;
