@@ -737,6 +737,9 @@ private:
     rx8900_handle_t rx8900 = NULL;
     mpu6050_handle_t mpu6050 = NULL;
 
+    PCF8574 *pcf8574 = NULL;
+    INA3221 *ina3221 = NULL;
+
     esp_timer_handle_t power_save_timer_ = nullptr;
     bool show_low_power_warning_ = false;
     bool sleep_mode_enabled_ = false;
@@ -881,11 +884,11 @@ private:
         }
 
         mpu6050 = mpu6050_create(i2c_bus, MPU6050_I2C_ADDRESS);
-        ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_config(mpu6050, ACCE_FS_16G, GYRO_FS_250DPS));
-        (mpu6050_wake_up(mpu6050));
-        mpu6050_enable_motiondetection(mpu6050, 100, 50);
+        ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_init(mpu6050));
+        mpu6050_enable_motiondetection(mpu6050, 1, 20);
 
-        INA3221 *ina3221 = new INA3221(i2c_bus);
+        pcf8574 = new PCF8574(i2c_bus);
+        ina3221 = new INA3221(i2c_bus);
         ESP_LOGD(TAG, "ina3221 begin: %d", ina3221->begin());
         float voltage = 0.0f, current = 0.0f;
         for (size_t i = 0; i < 3; i++)
@@ -1374,7 +1377,12 @@ public:
         bat_v *= 2;
         // testmpu();
         // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
-
+        bool active = false;
+        mpu6050_getMotionInterruptStatus(mpu6050, &active);
+        if (active)
+        {
+            ESP_LOGI(TAG, "mpu6050 int");
+        }
         int new_level;
         if (bat_v >= VCHARGE)
         {
