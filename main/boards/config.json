@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32s3-cgc-8080lcd",
+            "sdkconfig_append": []
+        }
+    ]
+}
