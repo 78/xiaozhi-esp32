@@ -36,7 +36,7 @@ def zip_bin(board_type, project_version):
     output_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(output_path):
         os.remove(output_path)
-    with zipfile.ZipFile(output_path, 'w',compression=zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
         zipf.write("build/merged-binary.bin", arcname="merged-binary.bin")
     print(f"zip bin to {output_path} done")
     
