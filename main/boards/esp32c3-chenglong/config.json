@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "esp32c3-chenglong",
+            "sdkconfig_append": []
+        }
+    ]
+}

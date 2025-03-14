@@ -148,6 +148,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_ESP32C3_CHENGLONG_Board
+        bool "成龙科技esp32C3开发板(带唤醒)"
 endchoice
 
 choice DISPLAY_OLED_TYPE
