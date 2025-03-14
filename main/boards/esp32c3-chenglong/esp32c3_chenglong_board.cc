@@ -22,7 +22,7 @@
 #include "display/lcd_display.h"
 #include <esp_lcd_panel_vendor.h>
 #include <cstring>  // 添加这个头文件用于memcpy
-#define TAG "HezhiLBoard"
+#define TAG "Esp32c3ChenglongBoard"
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
@@ -30,7 +30,7 @@ LV_FONT_DECLARE(font_awesome_20_4);
 
 
 
-class HezhiLBoard : public WifiBoard {
+class Esp32c3ChenglongBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -58,7 +58,7 @@ private:
     }
 // 添加串口监听任务
     static void UartListenTask(void* arg) {
-        HezhiLBoard* board = static_cast<HezhiLBoard*>(arg);
+        Esp32c3ChenglongBoard* board = static_cast<Esp32c3ChenglongBoard*>(arg);
         uint8_t data[128];
         
         ESP_LOGI(TAG, "UART listen task started");
@@ -66,12 +66,6 @@ private:
         while (true) {
             int length = uart_read_bytes(UART_NUM_0, data, sizeof(data), pdMS_TO_TICKS(100));
             if (length > 0) {
-                // ESP_LOGI(TAG, "Received UART data, length: %d, data:", length);
-                // for (int i = 0; i < length; i++) {
-                //     printf("%02X ", data[i]);
-                // }
-                // printf("\n");
-                
                 // 检查是否收到握手请求 A5 FA 00 82 01 00 20 FB
                 if (length == 8 && data[0] == 0xA5 && data[1] == 0xFA && 
                     data[2] == 0x00 && data[3] == 0x82 && 
@@ -96,8 +90,6 @@ private:
 
                     Application::GetInstance().WakeWordInvoke("你好");
                 }
-                
-               
             }
             vTaskDelay(pdMS_TO_TICKS(10));
         }
@@ -140,11 +132,7 @@ private:
 
 
 void SendUartResponse(const uint8_t* response, size_t length) {
-    // if (led_strip_) {
-    //     led_strip_->PauseDriver();  // 暂停LED驱动
-    // }
-    // vTaskDelay(pdMS_TO_TICKS(1));  // 给一点时间让GPIO状态稳定
-    // 1. 创建带长度字节的缓冲区
+
     uint8_t buffer[length + 1];
     buffer[0] = length;  // 第一个字节是数据长度
     memcpy(buffer + 1, response, length);  // 复制实际数据
@@ -153,10 +141,6 @@ void SendUartResponse(const uint8_t* response, size_t length) {
     uart_write_bytes(UART_NUM_0, buffer, length + 1);
     uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));
 
-    // vTaskDelay(pdMS_TO_TICKS(1));  // 等待发送完成
-    // if (led_strip_) {
-    //     led_strip_->ResumeDriver();  // 恢复LED驱动
-    // }
 }
 
     void InitializeButtons() {
@@ -220,18 +204,21 @@ void SendUartResponse(const uint8_t* response, size_t length) {
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
-        display_->SetBacklight(50);  // 设置较高的亮度
+        display_ = new SpiLcdDisplay(panel_io, panel,
+                                DISPLAY_WIDTH, DISPLAY_HEIGHT, 
+                                DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
+                                DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, 
+                                DISPLAY_SWAP_XY,
+                                {
+                                    .text_font = &font_puhui_20_4,
+                                    .icon_font = &font_awesome_20_4,
+                                    .emoji_font = font_emoji_32_init(),
+                                });
+        // display_->SetBacklight(50);  // 设置较高的亮度
     }
 
 public:
-    HezhiLBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
+    Esp32c3ChenglongBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
 
@@ -262,8 +249,6 @@ public:
     virtual Led* GetLed() override {
         // 返回一个空的LED实现，完全不初始化LED驱动
         // return new NoLed();
-
-
         if (!led_strip_) {
             led_strip_ = new SingleLed(BUILTIN_LED_GPIO);
         }
@@ -293,7 +278,7 @@ public:
     }
 };
 
-DECLARE_BOARD(HezhiLBoard);
+DECLARE_BOARD(Esp32c3ChenglongBoard);
 
 
 
@@ -304,7 +289,7 @@ public:
     PressToTalk() : Thing("PressToTalk", "控制对话模式，一种是长按对话，一种是单击后连续对话。") {
         // 定义设备的属性
         properties_.AddBooleanProperty("enabled", "true 表示长按说话模式，false 表示单击说话模式", []() -> bool {
-            auto board = static_cast<HezhiLBoard*>(&Board::GetInstance());
+            auto board = static_cast<Esp32c3ChenglongBoard*>(&Board::GetInstance());
             return board->IsPressToTalkEnabled();
         });
 
@@ -313,7 +298,7 @@ public:
             Parameter("enabled", "true 表示长按说话模式，false 表示单击说话模式", kValueTypeBoolean, true)
         }), [](const ParameterList& parameters) {
             bool enabled = parameters["enabled"].boolean();
-            auto board = static_cast<HezhiLBoard*>(&Board::GetInstance());
+            auto board = static_cast<Esp32c3ChenglongBoard*>(&Board::GetInstance());
             board->SetPressToTalkEnabled(enabled);
         });
     }
