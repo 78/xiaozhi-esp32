@@ -5,12 +5,14 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
+#include "assets/lang_config.h"
+#include "power_manager.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
-#include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -26,6 +28,23 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     Button asr_button_;
+    PowerSaveTimer* power_save_timer_;
+    PowerManager* power_manager_;
+    esp_lcd_panel_io_handle_t panel_io = nullptr;
+    esp_lcd_panel_handle_t panel = nullptr;
+
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(GPIO_NUM_36);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
+    }
+
+
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -39,8 +58,8 @@ private:
     }
 
     void InitializeSt7735Display() {
-        esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
+        // esp_lcd_panel_io_handle_t panel_io = nullptr;
+        // esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
@@ -102,12 +121,13 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Backlight"));
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
-
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
     ESP32_CGC_144() :
 	boot_button_(BOOT_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO) {
+        InitializePowerManager();
         InitializeSpi();
         InitializeSt7735Display();
         InitializeButtons();
@@ -129,6 +149,18 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+        level = power_manager_->GetBatteryLevel();
+        return true;
     }
 
 };
