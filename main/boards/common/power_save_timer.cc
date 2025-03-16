@@ -27,16 +27,42 @@ PowerSaveTimer::~PowerSaveTimer() {
 }
 
 void PowerSaveTimer::SetEnabled(bool enabled) {
-    if (enabled && !enabled_) {
-        ticks_ = 0;
-        enabled_ = enabled;
-        ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-        ESP_LOGI(TAG, "Power save timer enabled");
-    } else if (!enabled && enabled_) {
-        ESP_ERROR_CHECK(esp_timer_stop(power_save_timer_));
-        enabled_ = enabled;
-        WakeUp();
-        ESP_LOGI(TAG, "Power save timer disabled");
+    if (enabled) {
+        if (power_save_timer_ == nullptr) {
+            esp_timer_create_args_t timer_args = {
+                .callback = [](void* arg) {
+                },
+                .arg = this,
+                .dispatch_method = ESP_TIMER_TASK,
+                .name = "power_save_timer",
+                .skip_unhandled_events = true,
+            };
+            esp_err_t err = esp_timer_create(&timer_args, &power_save_timer_);
+            if (err != ESP_OK) {
+                ESP_LOGE("PowerSaveTimer", "Failed to create timer: %s", esp_err_to_name(err));
+                return;
+            }
+        }
+
+        esp_err_t err = esp_timer_is_active(power_save_timer_);
+        if (err == ESP_ERR_INVALID_STATE) {
+            err = esp_timer_start_periodic(power_save_timer_, 1000000);
+            if (err != ESP_OK) {
+                ESP_LOGE("PowerSaveTimer", "Failed to start timer: %s", esp_err_to_name(err));
+            }
+        }
+    } else {
+        if (power_save_timer_ != nullptr) {
+            esp_err_t err = esp_timer_stop(power_save_timer_);
+            if (err != ESP_OK) {
+                ESP_LOGE("PowerSaveTimer", "Failed to stop timer: %s", esp_err_to_name(err));
+            }
+            err = esp_timer_delete(power_save_timer_);
+            if (err != ESP_OK) {
+                ESP_LOGE("PowerSaveTimer", "Failed to delete timer: %s", esp_err_to_name(err));
+            }
+            power_save_timer_ = nullptr;
+        }
     }
 }
 
