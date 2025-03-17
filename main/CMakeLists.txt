@@ -145,6 +145,10 @@ endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
+if(CONFIG_USE_QUAGSIRE_THEME)
+    file(GLOB QUAGSIRE_SOURCES "display/quagsire/*.c")
+    list(APPEND SOURCES ${QUAGSIRE_SOURCES})
+endif()
 
 # 根据Kconfig选择语言目录
 if(CONFIG_LANGUAGE_ZH_CN)

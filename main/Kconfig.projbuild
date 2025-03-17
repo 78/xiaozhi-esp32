@@ -225,4 +225,10 @@ config USE_WAKE_WORD_DETECT
     depends on IDF_TARGET_ESP32S3 && USE_AFE
     help
         需要 ESP32 S3 与 AFE 支持
+
+config USE_QUAGSIRE_THEME
+    bool "沼王主題"
+    default n
+    help
+        很讚
 endmenu

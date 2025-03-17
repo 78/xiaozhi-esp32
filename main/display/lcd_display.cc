@@ -183,6 +183,24 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+
+    background_ = lv_img_create(screen);
+    lv_img_set_antialias(background_, false);
+    lv_img_set_zoom(background_, (LV_HOR_RES * 256) / (quagsire_background.header.w) );
+    lv_img_set_src(background_, &quagsire_background);
+    lv_obj_align(background_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_border_width(background_, 0, 0);
+    
+    /* New Style */
+    auto textcolor = lv_color_make(0x9c, 0x8a, 0xaa);
+    static lv_style_t style_transparent_bg;
+    lv_style_init(&style_transparent_bg);
+    lv_style_set_bg_opa(&style_transparent_bg, LV_OPA_0); // 背景完全透明
+    lv_style_set_text_color(&style_transparent_bg,textcolor);
+    lv_style_set_border_width(&style_transparent_bg, 0);
+#endif
     /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
@@ -205,10 +223,25 @@ void LcdDisplay::SetupUI() {
 
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    lv_obj_add_style(container_, &style_transparent_bg, 0);
+    lv_obj_add_style(status_bar_, &style_transparent_bg, 0);
+    lv_obj_add_style(content_, &style_transparent_bg, 0);
+    /* Change to black color to prevent unclear display. */
+    lv_obj_set_style_text_color(status_bar_, lv_color_make(0x02, 0x06, 0x36), 0);
 
+    lv_obj_set_style_translate_y(content_, -25, 0); // move content up 25 pixel
+    lv_obj_set_style_translate_y(status_bar_, 10, 0); // move down status_bar_ 10 pixel
+
+    emotion_label_ = lv_img_create(content_);
+    lv_img_set_src(emotion_label_, &quagsire_neutral);
+    lv_obj_align(emotion_label_, LV_ALIGN_CENTER, 0, -50);
+    lv_obj_set_size(emotion_label_, 200, 200);
+#else
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+#endif
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
@@ -261,6 +294,20 @@ void LcdDisplay::SetupUI() {
 }
 
 void LcdDisplay::SetEmotion(const char* emotion) {
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    struct Emotion {
+        const lv_image_dsc_t* icon;
+        const char* text;
+    };
+    static const std::vector<Emotion> emotions = {
+        {&quagsire_neutral, "neutral"},
+        {&quagsire_happy, "happy"},
+        {&quagsire_laughing, "laughing"},
+        {&quagsire_laughing, "funny"},
+        {&quagsire_angry, "angry"},
+        {&quagsire_angry, "sad"},
+    };
+#else
     struct Emotion {
         const char* icon;
         const char* text;
@@ -289,7 +336,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         {"😜", "silly"},
         {"🙄", "confused"}
     };
-    
+#endif
     // 查找匹配的表情
     std::string_view emotion_view(emotion);
     auto it = std::find_if(emotions.begin(), emotions.end(),
@@ -299,7 +346,13 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     if (emotion_label_ == nullptr) {
         return;
     }
-
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    if (it != emotions.end()) {
+        lv_image_set_src(emotion_label_, it->icon);
+    } else {
+        lv_image_set_src(emotion_label_, &quagsire_neutral);
+    }
+#else
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     if (it != emotions.end()) {
@@ -307,6 +360,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     } else {
         lv_label_set_text(emotion_label_, "😶");
     }
+#endif
 }
 
 void LcdDisplay::SetIcon(const char* icon) {
@@ -314,6 +368,10 @@ void LcdDisplay::SetIcon(const char* icon) {
     if (emotion_label_ == nullptr) {
         return;
     }
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    lv_image_set_src(emotion_label_, &quagsire_neutral);
+#else
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, icon);
+#endif
 }
