@@ -127,7 +127,11 @@ private:
                                     {
                                         .text_font = &font_puhui_16_4,
                                         .icon_font = &font_awesome_16_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                        .emoji_font = font_emoji_32_init(),
+#else
                                         .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+#endif
                                     });
     }
 

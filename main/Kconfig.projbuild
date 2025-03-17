@@ -212,6 +212,12 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
+config USE_WECHAT_MESSAGE_STYLE
+    bool "使用微信聊天界面风格"
+    default n
+    help
+        使用微信聊天界面风格
+
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
     default y
