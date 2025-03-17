@@ -269,17 +269,17 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
+
 #define  MAX_MESSAGES 50
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
         return;
     }
-
+    
+    //避免出现空的消息框
     if(strlen(content) == 0) return;
-
-
-
+    
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
@@ -293,11 +293,8 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_label_set_text(msg_text, content);
     
     // 计算文本实际宽度
-#if CONFIG_SHOW_EMOJI_IN_MESSAGE     
-    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.emoji_font, 0);
-#else
     lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
-#endif
+
     // 计算气泡宽度
     lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
     lv_coord_t min_width = 20;  
@@ -318,11 +315,8 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // 设置消息文本的宽度
     lv_obj_set_width(msg_text, bubble_width);  // 减去padding
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
- #if CONFIG_SHOW_EMOJI_IN_MESSAGE  
-    lv_obj_set_style_text_font(msg_text, fonts_.emoji_font, 0);
- #else
     lv_obj_set_style_text_font(msg_text, fonts_.text_font, 0);
- #endif
+
     // 设置气泡宽度
     lv_obj_set_width(msg_bubble, bubble_width);
     lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
@@ -436,7 +430,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         }
     }
 }
-
 #else
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
