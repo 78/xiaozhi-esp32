@@ -64,17 +64,6 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x51, (uint8_t[]){0xFF}, 1, 0},
 };
 
-enum ExternalIO
-{
-    TPS_EN = 0,
-    VCC_DECT,
-    SD_EN = 3,
-    MIC_EN,
-    OLED_RST,
-    OLED_EN,
-    VFD_EN,
-};
-
 class CustomLcdDisplay : public QspiLcdDisplay, public Led,
 #if FORD_VFD_EN
                          public FORD_VFD
@@ -736,9 +725,10 @@ private:
     bmp280_handle_t bmp280 = NULL;
     rx8900_handle_t rx8900 = NULL;
     mpu6050_handle_t mpu6050 = NULL;
-
+#if ESP_DUAL_DISPLAY_V2
     PCF8574 *pcf8574 = NULL;
     INA3221 *ina3221 = NULL;
+#endif
 
     esp_timer_handle_t power_save_timer_ = nullptr;
     bool show_low_power_warning_ = false;
@@ -814,7 +804,16 @@ private:
         display_->Notification("  sleepy  ", 4000);
 #endif
         vTaskDelay(pdMS_TO_TICKS(4000));
-        mpu6050_sleep(mpu6050);
+#if ESP_DUAL_DISPLAY_V2
+        pcf8574->writeGpio(MIC_EN, 0);
+        pcf8574->writeGpio(OLED_EN, 0);
+        pcf8574->writeGpio(VFD_EN, 0);
+        pcf8574->writeGpio(SD_EN, 0);
+        pcf8574->writeGpio(TPS_PS, 0);
+#endif
+        bool active;
+        mpu6050_getMotionInterruptStatus(mpu6050, &active);
+        // mpu6050_sleep(mpu6050);
         display_->SetSleep(true);
         vTaskDelay(pdMS_TO_TICKS(100));
         if (PIN_NUM_VFD_EN != GPIO_NUM_NC)
@@ -837,6 +836,10 @@ private:
         i2c_bus_delete(&i2c_bus);
         rtc_gpio_pullup_en(TOUCH_INT_NUM);
         esp_sleep_enable_ext0_wakeup(TOUCH_INT_NUM, 0);
+#if ESP_DUAL_DISPLAY_V2
+        rtc_gpio_pullup_en(WAKE_INT_NUM);
+        esp_sleep_enable_ext0_wakeup(WAKE_INT_NUM, 0);
+#endif
         // rtc_gpio_pullup_en(TOUCH_BUTTON_GPIO);
         // esp_sleep_enable_ext0_wakeup(TOUCH_BUTTON_GPIO, 0);
         esp_deep_sleep_start();
@@ -855,6 +858,25 @@ private:
         };
         conf.master.clk_speed = 400000,
         i2c_bus = i2c_bus_create(IIC_MASTER_NUM, &conf);
+        if (i2c_bus == nullptr)
+            return;
+        uint8_t device_addresses[256];
+        uint8_t device_count;
+        device_count = i2c_bus_scan(i2c_bus, device_addresses, 255);
+
+        if (device_count > 0)
+        {
+            ESP_LOGI(TAG, "Found %d I2C devices:\n", device_count);
+            for (int i = 0; i < device_count; i++)
+            {
+                ESP_LOGI(TAG, "Device %d: Address 0x%02X\n", i + 1, device_addresses[i]);
+            }
+        }
+        else
+        {
+            ESP_LOGW(TAG, "No I2C devices found.\n");
+        }
+
         bmp280 = bmp280_create(i2c_bus, BMP280_I2C_ADDRESS_DEFAULT);
         esp_err_t ret = bmp280_default_init(bmp280);
         ESP_LOGI(TAG, "bmp280_default_init:%d", ret);
@@ -887,6 +909,7 @@ private:
         ESP_LOGI(TAG, "mpu6050_init:%d", mpu6050_init(mpu6050));
         mpu6050_enable_motiondetection(mpu6050, 1, 20);
 
+#if ESP_DUAL_DISPLAY_V2
         pcf8574 = new PCF8574(i2c_bus);
         ina3221 = new INA3221(i2c_bus);
         ESP_LOGD(TAG, "ina3221 begin: %d", ina3221->begin());
@@ -895,8 +918,9 @@ private:
         {
             voltage = ina3221->getBusVoltage(i);
             current = ina3221->getCurrent(i);
-            ESP_LOGI(TAG, "channel: %d, voltage: %.2f, current: %.2f", i, voltage, current);
+            ESP_LOGI(TAG, "channel: %d, voltage: %.2fv, current: %.2fa", i, voltage, current);
         }
+#endif
 
         xTaskCreate([](void *arg)
                     { sntp_set_time_sync_notification_cb([](struct timeval *t) {
@@ -931,8 +955,7 @@ private:
         vTaskDelete(NULL); }, "timesync", 4096, NULL, 4, nullptr);
     }
 
-    void
-    InitializeButtons()
+    void InitializeButtons()
     {
         // boot_button_.OnClick([this]()
         //                      {
@@ -996,6 +1019,11 @@ private:
             .flags = SPI_DEVICE_BIT_LSBFIRST,
             .queue_size = 7,
         };
+#endif
+#if ESP_DUAL_DISPLAY_V2
+        pcf8574->writeGpio(OLED_RST, 0);
+        vTaskDelay(pdMS_TO_TICKS(120));
+        pcf8574->writeGpio(OLED_RST, 1);
 #endif
 
         // Initialize the SPI bus with the specified configuration
@@ -1115,6 +1143,14 @@ private:
             gpio_set_direction(PIN_NUM_VFD_EN, GPIO_MODE_OUTPUT);
             gpio_set_level(PIN_NUM_VFD_EN, 1);
         }
+
+#if ESP_DUAL_DISPLAY_V2
+        pcf8574->writeGpio(TPS_PS, 1);
+        pcf8574->writeGpio(MIC_EN, 1);
+        pcf8574->writeGpio(OLED_EN, 1);
+        pcf8574->writeGpio(VFD_EN, 1);
+        pcf8574->writeGpio(SD_EN, 1);
+#endif
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -1135,11 +1171,11 @@ private:
         };
         ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 
-        adc_oneshot_chan_cfg_t bat_config = {
-            .atten = ADC_ATTEN_DB_12,
-            .bitwidth = ADC_BITWIDTH_12,
-        };
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, BAT_ADC_CHANNEL, &bat_config));
+        // adc_oneshot_chan_cfg_t bat_config = {
+        //     .atten = ADC_ATTEN_DB_12,
+        //     .bitwidth = ADC_BITWIDTH_12,
+        // };
+        // ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, BAT_ADC_CHANNEL, &bat_config));
 
         adc_oneshot_chan_cfg_t dimm_config = {
             .atten = ADC_ATTEN_DB_12,
@@ -1147,12 +1183,12 @@ private:
         };
         ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, DIMM_ADC_CHANNEL, &dimm_config));
 
-        adc_cali_curve_fitting_config_t bat_cali_config = {
-            .unit_id = ADC_UNIT,
-            .atten = ADC_ATTEN_DB_12,
-            .bitwidth = ADC_BITWIDTH_12,
-        };
-        ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&bat_cali_config, &bat_adc_cali_handle));
+        // adc_cali_curve_fitting_config_t bat_cali_config = {
+        //     .unit_id = ADC_UNIT,
+        //     .atten = ADC_ATTEN_DB_12,
+        //     .bitwidth = ADC_BITWIDTH_12,
+        // };
+        // ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&bat_cali_config, &bat_adc_cali_handle));
 
         adc_cali_curve_fitting_config_t dimm_cali_config = {
             .unit_id = ADC_UNIT,
@@ -1219,7 +1255,12 @@ public:
         InitializePowerSaveTimer();
         InitializeIot();
         GetWakeupCause();
-        // GetSdcard();
+
+#if ESP_DUAL_DISPLAY_V2
+        gpio_set_direction(PIN_NUM_VCC_DECT, GPIO_MODE_INPUT);
+        gpio_set_pull_mode(PIN_NUM_VCC_DECT, GPIO_FLOATING);
+        ESP_LOGI(TAG, "PIN_NUM_VCC_DECT: %d", gpio_get_level(PIN_NUM_VCC_DECT));
+#endif
     }
 
     virtual Led *GetLed() override
@@ -1274,7 +1315,6 @@ public:
 
     virtual Sdcard *GetSdcard() override
     {
-        // static Sdcard sd_card(PIN_NUM_SD_CS, PIN_NUM_SD_MOSI, PIN_NUM_SD_CLK, PIN_NUM_SD_MISO, SD_HOST);
         static Sdcard sd_card(PIN_NUM_SD_CMD, PIN_NUM_SD_CLK, PIN_NUM_SD_D0, PIN_NUM_SD_D1, PIN_NUM_SD_D2, PIN_NUM_SD_D3, PIN_NUM_SD_CDZ);
         return &sd_card;
     }
@@ -1302,6 +1342,10 @@ public:
         mpu6050_acce_value_t acce_value;
         mpu6050_gyro_value_t gyro_value;
         complimentary_angle_t complimentary_angle;
+
+        bool active = 0;
+        mpu6050_getMotionInterruptStatus(mpu6050, &active);
+        ESP_LOGD(TAG, "mpu6050_getMotionInterruptStatus: %d", active);
 
         auto ret = mpu6050_get_acce(mpu6050, &acce_value);
         if (ret != ESP_OK)
@@ -1366,85 +1410,139 @@ public:
 #define V4_UP 3100
 #define V4_DOWN 2900
 
-    virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override
+#if ESP_DUAL_DISPLAY
+virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override
+{
+    static int last_level = 0;
+    static bool last_charging = false;
+    int bat_adc_value;
+    int bat_v = 0;
+    ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
+    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
+    bat_v *= 2;
+    int new_level;
+    if (bat_v >= VCHARGE)
     {
-        static int last_level = 0;
-        static bool last_charging = false;
-        int bat_adc_value;
-        int bat_v = 0;
-        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BAT_ADC_CHANNEL, &bat_adc_value));
-        ESP_ERROR_CHECK(adc_cali_raw_to_voltage(bat_adc_cali_handle, bat_adc_value, &bat_v));
-        bat_v *= 2;
-        // testmpu();
-        // ESP_LOGI(TAG, "adc_value bat: %d, v: %d", bat_adc_value, bat_v);
-        bool active = false;
-        mpu6050_getMotionInterruptStatus(mpu6050, &active);
-        if (active)
-        {
-            ESP_LOGI(TAG, "mpu6050 int");
-        }
-        int new_level;
-        if (bat_v >= VCHARGE)
-        {
-            new_level = last_level;
-            charging = true;
-        }
-        else if (last_level >= 100 && bat_v >= V1_DOWN)
-        {
-            new_level = 100;
-            charging = false;
-        }
-        else if (last_level < 100 && bat_v >= V1_UP)
-        {
-            new_level = 100;
-            charging = false;
-        }
-        else if (last_level >= 75 && bat_v >= V2_DOWN)
-        {
-            new_level = 75;
-            charging = false;
-        }
-        else if (last_level < 75 && bat_v >= V2_UP)
-        {
-            new_level = 75;
-            charging = false;
-        }
-        else if (last_level >= 50 && bat_v >= V3_DOWN)
-        {
-            new_level = 50;
-            charging = false;
-        }
-        else if (last_level < 50 && bat_v >= V3_UP)
-        {
-            new_level = 50;
-            charging = false;
-        }
-        else if (last_level >= 25 && bat_v >= V4_DOWN)
-        {
-            new_level = 25;
-            charging = false;
-        }
-        else if (last_level < 25 && bat_v >= V4_UP)
-        {
-            new_level = 25;
-            charging = false;
-        }
-        else
-        {
-            new_level = 0;
-            charging = false;
-        }
-
-        level = new_level;
-        if (level != last_level || charging != last_charging)
-        {
-            last_level = level;
-            last_charging = charging;
-            // ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
-        }
-        discharging = !charging;
-        return true;
+        new_level = last_level;
+        charging = true;
     }
+    else if (last_level >= 100 && bat_v >= V1_DOWN)
+    {
+        new_level = 100;
+        charging = false;
+    }
+    else if (last_level < 100 && bat_v >= V1_UP)
+    {
+        new_level = 100;
+        charging = false;
+    }
+    else if (last_level >= 75 && bat_v >= V2_DOWN)
+    {
+        new_level = 75;
+        charging = false;
+    }
+    else if (last_level < 75 && bat_v >= V2_UP)
+    {
+        new_level = 75;
+        charging = false;
+    }
+    else if (last_level >= 50 && bat_v >= V3_DOWN)
+    {
+        new_level = 50;
+        charging = false;
+    }
+    else if (last_level < 50 && bat_v >= V3_UP)
+    {
+        new_level = 50;
+        charging = false;
+    }
+    else if (last_level >= 25 && bat_v >= V4_DOWN)
+    {
+        new_level = 25;
+        charging = false;
+    }
+    else if (last_level < 25 && bat_v >= V4_UP)
+    {
+        new_level = 25;
+        charging = false;
+    }
+    else
+    {
+        new_level = 0;
+        charging = false;
+    }
+
+    level = new_level;
+    if (level != last_level || charging != last_charging)
+    {
+        last_level = level;
+        last_charging = charging;
+        // ESP_LOGI(TAG, "Battery level: %d, charging: %d", level, charging);
+    }
+    discharging = !charging;
+    return true;
+}
+#elif ESP_DUAL_DISPLAY_V2
+virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override
+{
+    static int last_level = 0;
+    int bat_v = ina3221->getBusVoltage(BAT_PW);
+    int new_level;
+    if (last_level >= 100 && bat_v >= V1_DOWN)
+    {
+        new_level = 100;
+    }
+    else if (last_level < 100 && bat_v >= V1_UP)
+    {
+        new_level = 100;
+    }
+    else if (last_level >= 75 && bat_v >= V2_DOWN)
+    {
+        new_level = 75;
+    }
+    else if (last_level < 75 && bat_v >= V2_UP)
+    {
+        new_level = 75;
+    }
+    else if (last_level >= 50 && bat_v >= V3_DOWN)
+    {
+        new_level = 50;
+    }
+    else if (last_level < 50 && bat_v >= V3_UP)
+    {
+        new_level = 50;
+    }
+    else if (last_level >= 25 && bat_v >= V4_DOWN)
+    {
+        new_level = 25;
+    }
+    else if (last_level < 25 && bat_v >= V4_UP)
+    {
+        new_level = 25;
+    }
+    else
+    {
+        new_level = 0;
+    }
+    // testmpu();
+    level = new_level;
+    charging = gpio_get_level(PIN_NUM_VCC_DECT);
+    float crt = ina3221->getCurrent(BAT_PW);
+    if (crt > 0.01)
+        discharging = true;
+    else
+        discharging = false;
+
+    float voltage = 0.0f, current = 0.0f;
+    for (size_t i = 0; i < 3; i++)
+    {
+        voltage = ina3221->getBusVoltage(i);
+        current = ina3221->getCurrent(i);
+        ESP_LOGI(TAG, "channel: %s, voltage: %dmV, current: %dmA", DectectCHEnum[i], (int)(voltage * 1000), (int)(current * 1000));
+    }
+    return true;
+}
+#endif
 
     virtual bool CalibrateTime(struct tm *tm_info) override
     {

@@ -15,14 +15,17 @@ private:
     pcf8574_dev_t *pcf8574_handle_;
     uint8_t _gpio = 0;
 
+protected:
+    esp_err_t write(uint8_t pin, uint8_t value);
+    esp_err_t read(uint8_t pin, uint8_t &value);
     esp_err_t readGpio();
     esp_err_t writeGpio();
 
 public:
     PCF8574(i2c_bus_handle_t bus, uint8_t dev_addr = PCF8574_DEFAULT_ADDRESS);
 
-    esp_err_t write(uint8_t pin, uint8_t value);
-    esp_err_t read(uint8_t pin, uint8_t &value);
+    esp_err_t readGpio(int gpio, uint8_t &val);
+    esp_err_t writeGpio(int gpio, uint8_t val);
 };
 
 #endif

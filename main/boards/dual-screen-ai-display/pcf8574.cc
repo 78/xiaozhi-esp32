@@ -13,6 +13,19 @@ esp_err_t PCF8574::writeGpio()
 	return i2c_bus_write_byte(pcf8574_handle_->i2c_dev, NULL_I2C_MEM_ADDR, _gpio);
 }
 
+esp_err_t PCF8574::readGpio(int gpio, uint8_t &val)
+{
+	auto ret = i2c_bus_read_byte(pcf8574_handle_->i2c_dev, NULL_I2C_MEM_ADDR, &_gpio);
+	read(gpio, val);
+	return ret;
+}
+
+esp_err_t PCF8574::writeGpio(int gpio, uint8_t val)
+{
+	write(gpio, val);
+	return i2c_bus_write_byte(pcf8574_handle_->i2c_dev, NULL_I2C_MEM_ADDR, _gpio);
+}
+
 PCF8574::PCF8574(i2c_bus_handle_t bus, uint8_t dev_addr)
 {
 	pcf8574_dev_t *sens = (pcf8574_dev_t *)calloc(1, sizeof(pcf8574_dev_t));
