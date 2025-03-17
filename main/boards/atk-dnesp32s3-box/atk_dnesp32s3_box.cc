@@ -142,7 +142,7 @@ private:
 
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         esp_lcd_panel_set_gap(panel, 0, 0);
         uint8_t data0[] = {0x00};
         uint8_t data1[] = {0x65};
