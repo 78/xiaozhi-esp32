@@ -1,3 +1,5 @@
+#include "display/lv_display.h"
+#include "misc/lv_event.h"
 #include "wifi_board.h"
 #include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
@@ -54,8 +56,13 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            IoExpanderSetLevel(BSP_PWR_LCD, 0);
-            IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            bool is_charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
+            if (is_charging) {
+                ESP_LOGI(TAG, "charging");
+                GetBacklight()->SetBrightness(0);
+            } else {
+                IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            }
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -123,6 +130,13 @@ private:
                 .priv = this,
             },
         };
+        
+        //watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
+        ESP_LOGI(TAG, "waiting for knob button release");
+        while(IoExpanderGetLevel(BSP_KNOB_BTN) == 0) {
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+
         btns = iot_button_create(&btn_config);
         iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
             auto self = static_cast<SensecapWatcher*>(usr_data);
@@ -193,7 +207,7 @@ private:
         esp_lcd_panel_init(panel_);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel_, true);
-        
+
         display_ = new SpiLcdDisplay(panel_io_, panel_,
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
@@ -201,6 +215,23 @@ private:
                 .icon_font = &font_awesome_30_4,
                 .emoji_font = font_emoji_64_init(),
             });
+        
+        // 使每次刷新的行数是4的倍数，防止花屏
+        lv_display_add_event_cb(lv_display_get_default(), [](lv_event_t *e) {
+                lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
+                uint16_t x1 = area->x1;
+                uint16_t x2 = area->x2;
+                // round the start of area down to the nearest 4N number
+                area->x1 = (x1 >> 2) << 2;
+                // round the start of area down to the nearest 4N number
+                area->x1 = (x1 >> 2) << 2;
+              
+                // round the end of area up to the nearest 4M+3 number
+                area->x2 = ((x2 >> 2) << 2) + 3;
+                // round the end of area up to the nearest 4M+3 number
+                area->x2 = ((x2 >> 2) << 2) + 3;
+        }, LV_EVENT_INVALIDATE_AREA, NULL);
+        
     }
 
     // 物联网初始化，添加对 AI 可见设备
