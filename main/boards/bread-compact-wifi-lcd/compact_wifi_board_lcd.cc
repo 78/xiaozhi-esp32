@@ -155,6 +155,7 @@ private:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             thing_manager.AddThing(iot::CreateThing("Backlight"));
         }
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
