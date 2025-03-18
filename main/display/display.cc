@@ -104,6 +104,10 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
+void Display::UpdateBatteryPercentage(int percent) {
+    
+}
+
 void Display::Update() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
@@ -148,6 +152,8 @@ void Display::Update() {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
+
+        UpdateBatteryPercentage(battery_level);
 
         if (low_battery_popup_ != nullptr) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
