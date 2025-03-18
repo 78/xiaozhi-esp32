@@ -25,6 +25,8 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void SetIcon(const char* icon);
+    virtual void SetTheme(const std::string& theme_name){}
+    virtual std::string GetTheme() { return "light"; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
