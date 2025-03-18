@@ -218,6 +218,12 @@ config USE_WECHAT_MESSAGE_STYLE
     help
         使用微信聊天界面风格
 
+config USE_DARK_MODE
+    bool "使用深色模式"
+    default n
+    help
+        使用深色模式       
+
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
     default y
