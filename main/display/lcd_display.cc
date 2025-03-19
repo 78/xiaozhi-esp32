@@ -76,8 +76,6 @@ static const ThemeColors LIGHT_THEME = {
 
 // Current theme - initialize based on default config
 static ThemeColors current_theme = LIGHT_THEME;
-// Add theme name variable to track current theme
-static std::string current_theme_name = "light";
 
 
 LV_FONT_DECLARE(font_awesome_30_4);
@@ -144,17 +142,11 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    // Load theme from settings
-    Settings settings("display", false);
-    std::string theme = settings.GetString("theme", "");
-    if (!theme.empty()) {
-        if (theme == "dark") {
-            current_theme = DARK_THEME;
-            current_theme_name = "dark";
-        } else if (theme == "light") {
-            current_theme = LIGHT_THEME;
-            current_theme_name = "light";
-        }
+    // Update the theme
+    if (current_theme_name_ == "dark") {
+        current_theme = DARK_THEME;
+    } else if (current_theme_name_ == "light") {
+        current_theme = LIGHT_THEME;
     }
 
     SetupUI();
@@ -221,17 +213,11 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    // Load theme from settings
-    Settings settings("display", false);
-    std::string theme = settings.GetString("theme", "");
-    if (!theme.empty()) {
-        if (theme == "dark") {
-            current_theme = DARK_THEME;
-            current_theme_name = "dark";
-        } else if (theme == "light") {
-            current_theme = LIGHT_THEME;
-            current_theme_name = "light";
-        }
+    // Update the theme
+    if (current_theme_name_ == "dark") {
+        current_theme = DARK_THEME;
+    } else if (current_theme_name_ == "light") {
+        current_theme = LIGHT_THEME;
     }
 
     SetupUI();
@@ -731,21 +717,15 @@ void LcdDisplay::SetIcon(const char* icon) {
 void LcdDisplay::SetTheme(const std::string& theme_name) {
     DisplayLockGuard lock(this);
     
-    // Update the current theme based on the theme name
     if (theme_name == "dark" || theme_name == "DARK") {
         current_theme = DARK_THEME;
-        current_theme_name = "dark";
     } else if (theme_name == "light" || theme_name == "LIGHT") {
         current_theme = LIGHT_THEME;
-        current_theme_name = "light";
     } else {
         // Invalid theme name, return false
+        ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
         return;
     }
-    
-    // Save theme to settings
-    Settings settings("display", true);
-    settings.SetString("theme", current_theme_name);
     
     // Get the active screen
     lv_obj_t* screen = lv_screen_active();
@@ -922,17 +902,7 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     if (low_battery_popup_ != nullptr) {
         lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     }
-}
 
-std::string LcdDisplay::GetTheme() {
-    // First try to read from settings
-    Settings settings("display", false);
-    std::string theme = settings.GetString("theme", "light");
-    
-    // If theme is not set in settings, return the current theme
-    if (theme.empty()) {
-        return current_theme_name;
-    }
-    
-    return theme;
+    // No errors occurred. Save theme to settings
+    Display::SetTheme(theme_name);
 }
