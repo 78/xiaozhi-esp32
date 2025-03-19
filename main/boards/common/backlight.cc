@@ -78,7 +78,7 @@ PwmBacklight::PwmBacklight(gpio_num_t pin, bool output_invert) : Backlight() {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = LEDC_TIMER_0,
-        .freq_hz = 20000, //背光pwm频率需要高一点，防止电感啸叫
+        .freq_hz = 25000, //背光pwm频率需要高一点，防止电感啸叫
         .clk_cfg = LEDC_AUTO_CLK,
         .deconfigure = false
     };

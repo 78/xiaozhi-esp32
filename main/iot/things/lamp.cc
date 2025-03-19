@@ -12,7 +12,11 @@ namespace iot {
 // 这里仅定义 Lamp 的属性和方法，不包含具体的实现
 class Lamp : public Thing {
 private:
+#ifdef CONFIG_IDF_TARGET_ESP32
+    gpio_num_t gpio_num_ = GPIO_NUM_12;
+#else
     gpio_num_t gpio_num_ = GPIO_NUM_18;
+#endif
     bool power_ = false;
 
     void InitializeGpio() {
