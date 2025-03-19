@@ -1,11 +1,3 @@
-/*
- * @Author: waahah 3180800798@qq.com
- * @Date: 2025-03-20 02:22:10
- * @LastEditors: waahah 3180800798@qq.com
- * @LastEditTime: 2025-03-20 03:27:20
- * @FilePath: \xiaozhi-esp32\main\display\display.h
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
@@ -35,7 +27,6 @@ public:
     virtual void SetIcon(const char* icon);
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
-    virtual void UpdateBatteryPercentage(int percent);
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
