@@ -196,8 +196,8 @@ void BoxAudioCodecLite::EnableInput(bool enable) {
             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        // 不支持设置gain，暂时注释
-        // ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 40.0));
+        // 麦克风增益解决收音太小的问题
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 37.5)); 
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
