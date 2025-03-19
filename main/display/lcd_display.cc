@@ -284,7 +284,6 @@ void LcdDisplay::UpdateBatteryPercentage(int percent) {
             0);
         last_percent = percent; 
     }
-    vTaskDelay(pdMS_TO_TICKS(100));  
 }
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
@@ -650,7 +649,7 @@ void LcdDisplay::SetupUI() {
     percent_label_ = lv_label_create(status_bar_);  
     lv_label_set_text(percent_label_, "");     
     lv_obj_set_style_text_font(percent_label_, fonts_.text_font, 0); 
-    lv_obj_set_style_text_color(percent_label_, lv_color_hex(0x000000), 0); 
+    lv_obj_set_style_text_color(percent_label_, current_theme.text, 0); 
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
