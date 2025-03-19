@@ -219,7 +219,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
-    button_handle_t boot_btn,pwr_btn;
+    button_handle_t boot_btn, pwr_btn;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
