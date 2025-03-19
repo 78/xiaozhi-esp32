@@ -354,7 +354,7 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL);
-    }, "main_loop", 4096 * 2, this, 3, nullptr);
+    }, "main_loop", 4096 * 2, this, 4, nullptr);
 
     /* Wait for the network to be ready */
     board.StartNetwork();
