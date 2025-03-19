@@ -27,6 +27,7 @@ public:
     virtual void SetIcon(const char* icon);
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
+    virtual void UpdateBatteryPercentage(int percent);
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
