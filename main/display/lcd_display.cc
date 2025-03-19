@@ -464,7 +464,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
         
         // Add some margin
-        lv_obj_set_style_margin_left(msg_bubble, -3, 0);
+        lv_obj_set_style_margin_left(msg_bubble, -4, 0);
         
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
