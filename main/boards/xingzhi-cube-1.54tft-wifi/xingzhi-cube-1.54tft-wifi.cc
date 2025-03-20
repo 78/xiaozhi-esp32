@@ -20,7 +20,17 @@
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_20_4);
+#if (defined  zh_tw)
+    LV_FONT_DECLARE(font_lxgw_20_4_zh_tw);
+    #define FONT font_lxgw_20_4_zh_tw
+#elif (defined  ja_jp)
+    LV_FONT_DECLARE(font_noto_20_4_ja_jp);
+    #define FONT font_noto_20_4_ja_jp
+#else
+    LV_FONT_DECLARE(font_puhui_20_4_zh_cn);
+    #define FONT font_puhui_20_4_zh_cn
+#endif
+
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
@@ -157,7 +167,13 @@ private:
         display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
         {
-            .text_font = &font_puhui_20_4,
+            #if (defined  zh_tw)
+                .text_font = &font_lxgw_20_4_zh_tw,
+            #elif (defined  ja_jp)
+                .text_font = &font_noto_20_4_ja_jp,
+            #else
+                .text_font = &font_puhui_20_4_zh_cn,
+            #endif
             .icon_font = &font_awesome_20_4,
             .emoji_font = font_emoji_64_init(),
         });
