@@ -126,6 +126,10 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")  
+elseif(CONFIG_BOARD_TYPE_MAGAI_WIFI)
+    set(BOARD_TYPE "magai-wifi")
+elseif(CONFIG_BOARD_TYPE_MAGAI_ML307)
+    set(BOARD_TYPE "magai-ml307")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "magai-ml307",
+            "sdkconfig_append": []
+        }
+    ]
+}
