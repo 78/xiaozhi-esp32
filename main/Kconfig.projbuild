@@ -189,7 +189,9 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7735_128X128
         bool "ST7735, 分辨率128*128"
     config LCD_ST7796_320X480
-        bool "ST7796, 分辨率320*480"
+        bool "ST7796, 分辨率320*480 IPS"
+    config LCD_ST7796_320X480_NO_IPS
+        bool "ST7796, 分辨率320*480, 非IPS"    
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
