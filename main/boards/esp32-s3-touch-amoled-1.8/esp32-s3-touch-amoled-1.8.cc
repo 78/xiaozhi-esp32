@@ -38,6 +38,9 @@ public:
         WriteReg(0x90, 0x00);
         WriteReg(0x91, 0x00);
 
+        // Set DC1 to 3.3V
+        WriteReg(0x82, (3300 - 1500) / 100);
+
         // Set ALDO1 to 3.3V
         WriteReg(0x92, (3300 - 500) / 100);
 
@@ -64,8 +67,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x6F}, 4, 0},
     {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xBF}, 4, 0},
     {0x51, (uint8_t[]){0x00}, 1, 10},
-    {0x29, (uint8_t[]){0x00}, 0, 10},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 10}
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
@@ -101,6 +103,8 @@ protected:
     esp_lcd_panel_io_handle_t panel_io_;
 
     virtual void SetBrightnessImpl(uint8_t brightness) override {
+        auto display = Board::GetInstance().GetDisplay();
+        DisplayLockGuard lock(display);
         uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
         int lcd_cmd = 0x51;
         lcd_cmd &= 0xff;
@@ -127,7 +131,7 @@ private:
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
-            GetBacklight()->SetBrightness(10);
+            GetBacklight()->SetBrightness(20);
         });
         power_save_timer_->OnExitSleepMode([this]() {
             auto display = GetDisplay();
