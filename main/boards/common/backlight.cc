@@ -41,7 +41,6 @@ void Backlight::RestoreBrightness() {
     }
     
     SetBrightness(saved_brightness);
-    ESP_LOGI(TAG, "Restored brightness to %d", saved_brightness);
 }
 
 void Backlight::SetBrightness(uint8_t brightness, bool permanent) {
