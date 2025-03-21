@@ -29,7 +29,26 @@ LV_FONT_DECLARE(font_awesome_30_4);
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
-        // TODO: Configure the power management IC here...
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
+
+        // Disable All DCs but DC1
+        WriteReg(0x80, 0x01);
+        // Disable All LDOs
+        WriteReg(0x90, 0x00);
+        WriteReg(0x91, 0x00);
+
+        // Set ALDO1 to 3.3V
+        WriteReg(0x92, (3300 - 500) / 100);
+
+        // Enable ALDO1(MIC)
+        WriteReg(0x90, 0x01);
+    
+        WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+        
+        WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
+        WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
     }
 };
 
@@ -217,7 +236,6 @@ private:
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new CustomLcdDisplay(panel_io, panel,
