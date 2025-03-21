@@ -71,7 +71,7 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
         auto this_ = (WakeWordDetect*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 4096 * 2, this, 3, nullptr);
+    }, "audio_detection", 4096, this, 3, nullptr);
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
