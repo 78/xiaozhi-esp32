@@ -198,7 +198,7 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_NC;//酷世diy的korvo板子上cs引脚为GPIO46 官方korvo2 v3的lcd cs引脚由TCA9554的IO3控制 所以这里设置为GPIO_NUM_NC
+        io_config.cs_gpio_num = GPIO_NUM_46;
         io_config.dc_gpio_num = GPIO_NUM_2;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 60 * 1000 * 1000;
