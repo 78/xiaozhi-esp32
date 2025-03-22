@@ -6,7 +6,7 @@
 #define TAG "AHT20"
 
 AHT20::AHT20(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
-    : I2cDevice(i2c_bus, addr), _temperature(0.0f), _humidity(0.0f), _initialized(false) {}
+    : K10I2cDevice(i2c_bus, addr), _temperature(0.0f), _humidity(0.0f), _initialized(false) {}
 
 bool AHT20::begin() {
     if (_initialized) return true;

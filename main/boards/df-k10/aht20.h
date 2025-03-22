@@ -1,11 +1,11 @@
-#ifndef __AHT20_H__
-#define __AHT20_H__
+#ifndef MAIN_BOARDS_DF_K10_AHT20_H_
+#define MAIN_BOARDS_DF_K10_AHT20_H_
 
 #include <cstdint>
 #include <cstdbool>
-#include "i2c_device.h"
+#include "k10_i2c_device.h"
 
-class AHT20 : public I2cDevice {
+class AHT20 : public K10I2cDevice {
  public:
     explicit AHT20(i2c_master_bus_handle_t i2c_bus, uint8_t addr = 0x38);
     bool begin();
@@ -73,4 +73,4 @@ class AHT20 : public I2cDevice {
     bool _start_measurement(bool crc_en);
 };
 
-#endif  // __AHT20_H__
+#endif  // MAIN_BOARDS_DF_K10_AHT20_H_

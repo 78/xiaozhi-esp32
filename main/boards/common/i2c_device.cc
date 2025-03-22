@@ -33,22 +33,3 @@ uint8_t I2cDevice::ReadReg(uint8_t reg) {
 void I2cDevice::ReadRegs(uint8_t reg, uint8_t* buffer, size_t length) {
     ESP_ERROR_CHECK(i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, length, 100));
 }
-
-void I2cDevice::WriteValue(uint8_t value) {
-    uint8_t buffer[1] = {value};
-    ESP_ERROR_CHECK(i2c_master_transmit(i2c_device_, buffer, 1, 100));
-}
-
-void I2cDevice::WriteValues(uint8_t* buffer, size_t length) {
-    ESP_ERROR_CHECK(i2c_master_transmit(i2c_device_, buffer, length, 100));
-}
-
-uint8_t I2cDevice::ReadValue() {
-    uint8_t buffer[1];
-    ESP_ERROR_CHECK(i2c_master_receive(i2c_device_, buffer, 1, 100));
-    return buffer[0];
-}
-
-void I2cDevice::ReadValues(uint8_t* buffer, size_t length) {
-    ESP_ERROR_CHECK(i2c_master_receive(i2c_device_, buffer, length, 100));
-}

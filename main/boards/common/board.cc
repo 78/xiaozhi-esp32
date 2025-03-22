@@ -48,18 +48,6 @@ bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
     return false;
 }
 
-bool Board::GetTemperature(float *temperature) {
-    return false;
-}
-
-bool Board::GetHumidity(float *humidity) {
-    return false;
-}
-
-bool Board::GetLight(float *light) {
-    return false;
-}
-
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;

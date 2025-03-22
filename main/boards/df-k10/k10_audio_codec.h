@@ -1,5 +1,5 @@
-#ifndef _BOX_AUDIO_CODEC_H
-#define _BOX_AUDIO_CODEC_H
+#ifndef _K10_AUDIO_CODEC_H
+#define _K10_AUDIO_CODEC_H
 
 #include "audio_codec.h"
 
@@ -34,4 +34,4 @@ class K10AudioCodec : public AudioCodec {
     virtual void EnableOutput(bool enable) override;
 };
 
-#endif  // _BOX_AUDIO_CODEC_H
+#endif  // _K10_AUDIO_CODEC_H
