@@ -71,7 +71,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX
         bool "ESP BOX"
     config BOARD_TYPE_ESP_BOX_LITE
-        bool "ESP BOX Lite"        
+        bool "ESP BOX Lite"
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
@@ -90,6 +90,8 @@ choice BOARD_TYPE
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
+    config BOARD_TYPE_DFROBOT_ESP32_S3_AI_CAM
+        bool "DFRobot ESP32-S3 AI智能摄像头模块"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"
     config BOARD_TYPE_MAGICLICK_2P5
@@ -191,7 +193,7 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7796_320X480
         bool "ST7796, 分辨率320*480 IPS"
     config LCD_ST7796_320X480_NO_IPS
-        bool "ST7796, 分辨率320*480, 非IPS"    
+        bool "ST7796, 分辨率320*480, 非IPS"
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
@@ -218,7 +220,7 @@ config USE_WECHAT_MESSAGE_STYLE
     bool "使用微信聊天界面风格"
     default n
     help
-        使用微信聊天界面风格   
+        使用微信聊天界面风格
 
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
