@@ -1,3 +1,5 @@
+#include "display/lv_display.h"
+#include "misc/lv_event.h"
 #include "wifi_board.h"
 #include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
@@ -5,6 +7,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "power_save_timer.h"
 
@@ -205,7 +208,7 @@ private:
         esp_lcd_panel_init(panel_);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel_, true);
-        
+
         display_ = new SpiLcdDisplay(panel_io_, panel_,
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
@@ -213,13 +216,30 @@ private:
                 .icon_font = &font_awesome_30_4,
                 .emoji_font = font_emoji_64_init(),
             });
+        
+        // 使每次刷新的行数是4的倍数，防止花屏
+        lv_display_add_event_cb(lv_display_get_default(), [](lv_event_t *e) {
+                lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
+                uint16_t x1 = area->x1;
+                uint16_t x2 = area->x2;
+                // round the start of area down to the nearest 4N number
+                area->x1 = (x1 >> 2) << 2;
+                // round the start of area down to the nearest 4N number
+                area->x1 = (x1 >> 2) << 2;
+              
+                // round the end of area up to the nearest 4M+3 number
+                area->x2 = ((x2 >> 2) << 2) + 3;
+                // round the end of area up to the nearest 4M+3 number
+                area->x2 = ((x2 >> 2) << 2) + 3;
+        }, LV_EVENT_INVALIDATE_AREA, NULL);
+        
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
@@ -259,6 +279,14 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    // 根据 https://github.com/Seeed-Studio/OSHW-SenseCAP-Watcher/blob/main/Hardware/SenseCAP_Watcher_v1.0_SCH.pdf
+    // RGB LED型号为 ws2813 mini, 连接在GPIO 40，供电电压 3.3v, 没有连接 BIN 双信号线
+    // 可以直接兼容SingleLED采用的ws2812
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual void SetPowerSaveMode(bool enabled) override {
