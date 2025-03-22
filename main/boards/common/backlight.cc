@@ -36,7 +36,7 @@ void Backlight::RestoreBrightness() {
     
     // 检查亮度值是否为0或过小，设置默认值
     if (saved_brightness <= 0) {
-        ESP_LOGW(TAG, "Invalid brightness value (%d), setting to default", saved_brightness);
+        ESP_LOGW(TAG, "Brightness value (%d) is too small, setting to default (10)", saved_brightness);
         saved_brightness = 10;  // 设置一个较低的默认值
     }
     
