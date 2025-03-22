@@ -148,6 +148,10 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_MAGAI_WIFI
+        bool "magai-wifi"
+    config BOARD_TYPE_MAGAI_ML307
+        bool "magai-ml307"
 endchoice
 
 choice DISPLAY_OLED_TYPE
