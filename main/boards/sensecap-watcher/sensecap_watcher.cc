@@ -7,6 +7,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "power_save_timer.h"
 
@@ -238,7 +239,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
@@ -278,6 +279,14 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    // 根据 https://github.com/Seeed-Studio/OSHW-SenseCAP-Watcher/blob/main/Hardware/SenseCAP_Watcher_v1.0_SCH.pdf
+    // RGB LED型号为 ws2813 mini, 连接在GPIO 40，供电电压 3.3v, 没有连接 BIN 双信号线
+    // 可以直接兼容SingleLED采用的ws2812
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual void SetPowerSaveMode(bool enabled) override {

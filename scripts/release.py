@@ -72,7 +72,7 @@ def release(board_type, board_config):
 
     # Print Project Version
     project_version = get_project_version()
-    print(f"Project Version: {project_version}")
+    print(f"Project Version: {project_version}", config_path)
     release_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(release_path):
         print(f"跳过 {board_type} 因为 {release_path} 已存在")
