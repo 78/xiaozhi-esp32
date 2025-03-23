@@ -32,7 +32,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
-
+    
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
@@ -188,8 +188,8 @@ void LcdDisplay::SetupUI() {
 
     background_ = lv_img_create(screen);
     lv_img_set_antialias(background_, false);
-    lv_img_set_zoom(background_, (LV_HOR_RES * 256) / (quagsire_background.header.w) );
-    lv_img_set_src(background_, &quagsire_background);
+    lv_img_set_zoom(background_, LV_HOR_RES * 2.56);
+    lv_img_set_src(background_, &background);
     lv_obj_align(background_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_border_width(background_, 0, 0);
     
@@ -234,7 +234,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_translate_y(status_bar_, 10, 0); // move down status_bar_ 10 pixel
 
     emotion_label_ = lv_img_create(content_);
-    lv_img_set_src(emotion_label_, &quagsire_neutral);
+    lv_img_set_src(emotion_label_, &neutral);
     lv_obj_align(emotion_label_, LV_ALIGN_CENTER, 0, -50);
     lv_obj_set_size(emotion_label_, 200, 200);
 #else
@@ -300,12 +300,22 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         const char* text;
     };
     static const std::vector<Emotion> emotions = {
-        {&quagsire_neutral, "neutral"},
-        {&quagsire_happy, "happy"},
-        {&quagsire_laughing, "laughing"},
-        {&quagsire_laughing, "funny"},
-        {&quagsire_angry, "angry"},
-        {&quagsire_angry, "sad"},
+        {&neutral, "neutral"},
+        {&happy, "happy"},
+        {&laughing, "laughing"},
+        {&funny, "funny"},
+        {&sad, "sad"},
+        {&angry, "angry"},
+        {&crying, "crying"},
+        {&loving, "loving"},
+        {&embarrassed, "embarrassed"},
+        {&surprised, "surprised"},
+        {&shocked, "shocked"},
+        {&thinking, "thinking"},
+        {&relaxed, "relaxed"},
+        {&delicious, "delicious"},
+        {&sleepy, "sleepy"},
+        {&confused, "confused"}
     };
 #else
     struct Emotion {
@@ -350,7 +360,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     if (it != emotions.end()) {
         lv_image_set_src(emotion_label_, it->icon);
     } else {
-        lv_image_set_src(emotion_label_, &quagsire_neutral);
+        lv_image_set_src(emotion_label_, &neutral);
     }
 #else
     // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
@@ -369,7 +379,7 @@ void LcdDisplay::SetIcon(const char* icon) {
         return;
     }
 #ifdef CONFIG_USE_QUAGSIRE_THEME
-    lv_image_set_src(emotion_label_, &quagsire_neutral);
+    lv_image_set_src(emotion_label_, &neutral);
 #else
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, icon);

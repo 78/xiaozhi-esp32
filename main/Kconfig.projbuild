@@ -227,8 +227,9 @@ config USE_WAKE_WORD_DETECT
         需要 ESP32 S3 与 AFE 支持
 
 config USE_QUAGSIRE_THEME
-    bool "沼王主題"
+    bool "Quagsire Theme"
     default n
     help
-        很讚
+        Best theme ever!
+
 endmenu

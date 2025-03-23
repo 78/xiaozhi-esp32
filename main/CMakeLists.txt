@@ -145,10 +145,6 @@ endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
-if(CONFIG_USE_QUAGSIRE_THEME)
-    file(GLOB QUAGSIRE_SOURCES "display/quagsire/*.c")
-    list(APPEND SOURCES ${QUAGSIRE_SOURCES})
-endif()
 
 # 根据Kconfig选择语言目录
 if(CONFIG_LANGUAGE_ZH_CN)
@@ -206,3 +202,9 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_USE_QUAGSIRE_THEME)
+    #lvgl_port_create_c_image("assets/theme/quagsire/thinking.png" "assets/theme/quagsire/gen/" "I4" "NONE")
+    #lvgl_port_create_c_image("assets/theme/quagsire/background.png" "assets/theme/quagsire/gen/" "RGB565" "NONE")
+    lvgl_port_add_images(${COMPONENT_LIB} "assets/theme/quagsire/gen/")
+endif()
