@@ -2,13 +2,13 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "molunsmarthome-esp32s3",
+            "name": "MolunSmartHome-ESP32S3-128x64",
             "sdkconfig_append": [
                 "CONFIG_OLED_SSD1306_128X64=y"
             ]
         },
         {
-            "name": "molunsmarthome-esp32s3-128x32",
+            "name": "MolunSmartHome-ESP32S3-128x32",
             "sdkconfig_append": [
                 "CONFIG_OLED_SSD1306_128X32=y"
             ]
