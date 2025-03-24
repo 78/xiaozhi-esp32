@@ -29,7 +29,29 @@ LV_FONT_DECLARE(font_awesome_30_4);
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
-        // TODO: Configure the power management IC here...
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
+
+        // Disable All DCs but DC1
+        WriteReg(0x80, 0x01);
+        // Disable All LDOs
+        WriteReg(0x90, 0x00);
+        WriteReg(0x91, 0x00);
+
+        // Set DC1 to 3.3V
+        WriteReg(0x82, (3300 - 1500) / 100);
+
+        // Set ALDO1 to 3.3V
+        WriteReg(0x92, (3300 - 500) / 100);
+
+        // Enable ALDO1(MIC)
+        WriteReg(0x90, 0x01);
+    
+        WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+        
+        WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
+        WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
     }
 };
 
@@ -45,8 +67,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x6F}, 4, 0},
     {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xBF}, 4, 0},
     {0x51, (uint8_t[]){0x00}, 1, 10},
-    {0x29, (uint8_t[]){0x00}, 0, 10},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 10}
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
@@ -82,6 +103,8 @@ protected:
     esp_lcd_panel_io_handle_t panel_io_;
 
     virtual void SetBrightnessImpl(uint8_t brightness) override {
+        auto display = Board::GetInstance().GetDisplay();
+        DisplayLockGuard lock(display);
         uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
         int lcd_cmd = 0x51;
         lcd_cmd &= 0xff;
@@ -108,7 +131,7 @@ private:
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
-            GetBacklight()->SetBrightness(10);
+            GetBacklight()->SetBrightness(20);
         });
         power_save_timer_->OnExitSleepMode([this]() {
             auto display = GetDisplay();
@@ -217,7 +240,6 @@ private:
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new CustomLcdDisplay(panel_io, panel,
@@ -230,9 +252,9 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("BoardControl"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+        thing_manager.AddThing(iot::CreateThing("BoardControl"));
     }
 
 public:
