@@ -123,8 +123,6 @@ private:
         int current_volume = codec->output_volume();
         int new_volume = current_volume + (clockwise ? 5 : -5);
 
-        ESP_LOGI(TAG, "OnKnobRotate %s, Current volume: %d", clockwise ? "clockwise":"unclockwise", current_volume);
-
         // 确保音量在有效范围内
         if (new_volume > 100) {
             new_volume = 100;
@@ -134,7 +132,6 @@ private:
             ESP_LOGW(TAG, "Volume reached minimum limit: %d", new_volume);
         }
 
-        // 强制设置钳制后的音量值
         codec->SetOutputVolume(new_volume);
         ESP_LOGI(TAG, "Volume changed from %d to %d", current_volume, new_volume);
         
