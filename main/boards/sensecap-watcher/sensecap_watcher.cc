@@ -6,6 +6,7 @@
 #include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
+#include "knob.h"
 #include "config.h"
 #include "led/single_led.h"
 #include "iot/thing_manager.h"
@@ -21,6 +22,7 @@
 #include <driver/spi_common.h>
 #include <wifi_station.h>
 #include <iot_button.h>
+#include <iot_knob.h>
 #include <esp_io_expander_tca95xx_16bit.h>
 #include <esp_sleep.h>
 
@@ -34,6 +36,7 @@ class SensecapWatcher : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
+    std::unique_ptr<Knob> knob_;
     esp_io_expander_handle_t io_exp_handle;
     button_handle_t btns;
     PowerSaveTimer* power_save_timer_;
@@ -113,6 +116,41 @@ private:
         ESP_LOGI(TAG, "IO expander initialized: %x", DRV_IO_EXP_OUTPUT_MASK | (uint16_t)pin_val);
     
         assert(ret == ESP_OK);
+    }
+
+    void OnKnobRotate(bool clockwise) {
+        auto codec = GetAudioCodec();
+        int current_volume = codec->output_volume();
+        int new_volume = current_volume + (clockwise ? 5 : -5);
+
+        // 确保音量在有效范围内
+        if (new_volume > 100) {
+            new_volume = 100;
+            ESP_LOGW(TAG, "Volume reached maximum limit: %d", new_volume);
+        } else if (new_volume < 0) {
+            new_volume = 0;
+            ESP_LOGW(TAG, "Volume reached minimum limit: %d", new_volume);
+        }
+
+        codec->SetOutputVolume(new_volume);
+        ESP_LOGI(TAG, "Volume changed from %d to %d", current_volume, new_volume);
+        
+        // 显示通知前检查实际变化
+        if (new_volume != codec->output_volume()) {
+            ESP_LOGE(TAG, "Failed to set volume! Expected:%d Actual:%d", 
+                   new_volume, codec->output_volume());
+        }
+        GetDisplay()->ShowNotification("音量: " + std::to_string(codec->output_volume()));
+        power_save_timer_->WakeUp();
+    }
+
+    void InitializeKnob() {
+        knob_ = std::make_unique<Knob>(BSP_KNOB_A_PIN, BSP_KNOB_B_PIN);
+        knob_->OnRotate([this](bool clockwise) {
+            ESP_LOGD(TAG, "Knob rotation detected. Clockwise:%s", clockwise ? "true" : "false");
+            OnKnobRotate(clockwise);
+        });
+        ESP_LOGI(TAG, "Knob initialized with pins A:%d B:%d", BSP_KNOB_A_PIN, BSP_KNOB_B_PIN);
     }
 
     void InitializeButton() {
@@ -250,6 +288,7 @@ public:
         InitializeSpi();
         InitializeExpander();
         InitializeButton();
+        InitializeKnob();
         Initializespd2010Display();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
