@@ -11,11 +11,11 @@ otto 机器人是一个开源的人形机器人平台，具有多种动作能力
 - <a href="www.ottodiy.com" target="_blank" title="otto官网">otto官网</a>
 
 ## 硬件
-- <a href=" https://oshwhub.com/txp666/otto_esp32s3" target="_blank" title="立创开源">立创开源</a>
+- <a href="https://oshwhub.com/txp666/ottorobot" target="_blank" title="立创开源">立创开源</a>
 
 | 组件        | 购买链接                                      |
 |------------|----------------------------------------------|
-| 主控板       | [ESP32-S3-WROOM-1U-N16R8](https://item.taobao.com/item.htm?_u=o20q7cgbd495&id=701702373214&pisk=gcV7_CZtb3xS4-GpRYbqlNUeMRGQNZ5N9egLSydyJbh-dBUzf2RELT0BOmaOr0WhEkwbvoDr2DkEO2ZZmzRFrz7COyUt2Xyr42E4Aovz4WoU06agfYRzJW8unlz9a7WoTBGotXINb15akzcn96J1JcKkH2gGT2n-ybcvb0TPB15arrTryNzA_7l5Fs3ypBEKex3xzm3-vQ3Rlj3ryXd-pQpvDmmx94Hpejdx-2xJ2kd8kj3tJ2dJw0HxMVmxvXHJeZaxm2GKvb2D526Sqz_-_Oz8mhZLymOp97CnFc1ZDq0bG1H-bzFWxHYnPYiTymsMjm6jHyDQteAIdzegxVEJ2GkuJ-ZjPX12efUbplg0w1-So8zYxmU6RC4-N2Mt9xTp9rG8nxFr61Kjo-Uzp7qWRB3ua5kIjx_ptvlY_AeTVebgkb3LxAVFjQm8JPVgQf12efUbplwC4hdZf4TXdEMMOqiNlZ9HK9vRfBsRT8Xteq0S3Z_X2JD-oqiNlZt8KY3mPm7fl3eh.&spm=a1z09.2.0.0.18762e8dduCKjA) |
+| 主控       | [ESP32-S3-WROOM-1U-N16R8](https://item.taobao.com/item.htm?_u=o20q7cgbd495&id=701702373214&pisk=gcV7_CZtb3xS4-GpRYbqlNUeMRGQNZ5N9egLSydyJbh-dBUzf2RELT0BOmaOr0WhEkwbvoDr2DkEO2ZZmzRFrz7COyUt2Xyr42E4Aovz4WoU06agfYRzJW8unlz9a7WoTBGotXINb15akzcn96J1JcKkH2gGT2n-ybcvb0TPB15arrTryNzA_7l5Fs3ypBEKex3xzm3-vQ3Rlj3ryXd-pQpvDmmx94Hpejdx-2xJ2kd8kj3tJ2dJw0HxMVmxvXHJeZaxm2GKvb2D526Sqz_-_Oz8mhZLymOp97CnFc1ZDq0bG1H-bzFWxHYnPYiTymsMjm6jHyDQteAIdzegxVEJ2GkuJ-ZjPX12efUbplg0w1-So8zYxmU6RC4-N2Mt9xTp9rG8nxFr61Kjo-Uzp7qWRB3ua5kIjx_ptvlY_AeTVebgkb3LxAVFjQm8JPVgQf12efUbplwC4hdZf4TXdEMMOqiNlZ9HK9vRfBsRT8Xteq0S3Z_X2JD-oqiNlZt8KY3mPm7fl3eh.&spm=a1z09.2.0.0.18762e8dduCKjA) |
 | 舵机        | SG90舵机180°|
 | 电池        | [103450/2000毫安](https://detail.tmall.com/item.htm?_u=o20q7cgb7e8f&id=638394813102&pisk=gmVY_nVItgjcuvNxrrWkspWZJd7uHT44zozBscmDCuE8XyL0nAmiCfEUvAOG3jDt6uiuim4mGVM_jkwmc-mM65EzDIAiGlftfyyP7m00iF3_Fodgnrm0eFh4Z-AimilT5kcOxMfhtrzq7fshxh0pU2GIJIg6jctWVf0TEr9DRrzq_cTkf927uhKwDgYs5c_-NV3BlfMj13OS4V0XClijF3gK8fG_fxM5NV0KfIOXGapS5qOXlcOsN0gi5VGs1lG7P0us1qZs1bydX0TjjCeCgin7S1XyTBP-kxn9s0dTjSOnFDtKVCdtDjDvnriJ1CN8E-FBFm6erclm0rgYb6RqGAeUSVEAMIZT87r-Pk19tmaz-JD4G6JZpjirBSGp5sa-MmHQMo8Xika85JD8Zw1EMjibIjzMJi48Mo44wPY6Fjh0evFxO6-jj84L6VFNb_EL87r-Pk1OcglLtWeELHmKSK_RydJZh47H6DdMx_E_P4nhk1pwQY7ryDbRydJZUau-xZQ9QdkPz&spm=a1z09.2.0.0.18762e8dduCKjA) |
 | 喇叭        | [2030腔体-4Ω3W](https://item.taobao.com/item.htm?_u=o20q7cgbc715&id=684864879619&pisk=g-vbshYd8r4bbNBTfsmPVDKaeB66G0kEBls9xhe4XtBA1RK2RGyN_jj_CatKmZliiFOWWUfVkN5NCGTFrnyZmnosChKdkORVuGLy5UV2ud7wzAtHRsy2XdrDZe-L3KlcQR6cIO3E8vke2nXGBAPIXwU0wMInQ5BOktX88ZZq9vkem3ZVDD--LKWjG4Ib6RLOM_IR0aIAW-IxV_IGvOeA6-F8yabRBiCTMTeRjG4YkFIT2gIcYRUTHSFRei7RWOQvW3n5baQtZYECfj_DcmBETnLoay-VPRe9Fg3GJnwUQg9PcHQBDKaU8cjfGwKAP24hPb1Jj19gjR16DBYGvEUx8sx9NUsfCYPAp3O9RgvxLrskg3LGyHZ_KnBff6BONle9VtdlwKWKpzskwnR9nEZ_Biv2L1_hNceG_TpF9BLbjDxRHGLGtdu3nZK9xpAFdYPAp3O9RCsPDJ7CcuN_V621VwoSV5VisS3QCqHwiXCAqi1rV0avssIlVwoSVrdGMgjfz0i7kCf..&spm=a1z09.2.0.0.18762e8dduCKjA) |
@@ -27,7 +27,7 @@ otto 机器人是一个开源的人形机器人平台，具有多种动作能力
 | 麦克风        | [INMP441](https://item.taobao.com/item.htm?abbucket=13&id=630204400000&ns=1&pisk=gpMiUbjuQfP_sGLL9vw6wTezSSddLRwb1qBYk-U2TyzCBSzv1qVmk2NqBRnt-ru-ooHtHxcCn0ijBhwvfRi_h-8JyLeqfcwXKR-Szx2U8uEDHOWa0RwU_MtppLp-fDjTb3neeAegQtZOgtu4_WrUfyrN3rz2xWr80-WagO5F8yaU3ozV_kyU0uEauruVTyrbDrW4u-oEYoZ43ru43HmURoe4ubqC3zDqdv8FOdoSOqTjLlVgzczZXcHFp5CsfyfAGvc3jzJ8-tWqKloKzaEPEIUrNPF8z2JdI-mUmVUKzLW3L7cSDo0MIOytTXM_BvLlk5007SH3tN5aqR4gaAPeeHnQgXD3BA8fNDn3772K9BTTMR0iNzNwOegmxP3qIW7MJrh-vAPnzeBnlScSDo0MIOuP4M1FaBS1hk-xLs1b_kZ3yuCmfO8ZOczyxHfW15rQXUKHxs1b_kZ9yHxhNNNaAlLR.&priceTId=2147840117427949199974875e13de&spm=a21n57.1.hoverItem.5&utparam=%7B%22aplus_abtest%22%3A%22e67127b4d7e13c7260e3a29fcc711cac%22%7D&xxc=taobaoSearch) |
 
 
-注：以上链接仅供参考，您可以根据自己的需求在各大电商平台搜索相应组件。完整套件也可在Otto官网或淘宝/阿里巴巴搜索"Otto机器人套件"购买。
+注：以上链接仅供参考。
 
 ## 功能概述
 
