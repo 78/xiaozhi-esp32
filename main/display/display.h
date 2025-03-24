@@ -45,6 +45,8 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void SetIcon(const char* icon);
+    virtual void SetTheme(const std::string& theme_name);
+    virtual std::string GetTheme() { return current_theme_name_; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -68,6 +70,7 @@ protected:
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
+    std::string current_theme_name_;
 
     esp_timer_handle_t notification_timer_ = nullptr;
     esp_timer_handle_t update_timer_ = nullptr;
