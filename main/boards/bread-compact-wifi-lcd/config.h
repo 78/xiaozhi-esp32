@@ -7,16 +7,16 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 // 如果使用 Duplex I2S 模式，请注释下面一行
-#define AUDIO_I2S_METHOD_SIMPLEX
+#define AUDIO_I2S_METHOD_SIMPLEX  // 定义 I2S 单工模式（单向传输，仅支持单向数据流）
 
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
 
-#define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_4
-#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_5
-#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_6
-#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7
-#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15
-#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
+#define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_11  // 麦克风的 WS（字选择）引脚，用于同步声道
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_13  // 麦克风的 SCK（时钟）引脚，用于数据传输的时钟信号
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_12  // 麦克风的 DIN（数据输入）引脚，用于接收音频数据
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_18   // 扬声器的 DOUT（数据输出）引脚，用于发送音频数据
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_17   // 扬声器的 BCLK（位时钟）引脚，用于同步数据传输
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16   // 扬声器的 LRCK（左右声道时钟）引脚，用于区分左右声道
 
 #else
 
@@ -28,19 +28,20 @@
 #endif
 
 
-#define BUILTIN_LED_GPIO        GPIO_NUM_48
-#define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
-#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
-#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+#define BUILTIN_LED_GPIO        GPIO_NUM_48  // 板载 LED 引脚，用于状态指示
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0   // BOOT 按钮引脚，通常用于复位或进入下载模式
+#define MODE_BUTTON_GPIO        GPIO_NUM_9   // Mode按钮引脚
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC  // 触摸按钮引脚（未连接，NC 表示未使用）
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_14  // 音量增加按钮引脚
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_46  // 音量减少按钮引脚
 
 
-#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
-#define DISPLAY_MOSI_PIN      GPIO_NUM_47
-#define DISPLAY_CLK_PIN       GPIO_NUM_21
-#define DISPLAY_DC_PIN        GPIO_NUM_40
-#define DISPLAY_RST_PIN       GPIO_NUM_45
-#define DISPLAY_CS_PIN        GPIO_NUM_41
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_4    // 显示屏背光控制引脚
+#define DISPLAY_MOSI_PIN      GPIO_NUM_7    // 显示屏 MOSI（主出从入）引脚，用于数据传输
+#define DISPLAY_CLK_PIN       GPIO_NUM_15   // 显示屏时钟引脚，用于同步数据传输
+#define DISPLAY_DC_PIN        GPIO_NUM_5    // 显示屏数据/命令选择引脚
+#define DISPLAY_RST_PIN       GPIO_NUM_6    // 显示屏复位引脚
+#define DISPLAY_CS_PIN        GPIO_NUM_NC    // 显示屏片选引脚（未连接，NC 表示未使用）
 
 
 #ifdef CONFIG_LCD_ST7789_240X320
@@ -135,17 +136,17 @@
 
 #ifdef CONFIG_LCD_ST7789_240X240_7PIN
 #define LCD_TYPE_ST7789_SERIAL
-#define DISPLAY_WIDTH   240
-#define DISPLAY_HEIGHT  240
-#define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY false
-#define DISPLAY_INVERT_COLOR    true
-#define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_RGB
-#define DISPLAY_OFFSET_X  0
-#define DISPLAY_OFFSET_Y  0
-#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
-#define DISPLAY_SPI_MODE 2
+#define DISPLAY_WIDTH   240                  // 显示屏宽度（像素）
+#define DISPLAY_HEIGHT  240                  // 显示屏高度（像素）
+#define DISPLAY_MIRROR_X false               // 是否水平镜像显示（false 表示不镜像）
+#define DISPLAY_MIRROR_Y true                // 是否垂直镜像显示（true 表示镜像）
+#define DISPLAY_SWAP_XY true                 // 是否交换 X 和 Y 轴（true 表示交换）
+#define DISPLAY_INVERT_COLOR    true         // 是否反转颜色（true 表示反转）
+#define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_RGB  // RGB 颜色顺序（RGB 表示红绿蓝顺序）
+#define DISPLAY_OFFSET_X  80                 // 显示屏 X 轴偏移量（像素）
+#define DISPLAY_OFFSET_Y  0                  // 显示屏 Y 轴偏移量（像素）
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false // 背光输出是否反转（false 表示不反转）
+#define DISPLAY_SPI_MODE 3
 #endif
 
 #ifdef CONFIG_LCD_ST7789_240X135
