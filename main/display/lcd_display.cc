@@ -266,24 +266,6 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme.background, 0);
 
-#ifdef CONFIG_USE_QUAGSIRE_THEME
-    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
-
-    background_ = lv_img_create(screen);
-    lv_img_set_antialias(background_, false);
-    lv_img_set_zoom(background_, LV_HOR_RES * 2.56);
-    lv_img_set_src(background_, &background);
-    lv_obj_align(background_, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_border_width(background_, 0, 0);
-    
-    /* New Style */
-    auto textcolor = lv_color_make(0x9c, 0x8a, 0xaa);
-    static lv_style_t style_transparent_bg;
-    lv_style_init(&style_transparent_bg);
-    lv_style_set_bg_opa(&style_transparent_bg, LV_OPA_0); // 背景完全透明
-    lv_style_set_text_color(&style_transparent_bg,textcolor);
-    lv_style_set_border_width(&style_transparent_bg, 0);
-#endif
     /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
@@ -562,6 +544,24 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme.background, 0);
 
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+
+    background_ = lv_img_create(screen);
+    lv_img_set_antialias(background_, false);
+    lv_img_set_zoom(background_, LV_HOR_RES * 2.56);
+    lv_img_set_src(background_, &background);
+    lv_obj_align(background_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_border_width(background_, 0, 0);
+    
+    /* New Style */
+    auto textcolor = lv_color_make(0x9c, 0x8a, 0xaa);
+    static lv_style_t style_transparent_bg;
+    lv_style_init(&style_transparent_bg);
+    lv_style_set_bg_opa(&style_transparent_bg, LV_OPA_0); // 背景完全透明
+    lv_style_set_text_color(&style_transparent_bg,textcolor);
+    lv_style_set_border_width(&style_transparent_bg, 0);
+#endif
     /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
