@@ -1,0 +1,51 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+// AtomS3R M12+EchoBase Board configuration
+
+#include <driver/gpio.h>
+
+#define AUDIO_INPUT_REFERENCE    true
+#define AUDIO_INPUT_SAMPLE_RATE  24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_NC
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_6
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_8
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_7
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_5
+
+#define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_38
+#define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_39
+#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
+#define AUDIO_CODEC_GPIO_PA      GPIO_NUM_NC
+
+#define BUILTIN_LED_GPIO        GPIO_NUM_NC
+#define BOOT_BUTTON_GPIO        GPIO_NUM_41
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+
+#define CAMERA_PIN_PWDN    (-1)
+#define CAMERA_PIN_RESET   (-1)
+
+#define CAMERA_PIN_VSYNC   (10)
+#define CAMERA_PIN_HREF    (14)
+#define CAMERA_PIN_PCLK    (40)
+#define CAMERA_PIN_XCLK    (21)
+
+#define CAMERA_PIN_SIOD    (12)
+#define CAMERA_PIN_SIOC    ( 9)
+
+#define CAMERA_PIN_D0      ( 3)
+#define CAMERA_PIN_D1      (42)
+#define CAMERA_PIN_D2      (46)
+#define CAMERA_PIN_D3      (48)
+#define CAMERA_PIN_D4      ( 4)
+#define CAMERA_PIN_D5      (17)
+#define CAMERA_PIN_D6      (11)
+#define CAMERA_PIN_D7      (13)
+
+#define CAMERA_XCLK_FREQ   (20000000)
+
+
+#endif // _BOARD_CONFIG_H_

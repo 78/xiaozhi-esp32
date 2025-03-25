@@ -21,14 +21,18 @@ public:
     void Stop();
     bool IsRunning();
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback);
+    void OnVadStateChange(std::function<void(bool speaking)> callback);
 
 private:
     EventGroupHandle_t event_group_ = nullptr;
-    esp_afe_sr_data_t* afe_communication_data_ = nullptr;
+    esp_afe_sr_iface_t* afe_iface_ = nullptr;
+    esp_afe_sr_data_t* afe_data_ = nullptr;
     std::vector<int16_t> input_buffer_;
     std::function<void(std::vector<int16_t>&& data)> output_callback_;
+    std::function<void(bool speaking)> vad_state_change_callback_;
     int channels_;
     bool reference_;
+    bool is_speaking_ = false;
 
     void AudioProcessorTask();
 };

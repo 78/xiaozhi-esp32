@@ -122,7 +122,7 @@ esp_err_t esp_lcd_new_panel_gc9503(const esp_lcd_panel_io_handle_t io, const esp
  */
 #define GC9503_376_960_PANEL_60HZ_RGB_TIMING()      \
     {                                               \
-        .pclk_hz = 20 * 1000 * 1000,                \
+        .pclk_hz = 16 * 1000 * 1000,                \
         .h_res = 376,                               \
         .v_res = 960,                               \
         .hsync_pulse_width = 8,                     \
