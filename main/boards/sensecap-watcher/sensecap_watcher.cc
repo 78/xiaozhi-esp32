@@ -25,6 +25,7 @@
 #include <iot_knob.h>
 #include <esp_io_expander_tca95xx_16bit.h>
 #include <esp_sleep.h>
+#include "esp_console.h"
 
 #define TAG "sensecap_watcher"
 
@@ -280,6 +281,117 @@ private:
         thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
+    uint16_t BatterygetVoltage(void)
+    {
+        static bool initialized = false;
+        static adc_oneshot_unit_handle_t adc_handle;
+        static adc_cali_handle_t cali_handle = NULL;
+        if (!initialized)
+        {
+            adc_oneshot_unit_init_cfg_t init_config = {
+                .unit_id = ADC_UNIT_1,
+            };
+            adc_oneshot_new_unit(&init_config, &adc_handle);
+    
+            adc_oneshot_chan_cfg_t ch_config = {
+                .atten = BSP_BAT_ADC_ATTEN,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            adc_oneshot_config_channel(adc_handle, BSP_BAT_ADC_CHAN, &ch_config);
+    
+            adc_cali_curve_fitting_config_t cali_config = {
+                .unit_id = ADC_UNIT_1,
+                .chan = BSP_BAT_ADC_CHAN,
+                .atten = BSP_BAT_ADC_ATTEN,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            if (adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle) == ESP_OK)
+            {
+                initialized = true;
+            }
+        }
+        if (initialized)
+        {
+            int raw_value = 0;
+            int voltage = 0; // mV
+            adc_oneshot_read(adc_handle, BSP_BAT_ADC_CHAN, &raw_value);
+            adc_cali_raw_to_voltage(cali_handle, raw_value, &voltage);
+            voltage = voltage * 82 / 20;
+            // ESP_LOGI(TAG, "voltage: %dmV", voltage);
+            return (uint16_t)voltage;
+        }
+        return 0;
+    }
+
+    uint8_t BatterygetPercent(void)
+    {
+        int voltage = 0;
+        for (uint8_t i = 0; i < 10; i++)
+        {
+            voltage += BatterygetVoltage();
+        }
+        voltage /= 10;
+        int percent = (-1 * voltage * voltage + 9016 * voltage - 19189000) / 10000;
+        percent = (percent > 100) ? 100 : (percent < 0) ? 0 : percent;
+        ESP_LOGI(TAG, "voltage: %dmV, percentage: %d%%", voltage, percent);
+        return (uint8_t)percent;
+    }
+
+    void InitializeCmd() {
+        esp_console_repl_t *repl = NULL;
+        esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
+        repl_config.max_cmdline_length = 1024;
+        repl_config.prompt = "SenseCAP>";
+        
+        const esp_console_cmd_t cmd1 = {
+            .command = "reboot",
+            .help = "reboot the device",
+            .hint = nullptr,
+            .func = [](int argc, char** argv) -> int {
+                esp_restart();
+                return 0;
+            },
+            .argtable = nullptr
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd1));
+
+        const esp_console_cmd_t cmd2 = {
+            .command = "shutdown",
+            .help = "shutdown the device",
+            .hint = nullptr,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                self->GetBacklight()->SetBrightness(0);
+                self->IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd2));
+
+
+        const esp_console_cmd_t cmd3 = {
+            .command = "battery",
+            .help = "get battery percent",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                self->BatterygetPercent();
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK( esp_console_cmd_register(&cmd3) );
+
+        esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
+        ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
+        ESP_ERROR_CHECK(esp_console_start_repl(repl));
+    }
+
 public:
     SensecapWatcher(){
         ESP_LOGI(TAG, "Initialize Sensecap Watcher");
@@ -287,6 +399,7 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeExpander();
+        InitializeCmd();
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
