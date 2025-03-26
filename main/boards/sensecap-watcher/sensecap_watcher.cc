@@ -255,18 +255,13 @@ private:
                 .emoji_font = font_emoji_64_init(),
             });
         
-        // 使每次刷新的行数是4的倍数，防止花屏
+        // 使每次刷新的起始列数索引是4的倍数且列数总数是4的倍数，以满足SPD2010的要求
         lv_display_add_event_cb(lv_display_get_default(), [](lv_event_t *e) {
                 lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
                 uint16_t x1 = area->x1;
                 uint16_t x2 = area->x2;
                 // round the start of area down to the nearest 4N number
                 area->x1 = (x1 >> 2) << 2;
-                // round the start of area down to the nearest 4N number
-                area->x1 = (x1 >> 2) << 2;
-              
-                // round the end of area up to the nearest 4M+3 number
-                area->x2 = ((x2 >> 2) << 2) + 3;
                 // round the end of area up to the nearest 4M+3 number
                 area->x2 = ((x2 >> 2) << 2) + 3;
         }, LV_EVENT_INVALIDATE_AREA, NULL);
