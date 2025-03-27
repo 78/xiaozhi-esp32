@@ -143,6 +143,8 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("ColorLamp"));
+        thing_manager.AddThing(iot::CreateThing("Motor"));
     }
 
 public:
