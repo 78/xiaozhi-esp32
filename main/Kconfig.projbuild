@@ -182,6 +182,8 @@ choice DISPLAY_OLED_TYPE
         bool "SSD1306, 分辨率128*32"
     config OLED_SSD1306_128X64
         bool "SSD1306, 分辨率128*64"
+    config OLED_SH1106_128X64
+        bool "SH1106, 分辨率128*64"
 endchoice
 
 choice DISPLAY_LCD_TYPE
