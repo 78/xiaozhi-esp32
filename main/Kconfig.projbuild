@@ -162,6 +162,14 @@ choice BOARD_TYPE
         bool "凡诚1.8 4G(ML307)"    
     config BOARD_TYPE_FANCHENG_1_8LCD_WIFI
         bool "凡诚1.8 WIFI"          
+    config BOARD_TYPE_FANCHENG_OLED_ML307_M
+        bool "凡诚0.96 4G(ML307) M"
+    config BOARD_TYPE_FANCHENG_OLED_WIFI_M
+        bool "凡诚0.96 WIFI M"
+    config BOARD_TYPE_FANCHENG_1_8LCD_ML307_M
+        bool "凡诚1.8 4G(ML307) M"
+    config BOARD_TYPE_FANCHENG_1_8LCD_WIFI_M
+        bool "凡诚1.8 WIFI M"
 endchoice
 
 choice DISPLAY_OLED_TYPE

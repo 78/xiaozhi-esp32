@@ -1,4 +1,4 @@
-#include "ml307_board.h"
+#include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/oled_display.h"
 #include "system_reset.h"
@@ -8,23 +8,23 @@
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-
+#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
-#define TAG "FanChengOledMl307Board"
+#define TAG "FanChengOledWifiBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class FanChengOledMl307Board : public Ml307Board {
+class FanChengOledWifiBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    OledDisplay* display_ = nullptr;
+    OledDisplay* display_ = nullptr; 
     Button boot_button_;
     Button touch_button_;
     Button volume_up_button_;
@@ -95,7 +95,11 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
         });
         touch_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
@@ -112,13 +116,11 @@ private:
             }
             codec->SetOutputVolume(volume);
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
-
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
-
         });
 
         volume_down_button_.OnClick([this]() {
@@ -134,7 +136,6 @@ private:
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
-
         });
     }
 
@@ -142,17 +143,14 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-        thing_manager.AddThing(iot::CreateThing("Motor"));
     }
 
 public:
-    FanChengOledMl307Board() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    FanChengOledWifiBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
-
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
@@ -167,6 +165,7 @@ public:
     virtual AudioCodec* GetAudioCodec() override {
           static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+
         return &audio_codec;
     }
 
@@ -175,4 +174,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FanChengOledMl307Board);
+DECLARE_BOARD(FanChengOledWifiBoard);
