@@ -131,7 +131,9 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
 elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
-    set(BOARD_TYPE "esp32-cgc")  
+    set(BOARD_TYPE "esp32-cgc")
+elseif(CONFIG_BOARD_TYPE_HYI_ESP32S3_EX)
+    set(BOARD_TYPE "hyi-esp32s3-ex")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
