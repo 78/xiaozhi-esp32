@@ -16,6 +16,8 @@
 
 #define TAG "Ota"
 
+// Define the hardcoded ServerB URL here
+#define SERVER_B_URL "http://nas.fancheng.work:5005/ota/"
 
 Ota::Ota() {
 }
@@ -39,9 +41,47 @@ bool Ota::CheckVersion() {
     current_version_ = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
+    // Access ServerB first using the hardcoded URL
+    ESP_LOGI(TAG, "Checking ServerB for firmware version at %s", SERVER_B_URL);
+    
+    auto http_server_b = Board::GetInstance().CreateHttp();
+    for (const auto& header : headers_) {
+        http_server_b->SetHeader(header.first, header.second);
+    }
+
+    http_server_b->SetHeader("Content-Type", "application/json");
+    std::string method_server_b = post_data_.length() > 0 ? "POST" : "GET";
+    if (!http_server_b->Open(method_server_b, SERVER_B_URL, post_data_)) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection to ServerB");
+        delete http_server_b;
+    } else {
+        auto response = http_server_b->GetBody();
+        http_server_b->Close();
+        delete http_server_b;
+        
+        cJSON *root = cJSON_Parse(response.c_str());
+        if (root != NULL) {
+            cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
+            if (firmware != NULL) {
+                cJSON *version = cJSON_GetObjectItem(firmware, "version");
+                if (version != NULL) {
+                    firmware_version_ = version->valuestring;
+                    ESP_LOGI(TAG, "Got firmware version from ServerB: %s", firmware_version_.c_str());
+                    
+                    cJSON *url = cJSON_GetObjectItem(firmware, "url");
+                    if (url != NULL) {
+                        firmware_url_ = url->valuestring;
+                    }
+                }
+            }
+            cJSON_Delete(root);
+        }
+    }
+
+    // Now check the original server
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
-        return false;
+        //return false;
     }
 
     auto http = Board::GetInstance().CreateHttp();
@@ -61,10 +101,6 @@ bool Ota::CheckVersion() {
     http->Close();
     delete http;
 
-    // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
-    // Parse the JSON response and check if the version is newer
-    // If it is, set has_new_version_ to true and store the new version and URL
-    
     cJSON *root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
@@ -107,47 +143,31 @@ bool Ota::CheckVersion() {
         cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
         
         if (timestamp != NULL) {
-            // 设置系统时间
             struct timeval tv;
             double ts = timestamp->valuedouble;
             
-            // 如果有时区偏移，计算本地时间
             if (timezone_offset != NULL) {
-                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
+                ts += (timezone_offset->valueint * 60 * 1000);
             }
             
-            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
-            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+            tv.tv_sec = (time_t)(ts / 1000);
+            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;
             settimeofday(&tv, NULL);
             has_server_time_ = true;
         }
     }
 
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
-    if (firmware == NULL) {
-        ESP_LOGE(TAG, "Failed to get firmware object");
-        cJSON_Delete(root);
-        return false;
+    if (firmware != NULL && firmware_url_.empty()) {
+        cJSON *url = cJSON_GetObjectItem(firmware, "url");
+        if (url != NULL) {
+            firmware_url_ = url->valuestring;
+        }
     }
-    cJSON *version = cJSON_GetObjectItem(firmware, "version");
-    if (version == NULL) {
-        ESP_LOGE(TAG, "Failed to get version object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *url = cJSON_GetObjectItem(firmware, "url");
-    if (url == NULL) {
-        ESP_LOGE(TAG, "Failed to get url object");
-        cJSON_Delete(root);
-        return false;
-    }
-
-    firmware_version_ = version->valuestring;
-    firmware_url_ = url->valuestring;
+    
     cJSON_Delete(root);
 
-    // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-    has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+    has_new_version_ = !firmware_version_.empty() && IsNewVersionAvailable(current_version_, firmware_version_);
     if (has_new_version_) {
         ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
     } else {
@@ -214,7 +234,6 @@ void Ota::Upgrade(const std::string& firmware_url) {
             return;
         }
 
-        // Calculate speed and progress every second
         recent_read += ret;
         total_read += ret;
         if (esp_timer_get_time() - last_calc_time >= 1000000 || ret == 0) {
