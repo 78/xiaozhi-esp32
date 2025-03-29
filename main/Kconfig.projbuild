@@ -243,4 +243,11 @@ config USE_WAKE_WORD_DETECT
     depends on IDF_TARGET_ESP32S3 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
+
+config USE_QUAGSIRE_THEME
+    bool "Quagsire Theme"
+    default n
+    help
+        Best theme ever!
+
 endmenu

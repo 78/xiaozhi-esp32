@@ -19,6 +19,10 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+    lv_obj_t* background_ = nullptr;
+#endif
+    
 
     DisplayFonts fonts_;
 

@@ -8,6 +8,26 @@
 
 #include <string>
 
+#ifdef CONFIG_USE_QUAGSIRE_THEME
+extern const lv_image_dsc_t angry;
+extern const lv_image_dsc_t background;
+extern const lv_image_dsc_t confused;
+extern const lv_image_dsc_t delicious;
+extern const lv_image_dsc_t embarrassed;
+extern const lv_image_dsc_t funny;
+extern const lv_image_dsc_t happy;
+extern const lv_image_dsc_t laughing;
+extern const lv_image_dsc_t loving;
+extern const lv_image_dsc_t neutral;
+extern const lv_image_dsc_t relaxed;
+extern const lv_image_dsc_t sad;
+extern const lv_image_dsc_t shocked;
+extern const lv_image_dsc_t sleepy;
+extern const lv_image_dsc_t surprised;
+extern const lv_image_dsc_t thinking;
+extern const lv_image_dsc_t crying;
+#endif
+
 struct DisplayFonts {
     const lv_font_t* text_font = nullptr;
     const lv_font_t* icon_font = nullptr;
