@@ -20,12 +20,45 @@
 #include <esp_timer.h>
 #include "esp_io_expander_tca9554.h"
 
+#include "axp2101.h"
+#include "power_save_timer.h"
+
 
 #define TAG "waveshare_lcd_3_5"
 
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
+
+
+class Pmic : public Axp2101 {
+    public:
+        Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
+            WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+            WriteReg(0x27, 0x10);  // hold 4s to power off
+    
+            // Disable All DCs but DC1
+            WriteReg(0x80, 0x01);
+            // Disable All LDOs
+            WriteReg(0x90, 0x00);
+            WriteReg(0x91, 0x00);
+    
+            // Set DC1 to 3.3V
+            WriteReg(0x82, (3300 - 1500) / 100);
+    
+            // Set ALDO1 to 3.3V
+            WriteReg(0x92, (3300 - 500) / 100);
+    
+            // Enable ALDO1(MIC)
+            WriteReg(0x90, 0x01);
+        
+            WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+            
+            WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
+            WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+            WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
+        }
+    };
 
 
 typedef struct {
@@ -71,9 +104,32 @@ st7796_lcd_init_cmd_t st7796_lcd_init_cmds[] = {
 class CustomBoard : public WifiBoard {
 private:
     Button boot_button_;
+    Pmic* pmic_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(20);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -99,6 +155,11 @@ private:
         vTaskDelay(pdMS_TO_TICKS(100));
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);
         ESP_ERROR_CHECK(ret);
+    }
+
+    void InitializeAxp2101() {
+        ESP_LOGI(TAG, "Init AXP2101");
+        pmic_ = new Pmic(i2c_bus_, 0x34);
     }
 
     void InitializeSpi() {
@@ -177,13 +238,17 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+        thing_manager.AddThing(iot::CreateThing("BoardControl"));
     }
 
 public:
     CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePowerSaveTimer();
         InitializeI2c();
         InitializeTca9554();
+        InitializeAxp2101();
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
@@ -205,6 +270,25 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = pmic_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 
