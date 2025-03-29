@@ -122,6 +122,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-1.85"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
+        bool "Waveshare ESP32-S3-Touch-LCD-3.5"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
