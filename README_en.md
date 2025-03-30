@@ -60,6 +60,7 @@ Breadboard demonstration:
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="XiaGe Mini C3">XiaGe Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji XiaoZhi AI Derivative Version</a>
+- <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">CuiCan AI pendant</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
 
 <div style="display: flex; justify-content: space-between;">
@@ -92,6 +93,9 @@ Breadboard demonstration:
   </a>
   <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Moji">
     <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
+  </a>
+  <a href="docs/v1/movecall-cuican-esp32s3.jpg" target="_blank" title="CuiCan">
+    <img src="docs/v1/movecall-cuican-esp32s3.jpg" width="240" />
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
