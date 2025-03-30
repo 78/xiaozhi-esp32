@@ -22,7 +22,7 @@
 
 #define TAG "waveshare_lcd_1_46"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_NatoSans_16_4_all);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 

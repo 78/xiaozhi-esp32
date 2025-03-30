@@ -20,18 +20,8 @@
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
-#if (defined  zh_tw)
-    LV_FONT_DECLARE(font_lxgw_20_4_zh_tw);
-    #define FONT font_lxgw_20_4_zh_tw
-#elif (defined  ja_jp)
-    LV_FONT_DECLARE(font_noto_20_4_ja_jp);
-    #define FONT font_noto_20_4_ja_jp
-#else
-    LV_FONT_DECLARE(font_puhui_20_4_zh_cn);
-    #define FONT font_puhui_20_4_zh_cn
-#endif
-
-LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_NatoSans_16_4_all);
+LV_FONT_DECLARE(font_awesome_16_4);
 
 
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
@@ -167,14 +157,8 @@ private:
         display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
         {
-            #if (defined  zh_tw)
-                .text_font = &font_lxgw_20_4_zh_tw,
-            #elif (defined  ja_jp)
-                .text_font = &font_noto_20_4_ja_jp,
-            #else
-                .text_font = &font_puhui_20_4_zh_cn,
-            #endif
-            .icon_font = &font_awesome_20_4,
+            .text_font = &font_NatoSans_16_4_all,
+            .icon_font = &font_awesome_16_4,
             .emoji_font = font_emoji_64_init(),
         });
     }
@@ -184,6 +168,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+        thing_manager.AddThing(iot::CreateThing("Aircon"));
     }
 
 public:
