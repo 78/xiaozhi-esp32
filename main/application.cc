@@ -523,7 +523,7 @@ void Application::Start() {
     SetDeviceState(kDeviceStateIdle);
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
 
-#if 1
+#if 0
     while (true) {
         SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
         vTaskDelay(pdMS_TO_TICKS(10000));
