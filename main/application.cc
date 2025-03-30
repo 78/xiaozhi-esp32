@@ -346,7 +346,7 @@ void Application::Start() {
         Application* app = (Application*)arg;
         app->MainLoop();
         vTaskDelete(NULL);
-    }, "main_loop", 4096, this, 4, &main_loop_task_handle_, 0);
+    }, "main_loop", 4096 * 2, this, 4, &main_loop_task_handle_, 0);
 
     /* Wait for the network to be ready */
     board.StartNetwork();
