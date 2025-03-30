@@ -228,7 +228,14 @@ config USE_WECHAT_MESSAGE_STYLE
     bool "使用微信聊天界面风格"
     default n
     help
-        使用微信聊天界面风格   
+        使用微信聊天界面风格
+
+config USE_WAKE_WORD_DETECT
+    bool "启用唤醒词检测"
+    default y
+    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    help
+        需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
@@ -237,10 +244,11 @@ config USE_AUDIO_PROCESSOR
     help
         需要 ESP32 S3 与 AFE 支持
 
-config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
-    default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+config USE_REALTIME_CHAT
+    bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
+    default n
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_LICHUANG_DEV)
     help
-        需要 ESP32 S3 与 AFE 支持
+        需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
+        
 endmenu
