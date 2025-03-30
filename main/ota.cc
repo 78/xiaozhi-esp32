@@ -39,6 +39,64 @@ bool Ota::CheckVersion() {
     current_version_ = esp_app_get_description()->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
+    // 虾哥服务器，activation、mqtt
+    std::string check_version_url_X = "https://api.tenclass.net/xiaozhi/ota/";
+    auto httpX = Board::GetInstance().CreateHttp();
+    for (const auto& headerX : headers_) {
+        httpX->SetHeader(headerX.first, headerX.second);
+    }
+
+    httpX->SetHeader("Content-Type", "application/json");
+    std::string methodX = post_data_.length() > 0 ? "POST" : "GET";
+    if (!httpX->Open(methodX, check_version_url_X, post_data_)) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection X");
+        delete httpX;
+        return false;
+    }
+
+    auto responseX = httpX->GetBody();
+    httpX->Close();
+    delete httpX;
+
+    //ESP_LOGI(TAG, "http response X：%s", responseX.c_str());
+    cJSON *rootX = cJSON_Parse(responseX.c_str());
+    if (rootX == NULL) {
+        ESP_LOGE(TAG, "Failed to parse JSON response X");
+        return false;
+    }
+
+    has_activation_code_ = false;
+    cJSON *activation = cJSON_GetObjectItem(rootX, "activation");
+    if (activation != NULL) {
+        cJSON* message = cJSON_GetObjectItem(activation, "message");
+        if (message != NULL) {
+            activation_message_ = message->valuestring;
+        }
+        cJSON* code = cJSON_GetObjectItem(activation, "code");
+        if (code != NULL) {
+            activation_code_ = code->valuestring;
+        }
+        has_activation_code_ = true;
+    }
+
+    has_mqtt_config_ = false;
+    cJSON *mqtt = cJSON_GetObjectItem(rootX, "mqtt");
+    if (mqtt != NULL) {
+        Settings settings("mqtt", true);
+        cJSON *item = NULL;
+        cJSON_ArrayForEach(item, mqtt) {
+            if (item->type == cJSON_String) {
+                if (settings.GetString(item->string) != item->valuestring) {
+                    settings.SetString(item->string, item->valuestring);
+                }
+            }
+        }
+        has_mqtt_config_ = true;
+    }
+
+    cJSON_Delete(rootX);
+
+    // fantoy OTA服务器，firmware、server_time
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
@@ -52,7 +110,7 @@ bool Ota::CheckVersion() {
     http->SetHeader("Content-Type", "application/json");
     std::string method = post_data_.length() > 0 ? "POST" : "GET";
     if (!http->Open(method, check_version_url_, post_data_)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+        ESP_LOGE(TAG, "Failed to open HTTP connection FanToy");
         delete http;
         return false;
     }
@@ -65,14 +123,14 @@ bool Ota::CheckVersion() {
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
     
-    //ESP_LOGI(TAG, "http response：%s", response.c_str());
+    //ESP_LOGI(TAG, "http response FanToy：%s", response.c_str());
     cJSON *root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
         return false;
     }
 
-    has_activation_code_ = false;
+    /**has_activation_code_ = false;
     cJSON *activation = cJSON_GetObjectItem(root, "activation");
     if (activation != NULL) {
         cJSON* message = cJSON_GetObjectItem(activation, "message");
@@ -99,7 +157,7 @@ bool Ota::CheckVersion() {
             }
         }
         has_mqtt_config_ = true;
-    }
+    }**/
 
     has_server_time_ = false;
     cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
