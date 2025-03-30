@@ -21,7 +21,7 @@ enum AbortReason {
 enum ListeningMode {
     kListeningModeAutoStop,
     kListeningModeManualStop,
-    kListeningModeAlwaysOn // 需要 AEC 支持
+    kListeningModeRealtime // 需要 AEC 支持
 };
 
 class Protocol {
