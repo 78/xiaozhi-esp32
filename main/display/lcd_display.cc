@@ -530,6 +530,9 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         if (oldest_msg != nullptr) {
             lv_obj_del(oldest_msg);
             msg_count--;
+            // 删除最早的消息会导致所有气泡整体往上移
+            // 所以需要重新滚动到当前消息气泡位置
+            lv_obj_scroll_to_view_recursive(msg_bubble, LV_ANIM_ON);
         }else{
             break;
         }
