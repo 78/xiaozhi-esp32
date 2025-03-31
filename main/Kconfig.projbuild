@@ -252,3 +252,11 @@ config USE_REALTIME_CHAT
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
         
 endmenu
+menu "Xvsenfeng Personalize"
+
+    config USE_ALARM
+        bool "启用一个时钟"
+        default y
+        help
+            一个自定义的闹钟功能
+endmenu

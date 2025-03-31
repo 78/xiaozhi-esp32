@@ -529,6 +529,14 @@ void Application::Start() {
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 #endif
+
+#if CONFIG_USE_ALARM
+    while(!ota_.HasServerTime()){
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    alarm_m_ = new AlarmManager();
+    // alarm_m_->SetAlarm(10, "alarm1");
+#endif
 }
 
 void Application::OnClockTimer() {
@@ -590,6 +598,31 @@ void Application::AudioLoop() {
         if (codec->output_enabled()) {
             OnAudioOutput();
         }
+#if CONFIG_USE_ALARM
+        if(alarm_m_ != nullptr){
+                // 闹钟来了
+            if(alarm_m_->IsRing()){
+                if(device_state_ != kDeviceStateListening){
+                    if (device_state_ == kDeviceStateActivating) {
+                        Reboot();
+                        return;
+                    }
+                    if (!protocol_->IsAudioChannelOpened()) {
+                        SetDeviceState(kDeviceStateConnecting);
+                        if (!protocol_->OpenAudioChannel()) {
+                            SetDeviceState(kDeviceStateIdle);
+                            return;
+                        }
+                    }
+                    protocol_->SendStartListening(kListeningModeManualStop);
+                    SetDeviceState(kDeviceStateListening);
+                    ESP_LOGI(TAG, "Alarm ring, begging status %d", device_state_);
+                }
+                protocol_->SendText(alarm_m_->get_now_alarm_name());
+                alarm_m_->ClearRing();
+            }
+        }
+#endif
     }
 }
 

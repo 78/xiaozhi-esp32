@@ -55,7 +55,7 @@ public:
     virtual void SendAbortSpeaking(AbortReason reason);
     virtual void SendIotDescriptors(const std::string& descriptors);
     virtual void SendIotStates(const std::string& states);
-
+    virtual void SendText(const std::string& text) = 0;
 protected:
     std::function<void(const cJSON* root)> on_incoming_json_;
     std::function<void(std::vector<uint8_t>&& data)> on_incoming_audio_;
@@ -69,7 +69,7 @@ protected:
     std::string session_id_;
     std::chrono::time_point<std::chrono::steady_clock> last_incoming_time_;
 
-    virtual void SendText(const std::string& text) = 0;
+
     virtual void SetError(const std::string& message);
     virtual bool IsTimeout() const;
 };

@@ -17,7 +17,10 @@
 #include "protocol.h"
 #include "ota.h"
 #include "background_task.h"
-
+#if CONFIG_USE_ALARM
+//test
+#include "AlarmClock.h"
+#endif
 #if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
 #endif
@@ -70,7 +73,12 @@ public:
     void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
-
+#if CONFIG_USE_ALARM
+    //test
+    AlarmManager* alarm_m_ = nullptr;
+    std::list<std::vector<uint8_t>> audio_decode_queue_;
+    std::unique_ptr<Protocol> protocol_;
+#endif
 private:
     Application();
     ~Application();
@@ -84,7 +92,6 @@ private:
     Ota ota_;
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
-    std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
@@ -104,8 +111,12 @@ private:
     TaskHandle_t audio_loop_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
-    std::list<std::vector<uint8_t>> audio_decode_queue_;
+#if CONFIG_USE_ALARM
 
+#else
+    std::list<std::vector<uint8_t>> audio_decode_queue_;
+    std::unique_ptr<Protocol> protocol_;
+#endif
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
 

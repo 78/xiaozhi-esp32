@@ -30,7 +30,7 @@ public:
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;
     bool IsAudioChannelOpened() const override;
-
+    void SendText(const std::string& text) override;
 private:
     EventGroupHandle_t event_group_handle_;
 
@@ -54,7 +54,7 @@ private:
     void ParseServerHello(const cJSON* root);
     std::string DecodeHexString(const std::string& hex_string);
 
-    void SendText(const std::string& text) override;
+
 };
 
 
