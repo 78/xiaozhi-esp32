@@ -11,25 +11,6 @@
 调用`LVGLImage.py`，将图片批量转换为LVGL图片格式  
 可用于修改小智的默认表情，具体修改教程[在这里](https://www.bilibili.com/video/BV12FQkYeEJ3/)
 
-<table style="width: 100%; border-collapse: collapse;">
-  <tr>
-    <td style="width: 33%; text-align: center; padding: 10px;">
-    <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">效果展示</p>
-      <img alt="效果展示" src="./img/demo.jpg" style="width: 100%; max-width: 300px;"/>
-    </td>
-    <td style="width: 33%; text-align: center; padding: 10px;">
-    <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">操作界面预览</p>
-      <img alt="操作界面" src="./img/ui.png" style="width: 100%; max-width: 300px;"/>
-    </td>
-    <td style="width: 33%; text-align: center; padding: 10px;">
-      <a href="https://www.bilibili.com/video/BV12FQkYeEJ3/" target="_blank">
-        <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">视频教程</p>
-        <img alt="视频教程" src="./img/tutorial.jpg" style="width: 100%; max-width: 300px;"/>
-      </a>
-    </td>
-  </tr>
-</table>
-
 ### 特性
 
 - 图形化操作，界面更友好
