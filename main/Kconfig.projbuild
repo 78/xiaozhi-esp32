@@ -224,11 +224,22 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "使用微信聊天界面风格"
-    default n
+choice MESSAGE_STYLE_TYPE
+    prompt "LCD界面"
+    default MESSAGE_STYLE_NORMAL
     help
-        使用微信聊天界面风格
+        选择消息显示的风格-GIF目前测试了ESP32S3N16R8+240*240,
+        暗黑模式效果更佳
+
+    config MESSAGE_STYLE_NORMAL
+        bool "默认"
+    config USE_WECHAT_MESSAGE_STYLE
+        bool "微信聊天"
+    config USE_GIF_EMOTION_STYLE
+        bool "GIF表情"
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
+endchoice
 
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"

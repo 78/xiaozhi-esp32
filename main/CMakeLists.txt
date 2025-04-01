@@ -171,6 +171,13 @@ set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
+# 启用 GIF 表情时添加 GIF 源文件
+if(CONFIG_USE_GIF_EMOTION_STYLE)
+    file(GLOB GIF_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/assets/gif/*.c)
+    list(APPEND SOURCES ${GIF_SOURCES})
+endif()
+
+
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
