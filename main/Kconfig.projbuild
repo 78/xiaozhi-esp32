@@ -156,6 +156,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_OTTO_ROBOT
+        bool "ottoRobot"
 endchoice
 
 choice DISPLAY_OLED_TYPE
