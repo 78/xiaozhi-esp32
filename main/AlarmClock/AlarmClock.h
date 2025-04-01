@@ -22,6 +22,8 @@ public:
 
     // 设置闹钟
     void SetAlarm(int seconde_from_now, std::string alarm_name);
+    // 取消指定名称的闹钟
+    void CancelAlarm(std::string alarm_name);
     // 获取闹钟列表状态
     std::string GetAlarmsStatus();
     // 清除过时的闹钟

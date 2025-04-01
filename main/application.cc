@@ -614,7 +614,7 @@ void Application::AudioLoop() {
                             return;
                         }
                     }
-                    protocol_->SendStartListening(kListeningModeManualStop);
+                    // protocol_->SendStartListening(kListeningModeManualStop);
                     SetDeviceState(kDeviceStateListening);
                     ESP_LOGI(TAG, "Alarm ring, begging status %d", device_state_);
                 }

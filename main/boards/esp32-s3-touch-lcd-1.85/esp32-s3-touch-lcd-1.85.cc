@@ -389,17 +389,25 @@ private:
                 .priv = this,
             },
         };
-        boot_btn = iot_button_create(&btns_config);
-        iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+         boot_btn = iot_button_create(&btns_config);
+
+        // 按下事件处理（同时处理WiFi重置条件）
+        iot_button_register_cb(boot_btn, BUTTON_PRESS_DOWN, [](void* button_handle, void* usr_data) {
             auto self = static_cast<CustomBoard*>(usr_data);
             auto& app = Application::GetInstance();
+            
+            // 检查重置条件
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 self->ResetWifiConfiguration();
+            } else {
+                // 正常按住说话逻辑
+                app.StartListening();
             }
-            app.ToggleChatState();
         }, this);
-        iot_button_register_cb(boot_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
-            // 长按无处理
+
+        // 释放事件处理
+        iot_button_register_cb(boot_btn, BUTTON_PRESS_UP, [](void* button_handle, void* usr_data) {
+            Application::GetInstance().StopListening();
         }, this);
 
         btns_config.long_press_time = 5000;

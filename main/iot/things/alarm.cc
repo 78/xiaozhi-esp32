@@ -1,4 +1,3 @@
-
 #include "iot/thing.h"
 #include "AlarmClock.h"
 #include "application.h"
@@ -24,8 +23,8 @@ public:
 
         // 定义设备可以被远程执行的指令
         methods_.AddMethod("SetAlarm", "设置一个闹钟", ParameterList({
-            Parameter("seconde_from_now", "闹钟多少秒以后响", kValueTypeNumber, true),
-            Parameter("alarm_name", "时钟的描述(名字)", kValueTypeString, true)
+            Parameter("second_from_now", "闹钟多少秒以后响", kValueTypeNumber, true),
+            Parameter("alarm_name", "闹钟的描述(名字)", kValueTypeString, true)
         }), [this](const ParameterList& parameters) {
             auto& app = Application::GetInstance();
             if(app.alarm_m_ == nullptr){
@@ -33,9 +32,26 @@ public:
                 return;
             }
             ESP_LOGI(TAG, "SetAlarm");
-            int seconde_from_now = parameters["seconde_from_now"].number();
+            int second_from_now = parameters["second_from_now"].number();
             std::string alarm_name = parameters["alarm_name"].string();
-            app.alarm_m_->SetAlarm(seconde_from_now, alarm_name);
+            ESP_LOGI(TAG, "SetAlarm with name: '%s', seconds: %d", alarm_name.c_str(), second_from_now);
+            app.alarm_m_->SetAlarm(second_from_now, alarm_name);
+        });
+
+        // 添加取消闹钟方法
+        methods_.AddMethod("CancelAlarm", "取消一个闹钟", ParameterList({
+            Parameter("alarm_name", "要取消的闹钟名称", kValueTypeString, true)
+        }), [this](const ParameterList& parameters) {
+            auto& app = Application::GetInstance();
+            if(app.alarm_m_ == nullptr){
+                ESP_LOGE(TAG, "AlarmManager is nullptr");
+                return;
+            }
+            ESP_LOGI(TAG, "CancelAlarm");
+            std::string alarm_name = parameters["alarm_name"].string();
+            ESP_LOGI(TAG, "CancelAlarm with name: '%s'", alarm_name.c_str());
+            app.alarm_m_->CancelAlarm(alarm_name);
+            ESP_LOGI(TAG, "CancelAlarm command sent for alarm: %s", alarm_name.c_str());
         });
     }
 };

@@ -18,6 +18,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "settings.cc"
             "background_task.cc"
             "main.cc"
+            "ml307_tcp_transport.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")

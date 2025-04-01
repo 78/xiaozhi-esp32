@@ -1,4 +1,3 @@
-
 #include "AlarmClock.h"
 #include "assets/lang_config.h"
 #include "board.h"
@@ -91,13 +90,13 @@ AlarmManager::~AlarmManager(){
 }
 
 
-void AlarmManager::SetAlarm(int seconde_from_now, std::string alarm_name){
+void AlarmManager::SetAlarm(int second_from_now, std::string alarm_name){
     std::lock_guard<std::mutex> lock(mutex_);
     if(alarms_.size() >= 10){
         ESP_LOGE(TAG, "Too many alarms");
         return;
     }
-    if(seconde_from_now <= 0){
+    if(second_from_now <= 0){
         ESP_LOGE(TAG, "Invalid alarm time");
         return;
     }
@@ -106,7 +105,7 @@ void AlarmManager::SetAlarm(int seconde_from_now, std::string alarm_name){
     Alarm alarm; // 一个新的闹钟
     alarm.name = alarm_name;
     time_t now = time(NULL);
-    alarm.time = now + seconde_from_now;
+    alarm.time = now + second_from_now;
     alarms_.push_back(alarm);
     // 从设置里面找到第一个空闲的闹钟, 记录新的闹钟
     for(int i = 0; i < 10; i++){
@@ -123,10 +122,71 @@ void AlarmManager::SetAlarm(int seconde_from_now, std::string alarm_name){
         esp_timer_stop(timer_);
     }
 
-    seconde_from_now = alarm_first->time - now;
-    ESP_LOGI(TAG, "begin a alarm at %d", seconde_from_now);
-    esp_timer_start_once(timer_, seconde_from_now * 1000000); // 当前一定有时钟, 所以不需要清除标志
+    second_from_now = alarm_first->time - now;
+    ESP_LOGI(TAG, "begin a alarm at %d", second_from_now);
+    esp_timer_start_once(timer_, second_from_now * 1000000); // 当前一定有时钟, 所以不需要清除标志
 }
+
+void AlarmManager::CancelAlarm(std::string alarm_name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    Settings settings_("alarm_clock", true); // 闹钟设置
+    bool found = false;
+    
+    ESP_LOGI(TAG, "开始取消闹钟: %s", alarm_name.c_str());
+    
+    // 从内存中删除指定名称的闹钟
+    for(auto it = alarms_.begin(); it != alarms_.end();) {
+        if(it->name == alarm_name) {
+            // 从存储中删除相应的闹钟设置
+            for (int i = 0; i < 10; i++) {
+                if(settings_.GetString("alarm_" + std::to_string(i)) == alarm_name) {
+                    settings_.SetString("alarm_" + std::to_string(i), "");
+                    settings_.SetInt("alarm_time_" + std::to_string(i), 0);
+                    ESP_LOGI(TAG, "从设置中移除闹钟 %s", alarm_name.c_str());
+                }
+            }
+            ESP_LOGI(TAG, "从内存中移除闹钟: %s (时间: %d)", alarm_name.c_str(), it->time);
+            it = alarms_.erase(it); // 删除闹钟并更新迭代器
+            found = true;
+        } else {
+            ++it;
+        }
+    }
+    
+    if (!found) {
+        ESP_LOGW(TAG, "未找到名为 %s 的闹钟", alarm_name.c_str());
+        return;
+    }
+    
+    // 输出所有剩余闹钟的信息，用于调试
+    ESP_LOGI(TAG, "剩余闹钟列表:");
+    for(auto& alarm : alarms_) {
+        ESP_LOGI(TAG, "  - %s (时间: %d)", alarm.name.c_str(), alarm.time);
+    }
+    
+    // 重置定时器，使其指向下一个闹钟
+    if(running_flag) {
+        esp_timer_stop(timer_);
+        ESP_LOGI(TAG, "停止当前定时器");
+    }
+    
+    time_t now = time(NULL);
+    Alarm *alarm_first = GetProximateAlarm(now);
+    
+    if(alarm_first != nullptr) {
+        int seconds_from_now = alarm_first->time - now;
+        ESP_LOGI(TAG, "重置定时器指向下一个闹钟: %s，将在 %d 秒后触发", 
+                 alarm_first->name.c_str(), seconds_from_now);
+        esp_timer_start_once(timer_, seconds_from_now * 1000000);
+        running_flag = true;
+    } else {
+        ESP_LOGI(TAG, "取消后没有更多闹钟了");
+        running_flag = false;
+    }
+    
+    ESP_LOGI(TAG, "闹钟 %s 已成功取消", alarm_name.c_str());
+}
+
 #include "application.h"
 void AlarmManager::OnAlarm(){
     ESP_LOGI(TAG, "=----ring----=");
@@ -141,7 +201,7 @@ void AlarmManager::OnAlarm(){
         }
     }
     char message_buf_send[256];
-    sprintf(message_buf_send, "{\"type\":\"listen\",\"state\":\"detect\",\"text\":\"闹钟响了, 名字是%s, 提醒我一下\",\"source\":\"text\"}", alarm_first->name.c_str());
+    sprintf(message_buf_send, "{\"type\":\"listen\",\"state\":\"detect\",\"text\":\"闹钟-#%s\",\"source\":\"text\"}", alarm_first->name.c_str());
     now_alarm_name = message_buf_send;
     display->SetStatus(alarm_first->name.c_str());  // 显示闹钟名字
     // // 闹钟响了

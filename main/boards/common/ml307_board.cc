@@ -8,7 +8,7 @@
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <ml307_http.h>
-#include <ml307_ssl_transport.h>
+#include <ml307_tcp_transport.h>
 #include <web_socket.h>
 #include <ml307_mqtt.h>
 #include <ml307_udp.h>
@@ -72,7 +72,7 @@ Http* Ml307Board::CreateHttp() {
 }
 
 WebSocket* Ml307Board::CreateWebSocket() {
-    return new WebSocket(new Ml307SslTransport(modem_, 0));
+    return new WebSocket(new Ml307tcpTransport(modem_, 0));
 }
 
 Mqtt* Ml307Board::CreateMqtt() {
