@@ -1,10 +1,14 @@
+#include "display/lv_display.h"
+#include "misc/lv_event.h"
 #include "wifi_board.h"
 #include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
 #include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
+#include "knob.h"
 #include "config.h"
+#include "led/single_led.h"
 #include "iot/thing_manager.h"
 #include "power_save_timer.h"
 
@@ -18,6 +22,7 @@
 #include <driver/spi_common.h>
 #include <wifi_station.h>
 #include <iot_button.h>
+#include <iot_knob.h>
 #include <esp_io_expander_tca95xx_16bit.h>
 #include <esp_sleep.h>
 
@@ -31,6 +36,7 @@ class SensecapWatcher : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
+    std::unique_ptr<Knob> knob_;
     esp_io_expander_handle_t io_exp_handle;
     button_handle_t btns;
     PowerSaveTimer* power_save_timer_;
@@ -54,8 +60,13 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            IoExpanderSetLevel(BSP_PWR_LCD, 0);
-            IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            bool is_charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
+            if (is_charging) {
+                ESP_LOGI(TAG, "charging");
+                GetBacklight()->SetBrightness(0);
+            } else {
+                IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
+            }
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -107,6 +118,41 @@ private:
         assert(ret == ESP_OK);
     }
 
+    void OnKnobRotate(bool clockwise) {
+        auto codec = GetAudioCodec();
+        int current_volume = codec->output_volume();
+        int new_volume = current_volume + (clockwise ? 5 : -5);
+
+        // 确保音量在有效范围内
+        if (new_volume > 100) {
+            new_volume = 100;
+            ESP_LOGW(TAG, "Volume reached maximum limit: %d", new_volume);
+        } else if (new_volume < 0) {
+            new_volume = 0;
+            ESP_LOGW(TAG, "Volume reached minimum limit: %d", new_volume);
+        }
+
+        codec->SetOutputVolume(new_volume);
+        ESP_LOGI(TAG, "Volume changed from %d to %d", current_volume, new_volume);
+        
+        // 显示通知前检查实际变化
+        if (new_volume != codec->output_volume()) {
+            ESP_LOGE(TAG, "Failed to set volume! Expected:%d Actual:%d", 
+                   new_volume, codec->output_volume());
+        }
+        GetDisplay()->ShowNotification("音量: " + std::to_string(codec->output_volume()));
+        power_save_timer_->WakeUp();
+    }
+
+    void InitializeKnob() {
+        knob_ = std::make_unique<Knob>(BSP_KNOB_A_PIN, BSP_KNOB_B_PIN);
+        knob_->OnRotate([this](bool clockwise) {
+            ESP_LOGD(TAG, "Knob rotation detected. Clockwise:%s", clockwise ? "true" : "false");
+            OnKnobRotate(clockwise);
+        });
+        ESP_LOGI(TAG, "Knob initialized with pins A:%d B:%d", BSP_KNOB_A_PIN, BSP_KNOB_B_PIN);
+    }
+
     void InitializeButton() {
         button_config_t btn_config = {
             .type = BUTTON_TYPE_CUSTOM,
@@ -123,6 +169,13 @@ private:
                 .priv = this,
             },
         };
+        
+        //watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
+        ESP_LOGI(TAG, "waiting for knob button release");
+        while(IoExpanderGetLevel(BSP_KNOB_BTN) == 0) {
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+
         btns = iot_button_create(&btn_config);
         iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
             auto self = static_cast<SensecapWatcher*>(usr_data);
@@ -193,7 +246,7 @@ private:
         esp_lcd_panel_init(panel_);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel_, true);
-        
+
         display_ = new SpiLcdDisplay(panel_io_, panel_,
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
@@ -201,13 +254,25 @@ private:
                 .icon_font = &font_awesome_30_4,
                 .emoji_font = font_emoji_64_init(),
             });
+        
+        // 使每次刷新的起始列数索引是4的倍数且列数总数是4的倍数，以满足SPD2010的要求
+        lv_display_add_event_cb(lv_display_get_default(), [](lv_event_t *e) {
+                lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
+                uint16_t x1 = area->x1;
+                uint16_t x2 = area->x2;
+                // round the start of area down to the nearest 4N number
+                area->x1 = (x1 >> 2) << 2;
+                // round the end of area up to the nearest 4M+3 number
+                area->x2 = ((x2 >> 2) << 2) + 3;
+        }, LV_EVENT_INVALIDATE_AREA, NULL);
+        
     }
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
@@ -218,6 +283,7 @@ public:
         InitializeSpi();
         InitializeExpander();
         InitializeButton();
+        InitializeKnob();
         Initializespd2010Display();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
@@ -247,6 +313,14 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    // 根据 https://github.com/Seeed-Studio/OSHW-SenseCAP-Watcher/blob/main/Hardware/SenseCAP_Watcher_v1.0_SCH.pdf
+    // RGB LED型号为 ws2813 mini, 连接在GPIO 40，供电电压 3.3v, 没有连接 BIN 双信号线
+    // 可以直接兼容SingleLED采用的ws2812
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual void SetPowerSaveMode(bool enabled) override {

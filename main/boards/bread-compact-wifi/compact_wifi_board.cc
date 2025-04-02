@@ -15,6 +15,10 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
+#ifdef SH1106
+#include <esp_lcd_panel_sh1106.h>
+#endif
+
 #define TAG "CompactWifiBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
@@ -25,7 +29,7 @@ private:
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    OledDisplay* display_ = nullptr;
+    Display* display_ = nullptr;
     Button boot_button_;
     Button touch_button_;
     Button volume_up_button_;
@@ -76,13 +80,18 @@ private:
         };
         panel_config.vendor_config = &ssd1306_config;
 
+#ifdef SH1106
+        ESP_ERROR_CHECK(esp_lcd_new_panel_sh1106(panel_io_, &panel_config, &panel_));
+#else
         ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
+#endif
         ESP_LOGI(TAG, "SSD1306 driver installed");
 
         // Reset the display
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
         if (esp_lcd_panel_init(panel_) != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize display");
+            display_ = new NoDisplay();
             return;
         }
 

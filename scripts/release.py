@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import zipfile
 
 # 切换到项目根目录
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,9 +36,8 @@ def zip_bin(board_type, project_version):
     output_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(output_path):
         os.remove(output_path)
-    if os.system(f"zip -j {output_path} build/merged-binary.bin") != 0:
-        print("zip bin failed")
-        sys.exit(1)
+    with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write("build/merged-binary.bin", arcname="merged-binary.bin")
     print(f"zip bin to {output_path} done")
     
 
@@ -72,7 +72,7 @@ def release(board_type, board_config):
 
     # Print Project Version
     project_version = get_project_version()
-    print(f"Project Version: {project_version}")
+    print(f"Project Version: {project_version}", config_path)
     release_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(release_path):
         print(f"跳过 {board_type} 因为 {release_path} 已存在")

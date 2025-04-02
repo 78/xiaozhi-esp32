@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kevin-sp-v4-dev",
+            "sdkconfig_append": []
+        }
+    ]
+}
