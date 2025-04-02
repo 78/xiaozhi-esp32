@@ -75,8 +75,14 @@ def get_board_name(folder):
 
 def read_binary(dir_path):
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
-    data = open(merged_bin_path, "rb").read()[0x100000:]
-    if data[0] != 0xE9:
+    merged_bin_data = open(merged_bin_path, "rb").read()
+
+    # find app partition
+    if merged_bin_data[0x100000] == 0xE9:
+        data = merged_bin_data[0x100000:]
+    elif merged_bin_data[0x200000] == 0xE9:
+        data = merged_bin_data[0x200000:]
+    else:
         print(dir_path, "is not a valid image")
         return
     # get flash size

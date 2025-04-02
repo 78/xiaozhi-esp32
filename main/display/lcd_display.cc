@@ -103,6 +103,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
+    port_cfg.timer_period_ms = 50;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD screen");
@@ -278,7 +279,7 @@ void LcdDisplay::SetupUI() {
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.emoji_font->line_height);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
@@ -288,7 +289,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_style_pad_all(content_, 5, 0);
+    lv_obj_set_style_pad_all(content_, 10, 0);
     lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // Background for chat area
     lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for chat area
 
@@ -309,8 +310,10 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
-    lv_obj_set_style_pad_left(status_bar_, 2, 0);
-    lv_obj_set_style_pad_right(status_bar_, 2, 0);
+    lv_obj_set_style_pad_left(status_bar_, 10, 0);
+    lv_obj_set_style_pad_right(status_bar_, 10, 0);
+    lv_obj_set_style_pad_top(status_bar_, 2, 0);
+    lv_obj_set_style_pad_bottom(status_bar_, 2, 0);
     lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
     // 设置状态栏的内容垂直居中
     lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -366,7 +369,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
-#define  MAX_MESSAGES 50
+#define  MAX_MESSAGES 20
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
@@ -375,6 +378,21 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     //避免出现空的消息框
     if(strlen(content) == 0) return;
+    
+    // 检查消息数量是否超过限制
+    uint32_t child_count = lv_obj_get_child_cnt(content_);
+    if (child_count >= MAX_MESSAGES) {
+        // 删除最早的消息（第一个子对象）
+        lv_obj_t* first_child = lv_obj_get_child(content_, 0);
+        lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
+        if (first_child != nullptr) {
+            lv_obj_del(first_child);
+        }
+        // Scroll to the last message immediately
+        if (last_child != nullptr) {
+            lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
+        }
+    }
     
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
@@ -431,9 +449,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
         
-        // Add some margin 
-        lv_obj_set_style_margin_right(msg_bubble, 10, 0);
-        
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
     } else if (strcmp(role, "assistant") == 0) {
@@ -448,9 +463,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set appropriate width for content
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Add some margin
-        lv_obj_set_style_margin_left(msg_bubble, -4, 0);
         
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
@@ -487,7 +499,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_set_parent(msg_bubble, container);
         
         // Right align the bubble in the container
-        lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -10, 0);
+        lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
         
         // Auto-scroll to this container
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
@@ -521,19 +533,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     // Store reference to the latest message label
     chat_message_label_ = msg_text;
-
-    // 检查消息数量是否超过限制
-    uint32_t msg_count = lv_obj_get_child_cnt(content_);
-    while (msg_count >= MAX_MESSAGES) {
-        // 删除最早的消息（第一个子节点）
-        lv_obj_t* oldest_msg = lv_obj_get_child(content_, 0);
-        if (oldest_msg != nullptr) {
-            lv_obj_del(oldest_msg);
-            msg_count--;
-        }else{
-            break;
-        }
-    }
 }
 #else
 void LcdDisplay::SetupUI() {

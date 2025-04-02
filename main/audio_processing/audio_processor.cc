@@ -10,31 +10,41 @@ AudioProcessor::AudioProcessor()
     event_group_ = xEventGroupCreate();
 }
 
-void AudioProcessor::Initialize(int channels, bool reference) {
-    channels_ = channels;
-    reference_ = reference;
-    int ref_num = reference_ ? 1 : 0;
+void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
+    codec_ = codec;
+    int ref_num = codec_->input_reference() ? 1 : 0;
 
     std::string input_format;
-    for (int i = 0; i < channels_ - ref_num; i++) {
+    for (int i = 0; i < codec_->input_channels() - ref_num; i++) {
         input_format.push_back('M');
     }
     for (int i = 0; i < ref_num; i++) {
         input_format.push_back('R');
     }
 
+    srmodel_list_t *models = esp_srmodel_init("model");
+    char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
+
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
-    afe_config->aec_init = false;
-    afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
+    if (realtime_chat) {
+        afe_config->aec_init = true;
+        afe_config->aec_mode = AEC_MODE_VOIP_LOW_COST;
+    } else {
+        afe_config->aec_init = false;
+    }
     afe_config->ns_init = true;
-    afe_config->vad_init = true;
-    afe_config->vad_mode = VAD_MODE_0;
-    afe_config->vad_min_noise_ms = 100;
+    afe_config->ns_model_name = ns_model_name;
+    afe_config->afe_ns_mode = AFE_NS_MODE_NET;
+    if (realtime_chat) {
+        afe_config->vad_init = false;
+    } else {
+        afe_config->vad_init = true;
+        afe_config->vad_mode = VAD_MODE_0;
+        afe_config->vad_min_noise_ms = 100;
+    }
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
-    afe_config->agc_init = true;
-    afe_config->agc_mode = AFE_AGC_MODE_WEBRTC;
-    afe_config->agc_compression_gain_db = 10;
+    afe_config->agc_init = false;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 
     afe_iface_ = esp_afe_handle_from_config(afe_config);
@@ -54,15 +64,12 @@ AudioProcessor::~AudioProcessor() {
     vEventGroupDelete(event_group_);
 }
 
-void AudioProcessor::Input(const std::vector<int16_t>& data) {
-    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+size_t AudioProcessor::GetFeedSize() {
+    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+}
 
-    auto feed_size = afe_iface_->get_feed_chunksize(afe_data_) * channels_;
-    while (input_buffer_.size() >= feed_size) {
-        auto chunk = input_buffer_.data();
-        afe_iface_->feed(afe_data_, chunk);
-        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + feed_size);
-    }
+void AudioProcessor::Feed(const std::vector<int16_t>& data) {
+    afe_iface_->feed(afe_data_, data.data());
 }
 
 void AudioProcessor::Start() {
