@@ -30,10 +30,9 @@ WakeWordDetect::~WakeWordDetect() {
     vEventGroupDelete(event_group_);
 }
 
-void WakeWordDetect::Initialize(int channels, bool reference) {
-    channels_ = channels;
-    reference_ = reference;
-    int ref_num = reference_ ? 1 : 0;
+void WakeWordDetect::Initialize(AudioCodec* codec) {
+    codec_ = codec;
+    int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
     for (int i = 0; i < models->num; i++) {
@@ -51,14 +50,14 @@ void WakeWordDetect::Initialize(int channels, bool reference) {
     }
 
     std::string input_format;
-    for (int i = 0; i < channels_ - ref_num; i++) {
+    for (int i = 0; i < codec_->input_channels() - ref_num; i++) {
         input_format.push_back('M');
     }
     for (int i = 0; i < ref_num; i++) {
         input_format.push_back('R');
     }
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
-    afe_config->aec_init = reference_;
+    afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
@@ -92,13 +91,11 @@ bool WakeWordDetect::IsDetectionRunning() {
 }
 
 void WakeWordDetect::Feed(const std::vector<int16_t>& data) {
-    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    afe_iface_->feed(afe_data_, data.data());
+}
 
-    auto feed_size = afe_iface_->get_feed_chunksize(afe_data_) * channels_;
-    while (input_buffer_.size() >= feed_size) {
-        afe_iface_->feed(afe_data_, input_buffer_.data());
-        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + feed_size);
-    }
+size_t WakeWordDetect::GetFeedSize() {
+    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
 void WakeWordDetect::AudioDetectionTask() {
