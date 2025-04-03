@@ -2,7 +2,7 @@
 
 ([中文](README.md) | [English](README_en.md) | 日本語)
 
-これは シャーガー（Terrence）の最初のハードウェア作品です。
+## プロジェクト紹介
 
 👉 [ESP32+SenseVoice+Qwen72Bで AI チャット仲間を作ろう！【bilibili】](https://www.bilibili.com/video/BV11msTenEH3/)
 
@@ -61,6 +61,7 @@ Feishu ドキュメントチュートリアルをご覧ください：
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="XiaGe Mini C3">XiaGe Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji シャオジー AI 派生版</a>
 - <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">Cuican AI ペンダント</a>
+- <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="無名科技Nologo-星智-1.54">無名科技Nologo-星智-1.54TFT</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
 
 <div style="display: flex; justify-content: space-between;">
@@ -94,6 +95,9 @@ Feishu ドキュメントチュートリアルをご覧ください：
   <a href="docs/v1/movecall-cuican-esp32s3.jpg" target="_blank" title="CuiCan">
     <img src="docs/v1/movecall-cuican-esp32s3.jpg" width="240" />
   </a>
+  <a href="docs/v1/wmnologo_xingzhi_1.54.jpg" target="_blank" title="無名科技Nologo-星智-1.54">
+    <img src="docs/v1/wmnologo_xingzhi_1.54.jpg" width="240" />
+  </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
   </a>
@@ -115,6 +119,11 @@ Feishu ドキュメントチュートリアルをご覧ください：
 - ESP-IDF プラグインをインストール、SDK バージョン 5.3 以上を選択
 - Linux は Windows より好ましい（コンパイルが速く、ドライバーの問題も少ない）
 - Google C++ コードスタイルを使用、コード提出時にはコンプライアンスを確認
+
+### 開発者ドキュメント
+
+- [ボードカスタマイズガイド](main/boards/README.md) - シャオジー向けのカスタムボード適応を作成する方法を学ぶ
+- [IoT 制御モジュール](main/iot/README.md) - AI 音声コマンドでIoTデバイスを制御する方法を理解する
 
 ## AI エージェント設定
 

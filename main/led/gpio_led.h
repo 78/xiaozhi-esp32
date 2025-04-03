@@ -11,13 +11,18 @@
 #include <mutex>
 
 class GpioLed : public Led {
-public:
-    GpioLed(gpio_num_t gpio, int output_invert=0);
+ public:
+    GpioLed(gpio_num_t gpio);
+    GpioLed(gpio_num_t gpio, int output_invert);
+    GpioLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, ledc_channel_t channel);
     virtual ~GpioLed();
 
     void OnStateChanged() override;
+    void TurnOn();
+    void TurnOff();
+    void SetBrightness(uint8_t brightness);
 
-private:
+ private:
     std::mutex mutex_;
     TaskHandle_t blink_task_ = nullptr;
     ledc_channel_config_t ledc_channel_ = {0};
@@ -34,12 +39,9 @@ private:
     void BlinkOnce();
     void Blink(int times, int interval_ms);
     void StartContinuousBlink(int interval_ms);
-    void TurnOn();
-    void TurnOff();
-    void SetBrightness(uint8_t brightness);
     void StartFadeTask();
     void OnFadeEnd();
     static bool FadeCallback(const ledc_cb_param_t *param, void *user_arg);
 };
 
-#endif // _GPIO_LED_H_
+#endif  // _GPIO_LED_H_
