@@ -142,7 +142,7 @@ private:
 
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         esp_lcd_panel_set_gap(panel, 0, 0);
         uint8_t data0[] = {0x00};
         uint8_t data1[] = {0x65};
@@ -157,7 +157,11 @@ private:
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
+                                        #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                            .emoji_font = font_emoji_32_init(),
+                                        #else
+                                            .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+                                        #endif
                                     });
     }
 
@@ -180,6 +184,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:

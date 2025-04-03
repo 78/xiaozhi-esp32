@@ -31,10 +31,12 @@ def merge_bin():
         sys.exit(1)
 
 def zip_bin(board_type, project_version):
+    if not os.path.exists("releases"):
+        os.makedirs("releases")
     output_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(output_path):
         os.remove(output_path)
-    with zipfile.ZipFile(output_path, 'w') as zipf:
+    with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_DEFLATED) as zipf:
         zipf.write("build/merged-binary.bin", arcname="merged-binary.bin")
     print(f"zip bin to {output_path} done")
     
@@ -70,7 +72,7 @@ def release(board_type, board_config):
 
     # Print Project Version
     project_version = get_project_version()
-    print(f"Project Version: {project_version}")
+    print(f"Project Version: {project_version}", config_path)
     release_path = f"releases/v{project_version}_{board_type}.zip"
     if os.path.exists(release_path):
         print(f"跳过 {board_type} 因为 {release_path} 已存在")

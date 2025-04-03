@@ -61,7 +61,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
     config BOARD_TYPE_BREAD_COMPACT_ESP32
-        bool "面包板 ESP32 DevKit"
+        bool "面包板（WiFi） ESP32 DevKit"
+    config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
+        bool "面包板（WiFi+ LCD） ESP32 DevKit"
+    config BOARD_TYPE_ESP32_CGC
+        bool "ESP32 CGC"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
     config BOARD_TYPE_ESP_BOX
@@ -100,6 +104,8 @@ choice BOARD_TYPE
         bool "AtomS3 + Echo Base"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
         bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
+        bool "AtomS3R CAM/M12 + Echo Base"
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
     config BOARD_TYPE_XMINI_C3
@@ -116,6 +122,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-1.85"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
+        bool "Waveshare ESP32-S3-Touch-LCD-3.5"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -124,6 +132,8 @@ choice BOARD_TYPE
         bool "LILYGO T-CameraPlus-S3"
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
          bool "Movecall Moji 小智AI衍生版"
+    config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
+         bool "Movecall CuiCan 璀璨·AI吊坠"
     config BOARD_TYPE_ATK_DNESP32S3
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
@@ -132,6 +142,10 @@ choice BOARD_TYPE
         bool "嘟嘟开发板CHATX(wifi)"
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
+    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI
+        bool "无名科技星智0.85(WIFI)"
+    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_ML307
+        bool "无名科技星智0.85(ML307)"
     config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
         bool "无名科技星智0.96(WIFI)"
     config BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307
@@ -150,6 +164,14 @@ choice BOARD_TYPE
         bool "凡诚1.8 4G(ML307)"    
     config BOARD_TYPE_FANCHENG_1_8LCD_WIFI
         bool "凡诚1.8 WIFI"          
+    config BOARD_TYPE_FANCHENG_OLED_ML307_M
+        bool "凡诚0.96 4G(ML307) M"
+    config BOARD_TYPE_FANCHENG_OLED_WIFI_M
+        bool "凡诚0.96 WIFI M"
+    config BOARD_TYPE_FANCHENG_1_8LCD_ML307_M
+        bool "凡诚1.8 4G(ML307) M"
+    config BOARD_TYPE_FANCHENG_1_8LCD_WIFI_M
+        bool "凡诚1.8 WIFI M"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -162,10 +184,12 @@ choice DISPLAY_OLED_TYPE
         bool "SSD1306, 分辨率128*32"
     config OLED_SSD1306_128X64
         bool "SSD1306, 分辨率128*64"
+    config OLED_SH1106_128X64
+        bool "SH1106, 分辨率128*64"
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -191,7 +215,9 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7735_128X128
         bool "ST7735, 分辨率128*128"
     config LCD_ST7796_320X480
-        bool "ST7796, 分辨率320*480"
+        bool "ST7796, 分辨率320*480 IPS"
+    config LCD_ST7796_320X480_NO_IPS
+        bool "ST7796, 分辨率320*480, 非IPS"    
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
@@ -214,17 +240,31 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
-config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
-    default y
-    depends on IDF_TARGET_ESP32S3 && USE_AFE
+config USE_WECHAT_MESSAGE_STYLE
+    bool "使用微信聊天界面风格"
+    default n
     help
-        需要 ESP32 S3 与 AFE 支持
+        使用微信聊天界面风格
 
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
-    depends on IDF_TARGET_ESP32S3 && USE_AFE
+    depends on IDF_TARGET_ESP32S3 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
+
+config USE_AUDIO_PROCESSOR
+    bool "启用音频降噪、增益处理"
+    default y
+    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    help
+        需要 ESP32 S3 与 AFE 支持
+
+config USE_REALTIME_CHAT
+    bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
+    default n
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
+    help
+        需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
+        
 endmenu
