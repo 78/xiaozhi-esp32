@@ -1,8 +1,8 @@
 /*
  * @Date: 2025-03-01 10:58:13
  * @LastEditors: zhouke
- * @LastEditTime: 2025-03-03 07:27:47
- * @FilePath: \xiaozhi-esp32\main\boards\fancheng-1.8-wifi\fancheng-1.8-wifi.cc
+ * @LastEditTime: 2025-04-03 22:29:03
+ * @FilePath: \xiaozhi-esp32\main\boards\fancheng-1.8-wifi-m\fancheng-1.8-wifi.cc
  */
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
@@ -19,7 +19,7 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
-#include "tm1650.h"
+#include "tm1637.h"
  
 #define TAG "FanchengWifiBoardLCD"
 
@@ -109,7 +109,7 @@ public:
         InitializeIot();
         GetBacklight()->RestoreBrightness();
         ESP_LOGI(TAG, "Initialize TM1650");
-        TM1650_init();
+        TM1637_init();
         //TM1650_print_number(1234, true);
     }
 

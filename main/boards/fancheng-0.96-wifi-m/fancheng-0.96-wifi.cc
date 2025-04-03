@@ -13,7 +13,7 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
-
+#include "tm1637.h"
 #define TAG "FanChengOledWifiBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
@@ -157,6 +157,7 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeIot();
+        TM1637_init();
     }
 
     virtual Led* GetLed() override {

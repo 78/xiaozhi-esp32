@@ -12,7 +12,7 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
-
+#include "tm1637.h"
 
 #define TAG "FanchengML307BoardLCD"
 
@@ -100,6 +100,7 @@ public:
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
+        TM1637_init();
     }
 
     virtual Led* GetLed() override {
