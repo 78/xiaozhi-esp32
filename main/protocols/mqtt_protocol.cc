@@ -254,6 +254,10 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         if (sample_rate != NULL) {
             server_sample_rate_ = sample_rate->valueint;
         }
+        auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
+        if (frame_duration != NULL) {
+            server_frame_duration_ = frame_duration->valueint;
+        }
     }
 
     auto udp = cJSON_GetObjectItem(root, "udp");

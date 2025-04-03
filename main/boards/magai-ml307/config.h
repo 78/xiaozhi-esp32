@@ -52,16 +52,12 @@
 #define DISPLAY_SWAP_XY                 false
 
 #define DISPLAY_OFFSET_X                0
-#define DISPLAY_OFFSET_Y                15
+#define DISPLAY_OFFSET_Y                10
 
 #define DISPLAY_BACKLIGHT_PIN           GPIO_NUM_44
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
 #define ML307_RX_PIN                    GPIO_NUM_42
 #define ML307_TX_PIN                    GPIO_NUM_41
-
-#define MODE_WIFI                       0
-#define MODE_4G                         1
-
 
 #endif // _BOARD_CONFIG_H_

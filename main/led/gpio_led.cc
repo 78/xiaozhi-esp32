@@ -20,11 +20,19 @@
 #define LEDC_LS_MODE           LEDC_LOW_SPEED_MODE
 #define LEDC_LS_CH0_CHANNEL    LEDC_CHANNEL_0
 
-#define LEDC_DUTY              (4096)
+#define LEDC_DUTY              (8191)
 #define LEDC_FADE_TIME    (1000)
 // GPIO_LED
 
-GpioLed::GpioLed(gpio_num_t gpio, int output_invert) {
+GpioLed::GpioLed(gpio_num_t gpio)
+        : GpioLed(gpio, 0, LEDC_LS_TIMER, LEDC_LS_CH0_CHANNEL) {
+}
+
+GpioLed::GpioLed(gpio_num_t gpio, int output_invert)
+        : GpioLed(gpio, output_invert, LEDC_LS_TIMER, LEDC_LS_CH0_CHANNEL) {
+}
+
+GpioLed::GpioLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, ledc_channel_t channel) {
     // If the gpio is not connected, you should use NoLed class
     assert(gpio != GPIO_NUM_NC);
 
@@ -33,20 +41,20 @@ GpioLed::GpioLed(gpio_num_t gpio, int output_invert) {
      * that will be used by LED Controller
      */
     ledc_timer_config_t ledc_timer = {};
-    ledc_timer.duty_resolution = LEDC_TIMER_13_BIT; // resolution of PWM duty
+    ledc_timer.duty_resolution = LEDC_TIMER_13_BIT;  // resolution of PWM duty
     ledc_timer.freq_hz = 4000;                      // frequency of PWM signal
     ledc_timer.speed_mode = LEDC_LS_MODE;           // timer mode
-    ledc_timer.timer_num = LEDC_LS_TIMER;            // timer index
+    ledc_timer.timer_num = timer_num;               // timer index
     ledc_timer.clk_cfg = LEDC_AUTO_CLK;              // Auto select the source clock
 
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
-    ledc_channel_.channel    = LEDC_LS_CH0_CHANNEL,
+    ledc_channel_.channel    = channel,
     ledc_channel_.duty       = 0,
     ledc_channel_.gpio_num   = gpio,
     ledc_channel_.speed_mode = LEDC_LS_MODE,
     ledc_channel_.hpoint     = 0,
-    ledc_channel_.timer_sel  = LEDC_LS_TIMER,
+    ledc_channel_.timer_sel  = timer_num,
     ledc_channel_.flags.output_invert = output_invert & 0x01,
 
     // Set LED Controller with previously prepared configuration
@@ -86,7 +94,11 @@ GpioLed::~GpioLed() {
 
 
 void GpioLed::SetBrightness(uint8_t brightness) {
-    duty_ = brightness * LEDC_DUTY / 100;
+    if (brightness == 100) {
+        duty_ = LEDC_DUTY;
+    } else {
+        duty_ = brightness * LEDC_DUTY / 100;
+    }
 }
 
 void GpioLed::TurnOn() {

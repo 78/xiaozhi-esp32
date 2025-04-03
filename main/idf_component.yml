@@ -9,16 +9,21 @@ dependencies:
   espressif/esp_lcd_panel_io_additions: "^1.0.1"
   78/esp_lcd_nv3023: "~1.0.0"
   78/esp-wifi-connect: "~2.3.1"
-  78/esp-opus-encoder: "~2.1.0"
-  78/esp-ml307: "~1.7.2"
+  78/esp-opus-encoder: "~2.3.0"
+  78/esp-ml307: "~1.7.3"
   78/xiaozhi-fonts: "~1.3.2"
   espressif/led_strip: "^2.4.1"
   espressif/esp_codec_dev: "~1.3.2"
-  espressif/esp-sr: "^1.9.0"
+  espressif/esp-sr: "^2.0.3"
   espressif/button: "^3.3.1"
+  espressif/knob: "^1.0.0"
   lvgl/lvgl: "~9.2.2"
   esp_lvgl_port: "~2.4.4"
   espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
+  tny-robotics/sh1106-esp-idf:
+    version: "^1.0.0"
+    rules:
+      - if: 'idf_version >= "5.4.0"'
   ## Required IDF version
   idf:
     version: ">=5.3"
