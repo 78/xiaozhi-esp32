@@ -1,13 +1,12 @@
 #include "wifi_board.h"
 #include "audio_codecs/no_audio_codec.h"
-#include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
-#include "assets/lang_config.h"
+#include "display/oled_display.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -15,25 +14,22 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
-#ifdef SH1106
-#include <esp_lcd_panel_sh1106.h>
-#endif
-
-#define TAG "MolunSmartHomeESP32S3"
+#define TAG "MolunSmartHomeESP32"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class MolunSmartHomeESP32S3 : public WifiBoard {
+
+class MolunSmartHomeESP32 : public WifiBoard {
 private:
+    Button boot_button_;
+    Button touch_button_;
+    Button asr_button_;
+
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
-    Button boot_button_;
-    Button touch_button_;
-    Button volume_up_button_;
-    Button volume_down_button_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -80,11 +76,7 @@ private:
         };
         panel_config.vendor_config = &ssd1306_config;
 
-#ifdef SH1106
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh1106(panel_io_, &panel_config, &panel_));
-#else
         ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
-#endif
         ESP_LOGI(TAG, "SSD1306 driver installed");
 
         // Reset the display
@@ -104,48 +96,38 @@ private:
     }
 
     void InitializeButtons() {
+        
+        // 配置 GPIO
+        gpio_config_t io_conf = {
+            .pin_bit_mask = 1ULL << BUILTIN_LED_GPIO,  // 设置需要配置的 GPIO 引脚
+            .mode = GPIO_MODE_OUTPUT,           // 设置为输出模式
+            .pull_up_en = GPIO_PULLUP_DISABLE,  // 禁用上拉
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,  // 禁用下拉
+            .intr_type = GPIO_INTR_DISABLE      // 禁用中断
+        };
+        gpio_config(&io_conf);  // 应用配置
+
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            gpio_set_level(BUILTIN_LED_GPIO, 1);
             app.ToggleChatState();
         });
+
+        asr_button_.OnClick([this]() {
+            std::string wake_word="你好小智";
+            Application::GetInstance().WakeWordInvoke(wake_word);
+        });
+
         touch_button_.OnPressDown([this]() {
+            gpio_set_level(BUILTIN_LED_GPIO, 1);
             Application::GetInstance().StartListening();
         });
         touch_button_.OnPressUp([this]() {
+            gpio_set_level(BUILTIN_LED_GPIO, 0);
             Application::GetInstance().StopListening();
-        });
-
-        volume_up_button_.OnClick([this]() {
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
-        });
-
-        volume_up_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
-        });
-
-        volume_down_button_.OnClick([this]() {
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() - 10;
-            if (volume < 0) {
-                volume = 0;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
-        });
-
-        volume_down_button_.OnLongPress([this]() {
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
@@ -157,23 +139,16 @@ private:
     }
 
 public:
-    MolunSmartHomeESP32S3() :
-        boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),
-        volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+    MolunSmartHomeESP32() : boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
+    {
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeIot();
     }
 
-    virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
-    }
-
-    virtual AudioCodec* GetAudioCodec() override {
+    virtual AudioCodec* GetAudioCodec() override 
+    {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
@@ -187,6 +162,7 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
+
 };
 
-DECLARE_BOARD(MolunSmartHomeESP32S3);
+DECLARE_BOARD(MolunSmartHomeESP32);
