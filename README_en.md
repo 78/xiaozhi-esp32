@@ -2,7 +2,7 @@
 
 ([中文](README.md) | English | [日本語](README_ja.md))
 
-This is Terrence's first hardware project.
+## Introduction
 
 👉 [Build your AI chat companion with ESP32+SenseVoice+Qwen72B!【bilibili】](https://www.bilibili.com/video/BV11msTenEH3/)
 
@@ -61,6 +61,7 @@ Breadboard demonstration:
 - <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="XiaGe Mini C3">XiaGe Mini C3</a>
 - <a href="https://oshwhub.com/movecall/moji-xiaozhi-ai-derivative-editi" target="_blank" title="Movecall Moji ESP32S3">Moji XiaoZhi AI Derivative Version</a>
 - <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">CuiCan AI pendant</a>
+- <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="WMnologo-Xingzhi-1.54">WMnologo-Xingzhi-1.54TFT</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
 
 <div style="display: flex; justify-content: space-between;">
@@ -97,6 +98,9 @@ Breadboard demonstration:
   <a href="docs/v1/movecall-cuican-esp32s3.jpg" target="_blank" title="CuiCan">
     <img src="docs/v1/movecall-cuican-esp32s3.jpg" width="240" />
   </a>
+  <a href="docs/v1/wmnologo_xingzhi_1.54.jpg" target="_blank" title="WMnologo-Xingzhi-1.54">
+    <img src="docs/v1/wmnologo_xingzhi_1.54.jpg" width="240" />
+  </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
   </a>
@@ -118,6 +122,11 @@ The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by
 - Install ESP-IDF plugin, select SDK version 5.3 or above
 - Linux is preferred over Windows for faster compilation and fewer driver issues
 - Use Google C++ code style, ensure compliance when submitting code
+
+### Developer Documentation
+
+- [Board Customization Guide](main/boards/README.md) - Learn how to create custom board adaptations for XiaoZhi
+- [IoT Control Module](main/iot/README.md) - Understand how to control IoT devices through AI voice commands
 
 ## AI Agent Configuration
 
