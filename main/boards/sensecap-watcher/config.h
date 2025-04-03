@@ -82,6 +82,13 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_8
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+/* Touch */
+#define BSP_TOUCH_I2C_NUM  (1)
+#define BSP_TOUCH_GPIO_INT (IO_EXPANDER_PIN_NUM_5)
+#define BSP_TOUCH_I2C_SDA  (GPIO_NUM_39)
+#define BSP_TOUCH_I2C_SCL  (GPIO_NUM_38)
+#define BSP_TOUCH_I2C_CLK  (400000)
+
 /* Settings */
 #define DRV_LCD_PIXEL_CLK_HZ      (40 * 1000 * 1000)
 #define DRV_LCD_CMD_BITS          (32)

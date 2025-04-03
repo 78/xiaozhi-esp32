@@ -23,8 +23,6 @@ public:
     void Start();
     void OutputData(std::vector<int16_t>& data);
     bool InputData(std::vector<int16_t>& data);
-    void OnOutputReady(std::function<bool()> callback);
-    void OnInputReady(std::function<bool()> callback);
 
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
@@ -33,13 +31,8 @@ public:
     inline int input_channels() const { return input_channels_; }
     inline int output_channels() const { return output_channels_; }
     inline int output_volume() const { return output_volume_; }
-
-private:
-    std::function<bool()> on_input_ready_;
-    std::function<bool()> on_output_ready_;
-    
-    IRAM_ATTR static bool on_recv(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-    IRAM_ATTR static bool on_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+    inline bool input_enabled() const { return input_enabled_; }
+    inline bool output_enabled() const { return output_enabled_; }
 
 protected:
     i2s_chan_handle_t tx_handle_ = nullptr;
