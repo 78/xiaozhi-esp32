@@ -134,6 +134,12 @@ private:
     }
 
     void InitializeButtons() {
+        main_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+        });
         main_button_.OnPressDown([this]() {
             power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
