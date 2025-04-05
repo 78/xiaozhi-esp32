@@ -1,3 +1,5 @@
+<img src="docs/weburl.jpg" width="240" />
+
 # 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
 
 （中文 | [English](README_en.md) | [日本語](README_ja.md)）
