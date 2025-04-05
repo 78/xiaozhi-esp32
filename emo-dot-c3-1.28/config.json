@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "emo-dot-esp32c3",
+            "sdkconfig_append": []
+        }
+    ]
+}
