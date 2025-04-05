@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WiFi Configuration</title>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="referrer no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <style type="text/css">
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            text-align: center;
+        }
+        form {
+            width: 300px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        input[type="submit"] {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        input[type="submit"]:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #ap_list {
+            margin-top: 20px;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
+        #ap_list a {
+            display: block;
+            margin-top: 5px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        #ap_list a:hover {
+            text-decoration: underline;
+        }
+
+        .language-switch {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .language-switch select {
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="language-switch">
+        <select id="language" onchange="changeLanguage()">
+            <option value="zh-CN">中文</option>
+            <option value="en-US">English</option>
+        </select>
+    </div>
+
+    <h1 data-lang="title_server_url">服务器配置</h1>
+    <form action="/submit_server_url" method="post" onsubmit="submitForm_server_url(event)">
+        <div>
+            <p>
+                <label for="ota_url">OTA url:</label>
+                <input type="text" id="ota_url" name="ota_url" value="https://api.tenclass.net/xiaozhi/ota/" required>
+            </p>
+            <p>
+                <label for="websocket_url">Websocket url:</label>
+                <input type="text" id="websocket_url" name="websocket_url" value="wss://api.tenclass.net/xiaozhi/v1/" required>
+            </p>
+            <p style="text-align: center;">
+                <input type="submit" value="保存" id="button_server_url" data-lang-value="save_server_url">
+            </p>
+        </div>
+    </form>
+    
+    <h1 data-lang="title">WiFi 配置</h1>
+    <form action="/submit" method="post" onsubmit="submitForm(event)">
+        <div id="saved_list_container" style="display: none;">
+            <h3 data-lang="saved_wifi">已保存的 WiFi</h3>
+            <ul id="saved_list">
+                <li>
+                    <span>SSID</span>
+                </li>
+            </ul>
+        </div>
+        <div>
+            <h3 data-lang="new_wifi">新的 WiFi</h3>
+            <p class="error" style="color: red; text-align: center;" id="error">
+            </p>
+            <p>
+                <label for="ssid">SSID:</label>
+                <input type="text" id="ssid" name="ssid" required>
+            </p>
+            <p>
+                <label for="password" data-lang="password">密码:</label>
+                <input type="password" id="password" name="password">
+            </p>
+            <p style="text-align: center;">
+                <input type="submit" value="连接" id="button" data-lang-value="connect">
+            </p>
+            <p id="ap_list">
+            </p>
+        </div>
+    </form>
+
+    <script type="text/javascript">
+        const button = document.getElementById('button');
+        const error = document.getElementById('error');
+        const ssid = document.getElementById('ssid');
+
+        // Add language translations
+        const translations = {
+            'zh-CN': {
+                title: 'WiFi 配置',
+                title_server_url: '服务器配置',
+                saved_wifi: '已保存的 WiFi',
+                new_wifi: '新的 WiFi',
+                password: '密码:',
+                connect: '连接',
+                save_server_url: '保存',
+                select_wifi: '从下面列表选择 2.4G WiFi:'
+            },
+            'en-US': {
+                title: 'WiFi Configuration',
+                title_server_url: 'Server Configuration',
+                saved_wifi: 'Saved WiFi',
+                new_wifi: 'New WiFi',
+                password: 'Password:',
+                connect: 'Connect',
+                save_server_url: 'save',
+                select_wifi: 'Select an 2.4G WiFi from the list below:'
+            }
+        };
+
+        function changeLanguage() {
+            const lang = document.getElementById('language').value;
+            // 检查语言值是否合法
+            if (!translations[lang]) {
+                console.warn(`不支持的语言: ${lang}，默认使用中文`);
+                document.getElementById('language').value = 'zh-CN';
+                return changeLanguage();
+            }
+            
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                const key = element.getAttribute('data-lang');
+                element.textContent = translations[lang][key];
+            });
+            document.querySelectorAll('[data-lang-value]').forEach(element => {
+                const key = element.getAttribute('data-lang-value');
+                element.value = translations[lang][key];
+            });
+            // Update AP list text
+            const apList = document.getElementById('ap_list');
+            if (apList.firstChild) {
+                apList.firstChild.textContent = translations[lang].select_wifi;
+            }
+            // Save language preference
+            localStorage.setItem('preferred_language', lang);
+        }
+
+        function renderSavedList(data) {
+            const savedListContainer = document.getElementById('saved_list_container');
+            const savedList = document.getElementById('saved_list');
+            savedList.innerHTML = '';
+            data.forEach((ssid, index) => {
+                const li = document.createElement('li');
+                let html = `<span>${ssid}</span>`;
+                // Only add priority and delete buttons after the first item
+                if (index > 0) {
+                    html += ` <span>
+                        <button type="button" onclick="setDefaultItem(this, ${index})">⬆️</button>
+                        <button type="button" onclick="deleteItem(this, ${index})">❌</button>
+                    </span>`;
+                } else {
+                    html += ` <span><button type="button" onclick="deleteItem(this, ${index})">❌</button></span>`;
+                }
+                li.innerHTML = html;
+                savedList.appendChild(li);
+            });
+            if (data.length > 0) {
+                savedListContainer.style.display = 'block';
+            } else {
+                savedListContainer.style.display = 'none';
+            }
+        }
+
+        // Delete one item from the list
+        function deleteItem(item, index) {
+            // disable the button
+            item.disabled = true;
+            // /saved/delete?index=INDEX
+            fetch('/saved/delete?index=' + index)
+                .then(response => response.json())
+                .then(data => {
+                    loadSavedList();
+                });
+        }
+
+        function setDefaultItem(item, index) {
+            item.disabled = true;
+            fetch('/saved/set_default?index=' + index)
+                .then(response => response.json())
+                .then(data => {
+                    loadSavedList();
+                });
+        }
+
+        // Load saved ssid and password list
+        function loadSavedList() {
+            fetch('/saved/list')
+                .then(response => response.json())
+                .then(data => {
+                    renderSavedList(data);
+                });
+        }
+
+        // Load AP list from /scan
+        function loadAPList() {
+            if (button.disabled) {
+                return;
+            }
+
+            fetch('/scan')
+                .then(response => response.json())
+                .then(data => {
+                    const lang = document.getElementById('language').value;
+                    const apList = document.getElementById('ap_list');
+                    apList.innerHTML = '<p>' + translations[lang].select_wifi + '</p>';
+                    data.forEach(ap => {
+                        // Create a link for each AP
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.textContent = ap.ssid + ' (' + ap.rssi + ' dBm)';
+                        if (ap.authmode === 0) {
+                            link.textContent += ' 🌐';
+                        } else {
+                            link.textContent += ' 🔒';
+                        }
+                        link.addEventListener('click', () => {
+                            ssid.value = ap.ssid;
+                        });
+                        apList.appendChild(link);
+                    });
+                    setTimeout(loadAPList, 5000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+        
+        function load_server_url() {
+            fetch('/read_server_url')
+                .then(response => response.json())
+                .then(data => {
+                    // 获取返回数据中的ota_url并设置到input元素的value
+                    document.getElementById("ota_url").value = data.ota_url;
+                    document.getElementById("websocket_url").value = data.websocket_url;
+                });
+        }
+
+        // Set initial language
+        document.addEventListener('DOMContentLoaded', () => {
+            // 从 URL 参数中获取语言设置
+            const urlParams = new URLSearchParams(window.location.search);
+            const langParam = urlParams.get('lang');
+            
+            // 优先使用 URL 参数的语言设置，其次是本地存储的设置，最后默认使用中文
+            const savedLang = langParam || localStorage.getItem('preferred_language') || 'zh-CN';
+            document.getElementById('language').value = savedLang;
+            changeLanguage();
+            load_server_url();
+            loadSavedList();
+            loadAPList();
+        });
+
+        // 监听 pageshow 事件以处理浏览器返回键
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                loadSavedList();
+            } else {
+                // 正常加载时已处理
+            }
+        });
+
+        async function submitForm(event) {
+            event.preventDefault();
+            button.disabled = true;
+            error.textContent = '';
+
+            const ssidValue = ssid.value;
+            const passwordValue = document.getElementById('password').value;
+
+            const payload = {
+                ssid: ssidValue,
+                password: passwordValue
+            };
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '连接失败');
+                }
+
+                // 连接成功，跳转到完成页面
+                button.disabled = false;
+                window.location.href = '/done.html';
+            } catch (err) {
+                error.textContent = err.message;
+                button.disabled = false;
+            }
+        }
+
+
+        
+        async function submitForm_server_url(event) {
+            event.preventDefault();
+            button.disabled = true;
+            error.textContent = '';
+
+            const ota_url_Value = ota_url.value;
+            const websocket_url_Value = websocket_url.value;
+
+            const payload = {
+                ota_url: ota_url_Value,
+                websocket_url: websocket_url_Value
+            };
+
+            try {
+                const response = await fetch('/submit_server_url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '连接失败');
+                }
+
+                alert("保存成功");
+            } catch (err) {
+                error.textContent = err.message;
+                button.disabled = false;
+                alert("保存失败");
+            }
+        }
+
+
+    </script>
+</body>
+</html>

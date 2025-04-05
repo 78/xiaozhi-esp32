@@ -2,8 +2,42 @@
 
 #include <esp_log.h>
 #include <nvs_flash.h>
+#include <cstring>
 
 #define TAG "Settings"
+
+Server_Urls Read_server_url()
+{
+    ESP_LOGI(TAG, "read server url");
+    nvs_handle_t nvs_handle;
+    auto ret = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
+    if (ret != ESP_OK) {
+        // The namespace doesn't exist, just return default values
+        ESP_LOGW(TAG, "NVS namespace %s doesn't exist", NVS_NAMESPACE);
+        nvs_close(nvs_handle);
+        return {"https://api.tenclass.net/xiaozhi/ota/", "wss://api.tenclass.net/xiaozhi/v1/"};
+    }
+
+    Server_Urls serverUrls = {};
+
+    size_t length = sizeof(serverUrls.ota_url);
+    if (nvs_get_str(nvs_handle, "ota_url", serverUrls.ota_url, &length) != ESP_OK) {
+        ESP_LOGE(TAG, "GET ota_url FAIL");
+        // If failed, use default OTA URL
+        strncpy(serverUrls.ota_url, "https://api.tenclass.net/xiaozhi/ota/", sizeof(serverUrls.ota_url));
+    }
+
+    length = sizeof(serverUrls.websocket_url);
+    if (nvs_get_str(nvs_handle, "websocket_url", serverUrls.websocket_url, &length) != ESP_OK) {
+        ESP_LOGE(TAG, "GET websocket_url FAIL");
+        // If failed, use default websocket URL
+        strncpy(serverUrls.websocket_url, "wss://api.tenclass.net/xiaozhi/v1/", sizeof(serverUrls.websocket_url));
+    }
+
+    nvs_close(nvs_handle);
+    return serverUrls;
+}
+
 
 Settings::Settings(const std::string& ns, bool read_write) : ns_(ns), read_write_(read_write) {
     nvs_open(ns.c_str(), read_write_ ? NVS_READWRITE : NVS_READONLY, &nvs_handle_);
@@ -36,6 +70,9 @@ std::string Settings::GetString(const std::string& key, const std::string& defau
     }
     return value;
 }
+
+
+
 
 void Settings::SetString(const std::string& key, const std::string& value) {
     if (read_write_) {

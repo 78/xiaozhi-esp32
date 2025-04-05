@@ -1,5 +1,4 @@
 tmp/
-components/
 managed_components/
 build/
 .vscode/
@@ -11,3 +10,4 @@ dependencies.lock
 releases/
 main/assets/lang_config.h
 .DS_Store
+/.vs

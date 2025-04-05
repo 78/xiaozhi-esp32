@@ -26,7 +26,7 @@ endchoice
 
 choice CONNECTION_TYPE
     prompt "Connection Type"
-    default CONNECTION_TYPE_MQTT_UDP
+    default CONNECTION_TYPE_WEBSOCKET
     help
         网络数据传输协议
     config CONNECTION_TYPE_MQTT_UDP

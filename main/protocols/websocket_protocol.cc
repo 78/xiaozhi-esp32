@@ -8,6 +8,7 @@
 #include <esp_log.h>
 #include <arpa/inet.h>
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #define TAG "WS"
 
@@ -61,7 +62,8 @@ bool WebsocketProtocol::OpenAudioChannel() {
     }
 
     error_occurred_ = false;
-    std::string url = CONFIG_WEBSOCKET_URL;
+    // std::string url = CONFIG_WEBSOCKET_URL;
+    std::string url = Read_server_url().websocket_url;
     std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
     websocket_ = Board::GetInstance().CreateWebSocket();
     websocket_->SetHeader("Authorization", token.c_str());

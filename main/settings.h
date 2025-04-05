@@ -3,6 +3,14 @@
 
 #include <string>
 #include <nvs_flash.h>
+struct Server_Urls {
+    char ota_url[128];
+    char websocket_url[128];
+};
+#define NVS_NAMESPACE "wifi"
+
+
+Server_Urls Read_server_url();
 
 class Settings {
 public:

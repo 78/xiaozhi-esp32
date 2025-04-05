@@ -9,6 +9,7 @@
 #include "font_awesome_symbols.h"
 #include "iot/thing_manager.h"
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -450,7 +451,8 @@ void Application::Start() {
     protocol_->Start();
 
     // Check for new firmware version or get the MQTT broker address
-    ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    // ota_.SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    ota_.SetCheckVersionUrl(Read_server_url().ota_url);
     ota_.SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     ota_.SetHeader("Client-Id", board.GetUuid());
     ota_.SetHeader("Accept-Language", Lang::CODE);
