@@ -1,6 +1,8 @@
-# 为了大家方便魔改了一个小智固件，可以通过配网界面轻松更改服务器地址！
-<img src="docs/weburl.jpg" width="240" />
-<img src="docs/wxq.jpg" width="240" />
+## 为了大家方便魔改了一个小智固件，可以通过配网界面轻松更改服务器地址！
+<div style="display: flex; justify-content: space-between;">
+  <img src="docs/weburl.jpg" width="240" />
+  <img src="docs/wxq.jpg" width="240" />
+</div>
 
 # 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
 
