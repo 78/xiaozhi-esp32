@@ -86,6 +86,29 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+
+        // pulldown for lcd i2c
+        const gpio_config_t io_config = {
+            .pin_bit_mask = (1ULL << BSP_TOUCH_I2C_SDA) | (1ULL << BSP_TOUCH_I2C_SCL) | (1ULL << BSP_SPI3_HOST_PCLK) | (1ULL << BSP_SPI3_HOST_DATA0) | (1ULL << BSP_SPI3_HOST_DATA1)
+                            | (1ULL << BSP_SPI3_HOST_DATA2) | (1ULL << BSP_SPI3_HOST_DATA3) | (1ULL << BSP_LCD_SPI_CS) | (1UL << DISPLAY_BACKLIGHT_PIN),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&io_config);
+
+        gpio_set_level(BSP_TOUCH_I2C_SDA, 0);
+        gpio_set_level(BSP_TOUCH_I2C_SCL, 0);
+    
+        gpio_set_level(BSP_LCD_SPI_CS, 0);
+        gpio_set_level(DISPLAY_BACKLIGHT_PIN, 0);
+        gpio_set_level(BSP_SPI3_HOST_PCLK, 0);
+        gpio_set_level(BSP_SPI3_HOST_DATA0, 0);
+        gpio_set_level(BSP_SPI3_HOST_DATA1, 0);
+        gpio_set_level(BSP_SPI3_HOST_DATA2, 0);
+        gpio_set_level(BSP_SPI3_HOST_DATA3, 0);
+
     }
 
     esp_err_t IoExpanderSetLevel(uint16_t pin_mask, uint8_t level) {
