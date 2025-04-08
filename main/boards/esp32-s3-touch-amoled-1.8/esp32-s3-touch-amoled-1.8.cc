@@ -87,7 +87,11 @@ public:
                     {
                         .text_font = &font_puhui_30_4,
                         .icon_font = &font_awesome_30_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                        .emoji_font = font_emoji_32_init(),
+#else
                         .emoji_font = font_emoji_64_init(),
+#endif
                     }) {
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);

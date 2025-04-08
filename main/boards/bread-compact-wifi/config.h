@@ -42,6 +42,9 @@
 #define DISPLAY_HEIGHT  32
 #elif CONFIG_OLED_SSD1306_128X64
 #define DISPLAY_HEIGHT  64
+#elif CONFIG_OLED_SH1106_128X64
+#define DISPLAY_HEIGHT  64
+#define SH1106
 #else
 #error "未选择 OLED 屏幕类型"
 #endif
