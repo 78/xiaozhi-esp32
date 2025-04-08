@@ -51,7 +51,7 @@ def release_current():
 
 def get_all_board_types():
     board_configs = {}
-    with open("main/CMakeLists.txt") as f:
+    with open("main/CMakeLists.txt", encoding='utf-8') as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
             # 查找 if(CONFIG_BOARD_TYPE_*) 行
