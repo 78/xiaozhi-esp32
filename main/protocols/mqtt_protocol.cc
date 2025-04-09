@@ -100,14 +100,16 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     return true;
 }
 
-void MqttProtocol::SendText(const std::string& text) {
+bool MqttProtocol::SendText(const std::string& text) {
     if (publish_topic_.empty()) {
-        return;
+        return false;
     }
     if (!mqtt_->Publish(publish_topic_, text)) {
         ESP_LOGE(TAG, "Failed to publish message: %s", text.c_str());
         SetError(Lang::Strings::SERVER_ERROR);
+        return false;
     }
+    return true;
 }
 
 void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {
@@ -174,7 +176,9 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
-    SendText(message);
+    if (!SendText(message)) {
+        return false;
+    }
 
     // 等待服务器响应
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
