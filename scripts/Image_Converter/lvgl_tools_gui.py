@@ -8,23 +8,25 @@ from LVGLImage import LVGLImage, ColorFormat, CompressMethod
 
 HELP_TEXT = """LVGL图片转换工具使用说明：
 
-1. 添加文件：点击“添加文件”按钮选择需要转换的图片，支持批量导入
+1. 添加文件：点击"添加文件"按钮选择需要转换的图片，支持批量导入
 
-2. 移除文件：在列表中选中文件前的复选框“[ ]”（选中后会变成“[√]”），点击“移除选中”可删除选定文件
+2. 移除文件：在列表中选中文件前的复选框"[ ]"（选中后会变成"[√]"），点击"移除选中"可删除选定文件
 
-3. 设置分辨率：选择需要的分辨率，如128x128
+3. 设置分辨率：选择需要的分辨率，如32x32, 64x64, 128x128, 256x256或360x360
    建议根据自己的设备的屏幕分辨率来选择。过大和过小都会影响显示效果。
 
-4. 颜色格式：选择“自动识别”会根据图片是否透明自动选择，或手动指定
+4. 颜色格式：选择"自动识别"会根据图片是否透明自动选择，或手动指定
    除非你了解这个选项，否则建议使用自动识别，不然可能会出现一些意想不到的问题……
 
-5. 压缩方式：选择NONE或RLE压缩
-   除非你了解这个选项，否则建议保持默认NONE不压缩
+5. 压缩方式：选择NONE不压缩、RLE压缩或LZ4压缩
+   - NONE：不压缩，文件最大但解码最快
+   - RLE：行程长度编码，对重复像素压缩效果好
+   - LZ4：通用压缩算法，压缩率高，适合复杂图像
 
 6. 输出目录：设置转换后文件的保存路径
    默认为程序所在目录下的output文件夹
 
-7. 转换：点击“转换全部”或“转换选中”开始转换
+7. 转换：点击"转换全部"或"转换选中"开始转换
 """
 
 class ImageConverterApp:
@@ -51,7 +53,7 @@ class ImageConverterApp:
         # 分辨率设置
         ttk.Label(settings_frame, text="分辨率:").grid(row=0, column=0, padx=2)
         ttk.Combobox(settings_frame, textvariable=self.resolution, 
-                    values=["128x128", "64x64", "32x32"], width=8).grid(row=0, column=1, padx=2)
+                    values=["128x128", "64x64", "32x32", "256x256", "360x360"], width=8).grid(row=0, column=1, padx=2)
 
         # 颜色格式
         ttk.Label(settings_frame, text="颜色格式:").grid(row=0, column=2, padx=2)
@@ -61,7 +63,7 @@ class ImageConverterApp:
         # 压缩方式
         ttk.Label(settings_frame, text="压缩方式:").grid(row=0, column=4, padx=2)
         ttk.Combobox(settings_frame, textvariable=self.compress_method,
-                    values=["NONE", "RLE"], width=8).grid(row=0, column=5, padx=2)
+                    values=["NONE", "RLE", "LZ4"], width=8).grid(row=0, column=5, padx=2)
 
         # 文件操作框架
         file_frame = ttk.LabelFrame(self.root, text="输入文件")
@@ -187,7 +189,15 @@ class ImageConverterApp:
         
         # 解析转换参数
         width, height = map(int, self.resolution.get().split('x'))
-        compress = CompressMethod.RLE if self.compress_method.get() == "RLE" else CompressMethod.NONE
+        
+        # 设置压缩方式
+        compress_method = self.compress_method.get()
+        if compress_method == "RLE":
+            compress = CompressMethod.RLE
+        elif compress_method == "LZ4":
+            compress = CompressMethod.LZ4
+        else:
+            compress = CompressMethod.NONE
 
         # 执行转换
         self.convert_images(input_files, width, height, compress)
