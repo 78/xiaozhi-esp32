@@ -33,15 +33,18 @@ void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
     websocket_->Send(data.data(), data.size(), true);
 }
 
-void WebsocketProtocol::SendText(const std::string& text) {
+bool WebsocketProtocol::SendText(const std::string& text) {
     if (websocket_ == nullptr) {
-        return;
+        return false;
     }
 
     if (!websocket_->Send(text)) {
         ESP_LOGE(TAG, "Failed to send text: %s", text.c_str());
         SetError(Lang::Strings::SERVER_ERROR);
+        return false;
     }
+
+    return true;
 }
 
 bool WebsocketProtocol::IsAudioChannelOpened() const {
@@ -116,7 +119,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
-    websocket_->Send(message);
+    if (!SendText(message)) {
+        return false;
+    }
 
     // Wait for server hello
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
