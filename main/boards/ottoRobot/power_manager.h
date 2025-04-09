@@ -12,21 +12,8 @@ private:
     static constexpr struct {
         uint16_t adc;
         uint8_t level;
-    } BATTERY_LEVELS[] = {
-        {1861, 0},   // 3.00V
-        {2140, 5},   // 3.45V
-        {2283, 10},  // 3.68V
-        {2320, 20},  // 3.74V
-        {2339, 30},  // 3.77V
-        {2351, 40},  // 3.79V
-        {2370, 50},  // 3.82V
-        {2401, 60},  // 3.87V
-        {2432, 70},  // 3.92V
-        {2469, 80},  // 3.98V
-        {2519, 90},  // 4.06V
-        {2605, 100}  // 4.20V
-    };
-    static constexpr size_t BATTERY_LEVELS_COUNT = 12;
+    } BATTERY_LEVELS[] = {{2150, 0}, {2450, 100}};
+    static constexpr size_t BATTERY_LEVELS_COUNT = 2;
     static constexpr size_t ADC_VALUES_COUNT = 10;
 
     esp_timer_handle_t timer_handle_ = nullptr;
@@ -69,22 +56,14 @@ private:
     }
 
     void CalculateBatteryLevel(uint32_t average_adc) {
-        if (average_adc < BATTERY_LEVELS[0].adc) {
+        if (average_adc <= BATTERY_LEVELS[0].adc) {
             battery_level_ = 0;
         } else if (average_adc >= BATTERY_LEVELS[BATTERY_LEVELS_COUNT - 1].adc) {
             battery_level_ = 100;
         } else {
-            for (size_t i = 0; i < BATTERY_LEVELS_COUNT - 1; i++) {
-                if (average_adc >= BATTERY_LEVELS[i].adc &&
-                    average_adc < BATTERY_LEVELS[i + 1].adc) {
-                    float ratio = static_cast<float>(average_adc - BATTERY_LEVELS[i].adc) /
-                                  (BATTERY_LEVELS[i + 1].adc - BATTERY_LEVELS[i].adc);
-                    battery_level_ =
-                        BATTERY_LEVELS[i].level +
-                        ratio * (BATTERY_LEVELS[i + 1].level - BATTERY_LEVELS[i].level);
-                    break;
-                }
-            }
+            float ratio = static_cast<float>(average_adc - BATTERY_LEVELS[0].adc) /
+                          (BATTERY_LEVELS[1].adc - BATTERY_LEVELS[0].adc);
+            battery_level_ = ratio * 100;
         }
     }
 

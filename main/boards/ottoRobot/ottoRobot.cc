@@ -9,13 +9,14 @@
 #include "Otto.h"
 #include "application.h"
 #include "audio_codecs/no_audio_codec.h"
+#include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
 #include "iot/thing_manager.h"
+#include "ml307_board.h"
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
-
 #define TAG "OttoRobot"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -25,6 +26,7 @@ class OttoRobot : public WifiBoard {
 private:
     LcdDisplay* display_;
     PowerManager* power_manager_;
+    Button boot_button_;
 
     void InitializePowerManager() {
         power_manager_ =
@@ -81,6 +83,17 @@ private:
             });
     }
 
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting &&
+                !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        });
+    }
+
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
@@ -90,9 +103,10 @@ private:
     }
 
 public:
-    OttoRobot() : display_(nullptr) {
+    OttoRobot() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
+        InitializeButtons();
         InitializeIot();
         InitializePowerManager();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
