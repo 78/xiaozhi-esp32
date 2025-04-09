@@ -86,7 +86,7 @@ private:
         adc_cali_handle_t handle = NULL;
         esp_err_t ret = ESP_FAIL;
 
-#if CONFIG_ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
         adc_cali_curve_fitting_config_t cali_config = {
             .unit_id = ADC_UNIT_1,
             .atten = ADC_ATTEN,
@@ -98,7 +98,7 @@ private:
             adc1_cali_handle = handle;
             ESP_LOGI(TAG, "ADC Curve Fitting calibration succeeded");
         }
-#endif // CONFIG_ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+#endif // ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     }
 
     void InitializeButtons() {
