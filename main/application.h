@@ -43,6 +43,9 @@ enum DeviceState {
     kDeviceStateSpeaking,
     kDeviceStateUpgrading,
     kDeviceStateActivating,
+#if CONFIG_USE_ALARM
+    kDeviceStateAlarm,
+#endif
     kDeviceStateFatalError
 };
 

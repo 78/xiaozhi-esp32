@@ -12,7 +12,9 @@ class BackgroundTask {
 public:
     BackgroundTask(uint32_t stack_size = 4096 * 2);
     ~BackgroundTask();
-
+#if CONFIG_USE_ALARM
+    int GetTaskNum(){return active_tasks_;}
+#endif 
     void Schedule(std::function<void()> callback);
     void WaitForCompletion();
 
