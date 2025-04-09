@@ -351,7 +351,6 @@
         
         async function submitForm_server_url(event) {
             event.preventDefault();
-            button.disabled = true;
             error.textContent = '';
 
             const ota_url_Value = ota_url.value;
@@ -379,7 +378,6 @@
                 alert("保存成功");
             } catch (err) {
                 error.textContent = err.message;
-                button.disabled = false;
                 alert("保存失败");
             }
         }
