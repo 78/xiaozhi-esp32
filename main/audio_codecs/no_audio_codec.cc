@@ -137,6 +137,13 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
+    input_reference_ = true; // 是否使用参考输入，实现回声消除
+    input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
+
+    time_us_write_ = 0;
+    time_us_read_ = 0;
+    slice_index_ = 0;
+
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
         .id = (i2s_port_t)0,
@@ -335,43 +342,103 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
     ESP_LOGI(TAG, "Simplex channels created");
 }
 
-int NoAudioCodec::Write(const int16_t* data, int samples) {
+int NoAudioCodec::Write(const int16_t* data, int samples) 
+{
+    const int32_t play_size = 512;
     std::vector<int32_t> buffer(samples);
-
     // output_volume_: 0-100
     // volume_factor_: 0-65536
     int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
-    for (int i = 0; i < samples; i++) {
-        int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
-        if (temp > INT32_MAX) {
-            buffer[i] = INT32_MAX;
-        } else if (temp < INT32_MIN) {
-            buffer[i] = INT32_MIN;
-        } else {
-            buffer[i] = static_cast<int32_t>(temp);
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (output_buffer_.size() < play_size*10) {
+            output_buffer_.resize(play_size*10,0);
+            slice_index_ = 0;
         }
-    }
+        
+        for (int i = 0; i < samples; i++) {
+            int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
+            if (temp > INT32_MAX) {
+                buffer[i] = INT32_MAX;
+            } else if (temp < INT32_MIN) {
+                buffer[i] = INT32_MIN;
+            } else {
+                buffer[i] = static_cast<int32_t>(temp);
+            }
+            output_buffer_[slice_index_] = data[i];
+            slice_index_++;
+            if(slice_index_ >= play_size*10) slice_index_ = 0;
+        }
 
+        time_us_write_ = esp_timer_get_time(); // 获取微秒级时间戳
+        // ESP_LOGE("NoAudioCodec", "slice_index1 = %ld, %llu", slice_index_,time_us_write_);
+    }
     size_t bytes_written;
     ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+    
     return bytes_written / sizeof(int32_t);
 }
 
 int NoAudioCodec::Read(int16_t* dest, int samples) {
-    size_t bytes_read;
+    //static int32_t delay_index = 1536;
+    static int32_t i_index = 0;
+    static bool first_speak = true;
+    const int32_t play_size = 512;
 
-    std::vector<int32_t> bit32_buffer(samples);
-    if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
-        ESP_LOGE(TAG, "Read Failed!");
-        return 0;
-    }
+   {
+       std::unique_lock<std::mutex> lock(mutex_);
+       time_us_read_  = esp_timer_get_time(); // 获取微秒级时间戳
+       if(time_us_read_ - time_us_write_ > 1000*100 ) // 100ms
+       {
+           std::fill(output_buffer_.begin(), output_buffer_.end(), 0);
+           first_speak = true;
+           slice_index_ = 0;
+           i_index = play_size*10 - 512;
+       }
+       else
+       {
+           if(first_speak)
+           {
+               first_speak = false;
+               i_index = 0;
+           }
+       }
+       if(i_index < 0) i_index = play_size*10 + i_index;
+    //    ESP_LOGE("NoAudioCodec", "slice_index2 = %ld, %llu, %ld", slice_index_,time_us_read_, i_index);
 
-    samples = bytes_read / sizeof(int32_t);
-    for (int i = 0; i < samples; i++) {
-        int32_t value = bit32_buffer[i] >> 12;
-        dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
-    }
-    return samples;
+   }
+   
+   size_t bytes_read;
+   std::vector<int32_t> bit32_buffer(samples/2);
+   if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples/2 * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
+       ESP_LOGE(TAG, "Read Failed!");
+       return 0;
+   }
+
+   samples = bytes_read / sizeof(int32_t);
+   for (int i = 0; i < samples; i++) {
+#if CONFIG_USE_REALTIME_CHAT
+       int32_t value = bit32_buffer[i] >> 8;
+       int64_t temp = int64_t(value) / 256; // 使用 int64_t 进行乘法运算
+       dest[i*2] = (temp > INT16_MAX) ? INT16_MAX : (temp < -INT16_MAX) ? -INT16_MAX : (int16_t)temp;
+#else
+       int32_t value = bit32_buffer[i] >> 12;
+       dest[i*2] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+#endif
+       if(output_buffer_.size()> i_index )
+       {
+           dest[i*2 + 1] = output_buffer_[i_index];
+       }
+       else
+       {
+           dest[i*2 + 1] = 0;
+       }
+
+    //    dest[i*2 + 1] = 0;
+       i_index ++; 
+       if(i_index >= play_size*10) i_index = i_index - play_size*10;
+   }
+   return samples*2;
 }
 
 int NoAudioCodecSimplexPdm::Read(int16_t* dest, int samples) {

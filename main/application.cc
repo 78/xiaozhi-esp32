@@ -474,19 +474,19 @@ void Application::Start() {
             });
         });
     });
-    audio_processor_.OnVadStateChange([this](bool speaking) {
-        if (device_state_ == kDeviceStateListening) {
-            Schedule([this, speaking]() {
-                if (speaking) {
-                    voice_detected_ = true;
-                } else {
-                    voice_detected_ = false;
-                }
-                auto led = Board::GetInstance().GetLed();
-                led->OnStateChanged();
-            });
-        }
-    });
+    // audio_processor_.OnVadStateChange([this](bool speaking) {
+    //     if (device_state_ == kDeviceStateListening) {
+    //         Schedule([this, speaking]() {
+    //             if (speaking) {
+    //                 voice_detected_ = true;
+    //             } else {
+    //                 voice_detected_ = false;
+    //             }
+    //             auto led = Board::GetInstance().GetLed();
+    //             led->OnStateChanged();
+    //         });
+    //     }
+    // });
 #endif
 
 #if CONFIG_USE_WAKE_WORD_DETECT

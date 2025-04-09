@@ -4,7 +4,7 @@
 #include <driver/gpio.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
-#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 // 如果使用 Duplex I2S 模式，请注释下面一行
 #define AUDIO_I2S_METHOD_SIMPLEX
@@ -45,6 +45,8 @@
 #elif CONFIG_OLED_SH1106_128X64
 #define DISPLAY_HEIGHT  64
 #define SH1106
+#elif CONFIG_NO_OLED
+#define DISPLAY_HEIGHT  0
 #else
 #error "未选择 OLED 屏幕类型"
 #endif

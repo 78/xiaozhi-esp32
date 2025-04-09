@@ -6,11 +6,19 @@
 #include <driver/gpio.h>
 #include <driver/i2s_pdm.h>
 
+#include <mutex>
+#include <vector>
+
 class NoAudioCodec : public AudioCodec {
 private:
     virtual int Write(const int16_t* data, int samples) override;
     virtual int Read(int16_t* dest, int samples) override;
-
+public:
+    std::vector<int16_t> output_buffer_;
+    std::mutex mutex_;
+    int32_t slice_index_ = 0;
+    uint64_t time_us_write_ = 0;
+    uint64_t time_us_read_ = 0;
 public:
     virtual ~NoAudioCodec();
 };

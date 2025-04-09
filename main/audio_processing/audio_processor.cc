@@ -28,20 +28,21 @@ void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     if (realtime_chat) {
         afe_config->aec_init = true;
-        afe_config->aec_mode = AEC_MODE_VOIP_LOW_COST;
+        afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF; //AEC_MODE_VOIP_LOW_COST
     } else {
         afe_config->aec_init = false;
     }
     afe_config->ns_init = true;
     afe_config->ns_model_name = ns_model_name;
     afe_config->afe_ns_mode = AFE_NS_MODE_NET;
-    if (realtime_chat) {
+    // if (realtime_chat) {
         afe_config->vad_init = false;
-    } else {
-        afe_config->vad_init = true;
-        afe_config->vad_mode = VAD_MODE_0;
-        afe_config->vad_min_noise_ms = 100;
-    }
+    // } 
+    // else {
+    //     afe_config->vad_init = true;
+    //     afe_config->vad_mode = VAD_MODE_0;
+    //     afe_config->vad_min_noise_ms = 100;
+    // }
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
     afe_config->agc_init = false;
@@ -115,17 +116,19 @@ void AudioProcessor::AudioProcessorTask() {
             continue;
         }
 
-        // VAD state change
-        if (vad_state_change_callback_) {
-            if (res->vad_state == VAD_SPEECH && !is_speaking_) {
-                is_speaking_ = true;
-                vad_state_change_callback_(true);
-            } else if (res->vad_state == VAD_SILENCE && is_speaking_) {
-                is_speaking_ = false;
-                vad_state_change_callback_(false);
-            }
-        }
-
+        // // VAD state change
+        // if (vad_state_change_callback_) {
+        //     if (res->vad_state == VAD_SPEECH && !is_speaking_) {
+        //         is_speaking_ = true;
+        //         vad_state_change_callback_(true);
+        //     } else if (res->vad_state == VAD_SILENCE && is_speaking_) {
+        //         is_speaking_ = false;
+        //         vad_state_change_callback_(false);
+        //     }
+        // }
+        
+        // ESP_LOGI("AudioProcessor", "fetch res size: %d", res->data_size/ sizeof(int16_t));
+        
         if (output_callback_) {
             output_callback_(std::vector<int16_t>(res->data, res->data + res->data_size / sizeof(int16_t)));
         }

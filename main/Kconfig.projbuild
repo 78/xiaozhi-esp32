@@ -170,6 +170,8 @@ choice DISPLAY_OLED_TYPE
         bool "SSD1306, 分辨率128*64"
     config OLED_SH1106_128X64
         bool "SH1106, 分辨率128*64"
+    config NO_OLED
+        bool "不使用OLED"
 endchoice
 
 choice DISPLAY_LCD_TYPE
@@ -247,7 +249,7 @@ config USE_AUDIO_PROCESSOR
 config USE_REALTIME_CHAT
     bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
     default n
-    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_BREAD_COMPACT_WIFI)
     help
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
         
