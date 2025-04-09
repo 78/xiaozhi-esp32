@@ -31,6 +31,9 @@ static const char* const STATE_STRINGS[] = {
     "upgrading",
     "activating",
     "fatal_error",
+#if CONFIG_USE_ALARM
+    "alarm",
+#endif
     "invalid_state"
 };
 
@@ -267,6 +270,16 @@ void Application::ToggleChatState() {
             protocol_->CloseAudioChannel();
         });
     }
+#if CONFIG_USE_ALARM 
+else if (device_state_ == kDeviceStateAlarm) {
+    Schedule([this]() {
+        alarm_m_->ClearRing();
+        SetDeviceState(kDeviceStateIdle);
+    });
+
+    
+}
+#endif
 }
 
 void Application::StartListening() {

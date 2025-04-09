@@ -17,6 +17,10 @@
 #include "protocol.h"
 #include "ota.h"
 #include "background_task.h"
+#if CONFIG_USE_ALARM
+//test
+#include "AlarmClock.h"
+#endif
 
 #if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
@@ -70,6 +74,11 @@ public:
     void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
+    #if CONFIG_USE_ALARM
+    //test
+    AlarmManager* alarm_m_ = nullptr;
+    std::list<std::vector<uint8_t>> audio_decode_queue_;
+    #endif  
 
 private:
     Application();
@@ -104,11 +113,15 @@ private:
     TaskHandle_t audio_loop_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
-    std::list<std::vector<uint8_t>> audio_decode_queue_;
+#if CONFIG_USE_ALARM
 
+#else
+    std::list<std::vector<uint8_t>> audio_decode_queue_;
+#endif
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
-
+    
+    int opus_decode_sample_rate_ = -1; //test20250409
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;

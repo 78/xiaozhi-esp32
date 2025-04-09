@@ -154,6 +154,10 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
+        //AlarmClock iot init
+        #if CONFIG_USE_ALARM
+        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
+        #endif
     }
 
 public:
