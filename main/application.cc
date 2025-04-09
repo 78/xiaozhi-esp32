@@ -156,7 +156,7 @@ void Application::CheckNewVersion() {
         SetDeviceState(kDeviceStateIdle);
         display->SetChatMessage("system", "");
         ResetDecoder();
-        PlaySound(Lang::Sounds::P3_SUCCESS);
+        PlaySound(Lang::Sounds::P3_CCC_SUCCESS);
         // Exit the loop if upgrade or idle
         break;
     }
