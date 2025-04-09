@@ -23,7 +23,7 @@ protected:
 
     DisplayFonts fonts_;
 
-    virtual void SetupUI();
+    void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
