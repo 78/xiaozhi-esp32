@@ -24,24 +24,6 @@ bool button_released_ = false;
 bool shutdown_ready_ = false;
 esp_timer_handle_t shutdown_timer;
 
-class SpotEs8311AudioCodec : public Es8311AudioCodec {
-private:
-
-public:
-SpotEs8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-                        gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-                        gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk = true)
-        : Es8311AudioCodec(i2c_master_handle, i2c_port, input_sample_rate, output_sample_rate,
-                                mclk,  bclk,  ws,  dout,  din,pa_pin,  es8311_addr,  use_mclk = false) {}
-
-    void EnableOutput(bool enable) override {
-        if (enable == output_enabled_) {
-            return;
-        }
-        Es8311AudioCodec::EnableOutput(enable);
-    }
-};
-
 class EspSpotS3Bot : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -151,6 +133,16 @@ private:
     }
 
     void InitializeGPIO() {
+        gpio_config_t io_pa = {
+            .pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE
+        };
+        gpio_config(&io_pa);
+        gpio_set_level(AUDIO_CODEC_PA_PIN, 0);
+
         gpio_config_t io_conf_1 = {
             .pin_bit_mask = (1ULL << MCU_VCC_CTL),
             .mode = GPIO_MODE_OUTPUT,
@@ -218,9 +210,10 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-         static SpotEs8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+         static Es8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0,
+            AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_PA_PIN,
+            AUDIO_CODEC_ES8311_ADDR, false);
         return &audio_codec;
     }
 
