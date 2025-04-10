@@ -318,13 +318,6 @@ void LcdDisplay::SetupUI() {
     // 设置状态栏的内容垂直居中
     lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    // 创建emotion_label_在状态栏最左侧
-    emotion_label_ = lv_label_create(status_bar_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    lv_obj_set_style_margin_right(emotion_label_, 5, 0); // 添加右边距，与后面的元素分隔
-
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
@@ -574,21 +567,13 @@ void LcdDisplay::SetupUI() {
     lv_obj_clear_flag(content_, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
     lv_obj_set_layout(content_, LV_LAYOUT_NONE);
 
-    // 先创建表情标签
-    emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    // 将表情标签居中
-    lv_obj_center(emotion_label_);
-
     //直接在这里创建gif屏幕，上面的原来的emotion_label根据需要选择是否删除
     emotion_gif = lv_gif_create(container_);
-    lv_obj_set_pos(emotion_gif, 60, 30);
-    lv_obj_set_size(emotion_gif, 240, 240);
+    lv_obj_set_pos(emotion_gif, 0, 0);
+    lv_obj_set_size(emotion_gif, 360, 360);
     lv_obj_set_style_border_width(emotion_gif, 0, 0);
     lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
-    lv_gif_set_src(emotion_gif, &look);//默认为look表情
+    lv_gif_set_src(emotion_gif, &fo);//默认为look表情
     // 下面两行先放在这里备用
     // lv_gif_pause(emotion_gif);  // 停止 GIF 动画，减少 CPU 消耗
     // lv_gif_restart(emotion_gif); // 重新开始播放GIF动画
@@ -603,12 +588,12 @@ void LcdDisplay::SetupUI() {
     // 再创建文本标签，使其位于表情之上
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.7); // 限制宽度为屏幕宽度的 90%
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 增加宽度为屏幕宽度的 90%
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-    // 将文本标签放在表情上方偏上位置
-    lv_obj_align(chat_message_label_, LV_ALIGN_TOP_MID, 0, 250);
+    // 将文本标签居中
+    lv_obj_center(chat_message_label_);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -661,61 +646,13 @@ void LcdDisplay::SetupUI() {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
-    };
-
-    static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},
-        {"🙂", "happy"},
-        {"😆", "laughing"},
-        {"😂", "funny"},
-        {"😔", "sad"},
-        {"😠", "angry"},
-        {"😭", "crying"},
-        {"😍", "loving"},
-        {"😳", "embarrassed"},
-        {"😯", "surprised"},
-        {"😱", "shocked"},
-        {"🤔", "thinking"},
-        {"😉", "winking"},
-        {"😎", "cool"},
-        {"😌", "relaxed"},
-        {"🤤", "delicious"},
-        {"😘", "kissy"},
-        {"😏", "confident"},
-        {"😴", "sleepy"},
-        {"😜", "silly"},
-        {"🙄", "confused"}
-    };
-    
-    // 查找匹配的表情
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-
-    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
-    } else {
-        lv_label_set_text(emotion_label_, "😶");
-    }
+    // 由于已经删除了emotion_label_，这个函数不再需要实现内容
+    // 保持函数存在以避免其他代码调用时出错
 }
 
 void LcdDisplay::SetIcon(const char* icon) {
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_label_set_text(emotion_label_, icon);
+    // 由于已经删除了emotion_label_，这个函数不再需要实现内容
+    // 保持函数存在以避免其他代码调用时出错
 }
 
 void LcdDisplay::SetTheme(const std::string& theme_name) {
@@ -764,9 +701,6 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         }
         if (battery_label_ != nullptr) {
             lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
-        }
-        if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
         }
     }
     
@@ -894,10 +828,6 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         // Simple UI mode - just update the main chat message
         if (chat_message_label_ != nullptr) {
             lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-        }
-        
-        if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
         }
 #endif
     }
