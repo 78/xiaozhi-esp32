@@ -399,9 +399,9 @@ void Application::Start() {
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
-#if CONFIG_USE_ALARM
-            if(device_state_ != kDeviceStateAlarm)
-#endif
+// #if CONFIG_USE_ALARM
+//             if(device_state_ != kDeviceStateAlarm)
+// #endif
             SetDeviceState(kDeviceStateIdle);
 
         });
@@ -574,9 +574,16 @@ void Application::Start() {
     }
 #endif
 #if CONFIG_USE_ALARM
-    while(!ota_.HasServerTime()){
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+   // 添加超时机制（示例：最多等待 10 秒）
+   const uint32_t max_retry = 10;
+   uint32_t retry_count = 0;
+   while (!ota_.HasServerTime() && (retry_count++ < max_retry)) {
+       vTaskDelay(pdMS_TO_TICKS(1000));
+   }
+   if (retry_count >= max_retry) {
+    ESP_LOGI("Failed to get server time!");
+    return;  // 或其他错误处理
+}
     alarm_m_ = new AlarmManager();
     // alarm_m_->SetAlarm(10, "alarm1");
 #endif
