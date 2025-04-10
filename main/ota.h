@@ -12,7 +12,6 @@ public:
 
     void SetCheckVersionUrl(std::string check_version_url);
     void SetHeader(const std::string& key, const std::string& value);
-    void SetPostData(const std::string& post_data);
     bool CheckVersion();
     bool HasNewVersion() { return has_new_version_; }
     bool HasMqttConfig() { return has_mqtt_config_; }
@@ -37,7 +36,6 @@ private:
     std::string current_version_;
     std::string firmware_version_;
     std::string firmware_url_;
-    std::string post_data_;
     std::map<std::string, std::string> headers_;
 
     void Upgrade(const std::string& firmware_url);
