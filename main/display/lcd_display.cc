@@ -582,6 +582,24 @@ void LcdDisplay::SetupUI() {
     // 将表情标签居中
     lv_obj_center(emotion_label_);
 
+    //直接在这里创建gif屏幕，上面的原来的emotion_label根据需要选择是否删除
+    emotion_gif = lv_gif_create(container_);
+    lv_obj_set_pos(emotion_gif, 60, 30);
+    lv_obj_set_size(emotion_gif, 240, 240);
+    lv_obj_set_style_border_width(emotion_gif, 0, 0);
+    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
+    lv_gif_set_src(emotion_gif, &look);//默认为look表情
+    // 下面两行先放在这里备用
+    // lv_gif_pause(emotion_gif);  // 停止 GIF 动画，减少 CPU 消耗
+    // lv_gif_restart(emotion_gif); // 重新开始播放GIF动画
+
+    //lv_gif_set_src(emotion_gif, &look);
+    //lv_gif_set_src(emotion_gif, &ask);
+    //lv_gif_set_src(emotion_gif, &speak);
+    //lv_gif_set_src(emotion_gif, &think);
+    //这几个是切换表情的
+
+
     // 再创建文本标签，使其位于表情之上
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
