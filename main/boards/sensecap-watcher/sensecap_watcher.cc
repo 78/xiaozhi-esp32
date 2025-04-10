@@ -83,6 +83,8 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             
             lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -20);
             lv_obj_set_style_bg_color(low_battery_popup_, lv_color_hex(0xFF0000), 0);
+            lv_obj_set_width(low_battery_label_, LV_HOR_RES * 0.75);
+            lv_label_set_long_mode(low_battery_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
         }
 };
 
