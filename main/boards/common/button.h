@@ -3,12 +3,15 @@
 
 #include <driver/gpio.h>
 #include <iot_button.h>
+#include <button_adc.h>
+#include <button_gpio.h>
 #include <functional>
 
-class Button {
+class Button
+{
 public:
 #if CONFIG_SOC_ADC_SUPPORTED
-    Button(const button_adc_config_t& cfg);
+    Button(const button_adc_config_t &cfg);
 #endif
     Button(gpio_num_t gpio_num, bool active_high = false);
     ~Button();
@@ -18,10 +21,10 @@ public:
     void OnLongPress(std::function<void()> callback);
     void OnClick(std::function<void()> callback);
     void OnDoubleClick(std::function<void()> callback);
+
 private:
     gpio_num_t gpio_num_;
     button_handle_t button_handle_ = nullptr;
-
 
     std::function<void()> on_press_down_;
     std::function<void()> on_press_up_;
