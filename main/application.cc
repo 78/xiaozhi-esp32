@@ -86,9 +86,10 @@ void Application::CheckNewVersion() {
             } while (GetDeviceState() != kDeviceStateIdle);
 
             // Use main task to do the upgrade, not cancelable
-            Schedule([this, display]() {
+            Schedule([this]() {
                 SetDeviceState(kDeviceStateUpgrading);
                 
+                auto display = Board::GetInstance().GetDisplay();
                 display->SetIcon(FONT_AWESOME_DOWNLOAD);
                 std::string message = std::string(Lang::Strings::NEW_VERSION) + ota_.GetFirmwareVersion();
                 display->SetChatMessage("system", message.c_str());
@@ -111,10 +112,10 @@ void Application::CheckNewVersion() {
                 background_task_ = nullptr;
                 vTaskDelay(pdMS_TO_TICKS(1000));
 
-                ota_.StartUpgrade([display](int progress, size_t speed) {
+                ota_.StartUpgrade([](int progress, size_t speed) {
                     char buffer[64];
                     snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
-                    display->SetChatMessage("system", buffer);
+                    Board::GetInstance().GetDisplay()->SetChatMessage("system", buffer);
                 });
 
                 // If upgrade success, the device will reboot and never reach here
@@ -130,7 +131,7 @@ void Application::CheckNewVersion() {
         // No new version, mark the current version as valid
         ota_.MarkCurrentVersionValid();
         std::string message = std::string(Lang::Strings::VERSION) + ota_.GetCurrentVersion();
-        display->ShowNotification(message.c_str());
+        Board::GetInstance().GetDisplay()->ShowNotification(message.c_str());
     
         if (ota_.HasActivationCode()) {
             // Activation code is valid
@@ -148,7 +149,7 @@ void Application::CheckNewVersion() {
         }
 
         SetDeviceState(kDeviceStateIdle);
-        display->SetChatMessage("system", "");
+        Board::GetInstance().GetDisplay()->SetChatMessage("system", "");
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_SUCCESS);
         // Exit the loop if upgrade or idle
