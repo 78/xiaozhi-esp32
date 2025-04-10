@@ -15,7 +15,7 @@ BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_r
     if (input_reference) {
         ref_buffer_.resize(960 * 2);
     }
-    input_channels_ = 1 + input_reference_; // 输入通道数
+    input_channels_ = 2 + input_reference_; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
@@ -180,14 +180,13 @@ void BoxAudioCodecLite::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+            .channel = (uint8_t)(input_channels_ - input_reference_),
+            .channel_mask = 0,
             .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
-        if (input_reference_) {
-        // 这板子不支持硬件回采
-        //    fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+        for (int i = 0;i < fs.channel; i++) {
+            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(i);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
         // 麦克风增益解决收音太小的问题
@@ -225,15 +224,18 @@ int BoxAudioCodecLite::Read(int16_t* dest, int samples) {
             ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
         }
         else {
-            int size = samples / 2;
-            std::vector<int16_t> data(size);
+            int size = samples / input_channels_;
+            int channels = input_channels_ - input_reference_;
+            std::vector<int16_t> data(size * channels);
             // read mic data
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)data.data(), size * sizeof(int16_t)));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)data.data(), data.size() * sizeof(int16_t)));
             int j = 0;
             int i = 0;
             while (i< samples) {
                 // mic data
-                dest[i++] = data[j++];
+                for (int p = 0; p < channels; p++) {
+                    dest[i++] = data[j++];
+                }
                 // ref data
                 dest[i++] = read_pos_ < write_pos_? ref_buffer_[read_pos_++] : 0;
             }
