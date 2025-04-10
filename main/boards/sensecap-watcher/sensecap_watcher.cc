@@ -26,6 +26,7 @@
 #include <esp_io_expander_tca95xx_16bit.h>
 #include <esp_sleep.h>
 #include "esp_console.h"
+#include "esp_mac.h"
 #include "nvs_flash.h"
 
 #include "assets/lang_config.h"
@@ -76,7 +77,6 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             lv_obj_set_flex_grow(status_label_, 0);
             lv_obj_set_width(status_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-            // lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
            
             lv_obj_set_width(notification_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(notification_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -405,7 +405,7 @@ private:
         return 0;
     }
 
-    uint8_t BatterygetPercent(void)
+    uint8_t BatterygetPercent(bool print = false)
     {
         int voltage = 0;
         for (uint8_t i = 0; i < 10; i++)
@@ -415,7 +415,10 @@ private:
         voltage /= 10;
         int percent = (-1 * voltage * voltage + 9016 * voltage - 19189000) / 10000;
         percent = (percent > 100) ? 100 : (percent < 0) ? 0 : percent;
-        ESP_LOGD(TAG, "voltage: %dmV, percentage: %d%%", voltage, percent);
+        if (print)
+        {
+            printf("voltage: %dmV, percentage: %d%%\r\n", voltage, percent);
+        }
         return (uint8_t)percent;
     }
 
@@ -462,7 +465,7 @@ private:
             .argtable = NULL,
             .func_w_context = [](void *context,int argc, char** argv) -> int {
                 auto self = static_cast<SensecapWatcher*>(context);
-                self->BatterygetPercent();
+                self->BatterygetPercent(true);
                 return 0;
             },
             .context =this
@@ -485,6 +488,26 @@ private:
         };
         ESP_ERROR_CHECK( esp_console_cmd_register(&cmd4) );
 
+        const esp_console_cmd_t cmd5 = {
+            .command = "read_mac",
+            .help = "Read mac address",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                uint8_t mac[6];
+                esp_read_mac(mac, ESP_MAC_WIFI_STA);
+                printf("wifi_sta_mac: " MACSTR "\n", MAC2STR(mac));
+                esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
+                printf("wifi_softap_mac: " MACSTR "\n", MAC2STR(mac));
+                esp_read_mac(mac, ESP_MAC_BT);
+                printf("bt_mac: " MACSTR "\n", MAC2STR(mac));
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK( esp_console_cmd_register(&cmd5) );
+
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
         ESP_ERROR_CHECK(esp_console_start_repl(repl));
@@ -497,7 +520,7 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeExpander();
-        InitializeCmd();  //生产测试使用
+        InitializeCmd();  //工厂生产测试使用
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
@@ -551,7 +574,7 @@ public:
 
         charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
         discharging = !charging;
-        level = (int)BatterygetPercent();
+        level = (int)BatterygetPercent(false);
 
         if (discharging != last_discharging) {
             power_save_timer_->SetEnabled(discharging);
