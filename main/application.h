@@ -88,20 +88,12 @@ private:
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
-    ListeningMode listening_mode_ = kListeningModeAutoStop;
-#if CONFIG_USE_REALTIME_CHAT
-    bool realtime_chat_enabled_ = true;
-#else
-    bool realtime_chat_enabled_ = false;
-#endif
+    bool keep_listening_ = false;
     bool aborted_ = false;
     bool voice_detected_ = false;
     int clock_ticks_ = 0;
-    TaskHandle_t main_loop_task_handle_ = nullptr;
-    TaskHandle_t check_new_version_task_handle_ = nullptr;
 
     // Audio encode / decode
-    TaskHandle_t audio_loop_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
     std::list<std::vector<uint8_t>> audio_decode_queue_;
@@ -109,21 +101,19 @@ private:
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
 
+    int opus_decode_sample_rate_ = -1;
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
 
     void MainLoop();
-    void OnAudioInput();
-    void OnAudioOutput();
-    void ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
+    void InputAudio();
+    void OutputAudio();
     void ResetDecoder();
-    void SetDecodeSampleRate(int sample_rate, int frame_duration);
+    void SetDecodeSampleRate(int sample_rate);
     void CheckNewVersion();
     void ShowActivationCode();
     void OnClockTimer();
-    void SetListeningMode(ListeningMode mode);
-    void AudioLoop();
 };
 
 #endif // _APPLICATION_H_

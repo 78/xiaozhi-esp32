@@ -49,7 +49,7 @@ void Protocol::SendWakeWordDetected(const std::string& wake_word) {
 void Protocol::SendStartListening(ListeningMode mode) {
     std::string message = "{\"session_id\":\"" + session_id_ + "\"";
     message += ",\"type\":\"listen\",\"state\":\"start\"";
-    if (mode == kListeningModeRealtime) {
+    if (mode == kListeningModeAlwaysOn) {
         message += ",\"mode\":\"realtime\"";
     } else if (mode == kListeningModeAutoStop) {
         message += ",\"mode\":\"auto\"";
