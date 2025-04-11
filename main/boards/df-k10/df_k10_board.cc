@@ -9,6 +9,7 @@
 #include "iot/thing_manager.h"
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -17,6 +18,7 @@
 #include <wifi_station.h>
 
 #include "esp_io_expander_tca95xx_16bit.h"
+#include "aht20.h"
 
 #define TAG "DF-K10"
 
@@ -24,12 +26,13 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 class Df_K10Board : public WifiBoard {
-private:
+ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander;
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    AHT20* ath20_  = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -103,7 +106,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
@@ -139,7 +142,7 @@ private:
             .short_press_time = 50,
             .custom_button_config = {
                 .active_level = 0,
-                .button_custom_init =nullptr,
+                .button_custom_init = nullptr,
                 .button_custom_get_key_value = [](void *param) -> uint8_t {
                     auto self = static_cast<Df_K10Board*>(param);
                     return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
@@ -201,7 +204,9 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                 {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
@@ -213,15 +218,31 @@ private:
     void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Environment"));
     }
 
-public:
+    void InitializeSensor() {
+        ath20_ = new AHT20(i2c_bus_, 0x38);
+
+        Settings settings("environment", true);
+        if (settings.GetInt("set_diff", 0) == 0) {
+            settings.SetInt("set_diff", 1);
+            settings.SetInt("temp_diff", -80);    // 默认温度值偏移量 * 10
+            settings.SetInt("humi_diff", 100);  // 默认是渎职偏移量 * 10
+
+            ESP_LOGI(TAG, "Set default temperature_diff to -8");
+            ESP_LOGI(TAG, "Set default humidity_diff to 10");
+        }
+    }
+
+ public:
     Df_K10Board() {
         InitializeI2c();
         InitializeIoExpander();
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeSensor();
         InitializeIot();
     }
 
@@ -250,6 +271,126 @@ public:
     virtual Display *GetDisplay() override {
         return display_;
     }
+
+    bool GetTemperature(float *temperature) {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (temperature) *temperature = temp;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
+    }
+
+    bool GetHumidity(float *humidity) {
+        // 读取数据
+        float temp, humi;
+        if (ath20_->get_measurements(&temp, &humi)) {
+            if (humidity) *humidity = humi;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Failed to read sensor");
+            return false;
+        }
+    }
 };
 
 DECLARE_BOARD(Df_K10Board);
+
+namespace iot {
+
+// 这里仅定义 Environment 的属性和方法，不包含具体的实现
+class Environment : public Thing {
+ private:
+    float temperature_ = 0;
+    float temperature_diff_ = -0.0;
+    float humidity_ = 0;
+    float humidity_diff_ = 0.0;
+
+    void InitializeDiff() {
+        Settings settings("environment", true);
+        temperature_diff_ = settings.GetInt("temp_diff", 0) / 10;
+        humidity_diff_ = settings.GetInt("humi_diff", 0) / 10;
+
+        ESP_LOGI(TAG, "Get stored temperature_diff is %.1f", temperature_diff_);
+        ESP_LOGI(TAG, "Get stored humidity_diff is %.1f", humidity_diff_);
+    }
+
+ public:
+    Environment() : Thing("Environment", "当前环境信息") {
+        // 获取diff初始值
+        InitializeDiff();
+
+        // 定义设备的属性
+        properties_.AddNumberProperty("temperature", "当前环境温度", [this]() -> float {
+            auto& board = static_cast<Df_K10Board&>(Board::GetInstance());
+            if (board.GetTemperature(&temperature_)) {
+                ESP_LOGI(TAG, "Original Temperature value is %.1f, "
+                                "diff is %.1f, return is %.1f",
+                                temperature_, temperature_diff_,
+                                temperature_ + temperature_diff_);
+                return temperature_ + temperature_diff_;
+            }
+            return 0;
+        });
+
+        properties_.AddNumberProperty("humidity", "当前环境湿度", [this]() -> float {
+            auto& board = static_cast<Df_K10Board&>(Board::GetInstance());
+            if (board.GetHumidity(&humidity_)) {
+                if (humidity_ + humidity_diff_ >= 0) {
+                    ESP_LOGI(TAG, "Original Humidity value is %.1f, "
+                        "diff is %.1f, return is %.1f",
+                        humidity_, humidity_diff_,
+                        humidity_ + humidity_diff_);
+                    return humidity_ + humidity_diff_;
+                }
+            }
+            return 0;
+        });
+
+        properties_.AddNumberProperty("temperature_diff", "温度偏差", [this]() -> float {
+            return temperature_diff_;
+        });
+
+        properties_.AddNumberProperty("humidity_diff", "湿度偏差", [this]() -> float {
+            return humidity_diff_;
+        });
+
+        // 定义设备可以被远程执行的指令
+        methods_.AddMethod("SetTemperatureDiff", "设置温度偏差", ParameterList({
+            Parameter("temperature_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
+        }), [this](const ParameterList& parameters) {
+            float tmp = parameters["temperature_diff"].number();
+            if (tmp >= -50 && tmp <= 50) {
+                temperature_diff_ = parameters["temperature_diff"].number();
+
+                Settings settings("environment", true);
+                settings.SetInt("temp_diff", static_cast<int>(temperature_diff_*10));
+                ESP_LOGI(TAG, "Set Temperature diff to %.1f°C", temperature_diff_);
+            } else {
+                ESP_LOGE(TAG, "Temperature diff value %.1f°C is invalid", temperature_diff_);
+            }
+        });
+
+        methods_.AddMethod("SetHumidityDiff", "设置湿度偏差", ParameterList({
+            Parameter("humidity_diff", "-50到50之间的整数或者带有1位小数的数", kValueTypeNumber, true)
+        }), [this](const ParameterList& parameters) {
+            float tmp = parameters["humidity_diff"].number();
+            if (tmp >= -50 && tmp <= 50) {
+                humidity_diff_ = parameters["humidity_diff"].number();
+
+                Settings settings("environment", true);
+                settings.SetInt("humi_diff", static_cast<int>(humidity_diff_*10));
+                ESP_LOGI(TAG, "Set Humidity diff to %.1f%%", humidity_diff_);
+            } else {
+                ESP_LOGE(TAG, "Humidity_diff value %.1f%% is invalid", humidity_diff_);
+            }
+        });
+    }
+};
+
+}  // namespace iot
+
+DECLARE_THING(Environment);
