@@ -2,9 +2,9 @@
 
 > 一基于ESP32-S3的多媒体开发设备
 
-<img src="./_static/ReadMe/media-kit-mini-top.jpg" alt="media-kit-mini-top" style="zoom:15%;" />
+<img src="./_static/ReadMe/media-kit-mini-top.jpg" alt="media-kit-mini-top" width='30%' />
 
-<img src="./_static/ReadMe/media-kit-mini-sideview.jpg" alt="media-kit-mini-sideview" style="zoom:15%;" />
+<img src="./_static/ReadMe/media-kit-mini-sideview.jpg" alt="media-kit-mini-sideview" width='30%'/>
 
 Freenove Media Kit 是一个传统的多媒体设备，用于ESP32-S3的开发学习。具有以下外设：
 
