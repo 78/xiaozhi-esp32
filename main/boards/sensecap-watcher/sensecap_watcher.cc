@@ -53,16 +53,13 @@ class CustomLcdDisplay : public SpiLcdDisplay {
                         .text_font = &font_puhui_30_4,
                         .icon_font = &font_awesome_20_4,
                         .emoji_font = font_emoji_64_init(),
-                    })
-        {
+                    }) {
     
             DisplayLockGuard lock(this);
             lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height * 2 + 10);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
-
-            // lv_obj_set_style_text_font(network_label_, &font_awesome_20_4, 0);
 
             // 针对圆形屏幕调整位置
             //      network  battery  mute     //
@@ -72,15 +69,14 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5*fonts_.icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
-            lv_obj_align(notification_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
-
             lv_obj_set_flex_grow(status_label_, 0);
             lv_obj_set_width(status_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-           
+
+            lv_obj_align(notification_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_width(notification_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(notification_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-            
+
             lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -20);
             lv_obj_set_style_bg_color(low_battery_popup_, lv_color_hex(0xFF0000), 0);
             lv_obj_set_width(low_battery_label_, LV_HOR_RES * 0.75);
@@ -363,13 +359,11 @@ private:
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
-    uint16_t BatterygetVoltage(void)
-    {
+    uint16_t BatterygetVoltage(void) {
         static bool initialized = false;
         static adc_oneshot_unit_handle_t adc_handle;
         static adc_cali_handle_t cali_handle = NULL;
-        if (!initialized)
-        {
+        if (!initialized) {
             adc_oneshot_unit_init_cfg_t init_config = {
                 .unit_id = ADC_UNIT_1,
             };
@@ -387,13 +381,11 @@ private:
                 .atten = BSP_BAT_ADC_ATTEN,
                 .bitwidth = ADC_BITWIDTH_DEFAULT,
             };
-            if (adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle) == ESP_OK)
-            {
+            if (adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle) == ESP_OK) {
                 initialized = true;
             }
         }
-        if (initialized)
-        {
+        if (initialized) {
             int raw_value = 0;
             int voltage = 0; // mV
             adc_oneshot_read(adc_handle, BSP_BAT_ADC_CHAN, &raw_value);
@@ -405,18 +397,15 @@ private:
         return 0;
     }
 
-    uint8_t BatterygetPercent(bool print = false)
-    {
+    uint8_t BatterygetPercent(bool print = false) {
         int voltage = 0;
-        for (uint8_t i = 0; i < 10; i++)
-        {
+        for (uint8_t i = 0; i < 10; i++) {
             voltage += BatterygetVoltage();
         }
         voltage /= 10;
         int percent = (-1 * voltage * voltage + 9016 * voltage - 19189000) / 10000;
         percent = (percent > 100) ? 100 : (percent < 0) ? 0 : percent;
-        if (print)
-        {
+        if (print) {
             printf("voltage: %dmV, percentage: %d%%\r\n", voltage, percent);
         }
         return (uint8_t)percent;
@@ -455,7 +444,6 @@ private:
             .context =this
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd2));
-
 
         const esp_console_cmd_t cmd3 = {
             .command = "battery",
@@ -514,7 +502,7 @@ private:
     }
 
 public:
-    SensecapWatcher(){
+    SensecapWatcher() {
         ESP_LOGI(TAG, "Initialize Sensecap Watcher");
         InitializePowerSaveTimer();
         InitializeI2c();
@@ -568,10 +556,9 @@ public:
         }
         WifiBoard::SetPowerSaveMode(enabled);
     }
-    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        
-        static bool last_discharging = false;
 
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
         charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
         discharging = !charging;
         level = (int)BatterygetPercent(false);
@@ -580,7 +567,6 @@ public:
             power_save_timer_->SetEnabled(discharging);
             last_discharging = discharging;
         }
-
         if ( level <= 1  &&  discharging ) {
             ESP_LOGI(TAG, "Battery level is low, shutting down");
             IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
