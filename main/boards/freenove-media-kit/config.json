@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "freenove-media-kit",
+            "sdkconfig_append": []
+        }
+    ]
+}

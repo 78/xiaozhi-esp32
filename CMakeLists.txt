@@ -12,3 +12,11 @@ add_compile_options(-Wno-missing-field-initializers)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(xiaozhi)
 
+# 项目根目录的 CMakeLists.txt
+set(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+message(STATUS "项目根目录: ${PROJECT_ROOT_DIR}")
+
+
+# 添加 ESP-IDF 组件路径
+set(EXTRA_COMPONENT_DIRS ${CMAKE_SOURCE_DIR}/components)
+list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_SOURCE_DIR}/managed_components)
