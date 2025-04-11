@@ -266,14 +266,16 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+    lv_obj_set_style_border_width(screen, 0, 0);
+    lv_obj_set_style_pad_all(screen, 0, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
+    lv_obj_set_style_margin_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_pad_row(container_, 0, 0);
     lv_obj_set_style_bg_color(container_, current_theme.background, 0);
     lv_obj_set_style_border_color(container_, current_theme.border, 0);
 
@@ -286,15 +288,15 @@ void LcdDisplay::SetupUI() {
     
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_style_pad_all(content_, 10, 0);
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // Background for chat area
-    lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for chat area
+    lv_obj_set_style_pad_all(content_, 0, 0);
+    lv_obj_set_style_border_width(content_, 0, 0);
+    lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
 
     // Enable scrolling for chat content
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_scroll_dir(content_, LV_DIR_VER);
     
     // Create a flex container for chat messages
@@ -535,14 +537,16 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+    lv_obj_set_style_border_width(screen, 0, 0);
+    lv_obj_set_style_pad_all(screen, 0, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
+    lv_obj_set_style_margin_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_pad_row(container_, 0, 0);
     lv_obj_set_style_bg_color(container_, current_theme.background, 0);
     lv_obj_set_style_border_color(container_, current_theme.border, 0);
 
@@ -559,41 +563,38 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_style_pad_all(content_, 5, 0);
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
-    lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for content
+    lv_obj_set_style_pad_all(content_, 0, 0);
+    lv_obj_set_style_border_width(content_, 0, 0);
+    lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
 
     // 移除flex布局，以便可以精确定位元素
     lv_obj_clear_flag(content_, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
     lv_obj_set_layout(content_, LV_LAYOUT_NONE);
 
-    //直接在这里创建gif屏幕，上面的原来的emotion_label根据需要选择是否删除
+    // 1. 先创建GIF
     emotion_gif = lv_gif_create(container_);
     lv_obj_set_pos(emotion_gif, 0, 0);
-    lv_obj_set_size(emotion_gif, 360, 360);
+    lv_obj_set_size(emotion_gif, 360, 360); // 宽度增加2像素
     lv_obj_set_style_border_width(emotion_gif, 0, 0);
-    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
-    lv_gif_set_src(emotion_gif, &fo);//默认为look表情
-    // 下面两行先放在这里备用
-    // lv_gif_pause(emotion_gif);  // 停止 GIF 动画，减少 CPU 消耗
-    // lv_gif_restart(emotion_gif); // 重新开始播放GIF动画
+    lv_obj_set_style_pad_all(emotion_gif, 0, 0); // 确保无内边距
+    lv_obj_set_style_margin_all(emotion_gif, 0, 0); // 确保无外边距
+    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(emotion_gif, lv_color_black(), 0);
 
-    //lv_gif_set_src(emotion_gif, &look);
-    //lv_gif_set_src(emotion_gif, &ask);
-    //lv_gif_set_src(emotion_gif, &speak);
-    //lv_gif_set_src(emotion_gif, &think);
-    //这几个是切换表情的
-
-
-    // 再创建文本标签，使其位于表情之上
-    chat_message_label_ = lv_label_create(content_);
+    // 2. 将文本标签创建到container_而不是content_中，确保它在GIF之上
+    chat_message_label_ = lv_label_create(container_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 增加宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
-    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-    // 将文本标签居中
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_TRANSP, 0); // 背景完全透明
+    lv_obj_set_style_radius(chat_message_label_, 5, 0);
+    lv_obj_set_style_pad_all(chat_message_label_, 5, 0);
     lv_obj_center(chat_message_label_);
+    // 关键：设置更高的层级确保在GIF上方显示
+    lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_IGNORE_LAYOUT); // 忽略flex布局
+    lv_obj_move_foreground(chat_message_label_); // 移到前景
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -646,8 +647,20 @@ void LcdDisplay::SetupUI() {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
-    // 由于已经删除了emotion_label_，这个函数不再需要实现内容
-    // 保持函数存在以避免其他代码调用时出错
+    DisplayLockGuard lock(this);
+    
+    // 安全检查
+    if (emotion_gif == nullptr) return;
+    
+    if (strcmp(emotion, "speaking") == 0) {
+        // 说话状态 - 使用speak表情
+        lv_gif_set_src(emotion_gif, &fo_talk);
+        lv_gif_restart(emotion_gif);
+    } else {
+        // 其他所有状态（包括neutral）- 使用默认表情
+        lv_gif_set_src(emotion_gif, &fo_inle);
+        lv_gif_restart(emotion_gif);
+    }
 }
 
 void LcdDisplay::SetIcon(const char* icon) {
