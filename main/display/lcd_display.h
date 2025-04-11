@@ -9,11 +9,7 @@
 
 #include <atomic>
 
-LV_IMG_DECLARE(think);
-LV_IMG_DECLARE(speak);
 LV_IMG_DECLARE(ask);
-LV_IMG_DECLARE(look);
-LV_IMG_DECLARE(fo);
 LV_IMG_DECLARE(fo_inle);
 LV_IMG_DECLARE(fo_talk);
 
