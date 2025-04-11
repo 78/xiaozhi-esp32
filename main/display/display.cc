@@ -75,7 +75,9 @@ Display::~Display() {
         lv_obj_del(battery_label_);
         lv_obj_del(emotion_label_);
     }
-
+    if( low_battery_popup_ != nullptr ) {
+        lv_obj_del(low_battery_popup_);
+    }
     if (pm_lock_ != nullptr) {
         esp_pm_lock_delete(pm_lock_);
     }

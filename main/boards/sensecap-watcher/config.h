@@ -98,4 +98,9 @@
 
 #define CONFIG_BSP_LCD_SPI_DMA_SIZE_DIV 16
 
+/* ADC */
+#define BSP_BAT_ADC_CHAN  (ADC_CHANNEL_2)    // GPIO3
+#define BSP_BAT_ADC_ATTEN (ADC_ATTEN_DB_2_5) // 0 ~ 1100 mV
+#define BSP_BAT_VOL_RATIO ((62 + 20) / 20)
+
 #endif // _BOARD_CONFIG_H_
