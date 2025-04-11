@@ -14,6 +14,8 @@ LV_IMG_DECLARE(speak);
 LV_IMG_DECLARE(ask);
 LV_IMG_DECLARE(look);
 LV_IMG_DECLARE(fo);
+LV_IMG_DECLARE(fo_inle);
+LV_IMG_DECLARE(fo_talk);
 
 class LcdDisplay : public Display {
 protected:

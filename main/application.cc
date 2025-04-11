@@ -433,7 +433,10 @@ void Application::Start() {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (emotion != NULL) {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
-                    display->SetEmotion(emotion_str.c_str());
+                    // 只有当设备不在说话状态时，才更新表情
+                    if (device_state_ != kDeviceStateSpeaking) {
+                        display->SetEmotion(emotion_str.c_str());
+                    }
                 });
             }
         } else if (strcmp(type->valuestring, "iot") == 0) {
@@ -816,6 +819,7 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
+            display->SetEmotion("speaking");
 
             if (listening_mode_ != kListeningModeRealtime) {
 #if CONFIG_USE_AUDIO_PROCESSOR
