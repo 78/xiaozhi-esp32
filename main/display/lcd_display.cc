@@ -571,71 +571,108 @@ void LcdDisplay::SetupUI() {
     lv_obj_clear_flag(content_, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
     lv_obj_set_layout(content_, LV_LAYOUT_NONE);
 
-    // 1. 先创建GIF
-    emotion_gif = lv_gif_create(container_);
-    lv_obj_set_pos(emotion_gif, 0, 0);
-    lv_obj_set_size(emotion_gif, 360, 360); // 宽度增加2像素
+    // 1. 创建 GIF，父对象设置为 screen (最顶层)
+    emotion_gif = lv_gif_create(screen);
+    lv_obj_set_size(emotion_gif, LV_HOR_RES, LV_VER_RES - fonts_.text_font->line_height); // 设置全屏减去状态栏高度
+    lv_obj_align(emotion_gif, LV_ALIGN_BOTTOM_MID, 0, 0); // 底部对齐
     lv_obj_set_style_border_width(emotion_gif, 0, 0);
-    lv_obj_set_style_pad_all(emotion_gif, 0, 0); // 确保无内边距
-    lv_obj_set_style_margin_all(emotion_gif, 0, 0); // 确保无外边距
+    lv_obj_set_style_pad_all(emotion_gif, 0, 0);
+    lv_obj_set_style_margin_all(emotion_gif, 0, 0);
     lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(emotion_gif, lv_color_black(), 0);
 
-    // 2. 将文本标签创建到container_而不是content_中，确保它在GIF之上
-    chat_message_label_ = lv_label_create(container_);
+    // 2. 将文本标签也创建到 screen 中，确保它在 GIF 之上
+    chat_message_label_ = lv_label_create(screen);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+    lv_obj_set_width(chat_message_label_, lv_pct(90));
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_TRANSP, 0); // 背景完全透明
+    lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_radius(chat_message_label_, 5, 0);
     lv_obj_set_style_pad_all(chat_message_label_, 5, 0);
-    lv_obj_center(chat_message_label_);
-    // 关键：设置更高的层级确保在GIF上方显示
-    lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_IGNORE_LAYOUT); // 忽略flex布局
-    lv_obj_move_foreground(chat_message_label_); // 移到前景
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
 
-    /* Status bar */
+    // 确保层级顺序：文本 > GIF > 状态栏
+    lv_obj_move_foreground(chat_message_label_); // 文本移到最前
+
+    /* Status bar content setup... */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
-    lv_obj_set_style_pad_left(status_bar_, 2, 0);
-    lv_obj_set_style_pad_right(status_bar_, 2, 0);
+    // lv_obj_set_style_pad_left(status_bar_, 2, 0); // 使用 space-between 代替固定边距
+    // lv_obj_set_style_pad_right(status_bar_, 2, 0);
+    lv_obj_set_style_pad_left(status_bar_, 10, 0);  // 左右增加一些边距
+    lv_obj_set_style_pad_right(status_bar_, 10, 0);
+    // lv_obj_set_style_pad_top(status_bar_, 2, 0);    // Change top padding
+    // lv_obj_set_style_pad_bottom(status_bar_, 2, 0); // Change bottom padding
+    lv_obj_set_style_pad_ver(status_bar_, 2, 0); // Set vertical padding to 0
+    lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
+    // 设置状态栏内容两端对齐且垂直居中
+    lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    network_label_ = lv_label_create(status_bar_);
+    // Status bar left group (Network, Notification, Status)
+    lv_obj_t* left_group = lv_obj_create(status_bar_);
+    lv_obj_remove_style_all(left_group); // 移除默认样式
+    lv_obj_set_size(left_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT); // 自适应内容大小
+    lv_obj_set_flex_flow(left_group, LV_FLEX_FLOW_ROW); // 水平排列
+    lv_obj_set_flex_align(left_group, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER); // 左对齐，垂直居中
+    lv_obj_set_style_pad_column(left_group, 5, 0); // 图标间距
+
+    network_label_ = lv_label_create(left_group); // Add to left group
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
 
-    notification_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(notification_label_, 1);
+    // Status bar center group (Status/Notification)
+    lv_obj_t* center_group = lv_obj_create(status_bar_);
+    lv_obj_remove_style_all(center_group); // 移除默认样式
+    lv_obj_set_height(center_group, LV_SIZE_CONTENT); // 高度自适应
+    lv_obj_set_flex_grow(center_group, 1); // 占据中间剩余空间
+    lv_obj_set_flex_flow(center_group, LV_FLEX_FLOW_COLUMN); // 允许堆叠 Label
+    lv_obj_set_flex_align(center_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER); // 内容居中
+    lv_obj_set_style_pad_all(center_group, 0, 0); // 无内边距
+
+    notification_label_ = lv_label_create(center_group); // Add to center group
+    // lv_obj_set_flex_grow(notification_label_, 1); // 不需要 grow
+    lv_obj_set_width(notification_label_, lv_pct(100)); // 宽度100%
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
     lv_label_set_text(notification_label_, "");
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN); // Initially hidden
 
-    status_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(status_label_, 1);
+    status_label_ = lv_label_create(center_group); // Add to center group
+    // lv_obj_set_flex_grow(status_label_, 1); // 不需要 grow
+    lv_obj_set_width(status_label_, lv_pct(100)); // 宽度100%
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
-    mute_label_ = lv_label_create(status_bar_);
+
+    // Status bar right group (Mute, Battery)
+    lv_obj_t* right_group = lv_obj_create(status_bar_);
+    lv_obj_remove_style_all(right_group); // 移除默认样式
+    lv_obj_set_size(right_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT); // 自适应内容大小
+    lv_obj_set_flex_flow(right_group, LV_FLEX_FLOW_ROW); // 水平排列
+    lv_obj_set_flex_align(right_group, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER); // 右对齐，垂直居中
+    lv_obj_set_style_pad_column(right_group, 5, 0); // 图标间距
+
+    mute_label_ = lv_label_create(right_group); // Add to right group
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
 
-    battery_label_ = lv_label_create(status_bar_);
+    battery_label_ = lv_label_create(right_group); // Add to right group
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
 
+    /* Low battery popup */
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -10); // Align to bottom with some margin
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
@@ -853,3 +890,17 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
 }
+
+#if !CONFIG_USE_WECHAT_MESSAGE_STYLE
+void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    // 安全检查
+    if (chat_message_label_ == nullptr) return;
+    if (strlen(content) == 0) return;
+
+    lv_label_set_text(chat_message_label_, content);
+    // 由于标签在 content_ 中居中，它会自动调整位置
+    // lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0); // 确保它在父对象(content_)中居中
+    // 无需滚动，因为只有一个标签
+}
+#endif
