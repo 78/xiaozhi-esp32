@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "fancheng-1.8-wifi",
+            "sdkconfig_append": []
+        }
+    ]
+}
