@@ -113,7 +113,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_KORVO2_V3
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot开发板"
+        bool "ESP-SparkBot开发板" 
+    config BOARD_TYPE_EGUARDER_S3
+        bool "EGUARDER-S3开发板"    
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
