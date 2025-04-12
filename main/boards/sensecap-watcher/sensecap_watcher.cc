@@ -245,7 +245,7 @@ private:
             },
         };
         
-        //watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
+        // watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
         ESP_LOGI(TAG, "waiting for knob button release");
         while(IoExpanderGetLevel(BSP_KNOB_BTN) == 0) {
             vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -276,8 +276,8 @@ private:
         iot_button_register_cb(btns, BUTTON_LONG_PRESS_HOLD, [](void* button_handle, void* usr_data) {
             auto self = static_cast<SensecapWatcher*>(usr_data);
             self->long_press_cnt_++; // 每隔20ms加一
-            //长按10s 恢复出厂设置: 2+0.02*400 = 10
-            if ( self->long_press_cnt_ > 400) {
+            // 长按10s 恢复出厂设置: 2+0.02*400 = 10
+            if (self->long_press_cnt_ > 400) {
                 ESP_LOGI(TAG, "Factory reset");
                 nvs_flash_erase();
                 esp_restart();
@@ -340,13 +340,13 @@ private:
         
         // 使每次刷新的起始列数索引是4的倍数且列数总数是4的倍数，以满足SPD2010的要求
         lv_display_add_event_cb(lv_display_get_default(), [](lv_event_t *e) {
-                lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
-                uint16_t x1 = area->x1;
-                uint16_t x2 = area->x2;
-                // round the start of area down to the nearest 4N number
-                area->x1 = (x1 >> 2) << 2;
-                // round the end of area up to the nearest 4M+3 number
-                area->x2 = ((x2 >> 2) << 2) + 3;
+            lv_area_t *area = (lv_area_t *)lv_event_get_param(e);
+            uint16_t x1 = area->x1;
+            uint16_t x2 = area->x2;
+            // round the start of area down to the nearest 4N number
+            area->x1 = (x1 >> 2) << 2;
+            // round the end of area up to the nearest 4M+3 number
+            area->x2 = ((x2 >> 2) << 2) + 3;
         }, LV_EVENT_INVALIDATE_AREA, NULL);
         
     }
@@ -458,7 +458,7 @@ private:
             },
             .context =this
         };
-        ESP_ERROR_CHECK( esp_console_cmd_register(&cmd3) );
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd3));
 
         const esp_console_cmd_t cmd4 = {
             .command = "factory_reset",
@@ -474,7 +474,7 @@ private:
             },
             .context =this
         };
-        ESP_ERROR_CHECK( esp_console_cmd_register(&cmd4) );
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd4));
 
         const esp_console_cmd_t cmd5 = {
             .command = "read_mac",
@@ -494,7 +494,7 @@ private:
             },
             .context =this
         };
-        ESP_ERROR_CHECK( esp_console_cmd_register(&cmd5) );
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
 
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
@@ -567,7 +567,7 @@ public:
             power_save_timer_->SetEnabled(discharging);
             last_discharging = discharging;
         }
-        if ( level <= 1  &&  discharging ) {
+        if (level <= 1  &&  discharging) {
             ESP_LOGI(TAG, "Battery level is low, shutting down");
             IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
         }
