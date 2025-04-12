@@ -156,6 +156,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_ESP32_S3_WRIST_GEM
+            bool "腕宝助手"
 endchoice
 
 choice DISPLAY_OLED_TYPE
