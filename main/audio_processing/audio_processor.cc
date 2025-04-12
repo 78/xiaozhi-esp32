@@ -28,7 +28,7 @@ void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     if (realtime_chat) {
         afe_config->aec_init = true;
-        afe_config->aec_mode = AEC_MODE_VOIP_LOW_COST;
+        afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
     } else {
         afe_config->aec_init = false;
     }
@@ -78,7 +78,9 @@ void AudioProcessor::Start() {
 
 void AudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
-    afe_iface_->reset_buffer(afe_data_);
+    if (afe_data_ != nullptr) {
+        afe_iface_->reset_buffer(afe_data_);
+    }
 }
 
 bool AudioProcessor::IsRunning() {

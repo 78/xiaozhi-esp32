@@ -83,7 +83,9 @@ void WakeWordDetect::StartDetection() {
 
 void WakeWordDetect::StopDetection() {
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
-    afe_iface_->reset_buffer(afe_data_);
+    if (afe_data_ != nullptr) {
+        afe_iface_->reset_buffer(afe_data_);
+    }
 }
 
 bool WakeWordDetect::IsDetectionRunning() {
