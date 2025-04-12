@@ -1,7 +1,7 @@
 # 一、腕宝开源链接
 - [小智 AI 聊天机器人百科全书](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb)
 - [OSHWHub | 腕宝项目页](https://oshwhub.com/dotnfc/esp32-s3-wrist-gem-xiaoszhi-ai)
-- [B站 | 腕宝功能说明](https://www.bilibili.com/video/BV1hqd2Y8E3p)
+- [B站 | 腕宝功能说明](https://www.bilibili.com/opus/1054903427441623049)
 
 
 # 二、编译配置命令
