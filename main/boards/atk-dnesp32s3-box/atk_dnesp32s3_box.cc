@@ -32,8 +32,7 @@ public:
         WriteReg(0x07, 0xFE);
     }
 
-    void xl9555_cfg(void)
-    {
+    void xl9555_cfg(void) {
         WriteReg(0x06, 0x1B);
         WriteReg(0x07, 0xFE);
     }
@@ -76,8 +75,8 @@ private:
     i2c_master_dev_handle_t xl9555_handle_;
     Button boot_button_;
     LcdDisplay* display_;
-    XL9555_IN* xl9555_in;
-    bool es8311_detected = false;
+    XL9555_IN* xl9555_in_;
+    bool es8311_detected_ = false;
     
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -96,18 +95,15 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
 
         // Initialize XL9555
-        xl9555_in = new XL9555_IN(i2c_bus_, 0x20);
+        xl9555_in_ = new XL9555_IN(i2c_bus_, 0x20);
 
-        if (xl9555_in->GetPingState(0x0020) == 1)
-        {
-            es8311_detected = true;    /* 音频设备标志位，SPK_CTRL_IO为高电平时，该标志位置1，且判定为ES8311 */
-        }
-        else
-        {
-            es8311_detected = false;    /* 音频设备标志位，SPK_CTRL_IO为低电平时，该标志位置0，且判定为NS4168 */
+        if (xl9555_in_->GetPingState(0x0020) == 1) {
+            es8311_detected_ = true;    /* 音频设备标志位，SPK_CTRL_IO为高电平时，该标志位置1，且判定为ES8311 */
+        } else {
+            es8311_detected_ = false;    /* 音频设备标志位，SPK_CTRL_IO为低电平时，该标志位置0，且判定为NS4168 */
         }
 
-        xl9555_in->xl9555_cfg();
+        xl9555_in_->xl9555_cfg();
     }
 
     void InitializeATK_ST7789_80_Display() {
@@ -218,17 +214,15 @@ public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeATK_ST7789_80_Display();
-        xl9555_in->SetOutputState(5, 1);
-        xl9555_in->SetOutputState(7, 1);
+        xl9555_in_->SetOutputState(5, 1);
+        xl9555_in_->SetOutputState(7, 1);
         InitializeButtons();
         InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-
         /* 根据探测结果初始化编解码器 */
-          if (es8311_detected)
-          {
+        if (es8311_detected_) {
             /* 使用ES8311 驱动 */
             static Es8311AudioCodec audio_codec(
                 i2c_bus_, 
@@ -244,9 +238,7 @@ public:
                 AUDIO_CODEC_ES8311_ADDR, 
                 false);
                 return &audio_codec;
-         } 
-        else 
-        {
+        } else {
             static ATK_NoAudioCodecDuplex audio_codec(
                 AUDIO_INPUT_SAMPLE_RATE,
                 AUDIO_OUTPUT_SAMPLE_RATE,
