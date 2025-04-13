@@ -58,15 +58,15 @@ bool Ota::CheckVersion() {
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
 
-    std::string post_data = board.GetJson();
-    std::string method = post_data.length() > 0 ? "POST" : "GET";
-    if (!http->Open(method, check_version_url_, post_data)) {
+    std::string data = board.GetJson();
+    std::string method = data.length() > 0 ? "POST" : "GET";
+    if (!http->Open(method, check_version_url_, data)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         delete http;
         return false;
     }
 
-    auto response = http->GetBody();
+    data = http->GetBody();
     http->Close();
     delete http;
 
@@ -74,7 +74,7 @@ bool Ota::CheckVersion() {
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
     
-    cJSON *root = cJSON_Parse(response.c_str());
+    cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
         return false;
