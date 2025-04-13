@@ -99,6 +99,7 @@ private:
 #endif
     bool aborted_ = false;
     bool voice_detected_ = false;
+    bool busy_decoding_audio_ = false;
     int clock_ticks_ = 0;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
 

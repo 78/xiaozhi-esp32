@@ -362,8 +362,11 @@ void Application::Start() {
         Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](std::vector<uint8_t>&& data) {
+        const int max_packets_in_queue = 300 / OPUS_FRAME_DURATION_MS;
         std::lock_guard<std::mutex> lock(mutex_);
-        audio_decode_queue_.emplace_back(std::move(data));
+        if (audio_decode_queue_.size() < max_packets_in_queue) {
+            audio_decode_queue_.emplace_back(std::move(data));
+        }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
         board.SetPowerSaveMode(false);
@@ -451,6 +454,9 @@ void Application::Start() {
     audio_processor_.Initialize(codec, realtime_chat_enabled_);
     audio_processor_.OnOutput([this](std::vector<int16_t>&& data) {
         background_task_->Schedule([this, data = std::move(data)]() mutable {
+            if (protocol_->IsAudioChannelBusy()) {
+                return;
+            }
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
@@ -524,6 +530,8 @@ void Application::OnClockTimer() {
 
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
+        // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
+
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
         ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
@@ -582,6 +590,10 @@ void Application::AudioLoop() {
 }
 
 void Application::OnAudioOutput() {
+    if (busy_decoding_audio_) {
+        return;
+    }
+
     auto now = std::chrono::steady_clock::now();
     auto codec = Board::GetInstance().GetAudioCodec();
     const int max_silence_seconds = 10;
@@ -609,7 +621,9 @@ void Application::OnAudioOutput() {
     lock.unlock();
     audio_decode_cv_.notify_all();
 
+    busy_decoding_audio_ = true;
     background_task_->Schedule([this, codec, opus = std::move(opus)]() mutable {
+        busy_decoding_audio_ = false;
         if (aborted_) {
             return;
         }
@@ -651,6 +665,9 @@ void Application::OnAudioInput() {
         std::vector<int16_t> data;
         ReadAudio(data, 16000, 30 * 16000 / 1000);
         background_task_->Schedule([this, data = std::move(data)]() mutable {
+            if (protocol_->IsAudioChannelBusy()) {
+                return;
+            }
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 Schedule([this, opus = std::move(opus)]() {
                     protocol_->SendAudio(opus);
