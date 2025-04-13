@@ -114,6 +114,8 @@ choice BOARD_TYPE
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP_SPARKBOT
         bool "ESP-SparkBot开发板"
+    config BOARD_TYPE_ESP_SPOT_S3
+        bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
@@ -158,6 +160,8 @@ choice BOARD_TYPE
         bool "SenseCAP Watcher"
     config BOARD_TYPE_ESP32_S3_WRIST_GEM
             bool "腕宝助手"
+    config BOARD_TYPE_DOIT_S3_AIBOX
+        bool "四博智联AI陪伴盒子"
 endchoice
 
 choice DISPLAY_OLED_TYPE
