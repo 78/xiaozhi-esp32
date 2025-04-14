@@ -76,6 +76,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
+
+      ESP_LOGI(TAG, "Received raw message: %.*s", (int)len, data);  // <-- 添加日志
+
         if (binary) {
             if (on_incoming_audio_ != nullptr) {
                 on_incoming_audio_(std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len));
