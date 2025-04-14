@@ -64,20 +64,20 @@ bool WebsocketProtocol::OpenAudioChannel() {
     }
 
     error_occurred_ = false;
-    std::string url = CONFIG_WEBSOCKET_URL;
-    std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
-    websocket_ = Board::GetInstance().CreateWebSocket();
-    websocket_->SetHeader("Authorization", token.c_str());
-    websocket_->SetHeader("Protocol-Version", "1");
-    websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
     // std::string url = CONFIG_WEBSOCKET_URL;
-    // std::string token = "Bearer ak_CoOZZT7s6xnQ22WFGykBD2jy7aGpRNFQ";
+    // std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
     // websocket_ = Board::GetInstance().CreateWebSocket();
     // websocket_->SetHeader("Authorization", token.c_str());
-    // websocket_->SetHeader("Protocol-Version", "1.0.0");
+    // websocket_->SetHeader("Protocol-Version", "1");
     // websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    // websocket_->SetHeader("Client-Id", "4089ad55-ab17-4af2-b78b-48144565bcce");
+    // websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+    std::string url = CONFIG_WEBSOCKET_URL;
+    std::string token = "Bearer ak_K1eDkrBVdBgnWNrN18EPj3zI5JVRE57M";
+    websocket_ = Board::GetInstance().CreateWebSocket();
+    websocket_->SetHeader("Authorization", token.c_str());
+    websocket_->SetHeader("Protocol-Version", "1.0.0");
+    websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    websocket_->SetHeader("Client-Id", "42da122d-9df0-4dc7-a919-316167ff325d");
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
