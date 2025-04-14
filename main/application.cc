@@ -65,20 +65,31 @@ Application::~Application() {
 void Application::CheckNewVersion() {
     const int MAX_RETRY = 10;
     int retry_count = 0;
+    int retry_delay = 10; // 初始重试延迟为10秒
 
     while (true) {
+        SetDeviceState(kDeviceStateActivating);
         auto display = Board::GetInstance().GetDisplay();
+        display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
+
         if (!ota_.CheckVersion()) {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
                 ESP_LOGE(TAG, "Too many retries, exit version check");
                 return;
             }
-            ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", 60, retry_count, MAX_RETRY);
-            vTaskDelay(pdMS_TO_TICKS(60000));
+            ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
+            for (int i = 0; i < retry_delay; i++) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                if (device_state_ == kDeviceStateIdle) {
+                    break;
+                }
+            }
+            retry_delay *= 2; // 每次重试后延迟时间翻倍
             continue;
         }
         retry_count = 0;
+        retry_delay = 10; // 重置重试延迟时间
 
         if (ota_.HasNewVersion()) {
             Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
@@ -125,24 +136,34 @@ void Application::CheckNewVersion() {
 
         // No new version, mark the current version as valid
         ota_.MarkCurrentVersionValid();
-        if (ota_.HasActivationCode()) {
-            // Activation code is valid
-            SetDeviceState(kDeviceStateActivating);
-            ShowActivationCode();
-
-            // Check again in 60 seconds or until the device is idle
-            for (int i = 0; i < 60; ++i) {
-                if (device_state_ == kDeviceStateIdle) {
-                    break;
-                }
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
-            continue;
+        if (!ota_.HasActivationCode() && !ota_.HasActivationChallenge()) {
+            xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+            // Exit the loop if done checking new version
+            break;
         }
 
-        xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
-        // Exit the loop if done checking new version
-        break;
+        display->SetStatus(Lang::Strings::ACTIVATION);
+        // Activation code is shown to the user and waiting for the user to input
+        if (ota_.HasActivationCode()) {
+            ShowActivationCode();
+        }
+
+        // This will block the loop until the activation is done or timeout
+        for (int i = 0; i < 10; ++i) {
+            ESP_LOGI(TAG, "Activating... %d/%d", i + 1, 10);
+            esp_err_t err = ota_.Activate();
+            if (err == ESP_OK) {
+                xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
+                break;
+            } else if (err == ESP_ERR_TIMEOUT) {
+                vTaskDelay(pdMS_TO_TICKS(3000));
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(10000));
+            }
+            if (device_state_ == kDeviceStateIdle) {
+                break;
+            }
+        }
     }
 }
 
@@ -347,7 +368,6 @@ void Application::Start() {
     board.StartNetwork();
 
     // Check for new firmware version or get the MQTT broker address
-    display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
     CheckNewVersion();
 
     // Initialize the protocol
@@ -445,6 +465,28 @@ void Application::Start() {
                     auto command = cJSON_GetArrayItem(commands, i);
                     thing_manager.Invoke(command);
                 }
+            }
+        } else if (strcmp(type->valuestring, "system") == 0) {
+            auto command = cJSON_GetObjectItem(root, "command");
+            if (command != NULL) {
+                ESP_LOGI(TAG, "System command: %s", command->valuestring);
+                if (strcmp(command->valuestring, "reboot") == 0) {
+                    // Do a reboot if user requests a OTA update
+                    Schedule([this]() {
+                        Reboot();
+                    });
+                } else {
+                    ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
+                }
+            }
+        } else if (strcmp(type->valuestring, "alert") == 0) {
+            auto status = cJSON_GetObjectItem(root, "status");
+            auto message = cJSON_GetObjectItem(root, "message");
+            auto emotion = cJSON_GetObjectItem(root, "emotion");
+            if (status != NULL && message != NULL && emotion != NULL) {
+                Alert(status->valuestring, message->valuestring, emotion->valuestring, Lang::Sounds::P3_VIBRATION);
+            } else {
+                ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
         }
     });
@@ -648,17 +690,23 @@ void Application::OnAudioInput() {
 #if CONFIG_USE_WAKE_WORD_DETECT
     if (wake_word_detect_.IsDetectionRunning()) {
         std::vector<int16_t> data;
-        ReadAudio(data, 16000, wake_word_detect_.GetFeedSize());
-        wake_word_detect_.Feed(data);
-        return;
+        int samples = wake_word_detect_.GetFeedSize();
+        if (samples > 0) {
+            ReadAudio(data, 16000, samples);
+            wake_word_detect_.Feed(data);
+            return;
+        }
     }
 #endif
 #if CONFIG_USE_AUDIO_PROCESSOR
     if (audio_processor_.IsRunning()) {
         std::vector<int16_t> data;
-        ReadAudio(data, 16000, audio_processor_.GetFeedSize());
-        audio_processor_.Feed(data);
-        return;
+        int samples = audio_processor_.GetFeedSize();
+        if (samples > 0) {
+            ReadAudio(data, 16000, samples);
+            audio_processor_.Feed(data);
+            return;
+        }
     }
 #else
     if (device_state_ == kDeviceStateListening) {
