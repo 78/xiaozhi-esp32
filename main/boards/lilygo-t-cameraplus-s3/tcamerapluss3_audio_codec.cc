@@ -2,7 +2,6 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 
 static const char TAG[] = "Tcamerapluss3AudioCodec";
