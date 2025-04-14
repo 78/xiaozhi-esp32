@@ -10,7 +10,9 @@
 #include <esp_app_format.h>
 #include <esp_efuse.h>
 #include <esp_efuse_table.h>
+#ifdef SOC_HMAC_SUPPORTED
 #include <esp_hmac.h>
+#endif
 
 #include <cstring>
 #include <vector>
@@ -23,6 +25,7 @@
 Ota::Ota() {
     SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
 
+#ifdef ESP_EFUSE_BLOCK_USR_DATA
     // Read Serial Number from efuse user_data
     uint8_t serial_number[33] = {0};
     if (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA, serial_number, 32 * 8) == ESP_OK) {
@@ -33,6 +36,7 @@ Ota::Ota() {
             has_serial_number_ = true;
         }
     }
+#endif
 }
 
 Ota::~Ota() {
@@ -89,7 +93,6 @@ bool Ota::CheckVersion() {
     }
 
     data = http->GetBody();
-    http->Close();
     delete http;
 
     // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
@@ -164,36 +167,34 @@ bool Ota::CheckVersion() {
         }
     }
 
+    has_new_version_ = false;
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
-    if (firmware == NULL) {
-        ESP_LOGE(TAG, "Failed to get firmware object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *version = cJSON_GetObjectItem(firmware, "version");
-    if (version == NULL) {
-        ESP_LOGE(TAG, "Failed to get version object");
-        cJSON_Delete(root);
-        return false;
-    }
-    cJSON *url = cJSON_GetObjectItem(firmware, "url");
-    if (url == NULL) {
-        ESP_LOGE(TAG, "Failed to get url object");
-        cJSON_Delete(root);
-        return false;
-    }
+    if (firmware != NULL) {
+        cJSON *version = cJSON_GetObjectItem(firmware, "version");
+        if (version != NULL) {
+            firmware_version_ = version->valuestring;
+        }
+        cJSON *url = cJSON_GetObjectItem(firmware, "url");
+        if (url != NULL) {
+            firmware_url_ = url->valuestring;
+        }
 
-    firmware_version_ = version->valuestring;
-    firmware_url_ = url->valuestring;
+        if (version != NULL && url != NULL) {
+            // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+            has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+            if (has_new_version_) {
+                ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
+            } else {
+                ESP_LOGI(TAG, "Current is the latest version");
+            }
+            // If the force flag is set to 1, the given version is forced to be installed
+            cJSON *force = cJSON_GetObjectItem(firmware, "force");
+            if (force != NULL && force->valueint == 1) {
+                has_new_version_ = true;
+            }
+        }
+    }
     cJSON_Delete(root);
-
-    // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-    has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
-    if (has_new_version_) {
-        ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
-    } else {
-        ESP_LOGI(TAG, "Current is the latest version");
-    }
     return true;
 }
 
@@ -366,6 +367,8 @@ std::string Ota::GetActivationPayload() {
         return "{}";
     }
 
+    std::string hmac_hex;
+#ifdef SOC_HMAC_SUPPORTED
     uint8_t hmac_result[32]; // SHA-256 输出为32字节
     
     // 使用Key0计算HMAC
@@ -375,12 +378,12 @@ std::string Ota::GetActivationPayload() {
         return "{}";
     }
 
-    std::string hmac_hex;
     for (size_t i = 0; i < sizeof(hmac_result); i++) {
         char buffer[3];
         sprintf(buffer, "%02x", hmac_result[i]);
         hmac_hex += buffer;
     }
+#endif
 
     cJSON *payload = cJSON_CreateObject();
     cJSON_AddStringToObject(payload, "algorithm", "hmac-sha256");
