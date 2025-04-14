@@ -30,7 +30,9 @@ void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
         return;
     }
 
+    busy_sending_audio_ = true;
     websocket_->Send(data.data(), data.size(), true);
+    busy_sending_audio_ = false;
 }
 
 bool WebsocketProtocol::SendText(const std::string& text) {
@@ -63,6 +65,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
         delete websocket_;
     }
 
+    busy_sending_audio_ = false;
     error_occurred_ = false;
     std::string url = CONFIG_WEBSOCKET_URL;
     std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
