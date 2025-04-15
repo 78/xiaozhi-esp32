@@ -15,7 +15,7 @@
 
 // Color definitions for dark theme
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
-#define DARK_TEXT_COLOR             lv_color_white()           // White text
+#define DARK_TEXT_COLOR             lv_color_black()           // 改为黑色文字
 #define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
 #define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
 #define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
@@ -26,7 +26,7 @@
 
 // Color definitions for light theme
 #define LIGHT_BACKGROUND_COLOR       lv_color_white()           // White background
-#define LIGHT_TEXT_COLOR             lv_color_black()           // Black text
+#define LIGHT_TEXT_COLOR             lv_color_black()           // 已经是黑色文字
 #define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)     // Light gray background
 #define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)     // WeChat green
 #define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()           // White
@@ -514,7 +514,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_set_parent(msg_bubble, container);
         
         // 将气泡居中对齐在容器中
-        lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 50);
         
         // 自动滚动底部
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
@@ -588,11 +588,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_width(chat_message_label_, lv_pct(90));
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+    lv_obj_set_style_text_color(chat_message_label_, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_radius(chat_message_label_, 5, 0);
     lv_obj_set_style_pad_all(chat_message_label_, 5, 0);
-    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 50);
 
     // 确保层级顺序：文本 > GIF > 状态栏
     lv_obj_move_foreground(chat_message_label_); // 文本移到最前
