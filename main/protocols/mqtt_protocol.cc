@@ -133,7 +133,10 @@ void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
         return;
     }
+
+    busy_sending_audio_ = true;
     udp_->Send(encrypted);
+    busy_sending_audio_ = false;
 }
 
 void MqttProtocol::CloseAudioChannel() {
@@ -164,6 +167,7 @@ bool MqttProtocol::OpenAudioChannel() {
         }
     }
 
+    busy_sending_audio_ = false;
     error_occurred_ = false;
     session_id_ = "";
     xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
