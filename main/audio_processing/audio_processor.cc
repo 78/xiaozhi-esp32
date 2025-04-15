@@ -28,7 +28,7 @@ void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     if (realtime_chat) {
         afe_config->aec_init = true;
-        afe_config->aec_mode = AEC_MODE_VOIP_LOW_COST;
+        afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
     } else {
         afe_config->aec_init = false;
     }
@@ -65,10 +65,16 @@ AudioProcessor::~AudioProcessor() {
 }
 
 size_t AudioProcessor::GetFeedSize() {
+    if (afe_data_ == nullptr) {
+        return 0;
+    }
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
 void AudioProcessor::Feed(const std::vector<int16_t>& data) {
+    if (afe_data_ == nullptr) {
+        return;
+    }
     afe_iface_->feed(afe_data_, data.data());
 }
 
@@ -78,7 +84,9 @@ void AudioProcessor::Start() {
 
 void AudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
-    afe_iface_->reset_buffer(afe_data_);
+    if (afe_data_ != nullptr) {
+        afe_iface_->reset_buffer(afe_data_);
+    }
 }
 
 bool AudioProcessor::IsRunning() {

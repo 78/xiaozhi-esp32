@@ -51,7 +51,7 @@ def release_current():
 
 def get_all_board_types():
     board_configs = {}
-    with open("main/CMakeLists.txt") as f:
+    with open("main/CMakeLists.txt", encoding='utf-8') as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
             # 查找 if(CONFIG_BOARD_TYPE_*) 行
@@ -73,10 +73,6 @@ def release(board_type, board_config):
     # Print Project Version
     project_version = get_project_version()
     print(f"Project Version: {project_version}", config_path)
-    release_path = f"releases/v{project_version}_{board_type}.zip"
-    if os.path.exists(release_path):
-        print(f"跳过 {board_type} 因为 {release_path} 已存在")
-        return
 
     with open(config_path, "r") as f:
         config = json.load(f)
@@ -86,7 +82,11 @@ def release(board_type, board_config):
     for build in builds:
         name = build["name"]
         if not name.startswith(board_type):
-            raise ValueError(f"name {name} 必须 {board_type} 开头")
+            raise ValueError(f"name {name} 必须以 {board_type} 开头")
+        output_path = f"releases/v{project_version}_{name}.zip"
+        if os.path.exists(output_path):
+            print(f"跳过 {board_type} 因为 {output_path} 已存在")
+            continue
 
         sdkconfig_append = [f"{board_config}=y"]
         for append in build.get("sdkconfig_append", []):

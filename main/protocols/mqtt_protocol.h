@@ -54,7 +54,7 @@ private:
     void ParseServerHello(const cJSON* root);
     std::string DecodeHexString(const std::string& hex_string);
 
-    void SendText(const std::string& text) override;
+    bool SendText(const std::string& text) override;
 };
 
 
