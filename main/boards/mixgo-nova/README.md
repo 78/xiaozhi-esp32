@@ -1,6 +1,12 @@
-# 元控·青春
+# Mixgo_Nova(元控·青春) 开发板
 
-## 编译配置命令
+<img src="https://mixly.cn/public/icon/2024/6/09705006c1c643beb96338791ee1dea0_m.png" alt="Mixgo_Nova" width="200"/>
+
+&zwnj;**[Mixgo_Nova](https://mixly.cn/fredqian/mixgo_nova)**&zwnj; 是一款专为物联网、教育及创客项目设计的多功能开发板，集成丰富传感器与无线通信模块，支持图形化编程（Mixly）和离线语音交互，适合快速原型开发与教学。
+
+---
+
+## 🛠️  编译配置命令
 
 **ES8374 CODE MIC采集问题：**
 
@@ -57,4 +63,10 @@ Partition Table -> Custom partition CSV file -> partitions_8M.csv
 
 ```bash
 idf.py build
+```
+
+**合并BIN：**
+
+```bash
+idf.py merge-bin -o xiaozhi-nova.bin -f raw
 ```
