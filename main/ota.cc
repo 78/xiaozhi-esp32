@@ -79,21 +79,18 @@ bool Ota::CheckVersion() {
 
     // 虾哥服务器，activation、mqtt
     std::string check_version_url_X = "https://api.tenclass.net/xiaozhi/ota/";
-    auto httpX = Board::GetInstance().CreateHttp();
-    for (const auto& headerX : headers_) {
-        httpX->SetHeader(headerX.first, headerX.second);
-    }
-
-    httpX->SetHeader("Content-Type", "application/json");
-    std::string methodX = post_data_.length() > 0 ? "POST" : "GET";
-    if (!httpX->Open(methodX, check_version_url_X, post_data_)) {
+    auto httpX = SetupHttp();
+    
+    std::string dataX = board.GetJson();
+    std::string methodX = dataX.length() > 0 ? "POST" : "GET";
+    if (!httpX->Open(methodX, check_version_url_X, dataX)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection X");
         delete httpX;
         return false;
     }
 
     auto responseX = httpX->GetBody();
-    httpX->Close();
+    //httpX->Close();
     delete httpX;
 
     //ESP_LOGI(TAG, "http response X：%s", responseX.c_str());
@@ -104,6 +101,7 @@ bool Ota::CheckVersion() {
     }
 
     has_activation_code_ = false;
+    has_activation_challenge_ = false;
     cJSON *activation = cJSON_GetObjectItem(rootX, "activation");
     if (activation != NULL) {
         cJSON* message = cJSON_GetObjectItem(activation, "message");
@@ -113,8 +111,17 @@ bool Ota::CheckVersion() {
         cJSON* code = cJSON_GetObjectItem(activation, "code");
         if (code != NULL) {
             activation_code_ = code->valuestring;
+            has_activation_code_ = true;
         }
-        has_activation_code_ = true;
+        cJSON* challenge = cJSON_GetObjectItem(activation, "challenge");
+        if (challenge != NULL) {
+            activation_challenge_ = challenge->valuestring;
+            has_activation_challenge_ = true;
+        }
+        cJSON* timeout_ms = cJSON_GetObjectItem(activation, "timeout_ms");
+        if (timeout_ms != NULL) {
+            activation_timeout_ms_ = timeout_ms->valueint;
+        }
     }
 
     has_mqtt_config_ = false;
