@@ -79,12 +79,9 @@ bool Ota::CheckVersion() {
 
     // 虾哥服务器，activation、mqtt
     std::string check_version_url_X = "https://api.tenclass.net/xiaozhi/ota/";
-    auto httpX = Board::GetInstance().CreateHttp();
-    for (const auto& headerX : headers_) {
-        httpX->SetHeader(headerX.first, headerX.second);
-    }
+    auto httpX = SetupHttp();
 
-    httpX->SetHeader("Content-Type", "application/json");
+    std::string post_data_ = board.GetJson();
     std::string methodX = post_data_.length() > 0 ? "POST" : "GET";
     if (!httpX->Open(methodX, check_version_url_X, post_data_)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection X");
@@ -93,7 +90,6 @@ bool Ota::CheckVersion() {
     }
 
     auto responseX = httpX->GetBody();
-    httpX->Close();
     delete httpX;
 
     //ESP_LOGI(TAG, "http response X：%s", responseX.c_str());
