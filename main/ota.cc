@@ -144,7 +144,7 @@ bool Ota::CheckVersion() {
         has_mqtt_config_ = true;
     }
 
-    has_server_time_ = false;
+    /**has_server_time_ = false;
     cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
     if (server_time != NULL) {
         cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
@@ -193,8 +193,100 @@ bool Ota::CheckVersion() {
                 has_new_version_ = true;
             }
         }
-    }
+    }**/
     cJSON_Delete(root);
+
+    // FanToy OTA服务器，firmware、server_time
+    std::string check_version_url_Fan = "";
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-wechat/";
+#else
+    check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-face/";
+#endif
+
+    if (check_version_url_Fan.length() < 10) {
+        ESP_LOGE(TAG, "Check version URL is not properly set Fan");
+        return false;
+    }
+
+    auto httpFan = SetupHttp();
+
+    std::string dataFan = board.GetJson();
+    //ESP_LOGI(TAG, "http board data Fan：%s", dataFan.c_str());
+
+    std::string methodFan = dataFan.length() > 0 ? "POST" : "GET";
+    if (!httpFan->Open(methodFan, check_version_url_Fan, dataFan)) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection Fan");
+        delete httpFan;
+        return false;
+    }
+
+    dataFan = httpFan->GetBody();
+    delete httpFan;
+
+    // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
+    // Parse the JSON response and check if the version is newer
+    // If it is, set has_new_version_ to true and store the new version and URL
+    
+    //ESP_LOGI(TAG, "http response Fan：%s", dataFan.c_str());
+    cJSON *rootFan = cJSON_Parse(dataFan.c_str());
+    if (rootFan == NULL) {
+        ESP_LOGE(TAG, "Failed to parse JSON response Fan");
+        return false;
+    }
+
+    has_server_time_ = false;
+    cJSON *server_time = cJSON_GetObjectItem(rootFan, "server_time");
+    if (server_time != NULL) {
+        cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
+        cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
+        
+        if (timestamp != NULL) {
+            // 设置系统时间
+            struct timeval tv;
+            double ts = timestamp->valuedouble;
+            
+            // 如果有时区偏移，计算本地时间
+            if (timezone_offset != NULL) {
+                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
+            }
+            
+            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
+            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+            settimeofday(&tv, NULL);
+            has_server_time_ = true;
+        }
+    }
+
+    has_new_version_ = false;
+    cJSON *firmware = cJSON_GetObjectItem(rootFan, "firmware");
+    if (firmware != NULL) {
+        cJSON *version = cJSON_GetObjectItem(firmware, "version");
+        if (version != NULL) {
+            firmware_version_ = version->valuestring;
+        }
+        cJSON *url = cJSON_GetObjectItem(firmware, "url");
+        if (url != NULL) {
+            firmware_url_ = url->valuestring;
+        }
+
+        if (version != NULL && url != NULL) {
+            // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+            has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+            if (has_new_version_) {
+                ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
+            } else {
+                ESP_LOGI(TAG, "Current is the latest version");
+            }
+            // If the force flag is set to 1, the given version is forced to be installed
+            cJSON *force = cJSON_GetObjectItem(firmware, "force");
+            if (force != NULL && force->valueint == 1) {
+                has_new_version_ = true;
+            }
+        }
+    }
+    cJSON_Delete(rootFan);
+
     return true;
 }
 
