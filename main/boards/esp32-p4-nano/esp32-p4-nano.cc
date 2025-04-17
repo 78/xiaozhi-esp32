@@ -36,9 +36,9 @@ protected:
     virtual void SetBrightnessImpl(uint8_t brightness) override
     {
         uint8_t i2c_address = 0x45;     // 7-bit address
-#if LCD_TYPE_800_1280_10_1_INCH
+#if CONFIG_LCD_TYPE_800_1280_10_1_INCH
         uint8_t reg = 0x86;
-#elif LCD_TYPE_800_1280_10_1_INCH_A
+#elif CONFIG_LCD_TYPE_800_1280_10_1_INCH_A
         uint8_t reg = 0x96;
 #endif
         uint8_t data[2] = {reg, brightness};
