@@ -1,12 +1,16 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <esp_adc/adc_oneshot.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
 #include <wifi_station.h>
 
+#include <numeric>
+
 #include "application.h"
+#include "assets/lang_config.h"
 #include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
@@ -15,7 +19,6 @@
 #include "sph0645_audio_codec.h"
 #include "system_reset.h"
 #include "wifi_board.h"
-
 #define TAG "NulllabAIVox"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -24,7 +27,12 @@ LV_FONT_DECLARE(font_awesome_16_4);
 class NulllabAIVox : public WifiBoard {
  private:
   Button boot_button_;
+  Button volume_up_button_;
+  Button volume_down_button_;
+  uint32_t current_band_ = UINT32_MAX;
   LcdDisplay* display_;
+  adc_oneshot_unit_handle_t battery_adc_handle_ = nullptr;
+  std::vector<int32_t> battery_adc_samples_;
 
   void InitializeSpi() {
     spi_bus_config_t buscfg = {};
@@ -104,6 +112,38 @@ class NulllabAIVox : public WifiBoard {
       }
       app.ToggleChatState();
     });
+
+    volume_up_button_.OnClick([this]() {
+      auto codec = GetAudioCodec();
+      auto volume = codec->output_volume() + 10;
+      if (volume > 100) {
+        volume = 100;
+      }
+      codec->SetOutputVolume(volume);
+      GetDisplay()->ShowNotification(Lang::Strings::VOLUME +
+                                     std::to_string(volume));
+    });
+
+    volume_up_button_.OnLongPress([this]() {
+      GetAudioCodec()->SetOutputVolume(100);
+      GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+    });
+
+    volume_down_button_.OnClick([this]() {
+      auto codec = GetAudioCodec();
+      auto volume = codec->output_volume() - 10;
+      if (volume < 0) {
+        volume = 0;
+      }
+      codec->SetOutputVolume(volume);
+      GetDisplay()->ShowNotification(Lang::Strings::VOLUME +
+                                     std::to_string(volume));
+    });
+
+    volume_down_button_.OnLongPress([this]() {
+      GetAudioCodec()->SetOutputVolume(0);
+      GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+    });
   }
 
   // 物联网初始化，添加对 AI 可见设备
@@ -115,7 +155,40 @@ class NulllabAIVox : public WifiBoard {
   }
 
  public:
-  NulllabAIVox() : boot_button_(BOOT_BUTTON_GPIO) {
+  NulllabAIVox()
+      : boot_button_(BOOT_BUTTON_GPIO),
+        volume_up_button_(VOLUME_UP_BUTTON_GPIO),
+        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+    gpio_config_t io_config = {
+        .pin_bit_mask = (1ULL << GPIO_NUM_9),
+        .mode = GPIO_MODE_OUTPUT_OD,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+
+    ESP_ERROR_CHECK(gpio_config(&io_config));
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_9, 1));
+
+    adc_channel_t channel;
+    adc_unit_t adc_unit;
+    ESP_ERROR_CHECK(
+        adc_oneshot_io_to_channel(GPIO_NUM_10, &adc_unit, &channel));
+
+    adc_oneshot_unit_init_cfg_t adc_init_config = {
+        .unit_id = adc_unit,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+    ESP_ERROR_CHECK(
+        adc_oneshot_new_unit(&adc_init_config, &battery_adc_handle_));
+
+    adc_oneshot_chan_cfg_t adc_chan_config = {
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(battery_adc_handle_, channel,
+                                               &adc_chan_config));
+
     InitializeSpi();
     InitializeLcdDisplay();
     InitializeButtons();
@@ -126,7 +199,7 @@ class NulllabAIVox : public WifiBoard {
   }
 
   virtual Led* GetLed() override {
-    static NoLed led;
+    static SingleLed led(BUILTIN_LED_GPIO);
     return &led;
   }
 
@@ -148,6 +221,62 @@ class NulllabAIVox : public WifiBoard {
       return &backlight;
     }
     return nullptr;
+  }
+
+  bool GetBatteryLevel(int& level, bool& charging, bool& discharging) {
+    constexpr uint32_t kMinAdcValue = 2048;
+    constexpr uint32_t kMaxAdcValue = 2330;
+    constexpr uint32_t kTotalBands = 10;
+    constexpr uint32_t kAdcRangePerBand =
+        (kMaxAdcValue - kMinAdcValue) / kTotalBands;
+    constexpr uint32_t kHysteresisOffset = kAdcRangePerBand / 2;
+
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_9, 0));
+    int adc_value = 0;
+    adc_channel_t channel;
+    adc_unit_t adc_unit;
+    ESP_ERROR_CHECK(
+        adc_oneshot_io_to_channel(GPIO_NUM_10, &adc_unit, &channel));
+    ESP_ERROR_CHECK(adc_oneshot_read(battery_adc_handle_, channel, &adc_value));
+    ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_9, 1));
+
+    adc_value = std::clamp<int>(adc_value, kMinAdcValue, kMaxAdcValue);
+
+    battery_adc_samples_.push_back(adc_value);
+    if (battery_adc_samples_.size() > 10) {
+      battery_adc_samples_.erase(battery_adc_samples_.begin());
+    }
+
+    int32_t sum = std::accumulate(battery_adc_samples_.begin(),
+                                  battery_adc_samples_.end(), 0);
+    adc_value = sum / battery_adc_samples_.size();
+
+    if (current_band_ == UINT32_MAX) {
+      // Initialize the current band based on the initial ADC value
+      current_band_ = (adc_value - kMinAdcValue) / kAdcRangePerBand;
+      if (current_band_ >= kTotalBands) {
+        current_band_ = kTotalBands - 1;
+      }
+    } else {
+      const int32_t lower_threshold =
+          kMinAdcValue + current_band_ * kAdcRangePerBand - kHysteresisOffset;
+      const int32_t upper_threshold = kMinAdcValue +
+                                      (current_band_ + 1) * kAdcRangePerBand +
+                                      kHysteresisOffset;
+
+      if (adc_value < lower_threshold && current_band_ > 0) {
+        --current_band_;
+      } else if (adc_value > upper_threshold &&
+                 current_band_ < kTotalBands - 1) {
+        ++current_band_;
+      }
+    }
+
+    level = current_band_ * 100 / (kTotalBands - 1);
+    charging = false;
+    discharging = true;
+
+    return true;
   }
 };
 
