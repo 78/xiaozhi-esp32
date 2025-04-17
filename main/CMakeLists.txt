@@ -134,8 +134,10 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
-elseif(CONFIG_BOARD_TYPE_ESP32_S3_LCD_1_54_MUMA)
-    set(BOARD_TYPE "esp32-s3-lcd-1.54-MUMA")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
+    set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_28_BOX)
+    set(BOARD_TYPE "sp-esp32-s3-1.28-box")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

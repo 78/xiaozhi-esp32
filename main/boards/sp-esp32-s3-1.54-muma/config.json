@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "esp32-s3-lcd-1.54-MUMA",
+            "name": "sp-esp32-s3-1.54-muma",
             "sdkconfig_append": []
         }
     ]

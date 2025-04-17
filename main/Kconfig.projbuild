@@ -158,6 +158,8 @@ choice BOARD_TYPE
         bool "SenseCAP Watcher"
     config BOARD_TYPE_ESP32_S3_LCD_1_54_MUMA
         bool "Spotpear ESP32-S3-LCD-1.54-MUMA"
+    config BOARD_TYPE_ESP32_S3_LCD_1_28_BOX
+        bool "Spotpear ESP32-S3-LCD-1.28-BOX"
 endchoice
 
 choice DISPLAY_OLED_TYPE
