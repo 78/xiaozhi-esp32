@@ -19,6 +19,7 @@ dependencies:
   espressif/knob: "^1.0.0"
   lvgl/lvgl: "~9.2.2"
   esp_lvgl_port: "~2.4.4"
+  espressif/esp_lcd_touch_cst816s: "^1.0.6"
   espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
   tny-robotics/sh1106-esp-idf:
     version: "^1.0.0"
