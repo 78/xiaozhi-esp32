@@ -1,6 +1,8 @@
 #ifndef BUTTON_H_
 #define BUTTON_H_
 
+#include <button_adc.h>
+#include <button_gpio.h>
 #include <driver/gpio.h>
 #include <iot_button.h>
 #include <functional>
