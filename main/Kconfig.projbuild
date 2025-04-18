@@ -162,6 +162,10 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_MINSI_K08_WIFI
+        bool "敏思科技K08(WIFI)"
+    config BOARD_TYPE_MINSI_K08_ML307
+        bool "敏思科技K08(ML307)"
 endchoice
 
 choice DISPLAY_OLED_TYPE
