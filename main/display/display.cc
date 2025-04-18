@@ -75,11 +75,14 @@ Display::~Display() {
         lv_obj_del(battery_label_);
         lv_obj_del(emotion_label_);
     }
-    if( low_battery_popup_ != nullptr ) {
+    if(low_battery_popup_ != nullptr ) {
         lv_obj_del(low_battery_popup_);
     }
     if (pm_lock_ != nullptr) {
         esp_pm_lock_delete(pm_lock_);
+    }
+    if(high_temp_popup_  != nullptr ) {
+        lv_obj_del(high_temp_popup_ );
     }
 }
 
@@ -134,8 +137,9 @@ void Display::Update() {
     // 更新电池图标
     int battery_level;
     bool charging, discharging;
+    float chip_temp;
     const char* icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+    if (board.GetBatteryLevel(battery_level, charging, discharging, chip_temp)) {
         if (charging) {
             icon = FONT_AWESOME_BATTERY_CHARGING;
         } else {
@@ -154,21 +158,26 @@ void Display::Update() {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
-
-        if (low_battery_popup_ != nullptr) {
-            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
-                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
-                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+        
+        // 更新温度过高提示框
+        if (high_temp_popup_ != nullptr) {
+            if (chip_temp >= 65.0f) {
+                if (lv_obj_has_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    // 显示温度过高提示框
+                    lv_obj_clear_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
                     auto& app = Application::GetInstance();
                     app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
                 }
             } else {
-                // Hide the low battery popup when the battery is not empty
-                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
-                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                // 隐藏温度过高提示框
+                if (!lv_obj_has_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN)) {
+                    lv_obj_add_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
                 }
             }
+        } else {
+            ESP_LOGW("PowerManager", "high_temp_popup_ is null!");
         }
+
     }
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源

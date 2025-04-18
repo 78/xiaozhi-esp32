@@ -167,7 +167,7 @@ bool Ota::CheckVersion() {
         }
     }
 
-    has_new_version_ = false;
+    /* has_new_version_ = false;
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware != NULL) {
         cJSON *version = cJSON_GetObjectItem(firmware, "version");
@@ -194,7 +194,7 @@ bool Ota::CheckVersion() {
             }
         }
     }
-    cJSON_Delete(root);
+    cJSON_Delete(root); */
     return true;
 }
 
@@ -329,9 +329,12 @@ void Ota::Upgrade(const std::string& firmware_url) {
     esp_restart();
 }
 
+// 开始升级
 void Ota::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
+    // 设置升级回调函数
     upgrade_callback_ = callback;
-    Upgrade(firmware_url_);
+    // 开始升级
+    //Upgrade(firmware_url_);
 }
 
 std::vector<int> Ota::ParseVersion(const std::string& version) {

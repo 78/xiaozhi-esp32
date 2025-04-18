@@ -46,6 +46,7 @@ struct ThemeColors {
     lv_color_t system_text;
     lv_color_t border;
     lv_color_t low_battery;
+    lv_color_t high_temp;
 };
 
 // Define dark theme colors
@@ -368,6 +369,18 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    high_temp_popup_ = lv_obj_create(screen);
+    lv_obj_set_scrollbar_mode(high_temp_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(high_temp_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(high_temp_popup_, current_theme.low_battery, 0);
+    lv_obj_set_style_radius(high_temp_popup_, 10, 0);
+    lv_obj_t* high_temp_label = lv_label_create(high_temp_popup_);
+    lv_label_set_text(high_temp_label, Lang::Strings::TEMP_HIGH_CHARGE);
+    lv_obj_set_style_text_color(high_temp_label, lv_color_white(), 0);
+    lv_obj_center(high_temp_label);
+    lv_obj_add_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
 #define  MAX_MESSAGES 20
@@ -633,6 +646,18 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    high_temp_popup_ = lv_obj_create(screen);
+    lv_obj_set_scrollbar_mode(high_temp_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(high_temp_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(high_temp_popup_, current_theme.low_battery, 0);
+    lv_obj_set_style_radius(high_temp_popup_, 10, 0);
+    lv_obj_t* high_temp_label = lv_label_create(high_temp_popup_);
+    lv_label_set_text(high_temp_label, Lang::Strings::TEMP_HIGH_CHARGE);
+    lv_obj_set_style_text_color(high_temp_label, lv_color_white(), 0);
+    lv_obj_center(high_temp_label);
+    lv_obj_add_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 #endif
 
@@ -883,6 +908,9 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     }
 
+    if (high_temp_popup_!= nullptr) {
+        lv_obj_set_style_bg_color(high_temp_popup_, current_theme.low_battery, 0);
+    }
     // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
 }
