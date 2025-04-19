@@ -223,6 +223,18 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    high_temp_popup_ = lv_obj_create(screen);
+    lv_obj_set_scrollbar_mode(high_temp_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(high_temp_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(high_temp_popup_, lv_color_hex(0xFF0000), 0); // 红色
+    lv_obj_set_style_radius(high_temp_popup_, 10, 0);
+    lv_obj_t* high_temp_label = lv_label_create(high_temp_popup_);
+    lv_label_set_text(high_temp_label, Lang::Strings::TEMP_HIGH_CHARGE);
+    lv_obj_set_style_text_color(high_temp_label, lv_color_white(), 0);
+    lv_obj_center(high_temp_label);
+    lv_obj_add_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void OledDisplay::SetupUI_128x32() {

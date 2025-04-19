@@ -45,6 +45,8 @@
         "BATTERY_FULL": "バッテリー満タン",
         "BATTERY_NEED_CHARGE": "バッテリーが低下しています。充電してください",
 
+        "TEMP_HIGH_CHARGE":"注意：温度が高すぎます",
+        
         "VOLUME": "音量 ",
         "MUTED": "ミュートされています",
         "MAX_VOLUME": "最大音量"

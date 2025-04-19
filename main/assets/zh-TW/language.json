@@ -45,6 +45,9 @@
         "BATTERY_FULL": "電量已滿",
         "BATTERY_NEED_CHARGE": "電量低，請充電",
 
+        "TEMP_HIGH_CHARGE":"注意：溫度過高",
+
+
         "VOLUME": "音量 ",
         "MUTED": "已靜音",
         "MAX_VOLUME": "最大音量"

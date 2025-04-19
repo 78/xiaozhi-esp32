@@ -46,6 +46,9 @@
         "BATTERY_FULL": "Battery full",
         "BATTERY_NEED_CHARGE": "Low battery, please charge",
 
+        "TEMP_HIGH_CHARGE":"Warning: Temperature Too High",
+
+
         "VOLUME": "Volume ",
         "MUTED": "Muted",
         "MAX_VOLUME": "Max volume"

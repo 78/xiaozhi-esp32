@@ -44,6 +44,8 @@
         "BATTERY_CHARGING":"正在充电",
         "BATTERY_FULL":"电量已满",
         "BATTERY_NEED_CHARGE":"电量低，请充电",
+        
+        "TEMP_HIGH_CHARGE":"注意：温度过高",
 
         "VOLUME":"音量 ",
         "MUTED":"已静音",
