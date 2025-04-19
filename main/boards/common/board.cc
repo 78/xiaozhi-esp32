@@ -44,7 +44,11 @@ std::string Board::GenerateUuid() {
     return std::string(uuid_str);
 }
 
-bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging,float& esp32temp) {
+bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
+    return false;
+}
+
+bool Board::GetESP32Temp(float& esp32temp){
     return false;
 }
 

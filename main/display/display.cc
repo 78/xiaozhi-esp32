@@ -139,7 +139,7 @@ void Display::Update() {
     bool charging, discharging;
     float chip_temp;
     const char* icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging, discharging, chip_temp)) {
+    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
         if (charging) {
             icon = FONT_AWESOME_BATTERY_CHARGING;
         } else {
@@ -158,7 +158,9 @@ void Display::Update() {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
-        
+    }
+
+    if (board.GetESP32Temp(chip_temp)){
         // 更新温度过高提示框
         if (high_temp_popup_ != nullptr) {
             if (chip_temp >= 65.0f) {
@@ -177,8 +179,7 @@ void Display::Update() {
         } else {
             ESP_LOGW("PowerManager", "high_temp_popup_ is null!");
         }
-
-    }
+    } 
 
     // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
     auto device_state = Application::GetInstance().GetDeviceState();

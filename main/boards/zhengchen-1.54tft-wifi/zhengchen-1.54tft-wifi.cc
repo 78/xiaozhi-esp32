@@ -18,7 +18,7 @@
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
-#define TAG "ZHENGCHEN_CUBE_1_54TFT_WIFI"
+#define TAG "ZHENGCHEN_1_54TFT_WIFI"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
@@ -195,7 +195,11 @@ private:
     }
 
 public:
+<<<<<<< HEAD
     ZHENGCHEN_1_54TFT_WIFI() :
+=======
+ZHENGCHEN_1_54TFT_WIFI() :
+>>>>>>> efa5533a86ba9f54b3bfcb71597e29efa669bd07
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -223,7 +227,7 @@ public:
         return &backlight;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging,float& esp32temp) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
@@ -232,6 +236,10 @@ public:
             last_discharging = discharging;
         }
         level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual bool GetESP32Temp(float& esp32temp)  override {
         esp32temp = power_manager_->GetTemperature();
         return true;
     }

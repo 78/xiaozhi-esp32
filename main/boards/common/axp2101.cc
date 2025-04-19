@@ -30,6 +30,11 @@ int Axp2101::GetBatteryLevel() {
     return ReadReg(0xA4);
 }
 
+
+float Axp2101::GetESP32Temp() {
+    return ReadReg(0xA5);
+}
+
 void Axp2101::PowerOff() {
     uint8_t value = ReadReg(0x10);
     value = value | 0x01;

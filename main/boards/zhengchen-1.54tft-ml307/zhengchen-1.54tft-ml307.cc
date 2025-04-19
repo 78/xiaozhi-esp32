@@ -23,7 +23,11 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
+<<<<<<< HEAD
 class ZHENGCHEN_1_54TFT_ML307: public Ml307Board {
+=======
+class ZHENGCHEN_1_54TFT_ML307 : public Ml307Board {
+>>>>>>> efa5533a86ba9f54b3bfcb71597e29efa669bd07
 private:
     Button boot_button_;
     Button volume_up_button_;
@@ -169,7 +173,7 @@ private:
     }
 
 public:
-    XINGZHI_CUBE_1_54TFT_ML307() :
+    ZHENGCHEN_1_54TFT_ML307() :
         Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -198,7 +202,7 @@ public:
         return &backlight;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging,float& esp32temp)  override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging)  override {
         static bool last_discharging = false;
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
@@ -207,6 +211,10 @@ public:
             last_discharging = discharging;
         }
         level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual bool GetESP32Temp(float& esp32temp)  override {
         esp32temp = power_manager_->GetTemperature();
         return true;
     }

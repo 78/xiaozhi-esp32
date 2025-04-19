@@ -27,7 +27,10 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 
+<<<<<<< HEAD
 // 定义ZHENGCHEN_0_96OLED_WIFI类，继承自WifiBoard
+=======
+>>>>>>> efa5533a86ba9f54b3bfcb71597e29efa669bd07
 class ZHENGCHEN_0_96OLED_WIFI : public WifiBoard {
 private:
     // 定义I2C总线句柄
@@ -294,7 +297,7 @@ public:
         return display_;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging,float& esp32temp) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
@@ -303,6 +306,10 @@ public:
             last_discharging = discharging;
         }
         level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual bool GetESP32Temp(float& esp32temp)  override {
         esp32temp = power_manager_->GetTemperature();
         return true;
     }

@@ -218,7 +218,7 @@ public:
         return display_;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging,float& esp32temp) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
@@ -227,6 +227,10 @@ public:
             last_discharging = discharging;
         }
         level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual bool GetESP32Temp(float& esp32temp)  override {
         esp32temp = power_manager_->GetTemperature();
         return true;
     }
