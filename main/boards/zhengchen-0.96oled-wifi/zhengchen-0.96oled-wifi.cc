@@ -27,8 +27,8 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 
-// 定义XINGZHI_CUBE_0_96OLED_WIFI类，继承自WifiBoard
-class XINGZHI_CUBE_0_96OLED_WIFI : public WifiBoard {
+// 定义ZHENGCHEN_0_96OLED_WIFI类，继承自WifiBoard
+class ZHENGCHEN_0_96OLED_WIFI : public WifiBoard {
 private:
     // 定义I2C总线句柄
     i2c_master_bus_handle_t display_i2c_bus_;
@@ -267,7 +267,7 @@ private:
     }
 
 public:
-    XINGZHI_CUBE_0_96OLED_WIFI() :
+    ZHENGCHEN_0_96OLED_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -315,4 +315,4 @@ public:
     }
 };
 
-DECLARE_BOARD(XINGZHI_CUBE_0_96OLED_WIFI);
+DECLARE_BOARD(ZHENGCHEN_0_96OLED_WIFI);

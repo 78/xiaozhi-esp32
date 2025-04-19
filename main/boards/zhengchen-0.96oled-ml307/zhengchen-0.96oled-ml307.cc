@@ -24,7 +24,7 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 
-class XINGZHI_CUBE_0_96OLED_ML307 : public Ml307Board {
+class ZHENGCHEN_0_96OLED_ML307 : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
@@ -191,7 +191,7 @@ private:
     }
 
 public:
-    XINGZHI_CUBE_0_96OLED_ML307() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    ZHENGCHEN_0_96OLED_ML307() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -239,4 +239,4 @@ public:
     }
 };
 
-DECLARE_BOARD(XINGZHI_CUBE_0_96OLED_ML307);
+DECLARE_BOARD(ZHENGCHEN_0_96OLED_ML307);

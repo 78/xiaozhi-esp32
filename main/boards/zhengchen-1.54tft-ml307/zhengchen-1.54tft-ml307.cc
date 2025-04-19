@@ -23,7 +23,7 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class XINGZHI_CUBE_1_54TFT_ML307 : public Ml307Board {
+class ZHENGCHEN_1_54TFT_ML307: public Ml307Board {
 private:
     Button boot_button_;
     Button volume_up_button_;
@@ -219,4 +219,4 @@ public:
     }
 };
 
-DECLARE_BOARD(XINGZHI_CUBE_1_54TFT_ML307);
+DECLARE_BOARD(ZHENGCHEN_1_54TFT_ML307);

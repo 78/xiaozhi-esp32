@@ -24,7 +24,7 @@ LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
+class ZHENGCHEN_1_54TFT_WIFI : public WifiBoard {
 private:
     Button boot_button_;
     Button volume_up_button_;
@@ -195,7 +195,7 @@ private:
     }
 
 public:
-    XINGZHI_CUBE_1_54TFT_WIFI() :
+    ZHENGCHEN_1_54TFT_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -244,4 +244,4 @@ public:
     }
 };
 
-DECLARE_BOARD(XINGZHI_CUBE_1_54TFT_WIFI);
+DECLARE_BOARD(ZHENGCHEN_1_54TFT_WIFI);
