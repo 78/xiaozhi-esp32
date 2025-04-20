@@ -15,7 +15,7 @@ public:
     WebsocketProtocol();
     ~WebsocketProtocol();
 
-    void Start() override;
+    bool Start() override;
     void SendAudio(const std::vector<uint8_t>& data) override;
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;

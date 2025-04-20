@@ -22,7 +22,9 @@ WebsocketProtocol::~WebsocketProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
-void WebsocketProtocol::Start() {
+bool WebsocketProtocol::Start() {
+    // Only connect to server when audio channel is needed
+    return true;
 }
 
 void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
