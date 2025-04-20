@@ -65,10 +65,16 @@ AudioProcessor::~AudioProcessor() {
 }
 
 size_t AudioProcessor::GetFeedSize() {
+    if (afe_data_ == nullptr) {
+        return 0;
+    }
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
 void AudioProcessor::Feed(const std::vector<int16_t>& data) {
+    if (afe_data_ == nullptr) {
+        return;
+    }
     afe_iface_->feed(afe_data_, data.data());
 }
 
