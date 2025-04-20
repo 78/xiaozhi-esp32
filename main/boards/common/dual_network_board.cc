@@ -16,13 +16,13 @@ DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_
     // 从Settings加载网络类型
     network_type_ = LoadNetworkTypeFromSettings();
     
-    // 初始化当前网络类型对应的板卡
+    // 只初始化当前网络类型对应的板卡
     InitializeCurrentBoard();
 }
 
 NetworkType DualNetworkBoard::LoadNetworkTypeFromSettings() {
     Settings settings("network", true);
-    int network_type = settings.GetInt("type", 0); // 默认使用WiFi (0)
+    int network_type = settings.GetInt("type", 1); // 默认使用ML307 (1)
     
     ESP_LOGI(TAG, "从Settings加载网络类型: %d", network_type);
     
@@ -57,9 +57,9 @@ void DualNetworkBoard::SwitchNetType() {
         SaveNetworkTypeToSettings(NetworkType::WIFI);
     }
 }
+
  
 std::string DualNetworkBoard::GetBoardType() {
-    return "ml307_wifi";
 }
 
 void DualNetworkBoard::StartNetwork() {
