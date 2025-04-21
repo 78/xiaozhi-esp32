@@ -14,6 +14,7 @@
         "DETECTING_MODULE": "モジュールを検出中...",
         "REGISTERING_NETWORK": "ネットワーク接続待機中...",
         "CHECKING_NEW_VERSION": "新しいバージョンを確認中...",
+        "CHECK_NEW_VERSION_FAILED": "更新確認に失敗しました。%d 秒後に再試行します: %s",
 
         "STANDBY": "待機中",
         "CONNECT_TO": "接続先 ",

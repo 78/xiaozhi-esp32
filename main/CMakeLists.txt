@@ -11,6 +11,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -147,12 +149,6 @@ file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
-
-if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
-    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
-elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
-    list(APPEND SOURCES "protocols/websocket_protocol.cc")
-endif()
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/audio_processor.cc")
