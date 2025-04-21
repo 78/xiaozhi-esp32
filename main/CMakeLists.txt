@@ -2,6 +2,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8374_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -10,6 +11,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -136,6 +139,8 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
     set(BOARD_TYPE "doit-s3-aibox")
+elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
+    set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
 endif()
@@ -144,12 +149,6 @@ file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
-
-if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
-    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
-elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
-    list(APPEND SOURCES "protocols/websocket_protocol.cc")
-endif()
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/audio_processor.cc")

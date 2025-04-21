@@ -14,6 +14,7 @@
         "DETECTING_MODULE":"检测模组...",
         "REGISTERING_NETWORK":"等待网络...",
         "CHECKING_NEW_VERSION":"检查新版本...",
+        "CHECK_NEW_VERSION_FAILED":"检查新版本失败，将在 %d 秒后重试：%s",
 
         "STANDBY":"待命",
         "CONNECT_TO":"连接 ",

@@ -23,7 +23,13 @@
 
 
 Ota::Ota() {
-    SetCheckVersionUrl(CONFIG_OTA_VERSION_URL);
+    {
+        Settings settings("wifi", false);
+        check_version_url_ = settings.GetString("ota_url");
+        if (check_version_url_.empty()) {
+            check_version_url_ = CONFIG_OTA_URL;
+        }
+    }
 
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
     // Read Serial Number from efuse user_data
@@ -40,10 +46,6 @@ Ota::Ota() {
 }
 
 Ota::~Ota() {
-}
-
-void Ota::SetCheckVersionUrl(std::string check_version_url) {
-    check_version_url_ = check_version_url;
 }
 
 void Ota::SetHeader(const std::string& key, const std::string& value) {
@@ -142,6 +144,19 @@ bool Ota::CheckVersion() {
             }
         }
         has_mqtt_config_ = true;
+    }
+
+    has_websocket_config_ = false;
+    cJSON *websocket = cJSON_GetObjectItem(root, "websocket");
+    if (websocket != NULL) {
+        Settings settings("websocket", true);
+        cJSON *item = NULL;
+        cJSON_ArrayForEach(item, websocket) {
+            if (item->type == cJSON_String) {
+                settings.SetString(item->string, item->valuestring);
+            }
+        }
+        has_websocket_config_ = true;
     }
 
     has_server_time_ = false;

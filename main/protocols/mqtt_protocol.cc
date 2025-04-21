@@ -27,8 +27,8 @@ MqttProtocol::~MqttProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
-void MqttProtocol::Start() {
-    StartMqttClient(false);
+bool MqttProtocol::Start() {
+    return StartMqttClient(false);
 }
 
 bool MqttProtocol::StartMqttClient(bool report_error) {
@@ -90,7 +90,16 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     });
 
     ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint_.c_str());
-    if (!mqtt_->Connect(endpoint_, 8883, client_id_, username_, password_)) {
+    std::string broker_address;
+    int broker_port = 8883;
+    size_t pos = endpoint_.find(':');
+    if (pos != std::string::npos) {
+        broker_address = endpoint_.substr(0, pos);
+        broker_port = std::stoi(endpoint_.substr(pos + 1));
+    } else {
+        broker_address = endpoint_;
+    }
+    if (!mqtt_->Connect(broker_address, broker_port, client_id_, username_, password_)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
