@@ -198,11 +198,22 @@ bool Ota::CheckVersion() {
 
     // FanToy OTA服务器，firmware、server_time
     std::string check_version_url_Fan = "";
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-    check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-wechat/";
-#else
-    check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-face/";
-#endif
+    if(board.GetBoardType() == "wifi")
+    {
+    #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-wechat/";
+    #else
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-face/";
+    #endif
+    }
+    else if(board.GetBoardType() == "ml307")
+    {
+    #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b20-wechat/";
+    #else
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b20-face/";
+    #endif
+    }
 
     if (check_version_url_Fan.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set Fan");
