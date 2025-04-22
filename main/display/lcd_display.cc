@@ -673,7 +673,7 @@ void LcdDisplay::SetupUI() {
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -10); // Align to bottom with some margin
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0); // Align to bottom with some margin
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
