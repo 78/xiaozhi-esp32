@@ -1,0 +1,32 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Espressif IoT Development Framework (ESP-IDF)
+        # You may pin to the exact commit or the version.
+        # uses: espressif/esp-idf-ci-action@8cd22ae10042fadc37890e81e9988a9113e7b506
+        uses: espressif/esp-idf-ci-action@v1.1.0
+        with:
+          # Relative path under $GITHUB_WORKSPACE to place the repository
+          #path: # optional, default is 
+          # Version of ESP-IDF docker image to use
+          esp_idf_version: release-v5.4
+          # ESP32 variant to build for
+          target: esp32s3
+          # Command to run inside the docker container (default: builds the project)
+          # command: # optional, default is idf.py build
+                

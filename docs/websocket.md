@@ -13,7 +13,7 @@
 
 2. **建立 WebSocket 连接**  
    - 当设备需要开始语音会话时（例如用户唤醒、手动按键触发等），调用 `OpenAudioChannel()`：  
-     - 根据编译配置获取 WebSocket URL（`CONFIG_WEBSOCKET_URL`）  
+     - 根据配置获取 WebSocket URL
      - 设置若干请求头（`Authorization`, `Protocol-Version`, `Device-Id`, `Client-Id`）  
      - 调用 `Connect()` 与服务器建立 WebSocket 连接  
 
