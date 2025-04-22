@@ -49,6 +49,14 @@ config WEBSOCKET_ACCESS_TOKEN
     help
         Access token for websocket communication.
 
+config WEBSOCKET_CLIENT_ID
+    depends on CONNECTION_TYPE_WEBSOCKET
+    string "Websocket Client ID"
+    default ""
+    help
+        Client ID for websocket communication.
+        
+
 choice BOARD_TYPE
     prompt "Board Type"
     default BOARD_TYPE_BREAD_COMPACT_WIFI

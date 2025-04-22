@@ -72,12 +72,16 @@ bool WebsocketProtocol::OpenAudioChannel() {
     // websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     // websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
     std::string url = CONFIG_WEBSOCKET_URL;
-    std::string token = "Bearer ak_K1eDkrBVdBgnWNrN18EPj3zI5JVRE57M";
+    std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
     websocket_ = Board::GetInstance().CreateWebSocket();
     websocket_->SetHeader("Authorization", token.c_str());
-    websocket_->SetHeader("Protocol-Version", "1.0.0");
+    websocket_->SetHeader("Protocol-Version", "1");
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    websocket_->SetHeader("Client-Id", "42da122d-9df0-4dc7-a919-316167ff325d");
+    #ifdef CONFIG_WEBSOCKET_CLIENT_ID
+        websocket_->SetHeader("Client-Id", CONFIG_WEBSOCKET_CLIENT_ID);
+    #else
+        websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+    #endif
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
