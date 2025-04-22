@@ -80,8 +80,8 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
-        .dma_desc_num = 6,
-        .dma_frame_num = 240,
+        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
+        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
         .auto_clear_after_cb = true,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
@@ -144,7 +144,7 @@ void Es8311AudioCodec::EnableInput(bool enable) {
             .bits_per_sample = 16,
             .channel = 1,
             .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
+            .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));

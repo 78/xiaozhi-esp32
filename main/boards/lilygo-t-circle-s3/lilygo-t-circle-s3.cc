@@ -1,9 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/tcircles3_audio_codec.h"
+#include "tcircles3_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
 
@@ -59,6 +60,25 @@ private:
     Cst816x *cst816d_;
     LcdDisplay *display_;
     Button boot_button_;
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(10);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitI2c(){
         // Initialize I2C peripheral
@@ -169,13 +189,13 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new LcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
                                   DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                   {
                                       .text_font = &font_puhui_16_4,
                                       .icon_font = &font_awesome_16_4,
-                                      .emoji_font = emoji_font_init(),
+                                      .emoji_font = font_emoji_32_init(),
                                   });
 
         gpio_config_t config;
@@ -197,6 +217,7 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            power_save_timer_->WakeUp();
             app.ToggleChatState();
         });
     }
@@ -205,10 +226,12 @@ private:
     void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
     LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePowerSaveTimer();
         InitI2c();
         InitCst816d();
         I2cDetect();
@@ -216,21 +239,37 @@ public:
         InitGc9d01nDisplay();
         InitializeButtons();
         InitializeIot();
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec *GetAudioCodec() override {
-        static Tcircles3AudioCodec *audio_codec = nullptr;
-        if (audio_codec == nullptr){
-            audio_codec = new Tcircles3AudioCodec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                                                      AUDIO_MIC_I2S_GPIO_BCLK, AUDIO_MIC_I2S_GPIO_WS, AUDIO_MIC_I2S_GPIO_DATA,
-                                                      AUDIO_SPKR_I2S_GPIO_BCLK, AUDIO_SPKR_I2S_GPIO_LRCLK, AUDIO_SPKR_I2S_GPIO_DATA,
-                                                      AUDIO_INPUT_REFERENCE);
-        }
-        return audio_codec;
+        static Tcircles3AudioCodec audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_MIC_I2S_GPIO_BCLK,
+            AUDIO_MIC_I2S_GPIO_WS,
+            AUDIO_MIC_I2S_GPIO_DATA,
+            AUDIO_SPKR_I2S_GPIO_BCLK,
+            AUDIO_SPKR_I2S_GPIO_LRCLK,
+            AUDIO_SPKR_I2S_GPIO_DATA,
+            AUDIO_INPUT_REFERENCE);
+        return &audio_codec;
     }
 
     virtual Display *GetDisplay() override{
         return display_;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
+    }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 
     Cst816x *GetTouchpad() {

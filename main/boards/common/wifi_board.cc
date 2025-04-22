@@ -5,6 +5,7 @@
 #include "system_info.h"
 #include "font_awesome_symbols.h"
 #include "settings.h"
+#include "assets/lang_config.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -22,20 +23,6 @@
 
 static const char *TAG = "WifiBoard";
 
-static std::string rssi_to_string(int rssi) {
-    if (rssi >= -55) {
-        return "Very good";
-    } else if (rssi >= -65) {
-        return "Good";
-    } else if (rssi >= -75) {
-        return "Fair";
-    } else if (rssi >= -85) {
-        return "Poor";
-    } else {
-        return "No network";
-    }
-}
-
 WifiBoard::WifiBoard() {
     Settings settings("wifi", true);
     wifi_config_mode_ = settings.GetInt("force_ap") == 1;
@@ -45,25 +32,28 @@ WifiBoard::WifiBoard() {
     }
 }
 
+std::string WifiBoard::GetBoardType() {
+    return "wifi";
+}
+
 void WifiBoard::EnterWifiConfigMode() {
     auto& application = Application::GetInstance();
-    auto display = Board::GetInstance().GetDisplay();
     application.SetDeviceState(kDeviceStateWifiConfiguring);
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
+    wifi_ap.SetLanguage(Lang::CODE);
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-    std::string hint = "请在手机上连接热点 ";
+    std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();
-    hint += "，然后打开浏览器访问 ";
+    hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
-
-    display->SetStatus(hint);
+    hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert("Info", "进入配网模式");
+    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
     
     // Wait forever until reset after configuration
     while (true) {
@@ -93,15 +83,20 @@ void WifiBoard::StartNetwork() {
     auto& wifi_station = WifiStation::GetInstance();
     wifi_station.OnScanBegin([this]() {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification("正在扫描 WiFi 网络", 30000);
+        display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
     });
     wifi_station.OnConnect([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("正在连接 ") + ssid, 30000);
+        std::string notification = Lang::Strings::CONNECT_TO;
+        notification += ssid;
+        notification += "...";
+        display->ShowNotification(notification.c_str(), 30000);
     });
     wifi_station.OnConnected([this](const std::string& ssid) {
         auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(std::string("已连接 ") + ssid);
+        std::string notification = Lang::Strings::CONNECTED_TO;
+        notification += ssid;
+        display->ShowNotification(notification.c_str(), 30000);
     });
     wifi_station.Start();
 
@@ -119,14 +114,13 @@ Http* WifiBoard::CreateHttp() {
 }
 
 WebSocket* WifiBoard::CreateWebSocket() {
-#ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
-    std::string url = CONFIG_WEBSOCKET_URL;
+    Settings settings("websocket", false);
+    std::string url = settings.GetString("url");
     if (url.find("wss://") == 0) {
         return new WebSocket(new TlsTransport());
     } else {
         return new WebSocket(new TcpTransport());
     }
-#endif
     return nullptr;
 }
 
@@ -138,24 +132,6 @@ Udp* WifiBoard::CreateUdp() {
     return new EspUdp();
 }
 
-bool WifiBoard::GetNetworkState(std::string& network_name, int& signal_quality, std::string& signal_quality_text) {
-    if (wifi_config_mode_) {
-        auto& wifi_ap = WifiConfigurationAp::GetInstance();
-        network_name = wifi_ap.GetSsid();
-        signal_quality = -99;
-        signal_quality_text = wifi_ap.GetWebServerUrl();
-        return true;
-    }
-    auto& wifi_station = WifiStation::GetInstance();
-    if (!wifi_station.IsConnected()) {
-        return false;
-    }
-    network_name = wifi_station.GetSsid();
-    signal_quality = wifi_station.GetRssi();
-    signal_quality_text = rssi_to_string(signal_quality);
-    return signal_quality != -1;
-}
-
 const char* WifiBoard::GetNetworkStateIcon() {
     if (wifi_config_mode_) {
         return FONT_AWESOME_WIFI;
@@ -165,9 +141,9 @@ const char* WifiBoard::GetNetworkStateIcon() {
         return FONT_AWESOME_WIFI_OFF;
     }
     int8_t rssi = wifi_station.GetRssi();
-    if (rssi >= -55) {
+    if (rssi >= -60) {
         return FONT_AWESOME_WIFI;
-    } else if (rssi >= -65) {
+    } else if (rssi >= -70) {
         return FONT_AWESOME_WIFI_FAIR;
     } else {
         return FONT_AWESOME_WIFI_WEAK;
@@ -177,8 +153,8 @@ const char* WifiBoard::GetNetworkStateIcon() {
 std::string WifiBoard::GetBoardJson() {
     // Set the board type for OTA
     auto& wifi_station = WifiStation::GetInstance();
-    std::string board_type = BOARD_TYPE;
-    std::string board_json = std::string("{\"type\":\"" + board_type + "\",");
+    std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
+    board_json += "\"name\":\"" BOARD_NAME "\",";
     if (!wifi_config_mode_) {
         board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
         board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
@@ -195,12 +171,12 @@ void WifiBoard::SetPowerSaveMode(bool enabled) {
 }
 
 void WifiBoard::ResetWifiConfiguration() {
-    // Reset the wifi station
+    // Set a flag and reboot the device to enter the network configuration mode
     {
         Settings settings("wifi", true);
         settings.SetInt("force_ap", 1);
     }
-    GetDisplay()->ShowNotification("进入配网模式...");
+    GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
     vTaskDelay(pdMS_TO_TICKS(1000));
     // Reboot the device
     esp_restart();

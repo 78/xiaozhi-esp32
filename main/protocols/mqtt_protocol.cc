@@ -8,13 +8,12 @@
 #include <ml307_udp.h>
 #include <cstring>
 #include <arpa/inet.h>
+#include "assets/lang_config.h"
 
 #define TAG "MQTT"
 
 MqttProtocol::MqttProtocol() {
     event_group_handle_ = xEventGroupCreate();
-
-    StartMqttClient();
 }
 
 MqttProtocol::~MqttProtocol() {
@@ -28,7 +27,11 @@ MqttProtocol::~MqttProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
-bool MqttProtocol::StartMqttClient() {
+bool MqttProtocol::Start() {
+    return StartMqttClient(false);
+}
+
+bool MqttProtocol::StartMqttClient(bool report_error) {
     if (mqtt_ != nullptr) {
         ESP_LOGW(TAG, "Mqtt client already started");
         delete mqtt_;
@@ -42,7 +45,10 @@ bool MqttProtocol::StartMqttClient() {
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint_.empty()) {
-        ESP_LOGE(TAG, "MQTT endpoint is not specified");
+        ESP_LOGW(TAG, "MQTT endpoint is not specified");
+        if (report_error) {
+            SetError(Lang::Strings::SERVER_NOT_FOUND);
+        }
         return false;
     }
 
@@ -70,6 +76,7 @@ bool MqttProtocol::StartMqttClient() {
             ParseServerHello(root);
         } else if (strcmp(type->valuestring, "goodbye") == 0) {
             auto session_id = cJSON_GetObjectItem(root, "session_id");
+            ESP_LOGI(TAG, "Received goodbye message, session_id: %s", session_id ? session_id->valuestring : "null");
             if (session_id == nullptr || session_id_ == session_id->valuestring) {
                 Application::GetInstance().Schedule([this]() {
                     CloseAudioChannel();
@@ -79,14 +86,22 @@ bool MqttProtocol::StartMqttClient() {
             on_incoming_json_(root);
         }
         cJSON_Delete(root);
+        last_incoming_time_ = std::chrono::steady_clock::now();
     });
 
     ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint_.c_str());
-    if (!mqtt_->Connect(endpoint_, 8883, client_id_, username_, password_)) {
+    std::string broker_address;
+    int broker_port = 8883;
+    size_t pos = endpoint_.find(':');
+    if (pos != std::string::npos) {
+        broker_address = endpoint_.substr(0, pos);
+        broker_port = std::stoi(endpoint_.substr(pos + 1));
+    } else {
+        broker_address = endpoint_;
+    }
+    if (!mqtt_->Connect(broker_address, broker_port, client_id_, username_, password_)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
-        if (on_network_error_ != nullptr) {
-            on_network_error_("无法连接服务");
-        }
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }
 
@@ -94,11 +109,16 @@ bool MqttProtocol::StartMqttClient() {
     return true;
 }
 
-void MqttProtocol::SendText(const std::string& text) {
+bool MqttProtocol::SendText(const std::string& text) {
     if (publish_topic_.empty()) {
-        return;
+        return false;
     }
-    mqtt_->Publish(publish_topic_, text);
+    if (!mqtt_->Publish(publish_topic_, text)) {
+        ESP_LOGE(TAG, "Failed to publish message: %s", text.c_str());
+        SetError(Lang::Strings::SERVER_ERROR);
+        return false;
+    }
+    return true;
 }
 
 void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {
@@ -122,7 +142,10 @@ void MqttProtocol::SendAudio(const std::vector<uint8_t>& data) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
         return;
     }
+
+    busy_sending_audio_ = true;
     udp_->Send(encrypted);
+    busy_sending_audio_ = false;
 }
 
 void MqttProtocol::CloseAudioChannel() {
@@ -148,12 +171,15 @@ void MqttProtocol::CloseAudioChannel() {
 bool MqttProtocol::OpenAudioChannel() {
     if (mqtt_ == nullptr || !mqtt_->IsConnected()) {
         ESP_LOGI(TAG, "MQTT is not connected, try to connect now");
-        if (!StartMqttClient()) {
+        if (!StartMqttClient(true)) {
             return false;
         }
     }
 
+    busy_sending_audio_ = false;
+    error_occurred_ = false;
     session_id_ = "";
+    xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 
     // 发送 hello 消息申请 UDP 通道
     std::string message = "{";
@@ -163,15 +189,15 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
-    SendText(message);
+    if (!SendText(message)) {
+        return false;
+    }
 
     // 等待服务器响应
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & MQTT_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
-        if (on_network_error_ != nullptr) {
-            on_network_error_("等待响应超时");
-        }
+        SetError(Lang::Strings::SERVER_TIMEOUT);
         return false;
     }
 
@@ -214,6 +240,7 @@ bool MqttProtocol::OpenAudioChannel() {
             on_incoming_audio_(std::move(decrypted));
         }
         remote_sequence_ = sequence;
+        last_incoming_time_ = std::chrono::steady_clock::now();
     });
 
     udp_->Connect(udp_server_, udp_port_);
@@ -234,6 +261,7 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     auto session_id = cJSON_GetObjectItem(root, "session_id");
     if (session_id != nullptr) {
         session_id_ = session_id->valuestring;
+        ESP_LOGI(TAG, "Session ID: %s", session_id_.c_str());
     }
 
     // Get sample rate from hello message
@@ -242,6 +270,10 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
         if (sample_rate != NULL) {
             server_sample_rate_ = sample_rate->valueint;
+        }
+        auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
+        if (frame_duration != NULL) {
+            server_frame_duration_ = frame_duration->valueint;
         }
     }
 
@@ -285,5 +317,5 @@ std::string MqttProtocol::DecodeHexString(const std::string& hex_string) {
 }
 
 bool MqttProtocol::IsAudioChannelOpened() const {
-    return udp_ != nullptr;
+    return udp_ != nullptr && !error_occurred_ && !IsTimeout();
 }
