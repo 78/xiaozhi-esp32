@@ -13,8 +13,9 @@
 #include <driver/spi_common.h>
 #include <wifi_station.h>
 #include <esp_lcd_touch_ft5x06.h>
-#include "esp_lvgl_port.h"
-#include "lvgl.h"
+#include <esp_lvgl_port.h>
+#include <lvgl.h>
+
 
 #define TAG "LichuangDevBoard"
 
