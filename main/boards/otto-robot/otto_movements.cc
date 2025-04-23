@@ -1,8 +1,8 @@
-#include "Otto.h"
+#include "otto_movements.h"
 
 #include <algorithm>
 
-#include "Oscillator.h"
+#include "oscillator.h"
 
 static const char* TAG = "otto";
 

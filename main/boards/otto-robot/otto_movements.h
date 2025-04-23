@@ -1,12 +1,12 @@
-#ifndef Otto_h
-#define Otto_h
+#ifndef __OTTO_MOVEMENTS_H__
+#define __OTTO_MOVEMENTS_H__
 
-#include "Oscillator.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "oscillator.h"
 
 //-- Constants
 #define FORWARD 1
@@ -81,4 +81,4 @@ private:
     void _execute(int A[4], int O[4], int T, double phase_diff[4], float steps);
 };
 
-#endif
+#endif  // __OTTO_MOVEMENTS_H__

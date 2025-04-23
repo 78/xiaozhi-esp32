@@ -1,5 +1,5 @@
-#ifndef Oscillator_h
-#define Oscillator_h
+#ifndef __OSCILLATOR_H__
+#define __OSCILLATOR_H__
 
 #include "driver/ledc.h"
 #include "esp_log.h"
@@ -80,4 +80,4 @@ private:
     ledc_mode_t _ledc_speed_mode;
 };
 
-#endif
+#endif  // __OSCILLATOR_H__

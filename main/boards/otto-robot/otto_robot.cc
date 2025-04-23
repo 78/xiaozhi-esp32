@@ -6,7 +6,6 @@
 #include <esp_log.h>
 #include <wifi_station.h>
 
-#include "Otto.h"
 #include "application.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "button.h"
@@ -14,6 +13,7 @@
 #include "display/lcd_display.h"
 #include "iot/thing_manager.h"
 #include "ml307_board.h"
+#include "otto_movements.h"
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"

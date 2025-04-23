@@ -6,11 +6,11 @@
 
 #include <cstring>
 
-#include "Otto.h"
 #include "application.h"
 #include "board.h"
 #include "config.h"
 #include "iot/thing.h"
+#include "otto_movements.h"
 #include "sdkconfig.h"
 
 #define TAG "otto_controller"
@@ -30,8 +30,6 @@ private:
     Otto otto;
     TaskHandle_t action_task_handle = nullptr;
     QueueHandle_t action_queue;
-    TickType_t last_action_time = 0;
-    const TickType_t TASK_TIMEOUT = pdMS_TO_TICKS(30000);  // 30秒没动作就自动停止任务
 
     enum ActionType {
         ACTION_WALK = 1,
@@ -65,13 +63,11 @@ private:
     static void action_task(void* arg) {
         OttoController* controller = static_cast<OttoController*>(arg);
         OttoActionParams params;
-        controller->last_action_time = xTaskGetTickCount();
         controller->otto.attachServos();
 
         while (true) {
             if (xQueueReceive(controller->action_queue, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
-                controller->last_action_time = xTaskGetTickCount();
 
                 switch (params.action_type) {
                     case ACTION_WALK:
@@ -120,14 +116,15 @@ private:
 
                 controller->otto.home();
 
-            } else if ((xTaskGetTickCount() - controller->last_action_time) >
-                       controller->TASK_TIMEOUT) {
-                ESP_LOGI(TAG, "动作任务超时，自动停止");
-                controller->otto.home();
-                controller->action_task_handle = nullptr;
-                controller->otto.detachServos();
-                vTaskDelete(NULL);
-                break;
+            } else {
+                if (uxQueueMessagesWaiting(controller->action_queue) == 0) {
+                    ESP_LOGI(TAG, "动作队列为空，任务完成");
+                    controller->otto.home();
+                    controller->action_task_handle = nullptr;
+                    controller->otto.detachServos();
+                    vTaskDelete(NULL);
+                    break;
+                }
             }
             vTaskDelay(pdMS_TO_TICKS(50));
         }
@@ -166,7 +163,7 @@ public:
                  Parameter(
                      "amount",
                      "动作幅度(最小10) 每个动作限制不一样:摇摆10-50, 太空步15-40"
-                     "上下运动10-60, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, 拍打10-30",
+                     "上下运动10-50, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, 拍打10-30",
                      kValueTypeNumber, true)}),
             [this](const ParameterList& parameters) {
                 int action_type = parameters["action_type"].number();
@@ -188,7 +185,7 @@ public:
                         amount = limit(amount, 15, 40);
                         break;
                     case ACTION_UPDOWN:
-                        amount = limit(amount, 10, 60);
+                        amount = limit(amount, 10, 50);
                         break;
                     case ACTION_TIPTOE_SWING:
                         amount = limit(amount, 10, 50);
