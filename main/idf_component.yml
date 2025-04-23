@@ -17,6 +17,7 @@ dependencies:
   espressif/esp-sr: "^2.0.5"
   espressif/button: "^3.3.1"
   espressif/knob: "^1.0.0"
+  espressif/esp_lcd_touch_ft5x06: "~1.0.6"
   lvgl/lvgl: "~9.2.2"
   esp_lvgl_port: "~2.4.4"
   espressif/esp_io_expander_tca95xx_16bit: "^2.0.0"
