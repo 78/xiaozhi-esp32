@@ -17,6 +17,7 @@
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
+
 #define TAG "OttoRobot"
 
 LV_FONT_DECLARE(font_puhui_16_4);

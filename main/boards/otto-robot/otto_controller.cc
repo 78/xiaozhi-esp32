@@ -13,7 +13,7 @@
 #include "otto_movements.h"
 #include "sdkconfig.h"
 
-#define TAG "otto_controller"
+#define TAG "ottoController"
 
 namespace iot {
 

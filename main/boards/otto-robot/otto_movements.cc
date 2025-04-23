@@ -4,7 +4,7 @@
 
 #include "oscillator.h"
 
-static const char* TAG = "otto";
+static const char* TAG = "ottoMovements";
 
 Otto::Otto() {
     isOttoResting = false;
