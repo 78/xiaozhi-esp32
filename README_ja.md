@@ -89,10 +89,6 @@ Feishu ドキュメントチュートリアルをご覧ください：
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
-<<<<<<< HEAD
-  <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
-    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
-=======
   <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Moji">
     <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
@@ -104,7 +100,6 @@ Feishu ドキュメントチュートリアルをご覧ください：
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
->>>>>>> abb594bddd4e16ac9197b1557a3a24fde1d33712
   </a>
 </div>
 

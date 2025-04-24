@@ -88,10 +88,6 @@
   <a href="docs/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
-<<<<<<< HEAD
-    <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
-    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
-=======
   <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Movecall Moji 小智AI衍生版">
     <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
@@ -103,7 +99,6 @@
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
->>>>>>> abb594bddd4e16ac9197b1557a3a24fde1d33712
   </a>
 </div>
 
