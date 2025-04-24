@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-static const char* TAG = "oscillator";
+static const char* TAG = "Oscillator";
 
 extern unsigned long IRAM_ATTR millis();
 
