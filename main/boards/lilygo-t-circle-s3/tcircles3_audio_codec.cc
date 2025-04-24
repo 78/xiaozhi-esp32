@@ -4,8 +4,6 @@
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 
-#include "config.h"
-
 static const char TAG[] = "Tcircles3AudioCodec";
 
 Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sample_rate,
@@ -21,7 +19,7 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     CreateVoiceHardware(mic_bclk, mic_ws, mic_data, spkr_bclk, spkr_lrclk, spkr_data);
 
     gpio_config_t config;
-    config.pin_bit_mask = BIT64(AUDIO_SPKR_ENABLE);
+    config.pin_bit_mask = BIT64(45);
     config.mode = GPIO_MODE_OUTPUT;
     config.pull_up_en = GPIO_PULLUP_DISABLE;
     config.pull_down_en = GPIO_PULLDOWN_ENABLE;
@@ -30,7 +28,7 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     config.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
 #endif
     gpio_config(&config);
-    gpio_set_level(gpio_num_t(AUDIO_SPKR_ENABLE), 0);
+    gpio_set_level(gpio_num_t(45), 0);
     ESP_LOGI(TAG, "Tcircles3AudioCodec initialized");
 }
 
@@ -56,7 +54,7 @@ void Tcircles3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mi
 
     i2s_std_config_t mic_config = {
         .clk_cfg = {
-            .sample_rate_hz = static_cast<uint32_t>(input_sample_rate_),
+            .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
             #ifdef   I2S_HW_VERSION_2    
@@ -117,7 +115,11 @@ void Tcircles3AudioCodec::EnableInput(bool enable) {
 }
 
 void Tcircles3AudioCodec::EnableOutput(bool enable) {
-    gpio_set_level(AUDIO_SPKR_ENABLE, enable);
+    if (enable){
+        gpio_set_level(gpio_num_t(45), 1);
+    }else{
+        gpio_set_level(gpio_num_t(45), 0);
+    }
     AudioCodec::EnableOutput(enable);
 }
 

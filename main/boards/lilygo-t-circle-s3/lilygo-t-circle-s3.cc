@@ -30,7 +30,7 @@ public:
 
     Cst816x(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         uint8_t chip_id = ReadReg(0xA7);
-        ESP_LOGI(TAG, "Get cst816x chip ID: 0x%02X", chip_id);
+        ESP_LOGI(TAG, "Get chip ID: 0x%02X", chip_id);
         read_buffer_ = new uint8_t[6];
     }
 
@@ -233,8 +233,8 @@ public:
     LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
-        I2cDetect();
         InitCst816d();
+        I2cDetect();
         InitSpi();
         InitGc9d01nDisplay();
         InitializeButtons();
