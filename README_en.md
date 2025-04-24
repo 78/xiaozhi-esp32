@@ -63,6 +63,7 @@ Breadboard demonstration:
 - <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">CuiCan AI pendant</a>
 - <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="WMnologo-Xingzhi-1.54">WMnologo-Xingzhi-1.54TFT</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
+- <a href="https://github.com/Xinyuan-LilyGO/T-Display-S3-Pro-MVSRLora" target="_blank" title="LILYGO T-Display-S3-Pro-MVSRLora">LILYGO T-Display-S3-Pro-MVSRLora</a>
 
 <div style="display: flex; justify-content: space-between;">
   <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="LiChuang ESP32-S3 Development Board">
@@ -92,10 +93,6 @@ Breadboard demonstration:
   <a href="docs/xmini-c3.jpg" target="_blank" title="Xmini C3">
     <img src="docs/xmini-c3.jpg" width="240" />
   </a>
-<<<<<<< HEAD
-  <a href="docs/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
-    <img src="docs/lilygo-t-circle-s3.jpg" width="240" />
-=======
   <a href="docs/v1/movecall-moji-esp32s3.jpg" target="_blank" title="Moji">
     <img src="docs/v1/movecall-moji-esp32s3.jpg" width="240" />
   </a>
@@ -107,7 +104,9 @@ Breadboard demonstration:
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
->>>>>>> abb594bddd4e16ac9197b1557a3a24fde1d33712
+  </a>
+  <a href="docs/lilygo-t-display-s3-pro-mvsrlora.jpg" target="_blank" title="LILYGO T-Display-S3-Pro-MVSRLora">
+    <img src="docs/lilygo-t-display-s3-pro-mvsrlora.jpg" width="240" />
   </a>
 </div>
 
