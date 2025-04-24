@@ -15,7 +15,7 @@ private:
     const audio_codec_if_t *in_codec_if_ = nullptr;
     const audio_codec_gpio_if_t *gpio_if_ = nullptr;
 
-    uint32_t volume_ = 70;
+    uint32_t volume_ = 100;
 
     void CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data);
 
