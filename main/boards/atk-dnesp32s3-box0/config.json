@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "atk-dnesp32s3-box-v0",
+            "sdkconfig_append": []
+        }
+    ]
+}
