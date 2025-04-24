@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "tcircles3_audio_codec.h"
+#include "tdisplays3promvsrlora_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -13,14 +13,14 @@
 #include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "esp_lcd_gc9d01n.h"
+#include "esp_lcd_st7796.h"
 
-#define TAG "LilygoTCircleS3Board"
+#define TAG "LilygoTDisplays3ProMVSRLoraBoard"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class Cst816x : public I2cDevice {
+class Cst2xxse : public I2cDevice {
 public:
     struct TouchPoint_t {
         int num = 0;
@@ -28,21 +28,22 @@ public:
         int y = -1;
     };
 
-    Cst816x(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
-        uint8_t chip_id = ReadReg(0xA7);
-        ESP_LOGI(TAG, "Get cst816x chip ID: 0x%02X", chip_id);
+    Cst2xxse(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+        uint8_t chip_id = ReadReg(0x06);
+        ESP_LOGI(TAG, "Get cst2xxse chip ID: 0x%02X", chip_id);
         read_buffer_ = new uint8_t[6];
     }
 
-    ~Cst816x() {
+    ~Cst2xxse() {
         delete[] read_buffer_;
     }
 
     void UpdateTouchPoint() {
-        ReadRegs(0x02, read_buffer_, 6);
-        tp_.num = read_buffer_[0] & 0x0F;
-        tp_.x = ((read_buffer_[1] & 0x0F) << 8) | read_buffer_[2];
-        tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
+        ReadRegs(0x00, read_buffer_, 6);
+        tp_.num = read_buffer_[5] & 0x0F;
+        tp_.x = (static_cast<int>(read_buffer_[1]) << 4) | (read_buffer_[3] & 0xF0);
+        tp_.y = (static_cast<int>(read_buffer_[2]) << 4) | (read_buffer_[3] & 0x0F);
+        // ESP_LOGI(TAG, "Touch num: %d x: %d y: %d", tp_.num,tp_.x,tp_.y);
     }
 
     const TouchPoint_t &GetTouchPoint() {
@@ -54,10 +55,28 @@ private:
     TouchPoint_t tp_;
 };
 
-class LilygoTCircleS3Board : public WifiBoard {
+class Sy6970 : public I2cDevice {
+public:
+
+    Sy6970(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+        uint8_t chip_id = ReadReg(0x14);
+        ESP_LOGI(TAG, "Get sy6970 chip ID: 0x%02X", (chip_id & 0B00111000));
+
+        WriteReg(0x00,0B00001000); // Disable ILIM pin
+        WriteReg(0x02,0B11011101); // Enable ADC measurement function
+        WriteReg(0x07,0B10001101); // Disable watchdog timer feeding function
+
+        #ifdef CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
+        WriteReg(0x09,0B01100100); // Disable BATFET when battery is not needed
+        #endif
+    }
+};
+
+class LilygoTDisplays3ProMVSRLoraBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    Cst816x *cst816d_;
+    Cst2xxse *cst226se_;
+    Sy6970 *sy6970_;
     LcdDisplay *display_;
     Button boot_button_;
     PowerSaveTimer* power_save_timer_;
@@ -120,7 +139,7 @@ private:
 
     static void touchpad_daemon(void *param) {
         vTaskDelay(pdMS_TO_TICKS(2000));
-        auto &board = (LilygoTCircleS3Board&)Board::GetInstance();
+        auto &board = (LilygoTDisplays3ProMVSRLoraBoard&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
         bool was_touched = false;
         while (1) {
@@ -141,10 +160,15 @@ private:
         vTaskDelete(NULL);
     }
 
-    void InitCst816d() {
-        ESP_LOGI(TAG, "Init CST816x");
-        cst816d_ = new Cst816x(i2c_bus_, 0x15);
-        xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
+    void InitCst226se() {
+        ESP_LOGI(TAG, "Init Cst2xxse");
+        cst226se_ = new Cst2xxse(i2c_bus_, 0x5A);
+        xTaskCreate(touchpad_daemon, "tp", 4096, NULL, 5, NULL);
+    }
+
+    void InitSy6970() {
+        ESP_LOGI(TAG, "Init Sy6970");
+        sy6970_ = new Sy6970(i2c_bus_, 0x6A);
     }
 
     void InitSpi() {
@@ -158,8 +182,8 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitGc9d01nDisplay() {
-        ESP_LOGI(TAG, "Init GC9D01N");
+    void InitSt7796Display() {
+        ESP_LOGI(TAG, "Init St7796");
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -180,14 +204,14 @@ private:
         panel_config.reset_gpio_num = DISPLAY_RST;
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9d01n(panel_io, &panel_config, &panel));
-
-        esp_lcd_panel_reset(panel);
-
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7796(panel_io, &panel_config, &panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
+        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, false));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, true, false));
+        ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel, 49, 0));
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
@@ -230,20 +254,21 @@ private:
     }
 
 public:
-    LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    LilygoTDisplays3ProMVSRLoraBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
         I2cDetect();
-        InitCst816d();
+        InitCst226se();
+        InitSy6970();
         InitSpi();
-        InitGc9d01nDisplay();
+        InitSt7796Display();
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec *GetAudioCodec() override {
-        static Tcircles3AudioCodec audio_codec(
+        static Tdisplays3promvsrloraAudioCodec audio_codec(
             AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_MIC_I2S_GPIO_BCLK,
@@ -272,9 +297,9 @@ public:
         return &backlight;
     }
 
-    Cst816x *GetTouchpad() {
-        return cst816d_;
+    Cst2xxse *GetTouchpad() {
+        return cst226se_;
     }
 };
 
-DECLARE_BOARD(LilygoTCircleS3Board);
+DECLARE_BOARD(LilygoTDisplays3ProMVSRLoraBoard);
