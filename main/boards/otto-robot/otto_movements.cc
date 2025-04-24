@@ -7,76 +7,76 @@
 static const char* TAG = "ottoMovements";
 
 Otto::Otto() {
-    isOttoResting = false;
+    is_otto_resting_ = false;
 }
 
 Otto::~Otto() {
-    detachServos();
+    DetachServos();
 }
 
 unsigned long IRAM_ATTR millis() {
     return (unsigned long)(esp_timer_get_time() / 1000ULL);
 }
 
-void Otto::init(int YL, int YR, int RL, int RR) {
-    servo_pins[0] = YL;
-    servo_pins[1] = YR;
-    servo_pins[2] = RL;
-    servo_pins[3] = RR;
+void Otto::Init(int left_leg, int right_leg, int left_foot, int right_foot) {
+    servo_pins_[0] = left_leg;
+    servo_pins_[1] = right_leg;
+    servo_pins_[2] = left_foot;
+    servo_pins_[3] = right_foot;
 
-    attachServos();
-    isOttoResting = false;
+    AttachServos();
+    is_otto_resting_ = false;
 }
 
 ///////////////////////////////////////////////////////////////////
 //-- ATTACH & DETACH FUNCTIONS ----------------------------------//
 ///////////////////////////////////////////////////////////////////
-void Otto::attachServos() {
-    servo[0].attach(servo_pins[0]);
-    servo[1].attach(servo_pins[1]);
-    servo[2].attach(servo_pins[2]);
-    servo[3].attach(servo_pins[3]);
+void Otto::AttachServos() {
+    servo_[0].Attach(servo_pins_[0]);
+    servo_[1].Attach(servo_pins_[1]);
+    servo_[2].Attach(servo_pins_[2]);
+    servo_[3].Attach(servo_pins_[3]);
 }
 
-void Otto::detachServos() {
-    servo[0].detach();
-    servo[1].detach();
-    servo[2].detach();
-    servo[3].detach();
+void Otto::DetachServos() {
+    servo_[0].Detach();
+    servo_[1].Detach();
+    servo_[2].Detach();
+    servo_[3].Detach();
 }
 
 ///////////////////////////////////////////////////////////////////
 //-- OSCILLATORS TRIMS ------------------------------------------//
 ///////////////////////////////////////////////////////////////////
-void Otto::setTrims(int YL, int YR, int RL, int RR) {
-    servo[0].SetTrim(YL);
-    servo[1].SetTrim(YR);
-    servo[2].SetTrim(RL);
-    servo[3].SetTrim(RR);
+void Otto::SetTrims(int left_leg, int right_leg, int left_foot, int right_foot) {
+    servo_[0].SetTrim(left_leg);
+    servo_[1].SetTrim(right_leg);
+    servo_[2].SetTrim(left_foot);
+    servo_[3].SetTrim(right_foot);
 }
 
 ///////////////////////////////////////////////////////////////////
 //-- BASIC MOTION FUNCTIONS -------------------------------------//
 ///////////////////////////////////////////////////////////////////
-void Otto::_moveServos(int time, int servo_target[]) {
-    if (getRestState() == true) {
-        setRestState(false);
+void Otto::MoveServos(int time, int servo_target[]) {
+    if (GetRestState() == true) {
+        SetRestState(false);
     }
 
-    final_time = millis() + time;
+    final_time_ = millis() + time;
     if (time > 10) {
         for (int i = 0; i < 4; i++)
-            increment[i] = (servo_target[i] - servo[i].getPosition()) / (time / 10.0);
+            increment_[i] = (servo_target[i] - servo_[i].GetPosition()) / (time / 10.0);
 
-        for (int iteration = 1; millis() < final_time; iteration++) {
-            partial_time = millis() + 10;
+        for (int iteration = 1; millis() < final_time_; iteration++) {
+            partial_time_ = millis() + 10;
             for (int i = 0; i < 4; i++)
-                servo[i].SetPosition(servo[i].getPosition() + increment[i]);
+                servo_[i].SetPosition(servo_[i].GetPosition() + increment_[i]);
             vTaskDelay(pdMS_TO_TICKS(10));
         }
     } else {
         for (int i = 0; i < 4; i++)
-            servo[i].SetPosition(servo_target[i]);
+            servo_[i].SetPosition(servo_target[i]);
         vTaskDelay(pdMS_TO_TICKS(time));
     }
 
@@ -86,14 +86,14 @@ void Otto::_moveServos(int time, int servo_target[]) {
     while (f && adjustment_count < 10) {
         f = false;
         for (int i = 0; i < 4; i++) {
-            if (servo_target[i] != servo[i].getPosition()) {
+            if (servo_target[i] != servo_[i].GetPosition()) {
                 f = true;
                 break;
             }
         }
         if (f) {
             for (int i = 0; i < 4; i++) {
-                servo[i].SetPosition(servo_target[i]);
+                servo_[i].SetPosition(servo_target[i]);
             }
             vTaskDelay(pdMS_TO_TICKS(10));
             adjustment_count++;
@@ -101,52 +101,54 @@ void Otto::_moveServos(int time, int servo_target[]) {
     };
 }
 
-void Otto::_moveSingle(int position, int servo_number) {
+void Otto::MoveSingle(int position, int servo_number) {
     if (position > 180)
         position = 90;
     if (position < 0)
         position = 90;
 
-    if (getRestState() == true) {
-        setRestState(false);
+    if (GetRestState() == true) {
+        SetRestState(false);
     }
     int servoNumber = servo_number;
     if (servoNumber == 0) {
-        servo[0].SetPosition(position);
+        servo_[0].SetPosition(position);
     }
     if (servoNumber == 1) {
-        servo[1].SetPosition(position);
+        servo_[1].SetPosition(position);
     }
     if (servoNumber == 2) {
-        servo[2].SetPosition(position);
+        servo_[2].SetPosition(position);
     }
     if (servoNumber == 3) {
-        servo[3].SetPosition(position);
+        servo_[3].SetPosition(position);
     }
 }
 
-void Otto::oscillateServos(int A[4], int O[4], int T, double phase_diff[4], float cycle = 1) {
+void Otto::OscillateServos(int amplitude[4], int offset[4], int period, double phase_diff[4],
+                           float cycle = 1) {
     for (int i = 0; i < 4; i++) {
-        servo[i].SetO(O[i]);
-        servo[i].SetA(A[i]);
-        servo[i].SetT(T);
-        servo[i].SetPh(phase_diff[i]);
+        servo_[i].SetO(offset[i]);
+        servo_[i].SetA(amplitude[i]);
+        servo_[i].SetT(period);
+        servo_[i].SetPh(phase_diff[i]);
     }
     double ref = millis();
-    double end_time = T * cycle + ref;
+    double end_time = period * cycle + ref;
 
     while (millis() < end_time) {
         for (int i = 0; i < 4; i++) {
-            servo[i].refresh();
+            servo_[i].Refresh();
         }
         vTaskDelay(5);
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 }
 
-void Otto::_execute(int A[4], int O[4], int T, double phase_diff[4], float steps = 1.0) {
-    if (getRestState() == true) {
-        setRestState(false);
+void Otto::Execute(int amplitude[4], int offset[4], int period, double phase_diff[4],
+                   float steps = 1.0) {
+    if (GetRestState() == true) {
+        SetRestState(false);
     }
 
     int cycles = (int)steps;
@@ -154,33 +156,33 @@ void Otto::_execute(int A[4], int O[4], int T, double phase_diff[4], float steps
     //-- Execute complete cycles
     if (cycles >= 1)
         for (int i = 0; i < cycles; i++)
-            oscillateServos(A, O, T, phase_diff);
+            OscillateServos(amplitude, offset, period, phase_diff);
 
     //-- Execute the final not complete cycle
-    oscillateServos(A, O, T, phase_diff, (float)steps - cycles);
+    OscillateServos(amplitude, offset, period, phase_diff, (float)steps - cycles);
     vTaskDelay(pdMS_TO_TICKS(10));
 }
 
 ///////////////////////////////////////////////////////////////////
 //-- HOME = Otto at rest position -------------------------------//
 ///////////////////////////////////////////////////////////////////
-void Otto::home() {
-    if (isOttoResting == false) {  // Go to rest position only if necessary
+void Otto::Home() {
+    if (is_otto_resting_ == false) {  // Go to rest position only if necessary
 
         int homes[4] = {90, 90, 90, 90};  // All the servos at rest position
-        _moveServos(500, homes);          // Move the servos in half a second
+        MoveServos(500, homes);           // Move the servos in half a second
 
-        isOttoResting = true;
+        is_otto_resting_ = true;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
-bool Otto::getRestState() {
-    return isOttoResting;
+bool Otto::GetRestState() {
+    return is_otto_resting_;
 }
 
-void Otto::setRestState(bool state) {
-    isOttoResting = state;
+void Otto::SetRestState(bool state) {
+    is_otto_resting_ = state;
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -191,11 +193,11 @@ void Otto::setRestState(bool state) {
 //--    steps: Number of steps
 //--    T: Period
 //---------------------------------------------------------
-void Otto::jump(float steps, int T) {
+void Otto::Jump(float steps, int period) {
     int up[] = {90, 90, 150, 30};
-    _moveServos(T, up);
+    MoveServos(period, up);
     int down[] = {90, 90, 90, 90};
-    _moveServos(T, down);
+    MoveServos(period, down);
 }
 
 //---------------------------------------------------------
@@ -205,7 +207,7 @@ void Otto::jump(float steps, int T) {
 //--    * T : Period
 //--    * Dir: Direction: FORWARD / BACKWARD
 //---------------------------------------------------------
-void Otto::walk(float steps, int T, int dir) {
+void Otto::Walk(float steps, int period, int dir) {
     //-- Oscillator parameters for walking
     //-- Hip sevos are in phase
     //-- Feet servos are in phase
@@ -218,7 +220,7 @@ void Otto::walk(float steps, int T, int dir) {
     double phase_diff[4] = {0, 0, DEG2RAD(dir * -90), DEG2RAD(dir * -90)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -228,7 +230,7 @@ void Otto::walk(float steps, int T, int dir) {
 //--   * T: Period
 //--   * Dir: Direction: LEFT / RIGHT
 //---------------------------------------------------------
-void Otto::turn(float steps, int T, int dir) {
+void Otto::Turn(float steps, int period, int dir) {
     //-- Same coordination than for walking (see Otto::walk)
     //-- The Amplitudes of the hip's oscillators are not igual
     //-- When the right hip servo amplitude is higher, the steps taken by
@@ -247,7 +249,7 @@ void Otto::turn(float steps, int T, int dir) {
     }
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -257,7 +259,7 @@ void Otto::turn(float steps, int T, int dir) {
 //--    T: Period of one bend
 //--    dir: RIGHT=Right bend LEFT=Left bend
 //---------------------------------------------------------
-void Otto::bend(int steps, int T, int dir) {
+void Otto::Bend(int steps, int period, int dir) {
     // Parameters of all the movements. Default: Left bend
     int bend1[4] = {90, 90, 62, 35};
     int bend2[4] = {90, 90, 62, 105};
@@ -278,10 +280,10 @@ void Otto::bend(int steps, int T, int dir) {
 
     // Bend movement
     for (int i = 0; i < steps; i++) {
-        _moveServos(T2 / 2, bend1);
-        _moveServos(T2 / 2, bend2);
-        vTaskDelay(pdMS_TO_TICKS(T * 0.8));
-        _moveServos(500, homes);
+        MoveServos(T2 / 2, bend1);
+        MoveServos(T2 / 2, bend2);
+        vTaskDelay(pdMS_TO_TICKS(period * 0.8));
+        MoveServos(500, homes);
     }
 }
 
@@ -292,7 +294,7 @@ void Otto::bend(int steps, int T, int dir) {
 //--    T: Period of one shake
 //--    dir: RIGHT=Right leg LEFT=Left leg
 //---------------------------------------------------------
-void Otto::shakeLeg(int steps, int T, int dir) {
+void Otto::ShakeLeg(int steps, int period, int dir) {
     // This variable change the amount of shakes
     int numberLegMoves = 2;
 
@@ -315,23 +317,23 @@ void Otto::shakeLeg(int steps, int T, int dir) {
     // Time of the bend movement. Fixed parameter to avoid falls
     int T2 = 1000;
     // Time of one shake, constrained in order to avoid movements too fast.
-    T = T - T2;
-    T = std::max(T, 200 * numberLegMoves);
+    period = period - T2;
+    period = std::max(period, 200 * numberLegMoves);
 
     for (int j = 0; j < steps; j++) {
         // Bend movement
-        _moveServos(T2 / 2, shake_leg1);
-        _moveServos(T2 / 2, shake_leg2);
+        MoveServos(T2 / 2, shake_leg1);
+        MoveServos(T2 / 2, shake_leg2);
 
         // Shake movement
         for (int i = 0; i < numberLegMoves; i++) {
-            _moveServos(T / (2 * numberLegMoves), shake_leg3);
-            _moveServos(T / (2 * numberLegMoves), shake_leg2);
+            MoveServos(period / (2 * numberLegMoves), shake_leg3);
+            MoveServos(period / (2 * numberLegMoves), shake_leg2);
         }
-        _moveServos(500, homes);  // Return to home position
+        MoveServos(500, homes);  // Return to home position
     }
 
-    vTaskDelay(pdMS_TO_TICKS(T));
+    vTaskDelay(pdMS_TO_TICKS(period));
 }
 
 //---------------------------------------------------------
@@ -342,17 +344,17 @@ void Otto::shakeLeg(int steps, int T, int dir) {
 //--    * h: Jump height: SMALL / MEDIUM / BIG
 //--              (or a number in degrees 0 - 90)
 //---------------------------------------------------------
-void Otto::updown(float steps, int T, int h) {
+void Otto::UpDown(float steps, int period, int height) {
     //-- Both feet are 180 degrees out of phase
     //-- Feet amplitude and offset are the same
     //-- Initial phase for the right foot is -90, so that it starts
     //--   in one extreme position (not in the middle)
-    int A[4] = {0, 0, h, h};
-    int O[4] = {0, 0, h, -h};
+    int A[4] = {0, 0, height, height};
+    int O[4] = {0, 0, height, -height};
     double phase_diff[4] = {0, 0, DEG2RAD(-90), DEG2RAD(90)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -362,15 +364,15 @@ void Otto::updown(float steps, int T, int h) {
 //--     T : Period
 //--     h : Amount of swing (from 0 to 50 aprox)
 //---------------------------------------------------------
-void Otto::swing(float steps, int T, int h) {
+void Otto::Swing(float steps, int period, int height) {
     //-- Both feets are in phase. The offset is half the amplitude
     //-- It causes the robot to swing from side to side
-    int A[4] = {0, 0, h, h};
-    int O[4] = {0, 0, h / 2, -h / 2};
+    int A[4] = {0, 0, height, height};
+    int O[4] = {0, 0, height / 2, -height / 2};
     double phase_diff[4] = {0, 0, DEG2RAD(0), DEG2RAD(0)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -380,15 +382,15 @@ void Otto::swing(float steps, int T, int h) {
 //--     T : Period
 //--     h : Amount of swing (from 0 to 50 aprox)
 //---------------------------------------------------------
-void Otto::tiptoeSwing(float steps, int T, int h) {
+void Otto::TiptoeSwing(float steps, int period, int height) {
     //-- Both feets are in phase. The offset is not half the amplitude in order to tiptoe
     //-- It causes the robot to swing from side to side
-    int A[4] = {0, 0, h, h};
-    int O[4] = {0, 0, h, -h};
+    int A[4] = {0, 0, height, height};
+    int O[4] = {0, 0, height, -height};
     double phase_diff[4] = {0, 0, 0, 0};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -398,19 +400,19 @@ void Otto::tiptoeSwing(float steps, int T, int h) {
 //--    T: Period of one jitter
 //--    h: height (Values between 5 - 25)
 //---------------------------------------------------------
-void Otto::jitter(float steps, int T, int h) {
+void Otto::Jitter(float steps, int period, int height) {
     //-- Both feet are 180 degrees out of phase
     //-- Feet amplitude and offset are the same
     //-- Initial phase for the right foot is -90, so that it starts
     //--   in one extreme position (not in the middle)
     //-- h is constrained to avoid hit the feets
-    h = std::min(25, h);
-    int A[4] = {h, h, 0, 0};
+    height = std::min(25, height);
+    int A[4] = {height, height, 0, 0};
     int O[4] = {0, 0, 0, 0};
     double phase_diff[4] = {DEG2RAD(-90), DEG2RAD(90), 0, 0};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -420,18 +422,18 @@ void Otto::jitter(float steps, int T, int h) {
 //--    T: Period of one bend
 //--    h: height (Values between 5 - 15)
 //---------------------------------------------------------
-void Otto::ascendingTurn(float steps, int T, int h) {
+void Otto::AscendingTurn(float steps, int period, int height) {
     //-- Both feet and legs are 180 degrees out of phase
     //-- Initial phase for the right foot is -90, so that it starts
     //--   in one extreme position (not in the middle)
     //-- h is constrained to avoid hit the feets
-    h = std::min(13, h);
-    int A[4] = {h, h, h, h};
-    int O[4] = {0, 0, h + 4, -h + 4};
+    height = std::min(13, height);
+    int A[4] = {height, height, height, height};
+    int O[4] = {0, 0, height + 4, -height + 4};
     double phase_diff[4] = {DEG2RAD(-90), DEG2RAD(90), DEG2RAD(-90), DEG2RAD(90)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -442,7 +444,7 @@ void Otto::ascendingTurn(float steps, int T, int h) {
 //--    h: Height. Typical valures between 15 and 40
 //--    dir: Direction: LEFT / RIGHT
 //---------------------------------------------------------
-void Otto::moonwalker(float steps, int T, int h, int dir) {
+void Otto::Moonwalker(float steps, int period, int height, int dir) {
     //-- This motion is similar to that of the caterpillar robots: A travelling
     //-- wave moving from one side to another
     //-- The two Otto's feet are equivalent to a minimal configuration. It is known
@@ -453,13 +455,13 @@ void Otto::moonwalker(float steps, int T, int h, int dir) {
     //--  Both amplitudes are equal. The offset is half the amplitud plus a little bit of
     //-   offset so that the robot tiptoe lightly
 
-    int A[4] = {0, 0, h, h};
-    int O[4] = {0, 0, h / 2 + 2, -h / 2 - 2};
+    int A[4] = {0, 0, height, height};
+    int O[4] = {0, 0, height / 2 + 2, -height / 2 - 2};
     int phi = -dir * 90;
     double phase_diff[4] = {0, 0, DEG2RAD(phi), DEG2RAD(-60 * dir + phi)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //----------------------------------------------------------
@@ -470,13 +472,13 @@ void Otto::moonwalker(float steps, int T, int h, int dir) {
 //--     h: height (Values between 20 - 50)
 //--     dir:  Direction: LEFT / RIGHT
 //-----------------------------------------------------------
-void Otto::crusaito(float steps, int T, int h, int dir) {
-    int A[4] = {25, 25, h, h};
-    int O[4] = {0, 0, h / 2 + 4, -h / 2 - 4};
+void Otto::Crusaito(float steps, int period, int height, int dir) {
+    int A[4] = {25, 25, height, height};
+    int O[4] = {0, 0, height / 2 + 4, -height / 2 - 4};
     double phase_diff[4] = {90, 90, DEG2RAD(0), DEG2RAD(-60 * dir)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
@@ -487,23 +489,23 @@ void Otto::crusaito(float steps, int T, int h, int dir) {
 //--    h: height (Values between 10 - 30)
 //--    dir: direction: FOREWARD, BACKWARD
 //---------------------------------------------------------
-void Otto::flapping(float steps, int T, int h, int dir) {
-    int A[4] = {12, 12, h, h};
-    int O[4] = {0, 0, h - 10, -h + 10};
+void Otto::Flapping(float steps, int period, int height, int dir) {
+    int A[4] = {12, 12, height, height};
+    int O[4] = {0, 0, height - 10, -height + 10};
     double phase_diff[4] = {DEG2RAD(0), DEG2RAD(180), DEG2RAD(-90 * dir), DEG2RAD(90 * dir)};
 
     //-- Let's oscillate the servos!
-    _execute(A, O, T, phase_diff, steps);
+    Execute(A, O, period, phase_diff, steps);
 }
 
-void Otto::enableServoLimit(int diff_limit) {
+void Otto::EnableServoLimit(int diff_limit) {
     for (int i = 0; i < 4; i++) {
-        servo[i].SetLimiter(diff_limit);
+        servo_[i].SetLimiter(diff_limit);
     }
 }
 
-void Otto::disableServoLimit() {
+void Otto::DisableServoLimit() {
     for (int i = 0; i < 4; i++) {
-        servo[i].DisableLimiter();
+        servo_[i].DisableLimiter();
     }
 }

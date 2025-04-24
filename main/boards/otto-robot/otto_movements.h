@@ -26,59 +26,60 @@ public:
     ~Otto();
 
     //-- Otto initialization
-    void init(int YL, int YR, int RL, int RR);
+    void Init(int left_leg, int right_leg, int left_foot, int right_foot);
     //-- Attach & detach functions
-    void attachServos();
-    void detachServos();
+    void AttachServos();
+    void DetachServos();
 
     //-- Oscillator Trims
-    void setTrims(int YL, int YR, int RL, int RR);
+    void SetTrims(int left_leg, int right_leg, int left_foot, int right_foot);
 
     //-- Predetermined Motion Functions
-    void _moveServos(int time, int servo_target[]);
-    void _moveSingle(int position, int servo_number);
-    void oscillateServos(int A[4], int O[4], int T, double phase_diff[4], float cycle);
+    void MoveServos(int time, int servo_target[]);
+    void MoveSingle(int position, int servo_number);
+    void OscillateServos(int amplitude[4], int offset[4], int period, double phase_diff[4],
+                         float cycle);
 
     //-- HOME = Otto at rest position
-    void home();
-    bool getRestState();
-    void setRestState(bool state);
+    void Home();
+    bool GetRestState();
+    void SetRestState(bool state);
 
     //-- Predetermined Motion Functions
-    void jump(float steps = 1, int T = 2000);
+    void Jump(float steps = 1, int period = 2000);
 
-    void walk(float steps = 4, int T = 1000, int dir = FORWARD);
-    void turn(float steps = 4, int T = 2000, int dir = LEFT);
-    void bend(int steps = 1, int T = 1400, int dir = LEFT);
-    void shakeLeg(int steps = 1, int T = 2000, int dir = RIGHT);
+    void Walk(float steps = 4, int period = 1000, int dir = FORWARD);
+    void Turn(float steps = 4, int period = 2000, int dir = LEFT);
+    void Bend(int steps = 1, int period = 1400, int dir = LEFT);
+    void ShakeLeg(int steps = 1, int period = 2000, int dir = RIGHT);
 
-    void updown(float steps = 1, int T = 1000, int h = 20);
-    void swing(float steps = 1, int T = 1000, int h = 20);
-    void tiptoeSwing(float steps = 1, int T = 900, int h = 20);
-    void jitter(float steps = 1, int T = 500, int h = 20);
-    void ascendingTurn(float steps = 1, int T = 900, int h = 20);
+    void UpDown(float steps = 1, int period = 1000, int height = 20);
+    void Swing(float steps = 1, int period = 1000, int height = 20);
+    void TiptoeSwing(float steps = 1, int period = 900, int height = 20);
+    void Jitter(float steps = 1, int period = 500, int height = 20);
+    void AscendingTurn(float steps = 1, int period = 900, int height = 20);
 
-    void moonwalker(float steps = 1, int T = 900, int h = 20, int dir = LEFT);
-    void crusaito(float steps = 1, int T = 900, int h = 20, int dir = FORWARD);
-    void flapping(float steps = 1, int T = 1000, int h = 20, int dir = FORWARD);
+    void Moonwalker(float steps = 1, int period = 900, int height = 20, int dir = LEFT);
+    void Crusaito(float steps = 1, int period = 900, int height = 20, int dir = FORWARD);
+    void Flapping(float steps = 1, int period = 1000, int height = 20, int dir = FORWARD);
 
     // -- Servo limiter
-    void enableServoLimit(int speed_limit_degree_per_sec = SERVO_LIMIT_DEFAULT);
-    void disableServoLimit();
+    void EnableServoLimit(int speed_limit_degree_per_sec = SERVO_LIMIT_DEFAULT);
+    void DisableServoLimit();
 
 private:
-    Oscillator servo[4];
+    Oscillator servo_[4];
 
-    int servo_pins[4];
-    int servo_trim[4];
+    int servo_pins_[4];
+    int servo_trim_[4];
 
-    unsigned long final_time;
-    unsigned long partial_time;
-    float increment[4];
+    unsigned long final_time_;
+    unsigned long partial_time_;
+    float increment_[4];
 
-    bool isOttoResting;
+    bool is_otto_resting_;
 
-    void _execute(int A[4], int O[4], int T, double phase_diff[4], float steps);
+    void Execute(int amplitude[4], int offset[4], int period, double phase_diff[4], float steps);
 };
 
 #endif  // __OTTO_MOVEMENTS_H__

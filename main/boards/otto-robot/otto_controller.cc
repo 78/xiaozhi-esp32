@@ -13,7 +13,7 @@
 #include "otto_movements.h"
 #include "sdkconfig.h"
 
-#define TAG "ottoController"
+#define TAG "OttoController"
 
 namespace iot {
 
@@ -27,9 +27,9 @@ struct OttoActionParams {
 
 class OttoController : public Thing {
 private:
-    Otto otto;
-    TaskHandle_t action_task_handle = nullptr;
-    QueueHandle_t action_queue;
+    Otto otto_;
+    TaskHandle_t action_task_handle_ = nullptr;
+    QueueHandle_t action_queue_;
 
     enum ActionType {
         ACTION_WALK = 1,
@@ -48,7 +48,7 @@ private:
     };
 
     // 限制数值在指定范围内
-    static int limit(int value, int min, int max) {
+    static int Limit(int value, int min, int max) {
         if (value < min) {
             ESP_LOGW(TAG, "参数 %d 小于最小值 %d，设置为最小值", value, min);
             return min;
@@ -60,68 +60,68 @@ private:
         return value;
     }
 
-    static void action_task(void* arg) {
+    static void ActionTask(void* arg) {
         OttoController* controller = static_cast<OttoController*>(arg);
         OttoActionParams params;
-        controller->otto.attachServos();
+        controller->otto_.AttachServos();
 
         while (true) {
-            if (xQueueReceive(controller->action_queue, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            if (xQueueReceive(controller->action_queue_, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
 
                 switch (params.action_type) {
                     case ACTION_WALK:
-                        controller->otto.walk(params.steps, params.speed, params.direction);
+                        controller->otto_.Walk(params.steps, params.speed, params.direction);
                         break;
                     case ACTION_TURN:
-                        controller->otto.turn(params.steps, params.speed, params.direction);
+                        controller->otto_.Turn(params.steps, params.speed, params.direction);
                         break;
                     case ACTION_JUMP:
-                        controller->otto.jump(params.steps, params.speed);
+                        controller->otto_.Jump(params.steps, params.speed);
                         break;
                     case ACTION_SWING:
-                        controller->otto.swing(params.steps, params.speed, params.amount);
+                        controller->otto_.Swing(params.steps, params.speed, params.amount);
                         break;
                     case ACTION_MOONWALK:
-                        controller->otto.moonwalker(params.steps, params.speed, params.amount,
-                                                    params.direction);
+                        controller->otto_.Moonwalker(params.steps, params.speed, params.amount,
+                                                     params.direction);
                         break;
                     case ACTION_BEND:
-                        controller->otto.bend(params.steps, params.speed, params.direction);
+                        controller->otto_.Bend(params.steps, params.speed, params.direction);
                         break;
                     case ACTION_SHAKE_LEG:
-                        controller->otto.shakeLeg(params.steps, params.speed, params.direction);
+                        controller->otto_.ShakeLeg(params.steps, params.speed, params.direction);
                         break;
                     case ACTION_UPDOWN:
-                        controller->otto.updown(params.steps, params.speed, params.amount);
+                        controller->otto_.UpDown(params.steps, params.speed, params.amount);
                         break;
                     case ACTION_TIPTOE_SWING:
-                        controller->otto.tiptoeSwing(params.steps, params.speed, params.amount);
+                        controller->otto_.TiptoeSwing(params.steps, params.speed, params.amount);
                         break;
                     case ACTION_JITTER:
-                        controller->otto.jitter(params.steps, params.speed, params.amount);
+                        controller->otto_.Jitter(params.steps, params.speed, params.amount);
                         break;
                     case ACTION_ASCENDING_TURN:
-                        controller->otto.ascendingTurn(params.steps, params.speed, params.amount);
+                        controller->otto_.AscendingTurn(params.steps, params.speed, params.amount);
                         break;
                     case ACTION_CRUSAITO:
-                        controller->otto.crusaito(params.steps, params.speed, params.amount,
-                                                  params.direction);
+                        controller->otto_.Crusaito(params.steps, params.speed, params.amount,
+                                                   params.direction);
                         break;
                     case ACTION_FLAPPING:
-                        controller->otto.flapping(params.steps, params.speed, params.amount,
-                                                  params.direction);
+                        controller->otto_.Flapping(params.steps, params.speed, params.amount,
+                                                   params.direction);
                         break;
                 }
 
-                controller->otto.home();
+                controller->otto_.Home();
 
             } else {
-                if (uxQueueMessagesWaiting(controller->action_queue) == 0) {
+                if (uxQueueMessagesWaiting(controller->action_queue_) == 0) {
                     ESP_LOGI(TAG, "动作队列为空，任务完成");
-                    controller->otto.home();
-                    controller->action_task_handle = nullptr;
-                    controller->otto.detachServos();
+                    controller->otto_.Home();
+                    controller->action_task_handle_ = nullptr;
+                    controller->otto_.DetachServos();
                     vTaskDelete(NULL);
                     break;
                 }
@@ -132,21 +132,21 @@ private:
 
 public:
     OttoController() : Thing("OttoController", "Otto机器人的控制器") {
-        otto.init(LeftLeg, RightLeg, LeftFoot, RightFoot);
-        otto.home();
+        otto_.Init(LEFT_LEG_PIN, RIGHT_LEG_PIN, LEFT_FOOT_PIN, RIGHT_FOOT_PIN);
+        otto_.Home();
 
-        action_queue = xQueueCreate(10, sizeof(OttoActionParams));
+        action_queue_ = xQueueCreate(10, sizeof(OttoActionParams));
 
         // 定义设备可以被远程执行的指令
         methods_.AddMethod("suspend", "清空动作队列,中断Otto机器人动作", ParameterList(),
                            [this](const ParameterList& parameters) {
                                ESP_LOGI(TAG, "停止Otto机器人动作");
-                               if (action_task_handle != nullptr) {
-                                   vTaskDelete(action_task_handle);
-                                   action_task_handle = nullptr;
+                               if (action_task_handle_ != nullptr) {
+                                   vTaskDelete(action_task_handle_);
+                                   action_task_handle_ = nullptr;
                                }
-                               xQueueReset(action_queue);
-                               otto.home();
+                               xQueueReset(action_queue_);
+                               otto_.Home();
                            });
 
         methods_.AddMethod(
@@ -172,38 +172,38 @@ public:
                 int direction = parameters["direction"].number();
                 int amount = parameters["amount"].number();
 
-                action_type = limit(action_type, ACTION_WALK, ACTION_FLAPPING);
-                steps = limit(steps, 1, 100);
-                speed = limit(speed, 500, 3000);
-                direction = limit(direction, -1, 1);
+                action_type = Limit(action_type, ACTION_WALK, ACTION_FLAPPING);
+                steps = Limit(steps, 1, 100);
+                speed = Limit(speed, 500, 3000);
+                direction = Limit(direction, -1, 1);
 
                 switch (action_type) {
                     case ACTION_SWING:
-                        amount = limit(amount, 10, 50);
+                        amount = Limit(amount, 10, 50);
                         break;
                     case ACTION_MOONWALK:
-                        amount = limit(amount, 15, 40);
+                        amount = Limit(amount, 15, 40);
                         break;
                     case ACTION_UPDOWN:
-                        amount = limit(amount, 10, 50);
+                        amount = Limit(amount, 10, 50);
                         break;
                     case ACTION_TIPTOE_SWING:
-                        amount = limit(amount, 10, 50);
+                        amount = Limit(amount, 10, 50);
                         break;
                     case ACTION_JITTER:
-                        amount = limit(amount, 5, 25);
+                        amount = Limit(amount, 5, 25);
                         break;
                     case ACTION_ASCENDING_TURN:
-                        amount = limit(amount, 5, 15);
+                        amount = Limit(amount, 5, 15);
                         break;
                     case ACTION_CRUSAITO:
-                        amount = limit(amount, 20, 50);
+                        amount = Limit(amount, 20, 50);
                         break;
                     case ACTION_FLAPPING:
-                        amount = limit(amount, 10, 30);
+                        amount = Limit(amount, 10, 30);
                         break;
                     default:
-                        amount = limit(amount, 10, 50);
+                        amount = Limit(amount, 10, 50);
                 }
 
                 ESP_LOGI(TAG, "AI控制: 动作类型=%d, 步数=%d, 速度=%d, 方向=%d, 幅度=%d",
@@ -216,23 +216,23 @@ public:
                 params.direction = direction;
                 params.amount = amount;
 
-                xQueueSend(action_queue, &params, portMAX_DELAY);
+                xQueueSend(action_queue_, &params, portMAX_DELAY);
 
-                startActionTaskIfNeeded();
+                StartActionTaskIfNeeded();
             });
     }
 
-    void startActionTaskIfNeeded() {
-        if (action_task_handle == nullptr) {
-            xTaskCreate(action_task, "otto_action", 1024 * 3, this, 2, &action_task_handle);
+    void StartActionTaskIfNeeded() {
+        if (action_task_handle_ == nullptr) {
+            xTaskCreate(ActionTask, "otto_action", 1024 * 3, this, 2, &action_task_handle_);
         }
     }
 
     ~OttoController() {
-        if (action_task_handle != nullptr) {
-            vTaskDelete(action_task_handle);
+        if (action_task_handle_ != nullptr) {
+            vTaskDelete(action_task_handle_);
         }
-        vQueueDelete(action_queue);
+        vQueueDelete(action_queue_);
     }
 };
 

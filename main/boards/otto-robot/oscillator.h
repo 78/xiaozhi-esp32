@@ -23,61 +23,61 @@ class Oscillator {
 public:
     Oscillator(int trim = 0);
     ~Oscillator();
-    void attach(int pin, bool rev = false);
-    void detach();
+    void Attach(int pin, bool rev = false);
+    void Detach();
 
-    void SetA(unsigned int amplitude) { _amplitude = amplitude; };
-    void SetO(int offset) { _offset = offset; };
-    void SetPh(double Ph) { _phase0 = Ph; };
+    void SetA(unsigned int amplitude) { amplitude_ = amplitude; };
+    void SetO(int offset) { offset_ = offset; };
+    void SetPh(double Ph) { phase0_ = Ph; };
     void SetT(unsigned int period);
-    void SetTrim(int trim) { _trim = trim; };
-    void SetLimiter(int diff_limit) { _diff_limit = diff_limit; };
-    void DisableLimiter() { _diff_limit = 0; };
-    int getTrim() { return _trim; };
+    void SetTrim(int trim) { trim_ = trim; };
+    void SetLimiter(int diff_limit) { diff_limit_ = diff_limit; };
+    void DisableLimiter() { diff_limit_ = 0; };
+    int GetTrim() { return trim_; };
     void SetPosition(int position);
-    void Stop() { _stop = true; };
-    void Play() { _stop = false; };
-    void Reset() { _phase = 0; };
-    void refresh();
-    int getPosition() { return _pos; }
+    void Stop() { stop_ = true; };
+    void Play() { stop_ = false; };
+    void Reset() { phase_ = 0; };
+    void Refresh();
+    int GetPosition() { return pos_; }
 
 private:
-    bool next_sample();
-    void write(int position);
-    uint32_t angle_to_compare(int angle);
+    bool NextSample();
+    void Write(int position);
+    uint32_t AngleToCompare(int angle);
 
 private:
-    bool _is_attached;
+    bool is_attached_;
 
     //-- Oscillators parameters
-    unsigned int _amplitude;  //-- Amplitude (degrees)
-    int _offset;              //-- Offset (degrees)
-    unsigned int _period;     //-- Period (miliseconds)
-    double _phase0;           //-- Phase (radians)
+    unsigned int amplitude_;  //-- Amplitude (degrees)
+    int offset_;              //-- Offset (degrees)
+    unsigned int period_;     //-- Period (miliseconds)
+    double phase0_;           //-- Phase (radians)
 
     //-- Internal variables
-    int _pos;                      //-- Current servo pos
-    int _pin;                      //-- Pin where the servo is connected
-    int _trim;                     //-- Calibration offset
-    double _phase;                 //-- Current phase
-    double _inc;                   //-- Increment of phase
-    double _numberSamples;         //-- Number of samples
-    unsigned int _samplingPeriod;  //-- sampling period (ms)
+    int pos_;                       //-- Current servo pos
+    int pin_;                       //-- Pin where the servo is connected
+    int trim_;                      //-- Calibration offset
+    double phase_;                  //-- Current phase
+    double inc_;                    //-- Increment of phase
+    double number_samples_;         //-- Number of samples
+    unsigned int sampling_period_;  //-- sampling period (ms)
 
-    long _previousMillis;
-    long _currentMillis;
+    long previous_millis_;
+    long current_millis_;
 
     //-- Oscillation mode. If true, the servo is stopped
-    bool _stop;
+    bool stop_;
 
     //-- Reverse mode
-    bool _rev;
+    bool rev_;
 
-    int _diff_limit;
-    long _previousServoCommandMillis;
+    int diff_limit_;
+    long previous_servo_command_millis_;
 
-    ledc_channel_t _ledc_channel;
-    ledc_mode_t _ledc_speed_mode;
+    ledc_channel_t ledc_channel_;
+    ledc_mode_t ledc_speed_mode_;
 };
 
 #endif  // __OSCILLATOR_H__

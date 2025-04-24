@@ -13,54 +13,54 @@ extern unsigned long IRAM_ATTR millis();
 static ledc_channel_t next_free_channel = LEDC_CHANNEL_0;
 
 Oscillator::Oscillator(int trim) {
-    _trim = trim;
-    _diff_limit = 0;
-    _is_attached = false;
+    trim_ = trim;
+    diff_limit_ = 0;
+    is_attached_ = false;
 
-    _samplingPeriod = 30;
-    _period = 2000;
-    _numberSamples = _period / _samplingPeriod;
-    _inc = 2 * M_PI / _numberSamples;
+    sampling_period_ = 30;
+    period_ = 2000;
+    number_samples_ = period_ / sampling_period_;
+    inc_ = 2 * M_PI / number_samples_;
 
-    _amplitude = 45;
-    _phase = 0;
-    _phase0 = 0;
-    _offset = 0;
-    _stop = false;
-    _rev = false;
+    amplitude_ = 45;
+    phase_ = 0;
+    phase0_ = 0;
+    offset_ = 0;
+    stop_ = false;
+    rev_ = false;
 
-    _pos = 90;
-    _previousMillis = 0;
+    pos_ = 90;
+    previous_millis_ = 0;
 }
 
 Oscillator::~Oscillator() {
-    detach();
+    Detach();
 }
 
-uint32_t Oscillator::angle_to_compare(int angle) {
+uint32_t Oscillator::AngleToCompare(int angle) {
     return (angle - SERVO_MIN_DEGREE) * (SERVO_MAX_PULSEWIDTH_US - SERVO_MIN_PULSEWIDTH_US) /
                (SERVO_MAX_DEGREE - SERVO_MIN_DEGREE) +
            SERVO_MIN_PULSEWIDTH_US;
 }
 
-bool Oscillator::next_sample() {
-    _currentMillis = millis();
+bool Oscillator::NextSample() {
+    current_millis_ = millis();
 
-    if (_currentMillis - _previousMillis > _samplingPeriod) {
-        _previousMillis = _currentMillis;
+    if (current_millis_ - previous_millis_ > sampling_period_) {
+        previous_millis_ = current_millis_;
         return true;
     }
 
     return false;
 }
 
-void Oscillator::attach(int pin, bool rev) {
-    if (_is_attached) {
-        detach();
+void Oscillator::Attach(int pin, bool rev) {
+    if (is_attached_) {
+        Detach();
     }
 
-    _pin = pin;
-    _rev = rev;
+    pin_ = pin;
+    rev_ = rev;
 
     ledc_timer_config_t ledc_timer = {.speed_mode = LEDC_LOW_SPEED_MODE,
                                       .duty_resolution = LEDC_TIMER_13_BIT,
@@ -71,83 +71,83 @@ void Oscillator::attach(int pin, bool rev) {
 
     static int last_channel = 0;
     last_channel = (last_channel + 1) % 7 + 1;
-    _ledc_channel = (ledc_channel_t)last_channel;
+    ledc_channel_ = (ledc_channel_t)last_channel;
 
-    ledc_channel_config_t ledc_channel = {.gpio_num = _pin,
+    ledc_channel_config_t ledc_channel = {.gpio_num = pin_,
                                           .speed_mode = LEDC_LOW_SPEED_MODE,
-                                          .channel = _ledc_channel,
+                                          .channel = ledc_channel_,
                                           .intr_type = LEDC_INTR_DISABLE,
                                           .timer_sel = LEDC_TIMER_1,
                                           .duty = 0,
                                           .hpoint = 0};
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-    _ledc_speed_mode = LEDC_LOW_SPEED_MODE;
+    ledc_speed_mode_ = LEDC_LOW_SPEED_MODE;
 
-    _pos = 90;
-    write(_pos);
-    _previousServoCommandMillis = millis();
+    pos_ = 90;
+    Write(pos_);
+    previous_servo_command_millis_ = millis();
 
-    _is_attached = true;
+    is_attached_ = true;
 }
 
-void Oscillator::detach() {
-    if (!_is_attached)
+void Oscillator::Detach() {
+    if (!is_attached_)
         return;
 
-    ESP_ERROR_CHECK(ledc_stop(_ledc_speed_mode, _ledc_channel, 0));
+    ESP_ERROR_CHECK(ledc_stop(ledc_speed_mode_, ledc_channel_, 0));
 
-    _is_attached = false;
+    is_attached_ = false;
 }
 
 void Oscillator::SetT(unsigned int T) {
-    _period = T;
+    period_ = T;
 
-    _numberSamples = _period / _samplingPeriod;
-    _inc = 2 * M_PI / _numberSamples;
+    number_samples_ = period_ / sampling_period_;
+    inc_ = 2 * M_PI / number_samples_;
 }
 
 void Oscillator::SetPosition(int position) {
-    write(position);
+    Write(position);
 }
 
-void Oscillator::refresh() {
-    if (next_sample()) {
-        if (!_stop) {
-            int pos = std::round(_amplitude * std::sin(_phase + _phase0) + _offset);
-            if (_rev)
+void Oscillator::Refresh() {
+    if (NextSample()) {
+        if (!stop_) {
+            int pos = std::round(amplitude_ * std::sin(phase_ + phase0_) + offset_);
+            if (rev_)
                 pos = -pos;
-            write(pos + 90);
+            Write(pos + 90);
         }
 
-        _phase = _phase + _inc;
+        phase_ = phase_ + inc_;
     }
 }
 
-void Oscillator::write(int position) {
-    if (!_is_attached)
+void Oscillator::Write(int position) {
+    if (!is_attached_)
         return;
 
     long currentMillis = millis();
-    if (_diff_limit > 0) {
+    if (diff_limit_ > 0) {
         int limit = std::max(
-            1, (((int)(currentMillis - _previousServoCommandMillis)) * _diff_limit) / 1000);
-        if (abs(position - _pos) > limit) {
-            _pos += position < _pos ? -limit : limit;
+            1, (((int)(currentMillis - previous_servo_command_millis_)) * diff_limit_) / 1000);
+        if (abs(position - pos_) > limit) {
+            pos_ += position < pos_ ? -limit : limit;
         } else {
-            _pos = position;
+            pos_ = position;
         }
     } else {
-        _pos = position;
+        pos_ = position;
     }
-    _previousServoCommandMillis = currentMillis;
+    previous_servo_command_millis_ = currentMillis;
 
-    int angle = _pos + _trim;
+    int angle = pos_ + trim_;
 
     angle = std::min(std::max(angle, 0), 180);
 
     uint32_t duty = (uint32_t)(((angle / 180.0) * 2.0 + 0.5) * 8191 / 20.0);
 
-    ESP_ERROR_CHECK(ledc_set_duty(_ledc_speed_mode, _ledc_channel, duty));
-    ESP_ERROR_CHECK(ledc_update_duty(_ledc_speed_mode, _ledc_channel));
+    ESP_ERROR_CHECK(ledc_set_duty(ledc_speed_mode_, ledc_channel_, duty));
+    ESP_ERROR_CHECK(ledc_update_duty(ledc_speed_mode_, ledc_channel_));
 }
