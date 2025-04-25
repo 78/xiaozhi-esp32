@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "ESP32-S3-LCD-EV-Board",
+            "sdkconfig_append": []
+        }
+    ]
+}
