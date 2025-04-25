@@ -142,6 +142,8 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_ESP32_S3_LCD_EV_Board
+        bool "乐鑫ESP32 S3 LCD EV Board开发板"
 endchoice
 
 choice DISPLAY_OLED_TYPE
