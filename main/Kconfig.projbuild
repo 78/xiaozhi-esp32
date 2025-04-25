@@ -1,10 +1,10 @@
 menu "Xiaozhi Assistant"
 
-config OTA_VERSION_URL
-    string "OTA Version URL"
+config OTA_URL
+    string "Default OTA URL"
     default "https://api.tenclass.net/xiaozhi/ota/"
     help
-        The application will access this URL to check for updates.
+        The application will access this URL to check for new firmwares and server address.
 
 
 choice
@@ -22,32 +22,6 @@ choice
     config LANGUAGE_JA_JP
         bool "Japanese"
 endchoice
-
-
-choice CONNECTION_TYPE
-    prompt "Connection Type"
-    default CONNECTION_TYPE_MQTT_UDP
-    help
-        网络数据传输协议
-    config CONNECTION_TYPE_MQTT_UDP
-        bool "MQTT + UDP"
-    config CONNECTION_TYPE_WEBSOCKET
-        bool "Websocket"
-endchoice
-
-config WEBSOCKET_URL
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket URL"
-    default "wss://api.tenclass.net/xiaozhi/v1/"
-    help
-        Communication with the server through websocket after wake up.
-
-config WEBSOCKET_ACCESS_TOKEN
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket Access Token"
-    default "test-token"
-    help
-        Access token for websocket communication.
 
 choice BOARD_TYPE
     prompt "Board Type"
@@ -144,6 +118,12 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
+    config BOARD_TYPE_ATK_DNESP32S3_BOX0
+        bool "正点原子DNESP32S3-BOX0"
+    config BOARD_TYPE_ATK_DNESP32S3M_WIFI
+        bool "正点原子DNESP32S3M-WIFI"
+    config BOARD_TYPE_ATK_DNESP32S3M_4G
+        bool "正点原子DNESP32S3M-4G"
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"
     config BOARD_TYPE_ESP32S3_Taiji_Pi

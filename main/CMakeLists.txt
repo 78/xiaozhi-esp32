@@ -11,6 +11,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -121,6 +123,12 @@ elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
     set(BOARD_TYPE "atk-dnesp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
+    set(BOARD_TYPE "atk-dnesp32s3-box0")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
+    set(BOARD_TYPE "atk-dnesp32s3m-wifi")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
+    set(BOARD_TYPE "atk-dnesp32s3m-4g")
 elseif(CONFIG_BOARD_TYPE_DU_CHATX)
     set(BOARD_TYPE "du-chatx")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
@@ -151,12 +159,6 @@ file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
-
-if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
-    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
-elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
-    list(APPEND SOURCES "protocols/websocket_protocol.cc")
-endif()
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/audio_processor.cc")
