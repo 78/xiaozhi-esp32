@@ -84,8 +84,8 @@ void Oscillator::Attach(int pin, bool rev) {
 
     ledc_speed_mode_ = LEDC_LOW_SPEED_MODE;
 
-    pos_ = 90;
-    Write(pos_);
+    // pos_ = 90;
+    // Write(pos_);
     previous_servo_command_millis_ = millis();
 
     is_attached_ = true;

@@ -30,6 +30,7 @@ private:
     Otto otto_;
     TaskHandle_t action_task_handle_ = nullptr;
     QueueHandle_t action_queue_;
+    bool has_hands_ = false;
 
     enum ActionType {
         ACTION_WALK = 1,
@@ -45,6 +46,9 @@ private:
         ACTION_ASCENDING_TURN = 11,
         ACTION_CRUSAITO = 12,
         ACTION_FLAPPING = 13,
+        ACTION_HANDS_UP = 14,
+        ACTION_HANDS_DOWN = 15,
+        ACTION_HAND_WAVE = 16
     };
 
     // 限制数值在指定范围内
@@ -71,10 +75,12 @@ private:
 
                 switch (params.action_type) {
                     case ACTION_WALK:
-                        controller->otto_.Walk(params.steps, params.speed, params.direction);
+                        controller->otto_.Walk(params.steps, params.speed, params.direction,
+                                               params.amount);
                         break;
                     case ACTION_TURN:
-                        controller->otto_.Turn(params.steps, params.speed, params.direction);
+                        controller->otto_.Turn(params.steps, params.speed, params.direction,
+                                               params.amount);
                         break;
                     case ACTION_JUMP:
                         controller->otto_.Jump(params.steps, params.speed);
@@ -112,32 +118,52 @@ private:
                         controller->otto_.Flapping(params.steps, params.speed, params.amount,
                                                    params.direction);
                         break;
+                    case ACTION_HANDS_UP:
+                        if (controller->has_hands_) {
+                            controller->otto_.HandsUp(params.speed, params.direction);
+                        }
+                        break;
+                    case ACTION_HANDS_DOWN:
+                        if (controller->has_hands_) {
+                            controller->otto_.HandsDown(params.speed, params.direction);
+                        }
+                        break;
+                    case ACTION_HAND_WAVE:
+                        if (controller->has_hands_) {
+                            controller->otto_.HandWave(params.speed, params.direction);
+                        }
+                        break;
                 }
-
-                controller->otto_.Home();
+                vTaskDelay(pdMS_TO_TICKS(200));
+                controller->otto_.Home(params.action_type < ACTION_HANDS_UP);
 
             } else {
                 if (uxQueueMessagesWaiting(controller->action_queue_) == 0) {
                     ESP_LOGI(TAG, "动作队列为空，任务完成");
-                    controller->otto_.Home();
-                    controller->action_task_handle_ = nullptr;
+                    controller->otto_.Home(false);
+                    vTaskDelay(pdMS_TO_TICKS(500));
                     controller->otto_.DetachServos();
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    controller->action_task_handle_ = nullptr;
                     vTaskDelete(NULL);
                     break;
                 }
             }
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
 
 public:
     OttoController() : Thing("OttoController", "Otto机器人的控制器") {
-        otto_.Init(LEFT_LEG_PIN, RIGHT_LEG_PIN, LEFT_FOOT_PIN, RIGHT_FOOT_PIN);
-        otto_.Home();
+        otto_.Init(LEFT_LEG_PIN, RIGHT_LEG_PIN, LEFT_FOOT_PIN, RIGHT_FOOT_PIN, LEFT_HAND_PIN,
+                   RIGHT_HAND_PIN);
 
+        has_hands_ = (LEFT_HAND_PIN != -1 && RIGHT_HAND_PIN != -1);
+        ESP_LOGI(TAG, "Otto机器人初始化%s手部舵机", has_hands_ ? "带" : "不带");
+
+        otto_.Home(true);  // 初始化时完全复位，包括手部
         action_queue_ = xQueueCreate(10, sizeof(OttoActionParams));
 
-        // 定义设备可以被远程执行的指令
         methods_.AddMethod("suspend", "清空动作队列,中断Otto机器人动作", ParameterList(),
                            [this](const ParameterList& parameters) {
                                ESP_LOGI(TAG, "停止Otto机器人动作");
@@ -146,7 +172,7 @@ public:
                                    action_task_handle_ = nullptr;
                                }
                                xQueueReset(action_queue_);
-                               otto_.Home();
+                               otto_.Home(true);  // 中断动作时完全复位
                            });
 
         methods_.AddMethod(
@@ -154,17 +180,21 @@ public:
             ParameterList(
                 {Parameter("action_type",
                            "动作类型: 1=行走(前后), 2=转向（左右）, 3=跳跃, 4=摇摆, 5=太空步, "
-                           "6=弯曲, 7=摇腿, "
-                           "8=上下运动, 9=脚尖摇摆, 10=抖动, 11=上升转弯, 12=十字步, 13=拍打",
+                           "6=弯曲, 7=摇腿, 8=上下运动, 9=脚尖摇摆, 10=抖动, 11=上升转弯, "
+                           "12=十字步, 13=拍打, 14=举手(左、右、同时), 15=放手(左、右、同时), "
+                           "16=挥手(左、右、同时)",
                            kValueTypeNumber, false),
                  Parameter("steps", "步数", kValueTypeNumber, false),
                  Parameter("speed", "速度 (越小越快500-3000)默认1000", kValueTypeNumber, false),
-                 Parameter("direction", "方向 (1=左/前, -1=右/后)", kValueTypeNumber, true),
-                 Parameter(
-                     "amount",
-                     "动作幅度(最小10) 每个动作限制不一样:摇摆10-50, 太空步15-40"
-                     "上下运动10-50, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, 拍打10-30",
-                     kValueTypeNumber, true)}),
+                 Parameter("direction", "方向 (1=左, -1=右, 0=同时)", kValueTypeNumber, true),
+                 Parameter("amount",
+                           "动作幅度(最小10),"
+                           "行走时amount=0表示不摆动双手否则幅度50-170,转向时同理,"
+                           "其他动作限制不一样:摇摆10-"
+                           "50, 太空步15-40"
+                           "上下运动10-50, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, "
+                           "拍打10-30",
+                           kValueTypeNumber, true)}),
             [this](const ParameterList& parameters) {
                 int action_type = parameters["action_type"].number();
                 int steps = parameters["steps"].number();
@@ -172,12 +202,18 @@ public:
                 int direction = parameters["direction"].number();
                 int amount = parameters["amount"].number();
 
-                action_type = Limit(action_type, ACTION_WALK, ACTION_FLAPPING);
+                action_type = Limit(action_type, ACTION_WALK, ACTION_HAND_WAVE);
                 steps = Limit(steps, 1, 100);
                 speed = Limit(speed, 500, 3000);
                 direction = Limit(direction, -1, 1);
 
                 switch (action_type) {
+                    case ACTION_WALK:
+                        amount = Limit(amount, 0, 170);
+                        break;
+                    case ACTION_TURN:
+                        amount = Limit(amount, 0, 170);
+                        break;
                     case ACTION_SWING:
                         amount = Limit(amount, 10, 50);
                         break;
@@ -206,6 +242,12 @@ public:
                         amount = Limit(amount, 10, 50);
                 }
 
+                if ((action_type >= ACTION_HANDS_UP && action_type <= ACTION_HAND_WAVE) &&
+                    !has_hands_) {
+                    ESP_LOGW(TAG, "尝试执行手部动作，但机器人没有配置手部舵机");
+                    return;
+                }
+
                 ESP_LOGI(TAG, "AI控制: 动作类型=%d, 步数=%d, 速度=%d, 方向=%d, 幅度=%d",
                          action_type, steps, speed, direction, amount);
 
@@ -224,7 +266,7 @@ public:
 
     void StartActionTaskIfNeeded() {
         if (action_task_handle_ == nullptr) {
-            xTaskCreate(ActionTask, "otto_action", 1024 * 3, this, 2, &action_task_handle_);
+            xTaskCreate(ActionTask, "otto_action", 1024 * 3, this, 4, &action_task_handle_);
         }
     }
 
