@@ -1,10 +1,10 @@
 menu "Xiaozhi Assistant"
 
-config OTA_VERSION_URL
-    string "OTA Version URL"
+config OTA_URL
+    string "Default OTA URL"
     default "https://api.tenclass.net/xiaozhi/ota/"
     help
-        The application will access this URL to check for updates.
+        The application will access this URL to check for new firmwares and server address.
 
 
 choice
@@ -22,32 +22,6 @@ choice
     config LANGUAGE_JA_JP
         bool "Japanese"
 endchoice
-
-
-choice CONNECTION_TYPE
-    prompt "Connection Type"
-    default CONNECTION_TYPE_MQTT_UDP
-    help
-        网络数据传输协议
-    config CONNECTION_TYPE_MQTT_UDP
-        bool "MQTT + UDP"
-    config CONNECTION_TYPE_WEBSOCKET
-        bool "Websocket"
-endchoice
-
-config WEBSOCKET_URL
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket URL"
-    default "wss://api.tenclass.net/xiaozhi/v1/"
-    help
-        Communication with the server through websocket after wake up.
-
-config WEBSOCKET_ACCESS_TOKEN
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket Access Token"
-    default "test-token"
-    help
-        Access token for websocket communication.
 
 choice BOARD_TYPE
     prompt "Board Type"
@@ -114,6 +88,8 @@ choice BOARD_TYPE
         bool "ESP32S3_KORVO2_V3开发板"
     config BOARD_TYPE_ESP_SPARKBOT
         bool "ESP-SparkBot开发板"
+    config BOARD_TYPE_ESP_SPOT_S3
+        bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
@@ -138,6 +114,12 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
         bool "正点原子DNESP32S3-BOX"
+    config BOARD_TYPE_ATK_DNESP32S3_BOX0
+        bool "正点原子DNESP32S3-BOX0"
+    config BOARD_TYPE_ATK_DNESP32S3M_WIFI
+        bool "正点原子DNESP32S3M-WIFI"
+    config BOARD_TYPE_ATK_DNESP32S3M_4G
+        bool "正点原子DNESP32S3M-4G"
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"
     config BOARD_TYPE_ESP32S3_Taiji_Pi
@@ -172,6 +154,10 @@ choice BOARD_TYPE
         bool "凡诚1.8 4G(ML307) M"
     config BOARD_TYPE_FANCHENG_1_8LCD_WIFI_M
         bool "凡诚1.8 WIFI M"
+    config BOARD_TYPE_DOIT_S3_AIBOX
+        bool "四博智联AI陪伴盒子"
+    config BOARD_TYPE_MIXGO_NOVA
+        bool "元控·青春"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -263,7 +249,7 @@ config USE_AUDIO_PROCESSOR
 config USE_REALTIME_CHAT
     bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
     default n
-    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
     help
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
         
