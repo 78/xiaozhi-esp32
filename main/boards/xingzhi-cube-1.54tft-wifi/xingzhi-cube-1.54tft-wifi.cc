@@ -158,8 +158,12 @@ private:
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
         {
             .text_font = &font_NatoSans_16_4_all,
-            .icon_font = &font_awesome_16_4,
+            .icon_font = &font_awesome_20_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+            .emoji_font = font_emoji_32_init(),
+#else
             .emoji_font = font_emoji_64_init(),
+#endif
         });
     }
 

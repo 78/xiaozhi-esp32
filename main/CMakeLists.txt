@@ -2,6 +2,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8374_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -10,6 +11,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -39,7 +42,7 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32_LCD)
-    set(BOARD_TYPE "bread-compact-esp32-lcd")    
+    set(BOARD_TYPE "bread-compact-esp32-lcd")
 elseif(CONFIG_BOARD_TYPE_DF_K10)
     set(BOARD_TYPE "df-k10")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)
@@ -88,6 +91,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     set(BOARD_TYPE "esp32s3-korvo2-v3")
 elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
     set(BOARD_TYPE "esp-sparkbot")
+elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
+    set(BOARD_TYPE "esp-spot-s3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -96,6 +101,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.85")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.46")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_5)
+    set(BOARD_TYPE "esp32-s3-touch-lcd-3.5")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
@@ -106,14 +113,26 @@ elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
     set(BOARD_TYPE "lilygo-t-cameraplus-s3")
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BOARD_TYPE "movecall-moji-esp32s3")
+    elseif(CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3)
+    set(BOARD_TYPE "movecall-cuican-esp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
     set(BOARD_TYPE "atk-dnesp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
+    set(BOARD_TYPE "atk-dnesp32s3-box0")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
+    set(BOARD_TYPE "atk-dnesp32s3m-wifi")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
+    set(BOARD_TYPE "atk-dnesp32s3m-4g")
 elseif(CONFIG_BOARD_TYPE_DU_CHATX)
     set(BOARD_TYPE "du-chatx")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
     set(BOARD_TYPE "taiji-pi-s3")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI)
+    set(BOARD_TYPE "xingzhi-cube-0.85tft-wifi")
+elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_85TFT_ML307)
+    set(BOARD_TYPE "xingzhi-cube-0.85tft-ml307")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI)
     set(BOARD_TYPE "xingzhi-cube-0.96oled-wifi")
 elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307)
@@ -124,20 +143,18 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307)
     set(BOARD_TYPE "xingzhi-cube-1.54tft-ml307")
 elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
+elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
+    set(BOARD_TYPE "doit-s3-aibox")
+elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
+    set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
-    set(BOARD_TYPE "esp32-cgc")  
+    set(BOARD_TYPE "esp32-cgc")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
-
-if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
-    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
-elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
-    list(APPEND SOURCES "protocols/websocket_protocol.cc")
-endif()
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/audio_processor.cc")

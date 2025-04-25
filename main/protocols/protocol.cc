@@ -49,7 +49,7 @@ void Protocol::SendWakeWordDetected(const std::string& wake_word) {
 void Protocol::SendStartListening(ListeningMode mode) {
     std::string message = "{\"session_id\":\"" + session_id_ + "\"";
     message += ",\"type\":\"listen\",\"state\":\"start\"";
-    if (mode == kListeningModeAlwaysOn) {
+    if (mode == kListeningModeRealtime) {
         message += ",\"mode\":\"realtime\"";
     } else if (mode == kListeningModeAutoStop) {
         message += ",\"mode\":\"auto\"";
@@ -124,5 +124,9 @@ bool Protocol::IsTimeout() const {
         ESP_LOGE(TAG, "Channel timeout %lld seconds", duration.count());
     }
     return timeout;
+}
+
+bool Protocol::IsAudioChannelBusy() const {
+    return busy_sending_audio_;
 }
 
