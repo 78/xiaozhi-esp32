@@ -2,6 +2,7 @@
 #include "board.h"
 #include "system_info.h"
 #include "application.h"
+#include "settings.h"
 
 #include <cstring>
 #include <cJSON.h>
@@ -22,7 +23,9 @@ WebsocketProtocol::~WebsocketProtocol() {
     vEventGroupDelete(event_group_handle_);
 }
 
-void WebsocketProtocol::Start() {
+bool WebsocketProtocol::Start() {
+    // Only connect to server when audio channel is needed
+    return true;
 }
 
 void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
@@ -30,18 +33,23 @@ void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
         return;
     }
 
+    busy_sending_audio_ = true;
     websocket_->Send(data.data(), data.size(), true);
+    busy_sending_audio_ = false;
 }
 
-void WebsocketProtocol::SendText(const std::string& text) {
+bool WebsocketProtocol::SendText(const std::string& text) {
     if (websocket_ == nullptr) {
-        return;
+        return false;
     }
 
     if (!websocket_->Send(text)) {
         ESP_LOGE(TAG, "Failed to send text: %s", text.c_str());
         SetError(Lang::Strings::SERVER_ERROR);
+        return false;
     }
+
+    return true;
 }
 
 bool WebsocketProtocol::IsAudioChannelOpened() const {
@@ -60,9 +68,18 @@ bool WebsocketProtocol::OpenAudioChannel() {
         delete websocket_;
     }
 
+    Settings settings("websocket", false);
+    std::string url = settings.GetString("url");
+    std::string token = settings.GetString("token");
+
+    busy_sending_audio_ = false;
     error_occurred_ = false;
-    std::string url = CONFIG_WEBSOCKET_URL;
-    std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
+    
+    // If token not starts with "Bearer " or "bearer ", add it
+    if (token.empty() || (token.find("Bearer ") != 0 && token.find("bearer ") != 0)) {
+        token = "Bearer " + token;
+    }
+
     websocket_ = Board::GetInstance().CreateWebSocket();
     websocket_->SetHeader("Authorization", token.c_str());
     websocket_->SetHeader("Protocol-Version", "1");
@@ -101,6 +118,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
         }
     });
 
+    ESP_LOGI(TAG, "Connecting to websocket server: %s with token: %s", url.c_str(), token.c_str());
     if (!websocket_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         SetError(Lang::Strings::SERVER_NOT_FOUND);
@@ -116,7 +134,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
-    websocket_->Send(message);
+    if (!SendText(message)) {
+        return false;
+    }
 
     // Wait for server hello
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));

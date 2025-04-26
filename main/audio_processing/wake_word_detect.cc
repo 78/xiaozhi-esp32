@@ -83,7 +83,9 @@ void WakeWordDetect::StartDetection() {
 
 void WakeWordDetect::StopDetection() {
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
-    afe_iface_->reset_buffer(afe_data_);
+    if (afe_data_ != nullptr) {
+        afe_iface_->reset_buffer(afe_data_);
+    }
 }
 
 bool WakeWordDetect::IsDetectionRunning() {
@@ -91,10 +93,16 @@ bool WakeWordDetect::IsDetectionRunning() {
 }
 
 void WakeWordDetect::Feed(const std::vector<int16_t>& data) {
+    if (afe_data_ == nullptr) {
+        return;
+    }
     afe_iface_->feed(afe_data_, data.data());
 }
 
 size_t WakeWordDetect::GetFeedSize() {
+    if (afe_data_ == nullptr) {
+        return 0;
+    }
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
