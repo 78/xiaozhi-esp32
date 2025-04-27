@@ -22,7 +22,7 @@
 
 #define TAG "waveshare_lcd_1_46"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_NatoSans_16_4_all);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
@@ -50,7 +50,7 @@ public:
         : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
-                        .text_font = &font_puhui_16_4,
+                        .text_font = &font_NatoSans_16_4_all,
                         .icon_font = &font_awesome_16_4,
                         .emoji_font = font_emoji_64_init(),
                     }) {
@@ -217,6 +217,7 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("SendUDP"));
     }
 
 public:

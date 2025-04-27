@@ -20,8 +20,8 @@
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_NatoSans_16_4_all);
+LV_FONT_DECLARE(font_awesome_16_4);
 
 
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
@@ -157,7 +157,7 @@ private:
         display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
         {
-            .text_font = &font_puhui_20_4,
+            .text_font = &font_NatoSans_16_4_all,
             .icon_font = &font_awesome_20_4,
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
             .emoji_font = font_emoji_32_init(),
@@ -172,6 +172,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+        thing_manager.AddThing(iot::CreateThing("Aircon"));
     }
 
 public:
