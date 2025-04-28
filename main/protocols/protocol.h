@@ -5,6 +5,21 @@
 #include <string>
 #include <functional>
 #include <chrono>
+#include <vector>
+
+struct AudioStreamPacket {
+    uint32_t timestamp;
+    std::vector<uint8_t> payload;
+};
+
+struct BinaryProtocol2 {
+    uint16_t version;
+    uint16_t type;          // Message type (0: OPUS, 1: JSON)
+    uint32_t reserved;      // Reserved for future use
+    uint32_t timestamp;     // Timestamp in milliseconds (used for server-side AEC)
+    uint32_t payload_size;  // Payload size in bytes
+    uint8_t payload[];      // Payload data
+} __attribute__((packed));
 
 struct BinaryProtocol3 {
     uint8_t type;
