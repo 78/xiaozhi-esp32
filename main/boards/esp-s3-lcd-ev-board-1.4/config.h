@@ -3,10 +3,6 @@
 
 #include <driver/gpio.h>
 
-// #define AUDIO_INPUT_SAMPLE_RATE  16000
-// #define AUDIO_OUTPUT_SAMPLE_RATE 16000
-
-//固件1.6.1版本后服务器采样率为24000 兼容修改为24000
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
