@@ -149,8 +149,8 @@ elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
     set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
-elseif(CONFIG_BOARD_TYPE_ESP32_S3_LCD_EV_Board)
-    set(BOARD_TYPE "ESP32-S3-LCD-EV-Board")
+elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board_1_4)
+    set(BOARD_TYPE "esp-s3-lcd-ev-board-1.4")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
