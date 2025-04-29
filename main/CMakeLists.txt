@@ -157,7 +157,9 @@ file(GLOB BOARD_SOURCES
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
-    list(APPEND SOURCES "audio_processing/audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
+else()
+    list(APPEND SOURCES "audio_processing/dummy_audio_processor.cc")
 endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
