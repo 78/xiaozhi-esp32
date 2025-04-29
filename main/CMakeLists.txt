@@ -152,7 +152,9 @@ elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
 elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
     set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
-    set(BOARD_TYPE "esp32-cgc")
+    set(BOARD_TYPE "esp32-cgc")  
+elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
+    set(BOARD_TYPE "otto-robot")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -185,6 +187,13 @@ set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
+
+# 启用 GIF 表情时添加 GIF 源文件
+if(CONFIG_USE_GIF_EMOTION_STYLE)
+    file(GLOB GIF_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/assets/gif/*.c)
+    list(APPEND SOURCES ${GIF_SOURCES})
+endif()
+
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
