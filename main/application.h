@@ -107,7 +107,8 @@ private:
     TaskHandle_t audio_loop_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
-    std::list<std::vector<uint8_t>> audio_decode_queue_;
+    std::atomic<uint32_t> last_output_timestamp_ = 0;
+    std::list<AudioStreamPacket> audio_decode_queue_;
     std::condition_variable audio_decode_cv_;
 
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;

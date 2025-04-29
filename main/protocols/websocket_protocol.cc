@@ -28,14 +28,42 @@ bool WebsocketProtocol::Start() {
     return true;
 }
 
-void WebsocketProtocol::SendAudio(const std::vector<uint8_t>& data) {
+void WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
     if (websocket_ == nullptr) {
         return;
     }
 
-    busy_sending_audio_ = true;
-    websocket_->Send(data.data(), data.size(), true);
-    busy_sending_audio_ = false;
+    if (version_ == 2) {
+        std::string serialized;
+        serialized.resize(sizeof(BinaryProtocol2) + packet.payload.size());
+        auto bp2 = (BinaryProtocol2*)serialized.data();
+        bp2->version = htons(version_);
+        bp2->type = 0;
+        bp2->reserved = 0;
+        bp2->timestamp = htonl(packet.timestamp);
+        bp2->payload_size = htonl(packet.payload.size());
+        memcpy(bp2->payload, packet.payload.data(), packet.payload.size());
+
+        busy_sending_audio_ = true;
+        websocket_->Send(serialized.data(), serialized.size(), true);
+        busy_sending_audio_ = false;
+    } else if (version_ == 3) {
+        std::string serialized;
+        serialized.resize(sizeof(BinaryProtocol3) + packet.payload.size());
+        auto bp3 = (BinaryProtocol3*)serialized.data();
+        bp3->type = 0;
+        bp3->reserved = 0;
+        bp3->payload_size = htons(packet.payload.size());
+        memcpy(bp3->payload, packet.payload.data(), packet.payload.size());
+
+        busy_sending_audio_ = true;
+        websocket_->Send(serialized.data(), serialized.size(), true);
+        busy_sending_audio_ = false;
+    } else {
+        busy_sending_audio_ = true;
+        websocket_->Send(packet.payload.data(), packet.payload.size(), true);
+        busy_sending_audio_ = false;
+    }
 }
 
 bool WebsocketProtocol::SendText(const std::string& text) {
@@ -71,25 +99,56 @@ bool WebsocketProtocol::OpenAudioChannel() {
     Settings settings("websocket", false);
     std::string url = settings.GetString("url");
     std::string token = settings.GetString("token");
+    int version = settings.GetInt("version");
+    if (version != 0) {
+        version_ = version;
+    }
 
     busy_sending_audio_ = false;
     error_occurred_ = false;
-    
-    // If token not starts with "Bearer " or "bearer ", add it
-    if (token.empty() || (token.find("Bearer ") != 0 && token.find("bearer ") != 0)) {
-        token = "Bearer " + token;
-    }
 
     websocket_ = Board::GetInstance().CreateWebSocket();
-    websocket_->SetHeader("Authorization", token.c_str());
-    websocket_->SetHeader("Protocol-Version", "1");
+    
+    if (!token.empty()) {
+        // If token not has a space, add "Bearer " prefix
+        if (token.find(" ") == std::string::npos) {
+            token = "Bearer " + token;
+        }
+        websocket_->SetHeader("Authorization", token.c_str());
+    }
+    websocket_->SetHeader("Protocol-Version", std::to_string(version_).c_str());
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
             if (on_incoming_audio_ != nullptr) {
-                on_incoming_audio_(std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len));
+                if (version_ == 2) {
+                    BinaryProtocol2* bp2 = (BinaryProtocol2*)data;
+                    bp2->version = ntohs(bp2->version);
+                    bp2->type = ntohs(bp2->type);
+                    bp2->timestamp = ntohl(bp2->timestamp);
+                    bp2->payload_size = ntohl(bp2->payload_size);
+                    auto payload = (uint8_t*)bp2->payload;
+                    on_incoming_audio_(AudioStreamPacket{
+                        .timestamp = bp2->timestamp,
+                        .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)
+                    });
+                } else if (version_ == 3) {
+                    BinaryProtocol3* bp3 = (BinaryProtocol3*)data;
+                    bp3->type = bp3->type;
+                    bp3->payload_size = ntohs(bp3->payload_size);
+                    auto payload = (uint8_t*)bp3->payload;
+                    on_incoming_audio_(AudioStreamPacket{
+                        .timestamp = 0,
+                        .payload = std::vector<uint8_t>(payload, payload + bp3->payload_size)
+                    });
+                } else {
+                    on_incoming_audio_(AudioStreamPacket{
+                        .timestamp = 0,
+                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)
+                    });
+                }
             }
         } else {
             // Parse JSON data
@@ -118,7 +177,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
         }
     });
 
-    ESP_LOGI(TAG, "Connecting to websocket server: %s with token: %s", url.c_str(), token.c_str());
+    ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_);
     if (!websocket_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server");
         SetError(Lang::Strings::SERVER_NOT_FOUND);
@@ -129,7 +188,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     // keys: message type, version, audio_params (format, sample_rate, channels)
     std::string message = "{";
     message += "\"type\":\"hello\",";
-    message += "\"version\": 1,";
+    message += "\"version\": " + std::to_string(version_) + ",";
     message += "\"transport\":\"websocket\",";
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
