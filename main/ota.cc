@@ -380,7 +380,6 @@ bool Ota::IsNewVersionAvailable(const std::string& currentVersion, const std::st
 
 std::string Ota::GetActivationPayload() {
     if (!has_serial_number_) {
-        ESP_LOGI(TAG, "No serial number found");
         return "{}";
     }
 
