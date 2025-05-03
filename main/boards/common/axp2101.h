@@ -10,6 +10,7 @@ public:
     bool IsDischarging();
     bool IsChargingDone();
     int GetBatteryLevel();
+    float GetESP32Temp();
     void PowerOff();
 
 private:

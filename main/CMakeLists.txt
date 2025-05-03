@@ -149,6 +149,8 @@ elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
     set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
+    set(BOARD_TYPE "zhengchen-1.54tft-wifi")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
