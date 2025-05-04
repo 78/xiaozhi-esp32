@@ -129,6 +129,7 @@ void MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
 
     std::string nonce(aes_nonce_);
     *(uint16_t*)&nonce[2] = htons(packet.payload.size());
+    *(uint32_t*)&nonce[8] = htonl(packet.timestamp);
     *(uint32_t*)&nonce[12] = htonl(++local_sequence_);
 
     std::string encrypted;
@@ -220,6 +221,7 @@ bool MqttProtocol::OpenAudioChannel() {
             ESP_LOGE(TAG, "Invalid audio packet type: %x", data[0]);
             return;
         }
+        uint32_t timestamp = ntohl(*(uint32_t*)&data[8]);
         uint32_t sequence = ntohl(*(uint32_t*)&data[12]);
         if (sequence < remote_sequence_) {
             ESP_LOGW(TAG, "Received audio packet with old sequence: %lu, expected: %lu", sequence, remote_sequence_);
@@ -235,6 +237,7 @@ bool MqttProtocol::OpenAudioChannel() {
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
         AudioStreamPacket packet;
+        packet.timestamp = timestamp;
         packet.payload.resize(decrypted_size);
         int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet.payload.data());
         if (ret != 0) {

@@ -1,16 +1,16 @@
-#include "audio_processor.h"
+#include "afe_audio_processor.h"
 #include <esp_log.h>
 
 #define PROCESSOR_RUNNING 0x01
 
-static const char* TAG = "AudioProcessor";
+static const char* TAG = "AfeAudioProcessor";
 
-AudioProcessor::AudioProcessor()
+AfeAudioProcessor::AfeAudioProcessor()
     : afe_data_(nullptr) {
     event_group_ = xEventGroupCreate();
 }
 
-void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
+void AfeAudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     codec_ = codec;
     int ref_num = codec_->input_reference() ? 1 : 0;
 
@@ -51,57 +51,57 @@ void AudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     afe_data_ = afe_iface_->create_from_config(afe_config);
     
     xTaskCreate([](void* arg) {
-        auto this_ = (AudioProcessor*)arg;
+        auto this_ = (AfeAudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
     }, "audio_communication", 4096, this, 3, NULL);
 }
 
-AudioProcessor::~AudioProcessor() {
+AfeAudioProcessor::~AfeAudioProcessor() {
     if (afe_data_ != nullptr) {
         afe_iface_->destroy(afe_data_);
     }
     vEventGroupDelete(event_group_);
 }
 
-size_t AudioProcessor::GetFeedSize() {
+size_t AfeAudioProcessor::GetFeedSize() {
     if (afe_data_ == nullptr) {
         return 0;
     }
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
-void AudioProcessor::Feed(const std::vector<int16_t>& data) {
+void AfeAudioProcessor::Feed(const std::vector<int16_t>& data) {
     if (afe_data_ == nullptr) {
         return;
     }
     afe_iface_->feed(afe_data_, data.data());
 }
 
-void AudioProcessor::Start() {
+void AfeAudioProcessor::Start() {
     xEventGroupSetBits(event_group_, PROCESSOR_RUNNING);
 }
 
-void AudioProcessor::Stop() {
+void AfeAudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
     }
 }
 
-bool AudioProcessor::IsRunning() {
+bool AfeAudioProcessor::IsRunning() {
     return xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING;
 }
 
-void AudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
+void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
     output_callback_ = callback;
 }
 
-void AudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
+void AfeAudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
     vad_state_change_callback_ = callback;
 }
 
-void AudioProcessor::AudioProcessorTask() {
+void AfeAudioProcessor::AudioProcessorTask() {
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
     ESP_LOGI(TAG, "Audio communication task started, feed size: %d fetch size: %d",
@@ -136,4 +136,4 @@ void AudioProcessor::AudioProcessorTask() {
             output_callback_(std::vector<int16_t>(res->data, res->data + res->data_size / sizeof(int16_t)));
         }
     }
-}
+} 

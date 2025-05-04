@@ -105,7 +105,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
          bool "LILYGO T-Circle-S3"
     config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
-         bool "LILYGO T-CameraPlus-S3"      
+        bool "LILYGO T-CameraPlus-S3"
+    config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
+        bool "LILYGO T-Display-S3-Pro-MVSRLora"
+    config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
+        bool "LILYGO T-Display-S3-Pro-MVSRLora_No_Battery"
     config BOARD_TYPE_MOLUNSMARTHOME_ESP32S3
          bool "默语小智管家ESP32S3版" 
     config BOARD_TYPE_MOLUNSMARTHOME_ESP32
@@ -146,6 +150,20 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_ESP_S3_LCD_EV_Board
+        bool "乐鑫ESP S3 LCD EV Board开发板"
+endchoice
+
+choice ESP_S3_LCD_EV_Board_Version_TYPE
+    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
+    prompt "EV_BOARD Type"
+    default ESP_S3_LCD_EV_Board_1p4
+    help
+        开发板硬件版本型号选择
+    config ESP_S3_LCD_EV_Board_1p4
+        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.4"
+    config ESP_S3_LCD_EV_Board_1p5
+        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.5"
 endchoice
 
 choice DISPLAY_OLED_TYPE
