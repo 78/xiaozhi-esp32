@@ -227,3 +227,9 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_USE_QUAGSIRE_THEME)
+    #lvgl_port_create_c_image("assets/theme/quagsire/thinking.png" "assets/theme/quagsire/gen/" "I4" "NONE")
+    #lvgl_port_create_c_image("assets/theme/quagsire/background.png" "assets/theme/quagsire/gen/" "RGB565" "NONE")
+    lvgl_port_add_images(${COMPONENT_LIB} "assets/theme/quagsire/gen/")
+endif()

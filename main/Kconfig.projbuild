@@ -254,5 +254,10 @@ config USE_REALTIME_CHAT
     depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
     help
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
-        
+
+config USE_QUAGSIRE_THEME
+    bool "Quagsire Theme"
+    default n
+    help
+        Best theme ever!
 endmenu
