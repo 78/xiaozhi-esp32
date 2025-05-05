@@ -162,6 +162,8 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_GenJuTech_s3_1_54TFT
+        bool "亘具科技1.54(s3)"
 endchoice
 
 choice DISPLAY_OLED_TYPE
