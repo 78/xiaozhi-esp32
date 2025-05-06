@@ -55,4 +55,4 @@ void* create_board() { \
     return new BOARD_CLASS_NAME(); \
 }
 
-#endif // BOARD_H
+#endif  // BOARD_H
