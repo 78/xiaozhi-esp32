@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "coolkit-xz-01",
+            "sdkconfig_append": []
+        }
+    ]
+}
