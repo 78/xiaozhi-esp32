@@ -14,6 +14,7 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
+#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -86,12 +87,22 @@ private:
     }
 
     void InitializeButtons() {
+        boot_button_.OnPressDown([this]() {
+            auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+        });
+
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             app.ToggleChatState();
         });
-
 
         boot_button_.OnLongPress([this]() {
             SwitchNetType();
@@ -182,7 +193,7 @@ private:
 public:
     XINGZHI_CUBE_1_54TFT_DUAL() :
         DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
-        boot_button_(BOOT_BUTTON_GPIO),
+        boot_button_(BOOT_BUTTON_GPIO, false, 3000),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializePowerManager();
