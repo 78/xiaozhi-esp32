@@ -111,10 +111,6 @@ private:
 
     void InitializeButtons() {
         /* Initialize ADC  esp-box lite的前三个按钮采用是的adc按钮，而非gpio */
-        button_config_t btn_config = {
-            .long_press_time = 2000,
-            .short_press_time = 50,
-        };
         button_adc_config_t adc_cfg = {};
         adc_cfg.adc_channel = ADC_CHANNEL_0; // ADC1 channel 0 is GPIO1
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)        
@@ -127,21 +123,18 @@ private:
         adc_cfg.button_index = BSP_ADC_BUTTON_PREV;
         adc_cfg.min = 2310; // middle is 2410mV
         adc_cfg.max = 2510;
-        ESP_ERROR_CHECK(iot_button_new_adc_device(&btn_config, &adc_cfg, &adc_button_[0]));
-        adc_button_[0] = new Button(adc_button_[0]);
+        adc_button_[0] = new AdcButton(adc_cfg);
 
         adc_cfg.button_index = BSP_ADC_BUTTON_ENTER;
         adc_cfg.min = 1880; // middle is 1980mV
         adc_cfg.max = 2080;
-        ESP_ERROR_CHECK(iot_button_new_adc_device(&btn_config, &adc_cfg, &adc_button_[1]));
-        adc_button_[1] = new Button(adc_button_[1]);
+        adc_button_[1] = new AdcButton(adc_cfg);
 
         adc_cfg.button_index = BSP_ADC_BUTTON_NEXT;
         adc_cfg.min = 720; // middle is 820mV
         adc_cfg.max = 920;
 
-        ESP_ERROR_CHECK(iot_button_new_adc_device(&btn_config, &adc_cfg, &adc_button_[2]));
-        adc_button_[2] = new Button(adc_button_[2]);
+        adc_button_[2] = new AdcButton(adc_cfg);
 
         auto volume_up_button = adc_button_[BSP_ADC_BUTTON_NEXT];
         volume_up_button->OnClick([this]() {ChangeVol(10);});
