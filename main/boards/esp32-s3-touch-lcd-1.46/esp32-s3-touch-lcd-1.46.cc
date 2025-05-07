@@ -173,7 +173,7 @@ private:
         // Boot Button
         button_config_t boot_btn_config = {
             .long_press_time = 2000,
-            .short_press_time = 50
+            .short_press_time = 0
         };
         button_driver_t boot_btn_driver = {
             .enable_power_save = false,
@@ -195,7 +195,7 @@ private:
         // Power Button
         button_config_t pwr_btn_config = {
             .long_press_time = 5000,
-            .short_press_time = 50
+            .short_press_time = 0
         };
         button_driver_t pwr_btn_driver = {
             .enable_power_save = false,

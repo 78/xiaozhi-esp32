@@ -111,7 +111,7 @@ private:
         // Button A
         button_config_t btn_a_config = {
             .long_press_time = 1000,
-            .short_press_time = 50
+            .short_press_time = 0
         };
         button_driver_t btn_a_driver = {
             .enable_power_save = false,
@@ -140,7 +140,7 @@ private:
         // Button B
         button_config_t btn_b_config = {
             .long_press_time = 1000,
-            .short_press_time = 50
+            .short_press_time = 0
         };
         button_driver_t btn_b_driver = {
             .enable_power_save = false,
