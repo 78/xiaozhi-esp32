@@ -107,8 +107,6 @@ bool Ota::CheckVersion() {
         return false;
     }
 
-    ESP_LOGI(TAG, "OTA request success: %s", check_version_url_.c_str());
-
     has_activation_code_ = false;
     has_activation_challenge_ = false;
     cJSON *activation = cJSON_GetObjectItem(root, "activation");
