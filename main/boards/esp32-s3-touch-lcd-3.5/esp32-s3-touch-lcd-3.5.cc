@@ -251,8 +251,8 @@ public:
         InitializeAxp2101();
         InitializeSpi();
         InitializeLcdDisplay();
-        if (esp_reset_reason() == ESP_RST_POWERON)
-        {
+        // 解决部分开机黑屏的问题
+        if (esp_reset_reason() == ESP_RST_POWERON) {
             fflush(stdout);
             esp_restart();
         }
