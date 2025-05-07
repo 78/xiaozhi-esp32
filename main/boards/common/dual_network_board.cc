@@ -42,14 +42,18 @@ void DualNetworkBoard::InitializeCurrentBoard() {
     }
 }
 
-void DualNetworkBoard::SwitchNetType() {
+void DualNetworkBoard::SwitchNetworkType() {
+    auto display = GetDisplay();
     if (network_type_ == NetworkType::WIFI) {    
-        ESP_LOGI(TAG, "Switch to ML307 mode");
         SaveNetworkTypeToSettings(NetworkType::ML307);
+        display->ShowNotification(Lang::Strings::SWITCH_TO_4G_NETWORK);
     } else {
-        ESP_LOGI(TAG, "Switch to WiFi mode");
         SaveNetworkTypeToSettings(NetworkType::WIFI);
+        display->ShowNotification(Lang::Strings::SWITCH_TO_WIFI_NETWORK);
     }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    auto& app = Application::GetInstance();
+    app.Reboot();
 }
 
  

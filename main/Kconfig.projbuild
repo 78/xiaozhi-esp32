@@ -140,8 +140,6 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(WIFI)"
     config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
-    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_DUAL
-        bool "无名科技星智1.54(DUAL)"    
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
     config BOARD_TYPE_DOIT_S3_AIBOX

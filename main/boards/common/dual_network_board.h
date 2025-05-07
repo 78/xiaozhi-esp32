@@ -38,7 +38,7 @@ public:
     virtual ~DualNetworkBoard() = default;
  
     // 切换网络类型
-    void SwitchNetType();
+    void SwitchNetworkType();
     
     // 获取当前网络类型
     NetworkType GetNetworkType() const { return network_type_; }

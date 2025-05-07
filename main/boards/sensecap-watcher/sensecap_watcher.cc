@@ -242,12 +242,12 @@ private:
         // watcher 是通过长按滚轮进行开机的, 需要等待滚轮释放, 否则用户开机松手时可能会误触成单击
         ESP_LOGI(TAG, "waiting for knob button release");
         while(IoExpanderGetLevel(BSP_KNOB_BTN) == 0) {
-            vTaskDelay(50 / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
 
         button_config_t btn_config = {
             .long_press_time = 2000,
-            .short_press_time = 50
+            .short_press_time = 0
         };
         button_driver_t btn_driver = {
             .enable_power_save = false,

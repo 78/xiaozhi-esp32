@@ -11,7 +11,7 @@
 class Button {
 public:
     Button(button_handle_t button_handle);
-    Button(gpio_num_t gpio_num, bool active_high = false, uint16_t long_press_time = 1000, uint16_t short_press_time = 50);
+    Button(gpio_num_t gpio_num, bool active_high = false, uint16_t long_press_time = 0, uint16_t short_press_time = 0);
     ~Button();
 
     void OnPressDown(std::function<void()> callback);
