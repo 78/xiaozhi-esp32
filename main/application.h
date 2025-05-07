@@ -73,6 +73,7 @@ public:
     void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
+    Protocol& GetProtocol() { return *protocol_; }
 #if CONFIG_USE_ALARM
     //test
     AlarmManager* alarm_m_ = nullptr;

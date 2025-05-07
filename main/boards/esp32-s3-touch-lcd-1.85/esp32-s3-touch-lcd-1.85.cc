@@ -18,6 +18,28 @@
 #include <esp_timer.h>
 #include "esp_io_expander_tca9554.h"
 
+// 添加图片相关头文件
+#include "images/doufu/output_0001.h"
+#include "images/doufu/output_0002.h"
+#include "images/doufu/output_0003.h"
+#include "images/doufu/output_0004.h"
+#include "images/doufu/output_0005.h"
+#include "images/doufu/output_0006.h"
+#include "images/doufu/output_0007.h"
+#include "images/doufu/output_0008.h"
+#include "images/doufu/output_0009.h"
+// #include "images/doufu/output_0010.h"
+// #include "images/doufu/output_0011.h"
+// #include "images/doufu/output_0012.h"
+// #include "images/doufu/output_0013.h"
+// #include "images/doufu/output_0014.h"
+// #include "images/doufu/output_0015.h"
+// #include "images/doufu/output_0016.h"
+// #include "images/doufu/output_0017.h"
+// #include "images/doufu/output_0018.h"
+// #include "images/doufu/output_0019.h"
+// #include "images/doufu/output_0020.h"
+
 #define TAG "waveshare_lcd_1_85"
 
 #define LCD_OPCODE_WRITE_CMD        (0x02ULL)
@@ -220,6 +242,9 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     button_handle_t boot_btn, pwr_btn;
+    
+    // 添加图片显示任务句柄
+    TaskHandle_t image_task_handle_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -447,6 +472,163 @@ private:
 #endif
     }
 
+    // 添加启动图片循环显示任务函数
+    void StartImageSlideshow() {
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        ESP_LOGI(TAG, "图片循环显示任务已启动");
+    }
+    
+    // 添加图片循环显示任务静态函数
+    static void ImageSlideshowTask(void* arg) {
+        CustomBoard* board = static_cast<CustomBoard*>(arg);
+        Display* display = board->GetDisplay();
+        
+        if (!display) {
+            ESP_LOGE(TAG, "无法获取显示设备");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 获取Application实例
+        auto& app = Application::GetInstance();
+        
+        // 创建画布（如果不存在）
+        if (!display->HasCanvas()) {
+            display->CreateCanvas();
+        }
+        
+        // 设置图片显示参数
+        int imgWidth = 360;
+        int imgHeight = 360;
+        int x = 5;
+        int y = 5;
+        
+        // 设置图片数组
+        const uint8_t* imageArray[] = {
+            gImage_output_0001,
+            gImage_output_0002,
+            gImage_output_0003,
+            gImage_output_0004,
+            gImage_output_0005,
+            gImage_output_0006,
+            gImage_output_0007,
+            gImage_output_0008,
+            gImage_output_0009,
+            // gImage_output_0010,
+            // gImage_output_0011,
+            // gImage_output_0012,
+            // gImage_output_0013,
+            // gImage_output_0014,
+            // gImage_output_0015,
+            // gImage_output_0016,
+            // gImage_output_0017,
+            // gImage_output_0018,
+            // gImage_output_0019,
+            // gImage_output_0020,
+            // gImage_output_0019,
+            // gImage_output_0018,
+            // gImage_output_0017,
+            // gImage_output_0016,
+            // gImage_output_0015,
+            // gImage_output_0014,
+            // gImage_output_0013,
+            // gImage_output_0012,
+            // gImage_output_0011,
+            // gImage_output_0010,
+            // gImage_output_0009,
+            gImage_output_0008,
+            gImage_output_0007,
+            gImage_output_0006,
+            gImage_output_0005,
+            gImage_output_0004,
+            gImage_output_0003,
+            gImage_output_0002,
+            gImage_output_0001
+        };
+        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
+        
+        // 创建临时缓冲区用于字节序转换
+        uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
+        if (!convertedData) {
+            ESP_LOGE(TAG, "无法分配内存进行图像转换");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 先显示第一张图片
+        int currentIndex = 0;
+        const uint8_t* currentImage = imageArray[currentIndex];
+        
+        // 转换并显示第一张图片
+        for (int i = 0; i < imgWidth * imgHeight; i++) {
+            uint16_t pixel = ((uint16_t*)currentImage)[i];
+            convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+        }
+        
+        // 使用DrawImageOnCanvas而不是DrawImage
+        display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+        ESP_LOGI(TAG, "初始显示图片");
+        
+        // 持续监控和处理图片显示
+        TickType_t lastUpdateTime = xTaskGetTickCount();
+        const TickType_t cycleInterval = pdMS_TO_TICKS(120); // 图片切换间隔120毫秒
+        
+        // 定义用于判断是否正在播放音频的变量
+        bool isAudioPlaying = false;
+        bool wasAudioPlaying = false;
+        
+        while (true) {
+            // 检查是否正在播放音频 - 使用应用程序状态判断
+            isAudioPlaying = (app.GetDeviceState() == kDeviceStateSpeaking);
+            
+            TickType_t currentTime = xTaskGetTickCount();
+            
+            // 如果正在播放音频且时间到了切换间隔
+            if (isAudioPlaying && (currentTime - lastUpdateTime >= cycleInterval)) {
+                // 更新索引到下一张图片
+                currentIndex = (currentIndex + 1) % totalImages;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                // 使用DrawImageOnCanvas而不是DrawImage
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "循环显示图片");
+                
+                // 更新上次更新时间
+                lastUpdateTime = currentTime;
+            }
+            // 如果不在播放音频但上一次检查时在播放，或者当前不在第一张图片
+            else if ((!isAudioPlaying && wasAudioPlaying) || (!isAudioPlaying && currentIndex != 0)) {
+                // 切换回第一张图片
+                currentIndex = 0;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示第一张图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                // 使用DrawImageOnCanvas而不是DrawImage
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "返回显示初始图片");
+            }
+            
+            // 更新上一次音频播放状态
+            wasAudioPlaying = isAudioPlaying;
+            
+            // 短暂延时，避免CPU占用过高
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        
+        // 释放资源
+        delete[] convertedData;
+        vTaskDelete(NULL);
+    }
+
 public:
     CustomBoard() {   
         InitializeI2c();
@@ -456,6 +638,9 @@ public:
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
+        
+        // 在构造函数最后添加启动图片循环显示任务
+        StartImageSlideshow();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

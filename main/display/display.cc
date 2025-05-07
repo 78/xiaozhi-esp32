@@ -178,6 +178,7 @@ void Display::Update() {
         kDeviceStateStarting,
         kDeviceStateWifiConfiguring,
         kDeviceStateListening,
+        kDeviceStateActivating,
     };
     if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
         icon = board.GetNetworkStateIcon();
@@ -260,4 +261,116 @@ void Display::SetTheme(const std::string& theme_name) {
     current_theme_name_ = theme_name;
     Settings settings("display", true);
     settings.SetString("theme", theme_name);
+}
+
+void Display::CreateCanvas() {
+    DisplayLockGuard lock(this);
+    
+    // 如果已经有画布，先销毁
+    if (canvas_ != nullptr) {
+        DestroyCanvas();
+    }
+    
+    // 创建画布所需的缓冲区
+    // 每个像素2字节(RGB565)
+    size_t buf_size = width_ * height_ * 2;  // RGB565: 2 bytes per pixel
+    
+    // 分配内存，优先使用PSRAM
+    canvas_buffer_ = heap_caps_malloc(buf_size, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+    if (canvas_buffer_ == nullptr) {
+        ESP_LOGE("Display", "Failed to allocate canvas buffer");
+        return;
+    }
+    
+    // 获取活动屏幕
+    lv_obj_t* screen = lv_screen_active();
+    
+    // 创建画布对象
+    canvas_ = lv_canvas_create(screen);
+    if (canvas_ == nullptr) {
+        ESP_LOGE("Display", "Failed to create canvas");
+        heap_caps_free(canvas_buffer_);
+        canvas_buffer_ = nullptr;
+        return;
+    }
+    
+    // 初始化画布
+    lv_canvas_set_buffer(canvas_, canvas_buffer_, width_, height_, LV_COLOR_FORMAT_RGB565);
+    
+    // 设置画布位置为全屏
+    lv_obj_set_pos(canvas_, 0, 25);
+    lv_obj_set_size(canvas_, width_, height_ - 25);
+    
+    // 设置画布为透明
+    lv_canvas_fill_bg(canvas_, lv_color_make(0, 0, 0), LV_OPA_TRANSP);
+    
+    // 设置画布为顶层
+    lv_obj_move_foreground(canvas_);
+    
+    ESP_LOGI("Display", "Canvas created successfully");
+}
+
+void Display::DestroyCanvas() {
+    DisplayLockGuard lock(this);
+    
+    if (canvas_ != nullptr) {
+        lv_obj_del(canvas_);
+        canvas_ = nullptr;
+    }
+    
+    if (canvas_buffer_ != nullptr) {
+        heap_caps_free(canvas_buffer_);
+        canvas_buffer_ = nullptr;
+    }
+    
+    ESP_LOGI("Display", "Canvas destroyed");
+}
+
+void Display::DrawImageOnCanvas(int x, int y, int width, int height, const uint8_t* img_data) {
+    DisplayLockGuard lock(this);
+    
+    // 确保有画布
+    if (canvas_ == nullptr) {
+        ESP_LOGE("Display", "Canvas not created");
+        return;
+    }
+    
+    
+    // 创建一个描述器来映射图像数据
+    const lv_image_dsc_t img_dsc = {
+        .header = {
+            .magic = LV_IMAGE_HEADER_MAGIC,
+            .cf = LV_COLOR_FORMAT_RGB565,
+            .flags = 0,
+            .w = (uint32_t)width,
+            .h = (uint32_t)height,
+            .stride = (uint32_t)(width * 2),  // RGB565: 2 bytes per pixel
+            .reserved_2 = 0,
+        },
+        .data_size = (uint32_t)(width * height * 2),  // RGB565: 2 bytes per pixel
+        .data = img_data,
+        .reserved = NULL
+    };
+    
+    // 使用图层绘制图像到画布上
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas_, &layer);
+    
+    lv_draw_image_dsc_t draw_dsc;
+    lv_draw_image_dsc_init(&draw_dsc);
+    draw_dsc.src = &img_dsc;
+    
+    lv_area_t area;
+    area.x1 = x;
+    area.y1 = y;
+    area.x2 = x + width - 1;
+    area.y2 = y + height - 1;
+    
+    lv_draw_image(&layer, &draw_dsc, &area);
+    lv_canvas_finish_layer(canvas_, &layer);
+    
+    // 确保画布在最上层
+    lv_obj_move_foreground(canvas_);
+    
+    ESP_LOGI("Display", "Image drawn on canvas at x=%d, y=%d, w=%d, h=%d", x, y, width, height);
 }

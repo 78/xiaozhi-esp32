@@ -9,10 +9,6 @@
 
 #include <atomic>
 
-LV_IMG_DECLARE(ask);
-LV_IMG_DECLARE(fo_inle);
-LV_IMG_DECLARE(fo_talk);
-
 class LcdDisplay : public Display {
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -23,9 +19,6 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
-
-    lv_obj_t* emotion_gif = nullptr;
-    
 
     DisplayFonts fonts_;
 
@@ -42,7 +35,6 @@ public:
     ~LcdDisplay();
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetIcon(const char* icon) override;
-    virtual void SetChatMessage(const char* role, const char* content) override;
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     virtual void SetChatMessage(const char* role, const char* content) override; 
 #endif  

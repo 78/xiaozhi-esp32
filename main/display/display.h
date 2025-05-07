@@ -27,6 +27,12 @@ public:
     virtual void SetIcon(const char* icon);
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
+    
+    // 添加画布相关方法（仅用于图片显示，移除相机相关功能）
+    virtual void CreateCanvas();
+    virtual void DestroyCanvas();
+    virtual void DrawImageOnCanvas(int x, int y, int width, int height, const uint8_t* img_data);
+    virtual bool HasCanvas() { return canvas_ != nullptr; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -48,6 +54,10 @@ protected:
     lv_obj_t* low_battery_popup_ = nullptr;
     lv_obj_t* low_battery_label_ = nullptr;
     
+    // 画布相关成员变量
+    lv_obj_t* canvas_ = nullptr;
+    void* canvas_buffer_ = nullptr;
+    
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
@@ -67,7 +77,7 @@ protected:
 class DisplayLockGuard {
 public:
     DisplayLockGuard(Display *display) : display_(display) {
-        if (!display_->Lock(3000)) {
+        if (!display_->Lock(30000)) {
             ESP_LOGE("Display", "Failed to lock display");
         }
     }
