@@ -22,6 +22,7 @@
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
+#include <esp_ota_ops.h> 
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -186,7 +187,25 @@ private:
                                     });
     }
 
-
+    // 切换到下一个可用的固件分区
+    void switch_to_next_firmware() {
+        auto next_partition = esp_ota_get_next_update_partition(NULL);
+        if (next_partition == NULL) {
+            GetDisplay()->SetChatMessage("system", "未找到其他分区");
+            ESP_LOGE(TAG, "No other partitions");
+            return;
+        }
+        esp_err_t err = esp_ota_set_boot_partition(next_partition);
+        if (err != ESP_OK) {
+            GetDisplay()->SetChatMessage("system", "切换应用失败");
+            ESP_LOGE(TAG, "Failed to set boot partition: %s", esp_err_to_name(err));
+            return;
+        }
+        GetDisplay()->SetChatMessage("system", "应用切换成功，正在重启...");
+        ESP_LOGI(TAG, "Partition changed successfully, rebooting in 0 seconds...");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        esp_restart();
+    }
  
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -203,6 +222,12 @@ private:
             }
             app.ToggleChatState();
         });
+
+        // 长按Mode键切换分区
+        mode_button_.OnLongPress([this]() {
+            ESP_LOGI(TAG, "开始切换固件.....太秀了");
+            switch_to_next_firmware();
+        }); 
 
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
