@@ -65,15 +65,10 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     button_handle_t boot_btn, pwr_btn;
+    button_driver_t* boot_btn_driver_ = nullptr;
+    button_driver_t* pwr_btn_driver_ = nullptr;
     static CustomBoard* instance_;
 
-    static uint8_t GetBootButtonLevel(button_driver_t *button_driver) {
-        return gpio_get_level(BOOT_BUTTON_GPIO);
-    }
-
-    static uint8_t GetPwrButtonLevel(button_driver_t *button_driver) {
-        return gpio_get_level(PWR_BUTTON_GPIO);
-    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -175,11 +170,12 @@ private:
             .long_press_time = 2000,
             .short_press_time = 0
         };
-        button_driver_t boot_btn_driver = {
-            .enable_power_save = false,
-            .get_key_level = GetBootButtonLevel
+        boot_btn_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        boot_btn_driver_->enable_power_save = false;
+        boot_btn_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return gpio_get_level(BOOT_BUTTON_GPIO);
         };
-        ESP_ERROR_CHECK(iot_button_create(&boot_btn_config, &boot_btn_driver, &boot_btn));
+        ESP_ERROR_CHECK(iot_button_create(&boot_btn_config, boot_btn_driver_, &boot_btn));
         iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<CustomBoard*>(usr_data);
             auto& app = Application::GetInstance();
@@ -197,11 +193,12 @@ private:
             .long_press_time = 5000,
             .short_press_time = 0
         };
-        button_driver_t pwr_btn_driver = {
-            .enable_power_save = false,
-            .get_key_level = GetPwrButtonLevel
+        pwr_btn_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        pwr_btn_driver_->enable_power_save = false;
+        pwr_btn_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return gpio_get_level(PWR_BUTTON_GPIO);
         };
-        ESP_ERROR_CHECK(iot_button_create(&pwr_btn_config, &pwr_btn_driver, &pwr_btn));
+        ESP_ERROR_CHECK(iot_button_create(&pwr_btn_config, pwr_btn_driver_, &pwr_btn));
         iot_button_register_cb(pwr_btn, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             // 短按无处理
         }, this);
