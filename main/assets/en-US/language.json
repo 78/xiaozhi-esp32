@@ -15,6 +15,8 @@
         "REGISTERING_NETWORK": "Waiting for network...",
         "CHECKING_NEW_VERSION": "Checking for new version...",
         "CHECK_NEW_VERSION_FAILED": "Check for new version failed, will retry in %d seconds: %s",
+        "SWITCH_TO_WIFI_NETWORK": "Switching to Wi-Fi...",
+        "SWITCH_TO_4G_NETWORK": "Switching to 4G...",
 
         "STANDBY": "Standby",
         "CONNECT_TO": "Connect to ",

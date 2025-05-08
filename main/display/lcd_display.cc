@@ -111,7 +111,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
@@ -181,7 +181,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = true,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -392,6 +392,24 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Scroll to the last message immediately
         if (last_child != nullptr) {
             lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
+        }
+    }
+    
+    // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
+    if (strcmp(role, "system") == 0 && child_count > 0) {
+        // 获取最后一个消息容器
+        lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
+        if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
+            // 获取容器内的气泡
+            lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
+            if (last_bubble != nullptr) {
+                // 检查气泡类型是否为系统消息
+                void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
+                if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
+                    // 如果最后一个消息也是系统消息，则删除它
+                    lv_obj_del(last_container);
+                }
+            }
         }
     }
     

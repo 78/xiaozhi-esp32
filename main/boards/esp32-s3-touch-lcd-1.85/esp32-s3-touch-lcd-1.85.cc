@@ -220,6 +220,15 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     button_handle_t boot_btn, pwr_btn;
+    static CustomBoard* instance_;
+
+    static uint8_t GetBootButtonLevel(button_driver_t *button_driver) {
+        return gpio_get_level(BOOT_BUTTON_GPIO);
+    }
+
+    static uint8_t GetPwrButtonLevel(button_driver_t *button_driver) {
+        return gpio_get_level(PWR_BUTTON_GPIO);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -374,23 +383,20 @@ private:
         gpio_set_level(PWR_Control_PIN, true); 
     }
     void InitializeButtons() {
+        instance_ = this;
         InitializeButtonsCustom();
-        button_config_t btns_config = {
-            .type = BUTTON_TYPE_CUSTOM,
+
+        // Boot Button
+        button_config_t boot_btn_config = {
             .long_press_time = 2000,
-            .short_press_time = 50,
-            .custom_button_config = {
-                .active_level = 0,
-                .button_custom_init = nullptr,
-                .button_custom_get_key_value = [](void *param) -> uint8_t {
-                    return gpio_get_level(BOOT_BUTTON_GPIO);
-                },
-                .button_custom_deinit = nullptr,
-                .priv = this,
-            },
+            .short_press_time = 0
         };
-        boot_btn = iot_button_create(&btns_config);
-        iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+        button_driver_t boot_btn_driver = {
+            .enable_power_save = false,
+            .get_key_level = GetBootButtonLevel
+        };
+        ESP_ERROR_CHECK(iot_button_create(&boot_btn_config, &boot_btn_driver, &boot_btn));
+        iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<CustomBoard*>(usr_data);
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -398,24 +404,18 @@ private:
             }
             app.ToggleChatState();
         }, this);
-        iot_button_register_cb(boot_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
-            // 长按无处理
-        }, this);
 
-        btns_config.long_press_time = 5000;
-        btns_config.custom_button_config.button_custom_get_key_value = [](void *param) -> uint8_t {
-            return gpio_get_level(PWR_BUTTON_GPIO);
+        // Power Button
+        button_config_t pwr_btn_config = {
+            .long_press_time = 5000,
+            .short_press_time = 0
         };
-        pwr_btn = iot_button_create(&btns_config);
-        iot_button_register_cb(pwr_btn, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
-            // auto self = static_cast<CustomBoard*>(usr_data);                                     // 以下程序实现供用户参考 ，实现单击pwr按键调整亮度               
-            // if(self->GetBacklight()->brightness() > 1)                                           // 如果亮度不为0
-            //     self->GetBacklight()->SetBrightness(1);                                          // 设置亮度为1         
-            // else
-            //     self->GetBacklight()->RestoreBrightness();                                       // 恢复原本亮度
-            // 短按无处理
-        }, this);
-        iot_button_register_cb(pwr_btn, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+        button_driver_t pwr_btn_driver = {
+            .enable_power_save = false,
+            .get_key_level = GetPwrButtonLevel
+        };
+        ESP_ERROR_CHECK(iot_button_create(&pwr_btn_config, &pwr_btn_driver, &pwr_btn));
+        iot_button_register_cb(pwr_btn, BUTTON_LONG_PRESS_START, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<CustomBoard*>(usr_data);
             if(self->GetBacklight()->brightness() > 0) {
                 self->GetBacklight()->SetBrightness(0);
@@ -465,3 +465,5 @@ public:
 };
 
 DECLARE_BOARD(CustomBoard);
+
+CustomBoard* CustomBoard::instance_ = nullptr;
