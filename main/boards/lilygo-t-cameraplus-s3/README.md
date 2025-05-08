@@ -30,4 +30,4 @@ Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Quad Mode 
 idf.py build
 ```
 
-<a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-CameraPlus-S3</a>
+<a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="LILYGO T-CameraPlus-S3">LILYGO T-CameraPlus-S3</a>
