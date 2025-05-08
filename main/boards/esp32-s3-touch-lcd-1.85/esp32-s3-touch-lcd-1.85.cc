@@ -28,17 +28,67 @@
 #include "images/doufu/output_0007.h"
 #include "images/doufu/output_0008.h"
 #include "images/doufu/output_0009.h"
-// #include "images/doufu/output_0010.h"
-// #include "images/doufu/output_0011.h"
-// #include "images/doufu/output_0012.h"
-// #include "images/doufu/output_0013.h"
-// #include "images/doufu/output_0014.h"
-// #include "images/doufu/output_0015.h"
-// #include "images/doufu/output_0016.h"
-// #include "images/doufu/output_0017.h"
-// #include "images/doufu/output_0018.h"
-// #include "images/doufu/output_0019.h"
+#include "images/doufu/output_0010.h"
+#include "images/doufu/output_0011.h"
+#include "images/doufu/output_0012.h"
+#include "images/doufu/output_0013.h"
+#include "images/doufu/output_0014.h"
+#include "images/doufu/output_0015.h"
+#include "images/doufu/output_0016.h"
+#include "images/doufu/output_0017.h"
+#include "images/doufu/output_0018.h"
+#include "images/doufu/output_0019.h"
 // #include "images/doufu/output_0020.h"
+// #include "images/doufu/output_0021.h"
+// #include "images/doufu/output_0022.h"
+// #include "images/doufu/output_0023.h"
+// #include "images/doufu/output_0024.h"
+// #include "images/doufu/output_0025.h"
+// #include "images/doufu/output_0026.h"
+// #include "images/doufu/output_0027.h"
+// #include "images/doufu/output_0028.h"
+// #include "images/doufu/output_0029.h"
+// #include "images/doufu/output_0030.h"
+// #include "images/doufu/output_0031.h"
+// #include "images/doufu/output_0032.h"
+// #include "images/doufu/output_0033.h"
+// #include "images/doufu/output_0034.h"
+// #include "images/doufu/output_0035.h"
+// #include "images/doufu/output_0036.h"
+// #include "images/doufu/output_0037.h"
+// #include "images/doufu/output_0038.h"
+// #include "images/doufu/output_0039.h"
+// #include "images/doufu/output_0040.h"
+// #include "images/doufu/output_0041.h"
+// #include "images/doufu/output_0042.h"
+// #include "images/doufu/output_0043.h"
+// #include "images/doufu/output_0044.h"
+// #include "images/doufu/output_0045.h"
+// #include "images/doufu/output_0046.h"
+// #include "images/doufu/output_0047.h"
+// #include "images/doufu/output_0048.h"
+// #include "images/doufu/output_0049.h"
+// #include "images/doufu/output_0050.h"
+// #include "images/doufu/output_0051.h"
+// #include "images/doufu/output_0052.h"
+// #include "images/doufu/output_0053.h"
+// #include "images/doufu/output_0054.h"
+// #include "images/doufu/output_0055.h"
+// #include "images/doufu/output_0056.h"
+// #include "images/doufu/output_0057.h"
+// #include "images/doufu/output_0058.h"
+// #include "images/doufu/output_0059.h"
+// #include "images/doufu/output_0060.h"
+// #include "images/doufu/output_0061.h"
+// #include "images/doufu/output_0062.h"
+// #include "images/doufu/output_0063.h"
+// #include "images/doufu/output_0064.h"
+// #include "images/doufu/output_0065.h"
+// #include "images/doufu/output_0066.h"
+// #include "images/doufu/output_0067.h"
+// #include "images/doufu/output_0068.h"
+// #include "images/doufu/output_0069.h"
+// #include "images/doufu/output_0070.h"
 
 #define TAG "waveshare_lcd_1_85"
 
@@ -478,7 +528,7 @@ private:
         ESP_LOGI(TAG, "图片循环显示任务已启动");
     }
     
-    // 添加图片循环显示任务静态函数
+    // 修改ImageSlideshowTask函数
     static void ImageSlideshowTask(void* arg) {
         CustomBoard* board = static_cast<CustomBoard*>(arg);
         Display* display = board->GetDisplay();
@@ -500,8 +550,8 @@ private:
         // 设置图片显示参数
         int imgWidth = 360;
         int imgHeight = 360;
-        int x = 5;
-        int y = 5;
+        int x = 0;
+        int y = 10;
         
         // 设置图片数组
         const uint8_t* imageArray[] = {
@@ -514,28 +564,128 @@ private:
             gImage_output_0007,
             gImage_output_0008,
             gImage_output_0009,
-            // gImage_output_0010,
-            // gImage_output_0011,
-            // gImage_output_0012,
-            // gImage_output_0013,
-            // gImage_output_0014,
-            // gImage_output_0015,
-            // gImage_output_0016,
-            // gImage_output_0017,
-            // gImage_output_0018,
-            // gImage_output_0019,
+            gImage_output_0010,
+            gImage_output_0011,
+            gImage_output_0012,
+            gImage_output_0013,
+            gImage_output_0014,
+            gImage_output_0015,
+            gImage_output_0016,
+            gImage_output_0017,
+            gImage_output_0018,
+            gImage_output_0019,
+            // gImage_output_0020,
+            // gImage_output_0021,
+            // gImage_output_0022,
+            // gImage_output_0023,
+            // gImage_output_0024,
+            // gImage_output_0025,
+            // gImage_output_0026,
+            // gImage_output_0027,
+            // gImage_output_0028,
+            // gImage_output_0029,
+            // gImage_output_0030,
+            // gImage_output_0031,
+            // gImage_output_0032,
+            // gImage_output_0033,
+            // gImage_output_0034,
+            // gImage_output_0035,
+            // gImage_output_0036,
+            // gImage_output_0037,
+            // gImage_output_0038,
+            // gImage_output_0039,
+            // gImage_output_0040,
+            // gImage_output_0041,
+            // gImage_output_0042,
+            // gImage_output_0043,
+            // gImage_output_0044,
+            // gImage_output_0045,
+            // gImage_output_0046,
+            // gImage_output_0047,
+            // gImage_output_0048,
+            // gImage_output_0049,
+            // gImage_output_0050,
+            // gImage_output_0051,
+            // gImage_output_0052,
+            // gImage_output_0053,
+            // gImage_output_0054,
+            // gImage_output_0055,
+            // gImage_output_0056,
+            // gImage_output_0057,
+            // gImage_output_0058,
+            // gImage_output_0059,
+            // gImage_output_0060,
+            // gImage_output_0061,
+            // gImage_output_0062,
+            // gImage_output_0063,
+            // gImage_output_0064,
+            // gImage_output_0065,
+            // gImage_output_0066,
+            // gImage_output_0067,
+            // gImage_output_0068,
+            // gImage_output_0069,
+            // gImage_output_0070,
+            // gImage_output_0069,
+            // gImage_output_0068,
+            // gImage_output_0067,
+            // gImage_output_0066,
+            // gImage_output_0065,
+            // gImage_output_0064,
+            // gImage_output_0063,
+            // gImage_output_0062,
+            // gImage_output_0061,
+            // gImage_output_0060,
+            // gImage_output_0059,
+            // gImage_output_0058,
+            // gImage_output_0057,
+            // gImage_output_0056,
+            // gImage_output_0055,
+            // gImage_output_0054,
+            // gImage_output_0053,
+            // gImage_output_0052,
+            // gImage_output_0051,
+            // gImage_output_0050,
+            // gImage_output_0049,
+            // gImage_output_0048,
+            // gImage_output_0047,
+            // gImage_output_0046,
+            // gImage_output_0045,
+            // gImage_output_0044,
+            // gImage_output_0043,
+            // gImage_output_0042,
+            // gImage_output_0041,
+            // gImage_output_0040,
+            // gImage_output_0039,
+            // gImage_output_0038,
+            // gImage_output_0037,
+            // gImage_output_0036,
+            // gImage_output_0035,
+            // gImage_output_0034,
+            // gImage_output_0033,
+            // gImage_output_0032,
+            // gImage_output_0031,
+            // gImage_output_0030,
+            // gImage_output_0029,
+            // gImage_output_0028,
+            // gImage_output_0027,
+            // gImage_output_0026,
+            // gImage_output_0025,
+            // gImage_output_0024,
+            // gImage_output_0023,
+            // gImage_output_0022,
+            // gImage_output_0021,
             // gImage_output_0020,
             // gImage_output_0019,
-            // gImage_output_0018,
-            // gImage_output_0017,
-            // gImage_output_0016,
-            // gImage_output_0015,
-            // gImage_output_0014,
-            // gImage_output_0013,
-            // gImage_output_0012,
-            // gImage_output_0011,
-            // gImage_output_0010,
-            // gImage_output_0009,
+            gImage_output_0018,
+            gImage_output_0017,
+            gImage_output_0016,
+            gImage_output_0015,
+            gImage_output_0014,
+            gImage_output_0013,
+            gImage_output_0012,
+            gImage_output_0011,
+            gImage_output_0010,
+            gImage_output_0009,
             gImage_output_0008,
             gImage_output_0007,
             gImage_output_0006,
@@ -543,7 +693,9 @@ private:
             gImage_output_0004,
             gImage_output_0003,
             gImage_output_0002,
-            gImage_output_0001
+            gImage_output_0001,
+
+
         };
         const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
         
@@ -576,15 +728,46 @@ private:
         // 定义用于判断是否正在播放音频的变量
         bool isAudioPlaying = false;
         bool wasAudioPlaying = false;
+        DeviceState previousState = app.GetDeviceState();
+        bool pendingAnimationStart = false;
+        TickType_t stateChangeTime = 0;
         
         while (true) {
-            // 检查是否正在播放音频 - 使用应用程序状态判断
-            isAudioPlaying = (app.GetDeviceState() == kDeviceStateSpeaking);
-            
+            // 获取当前设备状态
+            DeviceState currentState = app.GetDeviceState();
             TickType_t currentTime = xTaskGetTickCount();
             
-            // 如果正在播放音频且时间到了切换间隔
-            if (isAudioPlaying && (currentTime - lastUpdateTime >= cycleInterval)) {
+            // 检测到状态刚变为Speaking，设置动画延迟启动
+            if (currentState == kDeviceStateSpeaking && previousState != kDeviceStateSpeaking) {
+                pendingAnimationStart = true;
+                stateChangeTime = currentTime;
+                ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");
+            }
+            
+            // 延迟启动动画，等待音频实际开始播放
+            // 设置800ms延迟，实验找到最佳匹配值
+            if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(800))) {
+                // 状态变为Speaking后延迟一段时间，开始动画以匹配实际音频输出
+                currentIndex = 1; // 从第二张图片开始
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "开始播放动画，与音频同步");
+                
+                lastUpdateTime = currentTime;
+                isAudioPlaying = true;
+                pendingAnimationStart = false;
+            }
+            
+            // 正常的图片循环逻辑
+            isAudioPlaying = (currentState == kDeviceStateSpeaking);
+            
+            if (isAudioPlaying && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
                 // 更新索引到下一张图片
                 currentIndex = (currentIndex + 1) % totalImages;
                 currentImage = imageArray[currentIndex];
@@ -594,14 +777,11 @@ private:
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
                 }
-                // 使用DrawImageOnCanvas而不是DrawImage
                 display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
-                ESP_LOGI(TAG, "循环显示图片");
                 
                 // 更新上次更新时间
                 lastUpdateTime = currentTime;
             }
-            // 如果不在播放音频但上一次检查时在播放，或者当前不在第一张图片
             else if ((!isAudioPlaying && wasAudioPlaying) || (!isAudioPlaying && currentIndex != 0)) {
                 // 切换回第一张图片
                 currentIndex = 0;
@@ -612,16 +792,17 @@ private:
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
                 }
-                // 使用DrawImageOnCanvas而不是DrawImage
                 display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
                 ESP_LOGI(TAG, "返回显示初始图片");
+                pendingAnimationStart = false;
             }
             
-            // 更新上一次音频播放状态
+            // 更新状态记录
             wasAudioPlaying = isAudioPlaying;
+            previousState = currentState;
             
-            // 短暂延时，避免CPU占用过高
-            vTaskDelay(pdMS_TO_TICKS(100));
+            // 保持较高的检测频率以确保响应灵敏
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         
         // 释放资源
