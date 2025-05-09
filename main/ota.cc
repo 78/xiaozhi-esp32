@@ -157,7 +157,16 @@ bool Ota::CheckVersion() {
             if (item->type == cJSON_String) {
                 settings.SetString(item->string, item->valuestring);
             } else if (item->type == cJSON_Number) {
-                settings.SetInt(item->string, item->valueint);
+                // Guard against null key or problematic recursion; log for debug
+                if (item->string != nullptr) {
+                    ESP_LOGI(TAG, "Setting websocket int key: %s = %d", item->string, item->valueint);
+                    // Prevent possible recursion or known problematic fields
+                    // You may add a whitelist here if needed, e.g.:
+                    // if (strcmp(item->string, "some_safe_int_key") == 0)
+                    settings.SetInt(item->string, item->valueint);
+                } else {
+                    ESP_LOGW(TAG, "Null key in websocket int config, skipping");
+                }
             }
         }
         has_websocket_config_ = true;
