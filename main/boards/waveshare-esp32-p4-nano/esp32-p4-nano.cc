@@ -18,14 +18,13 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
-#define TAG "waveshare_esp32_p4_nano"
+#define TAG "WaveshareEsp32p4nano"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 // TODO: Backlight control and i2c drive conflict, has not been resolved
-class CustomBacklight : public Backlight
-{
+class CustomBacklight : public Backlight {
 public:
     CustomBacklight(i2c_master_bus_handle_t i2c_handle)
         : Backlight(), i2c_handle_(i2c_handle) {}
@@ -33,8 +32,7 @@ public:
 protected:
     i2c_master_bus_handle_t i2c_handle_;
 
-    virtual void SetBrightnessImpl(uint8_t brightness) override
-    {
+    virtual void SetBrightnessImpl(uint8_t brightness) override {
         uint8_t i2c_address = 0x45;     // 7-bit address
 #if CONFIG_LCD_TYPE_800_1280_10_1_INCH
         uint8_t reg = 0x86;
@@ -67,16 +65,14 @@ protected:
     }
 };
 
-class waveshare_esp32_p4_nano : public WifiBoard
-{
+class WaveshareEsp32p4nano : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     LcdDisplay *display__;
     // CustomBacklight *backlight_;
 
-    void InitializeCodecI2c()
-    {
+    void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = I2C_NUM_1,
@@ -93,8 +89,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
 
-    static esp_err_t bsp_enable_dsi_phy_power(void)
-    {
+    static esp_err_t bsp_enable_dsi_phy_power(void) {
 #if MIPI_DSI_PHY_PWR_LDO_CHAN > 0
         // Turn on the power for MIPI DSI PHY, so it can go from "No Power" state to "Shutdown" state
         static esp_ldo_channel_handle_t phy_pwr_chan = NULL;
@@ -109,8 +104,7 @@ private:
         return ESP_OK;
     }
 
-    void InitializeLCD()
-    {
+    void InitializeLCD() {
         bsp_enable_dsi_phy_power();
         esp_lcd_panel_io_handle_t io = NULL;
         esp_lcd_panel_handle_t disp_panel = NULL;
@@ -177,10 +171,8 @@ private:
         // backlight_->RestoreBrightness();
     }
 
-    void InitializeButtons()
-    {
-        boot_button_.OnClick([this]()
-                             {
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -189,41 +181,35 @@ private:
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot()
-    {
+    void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         // thing_manager.AddThing(iot::CreateThing("Screen"));
     }
 
 public:
-    waveshare_esp32_p4_nano() : boot_button_(BOOT_BUTTON_GPIO)
-    {
-
+    WaveshareEsp32p4nano() :
+        boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeIot();
         InitializeLCD();
         InitializeButtons();
     }
 
-    virtual AudioCodec *GetAudioCodec() override
-    {
+    virtual AudioCodec *GetAudioCodec() override {
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_1, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                                             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
                                             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
 
-    virtual Display *GetDisplay() override
-    {
-
+    virtual Display *GetDisplay() override {
         return display__;
     }
 
-    // virtual Backlight *GetBacklight() override
-    // {
+    // virtual Backlight *GetBacklight() override {
     //     return backlight_;
     // }
 };
 
-DECLARE_BOARD(waveshare_esp32_p4_nano);
+DECLARE_BOARD(WaveshareEsp32p4nano);
