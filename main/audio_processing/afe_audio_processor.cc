@@ -10,7 +10,7 @@ AfeAudioProcessor::AfeAudioProcessor()
     event_group_ = xEventGroupCreate();
 }
 
-void AfeAudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
+void AfeAudioProcessor::Initialize(AudioCodec* codec) {
     codec_ = codec;
     int ref_num = codec_->input_reference() ? 1 : 0;
 
@@ -26,22 +26,22 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, bool realtime_chat) {
     char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
 
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
-    if (realtime_chat) {
-        afe_config->aec_init = true;
-        afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
-    } else {
-        afe_config->aec_init = false;
-    }
+#ifdef CONFIG_USE_DEVICE_AEC
+    afe_config->aec_init = true;
+    afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
+#else
+    afe_config->aec_init = false;
+#endif
     afe_config->ns_init = true;
     afe_config->ns_model_name = ns_model_name;
     afe_config->afe_ns_mode = AFE_NS_MODE_NET;
-    if (realtime_chat) {
-        afe_config->vad_init = false;
-    } else {
-        afe_config->vad_init = true;
-        afe_config->vad_mode = VAD_MODE_0;
-        afe_config->vad_min_noise_ms = 100;
-    }
+#ifdef CONFIG_USE_DEVICE_AEC
+    afe_config->vad_init = false;
+#else
+    afe_config->vad_init = true;
+    afe_config->vad_mode = VAD_MODE_0;
+    afe_config->vad_min_noise_ms = 100;
+#endif
     afe_config->afe_perferred_core = 1;
     afe_config->afe_perferred_priority = 1;
     afe_config->agc_init = false;

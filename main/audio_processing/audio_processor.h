@@ -11,7 +11,7 @@ class AudioProcessor {
 public:
     virtual ~AudioProcessor() = default;
     
-    virtual void Initialize(AudioCodec* codec, bool realtime_chat) = 0;
+    virtual void Initialize(AudioCodec* codec) = 0;
     virtual void Feed(const std::vector<int16_t>& data) = 0;
     virtual void Start() = 0;
     virtual void Stop() = 0;
