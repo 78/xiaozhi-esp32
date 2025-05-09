@@ -30,16 +30,10 @@ private:
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    button_driver_t* btn_a_driver_ = nullptr;
+    button_driver_t* btn_b_driver_ = nullptr;
 
     static Df_K10Board* instance_;
-
-    static uint8_t GetButtonALevel(button_driver_t *button_driver) {
-        return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
-    }
-
-    static uint8_t GetButtonBLevel(button_driver_t *button_driver) {
-        return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
-    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -113,11 +107,12 @@ private:
             .long_press_time = 1000,
             .short_press_time = 0
         };
-        button_driver_t btn_a_driver = {
-            .enable_power_save = false,
-            .get_key_level = GetButtonALevel
+        btn_a_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        btn_a_driver_->enable_power_save = false;
+        btn_a_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
         };
-        ESP_ERROR_CHECK(iot_button_create(&btn_a_config, &btn_a_driver, &btn_a));
+        ESP_ERROR_CHECK(iot_button_create(&btn_a_config, btn_a_driver_, &btn_a));
         iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
@@ -142,11 +137,12 @@ private:
             .long_press_time = 1000,
             .short_press_time = 0
         };
-        button_driver_t btn_b_driver = {
-            .enable_power_save = false,
-            .get_key_level = GetButtonBLevel
+        btn_b_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        btn_b_driver_->enable_power_save = false;
+        btn_b_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
         };
-        ESP_ERROR_CHECK(iot_button_create(&btn_b_config, &btn_b_driver, &btn_b));
+        ESP_ERROR_CHECK(iot_button_create(&btn_b_config, btn_b_driver_, &btn_b));
         iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
