@@ -20,6 +20,9 @@
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
+
 class CompactMl307Board : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
@@ -30,6 +33,29 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+
+    // --- Fix for single/double click timing
+    bool boot_button_double_clicked_ = false;
+    TimerHandle_t boot_button_single_click_timer_ = nullptr;
+    static constexpr TickType_t BOOT_BTN_SINGLE_CLICK_DELAY = pdMS_TO_TICKS(400); // 400ms window
+
+    static void BootButtonSingleClickTimerCallback(TimerHandle_t xTimer) {
+        CompactMl307Board* self = static_cast<CompactMl307Board*>(pvTimerGetTimerID(xTimer));
+        // Only trigger single-click action if double-click did not happen
+        if (!self->boot_button_double_clicked_) {
+            auto& app = Application::GetInstance();
+            if (self->GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(self->GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+            app.ToggleChatState();
+        }
+        // Reset flag for next time
+        self->boot_button_double_clicked_ = false;
+    }
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -96,18 +122,32 @@ private:
     }
 
     void InitializeButtons() {
+        // Single Click: Defer actual action to allow double-click detection
         boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                    // cast to WifiBoard
-                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
-                }
+            boot_button_double_clicked_ = false;
+            // Start a timer to execute single-click action after the double-click window
+            if (boot_button_single_click_timer_ != nullptr) {
+                xTimerStop(boot_button_single_click_timer_, 0);
+                xTimerDelete(boot_button_single_click_timer_, 0);
             }
-            app.ToggleChatState();
+            boot_button_single_click_timer_ = xTimerCreate(
+                "boot_btn_sc_timer",
+                BOOT_BTN_SINGLE_CLICK_DELAY,
+                pdFALSE,
+                this,
+                BootButtonSingleClickTimerCallback
+            );
+            xTimerStart(boot_button_single_click_timer_, 0);
         });
+        // Double Click: Set flag and perform double-click action immediately
         boot_button_.OnDoubleClick([this]() {
+            boot_button_double_clicked_ = true;
+            // Cancel the pending single-click timer if running
+            if (boot_button_single_click_timer_ != nullptr) {
+                xTimerStop(boot_button_single_click_timer_, 0);
+                xTimerDelete(boot_button_single_click_timer_, 0);
+                boot_button_single_click_timer_ = nullptr;
+            }
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
@@ -170,6 +210,8 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeIot();
+        boot_button_double_clicked_ = false;
+        boot_button_single_click_timer_ = nullptr;
     }
 
     virtual Led* GetLed() override {
