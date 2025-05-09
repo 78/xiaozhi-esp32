@@ -60,7 +60,7 @@ void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
-                .ws_inv = true // 默认右通道
+                .ws_inv = true // 默认右声道
             }
         }
     };
