@@ -189,6 +189,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     std::string message = "{";
     message += "\"type\":\"hello\",";
     message += "\"version\": " + std::to_string(version_) + ",";
+#if CONFIG_USE_SERVER_AEC
+    message += "\"features\":{\"aec\":true},";
+#endif
     message += "\"transport\":\"websocket\",";
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
