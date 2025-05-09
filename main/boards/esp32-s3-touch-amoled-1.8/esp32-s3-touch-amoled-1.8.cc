@@ -21,6 +21,18 @@
 #include "esp_io_expander_tca9554.h"
 #include "settings.h"
 
+// 添加图片相关头文件
+#include "images/doufu/output_0001.h"
+#include "images/doufu/output_0002.h"
+#include "images/doufu/output_0003.h"
+#include "images/doufu/output_0004.h"
+#include "images/doufu/output_0005.h"
+#include "images/doufu/output_0006.h"
+#include "images/doufu/output_0007.h"
+// #include "images/doufu/output_0008.h"
+// #include "images/doufu/output_0009.h"
+// #include "images/doufu/output_0010.h"
+
 #define TAG "waveshare_amoled_1_8"
 
 LV_FONT_DECLARE(font_puhui_30_4);
@@ -127,6 +139,9 @@ private:
     CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
+    
+    // 添加图片显示任务句柄
+    TaskHandle_t image_task_handle_ = nullptr;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -261,6 +276,172 @@ private:
         thing_manager.AddThing(iot::CreateThing("BoardControl"));
     }
 
+    // 添加启动图片循环显示任务函数
+    void StartImageSlideshow() {
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        ESP_LOGI(TAG, "图片循环显示任务已启动");
+    }
+    
+    // 添加图片循环显示任务函数
+    static void ImageSlideshowTask(void* arg) {
+        waveshare_amoled_1_8* board = static_cast<waveshare_amoled_1_8*>(arg);
+        Display* display = board->GetDisplay();
+        
+        if (!display) {
+            ESP_LOGE(TAG, "无法获取显示设备");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 获取Application实例
+        auto& app = Application::GetInstance();
+        
+        // 创建画布（如果不存在）
+        if (!display->HasCanvas()) {
+            display->CreateCanvas();
+        }
+        
+        // 设置图片显示参数
+        int imgWidth = 368;
+        int imgHeight = 448;
+        int x = (DISPLAY_WIDTH - imgWidth) / 2;  // 居中显示
+        int y = 0;
+        
+        // 设置图片数组
+        const uint8_t* imageArray[] = {
+            gImage_output_0001,
+            gImage_output_0002,
+            gImage_output_0003,
+            gImage_output_0004,
+            gImage_output_0005,
+            gImage_output_0006,
+            gImage_output_0007,
+            // gImage_output_0008,
+            // gImage_output_0009,
+            // gImage_output_0010,
+            // gImage_output_0009,
+            // gImage_output_0008,
+            // gImage_output_0007,
+            gImage_output_0006,
+            gImage_output_0005,
+            gImage_output_0004,
+            gImage_output_0003,
+            gImage_output_0002,
+            gImage_output_0001,
+        };
+        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
+        
+        // 创建临时缓冲区用于字节序转换
+        uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
+        if (!convertedData) {
+            ESP_LOGE(TAG, "无法分配内存进行图像转换");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 先显示第一张图片
+        int currentIndex = 0;
+        const uint8_t* currentImage = imageArray[currentIndex];
+        
+        // 转换并显示第一张图片
+        for (int i = 0; i < imgWidth * imgHeight; i++) {
+            uint16_t pixel = ((uint16_t*)currentImage)[i];
+            convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+        }
+        
+        // 使用DrawImageOnCanvas而不是DrawImage
+        display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+        ESP_LOGI(TAG, "初始显示图片");
+        
+        // 持续监控和处理图片显示
+        TickType_t lastUpdateTime = xTaskGetTickCount();
+        const TickType_t cycleInterval = pdMS_TO_TICKS(120); // 图片切换间隔120毫秒
+        
+        // 定义用于判断是否正在播放音频的变量
+        bool isAudioPlaying = false;
+        bool wasAudioPlaying = false;
+        DeviceState previousState = app.GetDeviceState();
+        bool pendingAnimationStart = false;
+        TickType_t stateChangeTime = 0;
+        
+        while (true) {
+            // 获取当前设备状态
+            DeviceState currentState = app.GetDeviceState();
+            TickType_t currentTime = xTaskGetTickCount();
+            
+            // 检测到状态刚变为Speaking，设置动画延迟启动
+            if (currentState == kDeviceStateSpeaking && previousState != kDeviceStateSpeaking) {
+                pendingAnimationStart = true;
+                stateChangeTime = currentTime;
+                ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");
+            }
+            
+            // 延迟启动动画，等待音频实际开始播放
+            // 设置800ms延迟，实验找到最佳匹配值
+            if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(800))) {
+                // 状态变为Speaking后延迟一段时间，开始动画以匹配实际音频输出
+                currentIndex = 1; // 从第二张图片开始
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "开始播放动画，与音频同步");
+                
+                lastUpdateTime = currentTime;
+                isAudioPlaying = true;
+                pendingAnimationStart = false;
+            }
+            
+            // 正常的图片循环逻辑
+            isAudioPlaying = (currentState == kDeviceStateSpeaking);
+            
+            if (isAudioPlaying && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
+                // 更新索引到下一张图片
+                currentIndex = (currentIndex + 1) % totalImages;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                
+                // 更新上次更新时间
+                lastUpdateTime = currentTime;
+            }
+            else if ((!isAudioPlaying && wasAudioPlaying) || (!isAudioPlaying && currentIndex != 0)) {
+                // 切换回第一张图片
+                currentIndex = 0;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示第一张图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "返回显示初始图片");
+                pendingAnimationStart = false;
+            }
+            
+            // 更新状态记录
+            wasAudioPlaying = isAudioPlaying;
+            previousState = currentState;
+            
+            // 保持较高的检测频率以确保响应灵敏
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        
+        // 释放资源
+        delete[] convertedData;
+        vTaskDelete(NULL);
+    }
+
 public:
     waveshare_amoled_1_8() :
         boot_button_(BOOT_BUTTON_GPIO) {
@@ -272,6 +453,9 @@ public:
         InitializeSH8601Display();
         InitializeButtons();
         InitializeIot();
+        
+        // 在构造函数最后添加启动图片循环显示任务
+        StartImageSlideshow();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
