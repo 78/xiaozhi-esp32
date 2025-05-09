@@ -6,12 +6,11 @@
 class WifiBoard : public Board {
 protected:
     bool wifi_config_mode_ = false;
-
-    WifiBoard();
     void EnterWifiConfigMode();
     virtual std::string GetBoardJson() override;
 
 public:
+    WifiBoard();
     virtual std::string GetBoardType() override;
     virtual void StartNetwork() override;
     virtual Http* CreateHttp() override;
@@ -21,6 +20,7 @@ public:
     virtual const char* GetNetworkStateIcon() override;
     virtual void SetPowerSaveMode(bool enabled) override;
     virtual void ResetWifiConfiguration();
+    virtual AudioCodec* GetAudioCodec() override { return nullptr; }
 };
 
 #endif // WIFI_BOARD_H
