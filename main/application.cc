@@ -927,7 +927,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetIcon(FONT_AWESOME_MUSIC);
             
 #if CONFIG_USE_AUDIO_PROCESSOR
-            audio_processor_.Stop();
+            //audio_processor_.Stop();
 #endif
 #if CONFIG_USE_WAKE_WORD_DETECT
             wake_word_detect_.StartDetection();
