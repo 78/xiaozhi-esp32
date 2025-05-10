@@ -15,7 +15,8 @@ struct BinaryProtocol3 {
 
 enum AbortReason {
     kAbortReasonNone,
-    kAbortReasonWakeWordDetected
+    kAbortReasonWakeWordDetected,
+    kAbortReasonPlayMusic
 };
 
 enum ListeningMode {

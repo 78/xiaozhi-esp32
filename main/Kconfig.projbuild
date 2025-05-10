@@ -6,6 +6,11 @@ config OTA_VERSION_URL
     help
         The application will access this URL to check for updates.
 
+config ENABLE_MUSIC_PLAYER
+    bool "启用音乐播放器功能"
+    default y
+    help
+        启用音乐播放器功能，允许播放在线音乐。
 
 choice
     prompt "语言选择"

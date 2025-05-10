@@ -47,6 +47,7 @@
 
         "VOLUME":"音量 ",
         "MUTED":"已静音",
-        "MAX_VOLUME":"最大音量"
+        "MAX_VOLUME":"最大音量",
+        "MUSIC":"正在播放音乐"
     }
 }
