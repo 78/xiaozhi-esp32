@@ -100,6 +100,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
+    config BOARD_TYPE_ESP32P4_NANO
+        bool "Waveshare ESP32-P4-NANO"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -177,7 +179,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -212,6 +214,10 @@ choice DISPLAY_LCD_TYPE
         bool "ILI9341, 分辨率240*320, 非IPS"
     config LCD_GC9A01_240X240
         bool "GC9A01, 分辨率240*240, 圆屏"
+    config LCD_TYPE_800_1280_10_1_INCH
+        bool "Waveshare 101M-8001280-IPS-CT-K Display"
+    config LCD_TYPE_800_1280_10_1_INCH_A
+        bool "Waveshare 10.1-DSI-TOUCH-A Display"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
 endchoice
@@ -237,14 +243,14 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 

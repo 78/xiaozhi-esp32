@@ -1,8 +1,8 @@
 {
-    "target": "esp32s3",
+    "target": "esp32p4",
     "builds": [
         {
-            "name": "esp32-s3-touch-amoled-1.8",
+            "name": "waveshare-esp32-p4-nano",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
             ]
