@@ -2,6 +2,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8374_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -10,6 +11,8 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "protocols/protocol.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -113,6 +116,10 @@ elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_TYPE "lilygo-t-circle-s3")
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3)
     set(BOARD_TYPE "lilygo-t-cameraplus-s3")
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA)
+    set(BOARD_TYPE "lilygo-t-display-s3-pro-mvsrlora")
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY)
+    set(BOARD_TYPE "lilygo-t-display-s3-pro-mvsrlora")
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BOARD_TYPE "movecall-moji-esp32s3")
     elseif(CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3)
@@ -121,6 +128,12 @@ elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
     set(BOARD_TYPE "atk-dnesp32s3")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
+    set(BOARD_TYPE "atk-dnesp32s3-box0")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
+    set(BOARD_TYPE "atk-dnesp32s3m-wifi")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
+    set(BOARD_TYPE "atk-dnesp32s3m-4g")
 elseif(CONFIG_BOARD_TYPE_DU_CHATX)
     set(BOARD_TYPE "du-chatx")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi)
@@ -141,8 +154,12 @@ elseif(CONFIG_BOARD_TYPE_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
 elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
     set(BOARD_TYPE "doit-s3-aibox")
+elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
+    set(BOARD_TYPE "mixgo-nova")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
+elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board)
+    set(BOARD_TYPE "esp-s3-lcd-ev-board")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -150,14 +167,10 @@ file(GLOB BOARD_SOURCES
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
 
-if(CONFIG_CONNECTION_TYPE_MQTT_UDP)
-    list(APPEND SOURCES "protocols/mqtt_protocol.cc")
-elseif(CONFIG_CONNECTION_TYPE_WEBSOCKET)
-    list(APPEND SOURCES "protocols/websocket_protocol.cc")
-endif()
-
 if(CONFIG_USE_AUDIO_PROCESSOR)
-    list(APPEND SOURCES "audio_processing/audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
+else()
+    list(APPEND SOURCES "audio_processing/dummy_audio_processor.cc")
 endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
