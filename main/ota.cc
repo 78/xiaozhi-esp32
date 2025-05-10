@@ -20,7 +20,8 @@
 #include <algorithm>
 
 #define TAG "Ota"
-
+#define SERVER_B_URL "http://nas.fancheng.work:5005/ota/"
+//#define SERVER_B_URL "http://xiaozhiota.online:5005/ota/"
 
 Ota::Ota() {
     {
@@ -79,32 +80,81 @@ bool Ota::CheckVersion() {
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
+    // 先检查SERVER_B_URL是否有新版本
+    bool has_server_b_version = false;
+    std::string original_url = check_version_url_;
+    
+    // 1. 首先访问SERVER_B_URL
+    ESP_LOGI(TAG, "Checking version from SERVER_B_URL: %s", SERVER_B_URL);
+    check_version_url_ = SERVER_B_URL;
+    
+    auto http = SetupHttp();
+    std::string data = board.GetJson();
+    std::string method = data.length() > 0 ? "POST" : "GET";
+    if (http->Open(method, check_version_url_, data)) {
+        data = http->GetBody();
+        delete http;
+        
+        // 处理SERVER_B_URL的响应
+        cJSON *root = cJSON_Parse(data.c_str());
+        if (root != NULL) {
+            has_new_version_ = false;
+            cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
+            if (firmware != NULL) {
+                cJSON *version = cJSON_GetObjectItem(firmware, "version");
+                cJSON *url = cJSON_GetObjectItem(firmware, "url");
+                
+                if (version != NULL && url != NULL) {
+                    firmware_version_ = version->valuestring;
+                    firmware_url_ = url->valuestring;
+                    
+                    // 检查是否有新版本
+                    has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+                    if (has_new_version_) {
+                        ESP_LOGI(TAG, "New version available from SERVER_B: %s", firmware_version_.c_str());
+                        has_server_b_version = true;
+                    }
+                    
+                    // 如果强制标志设置为1，则强制安装指定版本
+                    cJSON *force = cJSON_GetObjectItem(firmware, "force");
+                    if (force != NULL && force->valueint == 1) {
+                        has_new_version_ = true;
+                        has_server_b_version = true;
+                    }
+                }
+            }
+            cJSON_Delete(root);
+        }
+    } else {
+        delete http;
+        ESP_LOGE(TAG, "Failed to open HTTP connection to SERVER_B_URL");
+    }
+    
+    // 2. 如果SERVER_B没有提供新版本，再访问原始OTA服务器获取其他配置信息
+    check_version_url_ = original_url;
     if (check_version_url_.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
     }
-
-    auto http = SetupHttp();
-
-    std::string data = board.GetJson();
-    std::string method = data.length() > 0 ? "POST" : "GET";
+    
+    ESP_LOGI(TAG, "Checking original OTA server for configuration: %s", check_version_url_.c_str());
+    http = SetupHttp();
+    data = board.GetJson();
+    method = data.length() > 0 ? "POST" : "GET";
     if (!http->Open(method, check_version_url_, data)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+        ESP_LOGE(TAG, "Failed to open HTTP connection to original OTA server");
         delete http;
-        return false;
+        return has_server_b_version; // 如果SERVER_B已提供版本，则返回true
     }
 
     data = http->GetBody();
     delete http;
-
-    // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
-    // Parse the JSON response and check if the version is newer
-    // If it is, set has_new_version_ to true and store the new version and URL
     
+    // 解析原始OTA服务器的响应，但忽略固件升级信息
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
-        ESP_LOGE(TAG, "Failed to parse JSON response");
-        return false;
+        ESP_LOGE(TAG, "Failed to parse JSON response from original OTA server");
+        return has_server_b_version; // 如果SERVER_B已提供版本，则返回true
     }
 
     has_activation_code_ = false;
@@ -190,36 +240,8 @@ bool Ota::CheckVersion() {
         ESP_LOGW(TAG, "No server_time section found!");
     }
 
-    has_new_version_ = false;
-    cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
-    if (firmware != NULL) {
-        cJSON *version = cJSON_GetObjectItem(firmware, "version");
-        if (version != NULL) {
-            firmware_version_ = version->valuestring;
-        }
-        cJSON *url = cJSON_GetObjectItem(firmware, "url");
-        if (url != NULL) {
-            firmware_url_ = url->valuestring;
-        }
-
-        if (version != NULL && url != NULL) {
-            // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-            has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
-            if (has_new_version_) {
-                ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
-            } else {
-                ESP_LOGI(TAG, "Current is the latest version");
-            }
-            // If the force flag is set to 1, the given version is forced to be installed
-            cJSON *force = cJSON_GetObjectItem(firmware, "force");
-            if (force != NULL && force->valueint == 1) {
-                has_new_version_ = true;
-            }
-        }
-    } else {
-        ESP_LOGW(TAG, "No firmware section found!");
-    }
-
+    // 忽略原始OTA服务器的固件更新信息，保持SERVER_B的升级信息
+    // 不处理固件相关的JSON节点
     cJSON_Delete(root);
     return true;
 }

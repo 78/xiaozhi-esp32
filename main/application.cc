@@ -601,10 +601,14 @@ void Application::Start() {
     // Enter the main event loop
     MainEventLoop();
 }
-
+extern "C" void TM1637_display_time(uint8_t hours, uint8_t minutes);
 void Application::OnClockTimer() {
     clock_ticks_++;
-
+#if CONFIG_BOARD_TYPE_FANCHENG_OLED_ML307_M || CONFIG_BOARD_TYPE_FANCHENG_OLED_WIFI_M || CONFIG_BOARD_TYPE_FANCHENG_1_8LCD_ML307_M || CONFIG_BOARD_TYPE_FANCHENG_1_8LCD_WIFI_M
+    time_t nowtime = time(NULL);
+    struct tm* tm_info = localtime(&nowtime);
+    TM1637_display_time(tm_info->tm_hour, tm_info->tm_min);
+#endif
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
