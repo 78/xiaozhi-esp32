@@ -144,7 +144,10 @@ elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
     set(BOARD_TYPE "doit-s3-aibox")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
+elseif(CONFIG_BOARD_TYPE_ABROBOT_1_28TFT_WIFI)
+    set(BOARD_TYPE "moon")
 endif()
+
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c

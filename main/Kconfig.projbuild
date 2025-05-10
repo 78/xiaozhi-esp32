@@ -166,6 +166,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_ABROBOT_1_28TFT_WIFI
+        bool "ABRobot GC9A01 1.28TFT(WIFI)"   
     config BOARD_TYPE_DOIT_S3_AIBOX
         bool "四博智联AI陪伴盒子"
 endchoice

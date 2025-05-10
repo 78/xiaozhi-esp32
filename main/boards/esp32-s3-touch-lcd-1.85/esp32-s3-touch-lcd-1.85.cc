@@ -28,7 +28,7 @@
 #include "images/doufu/output_0007.h"
 #include "images/doufu/output_0008.h"
 #include "images/doufu/output_0009.h"
-#include "images/doufu/output_0010.h"
+// #include "images/doufu/output_0010.h"
 
 #define TAG "waveshare_lcd_1_85"
 
@@ -488,10 +488,10 @@ private:
         }
         
         // 设置图片显示参数
-        int imgWidth = 240;
-        int imgHeight = 240;
+        int imgWidth = 360;
+        int imgHeight = 360;
         int x = 0;
-        int y = 10;
+        int y = 0;
         
         // 设置图片数组
         const uint8_t* imageArray[] = {
@@ -504,8 +504,8 @@ private:
             gImage_output_0007,
             gImage_output_0008,
             gImage_output_0009,
-            gImage_output_0010,
-            gImage_output_0009,
+            // gImage_output_0010,
+            // gImage_output_0009,
             gImage_output_0008,
             gImage_output_0007,
             gImage_output_0006,

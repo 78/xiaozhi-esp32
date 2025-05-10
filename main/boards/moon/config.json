@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-touch-lcd-1.46a",
+            "sdkconfig_append": []
+        }
+    ]
+}

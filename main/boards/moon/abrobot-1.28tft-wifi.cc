@@ -1,27 +1,61 @@
-#include "lcd_display.h"
+#include "core/lv_obj_pos.h"
+#include "font/lv_font.h"
+#include "misc/lv_types.h"
+#include "wifi_board.h"
+#include "audio_codecs/es8311_audio_codec.h"
+#include "display/lcd_display.h"
+#include "system_reset.h"
+#include "application.h"
+#include "button.h"
+#include "config.h"
+#include "iot/thing_manager.h"
+#include "lunar_calendar.h"
 
-#include <vector>
-#include <font_awesome_symbols.h>
 #include <esp_log.h>
-#include <esp_err.h>
-#include <esp_lvgl_port.h>
-#include "assets/lang_config.h"
+#include "i2c_device.h"
+#include <driver/i2c_master.h>
+#include <driver/ledc.h>
+#include <wifi_station.h>
+#include <esp_lcd_panel_io.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_timer.h>
+#include "lcd_display.h"
+#include <iot_button.h>
 #include <cstring>
+#include "esp_lcd_gc9a01.h"
+#include <font_awesome_symbols.h>
+#include "assets/lang_config.h"
+#include <esp_http_client.h>
+#include <cJSON.h>
+#include "power_manager.h"
+#include "power_save_timer.h"
+#include <esp_sleep.h>
+#include "button.h"
+#include "circular_led_strip.h"
+#include "ws2812_task.h"
 #include "settings.h"
+#define TAG "abrobot-1.28tft-wifi"
 
-#include "board.h"
+LV_FONT_DECLARE(lunar);
+LV_FONT_DECLARE(time70);
+LV_FONT_DECLARE(time50);
+LV_FONT_DECLARE(time40);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_awesome_30_4);
+ 
 
-#define TAG "LcdDisplay"
+
 
 // Color definitions for dark theme
-#define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
+#define DARK_BACKGROUND_COLOR       lv_color_hex(0)     // Dark background
 #define DARK_TEXT_COLOR             lv_color_white()           // White text
-#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
+#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0)     // Slightly lighter than background
 #define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
 #define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
 #define DARK_SYSTEM_BUBBLE_COLOR    lv_color_hex(0x2A2A2A)     // Medium gray
 #define DARK_SYSTEM_TEXT_COLOR      lv_color_hex(0xAAAAAA)     // Light gray text
-#define DARK_BORDER_COLOR           lv_color_hex(0x333333)     // Dark gray border
+#define DARK_BORDER_COLOR           lv_color_hex(0)     // Dark gray border
 #define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)     // Red for dark mode
 
 // Color definitions for light theme
@@ -73,228 +107,192 @@ static const ThemeColors LIGHT_THEME = {
     .border = LIGHT_BORDER_COLOR,
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
-
+ 
 // Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
+static ThemeColors current_theme = DARK_THEME;
 
 
-LV_FONT_DECLARE(font_awesome_30_4);
-
-SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts) {
-    width_ = width;
-    height_ = height;
-
-    // draw white
-    std::vector<uint16_t> buffer(width_, 0xFFFF);
-    for (int y = 0; y < height_; y++) {
-        esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
-    }
-
-    // Set the display to on
-    ESP_LOGI(TAG, "Turning display on");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
-
-    ESP_LOGI(TAG, "Initialize LVGL library");
-    lv_init();
-
-    ESP_LOGI(TAG, "Initialize LVGL port");
-    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
-    port_cfg.timer_period_ms = 50;
-    lvgl_port_init(&port_cfg);
-
-    ESP_LOGI(TAG, "Adding LCD screen");
-    const lvgl_port_display_cfg_t display_cfg = {
-        .io_handle = panel_io_,
-        .panel_handle = panel_,
-        .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
-        .double_buffer = false,
-        .trans_size = 0,
-        .hres = static_cast<uint32_t>(width_),
-        .vres = static_cast<uint32_t>(height_),
-        .monochrome = false,
-        .rotation = {
-            .swap_xy = swap_xy,
-            .mirror_x = mirror_x,
-            .mirror_y = mirror_y,
-        },
-        .color_format = LV_COLOR_FORMAT_RGB565,
-        .flags = {
-            .buff_dma = 1,
-            .buff_spiram = 0,
-            .sw_rotate = 0,
-            .swap_bytes = 1,
-            .full_refresh = 0,
-            .direct_mode = 0,
-        },
-    };
-
-    display_ = lvgl_port_add_disp(&display_cfg);
-    if (display_ == nullptr) {
-        ESP_LOGE(TAG, "Failed to add display");
-        return;
-    }
-
-    if (offset_x != 0 || offset_y != 0) {
-        lv_display_set_offset(display_, offset_x, offset_y);
-    }
-
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
-    }
-
-#if CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_46A
-#else
-    SetupUI();
-#endif
-
-}
-
-// RGB LCD实现
-RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y,
-                           bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts) {
-    width_ = width;
-    height_ = height;
+class CustomLcdDisplay : public SpiLcdDisplay {
+public:
     
-    // draw white
-    std::vector<uint16_t> buffer(width_, 0xFFFF);
-    for (int y = 0; y < height_; y++) {
-        esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
+    lv_timer_t *idle_timer_ = nullptr;  // Add timer pointer member variable
+ 
+    lv_obj_t * tab1 = nullptr;
+    lv_obj_t * tab2 = nullptr;
+    lv_obj_t * tabview_ = nullptr;
+    lv_obj_t * bg_img = nullptr;  // Background image object
+    lv_obj_t * bg_img2 = nullptr;  // Background image object
+    uint8_t bg_index = 1;         // Current background index (1-4)
+    lv_obj_t * bg_switch_btn = nullptr;  // Button to switch backgrounds
+ 
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
+                    esp_lcd_panel_handle_t panel_handle,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy) 
+        : SpiLcdDisplay(io_handle, panel_handle,
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                    {
+                        .text_font = &font_puhui_20_4,
+                        .icon_font = &font_awesome_20_4,
+                        .emoji_font = font_emoji_64_init(),
+                    }) {
+        DisplayLockGuard lock(this);
+        SetupUI();
     }
 
-    ESP_LOGI(TAG, "Initialize LVGL library");
-    lv_init();
+    void SetIdle(bool status) override 
+    {
+        // If status is false, just return
+        if (status == false)
+        {
+            if (idle_timer_ != nullptr) {
+                lv_timer_del(idle_timer_);
+                idle_timer_ = nullptr;
+            }
+            return;
+        } 
 
-    ESP_LOGI(TAG, "Initialize LVGL port");
-    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
-    port_cfg.timer_period_ms = 50;
-    lvgl_port_init(&port_cfg);
-
-    ESP_LOGI(TAG, "Adding LCD screen");
-    const lvgl_port_display_cfg_t display_cfg = {
-        .io_handle = panel_io_,
-        .panel_handle = panel_,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
-        .double_buffer = true,
-        .hres = static_cast<uint32_t>(width_),
-        .vres = static_cast<uint32_t>(height_),
-        .rotation = {
-            .swap_xy = swap_xy,
-            .mirror_x = mirror_x,
-            .mirror_y = mirror_y,
-        },
-        .flags = {
-            .buff_dma = 1,
-            .swap_bytes = 0,
-            .full_refresh = 1,
-            .direct_mode = 1,
-        },
-    };
-
-    const lvgl_port_display_rgb_cfg_t rgb_cfg = {
-        .flags = {
-            .bb_mode = true,
-            .avoid_tearing = true,
+        // If there's an existing timer, delete it first
+        if (idle_timer_ != nullptr) {
+            lv_timer_del(idle_timer_);
+            idle_timer_ = nullptr;
         }
-    };
-    
-    display_ = lvgl_port_add_disp_rgb(&display_cfg, &rgb_cfg);
-    if (display_ == nullptr) {
-        ESP_LOGE(TAG, "Failed to add RGB display");
-        return;
-    }
-    
-    if (offset_x != 0 || offset_y != 0) {
-        lv_display_set_offset(display_, offset_x, offset_y);
-    }
 
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
+        // Create a timer to switch to tab2 after 15 seconds
+        idle_timer_ = lv_timer_create([](lv_timer_t * t) {
+            CustomLcdDisplay *display = (CustomLcdDisplay *)lv_timer_get_user_data(t);
+            if (!display) return;
+            
+            // Find the tabview and switch to tab2
+            lv_obj_t *tabview = lv_obj_get_parent(lv_obj_get_parent(display->tab2));
+            if (tabview) {
+                ws2812_set_mode(WS2812_MODE_OFF);
+                // 在切换标签页前加锁，防止异常
+                lv_lock();
+                lv_tabview_set_act(tabview, 1, LV_ANIM_OFF);
+                lv_unlock();
+            }
+            
+            // Delete the timer after it's done
+            lv_timer_del(t);
+            display->idle_timer_ = nullptr;
+        }, 15000, this);  // 15000ms = 15 seconds
     }
-
-    SetupUI();
-}
-
-LcdDisplay::~LcdDisplay() {
-    // 然后再清理 LVGL 对象
-    if (content_ != nullptr) {
-        lv_obj_del(content_);
-    }
-    if (status_bar_ != nullptr) {
-        lv_obj_del(status_bar_);
-    }
-    if (side_bar_ != nullptr) {
-        lv_obj_del(side_bar_);
-    }
-    if (container_ != nullptr) {
-        lv_obj_del(container_);
-    }
-    if (display_ != nullptr) {
-        lv_display_delete(display_);
-    }
-
-    if (panel_ != nullptr) {
-        esp_lcd_panel_del(panel_);
-    }
-    if (panel_io_ != nullptr) {
-        esp_lcd_panel_io_del(panel_io_);
-    }
-}
-
-bool LcdDisplay::Lock(int timeout_ms) {
-    return lvgl_port_lock(timeout_ms);
-}
-
-void LcdDisplay::Unlock() {
-    lvgl_port_unlock();
-}
-
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-void LcdDisplay::SetupUI() {
-    DisplayLockGuard lock(this);
+void SetupTab1() {
+ 
+    lv_obj_set_style_text_font(tab1, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(tab1, current_theme.text, 0);
+    lv_obj_set_style_bg_color(tab1, current_theme.background, 0);
 
-    auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
-
+    /* Background image for tab1 */
+    bg_img = lv_img_create(tab1);
+    
+    /* Set the image descriptor */
+    lv_img_set_src(bg_img, &bg1);
+    
+    /* Position the image to cover the entire tab */
+    lv_obj_set_size(bg_img, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_pos(bg_img, -16, -16);
+    
+    /* Send to background */
+    lv_obj_move_background(bg_img);
+    
     /* Container */
-    container_ = lv_obj_create(screen);
-    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    container_ = lv_obj_create(tab1);
+    // 将container_高度改为原来的四分之三，宽度保持不变
+    lv_obj_set_size(container_, LV_HOR_RES * 0.7, LV_VER_RES * 0.7 * 0.75);
+    // 将container_放置在屏幕下方
+    lv_obj_align(container_, LV_ALIGN_BOTTOM_MID, 0, -10);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
     lv_obj_set_style_bg_color(container_, current_theme.background, 0);
     lv_obj_set_style_border_color(container_, current_theme.border, 0);
-
+    lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);
+    
+    /* Create right-side toggle button */
+    container_toggle_btn = lv_btn_create(tab1);
+    lv_obj_set_size(container_toggle_btn, 60, 60);  // 50% larger (40->60)
+    // 位置调整为垂直居中
+    lv_obj_align(container_toggle_btn, LV_ALIGN_RIGHT_MID, -2, 0);  // 右侧中间位置
+    lv_obj_set_style_bg_opa(container_toggle_btn, LV_OPA_50, 0);    // Make semi-transparent
+    lv_obj_set_style_radius(container_toggle_btn, 30, 0);           // Round corners (increased to match new size)
+    
+    lv_obj_t *toggle_btn_label = lv_label_create(container_toggle_btn);
+    lv_label_set_text(toggle_btn_label, FONT_AWESOME_XMARK);      // Use X mark icon
+    lv_obj_set_style_text_font(toggle_btn_label, fonts_.icon_font, 0);
+    lv_obj_center(toggle_btn_label);
+    
+    // Add click event handler for the toggle button
+    lv_obj_add_event_cb(container_toggle_btn, [](lv_event_t *e) {
+        CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
+        if (!display) return;
+        
+        // Toggle container visibility
+        display->container_visible = !display->container_visible;
+        
+        // Update container visibility
+        if (display->container_visible) {
+            lv_obj_clear_flag(display->container_, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(lv_obj_get_child(display->container_toggle_btn, 0), FONT_AWESOME_XMARK);
+        } else {
+            lv_obj_add_flag(display->container_, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(lv_obj_get_child(display->container_toggle_btn, 0), FONT_AWESOME_COMMENT);
+        }
+    }, LV_EVENT_CLICKED, this);
+    
+    /* Create background switch button */
+    bg_switch_btn = lv_btn_create(tab1);
+    lv_obj_set_size(bg_switch_btn, 60, 60);  // 50% larger (40->60)
+    // 位置调整为垂直居中
+    lv_obj_align(bg_switch_btn, LV_ALIGN_LEFT_MID, 2, 0);  // 左侧中间位置
+    lv_obj_set_style_bg_opa(bg_switch_btn, LV_OPA_30, 0);    // Make semi-transparent
+    lv_obj_set_style_radius(bg_switch_btn, 30, 0);           // Round corners (increased to match new size)
+    
+    lv_obj_t *btn_label = lv_label_create(bg_switch_btn);
+    lv_label_set_text(btn_label, FONT_AWESOME_ARROW_RIGHT);  // Use arrow icon
+    lv_obj_set_style_text_font(btn_label, fonts_.icon_font, 0);
+    lv_obj_center(btn_label);
+    
+    // Add click event handler for the button
+    lv_obj_add_event_cb(bg_switch_btn, [](lv_event_t *e) {
+        CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
+        if (!display) return;
+        
+        // Cycle through backgrounds
+        display->bg_index = (display->bg_index % 4) + 1;
+        
+        // Set the new background image
+        switch (display->bg_index) {
+            case 1: lv_img_set_src(display->bg_img, &bg1); break;
+            case 2: lv_img_set_src(display->bg_img, &bg2); break;
+            case 3: lv_img_set_src(display->bg_img, &bg3); break;
+            case 4: lv_img_set_src(display->bg_img, &bg4); break;
+        }
+    }, LV_EVENT_CLICKED, this);
+    
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
+    lv_obj_set_size(status_bar_, LV_HOR_RES * 0.6, fonts_.emoji_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
-    
+    //lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);
+    // Set status bar background to semi-transparent
+    lv_obj_set_style_bg_opa(status_bar_, LV_OPA_50, 0);
+
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
     lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_width(content_, LV_HOR_RES * 0.6);
     lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_style_pad_all(content_, 10, 0);
+    lv_obj_set_style_pad_all(content_, 5, 0);
     lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // Background for chat area
     lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for chat area
 
@@ -307,6 +305,8 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(content_, 10, 0); // Space between messages
 
+    lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
+
     // We'll create chat messages dynamically in SetChatMessage
     chat_message_label_ = nullptr;
 
@@ -315,10 +315,8 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
-    lv_obj_set_style_pad_left(status_bar_, 10, 0);
-    lv_obj_set_style_pad_right(status_bar_, 10, 0);
-    lv_obj_set_style_pad_top(status_bar_, 2, 0);
-    lv_obj_set_style_pad_bottom(status_bar_, 2, 0);
+    lv_obj_set_style_pad_left(status_bar_, 2, 0);
+    lv_obj_set_style_pad_right(status_bar_, 2, 0);
     lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
     // 设置状态栏的内容垂直居中
     lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -361,21 +359,21 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
     lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
-    low_battery_popup_ = lv_obj_create(screen);
+    low_battery_popup_ = lv_obj_create(tab1);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.54, fonts_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    low_battery_label_ = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
-    lv_obj_center(low_battery_label_);
+    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
+    lv_obj_center(low_battery_label);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
-#define  MAX_MESSAGES 20
-void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+#define  MAX_MESSAGES 50
+void SetChatMessage(const char* role, const char* content) override{
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
         return;
@@ -383,21 +381,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     //避免出现空的消息框
     if(strlen(content) == 0) return;
-    
-    // 检查消息数量是否超过限制
-    uint32_t child_count = lv_obj_get_child_cnt(content_);
-    if (child_count >= MAX_MESSAGES) {
-        // 删除最早的消息（第一个子对象）
-        lv_obj_t* first_child = lv_obj_get_child(content_, 0);
-        lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
-        if (first_child != nullptr) {
-            lv_obj_del(first_child);
-        }
-        // Scroll to the last message immediately
-        if (last_child != nullptr) {
-            lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
-        }
-    }
     
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
@@ -415,7 +398,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
 
     // 计算气泡宽度
-    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
+    lv_coord_t max_width = LV_HOR_RES * 0.6 * 85 / 100 - 16;  // 屏幕宽度的85%
     lv_coord_t min_width = 20;  
     lv_coord_t bubble_width;
     
@@ -439,7 +422,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // 设置气泡宽度
     lv_obj_set_width(msg_bubble, bubble_width);
     lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-
+    lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_50, 0);
     // Set alignment and style based on message role
     if (strcmp(role, "user") == 0) {
         // User messages are right-aligned with green background
@@ -453,6 +436,9 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set appropriate width for content
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
+        
+        // Add some margin 
+        lv_obj_set_style_margin_right(msg_bubble, 10, 0);
         
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
@@ -468,6 +454,9 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set appropriate width for content
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
+        
+        // Add some margin
+        lv_obj_set_style_margin_left(msg_bubble, -4, 0);
         
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
@@ -492,7 +481,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (strcmp(role, "user") == 0) {
         // Create a full-width container
         lv_obj_t* container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
+        lv_obj_set_width(container, LV_HOR_RES * 0.6);
         lv_obj_set_height(container, LV_SIZE_CONTENT);
         
         // Make container transparent and borderless
@@ -504,14 +493,14 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_set_parent(msg_bubble, container);
         
         // Right align the bubble in the container
-        lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
+        lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -10, 0);
         
         // Auto-scroll to this container
-        lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
+        lv_obj_scroll_to_view_recursive(container, LV_ANIM_OFF);
     } else if (strcmp(role, "system") == 0) {
         // 为系统消息创建全宽容器以确保居中对齐
         lv_obj_t* container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
+        lv_obj_set_width(container, LV_HOR_RES * 0.6);
         lv_obj_set_height(container, LV_SIZE_CONTENT);
         
         // 使容器透明且无边框
@@ -538,25 +527,48 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     // Store reference to the latest message label
     chat_message_label_ = msg_text;
+
+    // 检查消息数量是否超过限制
+    uint32_t msg_count = lv_obj_get_child_cnt(content_);
+    while (msg_count >= MAX_MESSAGES) {
+        // 删除最早的消息（第一个子节点）
+        lv_obj_t* oldest_msg = lv_obj_get_child(content_, 0);
+        if (oldest_msg != nullptr) {
+            lv_obj_del(oldest_msg);
+            msg_count--;
+        }else{
+            break;
+        }
+    }
 }
 #else
-void LcdDisplay::SetupUI() {
+
+void SetChatMessage(const char* role, const char* content) override{
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
+    lv_label_set_text(chat_message_label_, content);
+    lv_obj_scroll_to_view_recursive(chat_message_label_, LV_ANIM_OFF);
+}
+
+void SetupTab1() {
     DisplayLockGuard lock(this);
 
-    auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+     
+    lv_obj_set_style_text_font(tab1, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(tab1, current_theme.text, 0);
+    lv_obj_set_style_bg_color(tab1, current_theme.background, 0);
 
     /* Container */
-    container_ = lv_obj_create(screen);
+    container_ = lv_obj_create(tab1);
+    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    //lv_obj_center(container_);
+    lv_obj_set_pos(container_, -13, -13);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_pad_row(container_, 0, 0);
-    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
-    lv_obj_set_style_border_color(container_, current_theme.border, 0);
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
@@ -597,12 +609,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
     lv_obj_set_style_pad_right(status_bar_, 2, 0);
-
+#if 0
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
-
+#endif
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
@@ -626,81 +638,234 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
 
-    low_battery_popup_ = lv_obj_create(screen);
+    low_battery_popup_ = lv_obj_create(tab1);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    low_battery_label_ = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
-    lv_obj_center(low_battery_label_);
+    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
+    lv_obj_center(low_battery_label);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 #endif
+ 
 
-void LcdDisplay::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
-    };
+    void SetupTab2() {
+        lv_obj_set_style_text_font(tab2, fonts_.text_font, 0);
+        lv_obj_set_style_text_color(tab2, lv_color_white(), 0);
+        lv_obj_set_style_bg_color(tab2, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(tab2, LV_OPA_COVER, 0);  // Set background opacity to 100%
 
-    static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},
-        {"🙂", "happy"},
-        {"😆", "laughing"},
-        {"😂", "funny"},
-        {"😔", "sad"},
-        {"😠", "angry"},
-        {"😭", "crying"},
-        {"😍", "loving"},
-        {"😳", "embarrassed"},
-        {"😯", "surprised"},
-        {"😱", "shocked"},
-        {"🤔", "thinking"},
-        {"😉", "winking"},
-        {"😎", "cool"},
-        {"😌", "relaxed"},
-        {"🤤", "delicious"},
-        {"😘", "kissy"},
-        {"😏", "confident"},
-        {"😴", "sleepy"},
-        {"😜", "silly"},
-        {"🙄", "confused"}
-    };
-    
-    // 查找匹配的表情
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
 
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
+        // 创建秒钟标签，使用time30字体
+        lv_obj_t *second_label = lv_label_create(tab2);
+        lv_obj_set_style_text_font(second_label, &time40, 0);
+        lv_obj_set_style_text_color(second_label, lv_color_white(), 0);
+        lv_obj_align(second_label, LV_ALIGN_TOP_MID, 0, 10);    
+        lv_label_set_text(second_label, "00");
+        
+        // Create date label directly on tab2
+        lv_obj_t *date_label = lv_label_create(tab2);
+        lv_obj_set_style_text_font(date_label, fonts_.text_font, 0);
+        lv_obj_set_style_text_color(date_label, lv_color_white(), 0);
+        lv_label_set_text(date_label, "01-01");
+        lv_obj_align(date_label, LV_ALIGN_TOP_MID, -60, 35);
+        
+        // Create weekday label directly on tab2
+        lv_obj_t *weekday_label = lv_label_create(tab2);
+        lv_obj_set_style_text_font(weekday_label, fonts_.text_font, 0);
+        lv_obj_set_style_text_color(weekday_label, lv_color_white(), 0);
+        lv_label_set_text(weekday_label, "星期一");
+        lv_obj_align(weekday_label, LV_ALIGN_TOP_MID, 60, 35);
+       
+        // 创建一个容器用于放置时间标签
+        lv_obj_t *time_container = lv_obj_create(tab2);
+        // 设置容器的样式
+        lv_obj_remove_style_all(time_container);  // 移除所有默认样式
+        lv_obj_set_size(time_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT); // 大小根据内容调整
+        lv_obj_set_style_pad_all(time_container, 0, 0); // 无内边距
+        lv_obj_set_style_bg_opa(time_container, LV_OPA_TRANSP, 0); // 透明背景
+        lv_obj_set_style_border_width(time_container, 0, 0); // 无边框
+
+
+        
+        // 设置为水平Flex布局
+        lv_obj_set_flex_flow(time_container, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(time_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        
+        // 设置容器位置为屏幕中央
+        lv_obj_align(time_container, LV_ALIGN_CENTER, 0, 0);
+        
+        // 创建小时标签
+        lv_obj_t *hour_label = lv_label_create(time_container);
+        lv_obj_set_style_text_font(hour_label, &time70, 0);
+        lv_obj_set_style_text_color(hour_label, lv_color_white(), 0);
+        lv_label_set_text(hour_label, "00 :");
+        
+        // 创建分钟标签，使用橙色显示
+        lv_obj_t *minute_label = lv_label_create(time_container);
+        lv_obj_set_style_text_font(minute_label, &time70, 0);
+        lv_obj_set_style_text_color(minute_label, lv_color_hex(0xFFA500), 0); // 橙色
+        lv_label_set_text(minute_label, " 00");
+        
+        
+        // Create lunar label directly on tab2
+        lv_obj_t *lunar_label = lv_label_create(tab2);
+        lv_obj_set_style_text_font(lunar_label, &lunar, 0);
+        lv_obj_set_style_text_color(lunar_label, lv_color_white(), 0);
+        lv_obj_set_width(lunar_label, LV_HOR_RES * 0.8);
+        lv_label_set_long_mode(lunar_label, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(lunar_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(lunar_label, "农历癸卯年正月初一");
+        lv_obj_align(lunar_label, LV_ALIGN_BOTTOM_MID, 0, -36);
+        
+        // 定时器更新时间
+        static lv_obj_t* hour_lbl = hour_label;
+        static lv_obj_t* minute_lbl = minute_label;
+        static lv_obj_t* second_lbl = second_label;
+        static lv_obj_t* date_lbl = date_label;
+        //static lv_obj_t* year_lbl = year_label;
+        static lv_obj_t* weekday_lbl = weekday_label;
+        static lv_obj_t* lunar_lbl = lunar_label;
+        
+        lv_timer_create([](lv_timer_t *t) {
+            
+            if (!hour_lbl || !minute_lbl || !second_lbl || 
+                !date_lbl || !weekday_lbl || !lunar_lbl) return;
+            
+            lv_lock();
+            // Get current time
+            time_t now;
+            struct tm timeinfo;
+            time(&now);
+            localtime_r(&now, &timeinfo);
+            
+            // 格式化时、分、秒
+            char hour_str[6];
+            char minute_str[3];
+            char second_str[3];
+            
+            sprintf(hour_str, "%02d : ", timeinfo.tm_hour);
+            sprintf(minute_str, "%02d", timeinfo.tm_min);
+            sprintf(second_str, "%02d", timeinfo.tm_sec);
+            
+            // 更新时间标签
+            lv_label_set_text(hour_lbl, hour_str);
+            lv_label_set_text(minute_lbl, minute_str);
+            lv_label_set_text(second_lbl, second_str);
+            
+            // Format year
+            char year_str[12];
+            snprintf(year_str, sizeof(year_str), "%d", timeinfo.tm_year + 1900);
+            
+            // Update year label
+            //lv_label_set_text(year_lbl, year_str);
+            
+            // Format date as MM-DD
+            char date_str[25];
+            snprintf(date_str, sizeof(date_str), "%d/%d", timeinfo.tm_mon + 1, timeinfo.tm_mday);
+            
+            // Get day of week in Chinese
+            const char *weekdays[] = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+            
+            // Update date and weekday labels
+            lv_label_set_text(date_lbl, date_str);
+            
+            if (timeinfo.tm_wday >= 0 && timeinfo.tm_wday < 7) {
+                lv_label_set_text(weekday_lbl, weekdays[timeinfo.tm_wday]);
+            }
+            
+            // 计算并更新农历日期
+            std::string lunar_date = LunarCalendar::GetLunarDate(
+                timeinfo.tm_year + 1900,
+                timeinfo.tm_mon + 1,
+                timeinfo.tm_mday
+            );
+            lv_label_set_text(lunar_lbl, lunar_date.c_str());
+            
+            lv_unlock();
+            
+        }, 1000, NULL);
     }
 
-    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
-    } else {
-        lv_label_set_text(emotion_label_, "😶");
-    }
-}
+    virtual void SetupUI() override {
+        DisplayLockGuard lock(this);
+        Settings settings("display", false);
+        current_theme_name_ = settings.GetString("theme", "dark");
+        if (current_theme_name_ == "dark" || current_theme_name_ == "DARK") {
+            current_theme = DARK_THEME;
+        } else if (current_theme_name_ == "light" || current_theme_name_ == "LIGHT") {
+            current_theme = LIGHT_THEME;
+        }  
+        ESP_LOGI(TAG, "SetupUI --------------------------------------");
+        
+        // 创建tabview，填充整个屏幕
+        lv_obj_t * screen = lv_screen_active();
+        lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+        tabview_ = lv_tabview_create(lv_scr_act());
+        lv_obj_set_size(tabview_, lv_pct(100), lv_pct(100));
 
-void LcdDisplay::SetIcon(const char* icon) {
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_label_set_text(emotion_label_, icon);
-}
+        
+        // 隐藏标签栏
+        lv_tabview_set_tab_bar_position(tabview_, LV_DIR_TOP);
+        lv_tabview_set_tab_bar_size(tabview_, 0);
+        lv_obj_t * tab_btns = lv_tabview_get_tab_btns(tabview_);
+        lv_obj_add_flag(tab_btns, LV_OBJ_FLAG_HIDDEN);
 
-void LcdDisplay::SetTheme(const std::string& theme_name) {
+         // 设置tabview的滚动捕捉模式，确保滑动后停留在固定位置
+        lv_obj_t * content = lv_tabview_get_content(tabview_);
+        lv_obj_set_scroll_snap_x(content, LV_SCROLL_SNAP_CENTER);
+        
+        // 创建两个页面
+        tab1 = lv_tabview_add_tab(tabview_, "Tab1");
+        tab2 = lv_tabview_add_tab(tabview_, "Tab2");
+
+        // Disable scrolling for tab1
+        lv_obj_clear_flag(tab1, LV_OBJ_FLAG_SCROLLABLE);
+        // Hide scrollbar for tab1
+        lv_obj_set_scrollbar_mode(tab1, LV_SCROLLBAR_MODE_OFF);
+        
+        // Disable scrolling for tab2
+        lv_obj_clear_flag(tab2, LV_OBJ_FLAG_SCROLLABLE);
+        // Hide scrollbar for tab2
+        lv_obj_set_scrollbar_mode(tab2, LV_SCROLLBAR_MODE_OFF);
+
+        // Add click event handlers for both tabs
+        lv_obj_add_event_cb(tab1, [](lv_event_t *e) {
+            CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
+            if (!display) return;
+            
+            // If there's an active timer, delete it
+            if (display->idle_timer_ != nullptr) {
+                lv_timer_del(display->idle_timer_);
+                display->idle_timer_ = nullptr;
+            }
+        }, LV_EVENT_CLICKED, this);
+
+        lv_obj_add_event_cb(tab2, [](lv_event_t *e) {
+            CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
+            if (!display) return;
+            
+            // If there's an active timer, delete it
+            if (display->idle_timer_ != nullptr) {
+                lv_timer_del(display->idle_timer_);
+                display->idle_timer_ = nullptr;
+            }
+        }, LV_EVENT_CLICKED, this);
+
+        // 在第一个页面中保持原有内容
+        SetupTab1();
+        SetupTab2();
+    }
+
+    virtual void SetTheme(const std::string& theme_name) override {
     DisplayLockGuard lock(this);
-    
+
+    current_theme = DARK_THEME;
+
     if (theme_name == "dark" || theme_name == "DARK") {
         current_theme = DARK_THEME;
     } else if (theme_name == "light" || theme_name == "LIGHT") {
@@ -710,6 +875,7 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
         return;
     }
+    
     
     // Get the active screen
     lv_obj_t* screen = lv_screen_active();
@@ -888,5 +1054,157 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     }
 
     // No errors occurred. Save theme to settings
-    Display::SetTheme(theme_name);
+    current_theme_name_ = theme_name;
+    Settings settings("display", true);
+    settings.SetString("theme", theme_name);
 }
+    
+ 
+private:
+    // 静态回调函数
+ 
+};
+
+
+ 
+
+class CustomBoard : public WifiBoard {
+private:
+
+    i2c_master_bus_handle_t codec_i2c_bus_;
+    CustomLcdDisplay* display_;
+    Button boot_btn;
+ 
+    esp_lcd_panel_io_handle_t panel_io = nullptr;
+    esp_lcd_panel_handle_t panel = nullptr;
+
+
+    void InitializeCodecI2c() {
+        // Initialize I2C peripheral
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = I2C_NUM_0,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+    }
+ 
+
+    void InitializeSpi() {
+        spi_bus_config_t buscfg = {};
+        buscfg.mosi_io_num = DISPLAY_MOSI_PIN;
+        buscfg.miso_io_num = GPIO_NUM_NC;
+        buscfg.sclk_io_num = DISPLAY_CLK_PIN;
+        buscfg.quadwp_io_num = GPIO_NUM_NC;
+        buscfg.quadhd_io_num = GPIO_NUM_NC;
+        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    }
+
+    void InitializeLcdDisplay() {
+        
+        // 液晶屏控制IO初始化
+        ESP_LOGD(TAG, "Install panel IO");
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = DISPLAY_CS_PIN;
+        io_config.dc_gpio_num = DISPLAY_DC_PIN;
+        io_config.spi_mode = DISPLAY_SPI_MODE;
+        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
+
+        // 初始化液晶屏驱动芯片
+        ESP_LOGD(TAG, "Install LCD driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = DISPLAY_RST_PIN;
+        panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
+        panel_config.bits_per_pixel = 16;
+ 
+        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel));
+   
+        esp_lcd_panel_reset(panel);
+ 
+
+        esp_lcd_panel_init(panel);
+        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
+        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        display_ = new CustomLcdDisplay(panel_io, panel,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+    }
+    
+ 
+    void InitializeButtonsCustom() {
+        gpio_reset_pin(BOOT_BUTTON_GPIO);                                     
+        gpio_set_direction(BOOT_BUTTON_GPIO, GPIO_MODE_INPUT);   
+    }
+
+    void InitializeButtons() {
+        boot_btn.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+            
+        });
+ 
+    }
+
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("ColorStrip"));
+        thing_manager.AddThing(iot::CreateThing("RotateDisplay"));
+    }
+
+public:
+    CustomBoard() : boot_btn(BOOT_BUTTON_GPIO){
+        InitializeCodecI2c();
+        InitializeSpi();
+        InitializeLcdDisplay();
+        InitializeButtons();
+        InitializeIot();
+        GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Led* GetLed() override {
+        static CircularLedStrip led(BUILTIN_LED_GPIO);
+        return &led;
+    }
+
+    virtual AudioCodec* GetAudioCodec() override {
+        static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+        return &audio_codec;
+    }
+
+    virtual Display* GetDisplay() override {
+        return display_;
+    }
+    
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
+    }
+
+ 
+ 
+
+    ~CustomBoard() {
+ 
+    }
+};
+
+DECLARE_BOARD(CustomBoard);

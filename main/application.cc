@@ -760,9 +760,13 @@ void Application::SetDeviceState(DeviceState state) {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
+    if(state != kDeviceStateIdle) {
+        display->SetIdle(false);
+    }
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
+            display->SetIdle(true);
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
 #if CONFIG_USE_AUDIO_PROCESSOR
