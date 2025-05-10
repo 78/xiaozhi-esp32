@@ -35,6 +35,17 @@
 #include "ws2812_task.h"
 #include "settings.h"
 #define TAG "abrobot-1.28tft-wifi"
+#include "images/doufu/output_0001.h"
+#include "images/doufu/output_0002.h"
+#include "images/doufu/output_0003.h"
+#include "images/doufu/output_0004.h"
+#include "images/doufu/output_0005.h"
+#include "images/doufu/output_0006.h"
+#include "images/doufu/output_0007.h" 
+#include "images/doufu/output_0008.h"
+#include "images/doufu/output_0009.h"
+
+
 
 LV_FONT_DECLARE(lunar);
 LV_FONT_DECLARE(time70);
@@ -175,6 +186,15 @@ public:
                 // 在切换标签页前加锁，防止异常
                 lv_lock();
                 lv_tabview_set_act(tabview, 1, LV_ANIM_OFF);
+                
+                // 确保时钟页面始终在最顶层
+                lv_obj_move_foreground(display->tab2);
+                
+                // 如果有画布，将其移到background以确保不会遮挡时钟
+                if (display->GetCanvas() != nullptr) {
+                    lv_obj_move_background(display->GetCanvas());
+                }
+                
                 lv_unlock();
             }
             
@@ -838,6 +858,11 @@ void SetupTab1() {
             CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
             if (!display) return;
             
+            // 确保主页画布在最顶层
+            if (display->GetCanvas() != nullptr) {
+                lv_obj_move_foreground(display->GetCanvas());
+            }
+            
             // If there's an active timer, delete it
             if (display->idle_timer_ != nullptr) {
                 lv_timer_del(display->idle_timer_);
@@ -848,6 +873,14 @@ void SetupTab1() {
         lv_obj_add_event_cb(tab2, [](lv_event_t *e) {
             CustomLcdDisplay *display = (CustomLcdDisplay *)lv_event_get_user_data(e);
             if (!display) return;
+            
+            // 确保时钟页面始终在最顶层
+            lv_obj_move_foreground(display->tab2);
+            
+            // 如果有画布，将其移到background以确保不会遮挡时钟
+            if (display->GetCanvas() != nullptr) {
+                lv_obj_move_background(display->GetCanvas());
+            }
             
             // If there's an active timer, delete it
             if (display->idle_timer_ != nullptr) {
@@ -1078,6 +1111,8 @@ private:
     esp_lcd_panel_io_handle_t panel_io = nullptr;
     esp_lcd_panel_handle_t panel = nullptr;
 
+    // 添加图片显示任务句柄
+    TaskHandle_t image_task_handle_ = nullptr;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -1168,6 +1203,187 @@ private:
         thing_manager.AddThing(iot::CreateThing("RotateDisplay"));
     }
 
+    // 添加启动图片循环显示任务函数
+    void StartImageSlideshow() {
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        ESP_LOGI(TAG, "图片循环显示任务已启动");
+    }
+
+    // 图片循环显示任务
+    static void ImageSlideshowTask(void* arg) {
+        CustomBoard* board = static_cast<CustomBoard*>(arg);
+        Display* display = board->GetDisplay();
+        
+        if (!display) {
+            ESP_LOGE(TAG, "无法获取显示设备");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 获取Application实例
+        auto& app = Application::GetInstance();
+        
+        // 创建画布（如果不存在）
+        if (!display->HasCanvas()) {
+            display->CreateCanvas();
+        }
+        
+        // 设置图片显示参数
+        int imgWidth = 240;
+        int imgHeight = 240;
+        int x = 0;
+        int y = 0;
+        
+        // 设置图片数组
+        const uint8_t* imageArray[] = {
+            gImage_output_0001,
+            gImage_output_0002,
+            gImage_output_0003,
+            gImage_output_0004,
+            gImage_output_0005,
+            gImage_output_0006,
+            gImage_output_0007,
+            gImage_output_0008,
+            gImage_output_0009,
+            gImage_output_0008,
+            gImage_output_0007,
+            gImage_output_0006,
+            gImage_output_0005,
+            gImage_output_0004,
+            gImage_output_0003,
+            gImage_output_0002,
+            gImage_output_0001,
+        };
+        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
+        
+        // 创建临时缓冲区用于字节序转换
+        uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
+        if (!convertedData) {
+            ESP_LOGE(TAG, "无法分配内存进行图像转换");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 先显示第一张图片
+        int currentIndex = 0;
+        const uint8_t* currentImage = imageArray[currentIndex];
+        
+        // 转换并显示第一张图片
+        for (int i = 0; i < imgWidth * imgHeight; i++) {
+            uint16_t pixel = ((uint16_t*)currentImage)[i];
+            convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+        }
+        
+        // 使用DrawImageOnCanvas而不是DrawImage
+        display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+        ESP_LOGI(TAG, "初始显示图片");
+        
+        // 持续监控和处理图片显示
+        TickType_t lastUpdateTime = xTaskGetTickCount();
+        const TickType_t cycleInterval = pdMS_TO_TICKS(120); // 图片切换间隔120毫秒
+        
+        // 定义用于判断是否正在播放音频的变量
+        bool isAudioPlaying = false;
+        bool wasAudioPlaying = false;
+        DeviceState previousState = app.GetDeviceState();
+        bool pendingAnimationStart = false;
+        TickType_t stateChangeTime = 0;
+        
+        // 获取CustomLcdDisplay实例以检查当前活动的标签页
+        CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display);
+        
+        while (true) {
+            // 获取当前设备状态
+            DeviceState currentState = app.GetDeviceState();
+            TickType_t currentTime = xTaskGetTickCount();
+            
+            // 检查当前是否在时钟页面（tab2）
+            bool isClockTabActive = false;
+            if (customDisplay && customDisplay->tabview_) {
+                int active_tab = lv_tabview_get_tab_act(customDisplay->tabview_);
+                isClockTabActive = (active_tab == 1); // tab2是索引1
+            }
+            
+            // 如果时钟页面处于活跃状态，不绘制任何图片
+            if (isClockTabActive) {
+                // 休眠一小段时间后再次检查
+                vTaskDelay(pdMS_TO_TICKS(100));
+                continue;
+            }
+            
+            // 检测到状态刚变为Speaking，设置动画延迟启动
+            if (currentState == kDeviceStateSpeaking && previousState != kDeviceStateSpeaking) {
+                pendingAnimationStart = true;
+                stateChangeTime = currentTime;
+                ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");
+            }
+            
+            // 延迟启动动画，等待音频实际开始播放
+            // 设置800ms延迟，实验找到最佳匹配值
+            if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(60))) {
+                // 状态变为Speaking后延迟一段时间，开始动画以匹配实际音频输出
+                currentIndex = 1; // 从第二张图片开始
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "开始播放动画，与音频同步");
+                
+                lastUpdateTime = currentTime;
+                isAudioPlaying = true;
+                pendingAnimationStart = false;
+            }
+            
+            // 正常的图片循环逻辑
+            isAudioPlaying = (currentState == kDeviceStateSpeaking);
+            
+            if (isAudioPlaying && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
+                // 更新索引到下一张图片
+                currentIndex = (currentIndex + 1) % totalImages;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                
+                // 更新上次更新时间
+                lastUpdateTime = currentTime;
+            }
+            else if ((!isAudioPlaying && wasAudioPlaying) || (!isAudioPlaying && currentIndex != 0)) {
+                // 切换回第一张图片
+                currentIndex = 0;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示第一张图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "返回显示初始图片");
+                pendingAnimationStart = false;
+            }
+            
+            // 更新状态记录
+            wasAudioPlaying = isAudioPlaying;
+            previousState = currentState;
+            
+            // 保持较高的检测频率以确保响应灵敏
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        
+        // 释放资源
+        delete[] convertedData;
+        vTaskDelete(NULL);
+    }
+
 public:
     CustomBoard() : boot_btn(BOOT_BUTTON_GPIO){
         InitializeCodecI2c();
@@ -1176,6 +1392,9 @@ public:
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
+        
+        // 在构造函数最后添加启动图片循环显示任务
+        StartImageSlideshow();
     }
 
     virtual Led* GetLed() override {
@@ -1203,7 +1422,11 @@ public:
  
 
     ~CustomBoard() {
- 
+        // 如果任务在运行中，停止它
+        if (image_task_handle_ != nullptr) {
+            vTaskDelete(image_task_handle_);
+            image_task_handle_ = nullptr;
+        }
     }
 };
 

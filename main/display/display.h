@@ -28,9 +28,17 @@ public:
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
     virtual void SetIdle(bool status){};
+    
+    virtual void CreateCanvas();
+    virtual void DestroyCanvas();
+    virtual void DrawImageOnCanvas(int x, int y, int width, int height, const uint8_t* img_data);
+    virtual bool HasCanvas() { return canvas_ != nullptr; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
+
+    virtual lv_obj_t* GetCanvas() { return canvas_; }
+    virtual void* GetCanvasBuffer() { return canvas_buffer_; }
 
 protected:
     int width_ = 0;
@@ -48,7 +56,8 @@ protected:
     lv_obj_t* chat_message_label_ = nullptr;
     lv_obj_t* low_battery_popup_ = nullptr;
     lv_obj_t* low_battery_label_ = nullptr;
-    
+    lv_obj_t* canvas_ = nullptr;
+    void* canvas_buffer_ = nullptr;
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
