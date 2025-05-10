@@ -20,6 +20,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "background_task.cc"
+            "music_service.cc"
             "main.cc"
             )
 
@@ -51,6 +52,10 @@ elseif(CONFIG_BOARD_TYPE_ESP_BOX)
     set(BOARD_TYPE "esp-box")
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_LITE)
     set(BOARD_TYPE "esp-box-lite")
+elseif(CONFIG_BOARD_TYPE_FANTOY_WIFI_13)
+    set(BOARD_TYPE "fantoy-wifi-13")
+elseif(CONFIG_BOARD_TYPE_FANTOY_ML307_20)
+    set(BOARD_TYPE "fantoy-ml307-20")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_1)
     set(BOARD_TYPE "kevin-box-1")
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
