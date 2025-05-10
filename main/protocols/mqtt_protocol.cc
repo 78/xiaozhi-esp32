@@ -187,6 +187,9 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"type\":\"hello\",";
     message += "\"version\": 3,";
     message += "\"transport\":\"udp\",";
+#if CONFIG_USE_SERVER_AEC
+    message += "\"features\":{\"aec\":true},";
+#endif
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";

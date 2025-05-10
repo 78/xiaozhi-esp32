@@ -248,11 +248,18 @@ config USE_AUDIO_PROCESSOR
     help
         需要 ESP32 S3 与 AFE 支持
 
-config USE_REALTIME_CHAT
-    bool "启用可语音打断的实时对话模式（需要 AEC 支持）"
+config USE_DEVICE_AEC
+    bool "在通话过程中启用设备端 AEC"
     default n
     depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
     help
-        需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
-        
+        因为性能不够，不建议和微信聊天界面风格同时开启
+
+config USE_SERVER_AEC
+    bool "在通话过程中启用服务器端 AEC"
+    default n
+    depends on USE_AUDIO_PROCESSOR
+    help
+        启用服务器端 AEC，需要服务器支持
+
 endmenu

@@ -89,7 +89,7 @@ private:
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
-#if CONFIG_USE_REALTIME_CHAT
+#if CONFIG_USE_DEVICE_AEC || CONFIG_USE_SERVER_AEC
     bool realtime_chat_enabled_ = true;
 #else
     bool realtime_chat_enabled_ = false;
