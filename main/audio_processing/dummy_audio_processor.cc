@@ -1,3 +1,9 @@
+/*
+ * @Date: 2025-05-10 18:39:48
+ * @LastEditors: zhouke
+ * @LastEditTime: 2025-05-10 18:56:17
+ * @FilePath: \xiaozhi-esp32\main\audio_processing\dummy_audio_processor.cc
+ */
 #include "dummy_audio_processor.h"
 #include <esp_log.h>
 
