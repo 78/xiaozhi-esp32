@@ -21,6 +21,10 @@
 #include "wifi_board.h"
 #define TAG "NulllabAIVox"
 
+#ifndef CONFIG_IDF_TARGET_ESP32S3
+#error "This board is only supported on ESP32-S3, please use ESP32-S3 target by using 'idf.py esp32s3' and 'idf.py menuconfig' to configure the project."
+#endif
+
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
