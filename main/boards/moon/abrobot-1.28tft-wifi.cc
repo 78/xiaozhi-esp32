@@ -44,6 +44,12 @@
 #include "images/doufu/output_0007.h" 
 #include "images/doufu/output_0008.h"
 #include "images/doufu/output_0009.h"
+#include "images/doufu/output_0010.h"
+#include "images/doufu/output_0011.h"
+#include "images/doufu/output_0012.h"
+#include "images/doufu/output_0013.h"
+#include "images/doufu/output_0014.h"
+#include "images/doufu/output_0015.h"
 
 
 
@@ -1244,6 +1250,18 @@ private:
             gImage_output_0006,
             gImage_output_0007,
             gImage_output_0008,
+            gImage_output_0009,
+            gImage_output_0010,
+            gImage_output_0011,
+            gImage_output_0012,
+            gImage_output_0013,
+            gImage_output_0014,
+            gImage_output_0015,
+            gImage_output_0014,
+            gImage_output_0013,
+            gImage_output_0012,
+            gImage_output_0011,
+            gImage_output_0010,
             gImage_output_0009,
             gImage_output_0008,
             gImage_output_0007,
