@@ -1348,7 +1348,7 @@ private:
             
             // 延迟启动动画，等待音频实际开始播放
             // 设置800ms延迟，实验找到最佳匹配值
-            if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(60))) {
+            if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(1200))) {
                 // 状态变为Speaking后延迟一段时间，开始动画以匹配实际音频输出
                 currentIndex = 1; // 从第二张图片开始
                 currentImage = imageArray[currentIndex];
