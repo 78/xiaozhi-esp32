@@ -50,6 +50,8 @@
 #include "images/doufu/output_0013.h"
 #include "images/doufu/output_0014.h"
 #include "images/doufu/output_0015.h"
+#include "images/doufu/output_0016.h"
+#include "images/doufu/output_0017.h"
 
 
 
@@ -1256,6 +1258,14 @@ private:
             gImage_output_0012,
             gImage_output_0013,
             gImage_output_0014,
+            gImage_output_0015,
+            gImage_output_0016,
+            gImage_output_0017,
+            // gImage_output_0018,
+            // gImage_output_0019,
+            // gImage_output_0018,
+            // gImage_output_0017,
+            gImage_output_0016,
             gImage_output_0015,
             gImage_output_0014,
             gImage_output_0013,
