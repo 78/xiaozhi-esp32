@@ -309,7 +309,7 @@ bool Ota::CheckVersion() {
 
         if (version != NULL && url != NULL) {
             // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
-            has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
+            //has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
             if (has_new_version_) {
                 ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
             } else {
