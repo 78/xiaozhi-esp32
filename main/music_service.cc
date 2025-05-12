@@ -270,11 +270,11 @@ bool MusicService::SearchMusic(const std::string& keyword) {
         }
         
         snprintf(search_url, 512, 
-                "https://music-api.gdstudio.xyz/api.php?types=search&source=%s&count=10&pages=1&name=%s",
+                "https://gdstudio-proxy.fanfuture.cn/api.php?types=search&source=%s&count=10&pages=1&name=%s",
                 current_source.c_str(), encoded_buf);
         
         snprintf(url_fetch_url, 512, 
-                "https://music-api.gdstudio.xyz/api.php?types=url&source=%s&id=%%d&br=320",
+                "https://gdstudio-proxy.fanfuture.cn/api.php?types=url&source=%s&id=%%d&br=320",
                 current_source.c_str());
         
         if (board.GetDisplay()) {
@@ -419,7 +419,7 @@ bool MusicService::SearchMusic(const std::string& keyword) {
         }
         
         snprintf(url_fetch_url, 512, 
-                "https://music-api.gdstudio.xyz/api.php?types=url&source=%s&id=%d&br=320",
+                "https://gdstudio-proxy.fanfuture.cn/api.php?types=url&source=%s&id=%d&br=320",
                 current_source.c_str(), song_id_);
         
         auto& board = Board::GetInstance();
@@ -1010,7 +1010,7 @@ bool MusicService::SendHttpRequest(const char* url, esp_http_client_method_t met
     esp_http_client_config_t config = {};
     config.url = url;
     config.method = method;
-    config.timeout_ms = 5000;
+    config.timeout_ms = 10000;
     config.buffer_size = 3072;
     config.buffer_size_tx = 2048;
     config.crt_bundle_attach = esp_crt_bundle_attach;
@@ -1511,7 +1511,7 @@ bool MusicService::FetchLyrics(int song_id) {
     }
     
     snprintf(lyrics_url, 256, 
-             "https://music-api.gdstudio.xyz/api.php?types=lyric&source=kuwo&id=%d", 
+             "https://gdstudio-proxy.fanfuture.cn/api.php?types=lyric&source=kuwo&id=%d", 
              song_id);
     
     char* response_buffer = (char*)heap_caps_malloc(HTTP_RESPONSE_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
