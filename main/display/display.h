@@ -11,7 +11,7 @@
 struct DisplayFonts {
     const lv_font_t* text_font = nullptr;
     const lv_font_t* icon_font = nullptr;
-    const lv_font_t* emoji_font = nullptr;
+    // 移除emoji_font字体
 };
 
 class Display {
