@@ -142,6 +142,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_COOLKIT_XZ_01
+        bool "酷宅科技XZ-01"
     config BOARD_TYPE_DOIT_S3_AIBOX
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
