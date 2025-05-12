@@ -12,7 +12,7 @@ public:
     DummyAudioProcessor() = default;
     ~DummyAudioProcessor() = default;
 
-    void Initialize(AudioCodec* codec, bool realtime_chat) override;
+    void Initialize(AudioCodec* codec) override;
     void Feed(const std::vector<int16_t>& data) override;
     void Start() override;
     void Stop() override;
