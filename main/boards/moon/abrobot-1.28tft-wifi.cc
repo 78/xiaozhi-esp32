@@ -228,48 +228,57 @@ public:
 
     // 设置第一个标签页（主界面）
     void SetupTab1() {
-        DisplayLockGuard lock(this);  // 获取显示锁
+        DisplayLockGuard lock(this);
          
-        lv_obj_set_style_text_font(tab1, fonts_.text_font, 0);  // 设置标签页文本字体
-        lv_obj_set_style_text_color(tab1, current_theme.text, 0);  // 设置文本颜色
-        lv_obj_set_style_bg_color(tab1, current_theme.background, 0);  // 设置背景颜色
+        // 设置tab1的基本样式
+        lv_obj_set_style_text_font(tab1, fonts_.text_font, 0);
+        lv_obj_set_style_text_color(tab1, current_theme.text, 0);
+        lv_obj_set_style_bg_color(tab1, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(tab1, LV_OPA_0, 0);  // 完全透明背景
 
         /* 创建容器 */
-        container_ = lv_obj_create(tab1);  // 在tab1上创建容器
-        lv_obj_set_style_bg_color(container_, current_theme.background, 0);  // 设置容器背景颜色
-        lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);  // 设置容器大小为屏幕大小
-        lv_obj_set_pos(container_, -13, -13);  // 设置容器位置
-        lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);  // 设置垂直布局
-        lv_obj_set_style_pad_all(container_, 0, 0);  // 设置内边距为0
-        lv_obj_set_style_border_width(container_, 0, 0);  // 设置边框宽度为0
+        container_ = lv_obj_create(tab1);
+        lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(container_, LV_OPA_0, 0);  // 完全透明背景
+        lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_pos(container_, -13, -13);
+        lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_all(container_, 0, 0);
+        lv_obj_set_style_border_width(container_, 0, 0);
+        
+        // 确保容器在前台，这样图片会显示在其后面
+        lv_obj_move_foreground(container_);
 
         /* 状态栏 */
-        status_bar_ = lv_obj_create(container_);  // 创建状态栏
-        lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);  // 设置状态栏大小
-        lv_obj_set_style_radius(status_bar_, 0, 0);  // 设置圆角半径为0
-        lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);  // 设置背景颜色
-        lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);  // 设置文本颜色
+        status_bar_ = lv_obj_create(container_);
+        lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+        lv_obj_set_style_radius(status_bar_, 0, 0);
+        lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(status_bar_, LV_OPA_0, 0);  // 透明背景
+        lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
         
-        /* 内容区域 */
-        content_ = lv_obj_create(container_);  // 创建内容区域
-        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);  // 关闭滚动条
-        lv_obj_set_style_radius(content_, 0, 0);  // 设置圆角半径为0
-        lv_obj_set_width(content_, LV_HOR_RES);  // 设置宽度为屏幕宽度
-        lv_obj_set_flex_grow(content_, 1);  // 设置弹性增长系数为1
-        lv_obj_set_style_pad_all(content_, 5, 0);  // 设置内边距为5
-        lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);  // 设置背景颜色
-        lv_obj_set_style_border_color(content_, current_theme.border, 0);  // 设置边框颜色
+        /* 内容区域 - 使用半透明背景 */
+        content_ = lv_obj_create(container_);
+        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_style_radius(content_, 0, 0);
+        lv_obj_set_width(content_, LV_HOR_RES);
+        lv_obj_set_height(content_, LV_SIZE_CONTENT);  // 仅适应内容，不覆盖整个屏幕
+        lv_obj_set_style_pad_all(content_, 5, 0);
+        lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(content_, LV_OPA_0, 0);  // 完全透明
+        lv_obj_set_style_border_width(content_, 0, 0);   // 无边框
 
-        lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);  // 设置垂直布局（从上到下）
-        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);  // 子对象居中对齐，等距分布
+        lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);
 
-        // 创建聊天消息标签
+        // 创建聊天消息标签 - 可以使用半透明背景
         chat_message_label_ = lv_label_create(content_);
-        lv_label_set_text(chat_message_label_, "");  // 初始化为空文本
-        lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);  // 限制宽度为屏幕宽度的90%
-        lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);  // 设置自动换行模式
-        lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);  // 设置文本居中对齐
-        lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);  // 设置文本颜色
+        lv_label_set_text(chat_message_label_, "");
+        lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+        lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+        lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_0, 0);  // 完全透明背景
 
         /* 配置状态栏 */
         lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);  // 设置水平布局
@@ -552,77 +561,80 @@ public:
 
     // 设置界面主题
     virtual void SetTheme(const std::string& theme_name) override {
-    DisplayLockGuard lock(this);  // 获取显示锁
+        DisplayLockGuard lock(this);  // 获取显示锁
 
-    current_theme = DARK_THEME;  // 默认设为暗色主题
+        current_theme = DARK_THEME;  // 默认设为暗色主题
 
-    if (theme_name == "dark" || theme_name == "DARK") {
-        current_theme = DARK_THEME;  // 设置暗色主题
-    } else if (theme_name == "light" || theme_name == "LIGHT") {
-        current_theme = LIGHT_THEME;  // 设置亮色主题
-    } else {
-        // 无效的主题名称，记录错误
-        ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
-        return;
-    }
-    
-    // 获取当前活动屏幕
-    lv_obj_t* screen = lv_screen_active();
-    
-    // 更新屏幕颜色
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);  // 设置背景颜色
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);      // 设置文本颜色
-    
-    // 更新容器颜色
-    if (container_ != nullptr) {
-        lv_obj_set_style_bg_color(container_, current_theme.background, 0);  // 设置背景颜色
-        lv_obj_set_style_border_color(container_, current_theme.border, 0);  // 设置边框颜色
-    }
-    
-    // 更新状态栏颜色
-    if (status_bar_ != nullptr) {
-        lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);  // 设置背景颜色
-        lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);      // 设置文本颜色
+        if (theme_name == "dark" || theme_name == "DARK") {
+            current_theme = DARK_THEME;  // 设置暗色主题
+        } else if (theme_name == "light" || theme_name == "LIGHT") {
+            current_theme = LIGHT_THEME;  // 设置亮色主题
+        } else {
+            // 无效的主题名称，记录错误
+            ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
+            return;
+        }
         
-        // 更新状态栏元素
-        if (network_label_ != nullptr) {
-            lv_obj_set_style_text_color(network_label_, current_theme.text, 0);  // 设置网络标签文本颜色
-        }
-        if (status_label_ != nullptr) {
-            lv_obj_set_style_text_color(status_label_, current_theme.text, 0);  // 设置状态标签文本颜色
-        }
-        if (notification_label_ != nullptr) {
-            lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);  // 设置通知标签文本颜色
-        }
-        if (mute_label_ != nullptr) {
-            lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置静音标签文本颜色
-        }
-        if (battery_label_ != nullptr) {
-            lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置电池标签文本颜色
-        }
-    }
-    
-    // 更新内容区域颜色
-    if (content_ != nullptr) {
-        lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);  // 设置背景颜色
-        lv_obj_set_style_border_color(content_, current_theme.border, 0);       // 设置边框颜色
+        // 获取当前活动屏幕
+        lv_obj_t* screen = lv_screen_active();
         
-        // 简单UI模式 - 只更新主聊天消息
-        if (chat_message_label_ != nullptr) {
-            lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);  // 设置文本颜色
+        // 更新屏幕颜色 - 添加透明度设置
+        lv_obj_set_style_bg_color(screen, current_theme.background, 0);  // 设置背景颜色
+        lv_obj_set_style_bg_opa(screen, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+        lv_obj_set_style_text_color(screen, current_theme.text, 0);      // 设置文本颜色
+        
+        // 更新容器颜色 - 添加透明度设置
+        if (container_ != nullptr) {
+            lv_obj_set_style_bg_color(container_, current_theme.background, 0);  // 设置背景颜色
+            lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+            lv_obj_set_style_border_color(container_, current_theme.border, 0);  // 设置边框颜色
         }
-    }
-    
-    // 更新低电量弹窗
-    if (low_battery_popup_ != nullptr) {
-        lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);  // 设置背景颜色
-    }
+        
+        // 更新状态栏颜色 - 添加透明度设置
+        if (status_bar_ != nullptr) {
+            lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);  // 设置背景颜色
+            lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+            lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);      // 设置文本颜色
+            
+            // 更新状态栏元素
+            if (network_label_ != nullptr) {
+                lv_obj_set_style_text_color(network_label_, current_theme.text, 0);  // 设置网络标签文本颜色
+            }
+            if (status_label_ != nullptr) {
+                lv_obj_set_style_text_color(status_label_, current_theme.text, 0);  // 设置状态标签文本颜色
+            }
+            if (notification_label_ != nullptr) {
+                lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);  // 设置通知标签文本颜色
+            }
+            if (mute_label_ != nullptr) {
+                lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置静音标签文本颜色
+            }
+            if (battery_label_ != nullptr) {
+                lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置电池标签文本颜色
+            }
+        }
+        
+        // 更新内容区域颜色
+        if (content_ != nullptr) {
+            lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);  // 设置背景颜色
+            lv_obj_set_style_border_color(content_, current_theme.border, 0);       // 设置边框颜色
+            
+            // 简单UI模式 - 只更新主聊天消息
+            if (chat_message_label_ != nullptr) {
+                lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);  // 设置文本颜色
+            }
+        }
+        
+        // 更新低电量弹窗
+        if (low_battery_popup_ != nullptr) {
+            lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);  // 设置背景颜色
+        }
 
-    // 无错误发生，保存主题到设置
-    current_theme_name_ = theme_name;  // 更新当前主题名称
-    Settings settings("display", true);  // 打开设置，自动创建
-    settings.SetString("theme", theme_name);  // 保存主题设置
-}
+        // 无错误发生，保存主题到设置
+        current_theme_name_ = theme_name;  // 更新当前主题名称
+        Settings settings("display", true);  // 打开设置，自动创建
+        settings.SetString("theme", theme_name);  // 保存主题设置
+    }
     
  
 private:
@@ -749,28 +761,60 @@ private:
 
     // 图片循环显示任务实现
     static void ImageSlideshowTask(void* arg) {
-        CustomBoard* board = static_cast<CustomBoard*>(arg);  // 转换参数为板卡对象
-        Display* display = board->GetDisplay();  // 获取显示器对象
+        CustomBoard* board = static_cast<CustomBoard*>(arg);
+        Display* display = board->GetDisplay();
         
         if (!display) {
-            ESP_LOGE(TAG, "无法获取显示设备");  // 输出错误日志
-            vTaskDelete(NULL);  // 删除任务
+            ESP_LOGE(TAG, "无法获取显示设备");
+            vTaskDelete(NULL);
             return;
         }
         
         // 获取Application实例
         auto& app = Application::GetInstance();
         
-        // 创建画布（如果不存在）
-        if (!display->HasCanvas()) {
-            display->CreateCanvas();  // 创建画布
-        }
+        // 获取CustomLcdDisplay实例
+        CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display);
         
         // 设置图片显示参数
         int imgWidth = 240;   // 图片宽度
         int imgHeight = 240;  // 图片高度
-        int x = 0;            // X坐标
-        int y = 0;            // Y坐标
+        
+        // 创建一个图像容器，放在tab1上
+        lv_obj_t* img_container = nullptr;
+        
+        {
+            DisplayLockGuard lock(display);
+            
+            // 创建图像容器，直接放在tab1上而不是内容区域
+            img_container = lv_obj_create(customDisplay->tab1);
+            
+            // 清除所有默认样式，确保完全自定义
+            lv_obj_remove_style_all(img_container);
+            
+            // 设置容器大小与屏幕匹配
+            lv_obj_set_size(img_container, LV_HOR_RES, LV_VER_RES);
+            
+            // 设置容器位置在屏幕中央
+            lv_obj_center(img_container);
+            
+            // 设置无边框和完全透明的背景
+            lv_obj_set_style_border_width(img_container, 0, 0);
+            lv_obj_set_style_bg_opa(img_container, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_pad_all(img_container, 0, 0);
+            
+            // 确保此容器在所有其他元素之下
+            lv_obj_move_background(img_container);
+            
+            // 创建图像对象
+            lv_obj_t* img_obj = lv_img_create(img_container);
+            
+            // 设置图像位置在容器中央
+            lv_obj_center(img_obj);
+            
+            // 确保图像显示在正确的层级上
+            lv_obj_move_foreground(img_obj);
+        }
         
         // 设置图片数组 - 包含所有动画帧
         const uint8_t* imageArray[] = {
@@ -791,10 +835,6 @@ private:
             gImage_output_0015,
             gImage_output_0016,
             gImage_output_0017,
-            // gImage_output_0018,
-            // gImage_output_0019,
-            // gImage_output_0018,
-            // gImage_output_0017,
             gImage_output_0016,
             gImage_output_0015,
             gImage_output_0014,
@@ -812,30 +852,61 @@ private:
             gImage_output_0002,
             gImage_output_0001,
         };
-        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);  // 计算图片总数
+        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
         
         // 创建临时缓冲区用于字节序转换
         uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
         if (!convertedData) {
-            ESP_LOGE(TAG, "无法分配内存进行图像转换");  // 输出错误日志
-            vTaskDelete(NULL);  // 删除任务
+            ESP_LOGE(TAG, "无法分配内存进行图像转换");
+            vTaskDelete(NULL);
             return;
         }
         
+        // 创建图像描述符
+        lv_image_dsc_t img_dsc = {
+            .header = {
+                .magic = LV_IMAGE_HEADER_MAGIC,
+                .cf = LV_COLOR_FORMAT_RGB565,
+                .flags = 0,
+                .w = (uint32_t)imgWidth,
+                .h = (uint32_t)imgHeight,
+                .stride = (uint32_t)(imgWidth * 2),
+                .reserved_2 = 0,
+            },
+            .data_size = (uint32_t)(imgWidth * imgHeight * 2),
+            .data = (const uint8_t*)convertedData,
+            .reserved = NULL
+        };
+        
         // 先显示第一张图片
-        int currentIndex = 0;  // 当前图片索引
-        const uint8_t* currentImage = imageArray[currentIndex];  // 获取当前图片数据
+        int currentIndex = 0;
+        const uint8_t* currentImage = imageArray[currentIndex];
         
         // 转换并显示第一张图片
         for (int i = 0; i < imgWidth * imgHeight; i++) {
             uint16_t pixel = ((uint16_t*)currentImage)[i];
-            // 字节序转换（小端到大端或相反）
             convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
         }
         
-        // 使用DrawImageOnCanvas在画布上绘制图像
-        display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
-        ESP_LOGI(TAG, "初始显示图片");  // 输出日志
+        {
+            DisplayLockGuard lock(display);
+            // 获取图像对象并设置图像源
+            lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+            img_dsc.data = (const uint8_t*)convertedData;
+            lv_img_set_src(img_obj, &img_dsc);
+            
+            // 确保图像容器和图像对象在正确的层级
+            lv_obj_move_to_index(img_container, 0);  // 移到最下层
+            lv_obj_move_foreground(img_obj);         // 图像对象在前景
+            
+            // 检查并确认UI层级正确性
+            lv_obj_t* tab_content = lv_obj_get_parent(customDisplay->tab1);
+            if (tab_content) {
+                lv_obj_clear_flag(tab_content, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+            }
+        }
+        
+        ESP_LOGI(TAG, "初始显示图片");
         
         // 持续监控和处理图片显示
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
@@ -848,26 +919,42 @@ private:
         bool pendingAnimationStart = false;  // 是否有待启动动画
         TickType_t stateChangeTime = 0;      // 状态变化时间点
         
-        // 获取CustomLcdDisplay实例以检查当前活动的标签页
-        CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display);
-        
         while (true) {
             // 获取当前设备状态
             DeviceState currentState = app.GetDeviceState();
-            TickType_t currentTime = xTaskGetTickCount();  // 获取当前时间
+            TickType_t currentTime = xTaskGetTickCount();
             
             // 检查当前是否在时钟页面（tab2）
             bool isClockTabActive = false;
             if (customDisplay && customDisplay->tabview_) {
                 int active_tab = lv_tabview_get_tab_act(customDisplay->tabview_);
-                isClockTabActive = (active_tab == 1);  // tab2是索引1
+                isClockTabActive = (active_tab == 1);
             }
             
-            // 如果时钟页面处于活跃状态，不绘制任何图片
+            // 如果时钟页面处于活跃状态，隐藏图像容器
             if (isClockTabActive) {
-                // 休眠一小段时间后再次检查
+                DisplayLockGuard lock(display);
+                if (img_container) {
+                    lv_obj_add_flag(img_container, LV_OBJ_FLAG_HIDDEN);
+                }
                 vTaskDelay(pdMS_TO_TICKS(100));
                 continue;
+            } else {
+                // 在主界面，显示图像容器并确保在正确位置
+                DisplayLockGuard lock(display);
+                if (img_container) {
+                    lv_obj_clear_flag(img_container, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_align(img_container, LV_ALIGN_CENTER, 0, 0);
+                    lv_obj_set_size(img_container, LV_HOR_RES, LV_VER_RES);
+                    lv_obj_move_to_index(img_container, 0);  // 确保在底层
+                    
+                    // 确保图像对象在容器中居中
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj) {
+                        lv_obj_center(img_obj);
+                        lv_obj_move_foreground(img_obj);
+                    }
+                }
             }
             
             // 检测到状态刚变为Speaking，设置动画延迟启动
@@ -889,7 +976,17 @@ private:
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
                 }
-                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);  // 绘制图像
+                
+                {
+                    DisplayLockGuard lock(display);  // 获取显示锁
+                    // 更新图像源
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj) {
+                        img_dsc.data = (const uint8_t*)convertedData;
+                        lv_img_set_src(img_obj, &img_dsc);
+                    }
+                }
+                
                 ESP_LOGI(TAG, "开始播放动画，与音频同步");  // 输出日志
                 
                 lastUpdateTime = currentTime;  // 更新上次更新时间
@@ -910,7 +1007,16 @@ private:
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
                 }
-                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);  // 绘制图像
+                
+                {
+                    DisplayLockGuard lock(display);  // 获取显示锁
+                    // 更新图像源
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj) {
+                        img_dsc.data = (const uint8_t*)convertedData;
+                        lv_img_set_src(img_obj, &img_dsc);
+                    }
+                }
                 
                 // 更新上次更新时间
                 lastUpdateTime = currentTime;
@@ -925,7 +1031,17 @@ private:
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
                 }
-                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);  // 绘制图像
+                
+                {
+                    DisplayLockGuard lock(display);  // 获取显示锁
+                    // 更新图像源
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj) {
+                        img_dsc.data = (const uint8_t*)convertedData;
+                        lv_img_set_src(img_obj, &img_dsc);
+                    }
+                }
+                
                 ESP_LOGI(TAG, "返回显示初始图片");  // 输出日志
                 pendingAnimationStart = false;  // 清除待启动标记
             }
@@ -939,8 +1055,8 @@ private:
         }
         
         // 释放资源
-        delete[] convertedData;  // 释放转换缓冲区
-        vTaskDelete(NULL);       // 删除任务
+        delete[] convertedData;
+        vTaskDelete(NULL);
     }
 
 public:
