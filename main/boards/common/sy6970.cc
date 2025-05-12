@@ -44,15 +44,22 @@ int Sy6970::GetChargeTargetVoltage() {
 }
 
 int Sy6970::GetBatteryLevel() {
-    int battery_minimum_voltage = 3200; // 电池所能掉电的最低电压
+    int level = 0;
+    // 电池所能掉电的最低电压
+    int battery_minimum_voltage = 3200;
     int battery_voltage = GetBatteryVoltage();
     int charge_voltage_limit = GetChargeTargetVoltage();
+    ESP_LOGI(TAG, "battery_voltage: %d, charge_voltage_limit: %d", battery_voltage, charge_voltage_limit);
     if (battery_voltage > battery_minimum_voltage && charge_voltage_limit > battery_minimum_voltage) {
-        return (((float) battery_voltage - (float) battery_minimum_voltage) / ((float) charge_voltage_limit - (float) battery_minimum_voltage)) * 100.0;
+        level = (((float) battery_voltage - (float) battery_minimum_voltage) / ((float) charge_voltage_limit - (float) battery_minimum_voltage)) * 100.0;
     }
-    return 0;
+    // 不连接电池时读取的充电状态不稳定且battery_voltage有时会超过charge_voltage_limit
+    if (level > 100) {
+        level = 100;
+    }
+    return level;
 }
 
 void Sy6970::PowerOff() {
-    WriteReg(0x09,0B01100100);
+    WriteReg(0x09, 0B01100100);
 }
