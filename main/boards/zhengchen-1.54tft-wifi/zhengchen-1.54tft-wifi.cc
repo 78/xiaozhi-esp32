@@ -29,7 +29,7 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    SpiZHENGCHEN_LcdDisplay* display_;
+    ZHENGCHEN_LcdDisplay* display_;
     PowerSaveTimer* power_save_timer_;
     PowerManager* power_manager_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -38,9 +38,9 @@ private:
     void InitializePowerManager() {
         power_manager_ = new PowerManager(GPIO_NUM_9);
         power_manager_->OnTemperatureChanged([this](float chip_temp) {
-            lv_obj_t* popup = display_->GetHighTempPopup();  // 使用Get方法
+            lv_obj_t* popup = display_->GetHighTempPopup();
             if (popup != nullptr) {
-                if (chip_temp >= 75.0f) {
+                if (chip_temp >= 45.0f) {
                     if (lv_obj_has_flag(popup, LV_OBJ_FLAG_HIDDEN)) {
                         // 显示温度过高提示框
                         lv_obj_clear_flag(popup, LV_OBJ_FLAG_HIDDEN);
@@ -186,13 +186,14 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
 
-        display_ = new SpiZHENGCHEN_LcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
+        display_ = new ZHENGCHEN_LcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
         {
             .text_font = &font_puhui_20_4,
             .icon_font = &font_awesome_20_4,
             .emoji_font = font_emoji_64_init(),
         });
+        display_->SetupUI();
     }
 
     void InitializeIot() {
