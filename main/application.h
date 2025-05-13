@@ -26,6 +26,9 @@
 #include "wake_word_detect.h"
 #endif
 
+// 前向声明
+class MusicService;
+
 #define SCHEDULE_EVENT (1 << 0)
 #define AUDIO_INPUT_READY_EVENT (1 << 1)
 #define AUDIO_OUTPUT_READY_EVENT (1 << 2)
@@ -41,8 +44,14 @@ enum DeviceState {
     kDeviceStateSpeaking,
     kDeviceStateUpgrading,
     kDeviceStateActivating,
+    kDeviceStateMusicPlaying,
     kDeviceStateFatalError
 };
+
+#define AUDIO_STATE_NONE        (0)
+#define AUDIO_STATE_LISTENING   (1 << 0)
+#define AUDIO_STATE_SPEAKING    (1 << 1)
+#define AUDIO_STATE_MUSIC       (1 << 2)
 
 #define OPUS_FRAME_DURATION_MS 60
 
@@ -72,6 +81,15 @@ public:
     void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
+    
+    bool RequestAudioState(unsigned int state);
+    void ReleaseAudioState(unsigned int state);
+    bool ForceResetAudioHardware();
+    
+    void HandleVoiceCommand(const std::string& message);
+    void HandleLLMInstruction(const cJSON* root);
+    
+    Protocol* GetProtocol() { return protocol_.get(); }
 
 private:
     Application();
@@ -114,6 +132,14 @@ private:
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
+
+    // 音频状态管理
+    unsigned int audio_state_ = AUDIO_STATE_NONE;
+    std::mutex audio_state_mutex_;
+
+#if CONFIG_ENABLE_MUSIC_PLAYER
+    std::unique_ptr<MusicService> music_service_;
+#endif
 
     void MainEventLoop();
     void OnAudioInput();

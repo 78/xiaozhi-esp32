@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "fantoy-wifi-13",
+            "sdkconfig_append": []
+        }
+    ]
+}

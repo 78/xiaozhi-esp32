@@ -6,6 +6,11 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config ENABLE_MUSIC_PLAYER
+    bool "启用音乐播放器功能"
+    default y
+    help
+        启用音乐播放器功能，允许播放在线音乐。
 
 choice
     prompt "语言选择"
@@ -45,7 +50,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX
         bool "ESP BOX"
     config BOARD_TYPE_ESP_BOX_LITE
-        bool "ESP BOX Lite"        
+        bool "ESP BOX Lite"   
+    config BOARD_TYPE_FANTOY_WIFI_13
+        bool "FanToy WiFi 13"
+    config BOARD_TYPE_FANTOY_ML307_20
+        bool "FanToy ML307 20"     
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
@@ -177,7 +186,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_FANTOY_WIFI_13 || BOARD_TYPE_FANTOY_ML307_20
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
