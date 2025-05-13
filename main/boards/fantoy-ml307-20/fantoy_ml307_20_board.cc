@@ -1,4 +1,4 @@
-#include "ml307_board.h"
+#include "dual_network_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
@@ -70,7 +70,7 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class FanToyML30720Board : public Ml307Board {
+class FanToyML30720Board : public DualNetworkBoard {
 private:
  
     Button boot_button_;
@@ -182,7 +182,7 @@ private:
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
                                         .emoji_font = font_emoji_32_init(),
 #else
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_128_init() : font_emoji_32_init(),
+                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
 #endif
                                     });
     }
@@ -217,12 +217,28 @@ private:
         mode_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
             app.ToggleChatState();
+        });
+
+        mode_button_.OnDoubleClick([this]() {
+            power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
         });
 
         // 长按Mode键切换分区
         mode_button_.OnLongPress([this]() {
             ESP_LOGI(TAG, "开始切换固件.....太秀了");
+            power_save_timer_->WakeUp();
             switch_to_next_firmware();
         });
 
@@ -272,7 +288,7 @@ private:
 
 public:
     FanToyML30720Board() :
-        Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         mode_button_(MODE_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -333,7 +349,7 @@ public:
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
-        Ml307Board::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 
