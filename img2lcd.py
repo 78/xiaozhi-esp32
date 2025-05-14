@@ -8,9 +8,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                               QHBoxLayout, QPushButton, QLabel, QLineEdit, 
                               QFileDialog, QGroupBox, QFormLayout, QSpinBox, 
                               QTextEdit, QMessageBox, QStatusBar, QComboBox,
-                              QListWidget, QProgressBar, QCheckBox)
-from PySide6.QtGui import QIcon, QFont
-from PySide6.QtCore import Qt
+                              QListWidget, QProgressBar, QCheckBox, QScrollArea,
+                              QGridLayout)
+from PySide6.QtGui import QIcon, QFont, QPixmap
+from PySide6.QtCore import Qt, QSize
 
 class ImageConverter(QMainWindow):
     def __init__(self):
@@ -23,16 +24,27 @@ class ImageConverter(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
         
+        # 存储输入和输出路径 - 移到这里，确保在创建UI之前初始化
+        self.input_image_paths = []
+        # 设置默认输出目录
+        self.output_directory = "E:\\work\\xiaozhi-esp32\\main\\images\\doufu"
+        # 确保目录存在
+        os.makedirs(self.output_directory, exist_ok=True)
+        self.temp_dir = None
+        
         # 创建输入区域
         self.create_input_group()
         
-        # 创建输出区域
+        # 创建预览区域
+        self.create_image_preview()
+        
+        # 创建输出区域 - 现在调用这个方法时self.output_directory已经存在
         self.create_output_group()
         
         # 创建格式设置区域
         self.create_format_group()
         
-        # 创建预览区域
+        # 创建日志区域
         self.create_preview_group()
         
         # 创建进度条
@@ -53,11 +65,6 @@ class ImageConverter(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("准备就绪")
 
-        # 存储输入和输出路径
-        self.input_image_paths = []
-        self.output_directory = ""
-        self.temp_dir = None
-        
     def create_input_group(self):
         input_group = QGroupBox("输入设置")
         layout = QVBoxLayout()
@@ -172,12 +179,67 @@ class ImageConverter(QMainWindow):
             
             cap.release()
             self.update_file_list()
+            self.update_preview_images()  # 更新预览图
             self.log_text.append(f"成功提取 {len(self.input_image_paths)} 帧\n")
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"提取视频帧时出错: {str(e)}")
             import traceback
             self.log_text.append(traceback.format_exc())
+    
+    def create_image_preview(self):
+        preview_group = QGroupBox("图片预览")
+        layout = QVBoxLayout()
+        
+        # 创建预览区
+        preview_scroll = QScrollArea()
+        preview_scroll.setWidgetResizable(True)
+        preview_container = QWidget()
+        self.preview_grid = QGridLayout(preview_container)
+        preview_scroll.setWidget(preview_container)
+        
+        # 设置预览区高度
+        preview_scroll.setMinimumHeight(200)
+        
+        layout.addWidget(preview_scroll)
+        preview_group.setLayout(layout)
+        self.main_layout.addWidget(preview_group)
+        
+    def update_preview_images(self):
+        # 清除现有的预览图
+        for i in reversed(range(self.preview_grid.count())):
+            self.preview_grid.itemAt(i).widget().setParent(None)
+        
+        # 添加新的预览图
+        for i, img_path in enumerate(self.input_image_paths):
+            try:
+                pixmap = QPixmap(img_path)
+                if not pixmap.isNull():
+                    # 创建缩略图 (限制大小为100x100)
+                    thumb = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    
+                    # 创建标签显示缩略图
+                    img_label = QLabel()
+                    img_label.setPixmap(thumb)
+                    img_label.setAlignment(Qt.AlignCenter)
+                    img_label.setToolTip(f"第 {i+1} 帧")
+                    
+                    # 显示帧号
+                    frame_label = QLabel(f"第 {i+1} 帧")
+                    frame_label.setAlignment(Qt.AlignCenter)
+                    
+                    # 创建容器来放置图片和标签
+                    container = QWidget()
+                    container_layout = QVBoxLayout(container)
+                    container_layout.addWidget(img_label)
+                    container_layout.addWidget(frame_label)
+                    
+                    # 添加到网格布局
+                    row = i // 5
+                    col = i % 5
+                    self.preview_grid.addWidget(container, row, col)
+            except Exception as e:
+                print(f"加载图片预览失败: {str(e)}")
     
     def create_output_group(self):
         output_group = QGroupBox("输出设置")
@@ -187,6 +249,7 @@ class ImageConverter(QMainWindow):
         self.output_layout = QHBoxLayout()
         self.output_path = QLineEdit()
         self.output_path.setPlaceholderText("选择输出目录...")
+        self.output_path.setText(self.output_directory)  # 设置默认目录
         self.output_browse = QPushButton("浏览...")
         self.output_browse.clicked.connect(self.select_output_directory)
         
