@@ -2,7 +2,7 @@
     "target": "esp32p4",
     "builds": [
         {
-            "name": "waveshare-esp32-p4-nano",
+            "name": "waveshare-p4-nano",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
             ]

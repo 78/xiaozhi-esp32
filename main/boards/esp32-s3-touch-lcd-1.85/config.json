@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "waveshare-esp32-s3-touch-lcd-1.85",
+            "name": "esp32-s3-touch-lcd-1.85",
             "sdkconfig_append": []
         }
     ]
