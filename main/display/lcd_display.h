@@ -25,6 +25,7 @@ protected:
     void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
+    virtual void Update() override;
 
 protected:
     // 添加protected构造函数

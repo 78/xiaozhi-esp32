@@ -21,9 +21,20 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "settings.cc"
             "background_task.cc"
             "main.cc"
+            "esphomeai/eez_ui/ui/ui.c"
+            "esphomeai/eez_ui/ui/screens.c"
+            "esphomeai/eez_ui/ui/images.c"
+            "esphomeai/eez_ui/ui/styles.c"
+            "esphomeai/eez_ui/ui/ui_image_fan32.c"
+            "esphomeai/eez_ui/ui/ui_image_humidity32.c"
+            "esphomeai/eez_ui/ui/ui_image_light32.c"
+            "esphomeai/eez_ui/ui/ui_image_setting48.c"
+            "esphomeai/eez_ui/ui/ui_image_thermostat32.c"
+            "esphomeai/eez_ui/ui/ui_image_tv32.c"
+            "esphomeai/esphomeai.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing" "esphomeai")
 
 # 添加 IOT 相关文件
 file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)

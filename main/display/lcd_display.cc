@@ -11,6 +11,8 @@
 
 #include "board.h"
 
+#include "esphomeai/esphomeai.h"
+
 #define TAG "LcdDisplay"
 
 // Color definitions for dark theme
@@ -258,6 +260,14 @@ bool LcdDisplay::Lock(int timeout_ms) {
 void LcdDisplay::Unlock() {
     lvgl_port_unlock();
 }
+
+
+void LcdDisplay::Update()
+{
+        Display::Update();
+        ESPHomeAI::UpdateUI();
+}
+
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
@@ -557,6 +567,17 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
+#ifdef ESPHOMEAI_H
+    lv_obj_t* screen;
+    current_theme=DARK_THEME;
+    ESPHomeAI::SetupUI(&screen, &container_, &status_bar_, &content_);
+    lv_obj_set_style_text_font(status_bar_, fonts_.text_font, 0);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+    lv_obj_set_style_radius(status_bar_, 0, 0);
+    lv_obj_set_style_text_font(content_, fonts_.text_font, 0);
+
+#else
+
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
@@ -578,6 +599,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
+
+    /* Status bar */
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(status_bar_, 0, 0);
+    lv_obj_set_style_border_width(status_bar_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_style_pad_left(status_bar_, 2, 0);
+    lv_obj_set_style_pad_right(status_bar_, 2, 0);
     
     /* Content */
     content_ = lv_obj_create(container_);
@@ -588,6 +617,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(content_, 5, 0);
     lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
     lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for content
+#endif
 
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
@@ -599,18 +629,10 @@ void LcdDisplay::SetupUI() {
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
+    lv_obj_set_width(chat_message_label_, LV_PCT(90)); // 限制宽度为屏幕宽度的 90%
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-
-    /* Status bar */
-    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_all(status_bar_, 0, 0);
-    lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_column(status_bar_, 0, 0);
-    lv_obj_set_style_pad_left(status_bar_, 2, 0);
-    lv_obj_set_style_pad_right(status_bar_, 2, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
@@ -651,6 +673,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
 }
 #endif
 
