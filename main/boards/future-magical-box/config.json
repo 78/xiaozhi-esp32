@@ -1,0 +1,12 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "future-magical-box",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+            ]
+        }
+    ]
+}
