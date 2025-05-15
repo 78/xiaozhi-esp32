@@ -34,6 +34,8 @@
 #include "circular_led_strip.h"   // 环形LED条
 #include "ws2812_task.h"          // WS2812 LED控制任务
 #include "settings.h"             // 设置管理
+#include "iot_image_display.h"  // 引入图片显示模式定义
+#include "logo.h"  // 引入logo图片
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
 
 // 包含图片资源文件（豆腐动画序列）
@@ -55,6 +57,12 @@
 #include "images/doufu/output_0016.h"
 #include "images/doufu/output_0017.h"
 
+// 在abrobot-1.28tft-wifi.cc文件开头添加外部声明
+extern "C" {
+    // 图片显示模式
+    extern volatile iot::ImageDisplayMode g_image_display_mode;
+    extern const unsigned char* g_static_image;  // 静态图片引用
+}
 
 // 声明使用的LVGL字体
 LV_FONT_DECLARE(lunar);      // 农历字体
@@ -825,10 +833,11 @@ private:
     // 初始化IoT设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));      // 添加扬声器设备
-        thing_manager.AddThing(iot::CreateThing("Screen"));       // 添加屏幕设备
-        thing_manager.AddThing(iot::CreateThing("ColorStrip"));   // 添加彩色灯带设备
-        thing_manager.AddThing(iot::CreateThing("RotateDisplay")); // 添加旋转显示设备
+        thing_manager.AddThing(iot::CreateThing("Speaker"));         // 添加扬声器设备
+        thing_manager.AddThing(iot::CreateThing("Screen"));          // 添加屏幕设备
+        thing_manager.AddThing(iot::CreateThing("ColorStrip"));      // 添加彩色灯带设备
+        thing_manager.AddThing(iot::CreateThing("RotateDisplay"));   // 添加旋转显示设备
+        thing_manager.AddThing(iot::CreateThing("ImageDisplay"));    // 添加图片显示控制设备
     }
 
     // 启动图片循环显示任务
@@ -1042,6 +1051,12 @@ private:
                 ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");  // 输出日志
             }
             
+            // 如果状态不是Speaking，确保isAudioPlaying为false
+            if (currentState != kDeviceStateSpeaking && isAudioPlaying) {
+                isAudioPlaying = false;
+                ESP_LOGI(TAG, "退出说话状态，停止动画");
+            }
+            
             // 延迟启动动画，等待音频实际开始播放
             // 设置1200ms延迟，实验找到最佳匹配值
             if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(1200))) {
@@ -1072,10 +1087,10 @@ private:
                 pendingAnimationStart = false;  // 清除待启动标记
             }
             
-            // 正常的图片循环逻辑
-            isAudioPlaying = (currentState == kDeviceStateSpeaking);  // 更新音频播放状态
-            
-            if (isAudioPlaying && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
+            // 检查当前显示模式
+            bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
+
+            if (shouldAnimate && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
                 // 更新索引到下一张图片
                 currentIndex = (currentIndex + 1) % totalImages;
                 currentImage = imageArray[currentIndex];  // 获取下一帧图片数据
@@ -1099,12 +1114,18 @@ private:
                 // 更新上次更新时间
                 lastUpdateTime = currentTime;
             }
-            else if ((!isAudioPlaying && wasAudioPlaying) || (!isAudioPlaying && currentIndex != 0)) {
-                // 切换回第一张图片（静止状态）
-                currentIndex = 0;
-                currentImage = imageArray[currentIndex];  // 获取第一帧图片数据
+            else if ((!isAudioPlaying && wasAudioPlaying) || 
+                      (g_image_display_mode == iot::MODE_STATIC && currentIndex != 0) || 
+                      (!isAudioPlaying && currentIndex != 0)) {
+                // 在静态模式下使用logo图片，否则使用动画第一帧
+                if (g_image_display_mode == iot::MODE_STATIC) {
+                    currentImage = iot::g_static_image;  // 使用logo图片
+                } else {
+                    currentIndex = 0;
+                    currentImage = imageArray[currentIndex];  // 使用动画第一帧
+                }
                 
-                // 转换并显示第一张图片
+                // 转换并显示图片
                 for (int i = 0; i < imgWidth * imgHeight; i++) {
                     uint16_t pixel = ((uint16_t*)currentImage)[i];
                     convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
@@ -1120,7 +1141,7 @@ private:
                     }
                 }
                 
-                ESP_LOGI(TAG, "返回显示初始图片");  // 输出日志
+                ESP_LOGI(TAG, "显示%s图片", g_image_display_mode == iot::MODE_STATIC ? "logo" : "初始");
                 pendingAnimationStart = false;  // 清除待启动标记
             }
             
