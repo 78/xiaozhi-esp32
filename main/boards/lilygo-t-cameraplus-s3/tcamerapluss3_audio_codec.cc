@@ -1,7 +1,6 @@
 #include "tcamerapluss3_audio_codec.h"
 
 #include <esp_log.h>
-#include <driver/i2c.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
 
@@ -61,7 +60,7 @@ void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
-                .ws_inv = true // 默认右通道
+                .ws_inv = true // 默认右声道
             }
         }
     };
