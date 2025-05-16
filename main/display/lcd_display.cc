@@ -435,8 +435,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
-
+#if CONFIG_IDF_TARGET_ESP32P4
+#define  MAX_MESSAGES 40
+#else
 #define  MAX_MESSAGES 20
+#endif
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
