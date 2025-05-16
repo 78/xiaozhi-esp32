@@ -22,6 +22,8 @@
 #include "background_task.h"
 #include "audio_processor.h"
 
+#include "esphomeai/esphomeai.h"
+
 #if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
 #endif
@@ -76,6 +78,8 @@ public:
 private:
     Application();
     ~Application();
+
+    ESPHomeAI* esphomeai_;
 
 #if CONFIG_USE_WAKE_WORD_DETECT
     WakeWordDetect wake_word_detect_;

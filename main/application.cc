@@ -598,6 +598,7 @@ void Application::Start() {
         PlaySound(Lang::Sounds::P3_SUCCESS);
     }
     
+    esphomeai_ = new ESPHomeAI();
     // Enter the main event loop
     MainEventLoop();
 }

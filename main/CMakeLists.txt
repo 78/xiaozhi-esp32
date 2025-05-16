@@ -32,6 +32,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "esphomeai/eez_ui/ui/ui_image_setting48.c"
             "esphomeai/eez_ui/ui/ui_image_thermostat32.c"
             "esphomeai/eez_ui/ui/ui_image_tv32.c"
+            "esphomeai/ha/ha.cc"
             "esphomeai/esphomeai.cc"
             )
 
