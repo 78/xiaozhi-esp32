@@ -20,10 +20,10 @@ enum FlowGlobalVariables {
 
 // Native global variables
 
-extern float get_var_humidity_data();
-extern void set_var_humidity_data(float value);
-extern float get_var_temper_data();
-extern void set_var_temper_data(float value);
+extern const char * get_var_humidity_data();
+extern void set_var_humidity_data(float * value);
+extern const char * get_var_temper_data();
+extern void set_var_temper_data(float * value);
 
 
 #ifdef __cplusplus

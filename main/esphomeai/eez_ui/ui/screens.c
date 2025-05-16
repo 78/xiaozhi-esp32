@@ -217,7 +217,7 @@ void create_screen_main() {
                                     objects.tmp_data_label_ = obj;
                                     lv_obj_set_pos(obj, 0, 16);
                                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                                    lv_label_set_text(obj, "24");
+                                    lv_label_set_text(obj, "");
                                     lv_obj_set_style_text_font(obj, &lv_font_montserrat_32, LV_PART_MAIN | LV_STATE_DEFAULT);
                                 }
                                 {
@@ -270,7 +270,7 @@ void create_screen_main() {
                                     objects.humi_data_label_ = obj;
                                     lv_obj_set_pos(obj, 1, 16);
                                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                                    lv_label_set_text(obj, "48");
+                                    lv_label_set_text(obj, "");
                                     lv_obj_set_style_text_font(obj, &lv_font_montserrat_32, LV_PART_MAIN | LV_STATE_DEFAULT);
                                 }
                                 {
@@ -311,6 +311,24 @@ void create_screen_main() {
 }
 
 void tick_screen_main() {
+    {
+        const char *new_val = get_var_temper_data();
+        const char *cur_val = lv_label_get_text(objects.tmp_data_label_);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.tmp_data_label_;
+            lv_label_set_text(objects.tmp_data_label_, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
+    {
+        const char *new_val = get_var_humidity_data();
+        const char *cur_val = lv_label_get_text(objects.humi_data_label_);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.humi_data_label_;
+            lv_label_set_text(objects.humi_data_label_, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
 }
 
 

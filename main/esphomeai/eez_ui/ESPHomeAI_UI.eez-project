@@ -105,7 +105,7 @@
       {
         "objID": "b9a1787e-24cb-4dc9-bbc6-3e34e11cb11f",
         "name": "humidity_data",
-        "type": "float",
+        "type": "string",
         "defaultValue": "0",
         "persistent": false,
         "native": true
@@ -113,7 +113,7 @@
       {
         "objID": "8362452b-56c7-45b6-9c1e-9aaf94416b26",
         "name": "temper_data",
-        "type": "float",
+        "type": "string",
         "defaultValue": "0",
         "persistent": false,
         "native": true
@@ -886,7 +886,7 @@
                           "type": "LVGLLabelWidget",
                           "left": 0,
                           "top": 16,
-                          "width": 39,
+                          "width": 233,
                           "height": 35,
                           "customInputs": [],
                           "customOutputs": [],
@@ -926,8 +926,8 @@
                           },
                           "group": "",
                           "groupIndex": 0,
-                          "text": "24",
-                          "textType": "literal",
+                          "text": "temper_data",
+                          "textType": "expression",
                           "longMode": "WRAP",
                           "recolor": false
                         },
@@ -1121,7 +1121,7 @@
                           "type": "LVGLLabelWidget",
                           "left": 1,
                           "top": 16,
-                          "width": 43,
+                          "width": 259,
                           "height": 35,
                           "customInputs": [],
                           "customOutputs": [],
@@ -1161,8 +1161,8 @@
                           },
                           "group": "",
                           "groupIndex": 0,
-                          "text": "48",
-                          "textType": "literal",
+                          "text": "humidity_data",
+                          "textType": "expression",
                           "longMode": "WRAP",
                           "recolor": false
                         },
