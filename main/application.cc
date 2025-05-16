@@ -548,16 +548,8 @@ void Application::Start() {
                 }
                 Schedule([this, last_output_timestamp_value, packet = std::move(packet)]() {
                     protocol_->SendAudio(packet);
-                    double avg = 0;
-                    if (!packet.payload.empty()) {
-                        uint64_t sum = 0;
-                        for (auto v : packet.payload) {
-                            sum += v;
-                        }
-                        avg = static_cast<double>(sum) / packet.payload.size();
-                    }
-                    ESP_LOGI(TAG, "Send %zu bytes, timestamp %lu, last_ts %lu, qsize %zu, avg %.2f",
-                        packet.payload.size(), packet.timestamp, last_output_timestamp_value, timestamp_queue_.size(), avg);
+                    // ESP_LOGI(TAG, "Send %zu bytes, timestamp %lu, last_ts %lu, qsize %zu",
+                    //     packet.payload.size(), packet.timestamp, last_output_timestamp_value, timestamp_queue_.size());
                 });
             });
         });
