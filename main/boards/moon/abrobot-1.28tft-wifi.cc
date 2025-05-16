@@ -288,6 +288,9 @@ public:
         lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
         lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_0, 0);  // 完全透明背景
 
+        // 添加以下代码，设置上边距增加文本显示下移
+        lv_obj_set_style_pad_top(chat_message_label_, 100, 0);  // 添加60像素的上边距
+
         /* 配置状态栏 */
         lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);  // 设置水平布局
         lv_obj_set_style_pad_all(status_bar_, 0, 0);  // 设置内边距为0
