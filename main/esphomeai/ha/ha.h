@@ -14,6 +14,7 @@ public:
     void disconnect();
     bool publish_state(const std::string& state);
     bool subscribe_weather();
+    bool request_weather(); // New method to request weather
 
     // Getters for temperature and humidity
     float get_temperature() const;

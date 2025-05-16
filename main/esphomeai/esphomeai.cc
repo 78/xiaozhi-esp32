@@ -15,8 +15,8 @@ ESPHomeAI::ESPHomeAI() {
     );
 
     if (ha_->connect()) {
+        ha_->request_weather(); // Request weather upon connection
         ESP_LOGI(TAG, "HomeAssistant connected successfully");
-        ha_->subscribe_weather(); // Subscribe to weather topic
     } else {
         ESP_LOGE(TAG, "Failed to connect to HomeAssistant MQTT");
     }

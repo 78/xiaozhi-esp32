@@ -43,6 +43,18 @@ bool HomeAssistant::subscribe_weather() {
     return msg_id != -1;
 }
 
+bool HomeAssistant::request_weather() {
+    std::string topic = "xiaozhi/request";
+    std::string message = "{\"action\": \"get_weather\"}";
+    int msg_id = esp_mqtt_client_publish(client_, topic.c_str(), message.c_str(), 0, 1, 0);
+    if (msg_id == -1) {
+        ESP_LOGE(TAG, "Failed to publish weather request");
+        return false;
+    }
+    ESP_LOGI(TAG, "Sent weather request to %s", topic.c_str());
+    return true;
+}
+
 void HomeAssistant::on_message(const std::string& topic, const std::string& message) {
     if (topic == "homeassistant/weather/home") {
         cJSON* root = cJSON_Parse(message.c_str());
