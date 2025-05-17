@@ -932,9 +932,9 @@ private:
             .name = "resource_timer"
         };
         esp_timer_create(&timer_args, &resource_timer);
-        esp_timer_start_periodic(resource_timer, 10 * 1000 * 1000); // 每分钟检查一次
+        esp_timer_start_periodic(resource_timer, 60 * 1000 * 1000); // 每分钟检查一次
         
-        // 创建图像描述符
+        // 修改图像描述符
         lv_image_dsc_t img_dsc = {
             .header = {
                 .magic = LV_IMAGE_HEADER_MAGIC,
@@ -950,8 +950,9 @@ private:
             .reserved = NULL
         };
         
-        // 当前索引
+        // 当前索引和方向控制
         int currentIndex = 0;
+        bool directionForward = true;  // 动画方向：true为正向，false为反向
         const uint8_t* currentImage = nullptr;
         
         // 主循环
@@ -965,31 +966,6 @@ private:
         bool pendingAnimationStart = false;  
         TickType_t stateChangeTime = 0;      
         
-        // 创建一个简单的图像加载函数
-        auto loadImageFromFile = [](const char* filepath) -> uint8_t* {
-            FILE* f = fopen(filepath, "r");
-            if (!f) {
-                ESP_LOGE(TAG, "无法打开图片文件: %s", filepath);
-                return nullptr;
-            }
-            
-            // 获取文件大小
-            fseek(f, 0, SEEK_END);
-            long size = ftell(f);
-            fseek(f, 0, SEEK_SET);
-            
-            // 分配内存并读取文件
-            uint8_t* buffer = (uint8_t*)malloc(size);
-            if (!buffer) {
-                fclose(f);
-                return nullptr;
-            }
-            
-            fread(buffer, 1, size, f);
-            fclose(f);
-            return buffer;
-        };
-        
         while (true) {
             // 获取图片数组
             const auto& imageArray = image_manager.GetImageArray();
@@ -999,6 +975,11 @@ private:
                 ESP_LOGW(TAG, "图片资源未加载，等待...");
                 vTaskDelay(pdMS_TO_TICKS(5000));
                 continue;
+            }
+            
+            // 确保currentIndex在有效范围内
+            if (currentIndex >= imageArray.size()) {
+                currentIndex = 0;
             }
             
             // 获取当前设备状态
@@ -1041,6 +1022,7 @@ private:
             if (currentState == kDeviceStateSpeaking && previousState != kDeviceStateSpeaking) {
                 pendingAnimationStart = true;
                 stateChangeTime = currentTime;
+                directionForward = true;  // 重置方向为正向
                 ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");
             }
             
@@ -1052,19 +1034,18 @@ private:
             
             // 延迟启动动画，等待音频实际开始播放
             if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(1200))) {
-                currentIndex = 1;
+                currentIndex = 1;  // 从第二帧开始
+                directionForward = true;  // 确保方向为正向
                 
                 if (currentIndex < imageArray.size()) {
                     currentImage = imageArray[currentIndex];
                     
-                    // 更新图片
-                    {
-                        DisplayLockGuard lock(display);
-                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                        if (img_obj) {
-                            img_dsc.data = currentImage;  // 直接使用原始图像数据
-                            lv_img_set_src(img_obj, &img_dsc);
-                        }
+                    // 直接使用图片数据，不再进行字节序转换
+                    DisplayLockGuard lock(display);
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj && currentImage) {
+                        img_dsc.data = currentImage;  // 直接使用原始图像数据
+                        lv_img_set_src(img_obj, &img_dsc);
                     }
                     
                     ESP_LOGI(TAG, "开始播放动画，与音频同步");
@@ -1078,39 +1059,44 @@ private:
             // 根据显示模式确定是否应该动画
             bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
 
-            // 动画播放逻辑
+            // 动画播放逻辑 - 实现双向循环
             if (shouldAnimate && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
-                currentIndex = (currentIndex + 1) % imageArray.size();
-                currentImage = imageArray[currentIndex];
-                
-                // 构建文件路径
-                char filepath[64];
-                snprintf(filepath, sizeof(filepath), "/resources/images/output_%04d.h", currentIndex + 1);
-                
-                // 加载图片数据
-                uint8_t* imageData = loadImageFromFile(filepath);
-                if (imageData) {
-                    // 更新图片
-                    {
-                        DisplayLockGuard lock(display);
-                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                        if (img_obj) {
-                            img_dsc.data = imageData;
-                            lv_img_set_src(img_obj, &img_dsc);
-                        }
+                // 根据方向更新索引
+                if (directionForward) {
+                    currentIndex++;
+                    // 如果到达末尾，切换方向
+                    if (currentIndex >= imageArray.size() - 1) {
+                        directionForward = false;
                     }
+                } else {
+                    currentIndex--;
+                    // 如果回到开始，切换方向
+                    if (currentIndex <= 0) {
+                        directionForward = true;
+                        currentIndex = 0;  // 确保不会出现负索引
+                    }
+                }
+                
+                // 确保索引在有效范围内
+                if (currentIndex >= 0 && currentIndex < imageArray.size()) {
+                    currentImage = imageArray[currentIndex];
                     
-                    // 在下一帧释放之前的图片内存
-                    free(imageData);
+                    // 直接使用图片数据，不再进行字节序转换
+                    DisplayLockGuard lock(display);
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj && currentImage) {
+                        img_dsc.data = currentImage;  // 直接使用原始图像数据
+                        lv_img_set_src(img_obj, &img_dsc);
+                    }
                 }
                 
                 lastUpdateTime = currentTime;
             }
             // 处理静态图片显示
             else if ((!isAudioPlaying && wasAudioPlaying) || 
-                      (g_image_display_mode == iot::MODE_STATIC && currentIndex != 0) || 
-                      (!isAudioPlaying && currentIndex != 0)) {
-                      
+                     (g_image_display_mode == iot::MODE_STATIC && currentIndex != 0) || 
+                     (!isAudioPlaying && currentIndex != 0)) {
+                
                 if (g_image_display_mode == iot::MODE_STATIC && iot::g_static_image) {
                     currentImage = iot::g_static_image;
                 } else if (!imageArray.empty()) {
@@ -1118,15 +1104,13 @@ private:
                     currentImage = imageArray[currentIndex];
                 }
                 
+                // 直接使用图片数据，不再进行字节序转换
                 if (currentImage) {
-                    // 更新图片
-                    {
-                        DisplayLockGuard lock(display);
-                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                        if (img_obj) {
-                            img_dsc.data = currentImage;  // 直接使用原始图像数据
-                            lv_img_set_src(img_obj, &img_dsc);
-                        }
+                    DisplayLockGuard lock(display);
+                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                    if (img_obj) {
+                        img_dsc.data = currentImage;  // 直接使用原始图像数据
+                        lv_img_set_src(img_obj, &img_dsc);
                     }
                     
                     ESP_LOGI(TAG, "显示%s图片", g_image_display_mode == iot::MODE_STATIC ? "logo" : "初始");
@@ -1135,14 +1119,13 @@ private:
             }
             
             // 更新状态记录
-            wasAudioPlaying = isAudioPlaying;  
-            previousState = currentState;      
+            wasAudioPlaying = isAudioPlaying;
+            previousState = currentState;
             
             // 短暂延时
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         
-        // 释放资源
         esp_timer_stop(resource_timer);
         esp_timer_delete(resource_timer);
         vTaskDelete(NULL);
