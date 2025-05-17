@@ -36,26 +36,27 @@
 #include "settings.h"             // 设置管理
 #include "iot_image_display.h"  // 引入图片显示模式定义
 #include "logo.h"  // 引入logo图片
+#include "image_manager.h"  // 引入图片资源管理器头文件
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
 
-// 包含图片资源文件（豆腐动画序列）
-#include "images/doufu/output_0001.h"
-#include "images/doufu/output_0002.h"
-#include "images/doufu/output_0003.h"
-#include "images/doufu/output_0004.h"
-#include "images/doufu/output_0005.h"
-#include "images/doufu/output_0006.h"
-#include "images/doufu/output_0007.h" 
-#include "images/doufu/output_0008.h"
-#include "images/doufu/output_0009.h"
-#include "images/doufu/output_0010.h"
-#include "images/doufu/output_0011.h"
-#include "images/doufu/output_0012.h"
-#include "images/doufu/output_0013.h"
-#include "images/doufu/output_0014.h"
-#include "images/doufu/output_0015.h"
-#include "images/doufu/output_0016.h"
-#include "images/doufu/output_0017.h"
+// // 包含图片资源文件（豆腐动画序列）
+// #include "images/doufu/output_0001.h"
+// #include "images/doufu/output_0002.h"
+// #include "images/doufu/output_0003.h"
+// #include "images/doufu/output_0004.h"
+// #include "images/doufu/output_0005.h"
+// #include "images/doufu/output_0006.h"
+// #include "images/doufu/output_0007.h" 
+// #include "images/doufu/output_0008.h"
+// #include "images/doufu/output_0009.h"
+// #include "images/doufu/output_0010.h"
+// #include "images/doufu/output_0011.h"
+// #include "images/doufu/output_0012.h"
+// #include "images/doufu/output_0013.h"
+// #include "images/doufu/output_0014.h"
+// #include "images/doufu/output_0015.h"
+// #include "images/doufu/output_0016.h"
+// #include "images/doufu/output_0017.h"
 
 // 在abrobot-1.28tft-wifi.cc文件开头添加外部声明
 extern "C" {
@@ -746,6 +747,10 @@ private:
     // 图片显示任务句柄
     TaskHandle_t image_task_handle_ = nullptr;
 
+    // 将URL定义为静态变量
+    static const char* API_URL;
+    static const char* VERSION_URL;
+
     // 初始化编解码器I2C总线
     void InitializeCodecI2c() {
         // 初始化I2C外设
@@ -843,6 +848,16 @@ private:
         thing_manager.AddThing(iot::CreateThing("ImageDisplay"));    // 添加图片显示控制设备
     }
 
+    // 初始化图片资源管理器
+    void InitializeImageResources() {
+        // 初始化图片资源管理器
+        auto& image_manager = ImageResourceManager::GetInstance();
+        esp_err_t result = image_manager.Initialize();
+        if (result != ESP_OK) {
+            ESP_LOGE(TAG, "图片资源管理器初始化失败");
+        }
+    }
+
     // 启动图片循环显示任务
     void StartImageSlideshow() {
         xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);  // 创建图片轮播任务
@@ -867,8 +882,8 @@ private:
         CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display);
         
         // 设置图片显示参数
-        int imgWidth = 240;   // 图片宽度
-        int imgHeight = 240;  // 图片高度
+        int imgWidth = 240;
+        int imgHeight = 240;
         
         // 创建一个图像容器，放在tab1上
         lv_obj_t* img_container = nullptr;
@@ -876,81 +891,48 @@ private:
         {
             DisplayLockGuard lock(display);
             
-            // 创建图像容器，直接放在tab1上而不是内容区域
+            // 创建图像容器
             img_container = lv_obj_create(customDisplay->tab1);
-            
-            // 清除所有默认样式，确保完全自定义
             lv_obj_remove_style_all(img_container);
-            
-            // 设置容器大小与屏幕匹配
             lv_obj_set_size(img_container, LV_HOR_RES, LV_VER_RES);
-            
-            // 设置容器位置在屏幕中央
             lv_obj_center(img_container);
-            
-            // 设置无边框和完全透明的背景
             lv_obj_set_style_border_width(img_container, 0, 0);
             lv_obj_set_style_bg_opa(img_container, LV_OPA_TRANSP, 0);
             lv_obj_set_style_pad_all(img_container, 0, 0);
-            
-            // 确保此容器在所有其他元素之下
             lv_obj_move_background(img_container);
             
             // 创建图像对象
             lv_obj_t* img_obj = lv_img_create(img_container);
-            
-            // 设置图像位置在容器中央
             lv_obj_center(img_obj);
-            
-            // 确保图像显示在正确的层级上
             lv_obj_move_foreground(img_obj);
         }
         
-        // 设置图片数组 - 包含所有动画帧
-        const uint8_t* imageArray[] = {
-            gImage_output_0001,
-            gImage_output_0002,
-            gImage_output_0003,
-            gImage_output_0004,
-            gImage_output_0005,
-            gImage_output_0006,
-            gImage_output_0007,
-            gImage_output_0008,
-            gImage_output_0009,
-            gImage_output_0010,
-            gImage_output_0011,
-            gImage_output_0012,
-            gImage_output_0013,
-            gImage_output_0014,
-            gImage_output_0015,
-            gImage_output_0016,
-            gImage_output_0017,
-            gImage_output_0016,
-            gImage_output_0015,
-            gImage_output_0014,
-            gImage_output_0013,
-            gImage_output_0012,
-            gImage_output_0011,
-            gImage_output_0010,
-            gImage_output_0009,
-            gImage_output_0008,
-            gImage_output_0007,
-            gImage_output_0006,
-            gImage_output_0005,
-            gImage_output_0004,
-            gImage_output_0003,
-            gImage_output_0002,
-            gImage_output_0001,
-        };
-        const int totalImages = sizeof(imageArray) / sizeof(imageArray[0]);
+        // 获取图片资源管理器实例
+        auto& image_manager = ImageResourceManager::GetInstance();
         
-        // 创建临时缓冲区用于字节序转换
-        uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
-        if (!convertedData) {
-            ESP_LOGE(TAG, "无法分配内存进行图像转换");
-            vTaskDelete(NULL);
-            return;
-        }
+        // 等待WiFi连接，然后从API获取图片资源
+        bool resources_updated = false;
+        
+        // 创建定时器，定期检查WiFi并尝试更新资源
+        esp_timer_handle_t resource_timer;
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void* arg) {
+                auto& wifi = WifiStation::GetInstance();
+                auto& image_mgr = ImageResourceManager::GetInstance();
+                
+                if (wifi.IsConnected()) {
+                    ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
+                    if (image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL) == ESP_OK) {
+                        // 成功更新
+                        *((bool*)arg) = true;
+                    }
+                }
+            },
+            .arg = &resources_updated,
+            .name = "resource_timer"
+        };
+        esp_timer_create(&timer_args, &resource_timer);
+        esp_timer_start_periodic(resource_timer, 10 * 1000 * 1000); // 每分钟检查一次
         
         // 创建图像描述符
         lv_image_dsc_t img_dsc = {
@@ -964,52 +946,61 @@ private:
                 .reserved_2 = 0,
             },
             .data_size = (uint32_t)(imgWidth * imgHeight * 2),
-            .data = (const uint8_t*)convertedData,
+            .data = NULL,  // 会在更新时设置为当前图像指针
             .reserved = NULL
         };
         
-        // 先显示第一张图片
+        // 当前索引
         int currentIndex = 0;
-        const uint8_t* currentImage = imageArray[currentIndex];
+        const uint8_t* currentImage = nullptr;
         
-        // 转换并显示第一张图片
-        for (int i = 0; i < imgWidth * imgHeight; i++) {
-            uint16_t pixel = ((uint16_t*)currentImage)[i];
-            convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
-        }
-        
-        {
-            DisplayLockGuard lock(display);
-            // 获取图像对象并设置图像源
-            lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-            img_dsc.data = (const uint8_t*)convertedData;
-            lv_img_set_src(img_obj, &img_dsc);
-            
-            // 确保图像容器和图像对象在正确的层级
-            lv_obj_move_to_index(img_container, 0);  // 移到最下层
-            lv_obj_move_foreground(img_obj);         // 图像对象在前景
-            
-            // 检查并确认UI层级正确性
-            lv_obj_t* tab_content = lv_obj_get_parent(customDisplay->tab1);
-            if (tab_content) {
-                lv_obj_clear_flag(tab_content, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-            }
-        }
-        
-        ESP_LOGI(TAG, "初始显示图片");
-        
-        // 持续监控和处理图片显示
+        // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
         const TickType_t cycleInterval = pdMS_TO_TICKS(120);  // 图片切换间隔120毫秒
         
-        // 定义用于判断是否正在播放音频的变量
-        bool isAudioPlaying = false;       // 当前是否播放音频
-        bool wasAudioPlaying = false;      // 上次是否播放音频
-        DeviceState previousState = app.GetDeviceState();  // 上次设备状态
-        bool pendingAnimationStart = false;  // 是否有待启动动画
-        TickType_t stateChangeTime = 0;      // 状态变化时间点
+        // 循环变量定义
+        bool isAudioPlaying = false;       
+        bool wasAudioPlaying = false;      
+        DeviceState previousState = app.GetDeviceState();  
+        bool pendingAnimationStart = false;  
+        TickType_t stateChangeTime = 0;      
+        
+        // 创建一个简单的图像加载函数
+        auto loadImageFromFile = [](const char* filepath) -> uint8_t* {
+            FILE* f = fopen(filepath, "r");
+            if (!f) {
+                ESP_LOGE(TAG, "无法打开图片文件: %s", filepath);
+                return nullptr;
+            }
+            
+            // 获取文件大小
+            fseek(f, 0, SEEK_END);
+            long size = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            
+            // 分配内存并读取文件
+            uint8_t* buffer = (uint8_t*)malloc(size);
+            if (!buffer) {
+                fclose(f);
+                return nullptr;
+            }
+            
+            fread(buffer, 1, size, f);
+            fclose(f);
+            return buffer;
+        };
         
         while (true) {
+            // 获取图片数组
+            const auto& imageArray = image_manager.GetImageArray();
+            
+            // 如果没有图片资源，等待一段时间后重试
+            if (imageArray.empty()) {
+                ESP_LOGW(TAG, "图片资源未加载，等待...");
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                continue;
+            }
+            
             // 获取当前设备状态
             DeviceState currentState = app.GetDeviceState();
             TickType_t currentTime = xTaskGetTickCount();
@@ -1021,7 +1012,7 @@ private:
                 isClockTabActive = (active_tab == 1);
             }
             
-            // 如果时钟页面处于活跃状态，隐藏图像容器
+            // 时钟页面处理逻辑
             if (isClockTabActive) {
                 DisplayLockGuard lock(display);
                 if (img_container) {
@@ -1030,15 +1021,14 @@ private:
                 vTaskDelay(pdMS_TO_TICKS(100));
                 continue;
             } else {
-                // 在主界面，显示图像容器并确保在正确位置
+                // 主界面显示处理
                 DisplayLockGuard lock(display);
                 if (img_container) {
                     lv_obj_clear_flag(img_container, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_align(img_container, LV_ALIGN_CENTER, 0, 0);
                     lv_obj_set_size(img_container, LV_HOR_RES, LV_VER_RES);
-                    lv_obj_move_to_index(img_container, 0);  // 确保在底层
+                    lv_obj_move_to_index(img_container, 0);
                     
-                    // 确保图像对象在容器中居中
                     lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
                     if (img_obj) {
                         lv_obj_center(img_obj);
@@ -1047,11 +1037,11 @@ private:
                 }
             }
             
-            // 检测到状态刚变为Speaking，设置动画延迟启动
+            // 检测到状态变为Speaking
             if (currentState == kDeviceStateSpeaking && previousState != kDeviceStateSpeaking) {
-                pendingAnimationStart = true;  // 标记待启动动画
-                stateChangeTime = currentTime;  // 记录状态变化时间
-                ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");  // 输出日志
+                pendingAnimationStart = true;
+                stateChangeTime = currentTime;
+                ESP_LOGI(TAG, "检测到音频状态改变，准备启动动画");
             }
             
             // 如果状态不是Speaking，确保isAudioPlaying为false
@@ -1061,114 +1051,112 @@ private:
             }
             
             // 延迟启动动画，等待音频实际开始播放
-            // 设置1200ms延迟，实验找到最佳匹配值
             if (pendingAnimationStart && (currentTime - stateChangeTime >= pdMS_TO_TICKS(1200))) {
-                // 状态变为Speaking后延迟一段时间，开始动画以匹配实际音频输出
-                currentIndex = 1;  // 从第二张图片开始
-                currentImage = imageArray[currentIndex];  // 获取图片数据
+                currentIndex = 1;
                 
-                // 转换并显示新图片
-                for (int i = 0; i < imgWidth * imgHeight; i++) {
-                    uint16_t pixel = ((uint16_t*)currentImage)[i];
-                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
-                }
-                
-                {
-                    DisplayLockGuard lock(display);  // 获取显示锁
-                    // 更新图像源
-                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                    if (img_obj) {
-                        img_dsc.data = (const uint8_t*)convertedData;
-                        lv_img_set_src(img_obj, &img_dsc);
+                if (currentIndex < imageArray.size()) {
+                    currentImage = imageArray[currentIndex];
+                    
+                    // 更新图片
+                    {
+                        DisplayLockGuard lock(display);
+                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                        if (img_obj) {
+                            img_dsc.data = currentImage;  // 直接使用原始图像数据
+                            lv_img_set_src(img_obj, &img_dsc);
+                        }
                     }
+                    
+                    ESP_LOGI(TAG, "开始播放动画，与音频同步");
+                    
+                    lastUpdateTime = currentTime;
+                    isAudioPlaying = true;         
+                    pendingAnimationStart = false; 
                 }
-                
-                ESP_LOGI(TAG, "开始播放动画，与音频同步");  // 输出日志
-                
-                lastUpdateTime = currentTime;  // 更新上次更新时间
-                isAudioPlaying = true;         // 设置为音频播放状态
-                pendingAnimationStart = false;  // 清除待启动标记
             }
             
-            // 检查当前显示模式
+            // 根据显示模式确定是否应该动画
             bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
 
+            // 动画播放逻辑
             if (shouldAnimate && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
-                // 更新索引到下一张图片
-                currentIndex = (currentIndex + 1) % totalImages;
-                currentImage = imageArray[currentIndex];  // 获取下一帧图片数据
+                currentIndex = (currentIndex + 1) % imageArray.size();
+                currentImage = imageArray[currentIndex];
                 
-                // 转换并显示新图片
-                for (int i = 0; i < imgWidth * imgHeight; i++) {
-                    uint16_t pixel = ((uint16_t*)currentImage)[i];
-                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
-                }
+                // 构建文件路径
+                char filepath[64];
+                snprintf(filepath, sizeof(filepath), "/resources/images/output_%04d.h", currentIndex + 1);
                 
-                {
-                    DisplayLockGuard lock(display);  // 获取显示锁
-                    // 更新图像源
-                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                    if (img_obj) {
-                        img_dsc.data = (const uint8_t*)convertedData;
-                        lv_img_set_src(img_obj, &img_dsc);
+                // 加载图片数据
+                uint8_t* imageData = loadImageFromFile(filepath);
+                if (imageData) {
+                    // 更新图片
+                    {
+                        DisplayLockGuard lock(display);
+                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                        if (img_obj) {
+                            img_dsc.data = imageData;
+                            lv_img_set_src(img_obj, &img_dsc);
+                        }
                     }
+                    
+                    // 在下一帧释放之前的图片内存
+                    free(imageData);
                 }
                 
-                // 更新上次更新时间
                 lastUpdateTime = currentTime;
             }
+            // 处理静态图片显示
             else if ((!isAudioPlaying && wasAudioPlaying) || 
                       (g_image_display_mode == iot::MODE_STATIC && currentIndex != 0) || 
                       (!isAudioPlaying && currentIndex != 0)) {
-                // 在静态模式下使用logo图片，否则使用动画第一帧
-                if (g_image_display_mode == iot::MODE_STATIC) {
-                    currentImage = iot::g_static_image;  // 使用logo图片
-                } else {
+                      
+                if (g_image_display_mode == iot::MODE_STATIC && iot::g_static_image) {
+                    currentImage = iot::g_static_image;
+                } else if (!imageArray.empty()) {
                     currentIndex = 0;
-                    currentImage = imageArray[currentIndex];  // 使用动画第一帧
+                    currentImage = imageArray[currentIndex];
                 }
                 
-                // 转换并显示图片
-                for (int i = 0; i < imgWidth * imgHeight; i++) {
-                    uint16_t pixel = ((uint16_t*)currentImage)[i];
-                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);  // 字节序转换
-                }
-                
-                {
-                    DisplayLockGuard lock(display);  // 获取显示锁
-                    // 更新图像源
-                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                    if (img_obj) {
-                        img_dsc.data = (const uint8_t*)convertedData;
-                        lv_img_set_src(img_obj, &img_dsc);
+                if (currentImage) {
+                    // 更新图片
+                    {
+                        DisplayLockGuard lock(display);
+                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                        if (img_obj) {
+                            img_dsc.data = currentImage;  // 直接使用原始图像数据
+                            lv_img_set_src(img_obj, &img_dsc);
+                        }
                     }
+                    
+                    ESP_LOGI(TAG, "显示%s图片", g_image_display_mode == iot::MODE_STATIC ? "logo" : "初始");
+                    pendingAnimationStart = false;
                 }
-                
-                ESP_LOGI(TAG, "显示%s图片", g_image_display_mode == iot::MODE_STATIC ? "logo" : "初始");
-                pendingAnimationStart = false;  // 清除待启动标记
             }
             
             // 更新状态记录
-            wasAudioPlaying = isAudioPlaying;  // 更新上次音频播放状态
-            previousState = currentState;      // 更新上次设备状态
+            wasAudioPlaying = isAudioPlaying;  
+            previousState = currentState;      
             
-            // 保持较高的检测频率以确保响应灵敏
-            vTaskDelay(pdMS_TO_TICKS(10));  // 延时10ms
+            // 短暂延时
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         
         // 释放资源
-        delete[] convertedData;
+        esp_timer_stop(resource_timer);
+        esp_timer_delete(resource_timer);
         vTaskDelete(NULL);
     }
 
 public:
     // 构造函数
-    CustomBoard() : boot_btn(BOOT_BUTTON_GPIO){
+    CustomBoard() : boot_btn(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();        // 初始化编解码器I2C总线
         InitializeSpi();             // 初始化SPI总线
         InitializeLcdDisplay();      // 初始化LCD显示器
         InitializeButtons();         // 初始化按钮
         InitializeIot();             // 初始化IoT设备
+        InitializeImageResources();  // 初始化图片资源管理器
         GetBacklight()->RestoreBrightness();  // 恢复背光亮度
         
         // 启动图片循环显示任务
@@ -1209,6 +1197,10 @@ public:
         }
     }
 };
+
+// 将URL定义为静态变量
+const char* CustomBoard::API_URL = "http://192.168.3.58:5002/images";
+const char* CustomBoard::VERSION_URL = "http://192.168.3.58:5002/images/version";
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);
