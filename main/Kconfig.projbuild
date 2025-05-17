@@ -74,6 +74,8 @@ choice BOARD_TYPE
         bool "神奇按钮 Magiclick_C3_v2"
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
+    config BOARD_TYPE_M5STACK_CORE_TAB5
+        bool "M5Stack Tab5"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
         bool "AtomS3 + Echo Base"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE

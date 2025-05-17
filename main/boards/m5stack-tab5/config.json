@@ -1,0 +1,9 @@
+{
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "m5stack-tab5",
+            "sdkconfig_append": []
+        }
+    ]
+}
