@@ -30,6 +30,10 @@ private:
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    button_driver_t* btn_a_driver_ = nullptr;
+    button_driver_t* btn_b_driver_ = nullptr;
+
+    static Df_K10Board* instance_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -96,24 +100,20 @@ private:
         }
     }
     void InitializeButtons() {
+        instance_ = this;
+        
         // Button A
         button_config_t btn_a_config = {
-            .type = BUTTON_TYPE_CUSTOM,
             .long_press_time = 1000,
-            .short_press_time = 50,
-            .custom_button_config = {
-                .active_level = 0,
-                .button_custom_init =nullptr,
-                .button_custom_get_key_value = [](void *param) -> uint8_t {
-                    auto self = static_cast<Df_K10Board*>(param);
-                    return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
-                },
-                .button_custom_deinit = nullptr,
-                .priv = this,
-            },
+            .short_press_time = 0
         };
-        btn_a = iot_button_create(&btn_a_config);
-        iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+        btn_a_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        btn_a_driver_->enable_power_save = false;
+        btn_a_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
+        };
+        ESP_ERROR_CHECK(iot_button_create(&btn_a_config, btn_a_driver_, &btn_a));
+        iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -121,7 +121,7 @@ private:
             }
             app.ToggleChatState();
         }, this);
-        iot_button_register_cb(btn_a, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+        iot_button_register_cb(btn_a, BUTTON_LONG_PRESS_START, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto codec = self->GetAudioCodec();
             auto volume = codec->output_volume() - 10;
@@ -134,22 +134,16 @@ private:
 
         // Button B
         button_config_t btn_b_config = {
-            .type = BUTTON_TYPE_CUSTOM,
             .long_press_time = 1000,
-            .short_press_time = 50,
-            .custom_button_config = {
-                .active_level = 0,
-                .button_custom_init =nullptr,
-                .button_custom_get_key_value = [](void *param) -> uint8_t {
-                    auto self = static_cast<Df_K10Board*>(param);
-                    return self->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
-                },
-                .button_custom_deinit = nullptr,
-                .priv = this,
-            },
+            .short_press_time = 0
         };
-        btn_b = iot_button_create(&btn_b_config);
-        iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, [](void* button_handle, void* usr_data) {
+        btn_b_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
+        btn_b_driver_->enable_power_save = false;
+        btn_b_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
+            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
+        };
+        ESP_ERROR_CHECK(iot_button_create(&btn_b_config, btn_b_driver_, &btn_b));
+        iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -157,7 +151,7 @@ private:
             }
             app.ToggleChatState();
         }, this);
-        iot_button_register_cb(btn_b, BUTTON_LONG_PRESS_START, [](void* button_handle, void* usr_data) {
+        iot_button_register_cb(btn_b, BUTTON_LONG_PRESS_START, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto codec = self->GetAudioCodec();
             auto volume = codec->output_volume() + 10;
@@ -253,3 +247,5 @@ public:
 };
 
 DECLARE_BOARD(Df_K10Board);
+
+Df_K10Board* Df_K10Board::instance_ = nullptr;
