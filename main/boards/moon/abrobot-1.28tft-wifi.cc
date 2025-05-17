@@ -39,25 +39,6 @@
 #include "image_manager.h"  // 引入图片资源管理器头文件
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
 
-// // 包含图片资源文件（豆腐动画序列）
-// #include "images/doufu/output_0001.h"
-// #include "images/doufu/output_0002.h"
-// #include "images/doufu/output_0003.h"
-// #include "images/doufu/output_0004.h"
-// #include "images/doufu/output_0005.h"
-// #include "images/doufu/output_0006.h"
-// #include "images/doufu/output_0007.h" 
-// #include "images/doufu/output_0008.h"
-// #include "images/doufu/output_0009.h"
-// #include "images/doufu/output_0010.h"
-// #include "images/doufu/output_0011.h"
-// #include "images/doufu/output_0012.h"
-// #include "images/doufu/output_0013.h"
-// #include "images/doufu/output_0014.h"
-// #include "images/doufu/output_0015.h"
-// #include "images/doufu/output_0016.h"
-// #include "images/doufu/output_0017.h"
-
 // 在abrobot-1.28tft-wifi.cc文件开头添加外部声明
 extern "C" {
     // 图片显示模式

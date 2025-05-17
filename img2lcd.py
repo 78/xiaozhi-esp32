@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, QSize
 class ImageConverter(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ESP32视频转换器")
+        self.setWindowTitle("ESP32图像转换器")
         self.setMinimumSize(800, 600)
         
         # 设置中心部件
@@ -54,7 +54,7 @@ class ImageConverter(QMainWindow):
         self.main_layout.addWidget(self.progress_bar)
         
         # 创建转换按钮
-        self.convert_button = QPushButton("转换视频为图片")
+        self.convert_button = QPushButton("转换为图片")
         self.convert_button.setFixedHeight(40)
         self.convert_button.setFont(QFont("Arial", 12, QFont.Bold))
         self.convert_button.clicked.connect(self.convert_images)
@@ -78,10 +78,13 @@ class ImageConverter(QMainWindow):
         input_file_layout = QHBoxLayout()
         self.browse_video_button = QPushButton("选择视频文件...")
         self.browse_video_button.clicked.connect(self.select_input_video)
+        self.browse_image_button = QPushButton("选择单张图片...")
+        self.browse_image_button.clicked.connect(self.select_input_image)
         self.clear_button = QPushButton("清空列表")
         self.clear_button.clicked.connect(self.clear_input_list)
         
         input_file_layout.addWidget(self.browse_video_button)
+        input_file_layout.addWidget(self.browse_image_button)
         input_file_layout.addWidget(self.clear_button)
         layout.addLayout(input_file_layout)
         
@@ -93,6 +96,21 @@ class ImageConverter(QMainWindow):
         
         input_group.setLayout(layout)
         self.main_layout.addWidget(input_group)
+    
+    def select_input_image(self):
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择图片文件", "", "图片文件 (*.png *.jpg *.jpeg *.bmp *.gif)"
+        )
+        if file_paths:
+            self.clear_input_list()  # 清除之前的所有文件
+            
+            for file_path in file_paths:
+                self.input_image_paths.append(file_path)
+                
+            self.update_file_list()
+            self.update_preview_images()  # 更新预览图
+            self.status_bar.showMessage(f"已选择 {len(self.input_image_paths)} 张图片")
+            self.log_text.append(f"已选择 {len(self.input_image_paths)} 张图片")
     
     def select_input_video(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -224,8 +242,11 @@ class ImageConverter(QMainWindow):
                     img_label.setAlignment(Qt.AlignCenter)
                     img_label.setToolTip(f"第 {i+1} 帧")
                     
-                    # 显示帧号
-                    frame_label = QLabel(f"第 {i+1} 帧")
+                    # 显示帧号或文件名
+                    if self.temp_dir and img_path.startswith(self.temp_dir):
+                        frame_label = QLabel(f"第 {i+1} 帧")
+                    else:
+                        frame_label = QLabel(os.path.basename(img_path))
                     frame_label.setAlignment(Qt.AlignCenter)
                     
                     # 创建容器来放置图片和标签
@@ -331,7 +352,7 @@ class ImageConverter(QMainWindow):
     def convert_images(self):
         # 检查输入
         if not self.input_image_paths:
-            QMessageBox.warning(self, "警告", "请先选择视频文件！")
+            QMessageBox.warning(self, "警告", "请先选择输入文件！")
             return
             
         if not self.same_directory.isChecked() and not self.output_path.text():
@@ -375,6 +396,11 @@ class ImageConverter(QMainWindow):
                 
                 # 打开图像
                 img = Image.open(image_path)
+                
+                # 调整图像大小为240x240（如果不是视频帧）
+                if not (self.temp_dir and image_path.startswith(self.temp_dir)):
+                    img = img.resize((240, 240), Image.LANCZOS)
+                
                 width, height = img.size
                 
                 # 记录日志
