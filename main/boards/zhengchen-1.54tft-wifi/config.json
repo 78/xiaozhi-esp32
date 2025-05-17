@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "zhengchen-1.54tft-wifi",
+            "sdkconfig_append": []
+        }
+    ]
+}
