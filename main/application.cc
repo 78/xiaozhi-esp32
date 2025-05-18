@@ -531,7 +531,7 @@ void Application::Start() {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
                 packet.payload = std::move(opus);
-                uint32_t last_output_timestamp_value = last_output_timestamp_.load();
+#ifdef CONFIG_USE_SERVER_AEC
                 {
                     std::lock_guard<std::mutex> lock(timestamp_mutex_);
                     if (!timestamp_queue_.empty()) {
@@ -546,10 +546,9 @@ void Application::Start() {
                         return;
                     }
                 }
-                Schedule([this, last_output_timestamp_value, packet = std::move(packet)]() {
+#endif
+                Schedule([this, packet = std::move(packet)]() {
                     protocol_->SendAudio(packet);
-                    // ESP_LOGI(TAG, "Send %zu bytes, timestamp %lu, last_ts %lu, qsize %zu",
-                    //     packet.payload.size(), packet.timestamp, last_output_timestamp_value, timestamp_queue_.size());
                 });
             });
         });
@@ -732,11 +731,11 @@ void Application::OnAudioOutput() {
             pcm = std::move(resampled);
         }
         codec->OutputData(pcm);
-        {
+#ifdef CONFIG_USE_SERVER_AEC
             std::lock_guard<std::mutex> lock(timestamp_mutex_);
             timestamp_queue_.push_back(packet.timestamp);
             last_output_timestamp_ = packet.timestamp;
-        }
+#endif
         last_output_time_ = std::chrono::steady_clock::now();
     });
 }
