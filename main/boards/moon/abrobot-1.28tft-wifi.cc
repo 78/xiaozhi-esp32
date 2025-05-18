@@ -866,8 +866,25 @@ private:
         int imgWidth = 240;
         int imgHeight = 240;
         
+        // 创建图像描述符
+        lv_image_dsc_t img_dsc = {
+            .header = {
+                .magic = LV_IMAGE_HEADER_MAGIC,
+                .cf = LV_COLOR_FORMAT_RGB565,
+                .flags = 0,
+                .w = (uint32_t)imgWidth,
+                .h = (uint32_t)imgHeight,
+                .stride = (uint32_t)(imgWidth * 2),
+                .reserved_2 = 0,
+            },
+            .data_size = (uint32_t)(imgWidth * imgHeight * 2),
+            .data = NULL,  // 会在更新时设置
+            .reserved = NULL
+        };
+        
         // 创建一个图像容器，放在tab1上
         lv_obj_t* img_container = nullptr;
+        lv_obj_t* img_obj = nullptr;
         
         {
             DisplayLockGuard lock(display);
@@ -880,16 +897,44 @@ private:
             lv_obj_set_style_border_width(img_container, 0, 0);
             lv_obj_set_style_bg_opa(img_container, LV_OPA_TRANSP, 0);
             lv_obj_set_style_pad_all(img_container, 0, 0);
-            lv_obj_move_background(img_container);
+            lv_obj_move_foreground(img_container);  // 确保显示在最前面
             
             // 创建图像对象
-            lv_obj_t* img_obj = lv_img_create(img_container);
+            img_obj = lv_img_create(img_container);
             lv_obj_center(img_obj);
             lv_obj_move_foreground(img_obj);
         }
         
         // 获取图片资源管理器实例
         auto& image_manager = ImageResourceManager::GetInstance();
+        
+        // 添加延迟，确保资源管理器有足够时间初始化
+        vTaskDelay(pdMS_TO_TICKS(500));
+        
+        // 立即尝试显示静态图片
+        if (g_image_display_mode == iot::MODE_STATIC && g_static_image) {
+            // 如果有静态图片（logo），使用它
+            DisplayLockGuard lock(display);
+            img_dsc.data = g_static_image;
+            lv_img_set_src(img_obj, &img_dsc);
+            ESP_LOGI(TAG, "开机立即显示logo图片");
+        } else {
+            // 否则尝试使用资源管理器中的图片
+            const auto& imageArray = image_manager.GetImageArray();
+            if (!imageArray.empty()) {
+                const uint8_t* currentImage = imageArray[0];
+                if (currentImage) {
+                    DisplayLockGuard lock(display);
+                    img_dsc.data = currentImage;
+                    lv_img_set_src(img_obj, &img_dsc);
+                    ESP_LOGI(TAG, "开机立即显示存储的图片");
+                } else {
+                    ESP_LOGW(TAG, "图片数据为空");
+                }
+            } else {
+                ESP_LOGW(TAG, "图片数组为空");
+            }
+        }
         
         // 等待WiFi连接，然后从API获取图片资源
         bool resources_updated = false;
@@ -914,22 +959,6 @@ private:
         };
         esp_timer_create(&timer_args, &resource_timer);
         esp_timer_start_periodic(resource_timer, 60 * 1000 * 1000); // 每分钟检查一次
-        
-        // 修改图像描述符
-        lv_image_dsc_t img_dsc = {
-            .header = {
-                .magic = LV_IMAGE_HEADER_MAGIC,
-                .cf = LV_COLOR_FORMAT_RGB565,
-                .flags = 0,
-                .w = (uint32_t)imgWidth,
-                .h = (uint32_t)imgHeight,
-                .stride = (uint32_t)(imgWidth * 2),
-                .reserved_2 = 0,
-            },
-            .data_size = (uint32_t)(imgWidth * imgHeight * 2),
-            .data = NULL,  // 会在更新时设置为当前图像指针
-            .reserved = NULL
-        };
         
         // 当前索引和方向控制
         int currentIndex = 0;

@@ -90,7 +90,7 @@ public:
                 g_image_display_mode = MODE_ANIMATED;
                 
                 // 保存设置
-                Settings settings("image_display");
+                Settings settings("image_display", true);
                 settings.SetInt("display_mode", MODE_ANIMATED);
                 
                 ESP_LOGI(TAG, "已设置为动画模式");
@@ -102,7 +102,7 @@ public:
                 g_image_display_mode = MODE_STATIC;
                 
                 // 保存设置
-                Settings settings("image_display");
+                Settings settings("image_display", true);
                 settings.SetInt("display_mode", MODE_STATIC);
                 
                 ESP_LOGI(TAG, "已设置为静态logo模式");
@@ -120,7 +120,7 @@ public:
                 }
                 
                 // 保存设置
-                Settings settings("image_display");
+                Settings settings("image_display", true);
                 settings.SetInt("display_mode", static_cast<int>(display_mode_));
                 
                 ESP_LOGI(TAG, "已切换显示模式为: %d", display_mode_);
