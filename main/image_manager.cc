@@ -342,17 +342,16 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
 
 esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepath) {
     int retry_count = 0;
-    // 添加静态变量跟踪上次输出的百分比
     static int last_logged_percent = -1;
     
     while (retry_count < MAX_DOWNLOAD_RETRIES) {
-        // 重置百分比记录
         last_logged_percent = -1;
         
         // 通知开始下载
         if (progress_callback_) {
             char message[128];
-            snprintf(message, sizeof(message), "正在下载: %s", strrchr(filepath, '/') + 1);
+            const char* filename = strrchr(filepath, '/') + 1;
+            snprintf(message, sizeof(message), "正在下载: %s", filename);
             progress_callback_(0, 100, message);
         }
         
@@ -363,7 +362,6 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             delete http;
             retry_count++;
             
-            // 通知重试
             if (progress_callback_) {
                 char message[128];
                 snprintf(message, sizeof(message), "连接失败，正在重试 (%d/%d)", 
@@ -371,20 +369,17 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 progress_callback_(0, 100, message);
             }
             
-            vTaskDelay(pdMS_TO_TICKS(1000 * retry_count)); // 延迟增加重试时间
+            vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
             continue;
         }
         
         FILE* f = fopen(filepath, "w");
         if (f == NULL) {
-            ESP_LOGE(TAG, "无法创建文件: %s (errno: %d, strerror: %s)", filepath, errno, strerror(errno));
+            ESP_LOGE(TAG, "无法创建文件: %s", filepath);
             delete http;
-            
-            // 通知错误
             if (progress_callback_) {
                 progress_callback_(0, 100, "创建文件失败");
             }
-            
             return ESP_ERR_NO_MEM;
         }
         
@@ -393,12 +388,9 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             ESP_LOGE(TAG, "无法获取文件大小");
             fclose(f);
             delete http;
-            
-            // 通知错误
             if (progress_callback_) {
                 progress_callback_(0, 100, "无法获取文件大小");
             }
-            
             return ESP_FAIL;
         }
         
@@ -413,29 +405,24 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 ESP_LOGE(TAG, "读取HTTP数据失败");
                 fclose(f);
                 delete http;
-                
-                // 通知错误
                 if (progress_callback_) {
                     progress_callback_(0, 100, "读取数据失败");
                 }
-                
                 retry_count++;
                 vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
                 break;
             }
             
-            if (ret == 0) { // 下载完成
+            if (ret == 0) {
                 fclose(f);
                 delete http;
-                
-                // 通知完成
                 if (progress_callback_) {
-                    progress_callback_(100, 100, "下载完成");
+                    const char* filename = strrchr(filepath, '/') + 1;
+                    char message[128];
+                    snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
+                    progress_callback_(100, 100, message);
                 }
-                
-                // 在文件下载完成或开始新文件下载时重置
                 last_logged_percent = -1;
-                
                 return ESP_OK;
             }
             
@@ -444,57 +431,43 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 ESP_LOGE(TAG, "写入文件失败");
                 fclose(f);
                 delete http;
-                
-                // 通知错误
                 if (progress_callback_) {
                     progress_callback_(0, 100, "写入文件失败");
                 }
-                
                 return ESP_FAIL;
             }
             
             total_read += ret;
             
-            // 显示下载进度
+            // 更频繁地更新进度显示
             if (content_length > 0) {
                 int percent = (float)total_read * 100 / content_length;
                 
-                // 只在进度变化时才更新UI
+                // 每当进度变化时都更新显示
                 if (percent != last_logged_percent) {
-                    // 更新日志
-                    if (percent % 10 == 0 || percent == 100) {
-                        ESP_LOGI(TAG, "下载进度: %d%%", percent);
+                    const char* filename = strrchr(filepath, '/') + 1;
+                    char message[128];
+                    snprintf(message, sizeof(message), "正在下载 %s", filename);
+                    
+                    if (progress_callback_) {
+                        progress_callback_(percent, 100, message);
                     }
                     
-                    // 调用进度回调，但不要在回调中执行耗时或复杂操作
-                    if (progress_callback_) {
-                        char message[64];
-                        const char* filename = strrchr(filepath, '/') + 1;
-                        if (percent < 100) {
-                            snprintf(message, sizeof(message), "下载 %s: %d%%", filename, percent);
-                        } else {
-                            snprintf(message, sizeof(message), "文件下载完成");
-                        }
-                        
-                        // 在ESP-IDF中，回调通常应该尽量简短
-                        // 这里将进度信息传递给回调，但UI更新将在主循环中进行
-                        progress_callback_(percent, 100, message);
-                        
-                        // 添加短暂延迟，避免回调过于频繁
-                        if (percent < 100) {
-                            vTaskDelay(1);
-                        }
+                    // 记录日志（但减少日志频率）
+                    if (percent % 10 == 0 || percent == 100) {
+                        ESP_LOGI(TAG, "下载进度: %d%%", percent);
                     }
                     
                     last_logged_percent = percent;
                 }
             }
+            
+            // 添加小延迟以允许其他任务执行
+            vTaskDelay(1);
         }
     }
     
     ESP_LOGE(TAG, "下载重试次数已达上限");
-    
-    // 通知失败
     if (progress_callback_) {
         progress_callback_(0, 100, "下载失败，重试次数已达上限");
     }

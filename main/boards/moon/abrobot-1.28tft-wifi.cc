@@ -794,85 +794,23 @@ public:
     
     // 显示或隐藏下载进度条
     void ShowDownloadProgress(bool show, int progress = 0, const char* message = nullptr) {
-        // 添加静态变量记录上次记录的进度
-        static int last_logged_progress = -1;
-        static bool last_logged_show = false;
-        
-        // 只在以下情况输出日志:
-        bool should_log = false;
-        if (show != last_logged_show) {
-            should_log = true; // 显示状态变化
-        } else if (show) {
-            int current_ten_percent = progress / 10;
-            int last_ten_percent = last_logged_progress / 10;
-            
-            if (current_ten_percent > last_ten_percent || progress == 100) {
-                should_log = true; // 新的10%区间或100%
-            }
-        }
-        
-        if (should_log) {
-            ESP_LOGI("DownloadUI", "下载进度: show=%d, progress=%d%%, message=%s", 
-                     show, progress, message ? message : "NULL");
-            
-            last_logged_progress = progress;
-            last_logged_show = show;
-        }
-        
-        // 直接更新UI，无需中间变量
-        DisplayLockGuard lock(this);
-        
-        // 如果容器不存在但需要显示，创建UI
-        if (download_progress_container_ == nullptr && show) {
-            CreateDownloadProgressUI();
-        }
-        
-        // 如果容器仍不存在，直接返回
-        if (download_progress_container_ == nullptr) {
+        if (!show || !message) {
             return;
         }
-        
-        if (show) {
-            // 确保进度值在0-100范围内
-            if (progress < 0) progress = 0;
-            if (progress > 100) progress = 100;
-            
-            // 更新进度标签
-            if (download_progress_label_) {
-                char percent_text[16];
-                snprintf(percent_text, sizeof(percent_text), "进度: %d%%", progress);
-                lv_label_set_text(download_progress_label_, percent_text);
-                lv_obj_invalidate(download_progress_label_);
+
+        // 直接使用SetChatMessage显示下载进度
+        DisplayLockGuard lock(this);
+        if (chat_message_label_ != nullptr) {
+            char full_message[256];
+            if (progress > 0 && progress < 100) {
+                snprintf(full_message, sizeof(full_message), 
+                        "正在下载图片资源...\n\n%s\n\n进度：%d%%", 
+                        message, progress);
+            } else {
+                snprintf(full_message, sizeof(full_message), "%s", message);
             }
-            
-            // 更新消息
-            if (message && message_label_ != nullptr) {
-                lv_label_set_text(message_label_, message);
-                lv_obj_invalidate(message_label_);
-            }
-            
-            // 确保容器可见
-            lv_obj_clear_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_invalidate(download_progress_container_);
-            
-            // 确保在最顶层显示
-            lv_obj_move_foreground(download_progress_container_);
-            
-            // 禁用空闲定时器
-            SetIdle(false);
-            
-            // 如果当前在时钟页面，切换回主页面
-            if (tabview_) {
-                uint32_t active_tab = lv_tabview_get_tab_act(tabview_);
-                if (active_tab == 1) {
-                    lv_tabview_set_act(tabview_, 0, LV_ANIM_OFF);
-                }
-            }
-        } else {
-            // 隐藏容器
-            lv_obj_add_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
-            // 重新启用空闲定时器
-            SetIdle(true);
+            lv_label_set_text(chat_message_label_, full_message);
+            lv_obj_scroll_to_view_recursive(chat_message_label_, LV_ANIM_OFF);
         }
     }
     
@@ -1248,6 +1186,8 @@ private:
                 
                 if (wifi.IsConnected()) {
                     ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
+                    // 等待5秒后执行下载
+                    vTaskDelay(pdMS_TO_TICKS(5000));
                     if (image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL) == ESP_OK) {
                         // 成功更新
                         *((bool*)arg) = true;
@@ -1258,7 +1198,8 @@ private:
             .name = "resource_timer"
         };
         esp_timer_create(&timer_args, &resource_timer);
-        esp_timer_start_periodic(resource_timer, 60 * 1000 * 1000); // 每分钟检查一次
+        // 改为单次执行
+        esp_timer_start_once(resource_timer, 1000 * 1000); // 开机1秒后执行一次检查
         
         // 当前索引和方向控制
         int currentIndex = 0;
