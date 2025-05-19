@@ -244,10 +244,21 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     // 确保已连接WiFi
     if (!WifiStation::GetInstance().IsConnected()) {
         ESP_LOGW(TAG, "未连接WiFi，无法下载图片");
+        
+        // 通知错误
+        if (progress_callback_) {
+            progress_callback_(0, 100, "未连接WiFi，无法下载图片");
+        }
+        
         return ESP_FAIL;
     }
     
     ESP_LOGI(TAG, "开始下载图片文件...");
+    
+    // 通知开始下载
+    if (progress_callback_) {
+        progress_callback_(0, 100, "准备下载图片资源...");
+    }
     
     bool success = true;
     
@@ -262,6 +273,15 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         std::string url = std::string(api_url) + "/" + std::string(filename);
         
         ESP_LOGI(TAG, "下载图片文件 [%d/%d]: %s", i, MAX_IMAGE_FILES, filename);
+        
+        // 修改这里的进度回调，使用整体进度
+        if (progress_callback_) {
+            // 每个文件占总进度的一部分
+            int overall_percent = (i-1) * 100 / MAX_IMAGE_FILES;
+            char message[128];
+            snprintf(message, sizeof(message), "准备下载: %s (%d/%d)", filename, i, MAX_IMAGE_FILES);
+            progress_callback_(overall_percent, 100, message);
+        }
         
         if (DownloadFile(url.c_str(), filepath) != ESP_OK) {
             ESP_LOGE(TAG, "下载图片文件失败: %s", filename);
@@ -279,17 +299,42 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         
         if (!SaveVersion(server_version_)) {
             ESP_LOGE(TAG, "保存版本信息失败");
+            
+            // 通知错误
+            if (progress_callback_) {
+                progress_callback_(100, 100, "保存版本信息失败");
+            }
+            
             return ESP_FAIL;
         }
         
         local_version_ = server_version_;
         has_valid_images_ = true;
         
+        // 通知完成
+        if (progress_callback_) {
+            progress_callback_(100, 100, "下载完成，正在加载图片...");
+        }
+        
         // 加载新下载的图片数据
         LoadImageData();
         
+        // 通知加载完成
+        if (progress_callback_) {
+            progress_callback_(100, 100, "图片资源已就绪");
+            
+            // 延迟一段时间后隐藏进度条
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            progress_callback_(100, 100, nullptr);
+        }
+        
         ESP_LOGI(TAG, "所有图片文件下载完成，更新版本为: %s", local_version_.c_str());
         return ESP_OK;
+    }
+    
+    // 通知失败
+    if (progress_callback_) {
+        progress_callback_(0, 100, "下载图片资源失败");
     }
     
     return ESP_FAIL;
@@ -297,14 +342,35 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
 
 esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepath) {
     int retry_count = 0;
+    // 添加静态变量跟踪上次输出的百分比
+    static int last_logged_percent = -1;
     
     while (retry_count < MAX_DOWNLOAD_RETRIES) {
+        // 重置百分比记录
+        last_logged_percent = -1;
+        
+        // 通知开始下载
+        if (progress_callback_) {
+            char message[128];
+            snprintf(message, sizeof(message), "正在下载: %s", strrchr(filepath, '/') + 1);
+            progress_callback_(0, 100, message);
+        }
+        
         auto http = Board::GetInstance().CreateHttp();
         
         if (!http->Open("GET", url)) {
             ESP_LOGE(TAG, "无法连接到服务器");
             delete http;
             retry_count++;
+            
+            // 通知重试
+            if (progress_callback_) {
+                char message[128];
+                snprintf(message, sizeof(message), "连接失败，正在重试 (%d/%d)", 
+                        retry_count, MAX_DOWNLOAD_RETRIES);
+                progress_callback_(0, 100, message);
+            }
+            
             vTaskDelay(pdMS_TO_TICKS(1000 * retry_count)); // 延迟增加重试时间
             continue;
         }
@@ -313,6 +379,12 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         if (f == NULL) {
             ESP_LOGE(TAG, "无法创建文件: %s (errno: %d, strerror: %s)", filepath, errno, strerror(errno));
             delete http;
+            
+            // 通知错误
+            if (progress_callback_) {
+                progress_callback_(0, 100, "创建文件失败");
+            }
+            
             return ESP_ERR_NO_MEM;
         }
         
@@ -321,6 +393,12 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             ESP_LOGE(TAG, "无法获取文件大小");
             fclose(f);
             delete http;
+            
+            // 通知错误
+            if (progress_callback_) {
+                progress_callback_(0, 100, "无法获取文件大小");
+            }
+            
             return ESP_FAIL;
         }
         
@@ -335,6 +413,12 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 ESP_LOGE(TAG, "读取HTTP数据失败");
                 fclose(f);
                 delete http;
+                
+                // 通知错误
+                if (progress_callback_) {
+                    progress_callback_(0, 100, "读取数据失败");
+                }
+                
                 retry_count++;
                 vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
                 break;
@@ -343,6 +427,15 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             if (ret == 0) { // 下载完成
                 fclose(f);
                 delete http;
+                
+                // 通知完成
+                if (progress_callback_) {
+                    progress_callback_(100, 100, "下载完成");
+                }
+                
+                // 在文件下载完成或开始新文件下载时重置
+                last_logged_percent = -1;
+                
                 return ESP_OK;
             }
             
@@ -351,6 +444,12 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 ESP_LOGE(TAG, "写入文件失败");
                 fclose(f);
                 delete http;
+                
+                // 通知错误
+                if (progress_callback_) {
+                    progress_callback_(0, 100, "写入文件失败");
+                }
+                
                 return ESP_FAIL;
             }
             
@@ -358,12 +457,48 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             
             // 显示下载进度
             if (content_length > 0) {
-                ESP_LOGI(TAG, "下载进度: %.1f%%", (float)total_read * 100 / content_length);
+                int percent = (float)total_read * 100 / content_length;
+                
+                // 只在进度变化时才更新UI
+                if (percent != last_logged_percent) {
+                    // 更新日志
+                    if (percent % 10 == 0 || percent == 100) {
+                        ESP_LOGI(TAG, "下载进度: %d%%", percent);
+                    }
+                    
+                    // 调用进度回调，但不要在回调中执行耗时或复杂操作
+                    if (progress_callback_) {
+                        char message[64];
+                        const char* filename = strrchr(filepath, '/') + 1;
+                        if (percent < 100) {
+                            snprintf(message, sizeof(message), "下载 %s: %d%%", filename, percent);
+                        } else {
+                            snprintf(message, sizeof(message), "文件下载完成");
+                        }
+                        
+                        // 在ESP-IDF中，回调通常应该尽量简短
+                        // 这里将进度信息传递给回调，但UI更新将在主循环中进行
+                        progress_callback_(percent, 100, message);
+                        
+                        // 添加短暂延迟，避免回调过于频繁
+                        if (percent < 100) {
+                            vTaskDelay(1);
+                        }
+                    }
+                    
+                    last_logged_percent = percent;
+                }
             }
         }
     }
     
     ESP_LOGE(TAG, "下载重试次数已达上限");
+    
+    // 通知失败
+    if (progress_callback_) {
+        progress_callback_(0, 100, "下载失败，重试次数已达上限");
+    }
+    
     return ESP_FAIL;
 }
 
@@ -562,6 +697,12 @@ esp_err_t ImageResourceManager::CheckAndUpdateResources(const char* api_url, con
     // 如果没有有效图片或者需要检查服务器版本
     if (!has_valid_images_) {
         ESP_LOGI(TAG, "未找到有效图片，需要下载");
+        
+        // 通知需要下载
+        if (progress_callback_) {
+            progress_callback_(0, 100, "首次启动，需要下载图片资源");
+        }
+        
         return DownloadImages(api_url);
     }
     
@@ -569,6 +710,15 @@ esp_err_t ImageResourceManager::CheckAndUpdateResources(const char* api_url, con
     esp_err_t status = CheckServerVersion(version_url);
     if (status == ESP_OK) {
         ESP_LOGI(TAG, "发现新版本，需要更新图片资源");
+        
+        // 通知更新
+        if (progress_callback_) {
+            char message[128];
+            snprintf(message, sizeof(message), "发现新版本，更新中... %s -> %s", 
+                    local_version_.c_str(), server_version_.c_str());
+            progress_callback_(0, 100, message);
+        }
+        
         return DownloadImages(api_url);
     } else if (status == ESP_ERR_NOT_FOUND) {
         ESP_LOGI(TAG, "图片资源已是最新版本");

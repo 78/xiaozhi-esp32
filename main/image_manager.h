@@ -4,7 +4,11 @@
 #include <string>
 #include <vector>
 #include <stdint.h>
+#include <functional>
 #include "esp_err.h"
+
+// 定义进度回调函数类型
+typedef std::function<void(int current, int total, const char* message)> DownloadProgressCallback;
 
 // 图片资源管理器单例类
 class ImageResourceManager {
@@ -23,6 +27,11 @@ public:
     
     // 获取图片数组 (直接返回原始数据指针数组)
     const std::vector<const uint8_t*>& GetImageArray() const;
+    
+    // 设置下载进度回调函数
+    void SetDownloadProgressCallback(DownloadProgressCallback callback) {
+        progress_callback_ = callback;
+    }
     
 private:
     ImageResourceManager();
@@ -48,6 +57,7 @@ private:
     std::string server_version_;  // 服务器版本
     std::vector<const uint8_t*> image_array_; // 图片数据指针数组
     std::vector<void*> image_data_pointers_;  // 管理内存的指针数组
+    DownloadProgressCallback progress_callback_ = nullptr; // 进度回调函数
 };
 
 #endif // _IMAGE_RESOURCE_MANAGER_H_

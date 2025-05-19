@@ -59,7 +59,7 @@ LV_FONT_DECLARE(font_awesome_30_4);  // Font Awesome 30像素图标字体
 
 // 暗色主题颜色定义
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0)           // 深色背景色（黑色）
-#define DARK_TEXT_COLOR             lv_color_white()          // 白色文本颜色
+#define DARK_TEXT_COLOR             lv_color_black()          // 白色文本颜色
 #define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0)           // 聊天背景色（黑色）
 #define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)    // 用户气泡颜色（深绿色）
 #define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)    // 助手气泡颜色（深灰色）
@@ -70,7 +70,7 @@ LV_FONT_DECLARE(font_awesome_30_4);  // Font Awesome 30像素图标字体
 
 // 亮色主题颜色定义
 #define LIGHT_BACKGROUND_COLOR       lv_color_white()          // 亮色背景色（白色）
-#define LIGHT_TEXT_COLOR             lv_color_black()          // 黑色文本颜色
+#define LIGHT_TEXT_COLOR             lv_color_white()          // 黑色文本颜色
 #define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)    // 聊天背景色（浅灰色）
 #define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)    // 用户气泡颜色（微信绿）
 #define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()          // 助手气泡颜色（白色）
@@ -121,6 +121,13 @@ static const ThemeColors LIGHT_THEME = {
 // 当前主题 - 基于默认配置初始化为暗色主题
 static ThemeColors current_theme = DARK_THEME;
 
+// 在文件开头添加全局变量，用于安全地传递下载进度状态
+static struct {
+    bool pending;
+    int progress;
+    char message[64];
+    SemaphoreHandle_t mutex;
+} g_download_progress = {false, 0, "", NULL};
 
 // 自定义LCD显示类，继承自SpiLcdDisplay
 class CustomLcdDisplay : public SpiLcdDisplay {
@@ -155,6 +162,35 @@ public:
                     }) {
         DisplayLockGuard lock(this);  // 获取显示锁，防止多线程访问冲突
         SetupUI();                    // 设置用户界面
+        
+        // 创建一个用于保护下载进度状态的互斥锁
+        if (g_download_progress.mutex == NULL) {
+            g_download_progress.mutex = xSemaphoreCreateMutex();
+        }
+        
+        // 创建定时器定期检查并更新下载进度显示
+        lv_timer_create([](lv_timer_t* timer) {
+            CustomLcdDisplay* display = (CustomLcdDisplay*)lv_timer_get_user_data(timer);
+            if (!display) return;
+            
+            // 检查是否有待更新的进度
+            if (g_download_progress.mutex && xSemaphoreTake(g_download_progress.mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                if (g_download_progress.pending) {
+                    int progress = g_download_progress.progress;
+                    char message[64];
+                    strncpy(message, g_download_progress.message, sizeof(message));
+                    
+                    // 重置标志
+                    g_download_progress.pending = false;
+                    xSemaphoreGive(g_download_progress.mutex);
+                    
+                    // 更新UI
+                    display->UpdateDownloadProgressUI(true, progress, message);
+                } else {
+                    xSemaphoreGive(g_download_progress.mutex);
+                }
+            }
+        }, 100, this); // 100ms检查一次
     }
 
     // 设置空闲状态方法，控制是否启用空闲定时器
@@ -175,11 +211,43 @@ public:
             lv_timer_del(idle_timer_);
             idle_timer_ = nullptr;
         }
-
+        
+        // 获取当前设备状态，判断是否应该启用空闲定时器
+        auto& app = Application::GetInstance();
+        DeviceState currentState = app.GetDeviceState();
+        
+        // 检查下载UI是否实际可见
+        bool download_ui_is_active_and_visible = false;
+        if (download_progress_container_ != nullptr &&
+            !lv_obj_has_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+            download_ui_is_active_and_visible = true;
+        }
+        
+        if (currentState == kDeviceStateStarting || 
+            currentState == kDeviceStateWifiConfiguring ||
+            download_ui_is_active_and_visible) { 
+            ESP_LOGI(TAG, "设备处于启动/配置状态或下载UI可见，暂不启用空闲定时器");
+            return;
+        }
+        
         // 创建一个定时器，15秒后切换到时钟页面（tab2）
         idle_timer_ = lv_timer_create([](lv_timer_t * t) {
             CustomLcdDisplay *display = (CustomLcdDisplay *)lv_timer_get_user_data(t);
             if (!display) return;
+            
+            // 再次检查当前状态，确保在切换前设备不在特殊状态
+            auto& app = Application::GetInstance();
+            DeviceState currentState = app.GetDeviceState();
+            
+            // 如果设备已进入某些特殊状态，取消切换
+            if (currentState == kDeviceStateStarting || 
+                currentState == kDeviceStateWifiConfiguring ||
+                display->download_progress_container_ != nullptr) {
+                // 删除定时器但不切换
+                lv_timer_del(t);
+                display->idle_timer_ = nullptr;
+                return;
+            }
             
             // 查找tabview并切换到tab2
             lv_obj_t *tabview = lv_obj_get_parent(lv_obj_get_parent(display->tab2));
@@ -214,6 +282,23 @@ public:
         }
         lv_label_set_text(chat_message_label_, content);  // 设置消息文本
         lv_obj_scroll_to_view_recursive(chat_message_label_, LV_ANIM_OFF);  // 滚动到可见区域
+        
+        // 如果当前处于WiFi配置模式，显示到时钟页面也显示提示
+        if (std::string(content).find(Lang::Strings::CONNECT_TO_HOTSPOT) != std::string::npos) {
+            // 在时钟页面添加配网提示
+            DisplayLockGuard lock(this);
+            lv_obj_t* wifi_hint = lv_label_create(tab2);
+            lv_obj_set_size(wifi_hint, LV_HOR_RES * 0.8, LV_SIZE_CONTENT);
+            lv_obj_align(wifi_hint, LV_ALIGN_CENTER, 0, -20);
+            lv_obj_set_style_text_font(wifi_hint, fonts_.text_font, 0);
+            lv_obj_set_style_text_color(wifi_hint, lv_color_hex(0xFF9500), 0); // 使用明亮的橙色
+            lv_obj_set_style_text_align(wifi_hint, LV_TEXT_ALIGN_CENTER, 0);
+            lv_label_set_text(wifi_hint, "请连接热点进行WiFi配置\n设备尚未连接网络");
+            lv_obj_set_style_bg_color(wifi_hint, lv_color_hex(0x222222), 0);
+            lv_obj_set_style_bg_opa(wifi_hint, LV_OPA_70, 0);
+            lv_obj_set_style_radius(wifi_hint, 10, 0);
+            lv_obj_set_style_pad_all(wifi_hint, 10, 0);
+        }
     }
 
     // 设置第一个标签页（主界面）
@@ -707,10 +792,198 @@ public:
         settings.SetString("theme", theme_name);  // 保存主题设置
     }
     
- 
+    // 显示或隐藏下载进度条
+    void ShowDownloadProgress(bool show, int progress = 0, const char* message = nullptr) {
+        // 添加静态变量记录上次记录的进度
+        static int last_logged_progress = -1;
+        static bool last_logged_show = false;
+        
+        // 只在以下情况输出日志:
+        bool should_log = false;
+        if (show != last_logged_show) {
+            should_log = true; // 显示状态变化
+        } else if (show) {
+            int current_ten_percent = progress / 10;
+            int last_ten_percent = last_logged_progress / 10;
+            
+            if (current_ten_percent > last_ten_percent || progress == 100) {
+                should_log = true; // 新的10%区间或100%
+            }
+        }
+        
+        if (should_log) {
+            ESP_LOGI("DownloadUI", "下载进度: show=%d, progress=%d%%, message=%s", 
+                     show, progress, message ? message : "NULL");
+            
+            last_logged_progress = progress;
+            last_logged_show = show;
+        }
+        
+        // 直接更新UI，无需中间变量
+        DisplayLockGuard lock(this);
+        
+        // 如果容器不存在但需要显示，创建UI
+        if (download_progress_container_ == nullptr && show) {
+            CreateDownloadProgressUI();
+        }
+        
+        // 如果容器仍不存在，直接返回
+        if (download_progress_container_ == nullptr) {
+            return;
+        }
+        
+        if (show) {
+            // 确保进度值在0-100范围内
+            if (progress < 0) progress = 0;
+            if (progress > 100) progress = 100;
+            
+            // 更新进度标签
+            if (download_progress_label_) {
+                char percent_text[16];
+                snprintf(percent_text, sizeof(percent_text), "进度: %d%%", progress);
+                lv_label_set_text(download_progress_label_, percent_text);
+                lv_obj_invalidate(download_progress_label_);
+            }
+            
+            // 更新消息
+            if (message && message_label_ != nullptr) {
+                lv_label_set_text(message_label_, message);
+                lv_obj_invalidate(message_label_);
+            }
+            
+            // 确保容器可见
+            lv_obj_clear_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_invalidate(download_progress_container_);
+            
+            // 确保在最顶层显示
+            lv_obj_move_foreground(download_progress_container_);
+            
+            // 禁用空闲定时器
+            SetIdle(false);
+            
+            // 如果当前在时钟页面，切换回主页面
+            if (tabview_) {
+                uint32_t active_tab = lv_tabview_get_tab_act(tabview_);
+                if (active_tab == 1) {
+                    lv_tabview_set_act(tabview_, 0, LV_ANIM_OFF);
+                }
+            }
+        } else {
+            // 隐藏容器
+            lv_obj_add_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            // 重新启用空闲定时器
+            SetIdle(true);
+        }
+    }
+    
+public:
+    // 修改成员变量，删除进度条相关变量
+    lv_obj_t* download_progress_container_ = nullptr;
+    lv_obj_t* download_progress_label_ = nullptr; // 百分比标签
+    lv_obj_t* message_label_ = nullptr;          // 状态消息标签
+    
 private:
-    // 静态回调函数
- 
+    
+    // 创建下载进度UI
+    void CreateDownloadProgressUI() {
+        // 创建一个简单的文本容器
+        download_progress_container_ = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(download_progress_container_, lv_pct(80), lv_pct(30));
+        lv_obj_center(download_progress_container_);
+        
+        // 设置文本容器样式
+        lv_obj_set_style_radius(download_progress_container_, 10, 0); // 圆角矩形
+        lv_obj_set_style_bg_color(download_progress_container_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(download_progress_container_, LV_OPA_80, 0);  // 使用正确的不透明度常量
+        lv_obj_set_style_border_width(download_progress_container_, 2, 0);
+        lv_obj_set_style_border_color(download_progress_container_, lv_color_hex(0x00AAFF), 0);
+        
+        // 设置垂直布局
+        lv_obj_set_flex_flow(download_progress_container_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(download_progress_container_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_all(download_progress_container_, 15, 0);
+        lv_obj_set_style_pad_row(download_progress_container_, 10, 0);
+
+        // 标题标签
+        lv_obj_t* title_label = lv_label_create(download_progress_container_);
+        lv_obj_set_style_text_font(title_label, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(title_label, lv_color_white(), 0);
+        lv_label_set_text(title_label, "下载图片资源");
+        
+        // 进度百分比标签
+        download_progress_label_ = lv_label_create(download_progress_container_);
+        lv_obj_set_style_text_font(download_progress_label_, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(download_progress_label_, lv_color_hex(0x00AAFF), 0);
+        lv_label_set_text(download_progress_label_, "0%");
+        
+        // 消息标签
+        message_label_ = lv_label_create(download_progress_container_);
+        lv_obj_set_style_text_font(message_label_, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(message_label_, lv_color_white(), 0);
+        lv_obj_set_width(message_label_, lv_pct(90));
+        lv_obj_set_style_text_align(message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(message_label_, LV_LABEL_LONG_WRAP);
+        lv_label_set_text(message_label_, "准备下载...");
+        
+        // 确保UI在最顶层
+        lv_obj_move_foreground(download_progress_container_);
+    }
+
+    // 添加新方法直接更新UI，只在主线程中调用
+    void UpdateDownloadProgressUI(bool show, int progress, const char* message) {
+        // UI更新逻辑
+        DisplayLockGuard lock(this);
+        
+        // 如果容器不存在但需要显示，创建UI
+        if (download_progress_container_ == nullptr && show) {
+            CreateDownloadProgressUI();
+        }
+        
+        // 如果容器仍不存在，直接返回
+        if (download_progress_container_ == nullptr) {
+            return;
+        }
+        
+        if (show) {
+            // 确保进度值在0-100范围内
+            if (progress < 0) progress = 0;
+            if (progress > 100) progress = 100;
+            
+            // 更新进度标签
+            if (download_progress_label_) {
+                char percent_text[16];
+                snprintf(percent_text, sizeof(percent_text), "进度: %d%%", progress);
+                lv_label_set_text(download_progress_label_, percent_text);
+            }
+            
+            // 更新消息
+            if (message && message_label_ != nullptr) {
+                lv_label_set_text(message_label_, message);
+            }
+            
+            // 确保容器可见
+            lv_obj_clear_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            
+            // 确保在最顶层显示
+            lv_obj_move_foreground(download_progress_container_);
+            
+            // 禁用空闲定时器
+            SetIdle(false);
+            
+            // 如果当前在时钟页面，切换回主页面
+            if (tabview_) {
+                uint32_t active_tab = lv_tabview_get_tab_act(tabview_);
+                if (active_tab == 1) {
+                    lv_tabview_set_act(tabview_, 0, LV_ANIM_OFF);
+                }
+            }
+        } else {
+            // 隐藏容器
+            lv_obj_add_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            // 重新启用空闲定时器
+            SetIdle(true);
+        }
+    }
 };
 
 
@@ -841,8 +1114,35 @@ private:
 
     // 启动图片循环显示任务
     void StartImageSlideshow() {
-        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);  // 创建图片轮播任务
-        ESP_LOGI(TAG, "图片循环显示任务已启动");  // 输出日志
+        // 设置图片资源管理器的进度回调
+        auto& image_manager = ImageResourceManager::GetInstance();
+        
+        // 设置下载进度回调函数，更新UI进度条
+        CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display_);
+        
+        image_manager.SetDownloadProgressCallback([customDisplay](int current, int total, const char* message) {
+            if (customDisplay) {
+                // 计算正确的百分比并传递
+                int percent = (total > 0) ? (current * 100 / total) : 0;
+                
+                // 简化：直接调用显示方法
+                customDisplay->ShowDownloadProgress(message != nullptr, percent, message);
+            }
+        });
+        
+        // 启动图片轮播任务
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        ESP_LOGI(TAG, "图片循环显示任务已启动");
+    }
+
+    // 添加帮助函数用于创建回调参数
+    template<typename T, typename... Args>
+    static T* malloc_struct(Args... args) {
+        T* result = (T*)malloc(sizeof(T));
+        if (result) {
+            *result = {args...};
+        }
+        return result;
     }
 
     // 图片循环显示任务实现
@@ -1152,8 +1452,31 @@ public:
         InitializeImageResources();  // 初始化图片资源管理器
         GetBacklight()->RestoreBrightness();  // 恢复背光亮度
         
+        // 显示初始化欢迎信息
+        ShowWelcomeMessage();
+        
         // 启动图片循环显示任务
         StartImageSlideshow();
+    }
+    
+    // 显示欢迎信息
+    void ShowWelcomeMessage() {
+        if (!display_) return;
+        
+        // 获取WiFi状态
+        auto& wifi_station = WifiStation::GetInstance();
+        
+        // 检查WiFi连接状态
+        if (!wifi_station.IsConnected()) {
+            // 显示配网提示
+            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n\n设备连接网络中\n");
+            
+            // 将此消息也添加到通知区域，确保用户能看到
+            display_->ShowNotification("请配置网络连接", 0);
+        } else {
+            // 已连接网络，显示正常欢迎信息
+            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n\n正在初始化...");
+        }
     }
 
     // 获取LED对象
