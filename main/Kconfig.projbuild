@@ -45,7 +45,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX
         bool "ESP BOX"
     config BOARD_TYPE_ESP_BOX_LITE
-        bool "ESP BOX Lite"        
+        bool "ESP BOX Lite"
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
     config BOARD_TYPE_KEVIN_BOX_2
@@ -74,6 +74,8 @@ choice BOARD_TYPE
         bool "神奇按钮 Magiclick_C3_v2"
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
+    config BOARD_TYPE_M5STACK_CORE_TAB5
+        bool "M5Stack Tab5"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
         bool "AtomS3 + Echo Base"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
@@ -100,6 +102,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
+    config BOARD_TYPE_ESP32P4_NANO
+        bool "Waveshare ESP32-P4-NANO"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -152,6 +156,8 @@ choice BOARD_TYPE
         bool "元控·青春"
     config BOARD_TYPE_ESP_S3_LCD_EV_Board
         bool "乐鑫ESP S3 LCD EV Board开发板"
+    config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
+        bool "征辰科技1.54(WIFI)"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -181,7 +187,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -209,13 +215,17 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7796_320X480
         bool "ST7796, 分辨率320*480 IPS"
     config LCD_ST7796_320X480_NO_IPS
-        bool "ST7796, 分辨率320*480, 非IPS"    
+        bool "ST7796, 分辨率320*480, 非IPS"
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
         bool "ILI9341, 分辨率240*320, 非IPS"
     config LCD_GC9A01_240X240
         bool "GC9A01, 分辨率240*240, 圆屏"
+    config LCD_TYPE_800_1280_10_1_INCH
+        bool "Waveshare 101M-8001280-IPS-CT-K Display"
+    config LCD_TYPE_800_1280_10_1_INCH_A
+        bool "Waveshare 10.1-DSI-TOUCH-A Display"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
 endchoice
@@ -241,14 +251,14 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 

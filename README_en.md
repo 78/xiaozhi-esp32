@@ -36,6 +36,12 @@ Learning & Discussion QQ Group: 376893254
 - Support for LCD image expressions
 - Multi-language support (Chinese, English)
 
+## ✅ Supported chips
+
+- ✅ ESP32-S3
+- ✅ ESP32-C3
+- ✅ ESP32-P4
+
 ## Hardware Section
 
 ### Breadboard DIY Practice

@@ -10,6 +10,7 @@ public:
     bool IsDischarging();
     bool IsChargingDone();
     int GetBatteryLevel();
+    float GetTemperature();
     void PowerOff();
 
 private:

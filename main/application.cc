@@ -531,8 +531,22 @@ void Application::Start() {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
                 packet.payload = std::move(opus);
-                packet.timestamp = last_output_timestamp_;
-                last_output_timestamp_ = 0;
+#ifdef CONFIG_USE_SERVER_AEC
+                {
+                    std::lock_guard<std::mutex> lock(timestamp_mutex_);
+                    if (!timestamp_queue_.empty()) {
+                        packet.timestamp = timestamp_queue_.front();
+                        timestamp_queue_.pop_front();
+                    } else {
+                        packet.timestamp = 0;
+                    }
+
+                    if (timestamp_queue_.size() > 3) { // 限制队列长度3
+                        timestamp_queue_.pop_front(); // 该包发送前先出队保持队列长度
+                        return;
+                    }
+                }
+#endif
                 Schedule([this, packet = std::move(packet)]() {
                     protocol_->SendAudio(packet);
                 });
@@ -717,7 +731,11 @@ void Application::OnAudioOutput() {
             pcm = std::move(resampled);
         }
         codec->OutputData(pcm);
-        last_output_timestamp_ = packet.timestamp;
+#ifdef CONFIG_USE_SERVER_AEC
+            std::lock_guard<std::mutex> lock(timestamp_mutex_);
+            timestamp_queue_.push_back(packet.timestamp);
+            last_output_timestamp_ = packet.timestamp;
+#endif
         last_output_time_ = std::chrono::steady_clock::now();
     });
 }
@@ -816,6 +834,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
             audio_processor_->Stop();
+            
 #if CONFIG_USE_WAKE_WORD_DETECT
             wake_word_detect_.StartDetection();
 #endif
@@ -824,11 +843,12 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
+            timestamp_queue_.clear();
+            last_output_timestamp_ = 0;
             break;
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
-
             // Update the IoT states before sending the start listening command
             UpdateIotStates();
 
@@ -870,7 +890,6 @@ void Application::ResetDecoder() {
     audio_decode_queue_.clear();
     audio_decode_cv_.notify_all();
     last_output_time_ = std::chrono::steady_clock::now();
-    
     auto codec = Board::GetInstance().GetAudioCodec();
     codec->EnableOutput(true);
 }
