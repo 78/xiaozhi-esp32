@@ -176,7 +176,7 @@ private:
             .icon_font = &font_awesome_20_4,
             .emoji_font = font_emoji_64_init(),
         });
-        display_->SetupUI();
+        display_->SetupHighTempWarningPopup();
     }
 
     void InitializeIot() {
@@ -184,7 +184,6 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("Temperature"));
     }
 
 public:
