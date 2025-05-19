@@ -159,6 +159,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
 elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board)
     set(BOARD_TYPE "esp-s3-lcd-ev-board")
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
+    set(BOARD_TYPE "zhengchen-1.54tft-wifi")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
