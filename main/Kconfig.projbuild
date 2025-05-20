@@ -94,6 +94,8 @@ choice BOARD_TYPE
         bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
+        bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
