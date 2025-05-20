@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lilygo-t-display-s3-pro-mvsrlora",
+            "sdkconfig_append": []
+        }
+    ]
+}

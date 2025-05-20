@@ -111,7 +111,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
@@ -181,7 +181,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = true,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -216,6 +216,72 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     }
 
     // Update the theme
+    if (current_theme_name_ == "dark") {
+        current_theme = DARK_THEME;
+    } else if (current_theme_name_ == "light") {
+        current_theme = LIGHT_THEME;
+    }
+
+    SetupUI();
+}
+
+MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                            int width, int height,  int offset_x, int offset_y,
+                            bool mirror_x, bool mirror_y, bool swap_xy,
+                            DisplayFonts fonts)
+    : LcdDisplay(panel_io, panel, fonts) {
+    width_ = width;
+    height_ = height;
+
+    // Set the display to on
+    ESP_LOGI(TAG, "Turning display on");
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+    ESP_LOGI(TAG, "Initialize LVGL library");
+    lv_init();
+
+    ESP_LOGI(TAG, "Initialize LVGL port");
+    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_init(&port_cfg);
+
+    ESP_LOGI(TAG, "Adding LCD screen");
+    const lvgl_port_display_cfg_t disp_cfg = {
+            .io_handle = panel_io,
+            .panel_handle = panel,
+            .control_handle = nullptr,
+            .buffer_size = static_cast<uint32_t>(width_ * 50),
+            .double_buffer = false,
+            .hres = static_cast<uint32_t>(width_),
+            .vres = static_cast<uint32_t>(height_),
+            .monochrome = false,
+            /* Rotation values must be same as used in esp_lcd for initial settings of the screen */
+            .rotation = {
+            .swap_xy = swap_xy,
+            .mirror_x = mirror_x,
+            .mirror_y = mirror_y,
+        },
+        .flags = {
+            .buff_dma = true,
+            .buff_spiram =false,
+            .sw_rotate = false,
+        },
+    };
+
+    const lvgl_port_display_dsi_cfg_t dpi_cfg = {
+        .flags = {
+            .avoid_tearing = false,
+        }
+    };
+    display_ = lvgl_port_add_disp_dsi(&disp_cfg, &dpi_cfg);
+    if (display_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to add display");
+        return;
+    }
+
+    if (offset_x != 0 || offset_y != 0) {
+        lv_display_set_offset(display_, offset_x, offset_y);
+    }
+
     if (current_theme_name_ == "dark") {
         current_theme = DARK_THEME;
     } else if (current_theme_name_ == "light") {
@@ -369,8 +435,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
-
+#if CONFIG_IDF_TARGET_ESP32P4
+#define  MAX_MESSAGES 40
+#else
 #define  MAX_MESSAGES 20
+#endif
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
@@ -392,6 +461,24 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Scroll to the last message immediately
         if (last_child != nullptr) {
             lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
+        }
+    }
+    
+    // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
+    if (strcmp(role, "system") == 0 && child_count > 0) {
+        // 获取最后一个消息容器
+        lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
+        if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
+            // 获取容器内的气泡
+            lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
+            if (last_bubble != nullptr) {
+                // 检查气泡类型是否为系统消息
+                void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
+                if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
+                    // 如果最后一个消息也是系统消息，则删除它
+                    lv_obj_del(last_container);
+                }
+            }
         }
     }
     
