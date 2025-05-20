@@ -4,7 +4,7 @@
         {
             "name": "waveshare-s3-touch-amoled-1.75",
             "sdkconfig_append": [
-                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
         }
