@@ -7,6 +7,7 @@
 #include "power_save_timer.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "sy6970.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -52,16 +53,30 @@ private:
     TouchPoint_t tp_;
 };
 
+class Pmic : public Sy6970 {
+public:
+
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Sy6970(i2c_bus, addr) {
+        uint8_t chip_id = ReadReg(0x14);
+        ESP_LOGI(TAG, "Get sy6970 chip ID: 0x%02X", (chip_id & 0B00111000));
+
+        WriteReg(0x00, 0B00001000); // Disable ILIM pin
+        WriteReg(0x02, 0B11011101); // Enable ADC measurement function
+        WriteReg(0x07, 0B10001101); // Disable watchdog timer feeding function
+    }
+};
+
 class LilygoTCameraPlusS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816x *cst816d_;
+    Pmic* pmic_;
     LcdDisplay *display_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
@@ -74,6 +89,9 @@ private:
             display->SetChatMessage("system", "");
             display->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -156,6 +174,11 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
+    void InitSy6970() {
+        ESP_LOGI(TAG, "Init Sy6970");
+        pmic_ = new Pmic(i2c_bus_, 0x6A);
+    }
+
     void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -209,12 +232,14 @@ private:
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
     LilygoTCameraPlusS3Board() : key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
+        InitSy6970();
         InitCst816d();
         I2cDetect();
         InitSpi();
@@ -240,6 +265,20 @@ public:
 
     virtual Display *GetDisplay() override{
         return display_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        bool is_power_good = pmic_->IsPowerGood();
+        discharging = !charging && is_power_good;
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = pmic_->GetBatteryLevel();
+        return true;
     }
 
     virtual void SetPowerSaveMode(bool enabled) override {
