@@ -158,6 +158,8 @@ choice BOARD_TYPE
         bool "乐鑫ESP S3 LCD EV Board开发板"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
         bool "征辰科技1.54(WIFI)"
+    config BOARD_TYPE_XT_C3
+        bool "能擎電子 C3"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
