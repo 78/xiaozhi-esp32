@@ -94,6 +94,8 @@ choice BOARD_TYPE
         bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
+        bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
@@ -154,10 +156,14 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_GENJUTECH_S3_1_54TFT
+        bool "亘具科技1.54(s3)"
     config BOARD_TYPE_ESP_S3_LCD_EV_Board
         bool "乐鑫ESP S3 LCD EV Board开发板"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
         bool "征辰科技1.54(WIFI)"
+    config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
+        bool "征辰科技1.54(ML307)"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -265,7 +271,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "在通话过程中启用设备端 AEC"
     default n
-    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
