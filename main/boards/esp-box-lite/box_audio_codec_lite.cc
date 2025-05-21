@@ -1,8 +1,9 @@
 #include "box_audio_codec_lite.h"
 
 #include <esp_log.h>
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+#include <cstring>
 
 static const char TAG[] = "BoxAudioCodecLite";
 
@@ -11,7 +12,10 @@ BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_r
     gpio_num_t pa_pin, bool input_reference) {
     duplex_ = true; // 是否双工
     input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
-    input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
+    if (input_reference) {
+        ref_buffer_.resize(960 * 2);
+    }
+    input_channels_ = 2 + input_reference_; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
@@ -93,8 +97,8 @@ void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, g
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
         .role = I2S_ROLE_MASTER,
-        .dma_desc_num = 6,
-        .dma_frame_num = 240,
+        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
+        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
         .auto_clear_after_cb = true,
         .auto_clear_before_cb = false,
         .intr_priority = 0,
@@ -108,18 +112,7 @@ void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, g
             .ext_clk_freq_hz = 0,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256
         },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
-            .bit_shift = true,
-            .left_align = true,
-            .big_endian = false,
-            .bit_order_lsb = false
-        },
+        .slot_cfg = I2S_STD_PHILIP_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg = {
             .mclk = mclk,
             .bclk = bclk,
@@ -187,13 +180,13 @@ void BoxAudioCodecLite::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 4,
-            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
-            .sample_rate = (uint32_t)output_sample_rate_,
+            .channel = (uint8_t)(input_channels_ - input_reference_),
+            .channel_mask = 0,
+            .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
-        if (input_reference_) {
-            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
+        for (int i = 0;i < fs.channel; i++) {
+            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(i);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
         // 麦克风增益解决收音太小的问题
@@ -227,7 +220,30 @@ void BoxAudioCodecLite::EnableOutput(bool enable) {
 
 int BoxAudioCodecLite::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        if (!input_reference_) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        }
+        else {
+            int size = samples / input_channels_;
+            int channels = input_channels_ - input_reference_;
+            std::vector<int16_t> data(size * channels);
+            // read mic data
+            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)data.data(), data.size() * sizeof(int16_t)));
+            int j = 0;
+            int i = 0;
+            while (i< samples) {
+                // mic data
+                for (int p = 0; p < channels; p++) {
+                    dest[i++] = data[j++];
+                }
+                // ref data
+                dest[i++] = read_pos_ < write_pos_? ref_buffer_[read_pos_++] : 0;
+            }
+    
+            if (read_pos_ == write_pos_) {
+                read_pos_ = write_pos_ = 0;
+            }    
+        }
     }
     return samples;
 }
@@ -235,6 +251,22 @@ int BoxAudioCodecLite::Read(int16_t* dest, int samples) {
 int BoxAudioCodecLite::Write(const int16_t* data, int samples) {
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+        if (input_reference_) { // 板子不支持硬件回采，采用缓存播放缓冲来实现回声消除
+            if (write_pos_ - read_pos_ + samples > ref_buffer_.size()) { 
+                assert(ref_buffer_.size() >= samples);
+                // 写溢出，只保留最近的数据
+                read_pos_ = write_pos_ + samples - ref_buffer_.size();
+            }
+            if (read_pos_) {
+                if (write_pos_ != read_pos_) {
+                    memmove(ref_buffer_.data(), ref_buffer_.data() + read_pos_, (write_pos_ - read_pos_) * sizeof(int16_t));
+                }
+                write_pos_ -= read_pos_;
+                read_pos_ = 0;
+            }
+            memcpy(&ref_buffer_[write_pos_], data, samples * sizeof(int16_t));
+            write_pos_ += samples;
+        }
     }
     return samples;
 }

@@ -10,7 +10,7 @@
 
 #include <esp_log.h>
 #include "i2c_device.h"
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <driver/ledc.h>
 #include <wifi_station.h>
 #include <esp_lcd_panel_vendor.h>
@@ -251,6 +251,11 @@ public:
         InitializeAxp2101();
         InitializeSpi();
         InitializeLcdDisplay();
+        // 解决部分开机黑屏的问题
+        if (esp_reset_reason() == ESP_RST_POWERON) {
+            fflush(stdout);
+            esp_restart();
+        }
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();

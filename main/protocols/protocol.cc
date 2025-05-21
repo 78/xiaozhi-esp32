@@ -8,7 +8,7 @@ void Protocol::OnIncomingJson(std::function<void(const cJSON* root)> callback) {
     on_incoming_json_ = callback;
 }
 
-void Protocol::OnIncomingAudio(std::function<void(std::vector<uint8_t>&& data)> callback) {
+void Protocol::OnIncomingAudio(std::function<void(AudioStreamPacket&& packet)> callback) {
     on_incoming_audio_ = callback;
 }
 
@@ -124,5 +124,9 @@ bool Protocol::IsTimeout() const {
         ESP_LOGE(TAG, "Channel timeout %lld seconds", duration.count());
     }
     return timeout;
+}
+
+bool Protocol::IsAudioChannelBusy() const {
+    return busy_sending_audio_;
 }
 

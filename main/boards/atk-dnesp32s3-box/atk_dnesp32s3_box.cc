@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "audio_codec.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "es8311_audio_codec.h"
+#include "no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -24,29 +25,49 @@
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class XL9555 : public I2cDevice {
+class XL9555_IN : public I2cDevice {
 public:
-    XL9555(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+    XL9555_IN(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+        WriteReg(0x06, 0x3B);
+        WriteReg(0x07, 0xFE);
+    }
+
+    void xl9555_cfg(void) {
         WriteReg(0x06, 0x1B);
         WriteReg(0x07, 0xFE);
     }
 
     void SetOutputState(uint8_t bit, uint8_t level) {
         uint16_t data;
+        int index = bit;
+
         if (bit < 8) {
             data = ReadReg(0x02);
         } else {
             data = ReadReg(0x03);
-            bit -= 8;
+            index -= 8;
         }
 
-        data = (data & ~(1 << bit)) | (level << bit);
+        data = (data & ~(1 << index)) | (level << index);
 
         if (bit < 8) {
             WriteReg(0x02, data);
         } else {
             WriteReg(0x03, data);
         }
+    }
+
+    int GetPingState(uint16_t pin) {
+        uint8_t data;
+        if (pin <= 0x0080) {
+            data = ReadReg(0x00);
+            return (data & (uint8_t)(pin & 0xFF)) ? 1 : 0;
+        } else {
+            data = ReadReg(0x01);
+            return (data & (uint8_t)((pin >> 8) & 0xFF )) ? 1 : 0;
+        }
+
+        return 0;
     }
 };
 
@@ -56,7 +77,8 @@ private:
     i2c_master_dev_handle_t xl9555_handle_;
     Button boot_button_;
     LcdDisplay* display_;
-    XL9555* xl9555_;
+    XL9555_IN* xl9555_in_;
+    bool es8311_detected_ = false;
     
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -75,7 +97,15 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
 
         // Initialize XL9555
-        xl9555_ = new XL9555(i2c_bus_, 0x20);
+        xl9555_in_ = new XL9555_IN(i2c_bus_, 0x20);
+
+        if (xl9555_in_->GetPingState(0x0020) == 1) {
+            es8311_detected_ = true;    /* 音频设备标志位，SPK_CTRL_IO为高电平时，该标志位置1，且判定为ES8311 */
+        } else {
+            es8311_detected_ = false;    /* 音频设备标志位，SPK_CTRL_IO为低电平时，该标志位置0，且判定为NS4168 */
+        }
+
+        xl9555_in_->xl9555_cfg();
     }
 
     void InitializeATK_ST7789_80_Display() {
@@ -186,16 +216,41 @@ public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeATK_ST7789_80_Display();
-        xl9555_->SetOutputState(5, 1);
-        xl9555_->SetOutputState(7, 1);
+        xl9555_in_->SetOutputState(5, 1);
+        xl9555_in_->SetOutputState(7, 1);
         InitializeButtons();
         InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static ATK_NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-        return &audio_codec;
+        /* 根据探测结果初始化编解码器 */
+        if (es8311_detected_) {
+            /* 使用ES8311 驱动 */
+            static Es8311AudioCodec audio_codec(
+                i2c_bus_, 
+                I2C_NUM_0, 
+                AUDIO_INPUT_SAMPLE_RATE,
+                AUDIO_OUTPUT_SAMPLE_RATE,
+                GPIO_NUM_NC, 
+                AUDIO_I2S_GPIO_BCLK, 
+                AUDIO_I2S_GPIO_WS,
+                AUDIO_I2S_GPIO_DOUT,
+                AUDIO_I2S_GPIO_DIN,
+                GPIO_NUM_NC, 
+                AUDIO_CODEC_ES8311_ADDR, 
+                false);
+                return &audio_codec;
+        } else {
+            static ATK_NoAudioCodecDuplex audio_codec(
+                AUDIO_INPUT_SAMPLE_RATE,
+                AUDIO_OUTPUT_SAMPLE_RATE,
+                AUDIO_I2S_GPIO_BCLK,
+                AUDIO_I2S_GPIO_WS,
+                AUDIO_I2S_GPIO_DOUT,
+                AUDIO_I2S_GPIO_DIN);
+                return &audio_codec;
+        }
+        return NULL;
     }
     
     virtual Display* GetDisplay() override {
