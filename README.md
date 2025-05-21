@@ -1,8 +1,9 @@
 > **修改笔记：**
 > - 增加可自定义热点名称的选项，可以通过 idf.py menuconfig 进行配置或在开发板的 config.json 中配置（推荐）
 > - 增加 NULLLAB AI-Vox 开发版的的两个开发案例：
->     - 自定义图片表情（nulllab-ai-vox-emoji）
->     - 动画眼睛表情（nulllab-ai-vox-eyes）
+>     - 自定义图片表情（[nulllab-ai-vox-emoji](./main/boards/nulllab-ai-vox-emoji)）
+>     - 动画眼睛表情（[nulllab-ai-vox-eyes](./main/boards/nulllab-ai-vox-eyes)）
+> - 图片转换工具 [https://lvgl.io/tools/imageconverter](https://lvgl.io/tools/imageconverter)
 >
 > 推荐使用编译脚本进行编译：`python3 ./scripts/release.py [开发板名称]`，省去切换开发板配置。
 > 案例所需要的配置都写在了 config.json 文件中，编译脚本可以自动完成配置。
@@ -125,7 +126,7 @@
 
 固件默认接入 [xiaozhi.me](https://xiaozhi.me) 官方服务器，目前个人用户注册账号可以免费使用 Qwen 实时模型。
 
-👉 [Flash烧录固件（无IDF开发环境）](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS) 
+👉 [Flash烧录固件（无IDF开发环境）](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
 
 
 ### 开发环境
