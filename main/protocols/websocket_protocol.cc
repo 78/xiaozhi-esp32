@@ -154,7 +154,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
             // Parse JSON data
             auto root = cJSON_Parse(data);
             auto type = cJSON_GetObjectItem(root, "type");
-            if (type != NULL) {
+            if (cJSON_IsString(type)) {
                 if (strcmp(type->valuestring, "hello") == 0) {
                     ParseServerHello(root);
                 } else {
@@ -223,19 +223,19 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
     }
 
     auto session_id = cJSON_GetObjectItem(root, "session_id");
-    if (session_id != nullptr) {
+    if (cJSON_IsString(session_id)) {
         session_id_ = session_id->valuestring;
         ESP_LOGI(TAG, "Session ID: %s", session_id_.c_str());
     }
 
     auto audio_params = cJSON_GetObjectItem(root, "audio_params");
-    if (audio_params != NULL) {
+    if (cJSON_IsObject(audio_params)) {
         auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
-        if (sample_rate != NULL) {
+        if (cJSON_IsNumber(sample_rate)) {
             server_sample_rate_ = sample_rate->valueint;
         }
         auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
-        if (frame_duration != NULL) {
+        if (cJSON_IsNumber(frame_duration)) {
             server_frame_duration_ = frame_duration->valueint;
         }
     }
