@@ -31,6 +31,12 @@ choice BOARD_TYPE
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
+    config BOARD_TYPE_NULLLAB_AI_Vox
+        bool "NULLLAB AI Vox"
+    config BOARD_TYPE_NULLLAB_AI_Vox_Emoji
+        bool "NULLLAB AI Vox Emoji"
+    config BOARD_TYPE_NULLLAB_AI_Vox_Eyes
+        bool "NULLLAB AI Vox Eyes"
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "面包板新版接线（WiFi）"
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD

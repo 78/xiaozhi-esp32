@@ -1,0 +1,12 @@
+{
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "nulllab-ai-vox-eyes",
+      "sdkconfig_append": [
+        "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\"",
+        "CONFIG_LV_USE_GIF=y"
+      ]
+    }
+  ]
+}
