@@ -42,7 +42,7 @@ void WifiBoard::EnterWifiConfigMode() {
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
     wifi_ap.SetLanguage(Lang::CODE);
-    wifi_ap.SetSsidPrefix("Xiaozhi");
+    wifi_ap.SetSsidPrefix(CONFIG_CUSTOM_SSID_PREFIX);
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
@@ -51,10 +51,10 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
-    
+
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
-    
+
     // Wait forever until reset after configuration
     while (true) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);

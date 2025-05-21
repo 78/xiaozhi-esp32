@@ -6,6 +6,9 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config CUSTOM_SSID_PREFIX
+    string "热点名称"
+    default "Xiaozhi"
 
 choice
     prompt "语言选择"
