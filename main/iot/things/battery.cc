@@ -13,6 +13,7 @@ private:
     int level_ = 0;
     bool charging_ = false;
     bool discharging_ = false;
+    float voltage_ = 0.0f;
 
 public:
     Battery() : Thing("Battery", "The battery of the device") {
@@ -26,6 +27,16 @@ public:
         });
         properties_.AddBooleanProperty("charging", "Whether the battery is charging", [this]() -> int {
             return charging_;
+        });
+        properties_.AddStringProperty("voltage", "电池电压", [this]() -> std::string {
+            auto& board = Board::GetInstance();
+            if (board.GetBatteryVoltage(voltage_)) {
+                // 加上单位 V，去掉小数点后面的0
+                char buffer[10];
+                sprintf(buffer, "%.2fV", voltage_);
+                return std::string(buffer);
+            }
+            return "0V";
         });
     }
 };
