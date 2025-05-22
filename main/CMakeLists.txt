@@ -169,6 +169,8 @@ elseif(CONFIG_BOARD_TYPE_MINSI_K08_DUAL)
     set(BOARD_TYPE "minsi-k08-dual")
 elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
     set(BOARD_TYPE "zhengchen-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
+    set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
