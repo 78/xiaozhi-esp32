@@ -164,6 +164,8 @@ choice BOARD_TYPE
         bool "征辰科技1.54(ML307)"
     config BOARD_TYPE_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
+    config BOARD_TYPE_PHYSTON_ESP32S3_1_54TFT
+        bool "Physton 1.54TFT(s3)"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE

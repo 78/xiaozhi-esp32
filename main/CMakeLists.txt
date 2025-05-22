@@ -171,6 +171,8 @@ elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
     set(BOARD_TYPE "zhengchen-1.54tft-ml307")
 elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
+elseif(CONFIG_BOARD_TYPE_PHYSTON_ESP32S3_1_54TFT)
+    set(BOARD_TYPE "physton-esp32s3-1.54tft")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
