@@ -64,6 +64,11 @@ public:
 #define LCD_OPCODE_WRITE_COLOR (0x32ULL)
 
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
+    // set display to qspi mode
+    {0xFE, (uint8_t[]){0x20}, 1, 0},
+    {0x19, (uint8_t[]){0x10}, 1, 0},
+    {0x1C, (uint8_t[]){0xA0}, 1, 0},
+
     {0xFE, (uint8_t[]){0x00}, 1, 0},
     {0xC4, (uint8_t[]){0x80}, 1, 0},
     {0x3A, (uint8_t[]){0x55}, 1, 0},
