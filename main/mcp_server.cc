@@ -30,7 +30,7 @@ void McpServer::AddCommonTools() {
             return Board::GetInstance().GetDeviceStatusJson();
         });
 
-    AddTool("self.speaker.set_volume", 
+    AddTool("self.audio_speaker.set_volume", 
         "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.",
         PropertyList({
             Property("volume", kPropertyTypeInteger, 0, 100)
