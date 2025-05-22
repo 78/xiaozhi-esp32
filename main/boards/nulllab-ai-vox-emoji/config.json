@@ -4,7 +4,8 @@
     {
       "name": "nulllab-ai-vox-emoji",
       "sdkconfig_append": [
-        "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\""
+        "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\"",
+        "CONFIG_USE_DEVICE_AEC=y"
       ]
     }
   ]

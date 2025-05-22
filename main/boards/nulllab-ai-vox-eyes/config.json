@@ -5,6 +5,7 @@
       "name": "nulllab-ai-vox-eyes",
       "sdkconfig_append": [
         "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\"",
+        "CONFIG_USE_DEVICE_AEC=y",
         "CONFIG_LV_USE_GIF=y"
       ]
     }

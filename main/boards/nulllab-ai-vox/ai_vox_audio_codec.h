@@ -9,50 +9,101 @@
 
 class AIVoxAudioCodec : public NoAudioCodec {
   private:
-    int Write(const int16_t *data, int samples) {
-        std::vector<int32_t> buffer(samples);
+    // ref buffer used for aec
+    std::vector<int16_t> ref_buffer_;
+    int read_pos_ = 0;
+    int write_pos_ = 0;
 
-        // output_volume_: 0-100
-        // volume_factor_: 0-65536
-        int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
-        for (int i = 0; i < samples; i++) {
-            int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
-            if (temp > INT32_MAX) {
-                buffer[i] = INT32_MAX;
-            } else if (temp < INT32_MIN) {
-                buffer[i] = INT32_MIN;
-            } else {
-                buffer[i] = static_cast<int32_t>(temp);
+    int Write(const int16_t *data, int samples) {
+        if (output_enabled_) {
+            std::vector<int32_t> buffer(samples);
+
+            // output_volume_: 0-100
+            // volume_factor_: 0-65536
+            int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
+            for (int i = 0; i < samples; i++) {
+                int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
+                if (temp > INT32_MAX) {
+                    buffer[i] = INT32_MAX;
+                } else if (temp < INT32_MIN) {
+                    buffer[i] = INT32_MIN;
+                } else {
+                    buffer[i] = static_cast<int32_t>(temp);
+                }
+            }
+
+            size_t bytes_written;
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+
+            // 板子不支持硬件回采，采用缓存播放缓冲来实现回声消除
+            if (input_reference_) {
+                if (write_pos_ - read_pos_ + samples > ref_buffer_.size()) {
+                    assert(ref_buffer_.size() >= samples);
+                    // 写溢出，只保留最近的数据
+                    read_pos_ = write_pos_ + samples - ref_buffer_.size();
+                }
+                if (read_pos_) {
+                    if (write_pos_ != read_pos_) {
+                        memmove(ref_buffer_.data(), ref_buffer_.data() + read_pos_,
+                                (write_pos_ - read_pos_) * sizeof(int16_t));
+                    }
+                    write_pos_ -= read_pos_;
+                    read_pos_ = 0;
+                }
+                memcpy(&ref_buffer_[write_pos_], data, samples * sizeof(int16_t));
+                write_pos_ += samples;
             }
         }
-
-        size_t bytes_written;
-        ESP_ERROR_CHECK_WITHOUT_ABORT(
-            i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
-
         return samples;
     }
 
     int Read(int16_t *dest, int samples) {
-        std::vector<int32_t> buffer(samples);
+        if (input_enabled_) {
+            int size = samples / input_channels_;
+            std::vector<int32_t> buffer(size);
 
-        size_t bytes_read;
-        ESP_ERROR_CHECK_WITHOUT_ABORT(
-            i2s_channel_read(rx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_read, portMAX_DELAY));
+            size_t bytes_read;
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                i2s_channel_read(rx_handle_, buffer.data(), size * sizeof(int32_t), &bytes_read, portMAX_DELAY));
 
-        int i = 0;
-        while (i < samples) {
-            // mic data
-            int32_t value = buffer[i++] >> 14;
-            dest[i++] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+            if (!input_reference_) {
+                int i = 0;
+                while (i < samples) {
+                    // mic data
+                    int32_t value = buffer[i++] >> 14;
+                    dest[i++] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+                }
+            } else {
+                int i = 0;
+                int j = 0;
+                while (i < samples) {
+                    // mic data
+                    int32_t value = buffer[j++] >> 14;
+                    dest[i++] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+
+                    // ref data
+                    dest[i++] = read_pos_ < write_pos_ ? ref_buffer_[read_pos_++] : 0;
+                }
+
+                if (read_pos_ == write_pos_) {
+                    read_pos_ = write_pos_ = 0;
+                }
+            }
         }
         return samples;
     }
 
   public:
     AIVoxAudioCodec(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws,
-                    gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din) {
-        duplex_ = false; // 是否双工
+                    gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din,
+                    bool input_reference = false) {
+        duplex_ = false;                    // 是否双工
+        input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
+        if (input_reference_) {
+            ref_buffer_.resize(960 * 2);
+        }
+        input_channels_ = 1 + input_reference_; // 输入通道数："M" / "MR"
         input_sample_rate_ = input_sample_rate;
         output_sample_rate_ = output_sample_rate;
 
