@@ -160,6 +160,8 @@ choice BOARD_TYPE
         bool "征辰科技1.54(WIFI)"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
         bool "征辰科技1.54(ML307)"
+    config BOARD_TYPE_ESP32_S3_1_54_MUMA
+        bool "Spotpear ESP32-S3-1.54-MUMA"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
