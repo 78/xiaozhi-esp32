@@ -415,7 +415,9 @@ std::string Ota::GetActivationPayload() {
     cJSON_AddStringToObject(payload, "serial_number", serial_number_.c_str());
     cJSON_AddStringToObject(payload, "challenge", activation_challenge_.c_str());
     cJSON_AddStringToObject(payload, "hmac", hmac_hex.c_str());
-    std::string json = cJSON_Print(payload);
+    auto json_str = cJSON_PrintUnformatted(payload);
+    std::string json(json_str);
+    cJSON_free(json_str);
     cJSON_Delete(payload);
 
     ESP_LOGI(TAG, "Activation payload: %s", json.c_str());

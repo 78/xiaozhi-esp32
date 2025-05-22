@@ -21,6 +21,7 @@ public:
     virtual void SetPowerSaveMode(bool enabled) override;
     virtual void ResetWifiConfiguration();
     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
+    virtual std::string GetDeviceStatusJson() override;
 };
 
 #endif // WIFI_BOARD_H

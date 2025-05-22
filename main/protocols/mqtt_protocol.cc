@@ -182,17 +182,7 @@ bool MqttProtocol::OpenAudioChannel() {
     session_id_ = "";
     xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 
-    // 发送 hello 消息申请 UDP 通道
-    std::string message = "{";
-    message += "\"type\":\"hello\",";
-    message += "\"version\": 3,";
-    message += "\"transport\":\"udp\",";
-#if CONFIG_USE_SERVER_AEC
-    message += "\"features\":{\"aec\":true},";
-#endif
-    message += "\"audio_params\":{";
-    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
-    message += "}}";
+    auto message = GetHelloMessage();
     if (!SendText(message)) {
         return false;
     }
@@ -260,6 +250,33 @@ bool MqttProtocol::OpenAudioChannel() {
         on_audio_channel_opened_();
     }
     return true;
+}
+
+std::string MqttProtocol::GetHelloMessage() {
+    // 发送 hello 消息申请 UDP 通道
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "hello");
+    cJSON_AddNumberToObject(root, "version", 3);
+    cJSON_AddStringToObject(root, "transport", "udp");
+    cJSON* features = cJSON_CreateObject();
+#if CONFIG_USE_SERVER_AEC
+    cJSON_AddBoolToObject(features, "aec", true);
+#endif
+#if CONFIG_IOT_PROTOCOL_MCP
+    cJSON_AddBoolToObject(features, "mcp", true);
+#endif
+    cJSON_AddItemToObject(root, "features", features);
+    cJSON* audio_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(audio_params, "format", "opus");
+    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
+    cJSON_AddNumberToObject(audio_params, "channels", 1);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", OPUS_FRAME_DURATION_MS);
+    cJSON_AddItemToObject(root, "audio_params", audio_params);
+    auto json_str = cJSON_PrintUnformatted(root);
+    std::string message(json_str);
+    cJSON_free(json_str);
+    cJSON_Delete(root);
+    return message;
 }
 
 void MqttProtocol::ParseServerHello(const cJSON* root) {

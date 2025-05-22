@@ -8,7 +8,7 @@ config OTA_URL
 
 
 choice
-    prompt "语言选择"
+    prompt "Default Language"
     default LANGUAGE_ZH_CN
     help
         Select device display language
@@ -249,37 +249,48 @@ choice DISPLAY_ESP32S3_KORVO2_V3
 endchoice
 
 config USE_WECHAT_MESSAGE_STYLE
-    bool "使用微信聊天界面风格"
+    bool "Enable WeChat Message Style"
     default n
     help
         使用微信聊天界面风格
 
 config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
+    bool "Enable Wake Word Detection"
     default y
     depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
+    bool "Enable Audio Noise Reduction"
     default y
     depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_DEVICE_AEC
-    bool "在通话过程中启用设备端 AEC"
+    bool "Enable Device-Side AEC"
     default n
     depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
 config USE_SERVER_AEC
-    bool "在通话过程中启用服务器端 AEC"
+    bool "Enable Server-Side AEC"
     default n
     depends on USE_AUDIO_PROCESSOR
     help
         启用服务器端 AEC，需要服务器支持
+
+choice IOT_PROTOCOL
+    prompt "IoT Protocol"
+    default IOT_PROTOCOL_XIAOZHI
+    help
+        IoT 协议，用于获取设备状态与发送控制指令
+    config IOT_PROTOCOL_MCP
+        bool "MCP协议 2024-11-05"
+    config IOT_PROTOCOL_XIAOZHI
+        bool "小智IoT协议 1.0"
+endchoice
 
 endmenu
