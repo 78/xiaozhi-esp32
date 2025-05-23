@@ -181,3 +181,83 @@ void WifiBoard::ResetWifiConfiguration() {
     // Reboot the device
     esp_restart();
 }
+
+std::string WifiBoard::GetDeviceStatusJson() {
+    /*
+     * 返回设备状态JSON
+     * 
+     * 返回的JSON结构如下：
+     * {
+     *     "audio_speaker": {
+     *         "volume": 70
+     *     },
+     *     "screen": {
+     *         "brightness": 100,
+     *         "theme": "light"
+     *     },
+     *     "battery": {
+     *         "level": 50,
+     *         "charging": true
+     *     },
+     *     "network": {
+     *         "type": "wifi",
+     *         "ssid": "Xiaozhi",
+     *         "rssi": -60
+     *     }
+     * }
+     */
+    auto& board = Board::GetInstance();
+    auto root = cJSON_CreateObject();
+
+    // Audio speaker
+    auto audio_speaker = cJSON_CreateObject();
+    auto audio_codec = board.GetAudioCodec();
+    if (audio_codec) {
+        cJSON_AddNumberToObject(audio_speaker, "volume", audio_codec->output_volume());
+    }
+    cJSON_AddItemToObject(root, "audio_speaker", audio_speaker);
+
+    // Screen brightness
+    auto backlight = board.GetBacklight();
+    auto screen = cJSON_CreateObject();
+    if (backlight) {
+        cJSON_AddNumberToObject(screen, "brightness", backlight->brightness());
+    }
+    auto display = board.GetDisplay();
+    if (display && display->height() > 64) { // For LCD display only
+        cJSON_AddStringToObject(screen, "theme", display->GetTheme().c_str());
+    }
+    cJSON_AddItemToObject(root, "screen", screen);
+
+    // Battery
+    int battery_level = 0;
+    bool charging = false;
+    bool discharging = false;
+    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+        cJSON* battery = cJSON_CreateObject();
+        cJSON_AddNumberToObject(battery, "level", battery_level);
+        cJSON_AddBoolToObject(battery, "charging", charging);
+        cJSON_AddItemToObject(root, "battery", battery);
+    }
+
+    // Network
+    auto network = cJSON_CreateObject();
+    auto& wifi_station = WifiStation::GetInstance();
+    cJSON_AddStringToObject(network, "type", "wifi");
+    cJSON_AddStringToObject(network, "ssid", wifi_station.GetSsid().c_str());
+    int rssi = wifi_station.GetRssi();
+    if (rssi >= -60) {
+        cJSON_AddStringToObject(network, "signal", "strong");
+    } else if (rssi >= -70) {
+        cJSON_AddStringToObject(network, "signal", "medium");
+    } else {
+        cJSON_AddStringToObject(network, "signal", "weak");
+    }
+    cJSON_AddItemToObject(root, "network", network);
+
+    auto json_str = cJSON_PrintUnformatted(root);
+    std::string json(json_str);
+    cJSON_free(json_str);
+    cJSON_Delete(root);
+    return json;
+}

@@ -98,4 +98,8 @@ void DualNetworkBoard::SetPowerSaveMode(bool enabled) {
 
 std::string DualNetworkBoard::GetBoardJson() {   
     return current_board_->GetBoardJson();
-} 
+}
+
+std::string DualNetworkBoard::GetDeviceStatusJson() {
+    return current_board_->GetDeviceStatusJson();
+}

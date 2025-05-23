@@ -110,34 +110,34 @@ bool Ota::CheckVersion() {
     has_activation_code_ = false;
     has_activation_challenge_ = false;
     cJSON *activation = cJSON_GetObjectItem(root, "activation");
-    if (activation != NULL) {
+    if (cJSON_IsObject(activation)) {
         cJSON* message = cJSON_GetObjectItem(activation, "message");
-        if (message != NULL) {
+        if (cJSON_IsString(message)) {
             activation_message_ = message->valuestring;
         }
         cJSON* code = cJSON_GetObjectItem(activation, "code");
-        if (code != NULL) {
+        if (cJSON_IsString(code)) {
             activation_code_ = code->valuestring;
             has_activation_code_ = true;
         }
         cJSON* challenge = cJSON_GetObjectItem(activation, "challenge");
-        if (challenge != NULL) {
+        if (cJSON_IsString(challenge)) {
             activation_challenge_ = challenge->valuestring;
             has_activation_challenge_ = true;
         }
         cJSON* timeout_ms = cJSON_GetObjectItem(activation, "timeout_ms");
-        if (timeout_ms != NULL) {
+        if (cJSON_IsNumber(timeout_ms)) {
             activation_timeout_ms_ = timeout_ms->valueint;
         }
     }
 
     has_mqtt_config_ = false;
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
-    if (mqtt != NULL) {
+    if (cJSON_IsObject(mqtt)) {
         Settings settings("mqtt", true);
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, mqtt) {
-            if (item->type == cJSON_String) {
+            if (cJSON_IsString(item)) {
                 if (settings.GetString(item->string) != item->valuestring) {
                     settings.SetString(item->string, item->valuestring);
                 }
@@ -150,13 +150,13 @@ bool Ota::CheckVersion() {
 
     has_websocket_config_ = false;
     cJSON *websocket = cJSON_GetObjectItem(root, "websocket");
-    if (websocket != NULL) {
+    if (cJSON_IsObject(websocket)) {
         Settings settings("websocket", true);
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, websocket) {
-            if (item->type == cJSON_String) {
+            if (cJSON_IsString(item)) {
                 settings.SetString(item->string, item->valuestring);
-            } else if (item->type == cJSON_Number) {
+            } else if (cJSON_IsNumber(item)) {
                 settings.SetInt(item->string, item->valueint);
             }
         }
@@ -167,17 +167,17 @@ bool Ota::CheckVersion() {
 
     has_server_time_ = false;
     cJSON *server_time = cJSON_GetObjectItem(root, "server_time");
-    if (server_time != NULL) {
+    if (cJSON_IsObject(server_time)) {
         cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
         cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
         
-        if (timestamp != NULL) {
+        if (cJSON_IsNumber(timestamp)) {
             // 设置系统时间
             struct timeval tv;
             double ts = timestamp->valuedouble;
             
             // 如果有时区偏移，计算本地时间
-            if (timezone_offset != NULL) {
+            if (cJSON_IsNumber(timezone_offset)) {
                 ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
             }
             
@@ -192,17 +192,17 @@ bool Ota::CheckVersion() {
 
     has_new_version_ = false;
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
-    if (firmware != NULL) {
+    if (cJSON_IsObject(firmware)) {
         cJSON *version = cJSON_GetObjectItem(firmware, "version");
-        if (version != NULL) {
+        if (cJSON_IsString(version)) {
             firmware_version_ = version->valuestring;
         }
         cJSON *url = cJSON_GetObjectItem(firmware, "url");
-        if (url != NULL) {
+        if (cJSON_IsString(url)) {
             firmware_url_ = url->valuestring;
         }
 
-        if (version != NULL && url != NULL) {
+        if (cJSON_IsString(version) && cJSON_IsString(url)) {
             // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
             has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
             if (has_new_version_) {
@@ -212,7 +212,7 @@ bool Ota::CheckVersion() {
             }
             // If the force flag is set to 1, the given version is forced to be installed
             cJSON *force = cJSON_GetObjectItem(firmware, "force");
-            if (force != NULL && force->valueint == 1) {
+            if (cJSON_IsNumber(force) && force->valueint == 1) {
                 has_new_version_ = true;
             }
         }
@@ -415,7 +415,9 @@ std::string Ota::GetActivationPayload() {
     cJSON_AddStringToObject(payload, "serial_number", serial_number_.c_str());
     cJSON_AddStringToObject(payload, "challenge", activation_challenge_.c_str());
     cJSON_AddStringToObject(payload, "hmac", hmac_hex.c_str());
-    std::string json = cJSON_Print(payload);
+    auto json_str = cJSON_PrintUnformatted(payload);
+    std::string json(json_str);
+    cJSON_free(json_str);
     cJSON_Delete(payload);
 
     ESP_LOGI(TAG, "Activation payload: %s", json.c_str());
