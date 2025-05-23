@@ -92,6 +92,8 @@ choice BOARD_TYPE
         bool "ESP-SparkBot开发板"
     config BOARD_TYPE_ESP_SPOT_S3
         bool "ESP-Spot-S3"
+    config BOARD_TYPE_ESP_HI
+        bool "ESP-HI"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
@@ -247,9 +249,7 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
-    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
-    help
-        需要 ESP32 S3 与 AFE 支持
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32C3
 
 config USE_AUDIO_PROCESSOR
     bool "启用音频降噪、增益处理"

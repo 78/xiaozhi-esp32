@@ -1,5 +1,6 @@
 set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/no_audio_codec.cc"
+            "audio_codecs/adc_pdm_audio_codec.cc"
             "audio_codecs/box_audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8374_audio_codec.cc"
@@ -95,6 +96,8 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
     set(BOARD_TYPE "esp-sparkbot")
 elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
     set(BOARD_TYPE "esp-spot-s3")
+elseif(CONFIG_BOARD_TYPE_ESP_HI)
+    set(BOARD_TYPE "esp-hi")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -233,3 +236,12 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_BOARD_TYPE_ESP_HI)
+spiffs_create_partition_assets(
+    assets_A
+    "./assets/emoji"
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".sbmp"
+)
+endif()
