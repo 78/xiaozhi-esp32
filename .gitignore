@@ -1,5 +1,5 @@
 tmp/
-components/
+# components/
 managed_components/
 build/
 .vscode/

@@ -11,18 +11,28 @@
 static const char* TAG = "WakeWordDetect";
 
 WakeWordDetect::WakeWordDetect()
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     : afe_data_(nullptr),
       wake_word_pcm_(),
       wake_word_opus_() {
-
+#else
+    : wake_word_pcm_(),
+      wake_word_opus_() {
+#endif
     event_group_ = xEventGroupCreate();
 }
 
 WakeWordDetect::~WakeWordDetect() {
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     if (afe_data_ != nullptr) {
         afe_iface_->destroy(afe_data_);
     }
-
+#else
+    if (wakenet_data_ != nullptr) {
+        wakenet_iface_->destroy(wakenet_data_);
+    }
+#endif
     if (wake_word_encode_task_stack_ != nullptr) {
         heap_caps_free(wake_word_encode_task_stack_);
     }
@@ -32,7 +42,6 @@ WakeWordDetect::~WakeWordDetect() {
 
 void WakeWordDetect::Initialize(AudioCodec* codec) {
     codec_ = codec;
-    int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
     for (int i = 0; i < models->num; i++) {
@@ -49,6 +58,8 @@ void WakeWordDetect::Initialize(AudioCodec* codec) {
         }
     }
 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+    int ref_num = codec_->input_reference() ? 1 : 0;
     std::string input_format;
     for (int i = 0; i < codec_->input_channels() - ref_num; i++) {
         input_format.push_back('M');
@@ -71,6 +82,15 @@ void WakeWordDetect::Initialize(AudioCodec* codec) {
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
     }, "audio_detection", 4096, this, 3, nullptr);
+#else
+    wakenet_iface_ = (esp_wn_iface_t*)esp_wn_handle_from_name(wakenet_model_);
+    wakenet_data_ = wakenet_iface_->create(wakenet_model_, DET_MODE_95);
+
+    int frequency = wakenet_iface_->get_samp_rate(wakenet_data_);
+    int audio_chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
+
+    ESP_LOGI(TAG, "Wake word(%s),freq: %d, chunksize: %d",wakenet_model_, frequency, audio_chunksize);
+#endif
 }
 
 void WakeWordDetect::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
@@ -83,9 +103,11 @@ void WakeWordDetect::StartDetection() {
 
 void WakeWordDetect::StopDetection() {
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
     }
+#endif
 }
 
 bool WakeWordDetect::IsDetectionRunning() {
@@ -93,19 +115,34 @@ bool WakeWordDetect::IsDetectionRunning() {
 }
 
 void WakeWordDetect::Feed(const std::vector<int16_t>& data) {
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     if (afe_data_ == nullptr) {
         return;
     }
     afe_iface_->feed(afe_data_, data.data());
+#else
+    int res = wakenet_iface_->detect(wakenet_data_, (int16_t *)data.data());
+    if (res > 0) {
+        ESP_LOGI(TAG, "Wake word detected");
+        auto& app = Application::GetInstance();
+        app.ToggleChatState();
+    }
+#endif
 }
 
 size_t WakeWordDetect::GetFeedSize() {
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
     if (afe_data_ == nullptr) {
         return 0;
     }
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+#else
+    return wakenet_iface_->get_samp_chunksize(wakenet_data_) * codec_->input_channels();
+#endif
 }
 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
 void WakeWordDetect::AudioDetectionTask() {
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
@@ -133,7 +170,7 @@ void WakeWordDetect::AudioDetectionTask() {
         }
     }
 }
-
+#endif
 void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
     // store audio data to wake_word_pcm_
     wake_word_pcm_.emplace_back(std::vector<int16_t>(data, data + samples));
