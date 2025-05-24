@@ -38,13 +38,13 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     }
 
     Settings settings("mqtt", false);
-    endpoint_ = settings.GetString("endpoint");
-    client_id_ = settings.GetString("client_id");
-    username_ = settings.GetString("username");
-    password_ = settings.GetString("password");
+    auto endpoint = settings.GetString("endpoint");
+    auto client_id = settings.GetString("client_id");
+    auto username = settings.GetString("username");
+    auto password = settings.GetString("password");
     publish_topic_ = settings.GetString("publish_topic");
 
-    if (endpoint_.empty()) {
+    if (endpoint.empty()) {
         ESP_LOGW(TAG, "MQTT endpoint is not specified");
         if (report_error) {
             SetError(Lang::Strings::SERVER_NOT_FOUND);
@@ -66,8 +66,8 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
             return;
         }
         cJSON* type = cJSON_GetObjectItem(root, "type");
-        if (type == nullptr) {
-            ESP_LOGE(TAG, "Message type is not specified");
+        if (!cJSON_IsString(type)) {
+            ESP_LOGE(TAG, "Message type is invalid");
             cJSON_Delete(root);
             return;
         }
@@ -89,17 +89,17 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         last_incoming_time_ = std::chrono::steady_clock::now();
     });
 
-    ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint_.c_str());
+    ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint.c_str());
     std::string broker_address;
     int broker_port = 8883;
-    size_t pos = endpoint_.find(':');
+    size_t pos = endpoint.find(':');
     if (pos != std::string::npos) {
-        broker_address = endpoint_.substr(0, pos);
-        broker_port = std::stoi(endpoint_.substr(pos + 1));
+        broker_address = endpoint.substr(0, pos);
+        broker_port = std::stoi(endpoint.substr(pos + 1));
     } else {
-        broker_address = endpoint_;
+        broker_address = endpoint;
     }
-    if (!mqtt_->Connect(broker_address, broker_port, client_id_, username_, password_)) {
+    if (!mqtt_->Connect(broker_address, broker_port, client_id, username, password)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
@@ -182,17 +182,7 @@ bool MqttProtocol::OpenAudioChannel() {
     session_id_ = "";
     xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 
-    // 发送 hello 消息申请 UDP 通道
-    std::string message = "{";
-    message += "\"type\":\"hello\",";
-    message += "\"version\": 3,";
-    message += "\"transport\":\"udp\",";
-#if CONFIG_USE_SERVER_AEC
-    message += "\"features\":{\"aec\":true},";
-#endif
-    message += "\"audio_params\":{";
-    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
-    message += "}}";
+    auto message = GetHelloMessage();
     if (!SendText(message)) {
         return false;
     }
@@ -262,6 +252,33 @@ bool MqttProtocol::OpenAudioChannel() {
     return true;
 }
 
+std::string MqttProtocol::GetHelloMessage() {
+    // 发送 hello 消息申请 UDP 通道
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "type", "hello");
+    cJSON_AddNumberToObject(root, "version", 3);
+    cJSON_AddStringToObject(root, "transport", "udp");
+    cJSON* features = cJSON_CreateObject();
+#if CONFIG_USE_SERVER_AEC
+    cJSON_AddBoolToObject(features, "aec", true);
+#endif
+#if CONFIG_IOT_PROTOCOL_MCP
+    cJSON_AddBoolToObject(features, "mcp", true);
+#endif
+    cJSON_AddItemToObject(root, "features", features);
+    cJSON* audio_params = cJSON_CreateObject();
+    cJSON_AddStringToObject(audio_params, "format", "opus");
+    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
+    cJSON_AddNumberToObject(audio_params, "channels", 1);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", OPUS_FRAME_DURATION_MS);
+    cJSON_AddItemToObject(root, "audio_params", audio_params);
+    auto json_str = cJSON_PrintUnformatted(root);
+    std::string message(json_str);
+    cJSON_free(json_str);
+    cJSON_Delete(root);
+    return message;
+}
+
 void MqttProtocol::ParseServerHello(const cJSON* root) {
     auto transport = cJSON_GetObjectItem(root, "transport");
     if (transport == nullptr || strcmp(transport->valuestring, "udp") != 0) {
@@ -270,26 +287,26 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     }
 
     auto session_id = cJSON_GetObjectItem(root, "session_id");
-    if (session_id != nullptr) {
+    if (cJSON_IsString(session_id)) {
         session_id_ = session_id->valuestring;
         ESP_LOGI(TAG, "Session ID: %s", session_id_.c_str());
     }
 
     // Get sample rate from hello message
     auto audio_params = cJSON_GetObjectItem(root, "audio_params");
-    if (audio_params != NULL) {
+    if (cJSON_IsObject(audio_params)) {
         auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
-        if (sample_rate != NULL) {
+        if (cJSON_IsNumber(sample_rate)) {
             server_sample_rate_ = sample_rate->valueint;
         }
         auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
-        if (frame_duration != NULL) {
+        if (cJSON_IsNumber(frame_duration)) {
             server_frame_duration_ = frame_duration->valueint;
         }
     }
 
     auto udp = cJSON_GetObjectItem(root, "udp");
-    if (udp == nullptr) {
+    if (!cJSON_IsObject(udp)) {
         ESP_LOGE(TAG, "UDP is not specified");
         return;
     }

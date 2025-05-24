@@ -9,6 +9,7 @@
 #include "font_awesome_symbols.h"
 #include "iot/thing_manager.h"
 #include "assets/lang_config.h"
+#include "mcp_server.h"
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "afe_audio_processor.h"
@@ -41,7 +42,7 @@ static const char* const STATE_STRINGS[] = {
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
-    background_task_ = new BackgroundTask(4096 * 8);
+    background_task_ = new BackgroundTask(4096 * 7);
 
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_ = std::make_unique<AfeAudioProcessor>();
@@ -60,7 +61,6 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
-    esp_timer_start_periodic(clock_timer_handle_, 1000000);
 }
 
 Application::~Application() {
@@ -389,6 +389,9 @@ void Application::Start() {
     }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_);
 #endif
 
+    /* Start the clock timer to update the status bar */
+    esp_timer_start_periodic(clock_timer_handle_, 1000000);
+
     /* Wait for the network to be ready */
     board.StartNetwork();
 
@@ -425,12 +428,15 @@ void Application::Start() {
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
         SetDecodeSampleRate(protocol_->server_sample_rate(), protocol_->server_frame_duration());
+
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         protocol_->SendIotDescriptors(thing_manager.GetDescriptorsJson());
         std::string states;
         if (thing_manager.GetStatesJson(states, false)) {
             protocol_->SendIotStates(states);
         }
+#endif
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
@@ -465,7 +471,7 @@ void Application::Start() {
                 });
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
                 auto text = cJSON_GetObjectItem(root, "text");
-                if (text != NULL) {
+                if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     Schedule([this, display, message = std::string(text->valuestring)]() {
                         display->SetChatMessage("assistant", message.c_str());
@@ -474,7 +480,7 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
-            if (text != NULL) {
+            if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([this, display, message = std::string(text->valuestring)]() {
                     display->SetChatMessage("user", message.c_str());
@@ -482,23 +488,32 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
-            if (emotion != NULL) {
+            if (cJSON_IsString(emotion)) {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+#if CONFIG_IOT_PROTOCOL_MCP
+        } else if (strcmp(type->valuestring, "mcp") == 0) {
+            auto payload = cJSON_GetObjectItem(root, "payload");
+            if (cJSON_IsObject(payload)) {
+                McpServer::GetInstance().ParseMessage(payload);
+            }
+#endif
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         } else if (strcmp(type->valuestring, "iot") == 0) {
             auto commands = cJSON_GetObjectItem(root, "commands");
-            if (commands != NULL) {
+            if (cJSON_IsArray(commands)) {
                 auto& thing_manager = iot::ThingManager::GetInstance();
                 for (int i = 0; i < cJSON_GetArraySize(commands); ++i) {
                     auto command = cJSON_GetArrayItem(commands, i);
                     thing_manager.Invoke(command);
                 }
             }
+#endif
         } else if (strcmp(type->valuestring, "system") == 0) {
             auto command = cJSON_GetObjectItem(root, "command");
-            if (command != NULL) {
+            if (cJSON_IsString(command)) {
                 ESP_LOGI(TAG, "System command: %s", command->valuestring);
                 if (strcmp(command->valuestring, "reboot") == 0) {
                     // Do a reboot if user requests a OTA update
@@ -513,11 +528,13 @@ void Application::Start() {
             auto status = cJSON_GetObjectItem(root, "status");
             auto message = cJSON_GetObjectItem(root, "message");
             auto emotion = cJSON_GetObjectItem(root, "emotion");
-            if (status != NULL && message != NULL && emotion != NULL) {
+            if (cJSON_IsString(status) && cJSON_IsString(message) && cJSON_IsString(emotion)) {
                 Alert(status->valuestring, message->valuestring, emotion->valuestring, Lang::Sounds::P3_VIBRATION);
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
+        } else {
+            ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }
     });
     bool protocol_started = protocol_->Start();
@@ -531,7 +548,7 @@ void Application::Start() {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
                 packet.payload = std::move(opus);
-                uint32_t last_output_timestamp_value = last_output_timestamp_.load();
+#ifdef CONFIG_USE_SERVER_AEC
                 {
                     std::lock_guard<std::mutex> lock(timestamp_mutex_);
                     if (!timestamp_queue_.empty()) {
@@ -546,10 +563,9 @@ void Application::Start() {
                         return;
                     }
                 }
-                Schedule([this, last_output_timestamp_value, packet = std::move(packet)]() {
+#endif
+                Schedule([this, packet = std::move(packet)]() {
                     protocol_->SendAudio(packet);
-                    // ESP_LOGI(TAG, "Send %zu bytes, timestamp %lu, last_ts %lu, qsize %zu",
-                    //     packet.payload.size(), packet.timestamp, last_output_timestamp_value, timestamp_queue_.size());
                 });
             });
         });
@@ -620,8 +636,14 @@ void Application::Start() {
 void Application::OnClockTimer() {
     clock_ticks_++;
 
+    auto display = Board::GetInstance().GetDisplay();
+    display->UpdateStatusBar();
+
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
+        // char buffer[500];
+        // vTaskList(buffer);
+        // ESP_LOGI(TAG, "Task list: \n%s", buffer);
         // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
 
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
@@ -732,11 +754,11 @@ void Application::OnAudioOutput() {
             pcm = std::move(resampled);
         }
         codec->OutputData(pcm);
-        {
+#ifdef CONFIG_USE_SERVER_AEC
             std::lock_guard<std::mutex> lock(timestamp_mutex_);
             timestamp_queue_.push_back(packet.timestamp);
             last_output_timestamp_ = packet.timestamp;
-        }
+#endif
         last_output_time_ = std::chrono::steady_clock::now();
     });
 }
@@ -851,7 +873,9 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
             // Update the IoT states before sending the start listening command
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
             UpdateIotStates();
+#endif
 
             // Make sure the audio processor is running
             if (!audio_processor_->IsRunning()) {
@@ -911,11 +935,13 @@ void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
 }
 
 void Application::UpdateIotStates() {
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
     auto& thing_manager = iot::ThingManager::GetInstance();
     std::string states;
     if (thing_manager.GetStatesJson(states, true)) {
         protocol_->SendIotStates(states);
     }
+#endif
 }
 
 void Application::Reboot() {
@@ -955,4 +981,12 @@ bool Application::CanEnterSleepMode() {
 
     // Now it is safe to enter sleep mode
     return true;
+}
+
+void Application::SendMcpMessage(const std::string& payload) {
+    Schedule([this, payload]() {
+        if (protocol_) {
+            protocol_->SendMcpMessage(payload);
+        }
+    });
 }

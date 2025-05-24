@@ -15,6 +15,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
+            "mcp_server.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
@@ -77,6 +78,8 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(BOARD_TYPE "magiclick-c3-v2")
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_TAB5)
+    set(BOARD_TYPE "m5stack-tab5")
 elseif(CONFIG_BOARD_TYPE_ATOMS3_ECHO_BASE)
     set(BOARD_TYPE "atoms3-echo-base")
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
@@ -95,6 +98,8 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
     set(BOARD_TYPE "esp-spot-s3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
+    set(BOARD_TYPE "waveshare-s3-touch-amoled-1.75")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.85c")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85)
@@ -153,10 +158,20 @@ elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
     set(BOARD_TYPE "doit-s3-aibox")
 elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
     set(BOARD_TYPE "mixgo-nova")
+elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
+    set(BOARD_TYPE "genjutech-s3-1.54tft")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
 elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board)
     set(BOARD_TYPE "esp-s3-lcd-ev-board")
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
+    set(BOARD_TYPE "zhengchen-1.54tft-wifi")
+elseif(CONFIG_BOARD_TYPE_MINSI_K08_DUAL)
+    set(BOARD_TYPE "minsi-k08-dual")
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
+    set(BOARD_TYPE "zhengchen-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
+    set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

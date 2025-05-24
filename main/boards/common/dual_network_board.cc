@@ -7,22 +7,22 @@
 
 static const char *TAG = "DualNetworkBoard";
 
-DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, size_t ml307_rx_buffer_size) 
+DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, size_t ml307_rx_buffer_size, int32_t default_net_type) 
     : Board(), 
       ml307_tx_pin_(ml307_tx_pin), 
       ml307_rx_pin_(ml307_rx_pin), 
       ml307_rx_buffer_size_(ml307_rx_buffer_size) {
     
     // 从Settings加载网络类型
-    network_type_ = LoadNetworkTypeFromSettings();
+    network_type_ = LoadNetworkTypeFromSettings(default_net_type);
     
     // 只初始化当前网络类型对应的板卡
     InitializeCurrentBoard();
 }
 
-NetworkType DualNetworkBoard::LoadNetworkTypeFromSettings() {
+NetworkType DualNetworkBoard::LoadNetworkTypeFromSettings(int32_t default_net_type) {
     Settings settings("network", true);
-    int network_type = settings.GetInt("type", 1); // 默认使用ML307 (1)
+    int network_type = settings.GetInt("type", default_net_type); // 默认使用ML307 (1)
     return network_type == 1 ? NetworkType::ML307 : NetworkType::WIFI;
 }
 
@@ -98,4 +98,8 @@ void DualNetworkBoard::SetPowerSaveMode(bool enabled) {
 
 std::string DualNetworkBoard::GetBoardJson() {   
     return current_board_->GetBoardJson();
-} 
+}
+
+std::string DualNetworkBoard::GetDeviceStatusJson() {
+    return current_board_->GetDeviceStatusJson();
+}

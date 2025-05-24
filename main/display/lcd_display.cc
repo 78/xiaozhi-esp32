@@ -1,6 +1,7 @@
 #include "lcd_display.h"
 
 #include <vector>
+#include <algorithm>
 #include <font_awesome_symbols.h>
 #include <esp_log.h>
 #include <esp_err.h>

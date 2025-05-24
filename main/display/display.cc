@@ -34,20 +34,6 @@ Display::Display() {
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
 
-    // Update display timer
-    esp_timer_create_args_t update_display_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
-            display->Update();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "display_update_timer",
-        .skip_unhandled_events = true,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
-
     // Create a power management lock
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
     if (ret == ESP_ERR_NOT_SUPPORTED) {
@@ -61,10 +47,6 @@ Display::~Display() {
     if (notification_timer_ != nullptr) {
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
-    }
-    if (update_timer_ != nullptr) {
-        esp_timer_stop(update_timer_);
-        esp_timer_delete(update_timer_);
     }
 
     if (network_label_ != nullptr) {
@@ -110,7 +92,7 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::Update() {
+void Display::UpdateStatusBar() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
@@ -130,66 +112,70 @@ void Display::Update() {
         }
     }
 
-    esp_pm_lock_acquire(pm_lock_);
-    // 更新电池图标
-    int battery_level;
-    bool charging, discharging;
-    const char* icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
-        if (charging) {
-            icon = FONT_AWESOME_BATTERY_CHARGING;
-        } else {
-            const char* levels[] = {
-                FONT_AWESOME_BATTERY_EMPTY, // 0-19%
-                FONT_AWESOME_BATTERY_1,    // 20-39%
-                FONT_AWESOME_BATTERY_2,    // 40-59%
-                FONT_AWESOME_BATTERY_3,    // 60-79%
-                FONT_AWESOME_BATTERY_FULL, // 80-99%
-                FONT_AWESOME_BATTERY_FULL, // 100%
-            };
-            icon = levels[battery_level / 20];
-        }
-        DisplayLockGuard lock(this);
-        if (battery_label_ != nullptr && battery_icon_ != icon) {
-            battery_icon_ = icon;
-            lv_label_set_text(battery_label_, battery_icon_);
-        }
-
-        if (low_battery_popup_ != nullptr) {
-            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
-                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
-                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    auto& app = Application::GetInstance();
-                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
-                }
+    // 每 10 秒更新一次电池图标
+    static int seconds_counter = 0;
+    if (seconds_counter++ % 10 == 0) {
+        esp_pm_lock_acquire(pm_lock_);
+        // 更新电池图标
+        int battery_level;
+        bool charging, discharging;
+        const char* icon = nullptr;
+        if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+            if (charging) {
+                icon = FONT_AWESOME_BATTERY_CHARGING;
             } else {
-                // Hide the low battery popup when the battery is not empty
-                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
-                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                const char* levels[] = {
+                    FONT_AWESOME_BATTERY_EMPTY, // 0-19%
+                    FONT_AWESOME_BATTERY_1,    // 20-39%
+                    FONT_AWESOME_BATTERY_2,    // 40-59%
+                    FONT_AWESOME_BATTERY_3,    // 60-79%
+                    FONT_AWESOME_BATTERY_FULL, // 80-99%
+                    FONT_AWESOME_BATTERY_FULL, // 100%
+                };
+                icon = levels[battery_level / 20];
+            }
+            DisplayLockGuard lock(this);
+            if (battery_label_ != nullptr && battery_icon_ != icon) {
+                battery_icon_ = icon;
+                lv_label_set_text(battery_label_, battery_icon_);
+            }
+
+            if (low_battery_popup_ != nullptr) {
+                if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
+                    if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
+                        lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                        auto& app = Application::GetInstance();
+                        app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                    }
+                } else {
+                    // Hide the low battery popup when the battery is not empty
+                    if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
+                        lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                    }
                 }
             }
         }
-    }
 
-    // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
-    auto device_state = Application::GetInstance().GetDeviceState();
-    static const std::vector<DeviceState> allowed_states = {
-        kDeviceStateIdle,
-        kDeviceStateStarting,
-        kDeviceStateWifiConfiguring,
-        kDeviceStateListening,
-        kDeviceStateActivating,
-    };
-    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
-        icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
-            DisplayLockGuard lock(this);
-            network_icon_ = icon;
-            lv_label_set_text(network_label_, network_icon_);
+        // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
+        auto device_state = Application::GetInstance().GetDeviceState();
+        static const std::vector<DeviceState> allowed_states = {
+            kDeviceStateIdle,
+            kDeviceStateStarting,
+            kDeviceStateWifiConfiguring,
+            kDeviceStateListening,
+            kDeviceStateActivating,
+        };
+        if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
+            icon = board.GetNetworkStateIcon();
+            if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
+                DisplayLockGuard lock(this);
+                network_icon_ = icon;
+                lv_label_set_text(network_label_, network_icon_);
+            }
         }
-    }
 
-    esp_pm_lock_release(pm_lock_);
+        esp_pm_lock_release(pm_lock_);
+    }
 }
 
 
