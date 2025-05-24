@@ -15,10 +15,6 @@
 #define TAG "Display"
 
 Display::Display() {
-    // Load theme from settings
-    Settings settings("display", false);
-    current_theme_name_ = settings.GetString("theme", "light");
-
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
         .callback = [](void *arg) {
@@ -233,6 +229,10 @@ void Display::SetIcon(const char* icon) {
         return;
     }
     lv_label_set_text(emotion_label_, icon);
+}
+
+void Display::SetPreviewImage(const lv_img_dsc_t* image) {
+    // Do nothing
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {
