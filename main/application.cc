@@ -61,7 +61,6 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
-    esp_timer_start_periodic(clock_timer_handle_, 1000000);
 }
 
 Application::~Application() {
@@ -390,6 +389,9 @@ void Application::Start() {
     }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_);
 #endif
 
+    /* Start the clock timer to update the status bar */
+    esp_timer_start_periodic(clock_timer_handle_, 1000000);
+
     /* Wait for the network to be ready */
     board.StartNetwork();
 
@@ -531,6 +533,8 @@ void Application::Start() {
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
+        } else {
+            ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }
     });
     bool protocol_started = protocol_->Start();
@@ -632,8 +636,11 @@ void Application::Start() {
 void Application::OnClockTimer() {
     clock_ticks_++;
 
+    auto display = Board::GetInstance().GetDisplay();
+    display->UpdateStatusBar();
+
     // Print the debug info every 10 seconds
-    if (clock_ticks_ % 3 == 0) {
+    if (clock_ticks_ % 10 == 0) {
         // char buffer[500];
         // vTaskList(buffer);
         // ESP_LOGI(TAG, "Task list: \n%s", buffer);

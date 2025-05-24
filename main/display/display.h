@@ -27,6 +27,7 @@ public:
     virtual void SetIcon(const char* icon);
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
+    virtual void UpdateStatusBar();
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -54,13 +55,10 @@ protected:
     std::string current_theme_name_;
 
     esp_timer_handle_t notification_timer_ = nullptr;
-    esp_timer_handle_t update_timer_ = nullptr;
 
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;
     virtual void Unlock() = 0;
-
-    virtual void Update();
 };
 
 
