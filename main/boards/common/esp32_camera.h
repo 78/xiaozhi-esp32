@@ -22,7 +22,6 @@ private:
     lv_img_dsc_t preview_image_;
     std::string explain_url_;
     std::string explain_token_;
-    std::thread preview_thread_;
     std::thread encoder_thread_;
 
 public:

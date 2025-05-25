@@ -64,9 +64,6 @@ void Esp32Camera::SetExplainUrl(const std::string& url, const std::string& token
 }
 
 bool Esp32Camera::Capture() {
-    if (preview_thread_.joinable()) {
-        preview_thread_.join();
-    }
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -84,20 +81,18 @@ bool Esp32Camera::Capture() {
         }
     }
 
-    preview_thread_ = std::thread([this]() {
-        // 显示预览图片
-        auto display = Board::GetInstance().GetDisplay();
-        if (display != nullptr) {
-            auto src = (uint16_t*)fb_->buf;
-            auto dst = (uint16_t*)preview_image_.data;
-            size_t pixel_count = fb_->len / 2;
-            for (size_t i = 0; i < pixel_count; i++) {
-                // 交换每个16位字内的字节
-                dst[i] = __builtin_bswap16(src[i]);
-            }
-            display->SetPreviewImage(&preview_image_);
+    // 显示预览图片
+    auto display = Board::GetInstance().GetDisplay();
+    if (display != nullptr) {
+        auto src = (uint16_t*)fb_->buf;
+        auto dst = (uint16_t*)preview_image_.data;
+        size_t pixel_count = fb_->len / 2;
+        for (size_t i = 0; i < pixel_count; i++) {
+            // 交换每个16位字内的字节
+            dst[i] = __builtin_bswap16(src[i]);
         }
-    });
+        display->SetPreviewImage(&preview_image_);
+    }
     return true;
 }
 
@@ -109,7 +104,7 @@ bool Esp32Camera::Capture() {
  * 问题对图像进行AI分析并返回结果。
  * 
  * 实现特点：
- * - 使用多线程异步JPEG编码，避免阻塞主线程
+ * - 使用独立线程编码JPEG，与主线程分离
  * - 采用分块传输编码(chunked transfer encoding)优化内存使用
  * - 通过队列机制实现编码线程和发送线程的数据同步
  * - 支持设备ID、客户端ID和认证令牌的HTTP头部配置
