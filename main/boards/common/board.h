@@ -37,6 +37,7 @@ public:
     virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
+    virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
@@ -48,6 +49,7 @@ public:
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
+    virtual std::string GetDeviceStatusJson() = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

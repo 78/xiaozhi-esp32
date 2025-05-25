@@ -34,10 +34,6 @@ public:
 private:
     EventGroupHandle_t event_group_handle_;
 
-    std::string endpoint_;
-    std::string client_id_;
-    std::string username_;
-    std::string password_;
     std::string publish_topic_;
 
     std::mutex channel_mutex_;
@@ -55,6 +51,7 @@ private:
     std::string DecodeHexString(const std::string& hex_string);
 
     bool SendText(const std::string& text) override;
+    std::string GetHelloMessage();
 };
 
 

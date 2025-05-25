@@ -13,7 +13,7 @@ config ENABLE_MUSIC_PLAYER
         启用音乐播放器功能，允许播放在线音乐。
 
 choice
-    prompt "语言选择"
+    prompt "Default Language"
     default LANGUAGE_ZH_CN
     help
         Select device display language
@@ -83,6 +83,8 @@ choice BOARD_TYPE
         bool "神奇按钮 Magiclick_C3_v2"
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
+    config BOARD_TYPE_M5STACK_CORE_TAB5
+        bool "M5Stack Tab5"
     config BOARD_TYPE_ATOMS3_ECHO_BASE
         bool "AtomS3 + Echo Base"
     config BOARD_TYPE_ATOMS3R_ECHO_BASE
@@ -101,6 +103,8 @@ choice BOARD_TYPE
         bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
+    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
+        bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
@@ -109,6 +113,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
+    config BOARD_TYPE_ESP32P4_NANO
+        bool "Waveshare ESP32-P4-NANO"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -155,8 +161,18 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_GENJUTECH_S3_1_54TFT
+        bool "亘具科技1.54(s3)"
     config BOARD_TYPE_ESP_S3_LCD_EV_Board
         bool "乐鑫ESP S3 LCD EV Board开发板"
+    config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
+        bool "征辰科技1.54(WIFI)"
+    config BOARD_TYPE_MINSI_K08_DUAL
+        bool "敏思科技K08(DUAL)"
+    config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
+        bool "征辰科技1.54(ML307)"
+    config BOARD_TYPE_ESP32_S3_1_54_MUMA
+        bool "Spotpear ESP32-S3-1.54-MUMA"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -214,13 +230,17 @@ choice DISPLAY_LCD_TYPE
     config LCD_ST7796_320X480
         bool "ST7796, 分辨率320*480 IPS"
     config LCD_ST7796_320X480_NO_IPS
-        bool "ST7796, 分辨率320*480, 非IPS"    
+        bool "ST7796, 分辨率320*480, 非IPS"
     config LCD_ILI9341_240X320
         bool "ILI9341, 分辨率240*320"
     config LCD_ILI9341_240X320_NO_IPS
         bool "ILI9341, 分辨率240*320, 非IPS"
     config LCD_GC9A01_240X240
         bool "GC9A01, 分辨率240*240, 圆屏"
+    config LCD_TYPE_800_1280_10_1_INCH
+        bool "Waveshare 101M-8001280-IPS-CT-K Display"
+    config LCD_TYPE_800_1280_10_1_INCH_A
+        bool "Waveshare 10.1-DSI-TOUCH-A Display"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
 endchoice
@@ -255,31 +275,42 @@ choice MESSAGE_STYLE_TYPE
 endchoice
 
 config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
+    bool "Enable Wake Word Detection"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
+    bool "Enable Audio Noise Reduction"
     default y
-    depends on IDF_TARGET_ESP32S3 && SPIRAM
+    depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_DEVICE_AEC
-    bool "在通话过程中启用设备端 AEC"
+    bool "Enable Device-Side AEC"
     default n
-    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
+    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
 config USE_SERVER_AEC
-    bool "在通话过程中启用服务器端 AEC"
+    bool "Enable Server-Side AEC"
     default n
     depends on USE_AUDIO_PROCESSOR
     help
         启用服务器端 AEC，需要服务器支持
+
+choice IOT_PROTOCOL
+    prompt "IoT Protocol"
+    default IOT_PROTOCOL_XIAOZHI
+    help
+        IoT 协议，用于获取设备状态与发送控制指令
+    config IOT_PROTOCOL_MCP
+        bool "MCP协议 2024-11-05"
+    config IOT_PROTOCOL_XIAOZHI
+        bool "小智IoT协议 1.0"
+endchoice
 
 endmenu
