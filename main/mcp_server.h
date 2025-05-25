@@ -262,9 +262,10 @@ public:
 
 private:
     McpServer();
-    ~McpServer() = default;
+    ~McpServer();
 
     void AddCommonTools();
+    void ParseCapabilities(const cJSON* capabilities);
 
     void ReplyResult(int id, const std::string& result);
     void ReplyError(int id, const std::string& message);
