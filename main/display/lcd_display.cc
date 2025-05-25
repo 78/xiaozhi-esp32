@@ -85,7 +85,7 @@ static const ThemeColors LIGHT_THEME = {
 };
 
 // Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
+static ThemeColors current_theme = DARK_THEME;
 
 
 LV_FONT_DECLARE(font_awesome_30_4);
