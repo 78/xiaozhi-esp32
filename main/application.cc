@@ -1223,6 +1223,9 @@ void Application::HandleLLMInstruction(const cJSON* root) {
 #else
         ESP_LOGW(TAG, "音乐播放功能未启用，无法播放: %s", song_name_str.c_str());
 #endif
+    });
+}
+
 void Application::SendMcpMessage(const std::string& payload) {
     Schedule([this, payload]() {
         if (protocol_) {
