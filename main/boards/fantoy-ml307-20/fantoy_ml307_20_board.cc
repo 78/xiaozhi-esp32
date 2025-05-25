@@ -237,9 +237,13 @@ private:
 
         // 长按Mode键切换分区
         mode_button_.OnLongPress([this]() {
-            ESP_LOGI(TAG, "开始切换固件.....太秀了");
             power_save_timer_->WakeUp();
-            switch_to_next_firmware();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (WifiStation::GetInstance().IsConnected()) {
+                    ESP_LOGI(TAG, "开始切换固件.....太秀了");
+                    switch_to_next_firmware();
+                }
+            }
         });
 
         volume_up_button_.OnClick([this]() {
