@@ -25,7 +25,6 @@ private:
     std::thread preview_thread_;
     std::thread encoder_thread_;
 
-    QueueHandle_t jpeg_queue_ = nullptr;
 public:
     Esp32Camera(const camera_config_t& config);
     ~Esp32Camera();
