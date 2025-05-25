@@ -395,6 +395,9 @@ void Application::Start() {
     /* Wait for the network to be ready */
     board.StartNetwork();
 
+    // Update the status bar immediately to show the network state
+    display->UpdateStatusBar(true);
+
     // Check for new firmware version or get the MQTT broker address
     CheckNewVersion();
 
