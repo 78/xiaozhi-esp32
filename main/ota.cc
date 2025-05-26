@@ -226,15 +226,19 @@ bool Ota::CheckVersion() {
     std::string check_version_url_Fan = "";
     if(board.GetBoardType() == "wifi")
     {
-    #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    #if CONFIG_USE_GIF_EMOTION_STYLE
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-eyes/";
+    #elif CONFIG_USE_WECHAT_MESSAGE_STYLE
         check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-wechat/";
-    #else
+    #else 
         check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b13-face/";
     #endif
     }
     else if(board.GetBoardType() == "ml307")
     {
-    #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    #if CONFIG_USE_GIF_EMOTION_STYLE
+        check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b20-eyes/";
+    #elif CONFIG_USE_WECHAT_MESSAGE_STYLE
         check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b20-wechat/";
     #else
         check_version_url_Fan = "https://nodeserver-huanciyuan.fanfuture.cn/fantoy-speaker/ota-b20-face/";
