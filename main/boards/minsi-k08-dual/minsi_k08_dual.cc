@@ -10,7 +10,7 @@
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-#include "../minsi-k08-wifi/power_manager.h"
+#include "power_manager.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
