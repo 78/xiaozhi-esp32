@@ -47,7 +47,7 @@ std::string SystemInfo::GetChipModelName() {
     return std::string(CONFIG_IDF_TARGET);
 }
 
-esp_err_t SystemInfo::PrintRealTimeStats(TickType_t xTicksToWait) {
+esp_err_t SystemInfo::PrintTaskCpuUsage(TickType_t xTicksToWait) {
     #define ARRAY_SIZE_OFFSET 5
     TaskStatus_t *start_array = NULL, *end_array = NULL;
     UBaseType_t start_array_size, end_array_size;
@@ -132,3 +132,14 @@ exit:    //Common return path
     return ret;
 }
 
+void SystemInfo::PrintTaskList() {
+    char buffer[500];
+    vTaskList(buffer);
+    ESP_LOGI(TAG, "Task list: \n%s", buffer);
+}
+
+void SystemInfo::PrintHeapStats() {
+    int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+    ESP_LOGI(TAG, "free sram: %u minimal sram: %u", free_sram, min_free_sram);
+}

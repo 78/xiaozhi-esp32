@@ -139,7 +139,7 @@ void Application::CheckNewVersion() {
 
             ota_.StartUpgrade([display](int progress, size_t speed) {
                 char buffer[64];
-                snprintf(buffer, sizeof(buffer), "%d%% %zuKB/s", progress, speed / 1024);
+                snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
                 display->SetChatMessage("system", buffer);
             });
 
@@ -365,8 +365,8 @@ void Application::Start() {
         ESP_LOGI(TAG, "ML307 board detected, setting opus encoder complexity to 5");
         opus_encoder_->SetComplexity(5);
     } else {
-        ESP_LOGI(TAG, "WiFi board detected, setting opus encoder complexity to 3");
-        opus_encoder_->SetComplexity(3);
+        ESP_LOGI(TAG, "WiFi board detected, setting opus encoder complexity to 0");
+        opus_encoder_->SetComplexity(0);
     }
 
     if (codec->input_sample_rate() != 16000) {
@@ -395,6 +395,9 @@ void Application::Start() {
     /* Wait for the network to be ready */
     board.StartNetwork();
 
+    // Update the status bar immediately to show the network state
+    display->UpdateStatusBar(true);
+
     // Check for new firmware version or get the MQTT broker address
     CheckNewVersion();
 
@@ -415,9 +418,8 @@ void Application::Start() {
         Alert(Lang::Strings::ERROR, message.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
     });
     protocol_->OnIncomingAudio([this](AudioStreamPacket&& packet) {
-        const int max_packets_in_queue = 600 / OPUS_FRAME_DURATION_MS;
         std::lock_guard<std::mutex> lock(mutex_);
-        if (audio_decode_queue_.size() < max_packets_in_queue) {
+        if (audio_decode_queue_.size() < MAX_AUDIO_PACKETS_IN_QUEUE) {
             audio_decode_queue_.emplace_back(std::move(packet));
         }
     });
@@ -541,10 +543,17 @@ void Application::Start() {
 
     audio_processor_->Initialize(codec);
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
-        background_task_->Schedule([this, data = std::move(data)]() mutable {
-            if (protocol_->IsAudioChannelBusy()) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            // We do not have a send queue yet, but all packets are sent by the main task
+            // so we use the main task queue to limit the number of packets
+            if (main_tasks_.size() > MAX_AUDIO_PACKETS_IN_QUEUE) {
+                ESP_LOGW(TAG, "Too many main tasks = %u, skip sending audio...", main_tasks_.size());
                 return;
             }
+        }
+
+        background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
                 packet.payload = std::move(opus);
@@ -628,6 +637,9 @@ void Application::Start() {
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_SUCCESS);
     }
+
+    // Print heap stats
+    SystemInfo::PrintHeapStats();
     
     // Enter the main event loop
     MainEventLoop();
@@ -641,14 +653,9 @@ void Application::OnClockTimer() {
 
     // Print the debug info every 10 seconds
     if (clock_ticks_ % 10 == 0) {
-        // char buffer[500];
-        // vTaskList(buffer);
-        // ESP_LOGI(TAG, "Task list: \n%s", buffer);
-        // SystemInfo::PrintRealTimeStats(pdMS_TO_TICKS(1000));
-
-        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-        int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-        ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
+        // SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(1000));
+        // SystemInfo::PrintTaskList();
+        SystemInfo::PrintHeapStats();
 
         // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
         if (ota_.HasServerTime()) {
@@ -881,7 +888,7 @@ void Application::SetDeviceState(DeviceState state) {
             if (!audio_processor_->IsRunning()) {
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
-                if (listening_mode_ == kListeningModeAutoStop && previous_state == kDeviceStateSpeaking) {
+                if (previous_state == kDeviceStateSpeaking) {
                     // FIXME: Wait for the speaker to empty the buffer
                     vTaskDelay(pdMS_TO_TICKS(120));
                 }

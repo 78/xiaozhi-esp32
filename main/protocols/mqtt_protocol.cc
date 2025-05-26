@@ -144,9 +144,7 @@ void MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
         return;
     }
 
-    busy_sending_audio_ = true;
     udp_->Send(encrypted);
-    busy_sending_audio_ = false;
 }
 
 void MqttProtocol::CloseAudioChannel() {
@@ -177,7 +175,6 @@ bool MqttProtocol::OpenAudioChannel() {
         }
     }
 
-    busy_sending_audio_ = false;
     error_occurred_ = false;
     session_id_ = "";
     xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
@@ -207,7 +204,7 @@ bool MqttProtocol::OpenAudioChannel() {
          * |payload payload_len|
          */
         if (data.size() < sizeof(aes_nonce_)) {
-            ESP_LOGE(TAG, "Invalid audio packet size: %zu", data.size());
+            ESP_LOGE(TAG, "Invalid audio packet size: %u", data.size());
             return;
         }
         if (data[0] != 0x01) {

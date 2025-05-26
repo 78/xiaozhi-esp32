@@ -137,8 +137,8 @@ void WakeWordDetect::AudioDetectionTask() {
 void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
     // store audio data to wake_word_pcm_
     wake_word_pcm_.emplace_back(std::vector<int16_t>(data, data + samples));
-    // keep about 2 seconds of data, detect duration is 32ms (sample_rate == 16000, chunksize == 512)
-    while (wake_word_pcm_.size() > 2000 / 32) {
+    // keep about 2 seconds of data, detect duration is 30ms (sample_rate == 16000, chunksize == 512)
+    while (wake_word_pcm_.size() > 2000 / 30) {
         wake_word_pcm_.pop_front();
     }
 }
@@ -165,7 +165,7 @@ void WakeWordDetect::EncodeWakeWordData() {
             this_->wake_word_pcm_.clear();
 
             auto end_time = esp_timer_get_time();
-            ESP_LOGI(TAG, "Encode wake word opus %zu packets in %lld ms",
+            ESP_LOGI(TAG, "Encode wake word opus %u packets in %lld ms",
                 this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
 
             std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
