@@ -49,7 +49,6 @@ class SparkBotEs8311AudioCodec : public Es8311AudioCodec {
 
 class GenJuTech_s3_1_54TFT : public WifiBoard {
 private:
-    // i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -128,12 +127,6 @@ private:
             }
             app.ToggleChatState();
         });
-        // boot_button_.OnPressDown([this]() {
-        //     Application::GetInstance().StartListening();
-        // });
-        // boot_button_.OnPressUp([this]() {
-        //     Application::GetInstance().StopListening();
-        // });
 
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
@@ -224,7 +217,7 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
-        // thing_manager.AddThing(iot::CreateThing("Lamp"));
+        thing_manager.AddThing(iot::CreateThing("Lamp"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
