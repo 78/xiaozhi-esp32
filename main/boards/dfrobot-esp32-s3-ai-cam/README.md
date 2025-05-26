@@ -6,6 +6,7 @@ ESP32-S3 AI CAM是一款基于ESP32-S3芯片设计的智能摄像头模组，专
 
 [点击查看详细介绍](https://wiki.dfrobot.com.cn/SKU_DFR1154_ESP32_S3_AI_CAM)
 
+[点击查看视觉功能演示](https://www.bilibili.com/video/BV1ktjSzNEUU/)
 
 # 特性
 * 使用PDM麦克风
