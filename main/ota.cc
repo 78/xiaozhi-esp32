@@ -23,14 +23,6 @@
 
 
 Ota::Ota() {
-    {
-        Settings settings("wifi", false);
-        check_version_url_ = settings.GetString("ota_url");
-        if (check_version_url_.empty()) {
-            check_version_url_ = CONFIG_OTA_URL;
-        }
-    }
-
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
     // Read Serial Number from efuse user_data
     uint8_t serial_number[33] = {0};
@@ -48,8 +40,13 @@ Ota::Ota() {
 Ota::~Ota() {
 }
 
-void Ota::SetHeader(const std::string& key, const std::string& value) {
-    headers_[key] = value;
+std::string Ota::GetCheckVersionUrl() {
+    Settings settings("wifi", false);
+    std::string url = settings.GetString("ota_url");
+    if (url.empty()) {
+        url = CONFIG_OTA_URL;
+    }
+    return url;
 }
 
 Http* Ota::SetupHttp() {
@@ -57,10 +54,6 @@ Http* Ota::SetupHttp() {
     auto app_desc = esp_app_get_description();
 
     auto http = board.CreateHttp();
-    for (const auto& header : headers_) {
-        http->SetHeader(header.first, header.second);
-    }
-
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
@@ -79,7 +72,8 @@ bool Ota::CheckVersion() {
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
-    if (check_version_url_.length() < 10) {
+    std::string url = GetCheckVersionUrl();
+    if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
     }
@@ -90,7 +84,7 @@ bool Ota::CheckVersion() {
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 
-    if (!http->Open(method, check_version_url_)) {
+    if (!http->Open(method, url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         return false;
     }
@@ -431,7 +425,7 @@ esp_err_t Ota::Activate() {
         return ESP_FAIL;
     }
 
-    std::string url = check_version_url_;
+    std::string url = GetCheckVersionUrl();
     if (url.back() != '/') {
         url += "/activate";
     } else {

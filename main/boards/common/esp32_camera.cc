@@ -2,6 +2,7 @@
 #include "mcp_server.h"
 #include "display.h"
 #include "board.h"
+#include "system_info.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -11,12 +12,6 @@
 #define TAG "Esp32Camera"
 
 Esp32Camera::Esp32Camera(const camera_config_t& config) {
-    jpeg_queue_ = xQueueCreate(10, sizeof(JpegChunk));
-    if (jpeg_queue_ == nullptr) {
-        ESP_LOGE(TAG, "Failed to create JPEG queue");
-        return;
-    }
-
     // camera init
     esp_err_t err = esp_camera_init(&config); // 配置上面定义的参数
     if (err != ESP_OK) {
@@ -61,11 +56,6 @@ Esp32Camera::~Esp32Camera() {
         preview_image_.data = nullptr;
     }
     esp_camera_deinit();
-
-    if (jpeg_queue_ != nullptr) {
-        vQueueDelete(jpeg_queue_);
-        jpeg_queue_ = nullptr;
-    }
 }
 
 void Esp32Camera::SetExplainUrl(const std::string& url, const std::string& token) {
@@ -74,9 +64,6 @@ void Esp32Camera::SetExplainUrl(const std::string& url, const std::string& token
 }
 
 bool Esp32Camera::Capture() {
-    if (preview_thread_.joinable()) {
-        preview_thread_.join();
-    }
     if (encoder_thread_.joinable()) {
         encoder_thread_.join();
     }
@@ -94,30 +81,58 @@ bool Esp32Camera::Capture() {
         }
     }
 
-    preview_thread_ = std::thread([this]() {
-        // 显示预览图片
-        auto display = Board::GetInstance().GetDisplay();
-        if (display != nullptr) {
-            auto src = (uint16_t*)fb_->buf;
-            auto dst = (uint16_t*)preview_image_.data;
-            size_t pixel_count = fb_->len / 2;
-            for (size_t i = 0; i < pixel_count; i++) {
-                // 交换每个16位字内的字节
-                dst[i] = __builtin_bswap16(src[i]);
-            }
-            display->SetPreviewImage(&preview_image_);
+    // 显示预览图片
+    auto display = Board::GetInstance().GetDisplay();
+    if (display != nullptr) {
+        auto src = (uint16_t*)fb_->buf;
+        auto dst = (uint16_t*)preview_image_.data;
+        size_t pixel_count = fb_->len / 2;
+        for (size_t i = 0; i < pixel_count; i++) {
+            // 交换每个16位字内的字节
+            dst[i] = __builtin_bswap16(src[i]);
         }
-    });
+        display->SetPreviewImage(&preview_image_);
+    }
     return true;
 }
 
+/**
+ * @brief 将摄像头捕获的图像发送到远程服务器进行AI分析和解释
+ * 
+ * 该函数将当前摄像头缓冲区中的图像编码为JPEG格式，并通过HTTP POST请求
+ * 以multipart/form-data的形式发送到指定的解释服务器。服务器将根据提供的
+ * 问题对图像进行AI分析并返回结果。
+ * 
+ * 实现特点：
+ * - 使用独立线程编码JPEG，与主线程分离
+ * - 采用分块传输编码(chunked transfer encoding)优化内存使用
+ * - 通过队列机制实现编码线程和发送线程的数据同步
+ * - 支持设备ID、客户端ID和认证令牌的HTTP头部配置
+ * 
+ * @param question 要向AI提出的关于图像的问题，将作为表单字段发送
+ * @return std::string 服务器返回的JSON格式响应字符串
+ *         成功时包含AI分析结果，失败时包含错误信息
+ *         格式示例：{"success": true, "result": "分析结果"}
+ *                  {"success": false, "message": "错误信息"}
+ * 
+ * @note 调用此函数前必须先调用SetExplainUrl()设置服务器URL
+ * @note 函数会等待之前的编码线程完成后再开始新的处理
+ * @warning 如果摄像头缓冲区为空或网络连接失败，将返回错误信息
+ */
 std::string Esp32Camera::Explain(const std::string& question) {
-    if (explain_url_.empty() || explain_token_.empty()) {
+    if (explain_url_.empty()) {
         return "{\"success\": false, \"message\": \"Image explain URL or token is not set\"}";
     }
 
+    // 创建局部的 JPEG 队列, 40 entries is about to store 512 * 40 = 20480 bytes of JPEG data
+    QueueHandle_t jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
+    if (jpeg_queue == nullptr) {
+        ESP_LOGE(TAG, "Failed to create JPEG queue");
+        return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
+    }
+
     // We spawn a thread to encode the image to JPEG
-    encoder_thread_ = std::thread([this]() {
+    encoder_thread_ = std::thread([this, jpeg_queue]() {
         frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
             auto jpeg_queue = (QueueHandle_t)arg;
             JpegChunk chunk = {
@@ -127,7 +142,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
             memcpy(chunk.data, data, len);
             xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
             return len;
-        }, jpeg_queue_);
+        }, jpeg_queue);
     });
 
     auto http = Board::GetInstance().CreateHttp();
@@ -153,7 +168,11 @@ std::string Esp32Camera::Explain(const std::string& question) {
     multipart_footer += "\r\n--" + boundary + "--\r\n";
 
     // 配置HTTP客户端，使用分块传输编码
-    http->SetHeader("Authorization", "Bearer " + explain_token_);
+    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    http->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+    if (!explain_token_.empty()) {
+        http->SetHeader("Authorization", "Bearer " + explain_token_);
+    }
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     http->SetHeader("Transfer-Encoding", "chunked");
     if (!http->Open("POST", explain_url_)) {
@@ -161,13 +180,14 @@ std::string Esp32Camera::Explain(const std::string& question) {
         // Clear the queue
         encoder_thread_.join();
         JpegChunk chunk;
-        while (xQueueReceive(jpeg_queue_, &chunk, portMAX_DELAY) == pdPASS) {
+        while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
             if (chunk.data != nullptr) {
                 heap_caps_free(chunk.data);
             } else {
                 break;
             }
         }
+        vQueueDelete(jpeg_queue);
         return "{\"success\": false, \"message\": \"Failed to connect to explain URL\"}";
     }
     
@@ -181,7 +201,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
     size_t total_sent = 0;
     while (true) {
         JpegChunk chunk;
-        if (xQueueReceive(jpeg_queue_, &chunk, portMAX_DELAY) != pdPASS) {
+        if (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) != pdPASS) {
             ESP_LOGE(TAG, "Failed to receive JPEG chunk");
             break;
         }
@@ -192,6 +212,10 @@ std::string Esp32Camera::Explain(const std::string& question) {
         total_sent += chunk.len;
         heap_caps_free(chunk.data);
     }
+    // Wait for the encoder thread to finish
+    encoder_thread_.join();
+    // 清理队列
+    vQueueDelete(jpeg_queue);
 
     // 第四块：multipart尾部
     http->Write(multipart_footer.c_str(), multipart_footer.size());
