@@ -128,6 +128,7 @@ bool Esp32Camera::SetVFlip(bool enabled) {
     ESP_LOGI(TAG, "Camera vertical flip set to: %s", enabled ? "enabled" : "disabled");
     return true;
 }
+
 /**
  * @brief 将摄像头捕获的图像发送到远程服务器进行AI分析和解释
  * 
