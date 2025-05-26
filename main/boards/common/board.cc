@@ -48,9 +48,17 @@ bool Board::GetBatteryLevel(int &level, bool& charging, bool& discharging) {
     return false;
 }
 
+bool Board::GetTemperature(float& esp32temp){
+    return false;
+}
+
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;
+}
+
+Camera* Board::GetCamera() {
+    return nullptr;
 }
 
 Led* Board::GetLed() {
