@@ -30,13 +30,34 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
     preview_image_.header.cf = LV_COLOR_FORMAT_RGB565;
     preview_image_.header.flags = LV_IMAGE_FLAGS_ALLOCATED | LV_IMAGE_FLAGS_MODIFIABLE;
 
-    if (config.frame_size == FRAMESIZE_VGA) {
-        preview_image_.header.w = 640;
-        preview_image_.header.h = 480;
-    } else if (config.frame_size == FRAMESIZE_QVGA) {
-        preview_image_.header.w = 320;
-        preview_image_.header.h = 240;
+    switch (config.frame_size) {
+        case FRAMESIZE_SVGA:
+            preview_image_.header.w = 800;
+            preview_image_.header.h = 600;
+            break;
+        case FRAMESIZE_VGA:
+            preview_image_.header.w = 640;
+            preview_image_.header.h = 480;
+            break;
+        case FRAMESIZE_QVGA:
+            preview_image_.header.w = 320;
+            preview_image_.header.h = 240;
+            break;
+        case FRAMESIZE_128X128:
+            preview_image_.header.w = 128;
+            preview_image_.header.h = 128;
+            break;
+        case FRAMESIZE_240X240:
+            preview_image_.header.w = 240;
+            preview_image_.header.h = 240;
+            break;
+        default:
+            ESP_LOGE(TAG, "Unsupported frame size: %d, image preview will not be shown", config.frame_size);
+            preview_image_.data_size = 0;
+            preview_image_.data = nullptr;
+            return;
     }
+
     preview_image_.header.stride = preview_image_.header.w * 2;
     preview_image_.data_size = preview_image_.header.w * preview_image_.header.h * 2;
     preview_image_.data = (uint8_t*)heap_caps_malloc(preview_image_.data_size, MALLOC_CAP_SPIRAM);
@@ -85,6 +106,14 @@ bool Esp32Camera::Capture() {
     }
 
     preview_thread_ = std::thread([this]() {
+        if (preview_image_.data_size == 0) {
+            ESP_LOGW(TAG, "Skip preview because of unsupported frame size");
+            return;
+        }
+        if (preview_image_.data == nullptr) {
+            ESP_LOGE(TAG, "Preview image data is not initialized");
+            return;
+        }
         // 显示预览图片
         auto display = Board::GetInstance().GetDisplay();
         if (display != nullptr) {
@@ -141,7 +170,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
         frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
             auto jpeg_queue = (QueueHandle_t)arg;
             JpegChunk chunk = {
-                .data = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM),
+                .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
                 .len = len
             };
             memcpy(chunk.data, data, len);

@@ -13,6 +13,8 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 
+#include "esp32_camera.h"
+
 #define TAG "esp_sparkbot"
 
 LV_FONT_DECLARE(font_puhui_20_4);
@@ -45,6 +47,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     Display* display_;
+    Esp32Camera* camera_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -122,6 +125,44 @@ private:
                                     });
     }
 
+    void InitializeCamera() {
+        camera_config_t camera_config = {};
+
+        camera_config.pin_pwdn = SPARKBOT_CAMERA_PWDN;
+        camera_config.pin_reset = SPARKBOT_CAMERA_RESET;
+        camera_config.pin_xclk = SPARKBOT_CAMERA_XCLK;
+        camera_config.pin_pclk = SPARKBOT_CAMERA_PCLK;
+        camera_config.pin_sscb_sda = SPARKBOT_CAMERA_SIOD;
+        camera_config.pin_sscb_scl = SPARKBOT_CAMERA_SIOC;
+
+        camera_config.pin_d0 = SPARKBOT_CAMERA_D0;
+        camera_config.pin_d1 = SPARKBOT_CAMERA_D1;
+        camera_config.pin_d2 = SPARKBOT_CAMERA_D2;
+        camera_config.pin_d3 = SPARKBOT_CAMERA_D3;
+        camera_config.pin_d4 = SPARKBOT_CAMERA_D4;
+        camera_config.pin_d5 = SPARKBOT_CAMERA_D5;
+        camera_config.pin_d6 = SPARKBOT_CAMERA_D6;
+        camera_config.pin_d7 = SPARKBOT_CAMERA_D7;
+
+        camera_config.pin_vsync = SPARKBOT_CAMERA_VSYNC;
+        camera_config.pin_href = SPARKBOT_CAMERA_HSYNC;
+        camera_config.pin_pclk = SPARKBOT_CAMERA_PCLK;
+        camera_config.xclk_freq_hz = SPARKBOT_CAMERA_XCLK_FREQ;
+        camera_config.ledc_timer = SPARKBOT_LEDC_TIMER;
+        camera_config.ledc_channel = SPARKBOT_LEDC_CHANNEL;
+        camera_config.fb_location = CAMERA_FB_IN_PSRAM;
+        
+        camera_config.sccb_i2c_port = I2C_NUM_0;
+        
+        camera_config.pixel_format = PIXFORMAT_RGB565;
+        camera_config.frame_size = FRAMESIZE_240X240;
+        camera_config.jpeg_quality = 12;
+        camera_config.fb_count = 1;
+        camera_config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        
+        camera_ = new Esp32Camera(camera_config);
+    }
+
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
@@ -137,6 +178,7 @@ public:
         InitializeDisplay();
         InitializeButtons();
         InitializeIot();
+        InitializeCamera();
         GetBacklight()->RestoreBrightness();
     }
 
@@ -154,6 +196,10 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 };
 
