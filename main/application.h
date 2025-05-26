@@ -27,6 +27,7 @@
 #endif
 
 #define SCHEDULE_EVENT (1 << 0)
+#define SEND_AUDIO_EVENT (1 << 1)
 #define CHECK_NEW_VERSION_DONE_EVENT (1 << 2)
 
 enum DeviceState {
@@ -104,6 +105,7 @@ private:
     TaskHandle_t audio_loop_task_handle_ = nullptr;
     BackgroundTask* background_task_ = nullptr;
     std::chrono::steady_clock::time_point last_output_time_;
+    std::list<AudioStreamPacket> audio_send_queue_;
     std::list<AudioStreamPacket> audio_decode_queue_;
     std::condition_variable audio_decode_cv_;
 

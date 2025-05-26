@@ -121,10 +121,10 @@ bool MqttProtocol::SendText(const std::string& text) {
     return true;
 }
 
-void MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
+bool MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
     std::lock_guard<std::mutex> lock(channel_mutex_);
     if (udp_ == nullptr) {
-        return;
+        return false;
     }
 
     std::string nonce(aes_nonce_);
@@ -141,10 +141,10 @@ void MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
     if (mbedtls_aes_crypt_ctr(&aes_ctx_, packet.payload.size(), &nc_off, (uint8_t*)nonce.c_str(), stream_block,
         (uint8_t*)packet.payload.data(), (uint8_t*)&encrypted[nonce.size()]) != 0) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
-        return;
+        return false;
     }
 
-    udp_->Send(encrypted);
+    return udp_->Send(encrypted) > 0;
 }
 
 void MqttProtocol::CloseAudioChannel() {

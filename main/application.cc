@@ -543,16 +543,6 @@ void Application::Start() {
 
     audio_processor_->Initialize(codec);
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            // We do not have a send queue yet, but all packets are sent by the main task
-            // so we use the main task queue to limit the number of packets
-            if (main_tasks_.size() > MAX_AUDIO_PACKETS_IN_QUEUE) {
-                ESP_LOGW(TAG, "Too many main tasks = %u, skip sending audio...", main_tasks_.size());
-                return;
-            }
-        }
-
         background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
@@ -573,9 +563,13 @@ void Application::Start() {
                     }
                 }
 #endif
-                Schedule([this, packet = std::move(packet)]() {
-                    protocol_->SendAudio(packet);
-                });
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (audio_send_queue_.size() >= MAX_AUDIO_PACKETS_IN_QUEUE) {
+                    ESP_LOGW(TAG, "Too many audio packets in queue, drop the oldest packet");
+                    audio_send_queue_.pop_front();
+                }
+                audio_send_queue_.emplace_back(std::move(packet));
+                xEventGroupSetBits(event_group_, SEND_AUDIO_EVENT);
             });
         });
     });
@@ -686,11 +680,22 @@ void Application::Schedule(std::function<void()> callback) {
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
     while (true) {
-        auto bits = xEventGroupWaitBits(event_group_, SCHEDULE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
+        auto bits = xEventGroupWaitBits(event_group_, SCHEDULE_EVENT | SEND_AUDIO_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
+
+        if (bits & SEND_AUDIO_EVENT) {
+            std::unique_lock<std::mutex> lock(mutex_);
+            auto packets = std::move(audio_send_queue_);
+            lock.unlock();
+            for (auto& packet : packets) {
+                if (!protocol_->SendAudio(packet)) {
+                    break;
+                }
+            }
+        }
 
         if (bits & SCHEDULE_EVENT) {
             std::unique_lock<std::mutex> lock(mutex_);
-            std::list<std::function<void()>> tasks = std::move(main_tasks_);
+            auto tasks = std::move(main_tasks_);
             lock.unlock();
             for (auto& task : tasks) {
                 task();
@@ -792,7 +797,7 @@ void Application::OnAudioInput() {
         }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(30));
+    vTaskDelay(pdMS_TO_TICKS(OPUS_FRAME_DURATION_MS / 2));
 }
 
 void Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples) {

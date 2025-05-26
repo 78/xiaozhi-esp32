@@ -4,7 +4,8 @@
         {
             "name": "lichuang-dev",
             "sdkconfig_append": [
-                "CONFIG_USE_DEVICE_AEC=y"
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_IOT_PROTOCOL_MCP=y"
             ]
         }
     ]

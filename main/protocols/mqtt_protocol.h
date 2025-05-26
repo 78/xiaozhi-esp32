@@ -26,7 +26,7 @@ public:
     ~MqttProtocol();
 
     bool Start() override;
-    void SendAudio(const AudioStreamPacket& packet) override;
+    bool SendAudio(const AudioStreamPacket& packet) override;
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;
     bool IsAudioChannelOpened() const override;
