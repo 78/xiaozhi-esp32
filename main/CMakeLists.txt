@@ -179,6 +179,9 @@ endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
 endif()
+if(CONFIG_USE_WAKE_WORD_DETECT_NO_AFE)
+    list(APPEND SOURCES "audio_processing/wake_word_no_afe.cc")
+endif()
 
 # 根据Kconfig选择语言目录
 if(CONFIG_LANGUAGE_ZH_CN)
@@ -238,10 +241,38 @@ add_custom_target(lang_header ALL
 )
 
 if(CONFIG_BOARD_TYPE_ESP_HI)
+set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
+set(SPIFFS_DIR "${CMAKE_BINARY_DIR}/emoji")
+file(MAKE_DIRECTORY ${SPIFFS_DIR})
+
+# List all files to download
+set(FILES_TO_DOWNLOAD "")
+list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
+list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
+list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
+
+foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
+    set(REMOTE_FILE "${URL}/${FILENAME}")
+    set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
+    message(STATUS "Downloading ${FILENAME}")
+    file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
+         STATUS DOWNLOAD_STATUS)
+    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+    if(NOT STATUS_CODE EQUAL 0)
+        message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+    endif()
+endforeach()
+
 spiffs_create_partition_assets(
     assets_A
-    "./assets/emoji"
+    ${SPIFFS_DIR}
     FLASH_IN_PROJECT
-    MMAP_FILE_SUPPORT_FORMAT ".sbmp"
+    MMAP_FILE_SUPPORT_FORMAT ".aaf"
 )
 endif()

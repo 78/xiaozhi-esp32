@@ -1,53 +1,39 @@
 #pragma once
 
-#include "anim_player.h"
 #include "display/lcd_display.h"
 #include <memory>
 #include <functional>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-
-class LcdPanel {
-public:
-    static LcdPanel &GetInstance();
-    esp_lcd_panel_handle_t GetHandle() const;
-    void SetPanel(esp_lcd_panel_handle_t panel);
-    esp_err_t Flush(int x_start, int y_start, int x_end, int y_end, const void *color_data);
-
-private:
-    LcdPanel();
-    ~LcdPanel();
-
-    // Delete copy constructor and assignment operator
-    LcdPanel(const LcdPanel &) = delete;
-    LcdPanel &operator=(const LcdPanel &) = delete;
-
-    esp_lcd_panel_handle_t panel_;
-};
+#include "anim_player.h"
+#include "mmap_generate_emoji.h"
 
 namespace anim {
 
+class EmojiPlayer;
+
+using FlushIoReadyCallback = std::function<bool(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*)>;
+using FlushCallback = std::function<void(anim_player_handle_t, int, int, int, int, const void*)>;
+
 class EmojiPlayer {
 public:
-    flush_cb_t flush_cb;
-
-    EmojiPlayer(flush_cb_t flush_cb);
+    EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     ~EmojiPlayer();
 
-    void StartPlayer(int start_index, int end_index, bool repeat, int fps);
+    void StartPlayer(int aaf, bool repeat, int fps);
     void StopPlayer();
-    anim_player_handle_t GetPlayerHandle() const
-    {
-        return handle_;
-    }
 
 private:
-    anim_player_handle_t handle_;
+    static bool OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
+    static void OnFlush(anim_player_handle_t handle, int x_start, int y_start, int x_end, int y_end, const void *color_data);
+
+    anim_player_handle_t player_handle_;
+    mmap_assets_handle_t assets_handle_;
 };
 
 class EmojiWidget : public Display {
 public:
-    EmojiWidget();
+    EmojiWidget(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     virtual ~EmojiWidget();
 
     virtual void SetEmotion(const char* emotion) override;
@@ -56,10 +42,9 @@ public:
     {
         return player_.get();
     }
-    void RegisterPanelCallback(esp_lcd_panel_io_handle_t panel_io);
 
 private:
-    void InitializePlayer();
+    void InitializePlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 

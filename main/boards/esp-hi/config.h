@@ -22,6 +22,11 @@
 #define DISPLAY_RST_PIN             GPIO_NUM_NC
 #define DISPLAY_CS_PIN              GPIO_NUM_NC
 
+#define FL_GPIO_NUM                 GPIO_NUM_21
+#define FR_GPIO_NUM                 GPIO_NUM_19
+#define BL_GPIO_NUM                 GPIO_NUM_20
+#define BR_GPIO_NUM                 GPIO_NUM_18
+
 #define LCD_TYPE_ST7789_SERIAL
 #define DISPLAY_WIDTH           160
 #define DISPLAY_HEIGHT          80

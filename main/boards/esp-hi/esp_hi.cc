@@ -195,13 +195,18 @@ private:
 
         esp_lcd_panel_disp_on_off(panel, true);
 
-        // Store panel handle in singleton
-        LcdPanel::GetInstance().SetPanel(panel);
+        ESP_LOGI(TAG, "Create emoji widget, panel: %p, panel_io: %p", panel, panel_io);
+        display_ = new anim::EmojiWidget(panel, panel_io);
 
-        display_ = new anim::EmojiWidget();
-        display_->RegisterPanelCallback(panel_io);
-
-        servo_dog_ctrl_init();
+        servo_dog_ctrl_config_t config = {
+            .fl_gpio_num = FL_GPIO_NUM,
+            .fr_gpio_num = FR_GPIO_NUM,
+            .bl_gpio_num = BL_GPIO_NUM,
+            .br_gpio_num = BR_GPIO_NUM,
+        };
+#if CONFIG_ESP_CONSOLE_NONE
+        servo_dog_ctrl_init(&config);
+#endif
     }
 
 public:
