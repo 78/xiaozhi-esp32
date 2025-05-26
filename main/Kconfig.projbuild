@@ -110,8 +110,10 @@ choice BOARD_TYPE
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
-    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
-        bool "LILYGO T-CameraPlus-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+        bool "LILYGO T-CameraPlus-S3_V1_0_V1_1"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+        bool "LILYGO T-CameraPlus-S3_V1_2"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro-MVSRLora"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
