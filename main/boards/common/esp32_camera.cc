@@ -95,7 +95,39 @@ bool Esp32Camera::Capture() {
     }
     return true;
 }
+bool Esp32Camera::SetHMirror(bool enabled) {
+    sensor_t *s = esp_camera_sensor_get();
+    if (s == nullptr) {
+        ESP_LOGE(TAG, "Failed to get camera sensor");
+        return false;
+    }
+    
+    esp_err_t err = s->set_hmirror(s, enabled);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set horizontal mirror: %d", err);
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "Camera horizontal mirror set to: %s", enabled ? "enabled" : "disabled");
+    return true;
+}
 
+bool Esp32Camera::SetVFlip(bool enabled) {
+    sensor_t *s = esp_camera_sensor_get();
+    if (s == nullptr) {
+        ESP_LOGE(TAG, "Failed to get camera sensor");
+        return false;
+    }
+    
+    esp_err_t err = s->set_vflip(s, enabled);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set vertical flip: %d", err);
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "Camera vertical flip set to: %s", enabled ? "enabled" : "disabled");
+    return true;
+}
 /**
  * @brief 将摄像头捕获的图像发送到远程服务器进行AI分析和解释
  * 
