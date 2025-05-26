@@ -145,6 +145,8 @@ elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")  
 elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
     set(BOARD_TYPE "otto-robot")
+elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+    set(BOARD_TYPE "electron-bot")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

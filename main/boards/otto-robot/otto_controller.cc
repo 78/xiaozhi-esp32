@@ -31,6 +31,7 @@ private:
     TaskHandle_t action_task_handle_ = nullptr;
     QueueHandle_t action_queue_;
     bool has_hands_ = false;
+    bool is_action_in_progress_ = false;
 
     enum ActionType {
         ACTION_WALK = 1,
@@ -67,11 +68,12 @@ private:
     static void ActionTask(void* arg) {
         OttoController* controller = static_cast<OttoController*>(arg);
         OttoActionParams params;
-        controller->otto_.AttachServos();
 
         while (true) {
             if (xQueueReceive(controller->action_queue_, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
+                controller->is_action_in_progress_ = true;
+                controller->otto_.AttachServos();
 
                 switch (params.action_type) {
                     case ACTION_WALK:
@@ -134,20 +136,17 @@ private:
                         }
                         break;
                 }
-                vTaskDelay(pdMS_TO_TICKS(200));
                 controller->otto_.Home(params.action_type < ACTION_HANDS_UP);
+                controller->otto_.DetachServos();
+                controller->is_action_in_progress_ = false;
+            }
 
-            } else {
-                if (uxQueueMessagesWaiting(controller->action_queue_) == 0) {
-                    ESP_LOGI(TAG, "动作队列为空，任务完成");
-                    controller->otto_.Home(false);
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    controller->otto_.DetachServos();
-                    vTaskDelay(pdMS_TO_TICKS(1000));
-                    controller->action_task_handle_ = nullptr;
-                    vTaskDelete(NULL);
-                    break;
-                }
+            if (uxQueueMessagesWaiting(controller->action_queue_) == 0 &&
+                !controller->is_action_in_progress_) {
+                ESP_LOGI(TAG, "动作队列为空且没有动作正在执行，任务退出");
+                controller->action_task_handle_ = nullptr;
+                vTaskDelete(NULL);
+                break;
             }
             vTaskDelay(pdMS_TO_TICKS(20));
         }
@@ -161,7 +160,7 @@ public:
         has_hands_ = (LEFT_HAND_PIN != -1 && RIGHT_HAND_PIN != -1);
         ESP_LOGI(TAG, "Otto机器人初始化%s手部舵机", has_hands_ ? "带" : "不带");
 
-        otto_.Home(true);  // 初始化时完全复位，包括手部
+        otto_.Home(true);
         action_queue_ = xQueueCreate(10, sizeof(OttoActionParams));
 
         methods_.AddMethod("suspend", "清空动作队列,中断Otto机器人动作", ParameterList(),
@@ -171,12 +170,13 @@ public:
                                    vTaskDelete(action_task_handle_);
                                    action_task_handle_ = nullptr;
                                }
+                               is_action_in_progress_ = false;
                                xQueueReset(action_queue_);
-                               otto_.Home(true);  // 中断动作时完全复位
+                               otto_.Home(true);
                            });
 
         methods_.AddMethod(
-            "AIControl", "AI把机器人待执行动作加入队列,动作需要时间",
+            "AIControl", "AI把机器人待执行动作加入队列,动作需要时间，退下时挥挥手",
             ParameterList(
                 {Parameter("action_type",
                            "动作类型: 1=行走(前后), 2=转向（左右）, 3=跳跃, 4=摇摆, 5=太空步, "
@@ -186,13 +186,13 @@ public:
                            kValueTypeNumber, false),
                  Parameter("steps", "步数", kValueTypeNumber, false),
                  Parameter("speed", "速度 (越小越快500-3000)默认1000", kValueTypeNumber, false),
-                 Parameter("direction", "方向 (1=左, -1=右, 0=同时)", kValueTypeNumber, true),
+                 Parameter("direction", "方向 (1=左/前, -1=右/后, 0=同时)", kValueTypeNumber, true),
                  Parameter("amount",
-                           "动作幅度(最小10),"
+                           "动作幅度(除手臂摆动最小10),"
                            "行走时amount=0表示不摆动双手否则幅度50-170,转向时同理,"
                            "其他动作限制不一样:摇摆10-"
                            "50, 太空步15-40"
-                           "上下运动10-50, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, "
+                           "上下运动10-40, 脚尖摇摆10-50, 抖动5-25, 上升转弯5-15, 十字步20-50, "
                            "拍打10-30",
                            kValueTypeNumber, true)}),
             [this](const ParameterList& parameters) {
@@ -208,10 +208,7 @@ public:
                 direction = Limit(direction, -1, 1);
 
                 switch (action_type) {
-                    case ACTION_WALK:
-                        amount = Limit(amount, 0, 170);
-                        break;
-                    case ACTION_TURN:
+                    case ACTION_WALK | ACTION_TURN:
                         amount = Limit(amount, 0, 170);
                         break;
                     case ACTION_SWING:
@@ -221,7 +218,7 @@ public:
                         amount = Limit(amount, 15, 40);
                         break;
                     case ACTION_UPDOWN:
-                        amount = Limit(amount, 10, 50);
+                        amount = Limit(amount, 10, 40);
                         break;
                     case ACTION_TIPTOE_SWING:
                         amount = Limit(amount, 10, 50);
@@ -273,6 +270,7 @@ public:
     ~OttoController() {
         if (action_task_handle_ != nullptr) {
             vTaskDelete(action_task_handle_);
+            action_task_handle_ = nullptr;
         }
         vQueueDelete(action_queue_);
     }

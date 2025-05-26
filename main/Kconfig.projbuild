@@ -138,6 +138,8 @@ choice BOARD_TYPE
         bool "四博智联AI陪伴盒子"
     config BOARD_TYPE_MIXGO_NOVA
         bool "元控·青春"
+    config BOARD_TYPE_ELECTRON_BOT
+        bool "electronBot"
 endchoice
 
 choice DISPLAY_OLED_TYPE

@@ -1,0 +1,11 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "electron-bot",
+            "sdkconfig_append": [
+                "CONFIG_USE_GIF_EMOTION_STYLE=y"
+            ]
+        }
+    ]
+}
