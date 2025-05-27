@@ -44,6 +44,14 @@ Application::Application() {
     event_group_ = xEventGroupCreate();
     background_task_ = new BackgroundTask(4096 * 7);
 
+#if CONFIG_USE_DEVICE_AEC
+    aec_mode_ = kAecOnDeviceSide;
+#elif CONFIG_USE_SERVER_AEC
+    aec_mode_ = kAecOnServerSide;
+#else
+    aec_mode_ = kAecOff;
+#endif
+
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_ = std::make_unique<AfeAudioProcessor>();
 #else
@@ -285,7 +293,7 @@ void Application::ToggleChatState() {
                 return;
             }
 
-            SetListeningMode(realtime_chat_enabled_ ? kListeningModeRealtime : kListeningModeAutoStop);
+            SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
         Schedule([this]() {
@@ -358,8 +366,8 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
     opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
-    if (realtime_chat_enabled_) {
-        ESP_LOGI(TAG, "Realtime chat enabled, setting opus encoder complexity to 0");
+    if (aec_mode_ != kAecOff) {
+        ESP_LOGI(TAG, "AEC mode: %d, setting opus encoder complexity to 0", aec_mode_);
         opus_encoder_->SetComplexity(0);
     } else if (board.GetBoardType() == "ml307") {
         ESP_LOGI(TAG, "ML307 board detected, setting opus encoder complexity to 5");
@@ -403,6 +411,11 @@ void Application::Start() {
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
+
+    // Add MCP common tools before initializing the protocol
+#if CONFIG_IOT_PROTOCOL_MCP
+    McpServer::GetInstance().AddCommonTools();
+#endif
 
     if (ota_.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
@@ -608,7 +621,7 @@ void Application::Start() {
                 // Set the chat state to wake word detected
                 protocol_->SendWakeWordDetected(wake_word);
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-                SetListeningMode(realtime_chat_enabled_ ? kListeningModeRealtime : kListeningModeAutoStop);
+                SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);
             } else if (device_state_ == kDeviceStateActivating) {
@@ -999,6 +1012,33 @@ void Application::SendMcpMessage(const std::string& payload) {
     Schedule([this, payload]() {
         if (protocol_) {
             protocol_->SendMcpMessage(payload);
+        }
+    });
+}
+
+void Application::SetAecMode(AecMode mode) {
+    aec_mode_ = mode;
+    Schedule([this]() {
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        switch (aec_mode_) {
+        case kAecOff:
+            audio_processor_->EnableDeviceAec(false);
+            display->ShowNotification(Lang::Strings::RTC_MODE_OFF);
+            break;
+        case kAecOnServerSide:
+            audio_processor_->EnableDeviceAec(false);
+            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+            break;
+        case kAecOnDeviceSide:
+            audio_processor_->EnableDeviceAec(true);
+            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+            break;
+        }
+
+        // If the AEC mode is changed, close the audio channel
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
         }
     });
 }
