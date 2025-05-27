@@ -64,6 +64,8 @@ choice BOARD_TYPE
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
+    config BOARD_TYPE_DF_S3_AI_CAM
+        bool "DFRobot ESP32-S3 AI智能摄像头模块"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"
     config BOARD_TYPE_MAGICLICK_2P5
