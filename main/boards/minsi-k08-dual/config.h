@@ -40,4 +40,8 @@
 #define DISPLAY_OFFSET_Y  0
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+
+// A MCP Test: Control a lamp
+#define LAMP_GPIO GPIO_NUM_18
+
 #endif // _BOARD_CONFIG_H_

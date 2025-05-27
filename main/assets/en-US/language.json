@@ -51,6 +51,9 @@
 
         "VOLUME": "Volume ",
         "MUTED": "Muted",
-        "MAX_VOLUME": "Max volume"
+        "MAX_VOLUME": "Max volume",
+
+        "RTC_MODE_OFF": "AEC Off",
+        "RTC_MODE_ON": "AEC On"
     }
 }

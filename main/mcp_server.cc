@@ -16,7 +16,6 @@
 #define TAG "MCP"
 
 McpServer::McpServer() {
-    AddCommonTools();
 }
 
 McpServer::~McpServer() {
@@ -27,6 +26,10 @@ McpServer::~McpServer() {
 }
 
 void McpServer::AddCommonTools() {
+    // To speed up the response time, we add the common tools to the beginning of
+    // the tools list to utilize the prompt cache.
+    // Backup the original tools list and restore it after adding the common tools.
+    auto original_tools = std::move(tools_);
     auto& board = Board::GetInstance();
 
     AddTool("self.get_device_status",
@@ -96,9 +99,18 @@ void McpServer::AddCommonTools() {
                 return camera->Explain(question);
             });
     }
+
+    // Restore the original tools list to the end of the tools list
+    tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }
 
 void McpServer::AddTool(McpTool* tool) {
+    // Prevent adding duplicate tools
+    if (std::find_if(tools_.begin(), tools_.end(), [tool](const McpTool* t) { return t->name() == tool->name(); }) != tools_.end()) {
+        ESP_LOGW(TAG, "Tool %s already added", tool->name().c_str());
+        return;
+    }
+
     ESP_LOGI(TAG, "Add tool: %s", tool->name().c_str());
     tools_.push_back(tool);
 }

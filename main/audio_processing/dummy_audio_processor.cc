@@ -42,3 +42,9 @@ size_t DummyAudioProcessor::GetFeedSize() {
     // 返回一个固定的帧大小，比如 30ms 的数据
     return 30 * codec_->input_sample_rate() / 1000;
 }
+
+void DummyAudioProcessor::EnableDeviceAec(bool enable) {
+    if (enable) {
+        ESP_LOGE(TAG, "Device AEC is not supported");
+    }
+}
