@@ -106,6 +106,12 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
     config BOARD_TYPE_ESP32P4_NANO
         bool "Waveshare ESP32-P4-NANO"
+    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B"
+    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_3_4C
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C"
+    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4C
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4C"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -271,7 +277,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-    depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_3_4C || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4C)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
