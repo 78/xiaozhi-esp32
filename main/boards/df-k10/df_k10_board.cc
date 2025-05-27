@@ -110,7 +110,7 @@ private:
         btn_a_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
         btn_a_driver_->enable_power_save = false;
         btn_a_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
-            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
+            return !instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_2);
         };
         ESP_ERROR_CHECK(iot_button_create(&btn_a_config, btn_a_driver_, &btn_a));
         iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
@@ -140,7 +140,7 @@ private:
         btn_b_driver_ = (button_driver_t*)calloc(1, sizeof(button_driver_t));
         btn_b_driver_->enable_power_save = false;
         btn_b_driver_->get_key_level = [](button_driver_t *button_driver) -> uint8_t {
-            return instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
+            return !instance_->IoExpanderGetLevel(IO_EXPANDER_PIN_NUM_12);
         };
         ESP_ERROR_CHECK(iot_button_create(&btn_b_config, btn_b_driver_, &btn_b));
         iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {

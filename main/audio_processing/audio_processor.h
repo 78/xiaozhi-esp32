@@ -19,6 +19,7 @@ public:
     virtual void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) = 0;
     virtual void OnVadStateChange(std::function<void(bool speaking)> callback) = 0;
     virtual size_t GetFeedSize() = 0;
+    virtual void EnableDeviceAec(bool enable) = 0;
 };
 
 #endif

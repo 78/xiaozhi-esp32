@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "minsi-k08-dual",
+            "sdkconfig_append": []
+        }
+    ]
+}

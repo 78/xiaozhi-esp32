@@ -15,6 +15,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "protocols/websocket_protocol.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
+            "mcp_server.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
@@ -171,6 +172,12 @@ elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board)
     set(BOARD_TYPE "esp-s3-lcd-ev-board")
 elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
     set(BOARD_TYPE "zhengchen-1.54tft-wifi")
+elseif(CONFIG_BOARD_TYPE_MINSI_K08_DUAL)
+    set(BOARD_TYPE "minsi-k08-dual")
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
+    set(BOARD_TYPE "zhengchen-1.54tft-ml307")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
+    set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
