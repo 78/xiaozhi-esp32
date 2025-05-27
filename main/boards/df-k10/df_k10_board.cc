@@ -105,7 +105,7 @@ private:
     }
     void InitializeButtons() {
         instance_ = this;
-        
+
         // Button A
         button_config_t btn_a_config = {
             .long_press_time = 1000,
@@ -168,7 +168,7 @@ private:
     }
 
     void InitializeCamera() {
-        
+
         camera_config_t config = {};
         config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
         config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
@@ -198,7 +198,6 @@ private:
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new Esp32Camera(config);
-        camera_->SetVFlip(1);
     }
 
     void InitializeIli9341Display() {
