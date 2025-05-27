@@ -68,12 +68,12 @@ private:
     static void ActionTask(void* arg) {
         OttoController* controller = static_cast<OttoController*>(arg);
         OttoActionParams params;
+        controller->otto_.AttachServos();
 
         while (true) {
             if (xQueueReceive(controller->action_queue_, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
                 controller->is_action_in_progress_ = true;
-                controller->otto_.AttachServos();
 
                 switch (params.action_type) {
                     case ACTION_WALK:
@@ -137,17 +137,17 @@ private:
                         break;
                 }
                 controller->otto_.Home(params.action_type < ACTION_HANDS_UP);
-                controller->otto_.DetachServos();
+                // controller->otto_.DetachServos();
                 controller->is_action_in_progress_ = false;
             }
 
-            if (uxQueueMessagesWaiting(controller->action_queue_) == 0 &&
-                !controller->is_action_in_progress_) {
-                ESP_LOGI(TAG, "动作队列为空且没有动作正在执行，任务退出");
-                controller->action_task_handle_ = nullptr;
-                vTaskDelete(NULL);
-                break;
-            }
+            // if (uxQueueMessagesWaiting(controller->action_queue_) == 0 &&
+            //     !controller->is_action_in_progress_) {
+            //     ESP_LOGI(TAG, "动作队列为空且没有动作正在执行，任务退出");
+            //     controller->action_task_handle_ = nullptr;
+            //     vTaskDelete(NULL);
+            //     break;
+            // }
             vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
@@ -263,7 +263,8 @@ public:
 
     void StartActionTaskIfNeeded() {
         if (action_task_handle_ == nullptr) {
-            xTaskCreate(ActionTask, "otto_action", 1024 * 3, this, 4, &action_task_handle_);
+            xTaskCreate(ActionTask, "otto_action", 1024 * 3, this, configMAX_PRIORITIES - 1,
+                        &action_task_handle_);
         }
     }
 

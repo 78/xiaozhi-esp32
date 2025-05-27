@@ -224,7 +224,7 @@ void Otto::Home(bool hands_down) {
             }
         }
 
-        MoveServos(1000, homes);
+        MoveServos(500, homes);
         is_otto_resting_ = true;
     }
 
