@@ -63,8 +63,7 @@ public:
     virtual bool OpenAudioChannel() = 0;
     virtual void CloseAudioChannel() = 0;
     virtual bool IsAudioChannelOpened() const = 0;
-    virtual bool IsAudioChannelBusy() const;
-    virtual void SendAudio(const AudioStreamPacket& packet) = 0;
+    virtual bool SendAudio(const AudioStreamPacket& packet) = 0;
     virtual void SendWakeWordDetected(const std::string& wake_word);
     virtual void SendStartListening(ListeningMode mode);
     virtual void SendStopListening();
@@ -83,7 +82,6 @@ protected:
     int server_sample_rate_ = 24000;
     int server_frame_duration_ = 60;
     bool error_occurred_ = false;
-    bool busy_sending_audio_ = false;
     std::string session_id_;
     std::chrono::time_point<std::chrono::steady_clock> last_incoming_time_;
 

@@ -28,9 +28,9 @@ bool WebsocketProtocol::Start() {
     return true;
 }
 
-void WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
+bool WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
     if (websocket_ == nullptr) {
-        return;
+        return false;
     }
 
     if (version_ == 2) {
@@ -44,9 +44,7 @@ void WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
         bp2->payload_size = htonl(packet.payload.size());
         memcpy(bp2->payload, packet.payload.data(), packet.payload.size());
 
-        busy_sending_audio_ = true;
-        websocket_->Send(serialized.data(), serialized.size(), true);
-        busy_sending_audio_ = false;
+        return websocket_->Send(serialized.data(), serialized.size(), true);
     } else if (version_ == 3) {
         std::string serialized;
         serialized.resize(sizeof(BinaryProtocol3) + packet.payload.size());
@@ -56,13 +54,9 @@ void WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
         bp3->payload_size = htons(packet.payload.size());
         memcpy(bp3->payload, packet.payload.data(), packet.payload.size());
 
-        busy_sending_audio_ = true;
-        websocket_->Send(serialized.data(), serialized.size(), true);
-        busy_sending_audio_ = false;
+        return websocket_->Send(serialized.data(), serialized.size(), true);
     } else {
-        busy_sending_audio_ = true;
-        websocket_->Send(packet.payload.data(), packet.payload.size(), true);
-        busy_sending_audio_ = false;
+        return websocket_->Send(packet.payload.data(), packet.payload.size(), true);
     }
 }
 
@@ -104,7 +98,6 @@ bool WebsocketProtocol::OpenAudioChannel() {
         version_ = version;
     }
 
-    busy_sending_audio_ = false;
     error_occurred_ = false;
 
     websocket_ = Board::GetInstance().CreateWebSocket();

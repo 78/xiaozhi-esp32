@@ -3,6 +3,9 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+#include <driver/i2s_pdm.h>
+
+#include "config.h"
 
 static const char TAG[] = "Tcamerapluss3AudioCodec";
 
@@ -19,6 +22,20 @@ Tcamerapluss3AudioCodec::Tcamerapluss3AudioCodec(int input_sample_rate, int outp
     CreateVoiceHardware(mic_bclk, mic_ws, mic_data, spkr_bclk, spkr_lrclk, spkr_data);
 
     ESP_LOGI(TAG, "Tcamerapluss3AudioCodec initialized");
+
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+    gpio_config_t config_mic_spkr_en;
+    config_mic_spkr_en.pin_bit_mask = BIT64(AUDIO_MIC_SPKR_EN);
+    config_mic_spkr_en.mode = GPIO_MODE_OUTPUT;
+    config_mic_spkr_en.pull_up_en = GPIO_PULLUP_ENABLE;
+    config_mic_spkr_en.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    config_mic_spkr_en.intr_type = GPIO_INTR_DISABLE;
+#if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
+config_mic_spkr_en.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
+#endif
+    gpio_config(&config_mic_spkr_en);
+    gpio_set_level(AUDIO_MIC_SPKR_EN, 0);
+#endif
 }
 
 Tcamerapluss3AudioCodec::~Tcamerapluss3AudioCodec() {
@@ -41,9 +58,10 @@ void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_
     ESP_ERROR_CHECK(i2s_new_channel(&mic_chan_config, NULL, &rx_handle_));
     ESP_ERROR_CHECK(i2s_new_channel(&spkr_chan_config, &tx_handle_, NULL));
 
+    #ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
     i2s_std_config_t mic_config = {
         .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
+            .sample_rate_hz = (uint32_t)input_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
             #ifdef   I2S_HW_VERSION_2    
@@ -60,10 +78,28 @@ void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
-                .ws_inv = true // 默认右声道
+                .ws_inv = true // 默认右通道
             }
         }
     };
+
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &mic_config));
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+    i2s_pdm_rx_config_t mic_config = {
+        .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(static_cast<uint32_t>(input_sample_rate_)),
+        /* The data bit-width of PDM mode is fixed to 16 */
+        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {
+            .clk = mic_ws,
+            .din = mic_data,
+            .invert_flags = {
+                .clk_inv = false,
+            },
+        },
+    };
+
+    ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle_, &mic_config));
+#endif
 
     i2s_std_config_t spkr_config = {
         .clk_cfg ={
@@ -87,7 +123,6 @@ void Tcamerapluss3AudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_
         }
     };
 
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &mic_config));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &spkr_config));
     ESP_LOGI(TAG, "Voice hardware created");
 }

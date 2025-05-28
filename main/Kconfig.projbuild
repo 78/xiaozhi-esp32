@@ -64,6 +64,8 @@ choice BOARD_TYPE
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
+    config BOARD_TYPE_DF_S3_AI_CAM
+        bool "DFRobot ESP32-S3 AI智能摄像头模块"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"
     config BOARD_TYPE_MAGICLICK_2P5
@@ -112,8 +114,10 @@ choice BOARD_TYPE
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
-    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
-        bool "LILYGO T-CameraPlus-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+        bool "LILYGO T-CameraPlus-S3_V1_0_V1_1"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+        bool "LILYGO T-CameraPlus-S3_V1_2"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro-MVSRLora"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
@@ -160,10 +164,10 @@ choice BOARD_TYPE
         bool "乐鑫ESP S3 LCD EV Board开发板"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
         bool "征辰科技1.54(WIFI)"
-    config BOARD_TYPE_MINSI_K08_DUAL
-        bool "敏思科技K08(DUAL)"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
         bool "征辰科技1.54(ML307)"
+    config BOARD_TYPE_MINSI_K08_DUAL
+        bool "敏思科技K08(DUAL)"
     config BOARD_TYPE_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
 endchoice
@@ -286,7 +290,7 @@ config USE_SERVER_AEC
 
 choice IOT_PROTOCOL
     prompt "IoT Protocol"
-    default IOT_PROTOCOL_XIAOZHI
+    default IOT_PROTOCOL_MCP
     help
         IoT 协议，用于获取设备状态与发送控制指令
     config IOT_PROTOCOL_MCP

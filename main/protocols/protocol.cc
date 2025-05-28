@@ -130,8 +130,3 @@ bool Protocol::IsTimeout() const {
     }
     return timeout;
 }
-
-bool Protocol::IsAudioChannelBusy() const {
-    return busy_sending_audio_;
-}
-
