@@ -15,10 +15,6 @@
 #define TAG "Display"
 
 Display::Display() {
-    // Load theme from settings
-    Settings settings("display", false);
-    current_theme_name_ = settings.GetString("theme", "light");
-
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
         .callback = [](void *arg) {
@@ -34,20 +30,6 @@ Display::Display() {
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
 
-    // Update display timer
-    esp_timer_create_args_t update_display_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
-            display->Update();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "display_update_timer",
-        .skip_unhandled_events = true,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
-
     // Create a power management lock
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
     if (ret == ESP_ERR_NOT_SUPPORTED) {
@@ -61,10 +43,6 @@ Display::~Display() {
     if (notification_timer_ != nullptr) {
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
-    }
-    if (update_timer_ != nullptr) {
-        esp_timer_stop(update_timer_);
-        esp_timer_delete(update_timer_);
     }
 
     if (network_label_ != nullptr) {
@@ -110,7 +88,7 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::Update() {
+void Display::UpdateStatusBar(bool update_all) {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
@@ -171,21 +149,25 @@ void Display::Update() {
         }
     }
 
-    // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
-    auto device_state = Application::GetInstance().GetDeviceState();
-    static const std::vector<DeviceState> allowed_states = {
-        kDeviceStateIdle,
-        kDeviceStateStarting,
-        kDeviceStateWifiConfiguring,
-        kDeviceStateListening,
-        kDeviceStateActivating,
-    };
-    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
-        icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
-            DisplayLockGuard lock(this);
-            network_icon_ = icon;
-            lv_label_set_text(network_label_, network_icon_);
+    // 每 10 秒更新一次网络图标
+    static int seconds_counter = 0;
+    if (update_all || seconds_counter++ % 10 == 0) {
+        // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
+        auto device_state = Application::GetInstance().GetDeviceState();
+        static const std::vector<DeviceState> allowed_states = {
+            kDeviceStateIdle,
+            kDeviceStateStarting,
+            kDeviceStateWifiConfiguring,
+            kDeviceStateListening,
+            kDeviceStateActivating,
+        };
+        if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
+            icon = board.GetNetworkStateIcon();
+            if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
+                DisplayLockGuard lock(this);
+                network_icon_ = icon;
+                lv_label_set_text(network_label_, network_icon_);
+            }
         }
     }
 
@@ -247,6 +229,10 @@ void Display::SetIcon(const char* icon) {
         return;
     }
     lv_label_set_text(emotion_label_, icon);
+}
+
+void Display::SetPreviewImage(const lv_img_dsc_t* image) {
+    // Do nothing
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {

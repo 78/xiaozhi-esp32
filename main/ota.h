@@ -3,7 +3,6 @@
 
 #include <functional>
 #include <string>
-#include <map>
 
 #include <esp_err.h>
 #include "board.h"
@@ -13,7 +12,6 @@ public:
     Ota();
     ~Ota();
 
-    void SetHeader(const std::string& key, const std::string& value);
     bool CheckVersion();
     esp_err_t Activate();
     bool HasActivationChallenge() { return has_activation_challenge_; }
@@ -29,10 +27,9 @@ public:
     const std::string& GetCurrentVersion() const { return current_version_; }
     const std::string& GetActivationMessage() const { return activation_message_; }
     const std::string& GetActivationCode() const { return activation_code_; }
-    const std::string& GetCheckVersionUrl() const { return check_version_url_; }
+    std::string GetCheckVersionUrl();
 
 private:
-    std::string check_version_url_;
     std::string activation_message_;
     std::string activation_code_;
     bool has_new_version_ = false;
@@ -48,7 +45,6 @@ private:
     std::string activation_challenge_;
     std::string serial_number_;
     int activation_timeout_ms_ = 30000;
-    std::map<std::string, std::string> headers_;
 
     void Upgrade(const std::string& firmware_url);
     std::function<void(int progress, size_t speed)> upgrade_callback_;

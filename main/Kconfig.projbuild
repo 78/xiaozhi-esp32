@@ -8,7 +8,7 @@ config OTA_URL
 
 
 choice
-    prompt "语言选择"
+    prompt "Default Language"
     default LANGUAGE_ZH_CN
     help
         Select device display language
@@ -64,6 +64,8 @@ choice BOARD_TYPE
         bool "立创·实战派ESP32-C3开发板"
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
+    config BOARD_TYPE_DF_S3_AI_CAM
+        bool "DFRobot ESP32-S3 AI智能摄像头模块"
     config BOARD_TYPE_MAGICLICK_2P4
         bool "神奇按钮 Magiclick_2.4"
     config BOARD_TYPE_MAGICLICK_2P5
@@ -110,8 +112,10 @@ choice BOARD_TYPE
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
-    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3
-        bool "LILYGO T-CameraPlus-S3"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+        bool "LILYGO T-CameraPlus-S3_V1_0_V1_1"
+    config BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+        bool "LILYGO T-CameraPlus-S3_V1_2"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro-MVSRLora"
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
@@ -160,6 +164,10 @@ choice BOARD_TYPE
         bool "征辰科技1.54(WIFI)"
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
         bool "征辰科技1.54(ML307)"
+    config BOARD_TYPE_MINSI_K08_DUAL
+        bool "敏思科技K08(DUAL)"
+    config BOARD_TYPE_ESP32_S3_1_54_MUMA
+        bool "Spotpear ESP32-S3-1.54-MUMA"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -245,37 +253,48 @@ choice DISPLAY_ESP32S3_KORVO2_V3
 endchoice
 
 config USE_WECHAT_MESSAGE_STYLE
-    bool "使用微信聊天界面风格"
+    bool "Enable WeChat Message Style"
     default n
     help
         使用微信聊天界面风格
 
 config USE_WAKE_WORD_DETECT
-    bool "启用唤醒词检测"
+    bool "Enable Wake Word Detection"
     default y
     depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_AUDIO_PROCESSOR
-    bool "启用音频降噪、增益处理"
+    bool "Enable Audio Noise Reduction"
     default y
     depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 && SPIRAM
     help
         需要 ESP32 S3 与 AFE 支持
 
 config USE_DEVICE_AEC
-    bool "在通话过程中启用设备端 AEC"
+    bool "Enable Device-Side AEC"
     default n
     depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
 config USE_SERVER_AEC
-    bool "在通话过程中启用服务器端 AEC"
+    bool "Enable Server-Side AEC"
     default n
     depends on USE_AUDIO_PROCESSOR
     help
         启用服务器端 AEC，需要服务器支持
+
+choice IOT_PROTOCOL
+    prompt "IoT Protocol"
+    default IOT_PROTOCOL_MCP
+    help
+        IoT 协议，用于获取设备状态与发送控制指令
+    config IOT_PROTOCOL_MCP
+        bool "MCP协议 2024-11-05"
+    config IOT_PROTOCOL_XIAOZHI
+        bool "小智IoT协议 1.0"
+endchoice
 
 endmenu
