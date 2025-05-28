@@ -1,0 +1,10 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-toto-mb",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}

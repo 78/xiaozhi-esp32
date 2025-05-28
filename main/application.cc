@@ -495,6 +495,11 @@ void Application::Start() {
                 Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());
                 });
+                auto& thing_manager = iot::ThingManager::GetInstance();
+                auto command = cJSON_CreateObject();
+                cJSON_AddStringToObject(command, std::string("name").c_str(), std::string("MatrixScreen").c_str());
+                cJSON_AddStringToObject(command, std::string("method").c_str(), std::string("ShowAnim").c_str());
+                thing_manager.Invoke(command);
             }
 #if CONFIG_IOT_PROTOCOL_MCP
         } else if (strcmp(type->valuestring, "mcp") == 0) {
