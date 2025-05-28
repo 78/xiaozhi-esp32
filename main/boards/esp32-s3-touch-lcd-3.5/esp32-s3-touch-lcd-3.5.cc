@@ -5,8 +5,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
-
+#include "mcp_server.h"
 
 #include <esp_log.h>
 #include "i2c_device.h"
@@ -233,13 +232,16 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("BoardControl"));
+    // 初始化工具
+    void InitializeTools() {
+        auto &mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.system.reconfigure_wifi",
+            "Reboot the device and enter WiFi configuration mode.\n"
+            "**CAUTION** You must ask the user to confirm this action.",
+            PropertyList(), [this](const PropertyList& properties) {
+                ResetWifiConfiguration();
+                return true;
+            });
     }
 
 public:
@@ -257,7 +259,7 @@ public:
             esp_restart();
         }
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
         GetBacklight()->RestoreBrightness();
     }
 

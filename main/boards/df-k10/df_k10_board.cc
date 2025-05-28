@@ -7,6 +7,8 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "esp32_camera.h"
+
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
 
@@ -30,6 +32,8 @@ private:
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
+    Esp32Camera* camera_;
+
     button_driver_t* btn_a_driver_ = nullptr;
     button_driver_t* btn_b_driver_ = nullptr;
 
@@ -101,7 +105,7 @@ private:
     }
     void InitializeButtons() {
         instance_ = this;
-        
+
         // Button A
         button_config_t btn_a_config = {
             .long_press_time = 1000,
@@ -163,6 +167,39 @@ private:
         }, this);
     }
 
+    void InitializeCamera() {
+
+        camera_config_t config = {};
+        config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.pin_d0 = CAMERA_PIN_D2;
+        config.pin_d1 = CAMERA_PIN_D3;
+        config.pin_d2 = CAMERA_PIN_D4;
+        config.pin_d3 = CAMERA_PIN_D5;
+        config.pin_d4 = CAMERA_PIN_D6;
+        config.pin_d5 = CAMERA_PIN_D7;
+        config.pin_d6 = CAMERA_PIN_D8;
+        config.pin_d7 = CAMERA_PIN_D9;
+        config.pin_xclk = CAMERA_PIN_XCLK;
+        config.pin_pclk = CAMERA_PIN_PCLK;
+        config.pin_vsync = CAMERA_PIN_VSYNC;
+        config.pin_href = CAMERA_PIN_HREF;
+        config.pin_sccb_sda = -1;  // 这里如果写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_scl = CAMERA_PIN_SIOC;
+        config.sccb_i2c_port = 1;               //  这里如果写1 默认使用I2C1
+        config.pin_pwdn = CAMERA_PIN_PWDN;
+        config.pin_reset = CAMERA_PIN_RESET;
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_VGA;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
+        camera_ = new Esp32Camera(config);
+    }
+
     void InitializeIli9341Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -217,6 +254,12 @@ public:
         InitializeIli9341Display();
         InitializeButtons();
         InitializeIot();
+        InitializeCamera();
+
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+#endif
     }
 
     virtual Led* GetLed() override {
@@ -239,6 +282,10 @@ public:
                     AUDIO_CODEC_ES7210_ADDR,
                     AUDIO_INPUT_REFERENCE);
         return &audio_codec;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 
     virtual Display *GetDisplay() override {

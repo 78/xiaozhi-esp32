@@ -30,6 +30,12 @@
 #define SEND_AUDIO_EVENT (1 << 1)
 #define CHECK_NEW_VERSION_DONE_EVENT (1 << 2)
 
+enum AecMode {
+    kAecOff,
+    kAecOnDeviceSide,
+    kAecOnServerSide,
+};
+
 enum DeviceState {
     kDeviceStateUnknown,
     kDeviceStateStarting,
@@ -73,6 +79,8 @@ public:
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
+    void SetAecMode(AecMode mode);
+    AecMode GetAecMode() const { return aec_mode_; }
 
 private:
     Application();
@@ -90,11 +98,8 @@ private:
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
-#if CONFIG_USE_DEVICE_AEC || CONFIG_USE_SERVER_AEC
-    bool realtime_chat_enabled_ = true;
-#else
-    bool realtime_chat_enabled_ = false;
-#endif
+    AecMode aec_mode_ = kAecOff;
+
     bool aborted_ = false;
     bool voice_detected_ = false;
     bool busy_decoding_audio_ = false;
