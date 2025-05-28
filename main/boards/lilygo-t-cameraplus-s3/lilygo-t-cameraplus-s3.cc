@@ -253,13 +253,14 @@ private:
         config.pin_reset = RESET_GPIO_NUM;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
         config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_VGA;
+        config.frame_size = FRAMESIZE_240X240;
         config.jpeg_quality = 12;
         config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new Esp32Camera(config);
+        camera_->SetVFlip(1); // 解决摄像头倒置问题
     }
 
 public:
