@@ -260,7 +260,8 @@ private:
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new Esp32Camera(config);
-        camera_->SetVFlip(1); // 解决摄像头倒置问题
+        camera_->SetVFlip(1);
+        camera_->SetHMirror(1);
     }
 
 public:
