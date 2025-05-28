@@ -108,10 +108,8 @@ choice BOARD_TYPE
         bool "Waveshare ESP32-P4-NANO"
     config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B"
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_3_4C
-        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C"
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4C
-        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4C"
+    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C or ESP32-P4-WIFI6-Touch-LCD-4C"
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
@@ -199,7 +197,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -238,6 +236,10 @@ choice DISPLAY_LCD_TYPE
         bool "Waveshare 101M-8001280-IPS-CT-K Display"
     config LCD_TYPE_800_1280_10_1_INCH_A
         bool "Waveshare 10.1-DSI-TOUCH-A Display"
+    config LCD_TYPE_800_800_3_4_INCH
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C with 800*800 3.4inch round display"
+    config LCD_TYPE_720_720_4_INCH
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4C with 720*720 4inch round display"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
 endchoice
@@ -277,7 +279,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_3_4C || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4C)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 

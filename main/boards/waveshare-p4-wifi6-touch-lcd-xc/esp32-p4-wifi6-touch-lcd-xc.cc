@@ -18,12 +18,12 @@
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
 #include "esp_lcd_touch_gt911.h"
-#define TAG "WaveshareEsp32p43inch4c"
+#define TAG "WaveshareEsp32p4xc"
 
 LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
 
-class WaveshareEsp32p43inch4c : public WifiBoard {
+class WaveshareEsp32p4xc : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
@@ -173,7 +173,7 @@ private:
     }
 
 public:
-    WaveshareEsp32p43inch4c() :
+    WaveshareEsp32p4xc() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeIot();
@@ -210,4 +210,4 @@ public:
     }
 };
 
-DECLARE_BOARD(WaveshareEsp32p43inch4c);
+DECLARE_BOARD(WaveshareEsp32p4xc);
