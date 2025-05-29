@@ -93,8 +93,8 @@ private:
             {2606, 100}
         };
         // 低于最低值时
-        if (average_adc < levels[1].adc) {
-            battery_level_ = 20;
+        if (average_adc < levels[0].adc) {
+            battery_level_ = 0;
         }
         // 高于最高值时
         else if (average_adc >= levels[5].adc) {
