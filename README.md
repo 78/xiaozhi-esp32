@@ -147,3 +147,48 @@
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
  </picture>
 </a>
+
+## Client-Id 工作流程
+
+### 首次烧录
+1. Python脚本获取设备MAC地址并注册设备
+2. API返回唯一的`client_id`
+3. `client_id`写入到`sdkconfig`配置文件中：`CONFIG_WEBSOCKET_CLIENT_ID="your_client_id"`
+4. 编译并烧录固件
+5. 设备首次启动时，`SystemInfo::GetClientId()`检测到NVS中没有Client-Id
+6. 从配置中读取`CONFIG_WEBSOCKET_CLIENT_ID`并存储到NVS中
+7. 日志输出：`Client-Id stored to NVS from configuration: your_client_id`
+
+### 后续OTA升级
+1. 设备启动时，`SystemInfo::GetClientId()`首先检查NVS
+2. 从NVS中读取到之前存储的Client-Id
+3. 日志输出：`Client-Id loaded from NVS: your_client_id`
+4. 即使新固件没有`CONFIG_WEBSOCKET_CLIENT_ID`配置，也能正常工作
+
+### 向服务端通信
+使用以下两个标识符确保设备唯一性：
+- `SystemInfo::GetMacAddress()` - 设备硬件MAC地址
+- `SystemInfo::GetClientId()` - 永久唯一的Client-Id（存储在NVS中）
+
+### 日志示例
+
+**首次启动（有CONFIG_WEBSOCKET_CLIENT_ID）：**
+```
+I SystemInfo: No Client-Id found in NVS, checking configuration...
+I SystemInfo: Found Client-Id in configuration: abc123def456
+I SystemInfo: Client-Id stored to NVS from configuration: abc123def456
+I WS: Using Client-Id for WebSocket connection: abc123def456
+```
+
+**后续启动（可能没有CONFIG_WEBSOCKET_CLIENT_ID）：**
+```
+I SystemInfo: Client-Id loaded from NVS: abc123def456
+I WS: Using Client-Id for WebSocket connection: abc123def456
+```
+
+**没有任何Client-Id时的降级处理：**
+```
+W SystemInfo: CONFIG_WEBSOCKET_CLIENT_ID not defined in this firmware
+W SystemInfo: No Client-Id available, will use Board UUID as fallback
+W WS: No stored Client-Id found, using Board UUID as fallback: 12345678-abcd-1234-efgh-123456789abc
+```

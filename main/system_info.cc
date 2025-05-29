@@ -8,6 +8,8 @@
 #include <esp_partition.h>
 #include <esp_app_desc.h>
 #include <esp_ota_ops.h>
+#include <nvs_flash.h>
+#include <nvs.h>
 
 
 #define TAG "SystemInfo"
@@ -35,6 +37,65 @@ std::string SystemInfo::GetMacAddress() {
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return std::string(mac_str);
+}
+
+std::string SystemInfo::GetClientId() {
+    // 尝试从NVS读取存储的Client-Id
+    std::string client_id;
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("websocket", NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK) {
+        size_t required_size = 0;
+        err = nvs_get_str(nvs_handle, "client_id", NULL, &required_size);
+        if (err == ESP_OK && required_size > 0) {
+            char* client_id_buf = (char*)malloc(required_size);
+            if (client_id_buf != NULL) {
+                err = nvs_get_str(nvs_handle, "client_id", client_id_buf, &required_size);
+                if (err == ESP_OK) {
+                    client_id = client_id_buf;
+                    ESP_LOGI(TAG, "Client-Id loaded from NVS: %s", client_id.c_str());
+                }
+                free(client_id_buf);
+            }
+        }
+        
+        // 只有在NVS中没有Client-Id时，才尝试从配置中获取并存储
+        if (client_id.empty()) {
+            ESP_LOGI(TAG, "No Client-Id found in NVS, checking configuration...");
+#ifdef CONFIG_WEBSOCKET_CLIENT_ID
+            std::string config_client_id = CONFIG_WEBSOCKET_CLIENT_ID;
+            if (!config_client_id.empty()) {
+                ESP_LOGI(TAG, "Found Client-Id in configuration: %s", config_client_id.c_str());
+                err = nvs_set_str(nvs_handle, "client_id", config_client_id.c_str());
+                if (err == ESP_OK) {
+                    err = nvs_commit(nvs_handle);
+                    if (err == ESP_OK) {
+                        client_id = config_client_id;
+                        ESP_LOGI(TAG, "Client-Id stored to NVS from configuration: %s", client_id.c_str());
+                    } else {
+                        ESP_LOGE(TAG, "Failed to commit client_id to NVS: %s", esp_err_to_name(err));
+                    }
+                } else {
+                    ESP_LOGE(TAG, "Failed to set client_id in NVS: %s", esp_err_to_name(err));
+                }
+            } else {
+                ESP_LOGW(TAG, "CONFIG_WEBSOCKET_CLIENT_ID is empty");
+            }
+#else
+            ESP_LOGW(TAG, "CONFIG_WEBSOCKET_CLIENT_ID not defined in this firmware");
+#endif
+        }
+        
+        nvs_close(nvs_handle);
+    } else {
+        ESP_LOGE(TAG, "Failed to open NVS for client_id: %s", esp_err_to_name(err));
+    }
+    
+    if (client_id.empty()) {
+        ESP_LOGW(TAG, "No Client-Id available, will use Board UUID as fallback");
+    }
+    
+    return client_id;
 }
 
 std::string SystemInfo::GetChipModelName() {

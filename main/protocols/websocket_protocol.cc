@@ -2,6 +2,7 @@
 #include "board.h"
 #include "system_info.h"
 #include "application.h"
+#include "ota.h"
 
 #include <cstring>
 #include <cJSON.h>
@@ -64,24 +65,42 @@ bool WebsocketProtocol::OpenAudioChannel() {
     }
 
     error_occurred_ = false;
-    // std::string url = CONFIG_WEBSOCKET_URL;
-    // std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
-    // websocket_ = Board::GetInstance().CreateWebSocket();
-    // websocket_->SetHeader("Authorization", token.c_str());
-    // websocket_->SetHeader("Protocol-Version", "1");
-    // websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    // websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
-    std::string url = CONFIG_WEBSOCKET_URL;
-    std::string token = "Bearer " + std::string(CONFIG_WEBSOCKET_ACCESS_TOKEN);
+    
+    // 从OTA获取websocket配置
+    auto& application = Application::GetInstance();
+    auto& ota = application.GetOta();
+    
+    std::string url;
+    std::string token;
+    
+    if (ota.HasWebsocketConfig()) {
+        url = ota.GetWebsocketUrl();
+        token = "Bearer " + ota.GetWebsocketToken();
+        ESP_LOGI(TAG, "Using websocket config from OTA: %s", url.c_str());
+    } else {
+        // 如果OTA中没有配置，则报错，因为现在必须从OTA获取配置
+        ESP_LOGE(TAG, "No websocket config found in OTA response");
+        SetError(Lang::Strings::SERVER_ERROR);
+        return false;
+    }
+    
     websocket_ = Board::GetInstance().CreateWebSocket();
     websocket_->SetHeader("Authorization", token.c_str());
     websocket_->SetHeader("Protocol-Version", "1");
     websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    #ifdef CONFIG_WEBSOCKET_CLIENT_ID
-        websocket_->SetHeader("Client-Id", CONFIG_WEBSOCKET_CLIENT_ID);
-    #else
-        websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
-    #endif
+    
+    // 尝试获取存储的Client-Id
+    std::string client_id = SystemInfo::GetClientId();
+    
+    // 如果没有Client-Id，使用Board UUID作为备用
+    if (client_id.empty()) {
+        client_id = Board::GetInstance().GetUuid();
+        ESP_LOGW(TAG, "No stored Client-Id found, using Board UUID as fallback: %s", client_id.c_str());
+    } else {
+        ESP_LOGI(TAG, "Using Client-Id for WebSocket connection: %s", client_id.c_str());
+    }
+    
+    websocket_->SetHeader("Client-Id", client_id.c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {

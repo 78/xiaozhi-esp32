@@ -210,7 +210,7 @@ def register_device(mac_address):
         return None, None
 
 def update_config(token, websocket_url, client_id=None):
-    """直接更新sdkconfig文件中的设置"""
+    """更新sdkconfig文件中的连接类型设置和Client-Id"""
     try:
         print("正在更新sdkconfig配置...")
         
@@ -221,29 +221,6 @@ def update_config(token, websocket_url, client_id=None):
         # 使用正则表达式替换配置项
         import re
         
-        # 替换WebSocket URL
-        content = re.sub(r'CONFIG_WEBSOCKET_URL="[^"]*"',
-                        f'CONFIG_WEBSOCKET_URL="{websocket_url}"',
-                        content)
-        
-        # 替换Access Token
-        content = re.sub(r'CONFIG_WEBSOCKET_ACCESS_TOKEN="[^"]*"',
-                        f'CONFIG_WEBSOCKET_ACCESS_TOKEN="{token}"',
-                        content)
-        
-        # 添加或替换 Client ID (如果提供)
-        if client_id:
-            if "CONFIG_WEBSOCKET_CLIENT_ID=" in content:
-                content = re.sub(r'CONFIG_WEBSOCKET_CLIENT_ID="[^"]*"',
-                                f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"',
-                                content)
-            else:
-                # 如果配置中不存在该项，在适当位置添加它
-                insert_pos = content.find("CONFIG_WEBSOCKET_ACCESS_TOKEN=")
-                if insert_pos > 0:
-                    line_end = content.find("\n", insert_pos)
-                    content = content[:line_end+1] + f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"\n' + content[line_end+1:]
-        
         # 确保WebSocket模式启用
         content = re.sub(r'# CONFIG_CONNECTION_TYPE_WEBSOCKET is not set',
                         'CONFIG_CONNECTION_TYPE_WEBSOCKET=y',
@@ -253,15 +230,27 @@ def update_config(token, websocket_url, client_id=None):
             content = content.replace('CONFIG_CONNECTION_TYPE_MQTT_UDP=y', 
                                     '# CONFIG_CONNECTION_TYPE_MQTT_UDP is not set')
         
+        # 设置Client-Id配置
+        if client_id:
+            client_id_config = f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"'
+            # 查找并替换现有的CLIENT_ID配置
+            if 'CONFIG_WEBSOCKET_CLIENT_ID=' in content:
+                content = re.sub(r'CONFIG_WEBSOCKET_CLIENT_ID=.*', client_id_config, content)
+            else:
+                # 如果没有找到，在CONNECTION_TYPE_WEBSOCKET配置后添加
+                content = re.sub(r'(CONFIG_CONNECTION_TYPE_WEBSOCKET=y)',
+                               r'\1\n' + client_id_config,
+                               content)
+        
         # 写回sdkconfig文件
         with open("sdkconfig", "w", encoding="utf-8") as f:
             f.write(content)
         
         print(f"已更新sdkconfig:")
-        print(f"- WebSocket URL: {websocket_url}")
-        print(f"- Access Token: {token}")
+        print(f"- 连接类型: WebSocket")
         if client_id:
-            print(f"- Client ID: {client_id}")
+            print(f"- Client-Id: {client_id}")
+        print(f"- WebSocket URL和Token将从OTA接口动态获取")
         
         return True
     except Exception as e:
@@ -370,8 +359,7 @@ def main():
         print("无法获取设备token，退出")
         return 1
     
-    # 使用API返回的clientId，如果API没返回，脚本中已有降级处理
-    # 3. 更新SDK配置
+    # 3. 更新SDK配置，将client_id写入配置作为设备的永久标识符
     if not update_config(token, args.websocket_url, client_id):
         print("更新配置失败，退出")
         return 1
@@ -389,8 +377,8 @@ def main():
     print("===== 设备自动烧录完成 =====")
     print(f"串口: {port}")
     print(f"MAC地址: {mac_address}")
-    print(f"Token: {token}")
-    print(f"Websocket URL: {args.websocket_url}")
+    print(f"Client-Id: {client_id}")
+    print(f"设备已入库，Client-Id已写入配置作为永久标识符")
     return 0
 
 if __name__ == "__main__":

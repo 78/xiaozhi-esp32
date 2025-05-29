@@ -383,107 +383,61 @@ def register_device(mac_address):
     return None, None, None
 
 def update_config(token, websocket_url, client_id=None):
-    """直接更新sdkconfig文件中的设置"""
+    """更新sdkconfig文件中的连接类型设置和Client-Id"""
     try:
         logger.info("正在更新sdkconfig配置...")
         
+        # 确定sdkconfig文件路径
         sdkconfig_path = "sdkconfig"
-        if not os.path.exists(sdkconfig_path):
-            logger.error(f"找不到sdkconfig文件: {sdkconfig_path}")
-            logger.info("请确保在项目根目录运行此脚本")
-            return False
-            
-        # 备份原始文件
-        backup_path = f"{sdkconfig_path}.bak"
+        backup_path = "sdkconfig.backup"
+        
+        # 创建备份
         try:
-            with open(sdkconfig_path, "r", encoding="utf-8") as src:
-                with open(backup_path, "w", encoding="utf-8") as dst:
-                    dst.write(src.read())
-            logger.info(f"已创建配置文件备份: {backup_path}")
+            if os.path.exists(sdkconfig_path):
+                with open(sdkconfig_path, "r", encoding="utf-8") as src:
+                    with open(backup_path, "w", encoding="utf-8") as dst:
+                        dst.write(src.read())
+                logger.info("已创建配置文件备份")
         except Exception as e:
-            logger.warning(f"创建配置文件备份失败: {e}")
+            logger.warning(f"创建备份文件失败: {e}")
         
         # 读取sdkconfig文件内容
-        try:
-            with open(sdkconfig_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except UnicodeDecodeError:
-            logger.warning("UTF-8解码失败，尝试其他编码...")
-            with open(sdkconfig_path, "r", encoding="latin-1") as f:
-                content = f.read()
+        with open(sdkconfig_path, "r", encoding="utf-8") as f:
+            content = f.read()
         
         # 使用正则表达式替换配置项
         import re
-        
-        # 替换WebSocket URL
-        content = re.sub(r'CONFIG_WEBSOCKET_URL="[^"]*"',
-                        f'CONFIG_WEBSOCKET_URL="{websocket_url}"',
-                        content)
-        
-        # 如果没有找到WebSocket URL配置项，则添加它
-        if 'CONFIG_WEBSOCKET_URL=' not in content:
-            content += f'\nCONFIG_WEBSOCKET_URL="{websocket_url}"\n'
-        
-        # 替换Access Token
-        content = re.sub(r'CONFIG_WEBSOCKET_ACCESS_TOKEN="[^"]*"',
-                        f'CONFIG_WEBSOCKET_ACCESS_TOKEN="{token}"',
-                        content)
-                        
-        # 如果没有找到Access Token配置项，则添加它
-        if 'CONFIG_WEBSOCKET_ACCESS_TOKEN=' not in content:
-            content += f'\nCONFIG_WEBSOCKET_ACCESS_TOKEN="{token}"\n'
-        
-        # 添加或替换 Client ID (如果提供)
-        if client_id:
-            if "CONFIG_WEBSOCKET_CLIENT_ID=" in content:
-                content = re.sub(r'CONFIG_WEBSOCKET_CLIENT_ID="[^"]*"',
-                                f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"',
-                                content)
-            else:
-                # 如果配置中不存在该项，在适当位置添加它
-                insert_pos = content.find("CONFIG_WEBSOCKET_ACCESS_TOKEN=")
-                if insert_pos > 0:
-                    line_end = content.find("\n", insert_pos)
-                    content = content[:line_end+1] + f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"\n' + content[line_end+1:]
-                else:
-                    content += f'\nCONFIG_WEBSOCKET_CLIENT_ID="{client_id}"\n'
         
         # 确保WebSocket模式启用
         content = re.sub(r'# CONFIG_CONNECTION_TYPE_WEBSOCKET is not set',
                         'CONFIG_CONNECTION_TYPE_WEBSOCKET=y',
                         content)
                         
-        if 'CONFIG_CONNECTION_TYPE_WEBSOCKET=y' not in content:
-            content += '\nCONFIG_CONNECTION_TYPE_WEBSOCKET=y\n'
-        
         if 'CONFIG_CONNECTION_TYPE_MQTT_UDP=y' in content:
             content = content.replace('CONFIG_CONNECTION_TYPE_MQTT_UDP=y', 
                                     '# CONFIG_CONNECTION_TYPE_MQTT_UDP is not set')
         
+        # 设置Client-Id配置
+        if client_id:
+            client_id_config = f'CONFIG_WEBSOCKET_CLIENT_ID="{client_id}"'
+            # 查找并替换现有的CLIENT_ID配置
+            if 'CONFIG_WEBSOCKET_CLIENT_ID=' in content:
+                content = re.sub(r'CONFIG_WEBSOCKET_CLIENT_ID=.*', client_id_config, content)
+            else:
+                # 如果没有找到，在CONNECTION_TYPE_WEBSOCKET配置后添加
+                content = re.sub(r'(CONFIG_CONNECTION_TYPE_WEBSOCKET=y)',
+                               r'\1\n' + client_id_config,
+                               content)
+        
         # 写回sdkconfig文件
-        try:
-            with open(sdkconfig_path, "w", encoding="utf-8") as f:
-                f.write(content)
-        except Exception as e:
-            logger.error(f"写入配置文件时发生错误: {e}")
-            logger.info("尝试恢复备份文件...")
-            
-            try:
-                if os.path.exists(backup_path):
-                    with open(backup_path, "r", encoding="utf-8") as src:
-                        with open(sdkconfig_path, "w", encoding="utf-8") as dst:
-                            dst.write(src.read())
-                    logger.info("已恢复原始配置文件")
-                    return False
-            except Exception as restore_error:
-                logger.error(f"恢复备份文件失败: {restore_error}")
-            return False
+        with open(sdkconfig_path, "w", encoding="utf-8") as f:
+            f.write(content)
         
         logger.info(f"已更新sdkconfig:")
-        logger.info(f"- WebSocket URL: {websocket_url}")
-        logger.info(f"- Access Token: {token}")
+        logger.info(f"- 连接类型: WebSocket")
         if client_id:
-            logger.info(f"- Client ID: {client_id}")
+            logger.info(f"- Client-Id: {client_id}")
+        logger.info(f"- WebSocket URL和Token将从OTA接口动态获取")
         
         return True
     except Exception as e:

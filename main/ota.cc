@@ -9,6 +9,8 @@
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
 #include <esp_app_format.h>
+#include <nvs_flash.h>
+#include <nvs.h>
 
 #include <cstring>
 #include <vector>
@@ -129,6 +131,20 @@ bool Ota::CheckVersion() {
             tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
             settimeofday(&tv, NULL);
             has_server_time_ = true;
+        }
+    }
+
+    has_websocket_config_ = false;
+    cJSON *websocket = cJSON_GetObjectItem(root, "websocket");
+    if (websocket != NULL) {
+        cJSON *url = cJSON_GetObjectItem(websocket, "url");
+        cJSON *token = cJSON_GetObjectItem(websocket, "token");
+        
+        if (url != NULL && token != NULL) {
+            websocket_url_ = url->valuestring;
+            websocket_token_ = token->valuestring;
+            has_websocket_config_ = true;
+            ESP_LOGI(TAG, "Websocket config updated: %s", websocket_url_.c_str());
         }
     }
 

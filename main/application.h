@@ -74,6 +74,7 @@ public:
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
     Protocol& GetProtocol() { return *protocol_; }
+    Ota& GetOta() { return ota_; }
 #if CONFIG_USE_ALARM
     //test
     AlarmManager* alarm_m_ = nullptr;

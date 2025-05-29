@@ -35,27 +35,12 @@ choice CONNECTION_TYPE
         bool "Websocket"
 endchoice
 
-config WEBSOCKET_URL
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket URL"
-    default "wss://api.tenclass.net/xiaozhi/v1/"
-    help
-        Communication with the server through websocket after wake up.
-
-config WEBSOCKET_ACCESS_TOKEN
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket Access Token"
-    default "test-token"
-    help
-        Access token for websocket communication.
-
 config WEBSOCKET_CLIENT_ID
-    depends on CONNECTION_TYPE_WEBSOCKET
-    string "Websocket Client ID"
+    string "WebSocket Client ID"
     default ""
+    depends on CONNECTION_TYPE_WEBSOCKET
     help
-        Client ID for websocket communication.
-        
+        设备的唯一客户端标识符，用于与服务端通信时的身份识别
 
 choice BOARD_TYPE
     prompt "Board Type"

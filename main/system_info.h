@@ -14,6 +14,7 @@ public:
     static std::string GetMacAddress();
     static std::string GetChipModelName();
     static esp_err_t PrintRealTimeStats(TickType_t xTicksToWait);
+    static std::string GetClientId();
 };
 
 #endif // _SYSTEM_INFO_H_
