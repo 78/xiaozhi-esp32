@@ -109,7 +109,7 @@ AdcPdmAudioCodec::AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate
     if(pdm_speak_n != GPIO_NUM_NC){
         PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pdm_speak_n], PIN_FUNC_GPIO);
         gpio_set_direction(pdm_speak_n, GPIO_MODE_OUTPUT);
-        esp_rom_gpio_connect_out_signal(pdm_speak_n,I2SO_SD_OUT_IDX,1,0); //反转输出 SD OUT 信号
+        esp_rom_gpio_connect_out_signal(pdm_speak_n, I2SO_SD_OUT_IDX, 1, 0); //反转输出 SD OUT 信号
         gpio_set_drive_capability(pdm_speak_n, GPIO_DRIVE_CAP_0);
     }
     ESP_LOGI(TAG, "AdcPdmAudioCodec initialized");

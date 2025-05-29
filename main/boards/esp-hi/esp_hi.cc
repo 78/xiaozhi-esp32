@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/adc_pdm_audio_codec.h"
+#include "adc_pdm_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
