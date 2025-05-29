@@ -9,31 +9,28 @@
 #include "assets/lang_config.h"
 #include <wifi_station.h>
 #include <esp_log.h>
+#include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
-#include "system_reset.h"
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-
+#include <esp_lcd_gc9a01.h>
+#include "system_reset.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
-#include <esp_lcd_panel_vendor.h>
-#include <esp_io_expander_tca9554.h>
-#include <driver/spi_common.h>
-#include "i2c_device.h"
 #include <esp_timer.h>
-#include "power_manager.h"
+#include "i2c_device.h"
+#include <esp_lcd_panel_vendor.h>
+#include <driver/spi_common.h>
 #include "power_save_timer.h"
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
 
-#define TAG "Spotpear_esp32_s3_lcd_1_54"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+#define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
+
 
 class Cst816d : public I2cDevice {
 public:
@@ -54,7 +51,11 @@ public:
 
     void UpdateTouchPoint() {
         ReadRegs(0x02, read_buffer_, 6);
-        tp_.num = read_buffer_[0] & 0x0F;
+        if (read_buffer_[0] == 0xFF)
+        {
+            read_buffer_[0] = 0x00;
+        }
+        tp_.num = read_buffer_[0] & 0x01;
         tp_.x = ((read_buffer_[1] & 0x0F) << 8) | read_buffer_[2];
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
@@ -68,7 +69,34 @@ private:
     TouchPoint_t tp_;
 };
 
-class Spotpear_esp32_s3_lcd_1_54 : public WifiBoard {
+
+class CustomLcdDisplay : public SpiLcdDisplay {
+public:
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
+                    esp_lcd_panel_handle_t panel_handle,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                    {
+                        .text_font = &font_puhui_16_4,
+                        .icon_font = &font_awesome_16_4,
+                        .emoji_font = font_emoji_64_init(),
+                    }) {
+
+        DisplayLockGuard lock(this);
+        // 由于屏幕是圆的，所以状态栏需要增加左右内边距
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.33, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
+    }
+};
+
+
+class Spotpear_ESP32_S3_1_28_BOX : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     i2c_master_bus_handle_t i2c_bus_;
@@ -76,28 +104,15 @@ private:
     Display* display_;
     esp_timer_handle_t touchpad_timer_;
     Cst816d* cst816d_;
-    esp_io_expander_handle_t io_expander_ = NULL;
-    esp_lcd_panel_handle_t panel_ = nullptr;
-
-    PowerManager* power_manager_;
     PowerSaveTimer* power_save_timer_;
-    void InitializePowerManager() {
-        power_manager_ = new PowerManager(GPIO_NUM_41);
-        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
-            if (is_charging) {
-                power_save_timer_->SetEnabled(false);
-            } else {
-                power_save_timer_->SetEnabled(true);
-            }
-        });
-    }
+    esp_lcd_panel_handle_t panel_ = nullptr;
 
     void InitializePowerSaveTimer() {
         rtc_gpio_init(GPIO_NUM_3);
         rtc_gpio_set_direction(GPIO_NUM_3, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_set_level(GPIO_NUM_3, 1);
 
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 290);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             display_->SetChatMessage("system", "");
@@ -154,8 +169,9 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
+
     static void touchpad_timer_callback(void* arg) {
-        auto& board = (Spotpear_esp32_s3_lcd_1_54&)Board::GetInstance();
+        auto& board = (Spotpear_ESP32_S3_1_28_BOX&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
         static bool was_touched = false;
         static int64_t touch_start_time = 0;
@@ -163,6 +179,7 @@ private:
 
         touchpad->UpdateTouchPoint();
         auto touch_point = touchpad->GetTouchPoint();
+
         // 检测触摸开始
         if (touch_point.num > 0 && !was_touched) {
             was_touched = true;
@@ -202,67 +219,40 @@ private:
         ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000)); // 10ms = 10000us
     }
 
-    void EnableLcdCs() {
-        if(io_expander_ != NULL) {
-            esp_io_expander_set_level(io_expander_, DISPLAY_SPI_CS_PIN, 0);// 置低 LCD CS
-        }
-    }
-
+    // SPI初始化
     void InitializeSpi() {
-        spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = DISPLAY_SPI_MOSI_PIN;
-        buscfg.miso_io_num = GPIO_NUM_NC;
-        buscfg.sclk_io_num = DISPLAY_SPI_SCLK_PIN;
-        buscfg.quadwp_io_num = GPIO_NUM_NC;
-        buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
+        ESP_LOGI(TAG, "Initialize SPI bus");
+        spi_bus_config_t buscfg = GC9A01_PANEL_BUS_SPI_CONFIG(DISPLAY_SPI_SCLK_PIN, DISPLAY_SPI_MOSI_PIN,
+                                    DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t));
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
+    // GC9A01初始化
+    void InitializeGc9a01Display() {
+        ESP_LOGI(TAG, "Init GC9A01 display");
+        ESP_LOGI(TAG, "Install panel IO");
+        esp_lcd_panel_io_handle_t io_handle = NULL;
+        esp_lcd_panel_io_spi_config_t io_config = GC9A01_PANEL_IO_SPI_CONFIG(DISPLAY_SPI_CS_PIN, DISPLAY_SPI_DC_PIN, 0, NULL);
+        io_config.pclk_hz = DISPLAY_SPI_SCLK_HZ;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &io_handle));
 
-    void InitializeSt7789Display() {
-        esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
-        // 液晶屏控制IO初始化
-        ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
-        io_config.dc_gpio_num = DISPLAY_SPI_DC_PIN;
-        io_config.spi_mode = 0;
-        io_config.pclk_hz = 60 * 1000 * 1000;
-        io_config.trans_queue_depth = 10;
-        io_config.lcd_cmd_bits = 8;
-        io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
-
-        // 初始化液晶屏驱动芯片ST7789
-        ESP_LOGD(TAG, "Install LCD driver");
+        ESP_LOGI(TAG, "Install GC9A01 panel driver");
+        esp_lcd_panel_handle_t panel_handle = NULL;
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;    // Set to -1 if not use
+        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;           //LCD_RGB_ENDIAN_RGB;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
-        EnableLcdCs();
-        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
-        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
-        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
-        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
+        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle, &panel_config, &panel_handle));
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, true));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, false));
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
-        // uint8_t data_0xBB[] = { 0x3F };
-        // esp_lcd_panel_io_tx_param(panel_io, 0xBB, data_0xBB, sizeof(data_0xBB));
+        display_ = new CustomLcdDisplay(io_handle, panel_handle,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
-        uint8_t data_0xBB[] = { 0x38 };
-        esp_lcd_panel_io_tx_param(panel_io, 0xBB, data_0xBB, sizeof(data_0xBB));
-
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                     {
-                                         .text_font = &font_puhui_16_4,
-                                         .icon_font = &font_awesome_16_4,
-                                         .emoji_font = font_emoji_32_init(),
-                                     });
     }
 
     void InitializeButtons() {
@@ -280,12 +270,11 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
+    Spotpear_ESP32_S3_1_28_BOX() : boot_button_(BOOT_BUTTON_GPIO) {
 
-    Spotpear_esp32_s3_lcd_1_54() :boot_button_(BOOT_BUTTON_GPIO){
         gpio_set_direction(TP_PIN_NUM_TP_INT, GPIO_MODE_INPUT);
         int level = gpio_get_level(TP_PIN_NUM_TP_INT);
         if (level == 1) {
@@ -295,21 +284,25 @@ public:
         InitializePowerSaveTimer();
         InitializeCodecI2c();
         InitializeSpi();
-        InitializePowerManager();
-        InitializeSt7789Display();
+        InitializeGc9a01Display();
         InitializeButtons();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
-
     }
 
+
     virtual Led* GetLed() override {
-        static SingleLed led_strip(BUILTIN_LED_GPIO);
-        return &led_strip;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -319,25 +312,8 @@ public:
         return &audio_codec;
     }
 
-    virtual Backlight* GetBacklight() override {
-        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
-        return &backlight;
-    }
-
     Cst816d* GetTouchpad() {
         return cst816d_;
-    }
-
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
-        charging = power_manager_->IsCharging();
-        discharging = power_manager_->IsDischarging();
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
-        }
-        level = power_manager_->GetBatteryLevel();
-        return true;
     }
 
     virtual void SetPowerSaveMode(bool enabled) override {
@@ -348,4 +324,4 @@ public:
     }
 };
 
-DECLARE_BOARD(Spotpear_esp32_s3_lcd_1_54);
+DECLARE_BOARD(Spotpear_ESP32_S3_1_28_BOX);

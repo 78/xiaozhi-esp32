@@ -64,11 +64,18 @@ void Thing::Invoke(const cJSON* command) {
                 throw std::runtime_error("Parameter " + param.name() + " is required");
             }
             if (param.type() == kValueTypeNumber) {
-                param.set_number(input_param->valueint);
+                if (cJSON_IsNumber(input_param)) {
+                    param.set_number(input_param->valueint);
+                }
             } else if (param.type() == kValueTypeString) {
-                param.set_string(input_param->valuestring);
+                if (cJSON_IsString(input_param) || cJSON_IsObject(input_param) || cJSON_IsArray(input_param)) {
+                    std::string value_str = input_param->valuestring;
+                    param.set_string(value_str);
+                }
             } else if (param.type() == kValueTypeBoolean) {
-                param.set_boolean(input_param->valueint == 1);
+                if (cJSON_IsBool(input_param)) {
+                    param.set_boolean(input_param->valueint == 1);
+                }
             }
         }
 
