@@ -49,7 +49,7 @@ int Sy6970::GetBatteryLevel() {
     int battery_minimum_voltage = 3200;
     int battery_voltage = GetBatteryVoltage();
     int charge_voltage_limit = GetChargeTargetVoltage();
-    ESP_LOGI(TAG, "battery_voltage: %d, charge_voltage_limit: %d", battery_voltage, charge_voltage_limit);
+    // ESP_LOGI(TAG, "battery_voltage: %d, charge_voltage_limit: %d", battery_voltage, charge_voltage_limit);
     if (battery_voltage > battery_minimum_voltage && charge_voltage_limit > battery_minimum_voltage) {
         level = (((float) battery_voltage - (float) battery_minimum_voltage) / ((float) charge_voltage_limit - (float) battery_minimum_voltage)) * 100.0;
     }
