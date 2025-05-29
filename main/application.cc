@@ -607,8 +607,8 @@ void Application::Start() {
 
 #if CONFIG_USE_WAKE_WORD_DETECT
     wake_word_detect_.Initialize(codec);
-    wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
-        Schedule([this, &wake_word]() {
+    wake_word_detect_.OnWakeWordDetected([this, &board](const std::string& wake_word) {
+        Schedule([this, &wake_word, &board]() {
             if (device_state_ == kDeviceStateIdle) {
                 SetDeviceState(kDeviceStateConnecting);
                 wake_word_detect_.EncodeWakeWordData();
@@ -626,6 +626,7 @@ void Application::Start() {
                 // Set the chat state to wake word detected
                 protocol_->SendWakeWordDetected(wake_word);
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+                board.GetCamera()->Capture();
                 SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
             } else if (device_state_ == kDeviceStateSpeaking) {
                 AbortSpeaking(kAbortReasonWakeWordDetected);

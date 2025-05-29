@@ -101,7 +101,7 @@ bool Esp32Camera::Capture() {
             return false;
         }
     }
-
+    ESP_LOGI(TAG, "camera_fb_t: width -> %d, height -> %d, size -> %d", fb_->width, fb_->height, fb_->len);
     // 如果预览图片 buffer 为空，则跳过预览
     // 但仍返回 true，因为此时图像可以上传至服务器
     if (preview_image_.data_size == 0) {
