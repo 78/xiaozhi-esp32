@@ -74,6 +74,7 @@ private:
     Cst816x *cst816d_;
     Pmic* pmic_;
     LcdDisplay *display_;
+    Button boot_button_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
     Esp32Camera* camera_;
@@ -220,13 +221,18 @@ private:
     }
 
     void InitializeButtons() {
-        key1_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
             power_save_timer_->WakeUp();
             app.ToggleChatState();
+        });
+        key1_button_.OnClick([this]() {
+            if (camera_) {
+                camera_->Capture();
+            }
         });
     }
 
@@ -265,7 +271,7 @@ private:
     }
 
 public:
-    LilygoTCameraPlusS3Board() : key1_button_(KEY1_BUTTON_GPIO) {
+    LilygoTCameraPlusS3Board() : boot_button_(BOOT_BUTTON_GPIO), key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
         InitSy6970();
