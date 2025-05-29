@@ -8,6 +8,7 @@
 #include <esp_app_desc.h>
 #include <algorithm>
 #include <cstring>
+#include <esp_pthread.h>
 
 #include "application.h"
 #include "display.h"
@@ -338,7 +339,15 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
         return;
     }
 
-    Application::GetInstance().Schedule([this, id, tool_iter, arguments = std::move(arguments)]() {
+    // Start a task to receive data with stack size 4096
+    esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
+    cfg.thread_name = "tool_call";
+    cfg.stack_size = 4096;
+    cfg.prio = 1;
+    esp_pthread_set_cfg(&cfg);
+
+    // Use a thread to call the tool to avoid blocking the main thread
+    tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments)]() {
         try {
             ReplyResult(id, (*tool_iter)->Call(arguments));
         } catch (const std::runtime_error& e) {
@@ -346,4 +355,5 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
             ReplyError(id, e.what());
         }
     });
+    tool_call_thread_.detach();
 }

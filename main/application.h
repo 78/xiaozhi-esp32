@@ -24,6 +24,8 @@
 
 #if CONFIG_USE_WAKE_WORD_DETECT
 #include "wake_word_detect.h"
+#elif CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
+#include "wake_word_no_afe.h"
 #endif
 
 #define SCHEDULE_EVENT (1 << 0)
@@ -86,7 +88,7 @@ private:
     Application();
     ~Application();
 
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
     WakeWordDetect wake_word_detect_;
 #endif
     std::unique_ptr<AudioProcessor> audio_processor_;

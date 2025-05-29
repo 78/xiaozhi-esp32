@@ -38,8 +38,16 @@ choice BOARD_TYPE
         bool "面包板（WiFi） ESP32 DevKit"
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
         bool "面包板（WiFi+ LCD） ESP32 DevKit"
-    config BOARD_TYPE_ESP32_CGC
-        bool "ESP32 CGC"
+    config BOARD_TYPE_XMINI_C3
+        bool "虾哥 Mini C3"
+    config BOARD_TYPE_ESP32S3_KORVO2_V3
+        bool "ESP32S3_KORVO2_V3开发板"
+    config BOARD_TYPE_ESP_SPARKBOT
+        bool "ESP-SparkBot开发板"
+    config BOARD_TYPE_ESP_SPOT_S3
+        bool "ESP-Spot-S3"
+    config BOARD_TYPE_ESP_HI
+        bool "ESP-HI"
     config BOARD_TYPE_ESP_BOX_3
         bool "ESP BOX 3"
     config BOARD_TYPE_ESP_BOX
@@ -56,6 +64,8 @@ choice BOARD_TYPE
         bool "Kevin SP V3开发板"
     config BOARD_TYPE_KEVIN_SP_V4_DEV
         bool "Kevin SP V4开发板"
+    config BOARD_TYPE_ESP32_CGC
+        bool "ESP32 CGC"
     config BOARD_TYPE_KEVIN_YUYING_313LCD
         bool "鱼鹰科技3.13LCD开发板"
     config BOARD_TYPE_LICHUANG_DEV
@@ -86,14 +96,6 @@ choice BOARD_TYPE
         bool "AtomS3R CAM/M12 + Echo Base"
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
-    config BOARD_TYPE_XMINI_C3
-        bool "虾哥 Mini C3"
-    config BOARD_TYPE_ESP32S3_KORVO2_V3
-        bool "ESP32S3_KORVO2_V3开发板"
-    config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot开发板"
-    config BOARD_TYPE_ESP_SPOT_S3
-        bool "ESP-Spot-S3"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
@@ -125,9 +127,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
         bool "LILYGO T-Display-S3-Pro-MVSRLora_No_Battery"
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
-         bool "Movecall Moji 小智AI衍生版"
+        bool "Movecall Moji 小智AI衍生版"
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
-         bool "Movecall CuiCan 璀璨·AI吊坠"
+        bool "Movecall CuiCan 璀璨·AI吊坠"
     config BOARD_TYPE_ATK_DNESP32S3
         bool "正点原子DNESP32S3开发板"
     config BOARD_TYPE_ATK_DNESP32S3_BOX
@@ -267,6 +269,11 @@ config USE_WECHAT_MESSAGE_STYLE
     default n
     help
         使用微信聊天界面风格
+
+config USE_WAKE_WORD_DETECT_NO_AFE
+    bool "Enable Wake Word Detection (without AFE)"
+    default y
+    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
 
 config USE_WAKE_WORD_DETECT
     bool "Enable Wake Word Detection"
