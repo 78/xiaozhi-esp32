@@ -2,11 +2,11 @@
 
 NOTICE: AI 辅助生成, 在实现后台服务时, 请参照代码确认细节!!
 
-本项目中的 MCP 协议用于后台 API（客户端）与 ESP32 设备（服务器）之间的通信，以便后台能够发现和调用设备提供的功能（工具）。
+本项目中的 MCP 协议用于后台 API（MCP 客户端）与 ESP32 设备（MCP 服务器）之间的通信，以便后台能够发现和调用设备提供的功能（工具）。
 
 ## 协议格式
 
-根据代码 (`main/protocols/protocol.cc`, `main/mcp_server.cc`)，MCP 消息是封装在基础通信协议（如 WebSocket 或 MQTT）的消息体中的。其内部结构遵循 [JSON-RPC 2.0](https://www.jsonrpc.org/specification) 规范，并额外包含 `session_id` 和 `type` 字段。
+根据代码 (`main/protocols/protocol.cc`, `main/mcp_server.cc`)，MCP 消息是封装在基础通信协议（如 WebSocket 或 MQTT）的消息体中的。其内部结构遵循 [JSON-RPC 2.0](https://www.jsonrpc.org/specification) 规范。
 
 整体消息结构示例：
 
