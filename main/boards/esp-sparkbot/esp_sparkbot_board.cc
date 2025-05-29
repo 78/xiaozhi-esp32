@@ -6,6 +6,7 @@
 #include "button.h"
 #include "config.h"
 #include "mcp_server.h"
+#include "settings.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -164,6 +165,12 @@ private:
         camera_config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
         
         camera_ = new Esp32Camera(camera_config);
+
+        Settings settings("sparkbot", false);
+        // 考虑到部分复刻使用了不可动摄像头的设计，默认启用翻转
+        bool camera_flipped = static_cast<bool>(settings.GetInt("camera-flipped", 1));
+        camera_->SetHMirror(camera_flipped);
+        camera_->SetVFlip(camera_flipped);
     }
 
     /*
@@ -245,6 +252,19 @@ private:
                 return true;
             }
             throw std::runtime_error("Invalid light mode");
+        });
+
+        mcp_server.AddTool("self.camera.set_camera_flipped", "翻转摄像头图像方向", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("sparkbot", true);
+            // 考虑到部分复刻使用了不可动摄像头的设计，默认启用翻转
+            bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 1));
+            
+            camera_->SetHMirror(flipped);
+            camera_->SetVFlip(flipped);
+            
+            settings.SetInt("camera-flipped", flipped ? 1 : 0);
+            
+            return true;
         });
     }
 
