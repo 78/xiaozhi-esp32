@@ -16,7 +16,7 @@ public:
     ~WebsocketProtocol();
 
     bool Start() override;
-    void SendAudio(const AudioStreamPacket& packet) override;
+    bool SendAudio(const AudioStreamPacket& packet) override;
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;
     bool IsAudioChannelOpened() const override;
@@ -28,6 +28,7 @@ private:
 
     void ParseServerHello(const cJSON* root);
     bool SendText(const std::string& text) override;
+    std::string GetHelloMessage();
 };
 
 #endif

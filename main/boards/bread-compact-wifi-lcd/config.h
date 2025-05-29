@@ -282,4 +282,8 @@
 #define DISPLAY_SPI_MODE 0
 #endif
 
+
+// A MCP Test: Control a lamp
+#define LAMP_GPIO GPIO_NUM_18
+
 #endif // _BOARD_CONFIG_H_

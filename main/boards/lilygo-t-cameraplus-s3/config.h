@@ -8,13 +8,21 @@
 #define AUDIO_INPUT_SAMPLE_RATE 24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
 #define AUDIO_MIC_I2S_GPIO_BCLK static_cast<gpio_num_t>(MSM261_BCLK)
 #define AUDIO_MIC_I2S_GPIO_WS static_cast<gpio_num_t>(MSM261_WS)
-#define AUDIO_MIC_I2S_GPIO_DATA static_cast<gpio_num_t>(MSM261_DIN)
+#define AUDIO_MIC_I2S_GPIO_DATA static_cast<gpio_num_t>(MSM261_DATA)
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+#define AUDIO_MIC_I2S_GPIO_BCLK GPIO_NUM_NC
+#define AUDIO_MIC_I2S_GPIO_WS static_cast<gpio_num_t>(MP34DT05TR_LRCLK)
+#define AUDIO_MIC_I2S_GPIO_DATA static_cast<gpio_num_t>(MP34DT05TR_DATA)
+
+#define AUDIO_MIC_SPKR_EN static_cast<gpio_num_t>(MP34DT05TR_MAX98357_EN)
+#endif
 
 #define AUDIO_SPKR_I2S_GPIO_BCLK static_cast<gpio_num_t>(MAX98357A_BCLK)
 #define AUDIO_SPKR_I2S_GPIO_LRCLK static_cast<gpio_num_t>(MAX98357A_LRCLK)
-#define AUDIO_SPKR_I2S_GPIO_DATA static_cast<gpio_num_t>(MAX98357A_DOUT)
+#define AUDIO_SPKR_I2S_GPIO_DATA static_cast<gpio_num_t>(MAX98357A_DATA)
 
 #define TOUCH_I2C_SDA_PIN static_cast<gpio_num_t>(TP_SDA)
 #define TOUCH_I2C_SCL_PIN static_cast<gpio_num_t>(TP_SCL)
