@@ -8,6 +8,7 @@
 #include <variant>
 #include <optional>
 #include <stdexcept>
+#include <thread>
 
 #include <cJSON.h>
 
@@ -274,6 +275,7 @@ private:
     void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
 
     std::vector<McpTool*> tools_;
+    std::thread tool_call_thread_;
 };
 
 #endif // MCP_SERVER_H

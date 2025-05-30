@@ -15,7 +15,7 @@ idf.py menuconfig
 **选择板子：**
 
 ```
-Xiaozhi Assistant -> Board Type -> LILYGO T-CameraPlus-S3
+Xiaozhi Assistant -> Board Type -> LILYGO T-CameraPlus-S3_V1_0_V1_1或LILYGO T-CameraPlus-S3_V1_2
 ```
 
 **修改 psram 配置：**
