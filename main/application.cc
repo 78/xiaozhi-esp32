@@ -129,7 +129,7 @@ void Application::CheckNewVersion() {
 
             auto& board = Board::GetInstance();
             board.SetPowerSaveMode(false);
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
             wake_word_detect_.StopDetection();
 #endif
             // 预先关闭音频输出，避免升级过程有音频操作
@@ -600,8 +600,9 @@ void Application::Start() {
         }
     });
 
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
     wake_word_detect_.Initialize(codec);
+#ifdef CONFIG_USE_WAKE_WORD_DETECT
     wake_word_detect_.OnWakeWordDetected([this](const std::string& wake_word) {
         Schedule([this, &wake_word]() {
             if (device_state_ == kDeviceStateIdle) {
@@ -629,6 +630,7 @@ void Application::Start() {
             }
         });
     });
+#endif
     wake_word_detect_.StartDetection();
 #endif
 
@@ -789,7 +791,7 @@ void Application::OnAudioOutput() {
 }
 
 void Application::OnAudioInput() {
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
     if (wake_word_detect_.IsDetectionRunning()) {
         std::vector<int16_t> data;
         int samples = wake_word_detect_.GetFeedSize();
@@ -883,7 +885,7 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetEmotion("neutral");
             audio_processor_->Stop();
             
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
             wake_word_detect_.StartDetection();
 #endif
             break;
@@ -911,7 +913,7 @@ void Application::SetDeviceState(DeviceState state) {
                     vTaskDelay(pdMS_TO_TICKS(120));
                 }
                 opus_encoder_->ResetState();
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
                 wake_word_detect_.StopDetection();
 #endif
                 audio_processor_->Start();
@@ -922,7 +924,7 @@ void Application::SetDeviceState(DeviceState state) {
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_processor_->Stop();
-#if CONFIG_USE_WAKE_WORD_DETECT
+#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
                 wake_word_detect_.StartDetection();
 #endif
             }

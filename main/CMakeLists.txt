@@ -104,6 +104,8 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
     set(BOARD_TYPE "esp-sparkbot")
 elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
     set(BOARD_TYPE "esp-spot-s3")
+elseif(CONFIG_BOARD_TYPE_ESP_HI)
+    set(BOARD_TYPE "esp-hi")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
@@ -118,6 +120,10 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_5)
     set(BOARD_TYPE "esp32-s3-touch-lcd-3.5")
 elseif(CONFIG_BOARD_TYPE_ESP32P4_NANO)
     set(BOARD_TYPE "waveshare-p4-nano")
+elseif(CONFIG_BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B)
+    set(BOARD_TYPE "waveshare-p4-wifi6-touch-lcd-4b")
+elseif(CONFIG_BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
+    set(BOARD_TYPE "waveshare-p4-wifi6-touch-lcd-xc")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_TYPE "bread-compact-wifi-lcd")
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
@@ -182,6 +188,8 @@ elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
     set(BOARD_TYPE "zhengchen-1.54tft-ml307")
 elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_28_BOX)
+    set(BOARD_TYPE "sp-esp32-s3-1.28-box")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -196,6 +204,9 @@ else()
 endif()
 if(CONFIG_USE_WAKE_WORD_DETECT)
     list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
+endif()
+if(CONFIG_USE_WAKE_WORD_DETECT_NO_AFE)
+    list(APPEND SOURCES "audio_processing/wake_word_no_afe.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -254,3 +265,40 @@ add_custom_command(
 add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
+
+if(CONFIG_BOARD_TYPE_ESP_HI)
+set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
+set(SPIFFS_DIR "${CMAKE_BINARY_DIR}/emoji")
+file(MAKE_DIRECTORY ${SPIFFS_DIR})
+
+# List all files to download
+set(FILES_TO_DOWNLOAD "")
+list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
+list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
+list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
+list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
+
+foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
+    set(REMOTE_FILE "${URL}/${FILENAME}")
+    set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
+    message(STATUS "Downloading ${FILENAME}")
+    file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
+         STATUS DOWNLOAD_STATUS)
+    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+    if(NOT STATUS_CODE EQUAL 0)
+        message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+    endif()
+endforeach()
+
+spiffs_create_partition_assets(
+    assets_A
+    ${SPIFFS_DIR}
+    FLASH_IN_PROJECT
+    MMAP_FILE_SUPPORT_FORMAT ".aaf"
+)
+endif()
