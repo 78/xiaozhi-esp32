@@ -55,14 +55,4 @@
 
 #define XCLK_FREQ_HZ 20000000
 
-/* LED PINS */
-#define UART_LED_TXD GPIO_NUM_17
-#define UART_LED_RXD GPIO_NUM_18
-#define UART_LED_RTS UART_PIN_NO_CHANGE
-#define UART_LED_CTS UART_PIN_NO_CHANGE
-
-#define LED_UART_PORT_NUM      UART_NUM_1
-#define LED_UART_BAUD_RATE     (19200)
-#define BUF_SIZE                (1024)
-
 #endif // _BOARD_CONFIG_H_

@@ -9,7 +9,7 @@
 #include <driver/gpio.h>
 #include "esp32_camera.h"
 #include "esp_sleep.h"
-#include "esp_check.h"
+#include "display/matrix_display.h"
 
 #define TAG "Esp32S3TotoMbBoard"
 static void light_sleep_task(void *args) {
@@ -25,9 +25,14 @@ static void light_sleep_task(void *args) {
 }
 class Esp32S3TotoMbBoard : public WifiBoard {
 private:
+    Display* display_;
     Button boot_button_;
     Esp32Camera* camera_;
     
+
+    void InitializeDisplay() {
+        display_ = new MatrixDisplay();
+    }
 
     void InitializeButtons() {
         boot_button_.OnClick([]() {
@@ -44,7 +49,6 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("MatrixScreen"));
     }
 
 
@@ -103,6 +107,7 @@ public:
         InitializeGpio();
         InitializeIot();
         InitializeCamera();
+        InitializeDisplay();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -116,6 +121,9 @@ public:
     }
     virtual Camera* GetCamera() override {
         return camera_;
+    }
+    virtual Display* GetDisplay() override {
+        return display_;
     }
 };
 
