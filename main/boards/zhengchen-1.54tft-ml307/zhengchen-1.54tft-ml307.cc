@@ -212,7 +212,7 @@ public:
             power_save_timer_->SetEnabled(discharging);
             last_discharging = discharging;
         }
-        level = power_manager_->GetBatteryLevel();
+        level = std::max<uint32_t>(power_manager_->GetBatteryLevel(), 20);
         return true;
     }
 
