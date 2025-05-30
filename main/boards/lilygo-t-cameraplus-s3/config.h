@@ -28,6 +28,7 @@
 #define TOUCH_I2C_SCL_PIN static_cast<gpio_num_t>(TP_SCL)
 
 #define BUILTIN_LED_GPIO GPIO_NUM_NC
+#define BOOT_BUTTON_GPIO GPIO_NUM_0
 #define KEY1_BUTTON_GPIO static_cast<gpio_num_t>(KEY1)
 #define VOLUME_UP_BUTTON_GPIO GPIO_NUM_NC
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC

@@ -3,7 +3,17 @@
     "builds": [
         {
             "name": "lilygo-t-cameraplus-s3",
-            "sdkconfig_append": ["CONFIG_SPIRAM_MODE_QUAD=y"]
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1=y"
+            ]
+        },
+        {
+            "name": "lilygo-t-cameraplus-s3_v1_2",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2=y"
+            ]
         }
     ]
 }
