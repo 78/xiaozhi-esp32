@@ -4,7 +4,6 @@
 #include <libs/gif/lv_gif.h>
 
 #include "display/lcd_display.h"
-#include "misc/lv_area.h"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
@@ -60,6 +59,8 @@ class EyesDisplay : public SpiLcdDisplay {
         lv_obj_set_style_text_align(eyes_message_label_, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(eyes_message_label_, lv_color_white(), 0);
         lv_obj_align(eyes_message_label_, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+        lv_obj_move_foreground(low_battery_popup_);
     }
 
     virtual void SetChatMessage(const char *role, const char *content) override {
@@ -68,7 +69,10 @@ class EyesDisplay : public SpiLcdDisplay {
 #else
         DisplayLockGuard lock(this);
         if (chat_message_label_ != nullptr) {
-            lv_label_set_text(eyes_message_label_, content);
+            std::string msg(content);
+            // 移除换行，避免多行文本，只允许单行滚动
+            std::replace(msg.begin(), msg.end(), '\n', ' ');
+            lv_label_set_text(eyes_message_label_, msg.c_str());
         }
 #endif
     }
