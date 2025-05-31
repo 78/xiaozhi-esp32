@@ -30,10 +30,10 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
-    PowerSaveTimer* power_save_timer_;
+    PowerSaveTimer* power_save_timer_ = nullptr;
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(160, 60);
+        power_save_timer_ = new PowerSaveTimer(160, 600);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
@@ -130,7 +130,9 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            power_save_timer_->WakeUp();
+            if (power_save_timer_) {
+                power_save_timer_->WakeUp();
+            }
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
             }
