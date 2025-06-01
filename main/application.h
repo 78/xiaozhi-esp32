@@ -21,12 +21,7 @@
 #include "ota.h"
 #include "background_task.h"
 #include "audio_processor.h"
-
-#if CONFIG_USE_WAKE_WORD_DETECT
-#include "wake_word_detect.h"
-#elif CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
-#include "wake_word_no_afe.h"
-#endif
+#include "wake_word.h"
 
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
@@ -83,14 +78,13 @@ public:
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
+    BackgroundTask* GetBackgroundTask() const { return background_task_; }
 
 private:
     Application();
     ~Application();
 
-#if CONFIG_USE_WAKE_WORD_DETECT || CONFIG_USE_WAKE_WORD_DETECT_NO_AFE
-    WakeWordDetect wake_word_detect_;
-#endif
+    std::unique_ptr<WakeWord> wake_word_;
     std::unique_ptr<AudioProcessor> audio_processor_;
     Ota ota_;
     std::mutex mutex_;
@@ -119,7 +113,6 @@ private:
     // 新增：用于维护音频包的timestamp队列
     std::list<uint32_t> timestamp_queue_;
     std::mutex timestamp_mutex_;
-    std::atomic<uint32_t> last_output_timestamp_ = 0;
 
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
@@ -131,7 +124,7 @@ private:
     void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
-    void ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
+    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckNewVersion();
