@@ -346,14 +346,14 @@ config USE_WECHAT_MESSAGE_STYLE
 
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
-    default y
+    default n
     depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
     help
         支持 ESP32 C3 与 ESP32 C5
 
 config USE_AFE_WAKE_WORD
     bool "Enable Wake Word Detection (AFE)"
-    default n
+    default y
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
         需要 ESP32 S3 与 PSRAM 支持
