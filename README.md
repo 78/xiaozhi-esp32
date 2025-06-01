@@ -1,4 +1,4 @@
-# 小智 AI 聊天机器人 （XiaoZhi AI Chatbot）
+# 负熵引擎-基础款聊天机器人 （EntroDyn-Basics-ChatBox）
 
 （中文 | [English](README_en.md) | [日本語](README_ja.md)）
 
