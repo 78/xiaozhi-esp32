@@ -2,6 +2,7 @@
 #define _BOARD_CONFIG_H_
 
 #include <driver/gpio.h>
+#include "driver/spi_common.h"
 #include "esp_io_expander.h"
 
 /* General I2C */
@@ -57,6 +58,16 @@
 #define BSP_KNOB_A_PIN GPIO_NUM_41
 #define BSP_KNOB_B_PIN GPIO_NUM_42
 
+/* SPI */
+#define BSP_SPI2_HOST_SCLK (GPIO_NUM_4)
+#define BSP_SPI2_HOST_MOSI (GPIO_NUM_5)
+#define BSP_SPI2_HOST_MISO (GPIO_NUM_6)
+
+/* SD Card */
+#define BSP_SD_SPI_NUM  (SPI2_HOST)
+#define BSP_SD_SPI_CS   (GPIO_NUM_46)
+#define BSP_SD_GPIO_DET (IO_EXPANDER_PIN_NUM_4)
+
 /* QSPI */
 #define BSP_SPI3_HOST_PCLK  (GPIO_NUM_7)
 #define BSP_SPI3_HOST_DATA0 (GPIO_NUM_9)
@@ -102,5 +113,20 @@
 #define BSP_BAT_ADC_CHAN  (ADC_CHANNEL_2)    // GPIO3
 #define BSP_BAT_ADC_ATTEN (ADC_ATTEN_DB_2_5) // 0 ~ 1100 mV
 #define BSP_BAT_VOL_RATIO ((62 + 20) / 20)
+
+/* Himax */
+#define BSP_SSCMA_CLIENT_RST              (IO_EXPANDER_PIN_NUM_7)
+#define BSP_SSCMA_CLIENT_RST_USE_EXPANDER (true)
+
+#define BSP_SSCMA_CLIENT_SPI_NUM               (SPI2_HOST)
+#define BSP_SSCMA_CLIENT_SPI_CS                (GPIO_NUM_21)
+#define BSP_SSCMA_CLIENT_SPI_SYNC              (IO_EXPANDER_PIN_NUM_6)
+#define BSP_SSCMA_CLIENT_SPI_SYNC_USE_EXPANDER (true)
+#define BSP_SSCMA_CLIENT_SPI_CLK               (12 * 1000 * 1000)
+
+#define BSP_SSCMA_FLASHER_UART_NUM       (UART_NUM_1)
+#define BSP_SSCMA_FLASHER_UART_TX        (GPIO_NUM_17)
+#define BSP_SSCMA_FLASHER_UART_RX        (GPIO_NUM_18)
+#define BSP_SSCMA_FLASHER_UART_BAUD_RATE (921600)
 
 #endif // _BOARD_CONFIG_H_
