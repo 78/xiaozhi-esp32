@@ -7,10 +7,10 @@
 #include "audio_processor.h"
 #include "audio_codec.h"
 
-class DummyAudioProcessor : public AudioProcessor {
+class NoAudioProcessor : public AudioProcessor {
 public:
-    DummyAudioProcessor() = default;
-    ~DummyAudioProcessor() = default;
+    NoAudioProcessor() = default;
+    ~NoAudioProcessor() = default;
 
     void Initialize(AudioCodec* codec) override;
     void Feed(const std::vector<int16_t>& data) override;

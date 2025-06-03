@@ -3,7 +3,7 @@
 
 #define PROCESSOR_RUNNING 0x01
 
-static const char* TAG = "AfeAudioProcessor";
+#define TAG "AfeAudioProcessor"
 
 AfeAudioProcessor::AfeAudioProcessor()
     : afe_data_(nullptr) {
