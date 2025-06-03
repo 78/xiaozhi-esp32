@@ -60,6 +60,7 @@ Http* Ota::SetupHttp() {
     if (has_serial_number_) {
         http->SetHeader("Serial-Number", serial_number_.c_str());
     }
+    http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
 
