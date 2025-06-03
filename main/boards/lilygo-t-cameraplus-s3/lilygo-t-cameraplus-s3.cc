@@ -8,6 +8,8 @@
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
 #include "sy6970.h"
+#include "pin_config.h"
+#include "esp32_camera.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -72,8 +74,10 @@ private:
     Cst816x *cst816d_;
     Pmic* pmic_;
     LcdDisplay *display_;
+    Button boot_button_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
+    Esp32Camera* camera_;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
@@ -99,7 +103,7 @@ private:
     void InitI2c(){
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_config = {
-            .i2c_port = I2C_NUM_0,
+            .i2c_port = I2C_NUM_1,
             .sda_io_num = TOUCH_I2C_SDA_PIN,
             .scl_io_num = TOUCH_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -159,7 +163,7 @@ private:
 
     void InitCst816d() {
         ESP_LOGI(TAG, "Init CST816x");
-        cst816d_ = new Cst816x(i2c_bus_, 0x15);
+        cst816d_ = new Cst816x(i2c_bus_, CST816_ADDRESS);
         xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
     }
 
@@ -176,7 +180,7 @@ private:
 
     void InitSy6970() {
         ESP_LOGI(TAG, "Init Sy6970");
-        pmic_ = new Pmic(i2c_bus_, 0x6A);
+        pmic_ = new Pmic(i2c_bus_, SY6970_ADDRESS);
     }
 
     void InitializeSt7789Display() {
@@ -217,7 +221,7 @@ private:
     }
 
     void InitializeButtons() {
-        key1_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -225,18 +229,49 @@ private:
             power_save_timer_->WakeUp();
             app.ToggleChatState();
         });
+        key1_button_.OnClick([this]() {
+            if (camera_) {
+                camera_->Capture();
+            }
+        });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
+    void InitializeCamera() {
+        camera_config_t config = {};
+        config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.pin_d0 = Y2_GPIO_NUM;
+        config.pin_d1 = Y3_GPIO_NUM;
+        config.pin_d2 = Y4_GPIO_NUM;
+        config.pin_d3 = Y5_GPIO_NUM;
+        config.pin_d4 = Y6_GPIO_NUM;
+        config.pin_d5 = Y7_GPIO_NUM;
+        config.pin_d6 = Y8_GPIO_NUM;
+        config.pin_d7 = Y9_GPIO_NUM;
+        config.pin_xclk = XCLK_GPIO_NUM;
+        config.pin_pclk = PCLK_GPIO_NUM;
+        config.pin_vsync = VSYNC_GPIO_NUM;
+        config.pin_href = HREF_GPIO_NUM;
+        config.pin_sccb_sda = -1;   // 这里如果写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_scl = SIOC_GPIO_NUM;
+        config.sccb_i2c_port = 1;   //  这里如果写1 默认使用I2C1
+        config.pin_pwdn = PWDN_GPIO_NUM;
+        config.pin_reset = RESET_GPIO_NUM;
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_240X240;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
+        camera_ = new Esp32Camera(config);
+        camera_->SetVFlip(1);
+        camera_->SetHMirror(1);
     }
 
 public:
-    LilygoTCameraPlusS3Board() : key1_button_(KEY1_BUTTON_GPIO) {
+    LilygoTCameraPlusS3Board() : boot_button_(BOOT_BUTTON_GPIO), key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
         InitSy6970();
@@ -245,7 +280,13 @@ public:
         InitSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeIot();
+        InitializeCamera();
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+        auto &thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+#endif
         GetBacklight()->RestoreBrightness();
     }
 
@@ -295,6 +336,10 @@ public:
 
     Cst816x *GetTouchpad() {
         return cst816d_;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 };
 

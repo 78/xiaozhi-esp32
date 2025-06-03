@@ -2,7 +2,7 @@
  * @Description: None
  * @Author: LILYGO_L
  * @Date: 2024-11-11 11:36:49
- * @LastEditTime: 2025-04-25 15:53:53
+ * @LastEditTime: 2025-06-03 17:37:08
  * @License: GPL 3.0
  */
 #pragma once
@@ -138,6 +138,8 @@
 #define VSYNC_GPIO_NUM OV2640_VSYNC
 #define HREF_GPIO_NUM OV2640_HREF
 #define PCLK_GPIO_NUM OV2640_PCLK
+
+#define XCLK_FREQ_HZ 20000000
 
 // CST816
 #define CST816_ADDRESS 0x15

@@ -125,7 +125,7 @@ The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by
 ### Development Environment
 
 - Cursor or VSCode
-- Install ESP-IDF plugin, select SDK version 5.3 or above
+- Install ESP-IDF plugin, select SDK version 5.4 or above
 - Linux is preferred over Windows for faster compilation and fewer driver issues
 - Use Google C++ code style, ensure compliance when submitting code
 

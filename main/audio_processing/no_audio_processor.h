@@ -7,10 +7,10 @@
 #include "audio_processor.h"
 #include "audio_codec.h"
 
-class DummyAudioProcessor : public AudioProcessor {
+class NoAudioProcessor : public AudioProcessor {
 public:
-    DummyAudioProcessor() = default;
-    ~DummyAudioProcessor() = default;
+    NoAudioProcessor() = default;
+    ~NoAudioProcessor() = default;
 
     void Initialize(AudioCodec* codec) override;
     void Feed(const std::vector<int16_t>& data) override;
@@ -20,6 +20,7 @@ public:
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) override;
     void OnVadStateChange(std::function<void(bool speaking)> callback) override;
     size_t GetFeedSize() override;
+    void EnableDeviceAec(bool enable) override;
 
 private:
     AudioCodec* codec_ = nullptr;

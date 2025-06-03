@@ -5,6 +5,8 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "mcp_server.h"
+#include "lamp_controller.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
@@ -150,11 +152,15 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
+    // 物联网初始化，逐步迁移到 MCP 协议
     void InitializeIot() {
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
+#elif CONFIG_IOT_PROTOCOL_MCP
+        static LampController lamp(LAMP_GPIO);
+#endif
     }
 
 public:

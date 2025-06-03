@@ -8,6 +8,7 @@
 #include <variant>
 #include <optional>
 #include <stdexcept>
+#include <thread>
 
 #include <cJSON.h>
 
@@ -255,6 +256,7 @@ public:
         return instance;
     }
 
+    void AddCommonTools();
     void AddTool(McpTool* tool);
     void AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
     void ParseMessage(const cJSON* json);
@@ -264,7 +266,6 @@ private:
     McpServer();
     ~McpServer();
 
-    void AddCommonTools();
     void ParseCapabilities(const cJSON* capabilities);
 
     void ReplyResult(int id, const std::string& result);
@@ -274,6 +275,7 @@ private:
     void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
 
     std::vector<McpTool*> tools_;
+    std::thread tool_call_thread_;
 };
 
 #endif // MCP_SERVER_H

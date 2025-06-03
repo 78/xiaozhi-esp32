@@ -70,7 +70,7 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(160, 60);
+        power_save_timer_ = new PowerSaveTimer(240, 60);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
@@ -224,7 +224,6 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
-        // thing_manager.AddThing(iot::CreateThing("Lamp"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 

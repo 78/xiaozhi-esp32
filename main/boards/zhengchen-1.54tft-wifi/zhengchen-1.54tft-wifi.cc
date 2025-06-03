@@ -180,10 +180,12 @@ private:
     }
 
     void InitializeIot() {
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+#endif
     }
 
 public:
@@ -226,7 +228,7 @@ ZHENGCHEN_1_54TFT_WIFI() :
             power_save_timer_->SetEnabled(discharging);
             last_discharging = discharging;
         }
-        level = power_manager_->GetBatteryLevel();
+        level = std::max<uint32_t>(power_manager_->GetBatteryLevel(), 20);
         return true;
     }
 

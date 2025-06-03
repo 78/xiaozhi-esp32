@@ -203,6 +203,9 @@ std::string WifiBoard::GetDeviceStatusJson() {
      *         "type": "wifi",
      *         "ssid": "Xiaozhi",
      *         "rssi": -60
+     *     },
+     *     "chip": {
+     *         "temperature": 25
      *     }
      * }
      */
@@ -254,6 +257,14 @@ std::string WifiBoard::GetDeviceStatusJson() {
         cJSON_AddStringToObject(network, "signal", "weak");
     }
     cJSON_AddItemToObject(root, "network", network);
+
+    // Chip
+    float esp32temp = 0.0f;
+    if (board.GetTemperature(esp32temp)) {
+        auto chip = cJSON_CreateObject();
+        cJSON_AddNumberToObject(chip, "temperature", esp32temp);
+        cJSON_AddItemToObject(root, "chip", chip);
+    }
 
     auto json_str = cJSON_PrintUnformatted(root);
     std::string json(json_str);
