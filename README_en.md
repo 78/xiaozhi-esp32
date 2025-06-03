@@ -20,7 +20,7 @@ If you have any ideas or suggestions, please feel free to raise Issues or join t
 
 As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabilities of large models like Qwen / DeepSeek, and achieves multi-terminal control via the MCP protocol.
 
-![Control everything via MCP](docs/mcp-based-graph.png)
+![Control everything via MCP](docs/mcp-based-graph.jpg)
 
 ### Features Implemented
 

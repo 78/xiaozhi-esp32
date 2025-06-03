@@ -20,7 +20,7 @@
 
 小智 AI 聊天机器人作为一个语音交互入口，利用 Qwen / DeepSeek 等大模型的AI能力，通过MCP协议实现多端控制。
 
-![通过MCP控制万物](docs/mcp-based-graph.png)
+![通过MCP控制万物](docs/mcp-based-graph.jpg)
 
 ### 已实现功能
 

@@ -20,7 +20,7 @@
 
 シャオジーAIチャットボットは音声インタラクションの入口として、Qwen / DeepSeekなどの大規模モデルのAI能力を活用し、MCPプロトコルを通じてマルチエンド制御を実現します。
 
-![MCPであらゆるものを制御](docs/mcp-based-graph.png)
+![MCPであらゆるものを制御](docs/mcp-based-graph.jpg)
 
 ### 実装済み機能
 
