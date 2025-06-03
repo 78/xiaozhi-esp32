@@ -1176,30 +1176,39 @@ private:
         
         // 等待WiFi连接，然后从API获取图片资源
         bool resources_updated = false;
+        esp_timer_handle_t resource_timer = nullptr;
         
         // 创建定时器，定期检查WiFi并尝试更新资源
-        esp_timer_handle_t resource_timer;
         esp_timer_create_args_t timer_args = {
             .callback = [](void* arg) {
                 auto& wifi = WifiStation::GetInstance();
                 auto& image_mgr = ImageResourceManager::GetInstance();
+                bool* updated = (bool*)arg;
+                
+                // 如果已经更新过了，就停止检查
+                if (*updated) {
+                    return;
+                }
                 
                 if (wifi.IsConnected()) {
                     ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
-                    // 等待5秒后执行下载
-                    vTaskDelay(pdMS_TO_TICKS(5000));
                     if (image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL) == ESP_OK) {
                         // 成功更新
-                        *((bool*)arg) = true;
+                        *updated = true;
+                        ESP_LOGI(TAG, "图片资源更新完成");
+                    } else {
+                        ESP_LOGW(TAG, "图片资源更新失败，将在下次检查时重试");
                     }
+                } else {
+                    ESP_LOGD(TAG, "WiFi未连接，等待连接...");
                 }
             },
             .arg = &resources_updated,
             .name = "resource_timer"
         };
         esp_timer_create(&timer_args, &resource_timer);
-        // 改为单次执行
-        esp_timer_start_once(resource_timer, 1000 * 1000); // 开机1秒后执行一次检查
+        // 改为周期性执行，每3秒检查一次
+        esp_timer_start_periodic(resource_timer, 3000 * 1000); // 每3秒检查一次
         
         // 当前索引和方向控制
         int currentIndex = 0;
@@ -1220,6 +1229,14 @@ private:
         while (true) {
             // 获取图片数组
             const auto& imageArray = image_manager.GetImageArray();
+            
+            // 如果图片已成功更新，停止资源检查定时器
+            if (resources_updated && resource_timer) {
+                esp_timer_stop(resource_timer);
+                esp_timer_delete(resource_timer);
+                resource_timer = nullptr;
+                ESP_LOGI(TAG, "资源更新完成，停止检查定时器");
+            }
             
             // 如果没有图片资源，等待一段时间后重试
             if (imageArray.empty()) {
@@ -1377,8 +1394,11 @@ private:
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         
-        esp_timer_stop(resource_timer);
-        esp_timer_delete(resource_timer);
+        // 确保定时器被正确清理
+        if (resource_timer) {
+            esp_timer_stop(resource_timer);
+            esp_timer_delete(resource_timer);
+        }
         vTaskDelete(NULL);
     }
 

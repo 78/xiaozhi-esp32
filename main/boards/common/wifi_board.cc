@@ -114,15 +114,9 @@ Http* WifiBoard::CreateHttp() {
 }
 
 WebSocket* WifiBoard::CreateWebSocket() {
-#ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
-    std::string url = CONFIG_WEBSOCKET_URL;
-    if (url.find("wss://") == 0) {
-        return new WebSocket(new TlsTransport());
-    } else {
-        return new WebSocket(new TcpTransport());
-    }
-#endif
-    return nullptr;
+    // WebSocket URL现在从OTA动态获取，不再使用编译时配置
+    // 返回TLS传输的WebSocket实例，因为现在服务器都使用wss://
+    return new WebSocket(new TlsTransport());
 }
 
 Mqtt* WifiBoard::CreateMqtt() {
