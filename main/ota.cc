@@ -57,13 +57,18 @@ Http* Ota::SetupHttp() {
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
-    http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
+    if (has_serial_number_) {
+        http->SetHeader("Serial-Number", serial_number_.c_str());
+    }
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
 
     return http;
 }
 
+/* 
+ * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
+ */
 bool Ota::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();

@@ -8,6 +8,8 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <esp_wifi.h>
+#include <esp_event.h>
 
 #include "display/lcd_display.h"
 #include <esp_lcd_panel_vendor.h>
@@ -19,6 +21,8 @@
 #include "anim_player.h"
 #include "emoji_display.h"
 #include "servo_dog_ctrl.h"
+
+#include "esp_hi_web_control.h"
 
 #define TAG "ESP_HI"
 
@@ -49,6 +53,25 @@ private:
     Button audio_wake_button_;
     Button move_wake_button_;
     anim::EmojiWidget* display_ = nullptr;
+    bool web_server_initialized_ = false;
+
+    static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                                 int32_t event_id, void* event_data)
+    {
+        if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+            EspHi* instance = static_cast<EspHi*>(arg);
+            if (!instance->web_server_initialized_) {
+                ESP_LOGI(TAG, "WiFi connected, init web control server");
+                esp_err_t err = esp_hi_web_control_server_init();
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to initialize web control server: %d", err);
+                } else {
+                    ESP_LOGI(TAG, "Web control server initialized");
+                    instance->web_server_initialized_ = true;
+                }
+            }
+        }
+    }
 
     void HandleMoveWakePressDown(int64_t current_time, int64_t &last_trigger_time, int &gesture_state)
     {
@@ -139,6 +162,9 @@ private:
         thing_manager.AddThing(iot::CreateThing("DogLight"));
         thing_manager.AddThing(iot::CreateThing("DogAction_basic"));
         thing_manager.AddThing(iot::CreateThing("DogAction_extra"));
+
+        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED,
+                                                 &wifi_event_handler, this));
     }
 
     void InitializeSpi()
@@ -214,7 +240,6 @@ public:
         audio_wake_button_(AUDIO_WAKE_BUTTON_GPIO),
         move_wake_button_(MOVE_WAKE_BUTTON_GPIO)
     {
-
         InitializeButtons();
         InitializeIot();
         InitializeSpi();
