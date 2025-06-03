@@ -24,7 +24,11 @@
 #include "led_strip.h"
 #include "driver/rmt_tx.h"
 
+#include "sdkconfig.h"
+
+#ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
 #include "esp_hi_web_control.h"
+#endif //CONFIG_ESP_HI_WEB_CONTROL_ENABLED
 
 #define TAG "ESP_HI"
 
@@ -76,6 +80,7 @@ private:
     led_strip_handle_t led_strip_;
     bool led_on_ = false;
 
+#ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
     static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                  int32_t event_id, void* event_data)
     {
@@ -93,6 +98,7 @@ private:
             }
         }
     }
+#endif //CONFIG_ESP_HI_WEB_CONTROL_ENABLED
 
     void HandleMoveWakePressDown(int64_t current_time, int64_t &last_trigger_time, int &gesture_state)
     {
@@ -204,8 +210,10 @@ private:
         InitializeLed();
         SetLedColor(0x00, 0x00, 0x00);
 
+#ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
         ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED,
                                                  &wifi_event_handler, this));
+#endif //CONFIG_ESP_HI_WEB_CONTROL_ENABLED
     }
 
     void InitializeSpi()
@@ -370,11 +378,7 @@ private:
             int r = properties["r"].value<int>();
             int g = properties["g"].value<int>();
             int b = properties["b"].value<int>();
-
-            r = std::max(0, std::min(255, r));
-            g = std::max(0, std::min(255, g));
-            b = std::max(0, std::min(255, b));
-
+            
             led_on_ = true;
             SetLedColor(r, g, b);
             return true;
