@@ -48,6 +48,9 @@ bool Ota::CheckVersion() {
         return false;
     }
 
+    // 添加调试日志显示要请求的URL
+    ESP_LOGI(TAG, "Checking OTA version from URL: %s", check_version_url_.c_str());
+
     auto http = board.CreateHttp();
     for (const auto& header : headers_) {
         http->SetHeader(header.first, header.second);
@@ -62,15 +65,22 @@ bool Ota::CheckVersion() {
 
     std::string post_data = board.GetJson();
     std::string method = post_data.length() > 0 ? "POST" : "GET";
+    
+    // 添加更详细的调试信息
+    ESP_LOGI(TAG, "HTTP method: %s, Post data length: %d", method.c_str(), post_data.length());
+    if (post_data.length() > 0) {
+        ESP_LOGI(TAG, "Post data: %s", post_data.c_str());
+    }
+    
     if (!http->Open(method, check_version_url_, post_data)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+        ESP_LOGE(TAG, "Failed to open HTTP connection to URL: %s", check_version_url_.c_str());
         delete http;
         return false;
     }
 
     auto response = http->GetBody();
-    http->Close();
-    delete http;
+    // http->Close();
+    // delete http;
 
     // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
     // Parse the JSON response and check if the version is newer

@@ -178,8 +178,14 @@ void Application::ShowActivationCode() {
         digit_sound{'9', Lang::Sounds::P3_9}
     }};
 
+    // 组合消息和激活码一起显示
+    std::string full_message = message;
+    if (!code.empty()) {
+        full_message += "\n" + code;
+    }
+
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-    Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
+    Alert(Lang::Strings::ACTIVATION, full_message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
     vTaskDelay(pdMS_TO_TICKS(1000));
     background_task_->WaitForCompletion();
 
