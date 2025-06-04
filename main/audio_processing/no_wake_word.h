@@ -26,6 +26,7 @@ public:
 
 private:
     AudioCodec* codec_ = nullptr;
+    std::string last_detected_wake_word_;
 };
 
 #endif 
