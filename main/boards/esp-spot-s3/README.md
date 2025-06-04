@@ -30,8 +30,6 @@ idf.py menuconfig
 分别配置如下选项：
 
 - `Xiaozhi Assistant` → `Board Type` → 选择 `ESP-Spot-S3`
-- `Partition Table` → `Custom partition CSV file` → 输入 `partitions.csv`
-- `Serial flasher config` → `Flash size` → 选择 `16 MB`
 
 按 `S` 保存，按 `Q` 退出。
 

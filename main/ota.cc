@@ -57,6 +57,9 @@ Http* Ota::SetupHttp() {
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
+    if (has_serial_number_) {
+        http->SetHeader("Serial-Number", serial_number_.c_str());
+    }
     http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
@@ -64,6 +67,9 @@ Http* Ota::SetupHttp() {
     return http;
 }
 
+/* 
+ * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
+ */
 bool Ota::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
@@ -261,6 +267,11 @@ void Ota::Upgrade(const std::string& firmware_url) {
     auto http = std::unique_ptr<Http>(Board::GetInstance().CreateHttp());
     if (!http->Open("GET", firmware_url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
+        return;
+    }
+
+    if (http->GetStatusCode() != 200) {
+        ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
         return;
     }
 
