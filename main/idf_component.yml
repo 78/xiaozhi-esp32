@@ -29,7 +29,7 @@ dependencies:
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
   espressif2022/image_player: ^1.1.0
-  espressif/adc_mic: ^0.1
+  espressif/adc_mic: ^0.2.0
   espressif/esp_mmap_assets: ">=1.2"
 
   tny-robotics/sh1106-esp-idf:
@@ -54,7 +54,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   lijunru-hub/servo_dog_ctrl:
-    version: '^0.1'
+    version: '^0.1.4'
     rules:
     - if: target in [esp32c3]
 
