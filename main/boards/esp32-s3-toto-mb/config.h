@@ -33,26 +33,26 @@
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
 
+/* 相机引脚配置 */
+#define CAM_PIN_PWDN    GPIO_NUM_NC
+#define CAM_PIN_RESET   GPIO_NUM_NC
+#define CAM_PIN_VSYNC   GPIO_NUM_21
+#define CAM_PIN_HREF    GPIO_NUM_38
+#define CAM_PIN_PCLK    GPIO_NUM_11
+#define CAM_PIN_XCLK    GPIO_NUM_40
+#define CAM_PIN_SIOD    GPIO_NUM_1
+#define CAM_PIN_SIOC    GPIO_NUM_0
+#define CAM_PIN_D0      GPIO_NUM_NC
+#define CAM_PIN_D1      GPIO_NUM_NC
+#define CAM_PIN_D2      GPIO_NUM_13
+#define CAM_PIN_D3      GPIO_NUM_47
+#define CAM_PIN_D4      GPIO_NUM_14
+#define CAM_PIN_D5      GPIO_NUM_3
+#define CAM_PIN_D6      GPIO_NUM_12
+#define CAM_PIN_D7      GPIO_NUM_42
+#define CAM_PIN_D8      GPIO_NUM_41
+#define CAM_PIN_D9      GPIO_NUM_39
 
-/* Camera pins */
-#define CAMERA_PIN_PWDN     GPIO_NUM_NC
-#define CAMERA_PIN_RESET    GPIO_NUM_NC
-#define CAMERA_PIN_XCLK     GPIO_NUM_40
-#define CAMERA_PIN_SIOD     GPIO_NUM_1
-#define CAMERA_PIN_SIOC     GPIO_NUM_0
-
-#define CAMERA_PIN_D9       GPIO_NUM_39
-#define CAMERA_PIN_D8       GPIO_NUM_41
-#define CAMERA_PIN_D7       GPIO_NUM_42
-#define CAMERA_PIN_D6       GPIO_NUM_12
-#define CAMERA_PIN_D5       GPIO_NUM_3
-#define CAMERA_PIN_D4       GPIO_NUM_14
-#define CAMERA_PIN_D3       GPIO_NUM_47
-#define CAMERA_PIN_D2       GPIO_NUM_13
-#define CAMERA_PIN_VSYNC    GPIO_NUM_21
-#define CAMERA_PIN_HREF     GPIO_NUM_38
-#define CAMERA_PIN_PCLK     GPIO_NUM_11
-
-#define XCLK_FREQ_HZ 20000000
+#define XCLK_FREQ_HZ 10000000
 
 #endif // _BOARD_CONFIG_H_
