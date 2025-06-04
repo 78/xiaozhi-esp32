@@ -12,12 +12,24 @@
 #define TAG "Board"
 
 Board::Board() {
-    Settings settings("board", true);
-    uuid_ = settings.GetString("uuid");
-    if (uuid_.empty()) {
-        uuid_ = GenerateUuid();
-        settings.SetString("uuid", uuid_);
+    // 尝试使用NVS中存储的Client-Id作为UUID
+    std::string client_id = SystemInfo::GetClientId();
+    
+    if (!client_id.empty()) {
+        // 使用Client-Id作为UUID
+        uuid_ = client_id;
+        ESP_LOGI(TAG, "Using Client-Id as UUID: %s", uuid_.c_str());
+    } else {
+        // 如果没有Client-Id，回退到Settings中存储的UUID
+        Settings settings("board", true);
+        uuid_ = settings.GetString("uuid");
+        if (uuid_.empty()) {
+            uuid_ = GenerateUuid();
+            settings.SetString("uuid", uuid_);
+        }
+        ESP_LOGI(TAG, "Fallback UUID: %s", uuid_.c_str());
     }
+    
     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
 }
 

@@ -114,8 +114,23 @@ Http* WifiBoard::CreateHttp() {
 }
 
 WebSocket* WifiBoard::CreateWebSocket() {
-    // WebSocket URL现在从OTA动态获取，不再使用编译时配置
-    // 返回TLS传输的WebSocket实例，因为现在服务器都使用wss://
+    // WebSocket URL现在从OTA动态获取，根据协议选择传输层
+    // ws:// 使用TCP传输，wss:// 使用TLS传输
+    auto& application = Application::GetInstance();
+    auto& ota = application.GetOta();
+    
+    if (ota.HasWebsocketConfig()) {
+        std::string url = ota.GetWebsocketUrl();
+        if (url.find("wss://") == 0) {
+            // 使用TLS传输
+            return new WebSocket(new TlsTransport());
+        } else if (url.find("ws://") == 0) {
+            // 使用TCP传输
+            return new WebSocket(new TcpTransport());
+        }
+    }
+    
+    // 默认使用TLS传输作为后备方案
     return new WebSocket(new TlsTransport());
 }
 

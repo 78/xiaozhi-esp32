@@ -92,14 +92,14 @@ bool WebsocketProtocol::OpenAudioChannel() {
     // 尝试获取存储的Client-Id
     std::string client_id = SystemInfo::GetClientId();
     
-    // 如果没有Client-Id，使用Board UUID作为备用
+    // 只使用NVS中存储的Client-Id，如果没有则报错
     if (client_id.empty()) {
-        client_id = Board::GetInstance().GetUuid();
-        ESP_LOGW(TAG, "No stored Client-Id found, using Board UUID as fallback: %s", client_id.c_str());
-    } else {
-        ESP_LOGI(TAG, "Using Client-Id for WebSocket connection: %s", client_id.c_str());
+        ESP_LOGE(TAG, "No Client-Id found in NVS, WebSocket connection cannot be established");
+        SetError(Lang::Strings::SERVER_ERROR);
+        return false;
     }
     
+    ESP_LOGI(TAG, "Using Client-Id for WebSocket connection: %s", client_id.c_str());
     websocket_->SetHeader("Client-Id", client_id.c_str());
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
