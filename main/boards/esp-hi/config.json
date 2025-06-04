@@ -30,7 +30,8 @@
                 "CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y",
                 "CONFIG_NEWLIB_NANO_FORMAT=y",
                 "CONFIG_MMAP_FILE_NAME_LENGTH=25",
-                "CONFIG_ESP_CONSOLE_NONE=y"
+                "CONFIG_ESP_CONSOLE_NONE=y",
+                "CONFIG_IOT_PROTOCOL_MCP=y"
             ]
         }
     ]

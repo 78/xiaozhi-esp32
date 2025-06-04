@@ -227,6 +227,8 @@ bool MqttProtocol::OpenAudioChannel() {
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
         AudioStreamPacket packet;
+        packet.sample_rate = server_sample_rate_;
+        packet.frame_duration = server_frame_duration_;
         packet.timestamp = timestamp;
         packet.payload.resize(decrypted_size);
         int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet.payload.data());
