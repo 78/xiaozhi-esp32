@@ -32,7 +32,7 @@ idf.py menuconfig
 
 - `Xiaozhi Assistant` → `Board Type` → 选择 `AtomS3R CAM/M12 + Echo Base`
 - `Xiaozhi Assistant` → `IoT Protocol` → 选择 `MCP协议` 可开启摄像头识别功能
-- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions_8M.csv`
+- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v1/8m.csv`
 - `Serial flasher config` → `Flash size` → 选择 `8 MB`
 
 按 `S` 保存，按 `Q` 退出。
