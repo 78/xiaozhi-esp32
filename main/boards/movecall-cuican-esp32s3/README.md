@@ -22,7 +22,7 @@ Serial flasher config -> Flash size -> 8 MB
 ### 分区表配置：
 
 ```
-Partition Table -> Custom partition CSV file -> partitions_8M.csv
+Partition Table -> Custom partition CSV file -> partitions/v1/8m.csv
 ```
 
 ### 开发板选择：

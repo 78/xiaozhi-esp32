@@ -33,8 +33,8 @@
 - OLED / LCD 显示屏，支持表情显示
 - 电量显示与电源管理
 - 支持多语言（中文、英文、日文）
-- 支持ESP32-C3、ESP32-S3、ESP32-P4芯片平台
-- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO等）
+- 支持 ESP32-C3、ESP32-S3、ESP32-P4 芯片平台
+- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
 - 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
 
 ## 硬件
@@ -122,7 +122,7 @@
 
 ### 开发者文档
 
-- [自定义开发板指南](main/boards/README.md) - 学习如何为小智AI创建自定义开发板
+- [自定义开发板指南](main/boards/README.md) - 学习如何为小智 AI 创建自定义开发板
 - [MCP 协议物联网控制用法说明](docs/mcp-usage.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol.md) - 设备端 MCP 协议的实现方式
 - [一份详细的 WebSocket 通信协议文档](docs/websocket.md)

@@ -56,7 +56,7 @@ Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> QUAD Mode 
 
 ```
 Serial flasher config -> Flash size -> 8 MB
-Partition Table -> Custom partition CSV file -> partitions_8M.csv
+Partition Table -> Custom partition CSV file -> partitions/v1/8m.csv
 ```
 
 **编译：**
