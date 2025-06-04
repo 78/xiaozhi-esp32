@@ -42,8 +42,6 @@
 #define CAM_PIN_XCLK    GPIO_NUM_40
 #define CAM_PIN_SIOD    GPIO_NUM_1
 #define CAM_PIN_SIOC    GPIO_NUM_0
-#define CAM_PIN_D0      GPIO_NUM_NC
-#define CAM_PIN_D1      GPIO_NUM_NC
 #define CAM_PIN_D2      GPIO_NUM_13
 #define CAM_PIN_D3      GPIO_NUM_47
 #define CAM_PIN_D4      GPIO_NUM_14
@@ -53,6 +51,6 @@
 #define CAM_PIN_D8      GPIO_NUM_41
 #define CAM_PIN_D9      GPIO_NUM_39
 
-#define XCLK_FREQ_HZ 10000000
+#define XCLK_FREQ_HZ 20000000
 
 #endif // _BOARD_CONFIG_H_
