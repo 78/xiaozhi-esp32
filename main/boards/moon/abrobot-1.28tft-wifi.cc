@@ -35,7 +35,6 @@
 #include "ws2812_task.h"          // WS2812 LED控制任务
 #include "settings.h"             // 设置管理
 #include "iot_image_display.h"  // 引入图片显示模式定义
-#include "logo.h"  // 引入logo图片
 #include "image_manager.h"  // 引入图片资源管理器头文件
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
 
@@ -942,6 +941,7 @@ private:
     // 将URL定义为静态变量
     static const char* API_URL;
     static const char* VERSION_URL;
+    static const char* LOGO_VERSION_URL;  // 新增：logo版本URL
 
     // 初始化编解码器I2C总线
     void InitializeCodecI2c() {
@@ -1149,6 +1149,15 @@ private:
         // 添加延迟，确保资源管理器有足够时间初始化
         vTaskDelay(pdMS_TO_TICKS(500));
         
+        // 尝试从资源管理器获取logo图片
+        const uint8_t* logo = image_manager.GetLogoImage();
+        if (logo) {
+            iot::g_static_image = logo;
+            ESP_LOGI(TAG, "已从资源管理器获取logo图片");
+        } else {
+            ESP_LOGW(TAG, "暂无logo图片，等待下载...");
+        }
+        
         // 立即尝试显示静态图片
         if (g_image_display_mode == iot::MODE_STATIC && g_static_image) {
             // 如果有静态图片（logo），使用它
@@ -1192,12 +1201,45 @@ private:
                 
                 if (wifi.IsConnected()) {
                     ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
-                    if (image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL) == ESP_OK) {
-                        // 成功更新
+                    
+                    // 检查并更新动画图片
+                    esp_err_t animation_result = image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL);
+                    
+                    // 检查并更新logo图片
+                    esp_err_t logo_result = image_mgr.CheckAndUpdateLogo(API_URL, LOGO_VERSION_URL);
+                    
+                    // 如果任一更新成功，标记为已更新
+                    if (animation_result == ESP_OK || logo_result == ESP_OK) {
                         *updated = true;
                         ESP_LOGI(TAG, "图片资源更新完成");
-                    } else {
+                        
+                        // 更新静态logo图片
+                        const uint8_t* logo = image_mgr.GetLogoImage();
+                        if (logo) {
+                            iot::g_static_image = logo;
+                            ESP_LOGI(TAG, "logo图片已从网络下载并更新");
+                        }
+                        
+                        // 有真正的资源更新时重启设备
+                        ESP_LOGI(TAG, "资源有更新，3秒后重启设备...");
+                        for (int i = 3; i > 0; i--) {
+                            ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
+                            vTaskDelay(pdMS_TO_TICKS(1000));
+                        }
+                        esp_restart();
+                    } else if (animation_result != ESP_ERR_NOT_FOUND && logo_result != ESP_ERR_NOT_FOUND) {
                         ESP_LOGW(TAG, "图片资源更新失败，将在下次检查时重试");
+                    } else {
+                        // 两个都是最新版本
+                        *updated = true;
+                        ESP_LOGI(TAG, "所有图片资源已是最新版本");
+                        
+                        // 确保logo图片已设置
+                        const uint8_t* logo = image_mgr.GetLogoImage();
+                        if (logo) {
+                            iot::g_static_image = logo;
+                            ESP_LOGI(TAG, "logo图片已确认设置");
+                        }
                     }
                 } else {
                     ESP_LOGD(TAG, "WiFi未连接，等待连接...");
@@ -1478,6 +1520,7 @@ public:
 // 将URL定义为静态变量
 const char* CustomBoard::API_URL = "http://192.168.3.58:5002/images";
 const char* CustomBoard::VERSION_URL = "http://192.168.3.58:5002/images/version";
+const char* CustomBoard::LOGO_VERSION_URL = "http://192.168.3.58:5002/images/logo_version";
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);

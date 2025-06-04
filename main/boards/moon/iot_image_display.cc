@@ -8,8 +8,8 @@
 #include "board.h"
 #include "settings.h"
 #include <esp_log.h>
-#include "logo.h"  // 引入logo图片
 #include "iot_image_display.h"  // 引入头文件
+#include "image_manager.h"  // 引入图片资源管理器
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,46 +17,11 @@
 
 namespace iot {
 
-// 声明处理过的图片数据指针
-static unsigned char* processed_logo_image = nullptr;
-
-// 处理图片数据，交换字节顺序
-static const unsigned char* process_logo_image() {
-    const int logo_size = 115200; // 从logo.h中获取的大小
-
-    // 如果已经处理过，直接返回
-    if (processed_logo_image != nullptr) {
-        return processed_logo_image;
-    }
-    
-    // 分配内存
-    processed_logo_image = (unsigned char*)malloc(logo_size);
-    if (!processed_logo_image) {
-        ESP_LOGE(TAG, "无法为处理的logo图片分配内存");
-        return gImage_logo; // 失败则返回原始图片
-    }
-    
-    // 拷贝原始数据
-    memcpy(processed_logo_image, gImage_logo, logo_size);
-    
-    // 交换字节顺序 - 和ImageResourceManager::LoadImageFile方法中一样
-    for (int i = 0; i < logo_size; i += 2) {
-        if (i + 1 < logo_size) {
-            unsigned char temp = processed_logo_image[i];
-            processed_logo_image[i] = processed_logo_image[i+1];
-            processed_logo_image[i+1] = temp;
-        }
-    }
-    
-    ESP_LOGI(TAG, "Logo图片数据处理完成");
-    return processed_logo_image;
-}
-
 // 全局变量实现
 extern "C" {
     // 默认是动画模式
     volatile ImageDisplayMode g_image_display_mode = MODE_ANIMATED;
-    // 设置静态图片为处理过的logo图片
+    // 静态图片指针，初始为nullptr，将在运行时设置
     const unsigned char* g_static_image = nullptr;
 }
 
@@ -67,8 +32,15 @@ private:
 
 public:
     ImageDisplay() : Thing("ImageDisplay", "显示模式，可以切换动画或静态logo图片") {
-        // 处理logo图片数据
-        g_static_image = process_logo_image();
+        // 从图片资源管理器获取logo图片
+        auto& image_manager = ImageResourceManager::GetInstance();
+        g_static_image = image_manager.GetLogoImage();
+        
+        if (g_static_image) {
+            ESP_LOGI(TAG, "成功获取网络下载的logo图片");
+        } else {
+            ESP_LOGW(TAG, "暂时无法获取logo图片，可能需要等待下载完成");
+        }
     
         // 从系统配置中读取显示模式
         Settings settings("image_display");
@@ -101,6 +73,14 @@ public:
                 display_mode_ = MODE_STATIC;
                 g_image_display_mode = MODE_STATIC;
                 
+                // 重新获取logo图片（可能在初始化后才下载完成）
+                auto& image_manager = ImageResourceManager::GetInstance();
+                const uint8_t* logo = image_manager.GetLogoImage();
+                if (logo) {
+                    g_static_image = logo;
+                    ESP_LOGI(TAG, "已更新logo图片");
+                }
+                
                 // 保存设置
                 Settings settings("image_display", true);
                 settings.SetInt("display_mode", MODE_STATIC);
@@ -114,6 +94,13 @@ public:
                 if (display_mode_ == MODE_ANIMATED) {
                     display_mode_ = MODE_STATIC;
                     g_image_display_mode = MODE_STATIC;
+                    
+                    // 重新获取logo图片
+                    auto& image_manager = ImageResourceManager::GetInstance();
+                    const uint8_t* logo = image_manager.GetLogoImage();
+                    if (logo) {
+                        g_static_image = logo;
+                    }
                 } else {
                     display_mode_ = MODE_ANIMATED;
                     g_image_display_mode = MODE_ANIMATED;
@@ -127,11 +114,13 @@ public:
         });
     }
     
-    ~ImageDisplay() {
-        // 释放处理后的图片内存
-        if (processed_logo_image) {
-            free(processed_logo_image);
-            processed_logo_image = nullptr;
+    // 提供方法在图片下载完成后更新logo图片
+    void UpdateLogoImage() {
+        auto& image_manager = ImageResourceManager::GetInstance();
+        const uint8_t* logo = image_manager.GetLogoImage();
+        if (logo) {
+            g_static_image = logo;
+            ESP_LOGI(TAG, "logo图片已更新");
         }
     }
 };
