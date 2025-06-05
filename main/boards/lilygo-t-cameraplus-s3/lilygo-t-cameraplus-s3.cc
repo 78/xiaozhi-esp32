@@ -103,7 +103,7 @@ private:
     void InitI2c(){
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_config = {
-            .i2c_port = I2C_NUM_1,
+            .i2c_port = I2C_NUM_0,
             .sda_io_num = TOUCH_I2C_SDA_PIN,
             .scl_io_num = TOUCH_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -252,9 +252,15 @@ private:
         config.pin_pclk = PCLK_GPIO_NUM;
         config.pin_vsync = VSYNC_GPIO_NUM;
         config.pin_href = HREF_GPIO_NUM;
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
         config.pin_sccb_sda = -1;   // 这里如果写-1 表示使用已经初始化的I2C接口
         config.pin_sccb_scl = SIOC_GPIO_NUM;
-        config.sccb_i2c_port = 1;   //  这里如果写1 默认使用I2C1
+        config.sccb_i2c_port = 0;   //  这里如果写0 默认使用I2C0
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+        config.pin_sccb_sda = SIOD_GPIO_NUM;  
+        config.pin_sccb_scl = SIOC_GPIO_NUM;
+        config.sccb_i2c_port = 1; 
+#endif
         config.pin_pwdn = PWDN_GPIO_NUM;
         config.pin_reset = RESET_GPIO_NUM;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
