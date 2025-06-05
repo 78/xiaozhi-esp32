@@ -1,6 +1,6 @@
 # 自定义开发板指南
 
-本指南介绍如何为小智AI语音聊天机器人项目定制一个新的开发板初始化程序。小智AI支持50多种ESP32系列开发板，每个开发板的初始化代码都放在对应的目录下。
+本指南介绍如何为小智AI语音聊天机器人项目定制一个新的开发板初始化程序。小智AI支持70多种ESP32系列开发板，每个开发板的初始化代码都放在对应的目录下。
 
 ## 重要提示
 
@@ -98,7 +98,7 @@ mkdir main/boards/my-custom-board
             "sdkconfig_append": [
                 // 额外需要的编译配置
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\""
             ]
         }
     ]
@@ -111,7 +111,7 @@ mkdir main/boards/my-custom-board
 
 一个基本的开发板类定义包含以下几个部分：
 
-1. **类定义**：继承自`WifiBoard`或`ML307Board`
+1. **类定义**：继承自`WifiBoard`或`Ml307Board`
 2. **初始化函数**：包括I2C、显示屏、按钮、IoT等组件的初始化
 3. **虚函数重写**：如`GetAudioCodec()`、`GetDisplay()`、`GetBacklight()`等
 4. **注册开发板**：使用`DECLARE_BOARD`宏注册开发板
@@ -301,20 +301,21 @@ DECLARE_BOARD(MyCustomBoard);
 - AXP2101
 - 其他可用的PMIC
 
-### 4. IoT设备
+### 4. MCP设备控制
 
-可以添加各种IoT设备，让AI能够"看到"和控制:
-- Speaker (扬声器)
-- Screen (屏幕)
-- Battery (电池)
-- Light (灯光)
+可以添加各种MCP工具，让AI能够使用:
+- Speaker (扬声器控制)
+- Screen (屏幕亮度调节)
+- Battery (电池电量读取)
+- Light (灯光控制)
 - 等...
 
 ## 开发板类继承关系
 
 - `Board` - 基础板级类
-  - `WifiBoard` - WiFi连接的开发板
-  - `ML307Board` - 使用4G模块的开发板
+  - `WifiBoard` - Wi-Fi连接的开发板
+  - `Ml307Board` - 使用4G模块的开发板
+  - `DualNetworkBoard` - 支持Wi-Fi与4G网络切换的开发板
 
 ## 开发技巧
 
@@ -327,7 +328,7 @@ DECLARE_BOARD(MyCustomBoard);
 
 1. **显示屏不正常**：检查SPI配置、镜像设置和颜色反转设置
 2. **音频无输出**：检查I2S配置、PA使能引脚和编解码器地址
-3. **无法连接网络**：检查WiFi凭据和网络配置
+3. **无法连接网络**：检查Wi-Fi凭据和网络配置
 4. **无法与服务器通信**：检查MQTT或WebSocket配置
 
 ## 参考资料

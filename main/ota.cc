@@ -60,6 +60,7 @@ Http* Ota::SetupHttp() {
     if (has_serial_number_) {
         http->SetHeader("Serial-Number", serial_number_.c_str());
     }
+    http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
 
@@ -266,6 +267,11 @@ void Ota::Upgrade(const std::string& firmware_url) {
     auto http = std::unique_ptr<Http>(Board::GetInstance().CreateHttp());
     if (!http->Open("GET", firmware_url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
+        return;
+    }
+
+    if (http->GetStatusCode() != 200) {
+        ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
         return;
     }
 
