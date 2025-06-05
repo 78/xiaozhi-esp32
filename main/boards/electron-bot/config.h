@@ -47,5 +47,5 @@
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 
-#define ELECTRON_BOT_VERSION "1.0"
+#define ELECTRON_BOT_VERSION "1.1.0"
 #endif  // _BOARD_CONFIG_H_

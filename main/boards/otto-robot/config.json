@@ -4,7 +4,6 @@
         {
             "name": "otto-robot",
             "sdkconfig_append": [
-                "CONFIG_USE_GIF_EMOTION_STYLE=y"
             ]
         }
     ]

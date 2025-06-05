@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="80%" align="center" src="../../../docs/ottoRobot.png"alt="logo">
+  <img width="80%" align="center" src="../../../docs/V1/otto-robot.png"alt="logo">
 </p>
   <h1 align="center">
   ottoRobot
@@ -8,7 +8,7 @@
 ## 简介
 
 otto 机器人是一个开源的人形机器人平台，具有多种动作能力和互动功能。本项目基于 ESP32 实现了 otto 机器人的控制系统，并加入小智ai。
-- <a href="www.ottodiy.com" target="_blank" title="otto官网">arduino版本 otto官网</a>
+
 - <a href="www.ottodiy.tech" target="_blank" title="otto官网">复刻教程</a>
 
 ## 硬件

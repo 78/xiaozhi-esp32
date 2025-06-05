@@ -9,6 +9,7 @@
 
 #include "led/led.h"
 #include "backlight.h"
+#include "camera.h"
 
 void* create_board();
 class AudioCodec;
@@ -17,7 +18,6 @@ class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
     Board& operator=(const Board&) = delete; // 禁用赋值操作
-    virtual std::string GetBoardJson() = 0;
 
 protected:
     Board();
@@ -38,7 +38,9 @@ public:
     virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
+    virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
+    virtual Camera* GetCamera();
     virtual Http* CreateHttp() = 0;
     virtual WebSocket* CreateWebSocket() = 0;
     virtual Mqtt* CreateMqtt() = 0;
@@ -48,6 +50,8 @@ public:
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetJson();
     virtual void SetPowerSaveMode(bool enabled) = 0;
+    virtual std::string GetBoardJson() = 0;
+    virtual std::string GetDeviceStatusJson() = 0;
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

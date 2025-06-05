@@ -13,13 +13,16 @@
 #include "config.h"
 #include "display/lcd_display.h"
 #include "driver/spi_master.h"
-#include "iot/thing_manager.h"
+#include "electron_emoji_display.h"
 #include "movements.h"
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
 
 #define TAG "ElectronBot"
+
+// 控制器初始化函数声明
+void InitializeElectronBotController();
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
@@ -87,14 +90,14 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, true, false));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
-        display_ = new SpiLcdDisplay(io_handle, panel_handle, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                     DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                     DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                     {
-                                         .text_font = &font_puhui_20_4,
-                                         .icon_font = &font_awesome_20_4,
-                                         .emoji_font = font_emoji_64_init(),
-                                     });
+        display_ = new ElectronEmojiDisplay(io_handle, panel_handle, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                            DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                            {
+                                                .text_font = &font_puhui_20_4,
+                                                .icon_font = &font_awesome_20_4,
+                                                .emoji_font = font_emoji_64_init(),
+                                            });
     }
 
     void InitializeButtons() {
@@ -108,13 +111,7 @@ private:
         });
     }
 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("ElectronBotController"));
-    }
+    void InitializeController() { InitializeElectronBotController(); }
 
 public:
     ElectronBot() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -122,7 +119,7 @@ public:
         InitializeGc9a01Display();
         InitializeButtons();
         InitializePowerManager();
-        InitializeIot();
+        InitializeController();
 
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();

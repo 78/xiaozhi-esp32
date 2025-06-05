@@ -1,5 +1,5 @@
-#ifndef WAKE_WORD_DETECT_H
-#define WAKE_WORD_DETECT_H
+#ifndef AFE_WAKE_WORD_H
+#define AFE_WAKE_WORD_H
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -16,11 +16,12 @@
 #include <condition_variable>
 
 #include "audio_codec.h"
+#include "wake_word.h"
 
-class WakeWordDetect {
+class AfeWakeWord : public WakeWord {
 public:
-    WakeWordDetect();
-    ~WakeWordDetect();
+    AfeWakeWord();
+    ~AfeWakeWord();
 
     void Initialize(AudioCodec* codec);
     void Feed(const std::vector<int16_t>& data);
@@ -51,7 +52,7 @@ private:
     std::mutex wake_word_mutex_;
     std::condition_variable wake_word_cv_;
 
-    void StoreWakeWordData(uint16_t* data, size_t size);
+    void StoreWakeWordData(const int16_t* data, size_t size);
     void AudioDetectionTask();
 };
 

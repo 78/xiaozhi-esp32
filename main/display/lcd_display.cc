@@ -1,28 +1,18 @@
 #include "lcd_display.h"
 
-#include <esp_err.h>
-#include <esp_log.h>
-#include <esp_lvgl_port.h>
-#include <font_awesome_symbols.h>
-#include <libs/gif/lv_gif.h>
-
-#include <cstring>
 #include <vector>
-
+#include <algorithm>
+#include <font_awesome_symbols.h>
+#include <esp_log.h>
+#include <esp_err.h>
+#include <esp_lvgl_port.h>
 #include "assets/lang_config.h"
-#include "board.h"
+#include <cstring>
 #include "settings.h"
 
-#define TAG "LcdDisplay"
+#include "board.h"
 
-#if CONFIG_USE_GIF_EMOTION_STYLE
-LV_IMG_DECLARE(staticstate);
-LV_IMG_DECLARE(sad);
-LV_IMG_DECLARE(happy);
-LV_IMG_DECLARE(scare);
-LV_IMG_DECLARE(buxue);
-LV_IMG_DECLARE(anger);
-#endif
+#define TAG "LcdDisplay"
 
 // Color definitions for dark theme
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
@@ -46,21 +36,9 @@ LV_IMG_DECLARE(anger);
 #define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
 #define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
 
-// Theme color structure
-struct ThemeColors {
-    lv_color_t background;
-    lv_color_t text;
-    lv_color_t chat_background;
-    lv_color_t user_bubble;
-    lv_color_t assistant_bubble;
-    lv_color_t system_bubble;
-    lv_color_t system_text;
-    lv_color_t border;
-    lv_color_t low_battery;
-};
 
 // Define dark theme colors
-static const ThemeColors DARK_THEME = {
+const ThemeColors DARK_THEME = {
     .background = DARK_BACKGROUND_COLOR,
     .text = DARK_TEXT_COLOR,
     .chat_background = DARK_CHAT_BACKGROUND_COLOR,
@@ -73,7 +51,7 @@ static const ThemeColors DARK_THEME = {
 };
 
 // Define light theme colors
-static const ThemeColors LIGHT_THEME = {
+const ThemeColors LIGHT_THEME = {
     .background = LIGHT_BACKGROUND_COLOR,
     .text = LIGHT_TEXT_COLOR,
     .chat_background = LIGHT_CHAT_BACKGROUND_COLOR,
@@ -85,18 +63,30 @@ static const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
-// Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
-
 
 LV_FONT_DECLARE(font_awesome_30_4);
+
+LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts, int width, int height)
+    : panel_io_(panel_io), panel_(panel), fonts_(fonts) {
+    width_ = width;
+    height_ = height;
+
+    // Load theme from settings
+    Settings settings("display", false);
+    current_theme_name_ = settings.GetString("theme", "light");
+
+    // Update the theme
+    if (current_theme_name_ == "dark") {
+        current_theme_ = DARK_THEME;
+    } else if (current_theme_name_ == "light") {
+        current_theme_ = LIGHT_THEME;
+    }
+}
 
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts) {
-    width_ = width;
-    height_ = height;
+    : LcdDisplay(panel_io, panel, fonts, width, height) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -122,7 +112,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
@@ -154,13 +144,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
-    }
-
     SetupUI();
 }
 
@@ -169,10 +152,8 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
                            int width, int height, int offset_x, int offset_y,
                            bool mirror_x, bool mirror_y, bool swap_xy,
                            DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts) {
-    width_ = width;
-    height_ = height;
-    
+    : LcdDisplay(panel_io, panel, fonts, width, height) {
+
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
     for (int y = 0; y < height_; y++) {
@@ -192,7 +173,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
-        .buffer_size = static_cast<uint32_t>(width_ * 10),
+        .buffer_size = static_cast<uint32_t>(width_ * 20),
         .double_buffer = true,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -226,11 +207,62 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
+    SetupUI();
+}
+
+MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                            int width, int height,  int offset_x, int offset_y,
+                            bool mirror_x, bool mirror_y, bool swap_xy,
+                            DisplayFonts fonts)
+    : LcdDisplay(panel_io, panel, fonts, width, height) {
+
+    // Set the display to on
+    ESP_LOGI(TAG, "Turning display on");
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+
+    ESP_LOGI(TAG, "Initialize LVGL library");
+    lv_init();
+
+    ESP_LOGI(TAG, "Initialize LVGL port");
+    lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_init(&port_cfg);
+
+    ESP_LOGI(TAG, "Adding LCD screen");
+    const lvgl_port_display_cfg_t disp_cfg = {
+            .io_handle = panel_io,
+            .panel_handle = panel,
+            .control_handle = nullptr,
+            .buffer_size = static_cast<uint32_t>(width_ * 50),
+            .double_buffer = false,
+            .hres = static_cast<uint32_t>(width_),
+            .vres = static_cast<uint32_t>(height_),
+            .monochrome = false,
+            /* Rotation values must be same as used in esp_lcd for initial settings of the screen */
+            .rotation = {
+            .swap_xy = swap_xy,
+            .mirror_x = mirror_x,
+            .mirror_y = mirror_y,
+        },
+        .flags = {
+            .buff_dma = true,
+            .buff_spiram =false,
+            .sw_rotate = false,
+        },
+    };
+
+    const lvgl_port_display_dsi_cfg_t dpi_cfg = {
+        .flags = {
+            .avoid_tearing = false,
+        }
+    };
+    display_ = lvgl_port_add_disp_dsi(&disp_cfg, &dpi_cfg);
+    if (display_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to add display");
+        return;
+    }
+
+    if (offset_x != 0 || offset_y != 0) {
+        lv_display_set_offset(display_, offset_x, offset_y);
     }
 
     SetupUI();
@@ -276,8 +308,8 @@ void LcdDisplay::SetupUI() {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+    lv_obj_set_style_text_color(screen, current_theme_.text, 0);
+    lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -286,15 +318,15 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
-    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
-    lv_obj_set_style_border_color(container_, current_theme.border, 0);
+    lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
+    lv_obj_set_style_border_color(container_, current_theme_.border, 0);
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
-    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
+    lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
+    lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
     
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
@@ -302,8 +334,8 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_style_pad_all(content_, 10, 0);
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // Background for chat area
-    lv_obj_set_style_border_color(content_, current_theme.border, 0); // Border color for chat area
+    lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0); // Background for chat area
+    lv_obj_set_style_border_color(content_, current_theme_.border, 0); // Border color for chat area
 
     // Enable scrolling for chat content
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
@@ -333,14 +365,14 @@ void LcdDisplay::SetupUI() {
     // 创建emotion_label_在状态栏最左侧
     emotion_label_ = lv_label_create(status_bar_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
     lv_obj_set_style_margin_right(emotion_label_, 5, 0); // 添加右边距，与后面的元素分隔
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(notification_label_, current_theme_.text, 0);
     lv_label_set_text(notification_label_, "");
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
@@ -348,31 +380,31 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_grow(status_label_, 1);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
     lv_obj_set_style_margin_left(network_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
     lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
+    lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
     lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
@@ -380,8 +412,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
-
-#define MAX_MESSAGES 20
+#if CONFIG_IDF_TARGET_ESP32P4
+#define  MAX_MESSAGES 40
+#else
+#define  MAX_MESSAGES 20
+#endif
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
@@ -390,7 +425,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     //避免出现空的消息框
     if(strlen(content) == 0) return;
-
+    
     // 检查消息数量是否超过限制
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (child_count >= MAX_MESSAGES) {
@@ -405,13 +440,31 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
             lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
         }
     }
-
+    
+    // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
+    if (strcmp(role, "system") == 0 && child_count > 0) {
+        // 获取最后一个消息容器
+        lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
+        if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
+            // 获取容器内的气泡
+            lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
+            if (last_bubble != nullptr) {
+                // 检查气泡类型是否为系统消息
+                void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
+                if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
+                    // 如果最后一个消息也是系统消息，则删除它
+                    lv_obj_del(last_container);
+                }
+            }
+        }
+    }
+    
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
     lv_obj_set_scrollbar_mode(msg_bubble, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_border_width(msg_bubble, 1, 0);
-    lv_obj_set_style_border_color(msg_bubble, current_theme.border, 0);
+    lv_obj_set_style_border_color(msg_bubble, current_theme_.border, 0);
     lv_obj_set_style_pad_all(msg_bubble, 8, 0);
 
     // Create the message text
@@ -450,9 +503,9 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // Set alignment and style based on message role
     if (strcmp(role, "user") == 0) {
         // User messages are right-aligned with green background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.user_bubble, 0);
+        lv_obj_set_style_bg_color(msg_bubble, current_theme_.user_bubble, 0);
         // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
+        lv_obj_set_style_text_color(msg_text, current_theme_.text, 0);
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(msg_bubble, (void*)"user");
@@ -460,14 +513,14 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set appropriate width for content
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-
+        
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
     } else if (strcmp(role, "assistant") == 0) {
         // Assistant messages are left-aligned with white background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.assistant_bubble, 0);
+        lv_obj_set_style_bg_color(msg_bubble, current_theme_.assistant_bubble, 0);
         // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
+        lv_obj_set_style_text_color(msg_text, current_theme_.text, 0);
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(msg_bubble, (void*)"assistant");
@@ -475,14 +528,14 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set appropriate width for content
         lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
         lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-
+        
         // Don't grow
         lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
     } else if (strcmp(role, "system") == 0) {
         // System messages are center-aligned with light gray background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.system_bubble, 0);
+        lv_obj_set_style_bg_color(msg_bubble, current_theme_.system_bubble, 0);
         // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.system_text, 0);
+        lv_obj_set_style_text_color(msg_text, current_theme_.system_text, 0);
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(msg_bubble, (void*)"system");
@@ -512,7 +565,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         
         // Right align the bubble in the container
         lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
-
+        
         // Auto-scroll to this container
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
     } else if (strcmp(role, "system") == 0) {
@@ -552,58 +605,26 @@ void LcdDisplay::SetupUI() {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+    lv_obj_set_style_text_color(screen, current_theme_.text, 0);
+    lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
-    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
-    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
-    lv_obj_set_style_border_color(container_, current_theme.border, 0);
+    lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
+    lv_obj_set_style_border_color(container_, current_theme_.border, 0);
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
     lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
-    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
-
-#if CONFIG_USE_GIF_EMOTION_STYLE
-    // 创建一个容器来放置 GIF 和文本
-    lv_obj_t* overlay_container = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(overlay_container, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(overlay_container, LV_HOR_RES, LV_HOR_RES);
-    lv_obj_set_style_bg_opa(overlay_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(overlay_container, 0, 0);
-    lv_obj_center(overlay_container);
-
-    emotion_gif = lv_gif_create(overlay_container);
-    int gif_size = LV_HOR_RES;
-    lv_obj_set_size(emotion_gif, gif_size, gif_size);
-    lv_obj_set_style_border_width(emotion_gif, 0, 0);
-    lv_obj_set_style_bg_opa(emotion_gif, LV_OPA_TRANSP, 0);
-    lv_obj_center(emotion_gif);
-    lv_gif_set_src(emotion_gif, &staticstate);
-
-    chat_message_label_ = lv_label_create(overlay_container);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-    lv_obj_set_style_border_width(chat_message_label_, 0, 0);
-
-    lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_50, 0);
-    lv_obj_set_style_bg_color(chat_message_label_, lv_color_black(), 0);
-    lv_obj_set_style_pad_ver(chat_message_label_, 5, 0);
-
-    lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
-#else
+    lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
+    lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
+    
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
@@ -611,23 +632,28 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_style_pad_all(content_, 5, 0);
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
+    lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
+    lv_obj_set_style_border_color(content_, current_theme_.border, 0); // Border color for content
 
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
     emotion_label_ = lv_label_create(content_);
-    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
-    lv_label_set_text(emotion_label_, "😶");
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+
+    preview_image_ = lv_image_create(content_);
+    lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
+    lv_obj_align(preview_image_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
-    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
-#endif
+    lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -640,12 +666,12 @@ void LcdDisplay::SetupUI() {
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(notification_label_, current_theme_.text, 0);
     lv_label_set_text(notification_label_, "");
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
@@ -653,23 +679,23 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_grow(status_label_, 1);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+    lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
+    lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
     lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
@@ -680,60 +706,58 @@ void LcdDisplay::SetupUI() {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
-#if CONFIG_USE_GIF_EMOTION_STYLE
-
-    struct Emotion {
-        const lv_img_dsc_t* gif;
-        const char* text;
-    };
-
-    static const std::vector<Emotion> emotions = {
-        {&staticstate, "neutral"}, {&happy, "happy"},   {&happy, "laughing"},
-        {&happy, "funny"},         {&sad, "sad"},       {&anger, "angry"},
-        {&scare, "surprised"},     {&buxue, "confused"}};
-
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-                           [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-
-    DisplayLockGuard lock(this);
-    if (emotion_gif == nullptr) {
-        return;
-    }
-
-    if (it != emotions.end()) {
-        lv_gif_set_src(emotion_gif, it->gif);
-    } else {
-        lv_gif_set_src(emotion_gif, &staticstate);
-    }
-#else
     struct Emotion {
         const char* icon;
         const char* text;
     };
 
     static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},  {"🙂", "happy"},   {"😆", "laughing"}, {"😂", "funny"},
-        {"😔", "sad"},      {"😠", "angry"},   {"😭", "crying"},   {"😯", "surprised"},
-        {"🤔", "thinking"}, {"🙄", "confused"}};
-
+        {"😶", "neutral"},
+        {"🙂", "happy"},
+        {"😆", "laughing"},
+        {"😂", "funny"},
+        {"😔", "sad"},
+        {"😠", "angry"},
+        {"😭", "crying"},
+        {"😍", "loving"},
+        {"😳", "embarrassed"},
+        {"😯", "surprised"},
+        {"😱", "shocked"},
+        {"🤔", "thinking"},
+        {"😉", "winking"},
+        {"😎", "cool"},
+        {"😌", "relaxed"},
+        {"🤤", "delicious"},
+        {"😘", "kissy"},
+        {"😏", "confident"},
+        {"😴", "sleepy"},
+        {"😜", "silly"},
+        {"🙄", "confused"}
+    };
+    
+    // 查找匹配的表情
     std::string_view emotion_view(emotion);
     auto it = std::find_if(emotions.begin(), emotions.end(),
-                           [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
+        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
 
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
 
+    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     if (it != emotions.end()) {
         lv_label_set_text(emotion_label_, it->icon);
     } else {
         lv_label_set_text(emotion_label_, "😶");
     }
-
-#endif
+    
+    // 显示emotion_label_，隐藏preview_image_
+    lv_obj_clear_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    if (preview_image_ != nullptr) {
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void LcdDisplay::SetIcon(const char* icon) {
@@ -743,15 +767,46 @@ void LcdDisplay::SetIcon(const char* icon) {
     }
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_label_set_text(emotion_label_, icon);
+    
+    // 显示emotion_label_，隐藏preview_image_
+    lv_obj_clear_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    if (preview_image_ != nullptr) {
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+    DisplayLockGuard lock(this);
+    if (preview_image_ == nullptr) {
+        return;
+    }
+    
+    if (img_dsc != nullptr) {
+        // zoom factor 0.5
+        lv_img_set_zoom(preview_image_, 128 * width_ / img_dsc->header.w);
+        // 设置图片源并显示预览图片
+        lv_img_set_src(preview_image_, img_dsc);
+        lv_obj_clear_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        // 隐藏emotion_label_
+        if (emotion_label_ != nullptr) {
+            lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+    } else {
+        // 隐藏预览图片并显示emotion_label_
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        if (emotion_label_ != nullptr) {
+            lv_obj_clear_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 void LcdDisplay::SetTheme(const std::string& theme_name) {
     DisplayLockGuard lock(this);
     
     if (theme_name == "dark" || theme_name == "DARK") {
-        current_theme = DARK_THEME;
+        current_theme_ = DARK_THEME;
     } else if (theme_name == "light" || theme_name == "LIGHT") {
-        current_theme = LIGHT_THEME;
+        current_theme_ = LIGHT_THEME;
     } else {
         // Invalid theme name, return false
         ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
@@ -762,45 +817,45 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     lv_obj_t* screen = lv_screen_active();
     
     // Update the screen colors
-    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
-    lv_obj_set_style_text_color(screen, current_theme.text, 0);
+    lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
+    lv_obj_set_style_text_color(screen, current_theme_.text, 0);
     
     // Update container colors
     if (container_ != nullptr) {
-        lv_obj_set_style_bg_color(container_, current_theme.background, 0);
-        lv_obj_set_style_border_color(container_, current_theme.border, 0);
+        lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
+        lv_obj_set_style_border_color(container_, current_theme_.border, 0);
     }
     
     // Update status bar colors
     if (status_bar_ != nullptr) {
-        lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
-        lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
+        lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
+        lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
         
         // Update status bar elements
         if (network_label_ != nullptr) {
-            lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
         }
         if (status_label_ != nullptr) {
-            lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
         }
         if (notification_label_ != nullptr) {
-            lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(notification_label_, current_theme_.text, 0);
         }
         if (mute_label_ != nullptr) {
-            lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
         }
         if (battery_label_ != nullptr) {
-            lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
         }
         if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
         }
     }
     
     // Update content area colors
     if (content_ != nullptr) {
-        lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
-        lv_obj_set_style_border_color(content_, current_theme.border, 0);
+        lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
+        lv_obj_set_style_border_color(content_, current_theme_.border, 0);
         
         // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
@@ -840,15 +895,15 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                 
                 // 根据气泡类型应用正确的颜色
                 if (strcmp(bubble_type, "user") == 0) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.user_bubble, 0);
+                    lv_obj_set_style_bg_color(bubble, current_theme_.user_bubble, 0);
                 } else if (strcmp(bubble_type, "assistant") == 0) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.assistant_bubble, 0); 
+                    lv_obj_set_style_bg_color(bubble, current_theme_.assistant_bubble, 0); 
                 } else if (strcmp(bubble_type, "system") == 0) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.system_bubble, 0);
+                    lv_obj_set_style_bg_color(bubble, current_theme_.system_bubble, 0);
                 }
                 
                 // Update border color
-                lv_obj_set_style_border_color(bubble, current_theme.border, 0);
+                lv_obj_set_style_border_color(bubble, current_theme_.border, 0);
                 
                 // Update text color for the message
                 if (lv_obj_get_child_cnt(bubble) > 0) {
@@ -856,9 +911,9 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                     if (text != nullptr) {
                         // 根据气泡类型设置文本颜色
                         if (strcmp(bubble_type, "system") == 0) {
-                            lv_obj_set_style_text_color(text, current_theme.system_text, 0);
+                            lv_obj_set_style_text_color(text, current_theme_.system_text, 0);
                         } else {
-                            lv_obj_set_style_text_color(text, current_theme.text, 0);
+                            lv_obj_set_style_text_color(text, current_theme_.text, 0);
                         }
                     }
                 }
@@ -875,13 +930,13 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                 // 检查用户bubble
                 if (lv_color_eq(bg_color, DARK_USER_BUBBLE_COLOR) || 
                     lv_color_eq(bg_color, LIGHT_USER_BUBBLE_COLOR) ||
-                    lv_color_eq(bg_color, current_theme.user_bubble)) {
+                    lv_color_eq(bg_color, current_theme_.user_bubble)) {
                     is_user_bubble = true;
                 }
                 // 检查系统bubble
                 else if (lv_color_eq(bg_color, DARK_SYSTEM_BUBBLE_COLOR) || 
                          lv_color_eq(bg_color, LIGHT_SYSTEM_BUBBLE_COLOR) ||
-                         lv_color_eq(bg_color, current_theme.system_bubble)) {
+                         lv_color_eq(bg_color, current_theme_.system_bubble)) {
                     is_system_bubble = true;
                 }
                 // 剩余的都当作助手bubble处理
@@ -891,27 +946,27 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
             
                 // 根据bubble类型应用正确的颜色
                 if (is_user_bubble) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.user_bubble, 0);
+                    lv_obj_set_style_bg_color(bubble, current_theme_.user_bubble, 0);
                 } else if (is_assistant_bubble) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.assistant_bubble, 0);
+                    lv_obj_set_style_bg_color(bubble, current_theme_.assistant_bubble, 0);
                 } else if (is_system_bubble) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.system_bubble, 0);
+                    lv_obj_set_style_bg_color(bubble, current_theme_.system_bubble, 0);
                 }
                 
                 // Update border color
-                lv_obj_set_style_border_color(bubble, current_theme.border, 0);
+                lv_obj_set_style_border_color(bubble, current_theme_.border, 0);
                 
                 // Update text color for the message
                 if (lv_obj_get_child_cnt(bubble) > 0) {
                     lv_obj_t* text = lv_obj_get_child(bubble, 0);
                     if (text != nullptr) {
                         // 回退到颜色检测逻辑
-                        if (lv_color_eq(bg_color, current_theme.system_bubble) ||
+                        if (lv_color_eq(bg_color, current_theme_.system_bubble) ||
                             lv_color_eq(bg_color, DARK_SYSTEM_BUBBLE_COLOR) || 
                             lv_color_eq(bg_color, LIGHT_SYSTEM_BUBBLE_COLOR)) {
-                            lv_obj_set_style_text_color(text, current_theme.system_text, 0);
+                            lv_obj_set_style_text_color(text, current_theme_.system_text, 0);
                         } else {
-                            lv_obj_set_style_text_color(text, current_theme.text, 0);
+                            lv_obj_set_style_text_color(text, current_theme_.text, 0);
                         }
                     }
                 }
@@ -920,18 +975,18 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
 #else
         // Simple UI mode - just update the main chat message
         if (chat_message_label_ != nullptr) {
-            lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
         }
         
         if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
+            lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
         }
 #endif
     }
     
     // Update low battery popup
     if (low_battery_popup_ != nullptr) {
-        lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
+        lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     }
 
     // No errors occurred. Save theme to settings

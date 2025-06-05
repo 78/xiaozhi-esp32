@@ -12,8 +12,10 @@
 #include "config.h"
 #include "display/lcd_display.h"
 #include "iot/thing_manager.h"
-#include "ml307_board.h"
-#include "otto_movements.h"
+#include "lamp_controller.h"
+#include "led/single_led.h"
+#include "mcp_server.h"
+#include "otto_emoji_display.h"
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
@@ -23,12 +25,14 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
+// Otto控制器初始化函数声明
+extern void InitializeOttoController();
+
 class OttoRobot : public WifiBoard {
 private:
     LcdDisplay* display_;
     PowerManager* power_manager_;
     Button boot_button_;
-
     void InitializePowerManager() {
         power_manager_ =
             new PowerManager(POWER_CHARGE_DETECT_PIN, POWER_ADC_UNIT, POWER_ADC_CHANNEL);
@@ -74,7 +78,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new SpiLcdDisplay(
+        display_ = new OttoEmojiDisplay(
             panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
@@ -95,12 +99,10 @@ private:
         });
     }
 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("OttoController"));
+    void InitializeOttoController() {
+        // 初始化Otto控制器的MCP工具
+        ESP_LOGI(TAG, "初始化Otto机器人MCP控制器");
+        ::InitializeOttoController();
     }
 
 public:
@@ -108,8 +110,8 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
-        InitializeIot();
         InitializePowerManager();
+        InitializeOttoController();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

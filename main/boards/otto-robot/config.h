@@ -3,10 +3,6 @@
 
 #include <driver/gpio.h>
 
-#define ML307_RX_PIN GPIO_NUM_43
-#define ML307_TX_PIN GPIO_NUM_44
-#define ML307_EN_PIN GPIO_NUM_2
-
 #define POWER_CHARGE_DETECT_PIN GPIO_NUM_21
 #define POWER_ADC_UNIT ADC_UNIT_2
 #define POWER_ADC_CHANNEL ADC_CHANNEL_3
@@ -51,6 +47,6 @@
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 
-#define OTTO_ROBOT_VERSION "1.3.1"
+#define OTTO_ROBOT_VERSION "1.4.1"
 
 #endif  // _BOARD_CONFIG_H_

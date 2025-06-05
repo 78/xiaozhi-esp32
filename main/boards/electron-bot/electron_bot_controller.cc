@@ -1,7 +1,8 @@
 /*
-    机器人控制器
+    Electron Bot机器人控制器 - MCP协议版本
 */
 
+#include <cJSON.h>
 #include <esp_log.h>
 
 #include <cstring>
@@ -9,13 +10,11 @@
 #include "application.h"
 #include "board.h"
 #include "config.h"
-#include "iot/thing.h"
+#include "mcp_server.h"
 #include "movements.h"
 #include "sdkconfig.h"
 
 #define TAG "ElectronBotController"
-
-namespace iot {
 
 struct ElectronBotActionParams {
     int action_type;
@@ -25,7 +24,7 @@ struct ElectronBotActionParams {
     int amount;
 };
 
-class ElectronBotController : public Thing {
+class ElectronBotController {
 private:
     Otto electron_bot_;
     TaskHandle_t action_task_handle_ = nullptr;
@@ -58,6 +57,16 @@ private:
         ACTION_HEAD_CENTER = 18,     // 回中心
         ACTION_HEAD_NOD_REPEAT = 19  // 连续点头
     };
+
+    template <typename T>
+    T GetPropertyValue(const PropertyList& properties, const std::string& name,
+                       const T& default_value) const {
+        try {
+            return properties[name].value<T>();
+        } catch (const std::runtime_error&) {
+            return default_value;
+        }
+    }
 
     // 限制数值在指定范围内
     static int Limit(int value, int min, int max) {
@@ -144,17 +153,160 @@ private:
         }
     }
 
+    void QueueAction(int action_type, int steps, int speed, int direction, int amount) {
+        // 参数限制
+        action_type = Limit(action_type, ACTION_HAND_LEFT_UP, ACTION_HEAD_NOD_REPEAT);
+        steps = Limit(steps, 1, 100);
+        speed = Limit(speed, 500, 3000);
+        direction = Limit(direction, -1, 1);
+
+        switch (action_type) {
+            case ACTION_HAND_LEFT_UP:
+            case ACTION_HAND_RIGHT_UP:
+            case ACTION_HAND_BOTH_UP:
+            case ACTION_HAND_LEFT_DOWN:
+            case ACTION_HAND_RIGHT_DOWN:
+            case ACTION_HAND_BOTH_DOWN:
+            case ACTION_HAND_LEFT_WAVE:
+            case ACTION_HAND_RIGHT_WAVE:
+            case ACTION_HAND_BOTH_WAVE:
+            case ACTION_HAND_LEFT_FLAP:
+            case ACTION_HAND_RIGHT_FLAP:
+            case ACTION_HAND_BOTH_FLAP:
+                amount = Limit(amount, 10, 50);
+                break;
+            case ACTION_BODY_TURN_LEFT:
+            case ACTION_BODY_TURN_RIGHT:
+                amount = Limit(amount, 0, 90);
+                break;
+            case ACTION_HEAD_UP:
+            case ACTION_HEAD_DOWN:
+            case ACTION_HEAD_NOD_ONCE:
+            case ACTION_HEAD_CENTER:
+            case ACTION_HEAD_NOD_REPEAT:
+                amount = Limit(amount, 1, 15);
+                break;
+            default:
+                amount = Limit(amount, 10, 50);
+        }
+
+        ESP_LOGI(TAG, "动作控制: 类型=%d, 步数=%d, 速度=%d, 方向=%d, 幅度=%d", action_type, steps,
+                 speed, direction, amount);
+
+        ElectronBotActionParams params;
+        params.action_type = action_type;
+        params.steps = steps;
+        params.speed = speed;
+        params.direction = direction;
+        params.amount = amount;
+
+        xQueueSend(action_queue_, &params, portMAX_DELAY);
+        StartActionTaskIfNeeded();
+    }
+
+    void StartActionTaskIfNeeded() {
+        if (action_task_handle_ == nullptr) {
+            xTaskCreate(ActionTask, "electron_bot_action", 1024 * 4, this, configMAX_PRIORITIES - 1,
+                        &action_task_handle_);
+        }
+    }
+
 public:
-    ElectronBotController() : Thing("ElectronBotController", "电子机器人的控制器") {
+    ElectronBotController() {
         electron_bot_.Init(Right_Pitch_Pin, Right_Roll_Pin, Left_Pitch_Pin, Left_Roll_Pin, Body_Pin,
                            Head_Pin);
 
         electron_bot_.Home(true);
         action_queue_ = xQueueCreate(10, sizeof(ElectronBotActionParams));
 
-        methods_.AddMethod("suspend", "清空动作队列,中断电子机器人动作", ParameterList(),
-                           [this](const ParameterList& parameters) {
-                               ESP_LOGI(TAG, "停止电子机器人动作");
+        RegisterMcpTools();
+        ESP_LOGI(TAG, "Electron Bot控制器已初始化并注册MCP工具");
+    }
+
+    void RegisterMcpTools() {
+        auto& mcp_server = McpServer::GetInstance();
+
+        ESP_LOGI(TAG, "开始注册Electron Bot MCP工具...");
+
+        // 手部动作统一工具
+        mcp_server.AddTool(
+            "self.electron.hand_action", "手部动作控制",
+            PropertyList({Property("动作:1举手,2放手,3挥手,4拍打", kPropertyTypeInteger, 1, 4),
+                          Property("手部:1左手,2右手,3双手", kPropertyTypeInteger, 1, 3),
+                          Property("次数", kPropertyTypeInteger, 1, 10),
+                          Property("速度", kPropertyTypeInteger, 500, 1500),
+                          Property("幅度", kPropertyTypeInteger, 10, 50)}),
+            [this](const PropertyList& properties) -> ReturnValue {
+                int action_type = GetPropertyValue(properties, "动作:1举手,2放手,3挥手,4拍打", 1);
+                int hand_type = GetPropertyValue(properties, "手部:1左手,2右手,3双手", 3);
+                int steps = GetPropertyValue(properties, "次数", 1);
+                int speed = GetPropertyValue(properties, "速度", 1000);
+                int amount = GetPropertyValue(properties, "幅度", 30);
+
+                // 根据动作类型和手部类型计算具体动作
+                int action_id;
+                switch (action_type) {
+                    case 1:  // 举手
+                        action_id = ACTION_HAND_LEFT_UP + (hand_type - 1);
+                        break;
+                    case 2:  // 放手
+                        action_id = ACTION_HAND_LEFT_DOWN + (hand_type - 1);
+                        amount = 0;  // 放手动作不需要幅度
+                        break;
+                    case 3:  // 挥手
+                        action_id = ACTION_HAND_LEFT_WAVE + (hand_type - 1);
+                        amount = 0;  // 挥手动作不需要幅度
+                        break;
+                    case 4:  // 拍打
+                        action_id = ACTION_HAND_LEFT_FLAP + (hand_type - 1);
+                        amount = 0;  // 拍打动作不需要幅度
+                        break;
+                    default:
+                        action_id = ACTION_HAND_BOTH_UP;
+                }
+
+                QueueAction(action_id, steps, 2000 - speed, 0, amount);
+                return true;
+            });
+
+        // 身体动作
+        mcp_server.AddTool("self.electron.body_turn", "身体转向",
+                           PropertyList({Property("步数", kPropertyTypeInteger, 1, 10),
+                                         Property("速度", kPropertyTypeInteger, 500, 1500),
+                                         Property("方向:1左转,2右转", kPropertyTypeInteger, 1, 2),
+                                         Property("角度", kPropertyTypeInteger, 0, 90)}),
+                           [this](const PropertyList& properties) -> ReturnValue {
+                               int steps = GetPropertyValue(properties, "步数", 1);
+                               int speed = GetPropertyValue(properties, "速度", 1000);
+                               int direction = GetPropertyValue(properties, "方向:1左转,2右转", 1);
+                               int amount = GetPropertyValue(properties, "角度", 45);
+                               int action = (direction == 1) ? ACTION_BODY_TURN_LEFT
+                                                             : ACTION_BODY_TURN_RIGHT;
+                               QueueAction(action, steps, 2000 - speed, 0, amount);
+                               return true;
+                           });
+
+        // 头部动作
+        mcp_server.AddTool("self.electron.head_move", "头部运动",
+                           PropertyList({Property("动作:1抬头,2低头,3点头,4回中心,5连续点头",
+                                                  kPropertyTypeInteger, 1, 5),
+                                         Property("次数", kPropertyTypeInteger, 1, 10),
+                                         Property("速度", kPropertyTypeInteger, 500, 1500),
+                                         Property("角度", kPropertyTypeInteger, 1, 15)}),
+                           [this](const PropertyList& properties) -> ReturnValue {
+                               int action_num = GetPropertyValue(
+                                   properties, "动作:1抬头,2低头,3点头,4回中心,5连续点头", 3);
+                               int steps = GetPropertyValue(properties, "次数", 1);
+                               int speed = GetPropertyValue(properties, "速度", 1000);
+                               int amount = GetPropertyValue(properties, "角度", 5);
+                               int action = ACTION_HEAD_UP + (action_num - 1);
+                               QueueAction(action, steps, 2000 - speed, 0, amount);
+                               return true;
+                           });
+
+        // 系统工具
+        mcp_server.AddTool("self.electron.stop", "立即停止", PropertyList(),
+                           [this](const PropertyList& properties) -> ReturnValue {
                                if (action_task_handle_ != nullptr) {
                                    vTaskDelete(action_task_handle_);
                                    action_task_handle_ = nullptr;
@@ -162,86 +314,29 @@ public:
                                is_action_in_progress_ = false;
                                xQueueReset(action_queue_);
                                electron_bot_.Home(true);
+                               return true;
                            });
 
-        methods_.AddMethod(
-            "AIControl", "AI把机器人待执行动作加入队列,动作需要时间，退下时挥挥手",
-            ParameterList(
-                {Parameter(
-                     "action_type",
-                     "动作类型: 1=举左手, 2=举右手, 3=举双手, 4=放左手, 5=放右手, 6=放双手, "
-                     "7=挥左手, 8=挥右手, 9=挥双手, 10=拍打左手, 11=拍打右手, 12=拍打双手, "
-                     "13=左转, 14=右转, 15=抬头, 16=低头, 17=点头一次, 18=回中心, 19=连续点头",
-                     kValueTypeNumber, false),
-                 Parameter("steps", "重复次数/步数 (1-100)", kValueTypeNumber, false),
-                 Parameter("speed", "动作速度 (500-3000，数值越小越快)", kValueTypeNumber, false),
-                 Parameter("direction", "保留参数，暂未使用", kValueTypeNumber, true),
-                 Parameter("amount", "动作幅度: 手部动作10-50, 身体转向0-90, 头部动作1-15度",
-                           kValueTypeNumber, true)}),
-            [this](const ParameterList& parameters) {
-                int action_type = parameters["action_type"].number();
-                int steps = parameters["steps"].number();
-                int speed = parameters["speed"].number();
-                int direction = parameters["direction"].number();
-                int amount = parameters["amount"].number();
+        mcp_server.AddTool("self.electron.get_status", "获取机器人状态", PropertyList(),
+                           [this](const PropertyList& properties) -> ReturnValue {
+                               return is_action_in_progress_ ? "moving" : "idle";
+                           });
 
-                action_type = Limit(action_type, ACTION_HAND_LEFT_UP, ACTION_HEAD_NOD_REPEAT);
-                steps = Limit(steps, 1, 100);
-                speed = Limit(speed, 500, 3000);
-                direction = Limit(direction, -1, 1);
+        mcp_server.AddTool("self.battery.get_level", "获取机器人电池电量和充电状态", PropertyList(),
+                           [](const PropertyList& properties) -> ReturnValue {
+                               auto& board = Board::GetInstance();
+                               int level = 0;
+                               bool charging = false;
+                               bool discharging = false;
+                               board.GetBatteryLevel(level, charging, discharging);
 
-                switch (action_type) {
-                    case ACTION_HAND_LEFT_UP:
-                    case ACTION_HAND_RIGHT_UP:
-                    case ACTION_HAND_BOTH_UP:
-                    case ACTION_HAND_LEFT_DOWN:
-                    case ACTION_HAND_RIGHT_DOWN:
-                    case ACTION_HAND_BOTH_DOWN:
-                    case ACTION_HAND_LEFT_WAVE:
-                    case ACTION_HAND_RIGHT_WAVE:
-                    case ACTION_HAND_BOTH_WAVE:
-                    case ACTION_HAND_LEFT_FLAP:
-                    case ACTION_HAND_RIGHT_FLAP:
-                    case ACTION_HAND_BOTH_FLAP:
-                        amount = Limit(amount, 10, 50);
-                        break;
-                    case ACTION_BODY_TURN_LEFT:
-                    case ACTION_BODY_TURN_RIGHT:
-                        amount = Limit(amount, 0, 90);
-                        break;
-                    case ACTION_HEAD_UP:
-                    case ACTION_HEAD_DOWN:
-                        amount = Limit(amount, 1, 15);
-                        break;
-                    case ACTION_HEAD_NOD_ONCE:
-                    case ACTION_HEAD_CENTER:
-                    case ACTION_HEAD_NOD_REPEAT:
-                        amount = Limit(amount, 1, 15);
-                        break;
-                    default:
-                        amount = Limit(amount, 10, 50);
-                }
+                               std::string status =
+                                   "{\"level\":" + std::to_string(level) +
+                                   ",\"charging\":" + (charging ? "true" : "false") + "}";
+                               return status;
+                           });
 
-                ESP_LOGI(TAG, "AI控制: 动作类型=%d, 步数=%d, 速度=%d, 方向=%d, 幅度=%d",
-                         action_type, steps, speed, direction, amount);
-
-                ElectronBotActionParams params;
-                params.action_type = action_type;
-                params.steps = steps;
-                params.speed = speed;
-                params.direction = direction;
-                params.amount = amount;
-
-                xQueueSend(action_queue_, &params, portMAX_DELAY);
-
-                StartActionTaskIfNeeded();
-            });
-    }
-
-    void StartActionTaskIfNeeded() {
-        if (action_task_handle_ == nullptr) {
-            xTaskCreate(ActionTask, "electron_bot_action", 1024 * 4, this, 4, &action_task_handle_);
-        }
+        ESP_LOGI(TAG, "Electron Bot MCP工具注册完成");
     }
 
     ~ElectronBotController() {
@@ -253,6 +348,11 @@ public:
     }
 };
 
-}  // namespace iot
+static ElectronBotController* g_electron_controller = nullptr;
 
-DECLARE_THING(ElectronBotController);
+void InitializeElectronBotController() {
+    if (g_electron_controller == nullptr) {
+        g_electron_controller = new ElectronBotController();
+        ESP_LOGI(TAG, "Electron Bot控制器已初始化并注册MCP工具");
+    }
+}

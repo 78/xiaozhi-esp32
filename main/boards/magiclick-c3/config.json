@@ -5,7 +5,8 @@
             "name": "magiclick-c3",
             "sdkconfig_append": [
                 "CONFIG_PM_ENABLE=y",
-                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y"
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_USE_ESP_WAKE_WORD=n"
             ]
         }
     ]
