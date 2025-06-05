@@ -63,10 +63,12 @@ public:
         // IO0: LCD Backlight (original lichuang-dev uses direct GPIO) -> Assuming this is for other purposes or Display PMIC.
         // IO1: Speaker Amp Control
         // IO2: Camera Power
-        WriteReg(0x01, 0x00);
+        //暂时注销WriteReg(0x01, 0x00);
         // Configure IO0, IO1, IO2 as outputs (0), rest (IO3-IO7) as inputs (1).
         // Binary: 0b11111000 -> Hex 0xF0.
-        WriteReg(0x03, 0xF0);
+        //暂时注销WriteReg(0x03, 0xF0);
+        WriteReg(0x01, 0x03);
+        WriteReg(0x03, 0xf8);
     }
 
     void SetOutputState(uint8_t bit, uint8_t level) {
@@ -234,7 +236,7 @@ private:
 
     void InitializePmic() {
         // Initialize PMIC (AXP2101)
-        //pmic_ = new Pmic(i2c_bus_, AXP2101_I2C_ADDR);
+        //暂时注销pmic_ = new Pmic(i2c_bus_, AXP2101_I2C_ADDR);
     }
 
     void InitializeSpi() {
@@ -459,7 +461,7 @@ public:
         InitializeCamera();
         InitializeIot();
 
-        check_headphone_status();
+        //暂时注销check_headphone_status();
         GetBacklight()->RestoreBrightness();
 
         const esp_timer_create_args_t headphone_timer_args = {
@@ -499,6 +501,9 @@ public:
         return display_;
     }
     
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
