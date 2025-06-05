@@ -49,18 +49,18 @@ private:
     
     // 内部方法
     esp_err_t MountResourcesPartition();
-    std::string ReadLocalVersion();
-    std::string ReadLocalLogoVersion(); // 新增：读取logo版本
+    std::string ReadLocalDynamicUrls(); // 重命名：读取本地动态图片URL
+    std::string ReadLocalStaticUrl(); // 重命名：读取本地静态图片URL
     bool CheckImagesExist();
-    bool CheckLogoExists(); // 新增：检查logo是否存在
+    bool CheckLogoExists(); // 检查logo是否存在
     void CreateDirectoryIfNotExists(const char* path);
     esp_err_t CheckServerVersion(const char* version_url);
-    esp_err_t CheckServerLogoVersion(const char* logo_version_url); // 新增：检查服务器logo版本
+    esp_err_t CheckServerLogoVersion(const char* logo_version_url); // 检查服务器logo版本
     esp_err_t DownloadImages(const char* api_url);
-    esp_err_t DownloadLogo(const char* api_url); // 新增：下载logo
+    esp_err_t DownloadLogo(const char* api_url); // 下载logo
     esp_err_t DownloadFile(const char* url, const char* filepath);
-    bool SaveVersion(const std::string& version);
-    bool SaveLogoVersion(const std::string& version); // 新增：保存logo版本
+    bool SaveDynamicUrls(const std::vector<std::string>& urls); // 保存动态图片URL列表
+    bool SaveStaticUrl(const std::string& url); // 保存静态图片URL
     void LoadImageData();
     bool LoadImageFile(int image_index);
     bool LoadLogoFile(); // 加载logo文件
@@ -70,10 +70,10 @@ private:
     bool initialized_;       // 是否已初始化
     bool has_valid_images_;  // 是否有有效图片
     bool has_valid_logo_;    // 是否有有效logo
-    std::string local_version_;   // 本地版本
-    std::string server_version_;  // 服务器版本
-    std::string local_logo_version_; // 新增：本地logo版本
-    std::string server_logo_version_; // 新增：服务器logo版本
+    std::string cached_static_url_;  // 缓存的静态图片URL
+    std::vector<std::string> cached_dynamic_urls_; // 缓存的动态图片URL列表
+    std::string server_static_url_;  // 服务器返回的静态图片URL
+    std::vector<std::string> server_dynamic_urls_; // 服务器返回的动态图片URL列表
     std::vector<const uint8_t*> image_array_; // 图片数据指针数组
     std::vector<uint8_t*> image_data_pointers_;  // 管理内存的指针数组
     uint8_t* logo_data_; // logo图片数据

@@ -1528,9 +1528,9 @@ public:
 };
 
 // 将URL定义为静态变量
-const char* CustomBoard::API_URL = "http://192.168.3.58:5002/images";
-const char* CustomBoard::VERSION_URL = "http://192.168.3.58:5002/images/version";
-const char* CustomBoard::LOGO_VERSION_URL = "http://192.168.3.58:5002/images/logo_version";
+const char* CustomBoard::API_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
+const char* CustomBoard::VERSION_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
+const char* CustomBoard::LOGO_VERSION_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);

@@ -7,21 +7,24 @@
 #include <cJSON.h>
 #include <wifi_station.h>
 #include "board.h"
+#include "system_info.h"  // 新增：包含系统信息头文件
 
 #define TAG "ImageResManager"
-#define IMAGE_VERSION_FILE "/resources/version.json"
-#define LOGO_VERSION_FILE "/resources/logo_version.json"  // 新增：logo版本文件
+#define IMAGE_URL_CACHE_FILE "/resources/image_urls.json"  // 修改：图片URL缓存文件
+#define LOGO_URL_CACHE_FILE "/resources/logo_url.json"     // 修改：logo URL缓存文件
 #define IMAGE_BASE_PATH "/resources/images/"
 #define LOGO_FILE_PATH "/resources/images/logo.h"
-#define MAX_IMAGE_FILES 2
+#define MAX_IMAGE_FILES 10  // 修改：根据示例有10个动态图片
 #define MAX_DOWNLOAD_RETRIES 3
 
 ImageResourceManager::ImageResourceManager() {
     mounted_ = false;
     initialized_ = false;
     has_valid_images_ = false;
-    has_valid_logo_ = false;  // 新增
+    has_valid_logo_ = false;  
     logo_data_ = nullptr;
+    cached_static_url_ = "";     // 缓存的静态图片URL
+    cached_dynamic_urls_.clear(); // 缓存的动态图片URL列表
 }
 
 ImageResourceManager::~ImageResourceManager() {
@@ -59,15 +62,15 @@ esp_err_t ImageResourceManager::Initialize() {
     // 确保存在图片目录
     CreateDirectoryIfNotExists(IMAGE_BASE_PATH);
     
-    // 检查本地版本
-    local_version_ = ReadLocalVersion();
-    local_logo_version_ = ReadLocalLogoVersion();  // 新增：读取logo版本
-    ESP_LOGI(TAG, "当前本地动画图片版本: %s", local_version_.c_str());
-    ESP_LOGI(TAG, "当前本地logo版本: %s", local_logo_version_.c_str());
+    // 读取本地缓存的URL
+    ReadLocalDynamicUrls(); // 读取动态图片URL缓存
+    ReadLocalStaticUrl();   // 读取静态图片URL缓存
+    ESP_LOGI(TAG, "当前本地动画图片URL数量: %d", cached_dynamic_urls_.size());
+    ESP_LOGI(TAG, "当前本地logo URL: %s", cached_static_url_.c_str());
     
     // 检查是否有有效图片
     has_valid_images_ = CheckImagesExist();
-    has_valid_logo_ = CheckLogoExists();  // 新增：检查logo
+    has_valid_logo_ = CheckLogoExists();
     
     if (has_valid_images_) {
         ESP_LOGI(TAG, "找到有效的动画图片文件");
@@ -120,92 +123,93 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
     return ESP_OK;
 }
 
-std::string ImageResourceManager::ReadLocalVersion() {
+std::string ImageResourceManager::ReadLocalDynamicUrls() {
     if (!mounted_) {
-        return "0";
+        return "";
     }
     
-    FILE* f = fopen(IMAGE_VERSION_FILE, "r");
+    FILE* f = fopen(IMAGE_URL_CACHE_FILE, "r");
     if (f == NULL) {
-        ESP_LOGW(TAG, "无法打开动画图片版本文件，假定初始版本");
-        return "0";
+        ESP_LOGW(TAG, "无法打开动画图片URL缓存文件，假定初始状态");
+        return "";
     }
     
-    char buffer[128];
+    char buffer[1024];  // 增大缓冲区以容纳URL数组
     size_t len = fread(buffer, 1, sizeof(buffer) - 1, f);
     fclose(f);
     
     if (len <= 0) {
-        return "0";
+        return "";
     }
     
     buffer[len] = '\0';
     
     cJSON* root = cJSON_Parse(buffer);
     if (root == NULL) {
-        ESP_LOGE(TAG, "解析动画图片版本文件失败");
-        return "0";
+        ESP_LOGE(TAG, "解析动画图片URL缓存文件失败");
+        return "";
     }
     
-    cJSON* version = cJSON_GetObjectItem(root, "version");
-    if (version == NULL || !cJSON_IsString(version) || strlen(version->valuestring) == 0) {
-        cJSON_Delete(root);
-        return "0";
+    // 读取缓存的动态图片URL数组
+    cJSON* dyn_array = cJSON_GetObjectItem(root, "dyn");
+    if (dyn_array != NULL && cJSON_IsArray(dyn_array)) {
+        cached_dynamic_urls_.clear();
+        int array_size = cJSON_GetArraySize(dyn_array);
+        for (int i = 0; i < array_size; i++) {
+            cJSON* url_item = cJSON_GetArrayItem(dyn_array, i);
+            if (cJSON_IsString(url_item)) {
+                cached_dynamic_urls_.push_back(url_item->valuestring);
+            }
+        }
+        
+        // 返回第一个URL作为标识符
+        if (!cached_dynamic_urls_.empty()) {
+            cJSON_Delete(root);
+            return cached_dynamic_urls_[0];
+        }
     }
     
-    std::string ver = version->valuestring;
     cJSON_Delete(root);
-    
-    // 确保版本不为空
-    if (ver.empty()) {
-        return "0";
-    }
-    
-    return ver;
+    return "";
 }
 
-std::string ImageResourceManager::ReadLocalLogoVersion() {
+std::string ImageResourceManager::ReadLocalStaticUrl() {
     if (!mounted_) {
-        return "0";
+        return "";
     }
     
-    FILE* f = fopen(LOGO_VERSION_FILE, "r");
+    FILE* f = fopen(LOGO_URL_CACHE_FILE, "r");
     if (f == NULL) {
-        ESP_LOGW(TAG, "无法打开logo版本文件，假定初始版本");
-        return "0";
+        ESP_LOGW(TAG, "无法打开logo URL缓存文件，假定初始状态");
+        return "";
     }
     
-    char buffer[128];
+    char buffer[512];
     size_t len = fread(buffer, 1, sizeof(buffer) - 1, f);
     fclose(f);
     
     if (len <= 0) {
-        return "0";
+        return "";
     }
     
     buffer[len] = '\0';
     
     cJSON* root = cJSON_Parse(buffer);
     if (root == NULL) {
-        ESP_LOGE(TAG, "解析logo版本文件失败");
-        return "0";
+        ESP_LOGE(TAG, "解析logo URL缓存文件失败");
+        return "";
     }
     
-    cJSON* version = cJSON_GetObjectItem(root, "version");
-    if (version == NULL || !cJSON_IsString(version) || strlen(version->valuestring) == 0) {
+    cJSON* sta_url = cJSON_GetObjectItem(root, "sta");
+    if (sta_url == NULL || !cJSON_IsString(sta_url) || strlen(sta_url->valuestring) == 0) {
         cJSON_Delete(root);
-        return "0";
+        return "";
     }
     
-    std::string ver = version->valuestring;
+    cached_static_url_ = sta_url->valuestring;
     cJSON_Delete(root);
     
-    // 确保版本不为空
-    if (ver.empty()) {
-        return "0";
-    }
-    
-    return ver;
+    return cached_static_url_;
 }
 
 bool ImageResourceManager::CheckImagesExist() {
@@ -213,10 +217,25 @@ bool ImageResourceManager::CheckImagesExist() {
         return false;
     }
     
-    // 检查动画图片文件
-    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+    // 如果没有缓存的URL，则检查是否有任何图片文件
+    if (cached_dynamic_urls_.empty()) {
+        // 检查是否有至少一个图片文件
         char filename[64];
-        snprintf(filename, sizeof(filename), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
+        snprintf(filename, sizeof(filename), "%soutput_0001.h", IMAGE_BASE_PATH);
+        
+        FILE* f = fopen(filename, "r");
+        if (f == NULL) {
+            ESP_LOGW(TAG, "未找到任何动画图片文件");
+            return false;
+        }
+        fclose(f);
+        return true;
+    }
+    
+    // 根据缓存的URL数量检查对应的文件
+    for (size_t i = 0; i < cached_dynamic_urls_.size(); i++) {
+        char filename[64];
+        snprintf(filename, sizeof(filename), "%soutput_%04d.h", IMAGE_BASE_PATH, (int)(i + 1));
         
         FILE* f = fopen(filename, "r");
         if (f == NULL) {
@@ -275,17 +294,28 @@ void ImageResourceManager::CreateDirectoryIfNotExists(const char* path) {
 esp_err_t ImageResourceManager::CheckServerVersion(const char* version_url) {
     // 确保已连接WiFi
     if (!WifiStation::GetInstance().IsConnected()) {
-        ESP_LOGW(TAG, "未连接WiFi，无法检查服务器动画图片版本");
+        ESP_LOGW(TAG, "未连接WiFi，无法检查服务器动画图片");
         return ESP_FAIL;
     }
     
-    ESP_LOGI(TAG, "检查服务器动画图片版本...");
+    ESP_LOGI(TAG, "检查服务器动画图片URL...");
     
     auto http = Board::GetInstance().CreateHttp();
     if (!http->Open("GET", version_url)) {
         ESP_LOGE(TAG, "无法连接到服务器");
         delete http;
         return ESP_FAIL;
+    }
+    
+    // 添加必要的请求头
+    std::string device_id = SystemInfo::GetMacAddress();
+    std::string client_id = SystemInfo::GetClientId();
+    
+    if (!device_id.empty()) {
+        http->SetHeader("Device-Id", device_id.c_str());
+    }
+    if (!client_id.empty()) {
+        http->SetHeader("Client-Id", client_id.c_str());
     }
     
     std::string response = http->GetBody();
@@ -297,47 +327,92 @@ esp_err_t ImageResourceManager::CheckServerVersion(const char* version_url) {
         return ESP_FAIL;
     }
     
+    // 添加调试信息：输出服务器响应内容
+    ESP_LOGI(TAG, "服务器响应内容: %s", response.c_str());
+    
     cJSON* root = cJSON_Parse(response.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "解析服务器响应失败");
         return ESP_FAIL;
     }
     
-    cJSON* version = cJSON_GetObjectItem(root, "version");
-    if (version == NULL || !cJSON_IsString(version)) {
-        ESP_LOGE(TAG, "服务器响应中无版本信息");
+    // 解析动态图片URL数组
+    cJSON* dyn_array = cJSON_GetObjectItem(root, "dyn");
+    if (dyn_array == NULL || !cJSON_IsArray(dyn_array)) {
+        ESP_LOGE(TAG, "服务器响应中无动态图片URL数组");
+        // 输出完整的JSON结构以便调试
+        char* json_string = cJSON_Print(root);
+        if (json_string) {
+            ESP_LOGE(TAG, "完整JSON响应: %s", json_string);
+            free(json_string);
+        }
         cJSON_Delete(root);
         return ESP_FAIL;
     }
     
-    server_version_ = version->valuestring;
-    if (server_version_.empty()) {
-        ESP_LOGE(TAG, "服务器版本为空");
-        server_version_ = "1.0.0"; // 设置默认版本
+    // 提取服务器返回的动态图片URL
+    std::vector<std::string> server_dynamic_urls;
+    int array_size = cJSON_GetArraySize(dyn_array);
+    for (int i = 0; i < array_size; i++) {
+        cJSON* url_item = cJSON_GetArrayItem(dyn_array, i);
+        if (cJSON_IsString(url_item)) {
+            server_dynamic_urls.push_back(url_item->valuestring);
+        }
     }
+    
+    if (server_dynamic_urls.empty()) {
+        ESP_LOGE(TAG, "服务器返回的动态图片URL数组为空");
+        cJSON_Delete(root);
+        return ESP_FAIL;
+    }
+    
+    // 保存服务器URL列表以供后续下载使用
+    server_dynamic_urls_ = server_dynamic_urls;
     
     cJSON_Delete(root);
     
-    ESP_LOGI(TAG, "服务器动画图片版本: %s, 本地版本: %s", 
-             server_version_.c_str(), local_version_.c_str());
+    // 对比URL数组是否一致
+    if (cached_dynamic_urls_.size() != server_dynamic_urls.size()) {
+        ESP_LOGI(TAG, "动态图片URL数量不一致，需要更新");
+        return ESP_OK;
+    }
     
-    return server_version_ != local_version_ ? ESP_OK : ESP_ERR_NOT_FOUND;
+    for (size_t i = 0; i < cached_dynamic_urls_.size(); i++) {
+        if (cached_dynamic_urls_[i] != server_dynamic_urls[i]) {
+            ESP_LOGI(TAG, "动态图片URL不一致，需要更新");
+            return ESP_OK;
+        }
+    }
+    
+    ESP_LOGI(TAG, "动态图片URL一致，无需更新");
+    return ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t ImageResourceManager::CheckServerLogoVersion(const char* logo_version_url) {
     // 确保已连接WiFi
     if (!WifiStation::GetInstance().IsConnected()) {
-        ESP_LOGW(TAG, "未连接WiFi，无法检查服务器logo版本");
+        ESP_LOGW(TAG, "未连接WiFi，无法检查服务器logo");
         return ESP_FAIL;
     }
     
-    ESP_LOGI(TAG, "检查服务器logo版本...");
+    ESP_LOGI(TAG, "检查服务器logo URL...");
     
     auto http = Board::GetInstance().CreateHttp();
     if (!http->Open("GET", logo_version_url)) {
-        ESP_LOGE(TAG, "无法连接到logo版本服务器");
+        ESP_LOGE(TAG, "无法连接到logo服务器");
         delete http;
         return ESP_FAIL;
+    }
+    
+    // 添加必要的请求头
+    std::string device_id = SystemInfo::GetMacAddress();
+    std::string client_id = SystemInfo::GetClientId();
+    
+    if (!device_id.empty()) {
+        http->SetHeader("Device-Id", device_id.c_str());
+    }
+    if (!client_id.empty()) {
+        http->SetHeader("Client-Id", client_id.c_str());
     }
     
     std::string response = http->GetBody();
@@ -345,35 +420,45 @@ esp_err_t ImageResourceManager::CheckServerLogoVersion(const char* logo_version_
     delete http;
     
     if (response.empty()) {
-        ESP_LOGE(TAG, "logo版本服务器返回空响应");
+        ESP_LOGE(TAG, "logo服务器返回空响应");
         return ESP_FAIL;
     }
+    
+    // 添加调试信息：输出logo服务器响应内容
+    ESP_LOGI(TAG, "logo服务器响应内容: %s", response.c_str());
     
     cJSON* root = cJSON_Parse(response.c_str());
     if (root == NULL) {
-        ESP_LOGE(TAG, "解析logo版本响应失败");
+        ESP_LOGE(TAG, "解析logo响应失败");
         return ESP_FAIL;
     }
     
-    cJSON* version = cJSON_GetObjectItem(root, "version");
-    if (version == NULL || !cJSON_IsString(version)) {
-        ESP_LOGE(TAG, "logo版本响应中无版本信息");
+    cJSON* sta_url = cJSON_GetObjectItem(root, "sta");
+    if (sta_url == NULL || !cJSON_IsString(sta_url)) {
+        ESP_LOGE(TAG, "logo响应中无静态图片URL");
+        // 输出完整的JSON结构以便调试
+        char* json_string = cJSON_Print(root);
+        if (json_string) {
+            ESP_LOGE(TAG, "完整logo JSON响应: %s", json_string);
+            free(json_string);
+        }
         cJSON_Delete(root);
         return ESP_FAIL;
     }
     
-    server_logo_version_ = version->valuestring;
-    if (server_logo_version_.empty()) {
-        ESP_LOGE(TAG, "服务器logo版本为空");
-        server_logo_version_ = "1.0.0"; // 设置默认版本
+    server_static_url_ = sta_url->valuestring;
+    if (server_static_url_.empty()) {
+        ESP_LOGE(TAG, "服务器静态图片URL为空");
+        cJSON_Delete(root);
+        return ESP_FAIL;
     }
     
     cJSON_Delete(root);
     
-    ESP_LOGI(TAG, "服务器logo版本: %s, 本地logo版本: %s", 
-             server_logo_version_.c_str(), local_logo_version_.c_str());
+    ESP_LOGI(TAG, "服务器logo URL: %s, 本地缓存URL: %s", 
+             server_static_url_.c_str(), cached_static_url_.c_str());
     
-    return server_logo_version_ != local_logo_version_ ? ESP_OK : ESP_ERR_NOT_FOUND;
+    return server_static_url_ != cached_static_url_ ? ESP_OK : ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
@@ -396,41 +481,57 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         progress_callback_(0, 100, "准备下载动画图片资源...");
     }
     
+    // 检查是否有服务器URL列表
+    if (server_dynamic_urls_.empty()) {
+        ESP_LOGE(TAG, "没有服务器返回的动态图片URL列表");
+        if (progress_callback_) {
+            progress_callback_(0, 100, "没有可下载的图片URL");
+        }
+        return ESP_FAIL;
+    }
+    
+    // 清空现有的图片文件
+    ESP_LOGI(TAG, "清空现有的动画图片文件...");
+    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+        char filepath[128];
+        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
+        
+        struct stat file_stat;
+        if (stat(filepath, &file_stat) == 0) {
+            if (remove(filepath) == 0) {
+                ESP_LOGI(TAG, "删除现有文件: %s", filepath);
+            } else {
+                ESP_LOGW(TAG, "删除文件失败: %s", filepath);
+            }
+        }
+    }
+    
     bool success = true;
     
-    // 下载动画图片文件 - 使用多任务并行下载
-    // 创建一个临时数组存储文件路径
+    // 使用服务器返回的URL列表进行下载
     std::vector<std::string> file_paths;
-    std::vector<std::string> urls;
     
-    // 先准备好所有文件路径和URL
-    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
-        char filename[64];
-        snprintf(filename, sizeof(filename), "output_%04d.h", i);
-        
+    // 准备文件路径
+    for (size_t i = 0; i < server_dynamic_urls_.size() && i < MAX_IMAGE_FILES; i++) {
         char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%s%s", IMAGE_BASE_PATH, filename);
-        
-        std::string url = std::string(api_url) + "/" + std::string(filename);
-        
+        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, (int)(i + 1));
         file_paths.push_back(filepath);
-        urls.push_back(url);
         
-        ESP_LOGI(TAG, "准备下载动画图片文件 [%d/%d]: %s", i, MAX_IMAGE_FILES, filename);
+        ESP_LOGI(TAG, "准备下载动画图片文件 [%zu/%zu]: %s", i + 1, server_dynamic_urls_.size(), server_dynamic_urls_[i].c_str());
     }
     
     // 逐个下载文件
-    for (size_t i = 0; i < urls.size(); i++) {
+    for (size_t i = 0; i < server_dynamic_urls_.size() && i < MAX_IMAGE_FILES; i++) {
         if (progress_callback_) {
-            int overall_percent = static_cast<int>(i * 100 / MAX_IMAGE_FILES);
+            int overall_percent = static_cast<int>(i * 100 / server_dynamic_urls_.size());
             char message[128];
             const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
-            snprintf(message, sizeof(message), "准备下载动画图片: %s (%d/%d)", 
-                    filename, static_cast<int>(i+1), MAX_IMAGE_FILES);
+            snprintf(message, sizeof(message), "准备下载动画图片: %s (%zu/%zu)", 
+                    filename, i + 1, server_dynamic_urls_.size());
             progress_callback_(overall_percent, 100, message);
         }
         
-        if (DownloadFile(urls[i].c_str(), file_paths[i].c_str()) != ESP_OK) {
+        if (DownloadFile(server_dynamic_urls_[i].c_str(), file_paths[i].c_str()) != ESP_OK) {
             ESP_LOGE(TAG, "下载动画图片文件失败: %s", file_paths[i].c_str());
             success = false;
             break;
@@ -438,24 +539,19 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     }
     
     if (success) {
-        // 保存新版本
-        if (server_version_.empty()) {
-            ESP_LOGE(TAG, "服务器版本为空，使用默认版本");
-            server_version_ = "1.0.0"; // 设置一个默认版本
-        }
-        
-        if (!SaveVersion(server_version_)) {
-            ESP_LOGE(TAG, "保存动画图片版本信息失败");
+        // 保存新的URL缓存
+        if (!SaveDynamicUrls(server_dynamic_urls_)) {
+            ESP_LOGE(TAG, "保存动画图片URL缓存失败");
             
             // 通知错误
             if (progress_callback_) {
-                progress_callback_(100, 100, "保存动画图片版本信息失败");
+                progress_callback_(100, 100, "保存动画图片URL缓存失败");
             }
             
             return ESP_FAIL;
         }
         
-        local_version_ = server_version_;
+        cached_dynamic_urls_ = server_dynamic_urls_;
         has_valid_images_ = true;
         
         // 通知完成
@@ -475,7 +571,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
             progress_callback_(100, 100, nullptr);
         }
         
-        ESP_LOGI(TAG, "所有动画图片文件下载完成，更新版本为: %s", local_version_.c_str());
+        ESP_LOGI(TAG, "所有动画图片文件下载完成");
         return ESP_OK;
     }
     
@@ -507,15 +603,32 @@ esp_err_t ImageResourceManager::DownloadLogo(const char* api_url) {
         progress_callback_(0, 100, "准备下载logo资源...");
     }
     
-    // 下载logo文件
-    std::string logo_url = std::string(api_url) + "/logo.h";
-    ESP_LOGI(TAG, "下载logo文件: logo.h");
-    
-    if (progress_callback_) {
-        progress_callback_(0, 100, "正在下载logo.h");
+    // 检查是否有服务器静态图片URL
+    if (server_static_url_.empty()) {
+        ESP_LOGE(TAG, "没有服务器返回的静态图片URL");
+        if (progress_callback_) {
+            progress_callback_(0, 100, "没有可下载的logo URL");
+        }
+        return ESP_FAIL;
     }
     
-    if (DownloadFile(logo_url.c_str(), LOGO_FILE_PATH) != ESP_OK) {
+    // 清空现有的logo文件
+    struct stat file_stat;
+    if (stat(LOGO_FILE_PATH, &file_stat) == 0) {
+        if (remove(LOGO_FILE_PATH) == 0) {
+            ESP_LOGI(TAG, "删除现有logo文件: %s", LOGO_FILE_PATH);
+        } else {
+            ESP_LOGW(TAG, "删除logo文件失败: %s", LOGO_FILE_PATH);
+        }
+    }
+    
+    ESP_LOGI(TAG, "下载logo文件: %s", server_static_url_.c_str());
+    
+    if (progress_callback_) {
+        progress_callback_(0, 100, "正在下载logo文件");
+    }
+    
+    if (DownloadFile(server_static_url_.c_str(), LOGO_FILE_PATH) != ESP_OK) {
         ESP_LOGE(TAG, "下载logo文件失败");
         
         if (progress_callback_) {
@@ -525,24 +638,19 @@ esp_err_t ImageResourceManager::DownloadLogo(const char* api_url) {
         return ESP_FAIL;
     }
     
-    // 保存新版本
-    if (server_logo_version_.empty()) {
-        ESP_LOGE(TAG, "服务器logo版本为空，使用默认版本");
-        server_logo_version_ = "1.0.0"; // 设置一个默认版本
-    }
-    
-    if (!SaveLogoVersion(server_logo_version_)) {
-        ESP_LOGE(TAG, "保存logo版本信息失败");
+    // 保存新的URL缓存
+    if (!SaveStaticUrl(server_static_url_)) {
+        ESP_LOGE(TAG, "保存logo URL缓存失败");
         
         // 通知错误
         if (progress_callback_) {
-            progress_callback_(100, 100, "保存logo版本信息失败");
+            progress_callback_(100, 100, "保存logo URL缓存失败");
         }
         
         return ESP_FAIL;
     }
     
-    local_logo_version_ = server_logo_version_;
+    cached_static_url_ = server_static_url_;
     has_valid_logo_ = true;
     
     // 通知完成
@@ -562,7 +670,7 @@ esp_err_t ImageResourceManager::DownloadLogo(const char* api_url) {
         progress_callback_(100, 100, nullptr);
     }
     
-    ESP_LOGI(TAG, "logo文件下载完成，更新版本为: %s", local_logo_version_.c_str());
+    ESP_LOGI(TAG, "logo文件下载完成");
     return ESP_OK;
 }
 
@@ -620,6 +728,17 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             
             vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
             continue;
+        }
+        
+        // 添加必要的请求头
+        std::string device_id = SystemInfo::GetMacAddress();
+        std::string client_id = SystemInfo::GetClientId();
+        
+        if (!device_id.empty()) {
+            http->SetHeader("Device-Id", device_id.c_str());
+        }
+        if (!client_id.empty()) {
+            http->SetHeader("Client-Id", client_id.c_str());
         }
         
         FILE* f = fopen(filepath, "w");
@@ -757,19 +876,25 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
     return ESP_FAIL;
 }
 
-bool ImageResourceManager::SaveVersion(const std::string& version) {
+bool ImageResourceManager::SaveDynamicUrls(const std::vector<std::string>& urls) {
     if (!mounted_) {
         return false;
     }
     
-    FILE* f = fopen(IMAGE_VERSION_FILE, "w");
+    FILE* f = fopen(IMAGE_URL_CACHE_FILE, "w");
     if (f == NULL) {
-        ESP_LOGE(TAG, "无法创建动画图片版本文件");
+        ESP_LOGE(TAG, "无法创建动态图片URL缓存文件");
         return false;
     }
     
     cJSON* root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "version", version.c_str());
+    cJSON* dyn_array = cJSON_CreateArray();
+    
+    for (const auto& url : urls) {
+        cJSON_AddItemToArray(dyn_array, cJSON_CreateString(url.c_str()));
+    }
+    
+    cJSON_AddItemToObject(root, "dyn", dyn_array);
     
     char* json_str = cJSON_Print(root);
     fprintf(f, "%s", json_str);
@@ -781,19 +906,19 @@ bool ImageResourceManager::SaveVersion(const std::string& version) {
     return true;
 }
 
-bool ImageResourceManager::SaveLogoVersion(const std::string& version) {
+bool ImageResourceManager::SaveStaticUrl(const std::string& url) {
     if (!mounted_) {
         return false;
     }
     
-    FILE* f = fopen(LOGO_VERSION_FILE, "w");
+    FILE* f = fopen(LOGO_URL_CACHE_FILE, "w");
     if (f == NULL) {
-        ESP_LOGE(TAG, "无法创建logo版本文件");
+        ESP_LOGE(TAG, "无法创建静态图片URL缓存文件");
         return false;
     }
     
     cJSON* root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "version", version.c_str());
+    cJSON_AddStringToObject(root, "sta", url.c_str());
     
     char* json_str = cJSON_Print(root);
     fprintf(f, "%s", json_str);
@@ -837,12 +962,15 @@ void ImageResourceManager::LoadImageData() {
     
     // 然后加载动画图片
     if (has_valid_images_) {
+        // 根据缓存的URL数量确定要加载的图片数量
+        int actual_image_count = std::min((int)cached_dynamic_urls_.size(), MAX_IMAGE_FILES);
+        
         // 预分配空间
-        image_array_.resize(MAX_IMAGE_FILES);
-        image_data_pointers_.resize(MAX_IMAGE_FILES, nullptr);
+        image_array_.resize(actual_image_count);
+        image_data_pointers_.resize(actual_image_count, nullptr);
         
         // 加载每个图片文件
-        for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+        for (int i = 1; i <= actual_image_count; i++) {
             // 每次加载前检查内存
             free_heap = esp_get_free_heap_size();
             if (free_heap < 100000) { // 如果内存不足100KB，停止加载
@@ -855,7 +983,7 @@ void ImageResourceManager::LoadImageData() {
             }
         }
         
-        ESP_LOGI(TAG, "共加载 %d 个动画图片文件", image_array_.size());
+        ESP_LOGI(TAG, "共加载 %d 个动画图片文件", (int)image_array_.size());
     }
     
     if (has_valid_logo_) {
@@ -1133,20 +1261,24 @@ esp_err_t ImageResourceManager::CheckAndUpdateResources(const char* api_url, con
             progress_callback_(0, 100, "首次启动，需要下载动画图片资源");
         }
         
+        // 先获取服务器URL列表
+        esp_err_t status = CheckServerVersion(version_url);
+        if (status != ESP_OK && status != ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "获取服务器动画图片URL失败");
+            return status;
+        }
+        
         return DownloadImages(api_url);
     }
     
     // 检查服务器版本
     esp_err_t status = CheckServerVersion(version_url);
     if (status == ESP_OK) {
-        ESP_LOGI(TAG, "发现新版本，需要更新动画图片资源");
+        ESP_LOGI(TAG, "发现URL不同，需要更新动画图片资源");
         
         // 通知更新
         if (progress_callback_) {
-            char message[128];
-            snprintf(message, sizeof(message), "发现动画图片新版本，更新中... %s -> %s", 
-                    local_version_.c_str(), server_version_.c_str());
-            progress_callback_(0, 100, message);
+            progress_callback_(0, 100, "发现动画图片URL更新，正在下载新资源");
         }
         
         return DownloadImages(api_url);
@@ -1168,6 +1300,13 @@ esp_err_t ImageResourceManager::CheckAndUpdateLogo(const char* api_url, const ch
             progress_callback_(0, 100, "首次启动，需要下载logo资源");
         }
         
+        // 先获取服务器URL
+        esp_err_t status = CheckServerLogoVersion(logo_version_url);
+        if (status != ESP_OK && status != ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "获取服务器logo URL失败");
+            return status;
+        }
+        
         return DownloadLogo(api_url);
     }
     
@@ -1179,8 +1318,7 @@ esp_err_t ImageResourceManager::CheckAndUpdateLogo(const char* api_url, const ch
         // 通知更新
         if (progress_callback_) {
             char message[128];
-            snprintf(message, sizeof(message), "发现logo新版本，更新中... %s -> %s", 
-                    local_logo_version_.c_str(), server_logo_version_.c_str());
+            snprintf(message, sizeof(message), "发现logo新版本，更新中...");
             progress_callback_(0, 100, message);
         }
         
