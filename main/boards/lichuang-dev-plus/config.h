@@ -1,0 +1,80 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+#define AUDIO_INPUT_SAMPLE_RATE  24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+#define AUDIO_INPUT_REFERENCE    true
+
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_38
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_13
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_14
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_12
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_45
+
+#define AUDIO_CODEC_USE_PCA9557
+#define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_1
+#define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_2
+#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
+#define AUDIO_CODEC_ES7210_ADDR  0x82
+
+#define BUILTIN_LED_GPIO        GPIO_NUM_48
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+// #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC // Now on PCA9557
+// #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC // Now on PCA9557
+
+// PCA9557 Pin definitions for Volume Control
+#define PCA9557_PIN_VOLUME_UP   6
+#define PCA9557_PIN_VOLUME_DOWN 7
+
+// PCA9557 Pin definitions for Headphone Detection and Speaker Control
+#define PCA9557_PIN_HEADPHONE_DETECT 4
+#define PCA9557_PIN_SPEAKER_CTRL   1
+#define HEADPHONE_DETECT_ACTIVE_LEVEL 0 // LOW when headphone inserted
+#define SPEAKER_ENABLE_LEVEL 1          // HIGH to enable speaker (NS4150B CTRL pin)
+
+// AXP2101 Power Management IC
+#define AXP2101_I2C_ADDR 0x34
+
+// ML307 4G Module UART Pins
+#define ML307_TX_PIN GPIO_NUM_10
+#define ML307_RX_PIN GPIO_NUM_11
+#define ML307_RX_BUFFER_SIZE 4096
+
+/* Camera pins */
+#define CAMERA_PIN_PWDN -1
+#define CAMERA_PIN_RESET -1
+#define CAMERA_PIN_XCLK 5
+#define CAMERA_PIN_SIOD 1 // Shares I2C SDA
+#define CAMERA_PIN_SIOC 2 // Shares I2C SCL
+
+#define CAMERA_PIN_D7 9
+#define CAMERA_PIN_D6 4
+#define CAMERA_PIN_D5 6
+#define CAMERA_PIN_D4 15
+#define CAMERA_PIN_D3 17
+#define CAMERA_PIN_D2 8
+#define CAMERA_PIN_D1 18
+#define CAMERA_PIN_D0 16
+#define CAMERA_PIN_VSYNC 3
+#define CAMERA_PIN_HREF 46
+#define CAMERA_PIN_PCLK 7
+
+#define XCLK_FREQ_HZ 24000000
+
+#define DISPLAY_WIDTH   320
+#define DISPLAY_HEIGHT  240
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY true
+
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT true
+
+
+#endif // _BOARD_CONFIG_H_
