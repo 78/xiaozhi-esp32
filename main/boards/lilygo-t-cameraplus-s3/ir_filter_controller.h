@@ -22,17 +22,17 @@ public:
         gpio_set_level(gpio_num_, 0);
 
         auto& mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.ir_filter.get_state", "Get the state of the ir filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+        mcp_server.AddTool("self.camera.get_ir_filter_state", "Get the state of the camera's infrared filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             return enable_ ? "{\"enable\": true}" : "{\"enable\": false}";
         });
 
-        mcp_server.AddTool("self.ir_filter.enable", "Enable the ir filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+        mcp_server.AddTool("self.camera.enable_ir_filter", "Enable the camera's infrared filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             enable_ = true;
             gpio_set_level(gpio_num_, 1);
             return true;
         });
 
-        mcp_server.AddTool("self.ir_filter.disable", "Disable the ir filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+        mcp_server.AddTool("self.camera.disable_ir_filter", "Disable the camera's infrared filter", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             enable_ = false;
             gpio_set_level(gpio_num_, 0);
             return true;
