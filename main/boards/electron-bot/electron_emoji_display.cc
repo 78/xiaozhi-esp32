@@ -53,7 +53,6 @@ ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io,
                     fonts),
       emotion_gif_(nullptr) {
     SetupGifContainer();
-    ESP_LOGI(TAG, "Electron Bot GIF表情显示初始化完成");
 }
 
 void ElectronEmojiDisplay::SetupGifContainer() {
@@ -69,15 +68,21 @@ void ElectronEmojiDisplay::SetupGifContainer() {
         lv_obj_del(content_);
     }
 
-    lv_obj_t* overlay_container = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(overlay_container, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(overlay_container, LV_HOR_RES, LV_HOR_RES);
-    lv_obj_set_style_bg_opa(overlay_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(overlay_container, 0, 0);
-    lv_obj_set_flex_grow(overlay_container, 1);
-    lv_obj_center(overlay_container);
+    lv_obj_t* content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(content_, LV_HOR_RES, LV_HOR_RES);
+    lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(content_, 0, 0);
+    lv_obj_set_flex_grow(content_, 1);
+    lv_obj_center(content_);
 
-    emotion_gif_ = lv_gif_create(overlay_container);
+    emotion_label_ = lv_label_create(content_);
+    lv_label_set_text(emotion_label_, "");
+    lv_obj_set_width(emotion_label_, 0);
+    lv_obj_set_style_border_width(emotion_label_, 0, 0);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+
+    emotion_gif_ = lv_gif_create(content_);
     int gif_size = LV_HOR_RES;
     lv_obj_set_size(emotion_gif_, gif_size, gif_size);
     lv_obj_set_style_border_width(emotion_gif_, 0, 0);
@@ -85,7 +90,7 @@ void ElectronEmojiDisplay::SetupGifContainer() {
     lv_obj_center(emotion_gif_);
     lv_gif_set_src(emotion_gif_, &staticstate);
 
-    chat_message_label_ = lv_label_create(overlay_container);
+    chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
@@ -99,19 +104,7 @@ void ElectronEmojiDisplay::SetupGifContainer() {
 
     lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    SetStatusBarBlack();
-
-    ESP_LOGI(TAG, "Electron Bot GIF容器创建完成，大小: %dx%d", gif_size, gif_size);
-}
-
-void ElectronEmojiDisplay::SetStatusBarBlack() {
-    if (!status_bar_)
-        return;
-
-    // 只设置状态栏背景为纯黑色
-    lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
-
-    ESP_LOGI(TAG, "状态栏背景设置为纯黑色");
+    LcdDisplay::SetTheme("dark");
 }
 
 void ElectronEmojiDisplay::SetEmotion(const char* emotion) {

@@ -47,159 +47,58 @@ private:
         ACTION_HAND_BOTH_FLAP = 12,   // 拍打双手
 
         // 身体动作 13-14
-        ACTION_BODY_TURN_LEFT = 13,   // 左转
-        ACTION_BODY_TURN_RIGHT = 14,  // 右转
+        ACTION_BODY_TURN_LEFT = 13,    // 左转
+        ACTION_BODY_TURN_RIGHT = 14,   // 右转
+        ACTION_BODY_TURN_CENTER = 15,  // 回中心
 
-        // 头部动作 15-19
-        ACTION_HEAD_UP = 15,         // 抬头
-        ACTION_HEAD_DOWN = 16,       // 低头
-        ACTION_HEAD_NOD_ONCE = 17,   // 点头一次
-        ACTION_HEAD_CENTER = 18,     // 回中心
-        ACTION_HEAD_NOD_REPEAT = 19  // 连续点头
+        // 头部动作 16-20
+        ACTION_HEAD_UP = 16,         // 抬头
+        ACTION_HEAD_DOWN = 17,       // 低头
+        ACTION_HEAD_NOD_ONCE = 18,   // 点头一次
+        ACTION_HEAD_CENTER = 19,     // 回中心
+        ACTION_HEAD_NOD_REPEAT = 20  // 连续点头
     };
-
-    template <typename T>
-    T GetPropertyValue(const PropertyList& properties, const std::string& name,
-                       const T& default_value) const {
-        try {
-            return properties[name].value<T>();
-        } catch (const std::runtime_error&) {
-            return default_value;
-        }
-    }
-
-    // 限制数值在指定范围内
-    static int Limit(int value, int min, int max) {
-        if (value < min) {
-            ESP_LOGW(TAG, "参数 %d 小于最小值 %d，设置为最小值", value, min);
-            return min;
-        }
-        if (value > max) {
-            ESP_LOGW(TAG, "参数 %d 大于最大值 %d，设置为最大值", value, max);
-            return max;
-        }
-        return value;
-    }
 
     static void ActionTask(void* arg) {
         ElectronBotController* controller = static_cast<ElectronBotController*>(arg);
         ElectronBotActionParams params;
+        controller->electron_bot_.AttachServos();
 
         while (true) {
             if (xQueueReceive(controller->action_queue_, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
                 controller->is_action_in_progress_ = true;  // 开始执行动作
-                controller->electron_bot_.AttachServos();
 
-                switch (params.action_type) {
-                    case ACTION_HAND_LEFT_UP:
-                    case ACTION_HAND_RIGHT_UP:
-                    case ACTION_HAND_BOTH_UP:
-                    case ACTION_HAND_LEFT_DOWN:
-                    case ACTION_HAND_RIGHT_DOWN:
-                    case ACTION_HAND_BOTH_DOWN:
-                    case ACTION_HAND_LEFT_WAVE:
-                    case ACTION_HAND_RIGHT_WAVE:
-                    case ACTION_HAND_BOTH_WAVE:
-                    case ACTION_HAND_LEFT_FLAP:
-                    case ACTION_HAND_RIGHT_FLAP:
-                    case ACTION_HAND_BOTH_FLAP:
-                        controller->electron_bot_.HandAction(params.action_type, params.steps,
-                                                             params.amount, params.speed);
-                        break;
-                    case ACTION_BODY_TURN_LEFT:
-                        controller->electron_bot_.BodyAction(1, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_BODY_TURN_RIGHT:
-                        controller->electron_bot_.BodyAction(2, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_HEAD_UP:
-                        controller->electron_bot_.HeadAction(1, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_HEAD_DOWN:
-                        controller->electron_bot_.HeadAction(2, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_HEAD_NOD_ONCE:
-                        controller->electron_bot_.HeadAction(3, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_HEAD_CENTER:
-                        controller->electron_bot_.HeadAction(4, params.steps, params.amount,
-                                                             params.speed);
-                        break;
-                    case ACTION_HEAD_NOD_REPEAT:
-                        controller->electron_bot_.HeadAction(5, params.steps, params.amount,
-                                                             params.speed);
-                        break;
+                // 执行相应的动作
+                if (params.action_type >= ACTION_HAND_LEFT_UP &&
+                    params.action_type <= ACTION_HAND_BOTH_FLAP) {
+                    // 手部动作
+                    controller->electron_bot_.HandAction(params.action_type, params.steps,
+                                                         params.amount, params.speed);
+                } else if (params.action_type >= ACTION_BODY_TURN_LEFT &&
+                           params.action_type <= ACTION_BODY_TURN_CENTER) {
+                    // 身体动作
+                    int body_direction = params.action_type - ACTION_BODY_TURN_LEFT + 1;
+                    controller->electron_bot_.BodyAction(body_direction, params.steps,
+                                                         params.amount, params.speed);
+                } else if (params.action_type >= ACTION_HEAD_UP &&
+                           params.action_type <= ACTION_HEAD_NOD_REPEAT) {
+                    // 头部动作
+                    int head_action = params.action_type - ACTION_HEAD_UP + 1;
+                    controller->electron_bot_.HeadAction(head_action, params.steps, params.amount,
+                                                         params.speed);
                 }
-                controller->electron_bot_.DetachServos();
                 controller->is_action_in_progress_ = false;  // 动作执行完毕
-            }
-
-            // 检查是否可以退出任务：队列为空且没有动作正在执行
-            if (uxQueueMessagesWaiting(controller->action_queue_) == 0 &&
-                !controller->is_action_in_progress_) {
-                controller->electron_bot_.Home(params.action_type < ACTION_HAND_BOTH_UP);
-                ESP_LOGI(TAG, "动作队列为空且没有动作正在执行，任务退出");
-                controller->action_task_handle_ = nullptr;
-                vTaskDelete(NULL);
-                break;
             }
             vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
 
     void QueueAction(int action_type, int steps, int speed, int direction, int amount) {
-        // 参数限制
-        action_type = Limit(action_type, ACTION_HAND_LEFT_UP, ACTION_HEAD_NOD_REPEAT);
-        steps = Limit(steps, 1, 100);
-        speed = Limit(speed, 500, 3000);
-        direction = Limit(direction, -1, 1);
-
-        switch (action_type) {
-            case ACTION_HAND_LEFT_UP:
-            case ACTION_HAND_RIGHT_UP:
-            case ACTION_HAND_BOTH_UP:
-            case ACTION_HAND_LEFT_DOWN:
-            case ACTION_HAND_RIGHT_DOWN:
-            case ACTION_HAND_BOTH_DOWN:
-            case ACTION_HAND_LEFT_WAVE:
-            case ACTION_HAND_RIGHT_WAVE:
-            case ACTION_HAND_BOTH_WAVE:
-            case ACTION_HAND_LEFT_FLAP:
-            case ACTION_HAND_RIGHT_FLAP:
-            case ACTION_HAND_BOTH_FLAP:
-                amount = Limit(amount, 10, 50);
-                break;
-            case ACTION_BODY_TURN_LEFT:
-            case ACTION_BODY_TURN_RIGHT:
-                amount = Limit(amount, 0, 90);
-                break;
-            case ACTION_HEAD_UP:
-            case ACTION_HEAD_DOWN:
-            case ACTION_HEAD_NOD_ONCE:
-            case ACTION_HEAD_CENTER:
-            case ACTION_HEAD_NOD_REPEAT:
-                amount = Limit(amount, 1, 15);
-                break;
-            default:
-                amount = Limit(amount, 10, 50);
-        }
-
         ESP_LOGI(TAG, "动作控制: 类型=%d, 步数=%d, 速度=%d, 方向=%d, 幅度=%d", action_type, steps,
                  speed, direction, amount);
 
-        ElectronBotActionParams params;
-        params.action_type = action_type;
-        params.steps = steps;
-        params.speed = speed;
-        params.direction = direction;
-        params.amount = amount;
-
+        ElectronBotActionParams params = {action_type, steps, speed, direction, amount};
         xQueueSend(action_queue_, &params, portMAX_DELAY);
         StartActionTaskIfNeeded();
     }
@@ -230,95 +129,114 @@ public:
 
         // 手部动作统一工具
         mcp_server.AddTool(
-            "self.electron.hand_action", "手部动作控制",
-            PropertyList({Property("动作:1举手,2放手,3挥手,4拍打", kPropertyTypeInteger, 1, 4),
-                          Property("手部:1左手,2右手,3双手", kPropertyTypeInteger, 1, 3),
-                          Property("次数", kPropertyTypeInteger, 1, 10),
-                          Property("速度", kPropertyTypeInteger, 500, 1500),
-                          Property("幅度", kPropertyTypeInteger, 10, 50)}),
+            "self.electron.hand_action",
+            "手部动作控制。action: 1=举手, 2=放手, 3=挥手, 4=拍打; hand: 1=左手, 2=右手, 3=双手; "
+            "steps: 动作重复次数(1-10); speed: 动作速度(500-1500，数值越小越快); amount: "
+            "动作幅度(10-50，仅举手动作使用)",
+            PropertyList({Property("action", kPropertyTypeInteger, 1, 1, 4),
+                          Property("hand", kPropertyTypeInteger, 3, 1, 3),
+                          Property("steps", kPropertyTypeInteger, 1, 1, 10),
+                          Property("speed", kPropertyTypeInteger, 1000, 500, 1500),
+                          Property("amount", kPropertyTypeInteger, 30, 10, 50)}),
             [this](const PropertyList& properties) -> ReturnValue {
-                int action_type = GetPropertyValue(properties, "动作:1举手,2放手,3挥手,4拍打", 1);
-                int hand_type = GetPropertyValue(properties, "手部:1左手,2右手,3双手", 3);
-                int steps = GetPropertyValue(properties, "次数", 1);
-                int speed = GetPropertyValue(properties, "速度", 1000);
-                int amount = GetPropertyValue(properties, "幅度", 30);
+                int action_type = properties["action"].value<int>();
+                int hand_type = properties["hand"].value<int>();
+                int steps = properties["steps"].value<int>();
+                int speed = properties["speed"].value<int>();
+                int amount = properties["amount"].value<int>();
 
                 // 根据动作类型和手部类型计算具体动作
-                int action_id;
+                int base_action;
                 switch (action_type) {
-                    case 1:  // 举手
-                        action_id = ACTION_HAND_LEFT_UP + (hand_type - 1);
-                        break;
-                    case 2:  // 放手
-                        action_id = ACTION_HAND_LEFT_DOWN + (hand_type - 1);
-                        amount = 0;  // 放手动作不需要幅度
-                        break;
-                    case 3:  // 挥手
-                        action_id = ACTION_HAND_LEFT_WAVE + (hand_type - 1);
-                        amount = 0;  // 挥手动作不需要幅度
-                        break;
-                    case 4:  // 拍打
-                        action_id = ACTION_HAND_LEFT_FLAP + (hand_type - 1);
-                        amount = 0;  // 拍打动作不需要幅度
-                        break;
+                    case 1:
+                        base_action = ACTION_HAND_LEFT_UP;
+                        break;  // 举手
+                    case 2:
+                        base_action = ACTION_HAND_LEFT_DOWN;
+                        amount = 0;
+                        break;  // 放手
+                    case 3:
+                        base_action = ACTION_HAND_LEFT_WAVE;
+                        amount = 0;
+                        break;  // 挥手
+                    case 4:
+                        base_action = ACTION_HAND_LEFT_FLAP;
+                        amount = 0;
+                        break;  // 拍打
                     default:
-                        action_id = ACTION_HAND_BOTH_UP;
+                        base_action = ACTION_HAND_LEFT_UP;
                 }
+                int action_id = base_action + (hand_type - 1);
 
-                QueueAction(action_id, steps, 2000 - speed, 0, amount);
+                QueueAction(action_id, steps, speed, 0, amount);
                 return true;
             });
 
         // 身体动作
-        mcp_server.AddTool("self.electron.body_turn", "身体转向",
-                           PropertyList({Property("步数", kPropertyTypeInteger, 1, 10),
-                                         Property("速度", kPropertyTypeInteger, 500, 1500),
-                                         Property("方向:1左转,2右转", kPropertyTypeInteger, 1, 2),
-                                         Property("角度", kPropertyTypeInteger, 0, 90)}),
-                           [this](const PropertyList& properties) -> ReturnValue {
-                               int steps = GetPropertyValue(properties, "步数", 1);
-                               int speed = GetPropertyValue(properties, "速度", 1000);
-                               int direction = GetPropertyValue(properties, "方向:1左转,2右转", 1);
-                               int amount = GetPropertyValue(properties, "角度", 45);
-                               int action = (direction == 1) ? ACTION_BODY_TURN_LEFT
-                                                             : ACTION_BODY_TURN_RIGHT;
-                               QueueAction(action, steps, 2000 - speed, 0, amount);
-                               return true;
-                           });
+        mcp_server.AddTool(
+            "self.electron.body_turn",
+            "身体转向。steps: 转向步数(1-10); speed: 转向速度(500-1500，数值越小越快); direction: "
+            "转向方向(1=左转, 2=右转, 3=回中心); angle: 转向角度(0-90度)",
+            PropertyList({Property("steps", kPropertyTypeInteger, 1, 1, 10),
+                          Property("speed", kPropertyTypeInteger, 1000, 500, 1500),
+                          Property("direction", kPropertyTypeInteger, 1, 1, 3),
+                          Property("angle", kPropertyTypeInteger, 45, 0, 90)}),
+            [this](const PropertyList& properties) -> ReturnValue {
+                int steps = properties["steps"].value<int>();
+                int speed = properties["speed"].value<int>();
+                int direction = properties["direction"].value<int>();
+                int amount = properties["angle"].value<int>();
+
+                int action;
+                switch (direction) {
+                    case 1:
+                        action = ACTION_BODY_TURN_LEFT;
+                        break;
+                    case 2:
+                        action = ACTION_BODY_TURN_RIGHT;
+                        break;
+                    case 3:
+                        action = ACTION_BODY_TURN_CENTER;
+                        break;
+                    default:
+                        action = ACTION_BODY_TURN_LEFT;
+                }
+
+                QueueAction(action, steps, speed, 0, amount);
+                return true;
+            });
 
         // 头部动作
-        mcp_server.AddTool("self.electron.head_move", "头部运动",
-                           PropertyList({Property("动作:1抬头,2低头,3点头,4回中心,5连续点头",
-                                                  kPropertyTypeInteger, 1, 5),
-                                         Property("次数", kPropertyTypeInteger, 1, 10),
-                                         Property("速度", kPropertyTypeInteger, 500, 1500),
-                                         Property("角度", kPropertyTypeInteger, 1, 15)}),
+        mcp_server.AddTool("self.electron.head_move",
+                           "头部运动。action: 1=抬头, 2=低头, 3=点头, 4=回中心, 5=连续点头; steps: "
+                           "动作重复次数(1-10); speed: 动作速度(500-1500，数值越小越快); angle: "
+                           "头部转动角度(1-15度)",
+                           PropertyList({Property("action", kPropertyTypeInteger, 3, 1, 5),
+                                         Property("steps", kPropertyTypeInteger, 1, 1, 10),
+                                         Property("speed", kPropertyTypeInteger, 1000, 500, 1500),
+                                         Property("angle", kPropertyTypeInteger, 5, 1, 15)}),
                            [this](const PropertyList& properties) -> ReturnValue {
-                               int action_num = GetPropertyValue(
-                                   properties, "动作:1抬头,2低头,3点头,4回中心,5连续点头", 3);
-                               int steps = GetPropertyValue(properties, "次数", 1);
-                               int speed = GetPropertyValue(properties, "速度", 1000);
-                               int amount = GetPropertyValue(properties, "角度", 5);
+                               int action_num = properties["action"].value<int>();
+                               int steps = properties["steps"].value<int>();
+                               int speed = properties["speed"].value<int>();
+                               int amount = properties["angle"].value<int>();
                                int action = ACTION_HEAD_UP + (action_num - 1);
-                               QueueAction(action, steps, 2000 - speed, 0, amount);
+                               QueueAction(action, steps, speed, 0, amount);
                                return true;
                            });
 
         // 系统工具
         mcp_server.AddTool("self.electron.stop", "立即停止", PropertyList(),
                            [this](const PropertyList& properties) -> ReturnValue {
-                               if (action_task_handle_ != nullptr) {
-                                   vTaskDelete(action_task_handle_);
-                                   action_task_handle_ = nullptr;
-                               }
-                               is_action_in_progress_ = false;
+                               // 清空队列但保持任务常驻
                                xQueueReset(action_queue_);
+                               is_action_in_progress_ = false;
                                electron_bot_.Home(true);
                                return true;
                            });
 
-        mcp_server.AddTool("self.electron.get_status", "获取机器人状态", PropertyList(),
-                           [this](const PropertyList& properties) -> ReturnValue {
+        mcp_server.AddTool("self.electron.get_status", "获取机器人状态，返回 moving 或 idle",
+                           PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
                                return is_action_in_progress_ ? "moving" : "idle";
                            });
 

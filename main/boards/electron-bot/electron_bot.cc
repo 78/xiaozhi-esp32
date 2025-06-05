@@ -27,25 +27,6 @@ void InitializeElectronBotController();
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class CustomLcdDisplay : public SpiLcdDisplay {
-public:
-    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, esp_lcd_panel_handle_t panel_handle,
-                     int width, int height, int offset_x, int offset_y, bool mirror_x,
-                     bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x,
-                        mirror_y, swap_xy,
-                        {
-                            .text_font = &font_puhui_20_4,
-                            .icon_font = &font_awesome_20_4,
-                            .emoji_font = font_emoji_64_init(),
-                        }) {
-        DisplayLockGuard lock(this);
-        // 由于屏幕是圆的，所以状态栏需要增加左右内边距
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.33, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
-    }
-};
-
 class ElectronBot : public WifiBoard {
 private:
     Display* display_;
@@ -137,11 +118,8 @@ public:
     virtual Display* GetDisplay() override { return display_; }
 
     virtual Backlight* GetBacklight() override {
-        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
-            static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
-            return &backlight;
-        }
-        return nullptr;
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         charging = power_manager_->IsCharging();

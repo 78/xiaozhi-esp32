@@ -28,7 +28,6 @@ public:
 
 private:
     void SetupGifContainer();
-    void ApplyThemeToStatusBar();
 
     lv_obj_t* emotion_gif_;  ///< GIF表情组件
 

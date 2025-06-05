@@ -35,7 +35,6 @@ public:
 
 private:
     void SetupGifContainer();
-    void SetStatusBarBlack();
 
     lv_obj_t* emotion_gif_;  ///< GIF表情组件
 

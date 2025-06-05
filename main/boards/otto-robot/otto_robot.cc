@@ -25,7 +25,6 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-// Otto控制器初始化函数声明
 extern void InitializeOttoController();
 
 class OttoRobot : public WifiBoard {
@@ -100,7 +99,6 @@ private:
     }
 
     void InitializeOttoController() {
-        // 初始化Otto控制器的MCP工具
         ESP_LOGI(TAG, "初始化Otto机器人MCP控制器");
         ::InitializeOttoController();
     }
@@ -112,9 +110,7 @@ public:
         InitializeButtons();
         InitializePowerManager();
         InitializeOttoController();
-        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
-            GetBacklight()->RestoreBrightness();
-        }
+        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -128,11 +124,8 @@ public:
     virtual Display* GetDisplay() override { return display_; }
 
     virtual Backlight* GetBacklight() override {
-        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
-            static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
-            return &backlight;
-        }
-        return nullptr;
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        return &backlight;
     }
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         charging = power_manager_->IsCharging();
