@@ -398,7 +398,12 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     
     bool success = true;
     
-    // 下载动画图片文件
+    // 下载动画图片文件 - 使用多任务并行下载
+    // 创建一个临时数组存储文件路径
+    std::vector<std::string> file_paths;
+    std::vector<std::string> urls;
+    
+    // 先准备好所有文件路径和URL
     for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
         char filename[64];
         snprintf(filename, sizeof(filename), "output_%04d.h", i);
@@ -408,18 +413,25 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         
         std::string url = std::string(api_url) + "/" + std::string(filename);
         
-        ESP_LOGI(TAG, "下载动画图片文件 [%d/%d]: %s", i, MAX_IMAGE_FILES, filename);
+        file_paths.push_back(filepath);
+        urls.push_back(url);
         
-        // 修改这里的进度回调，使用整体进度
+        ESP_LOGI(TAG, "准备下载动画图片文件 [%d/%d]: %s", i, MAX_IMAGE_FILES, filename);
+    }
+    
+    // 逐个下载文件
+    for (size_t i = 0; i < urls.size(); i++) {
         if (progress_callback_) {
-            int overall_percent = (i-1) * 100 / MAX_IMAGE_FILES;
+            int overall_percent = static_cast<int>(i * 100 / MAX_IMAGE_FILES);
             char message[128];
-            snprintf(message, sizeof(message), "准备下载动画图片: %s (%d/%d)", filename, i, MAX_IMAGE_FILES);
+            const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
+            snprintf(message, sizeof(message), "准备下载动画图片: %s (%d/%d)", 
+                    filename, static_cast<int>(i+1), MAX_IMAGE_FILES);
             progress_callback_(overall_percent, 100, message);
         }
         
-        if (DownloadFile(url.c_str(), filepath) != ESP_OK) {
-            ESP_LOGE(TAG, "下载动画图片文件失败: %s", filename);
+        if (DownloadFile(urls[i].c_str(), file_paths[i].c_str()) != ESP_OK) {
+            ESP_LOGE(TAG, "下载动画图片文件失败: %s", file_paths[i].c_str());
             success = false;
             break;
         }
@@ -558,6 +570,16 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
     int retry_count = 0;
     static int last_logged_percent = -1;
     
+    // 检查可用内存
+    size_t free_heap = esp_get_free_heap_size();
+    if (free_heap < 100000) { // 至少需要100KB可用内存
+        ESP_LOGE(TAG, "内存不足，无法下载文件，可用内存: %d字节", free_heap);
+        if (progress_callback_) {
+            progress_callback_(0, 100, "内存不足，下载失败");
+        }
+        return ESP_ERR_NO_MEM;
+    }
+    
     while (retry_count < MAX_DOWNLOAD_RETRIES) {
         last_logged_percent = -1;
         
@@ -569,7 +591,20 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             progress_callback_(0, 100, message);
         }
         
+        // 检查内存情况
+        free_heap = esp_get_free_heap_size();
+        ESP_LOGI(TAG, "下载前可用内存: %d字节", free_heap);
+        
         auto http = Board::GetInstance().CreateHttp();
+        if (!http) {
+            ESP_LOGE(TAG, "无法创建HTTP客户端");
+            retry_count++;
+            if (progress_callback_) {
+                progress_callback_(0, 100, "HTTP客户端创建失败");
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
+            continue;
+        }
         
         if (!http->Open("GET", url)) {
             ESP_LOGE(TAG, "无法连接到服务器");
@@ -590,6 +625,7 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         FILE* f = fopen(filepath, "w");
         if (f == NULL) {
             ESP_LOGE(TAG, "无法创建文件: %s", filepath);
+            http->Close();
             delete http;
             if (progress_callback_) {
                 progress_callback_(0, 100, "创建文件失败");
@@ -601,6 +637,7 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         if (content_length == 0) {
             ESP_LOGE(TAG, "无法获取文件大小");
             fclose(f);
+            http->Close();
             delete http;
             if (progress_callback_) {
                 progress_callback_(0, 100, "无法获取文件大小");
@@ -610,45 +647,50 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         
         ESP_LOGI(TAG, "下载文件大小: %d字节", content_length);
         
-        char buffer[512];
+        // 增大缓冲区大小，从512字节增加到4KB，平衡内存使用和性能
+        char* buffer = (char*)malloc(4096);
+        if (!buffer) {
+            ESP_LOGE(TAG, "无法分配下载缓冲区");
+            fclose(f);
+            http->Close();
+            delete http;
+            if (progress_callback_) {
+                progress_callback_(0, 100, "内存分配失败");
+            }
+            return ESP_ERR_NO_MEM;
+        }
+        
         size_t total_read = 0;
+        bool download_success = true;
         
         while (true) {
-            int ret = http->Read(buffer, sizeof(buffer));
+            // 定期检查内存
+            if (total_read % (4096 * 10) == 0) { // 每40KB检查一次
+                free_heap = esp_get_free_heap_size();
+                if (free_heap < 50000) { // 如果可用内存低于50KB
+                    ESP_LOGW(TAG, "内存不足，中止下载，可用内存: %d字节", free_heap);
+                    download_success = false;
+                    break;
+                }
+            }
+            
+            int ret = http->Read(buffer, 4096);
             if (ret < 0) {
                 ESP_LOGE(TAG, "读取HTTP数据失败");
-                fclose(f);
-                delete http;
-                if (progress_callback_) {
-                    progress_callback_(0, 100, "读取数据失败");
-                }
-                retry_count++;
-                vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
+                download_success = false;
                 break;
             }
             
             if (ret == 0) {
-                fclose(f);
-                delete http;
-                if (progress_callback_) {
-                    const char* filename = strrchr(filepath, '/') + 1;
-                    char message[128];
-                    snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
-                    progress_callback_(100, 100, message);
-                }
-                last_logged_percent = -1;
-                return ESP_OK;
+                // 下载完成
+                break;
             }
             
             size_t written = fwrite(buffer, 1, ret, f);
             if (written != ret) {
                 ESP_LOGE(TAG, "写入文件失败");
-                fclose(f);
-                delete http;
-                if (progress_callback_) {
-                    progress_callback_(0, 100, "写入文件失败");
-                }
-                return ESP_FAIL;
+                download_success = false;
+                break;
             }
             
             total_read += ret;
@@ -676,8 +718,34 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 }
             }
             
-            // 添加小延迟以允许其他任务执行
+            // 短暂延迟，避免占用过多CPU
             vTaskDelay(1);
+        }
+        
+        // 清理资源
+        free(buffer);
+        fclose(f);
+        http->Close();
+        delete http;
+        
+        if (download_success) {
+            if (progress_callback_) {
+                const char* filename = strrchr(filepath, '/') + 1;
+                char message[128];
+                snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
+                progress_callback_(100, 100, message);
+            }
+            last_logged_percent = -1;
+            return ESP_OK;
+        } else {
+            retry_count++;
+            if (progress_callback_) {
+                char message[128];
+                snprintf(message, sizeof(message), "下载失败，正在重试 (%d/%d)", 
+                        retry_count, MAX_DOWNLOAD_RETRIES);
+                progress_callback_(0, 100, message);
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));
         }
     }
     
@@ -738,6 +806,15 @@ bool ImageResourceManager::SaveLogoVersion(const std::string& version) {
 }
 
 void ImageResourceManager::LoadImageData() {
+    // 检查可用内存
+    size_t free_heap = esp_get_free_heap_size();
+    ESP_LOGI(TAG, "加载图片前可用内存: %d字节", free_heap);
+    
+    if (free_heap < 200000) { // 至少需要200KB可用内存来加载图片
+        ESP_LOGW(TAG, "内存不足，跳过图片加载，可用内存: %d字节", free_heap);
+        return;
+    }
+    
     // 清空原有动画图片数据
     for (auto ptr : image_data_pointers_) {
         if (ptr) {
@@ -766,6 +843,13 @@ void ImageResourceManager::LoadImageData() {
         
         // 加载每个图片文件
         for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+            // 每次加载前检查内存
+            free_heap = esp_get_free_heap_size();
+            if (free_heap < 100000) { // 如果内存不足100KB，停止加载
+                ESP_LOGW(TAG, "内存不足，停止加载更多图片，当前可用内存: %d字节", free_heap);
+                break;
+            }
+            
             if (!LoadImageFile(i)) {
                 ESP_LOGE(TAG, "加载动画图片文件失败，索引: %d", i);
             }
@@ -777,6 +861,10 @@ void ImageResourceManager::LoadImageData() {
     if (has_valid_logo_) {
         ESP_LOGI(TAG, "logo文件已加载");
     }
+    
+    // 最终内存检查
+    free_heap = esp_get_free_heap_size();
+    ESP_LOGI(TAG, "加载图片后可用内存: %d字节", free_heap);
 }
 
 bool ImageResourceManager::LoadLogoFile() {
@@ -1064,7 +1152,7 @@ esp_err_t ImageResourceManager::CheckAndUpdateResources(const char* api_url, con
         return DownloadImages(api_url);
     } else if (status == ESP_ERR_NOT_FOUND) {
         ESP_LOGI(TAG, "动画图片资源已是最新版本");
-        return ESP_OK;
+        return ESP_ERR_NOT_FOUND;
     }
     
     return status;
@@ -1099,7 +1187,7 @@ esp_err_t ImageResourceManager::CheckAndUpdateLogo(const char* api_url, const ch
         return DownloadLogo(api_url);
     } else if (status == ESP_ERR_NOT_FOUND) {
         ESP_LOGI(TAG, "logo资源已是最新版本");
-        return ESP_OK;
+        return ESP_ERR_NOT_FOUND;
     }
     
     return status;

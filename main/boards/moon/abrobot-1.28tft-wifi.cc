@@ -803,7 +803,7 @@ public:
             char full_message[256];
             if (progress > 0 && progress < 100) {
                 snprintf(full_message, sizeof(full_message), 
-                        "正在下载图片资源...\n\n%s\n\n进度：%d%%", 
+                        "正在下载图片资源...\n%s\n进度：%d%%", 
                         message, progress);
             } else {
                 snprintf(full_message, sizeof(full_message), "%s", message);
@@ -1069,7 +1069,7 @@ private:
         });
         
         // 启动图片轮播任务
-        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 8192, this, 3, &image_task_handle_);
         ESP_LOGI(TAG, "图片循环显示任务已启动");
     }
 
@@ -1202,44 +1202,54 @@ private:
                 if (wifi.IsConnected()) {
                     ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
                     
-                    // 检查并更新动画图片
-                    esp_err_t animation_result = image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL);
-                    
-                    // 检查并更新logo图片
-                    esp_err_t logo_result = image_mgr.CheckAndUpdateLogo(API_URL, LOGO_VERSION_URL);
-                    
-                    // 如果任一更新成功，标记为已更新
-                    if (animation_result == ESP_OK || logo_result == ESP_OK) {
-                        *updated = true;
-                        ESP_LOGI(TAG, "图片资源更新完成");
+                    // 检查并更新动画图片 - 移到后台任务中执行，避免在定时器中执行大内存操作
+                    static bool download_started = false;
+                    if (!download_started) {
+                        download_started = true;
+                        *updated = true; // 先标记为已更新，避免重复执行
                         
-                        // 更新静态logo图片
-                        const uint8_t* logo = image_mgr.GetLogoImage();
-                        if (logo) {
-                            iot::g_static_image = logo;
-                            ESP_LOGI(TAG, "logo图片已从网络下载并更新");
-                        }
-                        
-                        // 有真正的资源更新时重启设备
-                        ESP_LOGI(TAG, "资源有更新，3秒后重启设备...");
-                        for (int i = 3; i > 0; i--) {
-                            ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
-                            vTaskDelay(pdMS_TO_TICKS(1000));
-                        }
-                        esp_restart();
-                    } else if (animation_result != ESP_ERR_NOT_FOUND && logo_result != ESP_ERR_NOT_FOUND) {
-                        ESP_LOGW(TAG, "图片资源更新失败，将在下次检查时重试");
-                    } else {
-                        // 两个都是最新版本
-                        *updated = true;
-                        ESP_LOGI(TAG, "所有图片资源已是最新版本");
-                        
-                        // 确保logo图片已设置
-                        const uint8_t* logo = image_mgr.GetLogoImage();
-                        if (logo) {
-                            iot::g_static_image = logo;
-                            ESP_LOGI(TAG, "logo图片已确认设置");
-                        }
+                        // 创建后台任务执行实际的下载工作
+                        xTaskCreate([](void* param) {
+                            auto& image_mgr = ImageResourceManager::GetInstance();
+                            
+                            // 检查并更新动画图片
+                            esp_err_t animation_result = image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL);
+                            
+                            // 检查并更新logo图片  
+                            esp_err_t logo_result = image_mgr.CheckAndUpdateLogo(API_URL, LOGO_VERSION_URL);
+                            
+                            // 仅当有实际下载更新时才重启
+                            if (animation_result == ESP_OK || logo_result == ESP_OK) {
+                                ESP_LOGI(TAG, "图片资源更新完成");
+                                
+                                // 更新静态logo图片
+                                const uint8_t* logo = image_mgr.GetLogoImage();
+                                if (logo) {
+                                    iot::g_static_image = logo;
+                                    ESP_LOGI(TAG, "logo图片已从网络下载并更新");
+                                }
+                                
+                                // 有真正的资源更新时重启设备
+                                ESP_LOGI(TAG, "资源有更新，3秒后重启设备...");
+                                for (int i = 3; i > 0; i--) {
+                                    ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
+                                    vTaskDelay(pdMS_TO_TICKS(1000));
+                                }
+                                esp_restart();
+                            } else {
+                                ESP_LOGI(TAG, "所有图片资源已是最新版本");
+                                
+                                // 确保logo图片已设置
+                                const uint8_t* logo = image_mgr.GetLogoImage();
+                                if (logo) {
+                                    iot::g_static_image = logo;
+                                    ESP_LOGI(TAG, "logo图片已确认设置");
+                                }
+                            }
+                            
+                            // 删除任务
+                            vTaskDelete(NULL);
+                        }, "img_download", 16384, NULL, 3, NULL);
                     }
                 } else {
                     ESP_LOGD(TAG, "WiFi未连接，等待连接...");
@@ -1472,13 +1482,13 @@ public:
         // 检查WiFi连接状态
         if (!wifi_station.IsConnected()) {
             // 显示配网提示
-            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n\n设备连接网络中\n");
+            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n设备连接网络中\n");
             
             // 将此消息也添加到通知区域，确保用户能看到
             display_->ShowNotification("请配置网络连接", 0);
         } else {
             // 已连接网络，显示正常欢迎信息
-            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n\n正在初始化...");
+            display_->SetChatMessage("system", "欢迎使用独众AI伴侣\n正在初始化...");
         }
     }
 
