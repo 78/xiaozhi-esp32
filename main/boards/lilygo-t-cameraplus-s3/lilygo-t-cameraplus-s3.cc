@@ -10,6 +10,7 @@
 #include "sy6970.h"
 #include "pin_config.h"
 #include "esp32_camera.h"
+#include "ir_filter_controller.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -292,6 +293,8 @@ public:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+#elif CONFIG_IOT_PROTOCOL_MCP
+        static IrFilterController irFilter(AP1511B_GPIO);
 #endif
         GetBacklight()->RestoreBrightness();
     }
