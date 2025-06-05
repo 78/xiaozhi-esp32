@@ -132,73 +132,76 @@ ATK_NoAudioCodecDuplex::ATK_NoAudioCodecDuplex(int input_sample_rate, int output
 }
 
 
+// 构造函数，用于初始化单工模式下的音频编解码器
 NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din) {
-    duplex_ = false;
-    input_sample_rate_ = input_sample_rate;
-    output_sample_rate_ = output_sample_rate;
+    duplex_ = false;  // 设置为单工模式，要么音频输入，要么音频输出
+    input_sample_rate_ = input_sample_rate;  // 存储输入采样率
+    output_sample_rate_ = output_sample_rate;  // 存储输出采样率
 
-    // Create a new channel for speaker
+    // 创建一个新的扬声器通道配置
     i2s_chan_config_t chan_cfg = {
-        .id = (i2s_port_t)0,
-        .role = I2S_ROLE_MASTER,
-        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
-        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
-        .auto_clear_after_cb = true,
-        .auto_clear_before_cb = false,
-        .intr_priority = 0,
+        .id = (i2s_port_t)0,  // 使用I2S端口0
+        .role = I2S_ROLE_MASTER,  // 主模式
+        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,  // DMA描述符数量（DMA（Direct Memory Access，直接内存访问）），决定同时能处理多少个数据块，影响缓冲队列长度
+        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,  // DMA帧数量，每个描述符中的音频帧数，决定每个缓冲区的大小，影响数据吞吐量和延迟，如果每帧是 4 字节（32bit 单声道），dma_frame_num = 64，则每个缓冲区大小约为 4 * 64 = 256 字节
+        .auto_clear_after_cb = true,  // 在回调后自动清除缓冲区
+        .auto_clear_before_cb = false,  // 在回调前不清除缓冲区
+        .intr_priority = 0,  // 中断优先级设为0
     };
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, nullptr));
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, nullptr));  // 创建I2S通道并分配发送句柄
 
+    // 配置扬声器的标准I2S通道参数，I²S（Inter-IC Sound），全称 集成电路声音总线，是一种由飞利浦公司开发的 数字音频传输协议，用于在芯片之间传输 高质量的音频数据
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+            .sample_rate_hz = (uint32_t)output_sample_rate_,  // 输出采样率
+            .clk_src = I2S_CLK_SRC_DEFAULT,  // 默认时钟源
+            .mclk_multiple = I2S_MCLK_MULTIPLE_256,  // MCLK倍数
 			#ifdef   I2S_HW_VERSION_2
-				.ext_clk_freq_hz = 0,
+				.ext_clk_freq_hz = 0,  // 外部时钟频率设为0（未使用）
 			#endif
-
         },
         .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_MONO,
-            .slot_mask = I2S_STD_SLOT_LEFT,
-            .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
-            .ws_pol = false,
-            .bit_shift = true,
+            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,  // 数据位宽32位
+            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,  // 插槽位宽自动设置
+            .slot_mode = I2S_SLOT_MODE_MONO,  // 单声道模式
+            .slot_mask = I2S_STD_SLOT_LEFT,  // 左声道
+            .ws_width = I2S_DATA_BIT_WIDTH_32BIT,  // WS宽度等于数据位宽
+            .ws_pol = false,  // WS低电平有效
+            .bit_shift = true,  // 数据位移使能
             #ifdef   I2S_HW_VERSION_2
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
+                .left_align = true,  // 左对齐
+                .big_endian = false,  // 小端格式
+                .bit_order_lsb = false  // MSB先传
             #endif
-
         },
         .gpio_cfg = {
-            .mclk = I2S_GPIO_UNUSED,
-            .bclk = spk_bclk,
-            .ws = spk_ws,
-            .dout = spk_dout,
-            .din = I2S_GPIO_UNUSED,
+            .mclk = I2S_GPIO_UNUSED,  // 不使用MCLK
+            .bclk = spk_bclk,  // BCLK连接到指定的GPIO
+            .ws = spk_ws,  // WS连接到指定的GPIO
+            .dout = spk_dout,  // DOUT连接到指定的GPIO
+            .din = I2S_GPIO_UNUSED,  // 不使用DIN
             .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
+                .mclk_inv = false,  // 不反转MCLK
+                .bclk_inv = false,  // 不反转BCLK
+                .ws_inv = false  // 不反转WS
             }
         }
     };
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));  // 初始化标准模式的I2S通道
 
-    // Create a new channel for MIC
-    chan_cfg.id = (i2s_port_t)1;
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
-    std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
-    std_cfg.gpio_cfg.bclk = mic_sck;
-    std_cfg.gpio_cfg.ws = mic_ws;
-    std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
-    std_cfg.gpio_cfg.din = mic_din;
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
-    ESP_LOGI(TAG, "Simplex channels created");
+    // 创建一个新的MIC通道
+    chan_cfg.id = (i2s_port_t)1;  // 使用I2S端口1
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));  // 创建I2S通道并分配接收句柄
+
+    // 配置MIC的标准I2S通道参数
+    std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;  // 输入采样率
+    std_cfg.gpio_cfg.bclk = mic_sck;  // BCLK连接到指定的GPIO
+    std_cfg.gpio_cfg.ws = mic_ws;  // WS连接到指定的GPIO
+    std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;  // 不使用DOUT
+    std_cfg.gpio_cfg.din = mic_din;  // DIN连接到指定的GPIO
+
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));  // 初始化标准模式的I2S通道
+    ESP_LOGI(TAG, "Simplex channels created");  // 记录信息日志：单工通道创建成功
 }
 
 NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, i2s_std_slot_mask_t spk_slot_mask, gpio_num_t mic_sck, gpio_num_t mic_ws, gpio_num_t mic_din, i2s_std_slot_mask_t mic_slot_mask){
