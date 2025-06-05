@@ -110,9 +110,8 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
-
-        InitializeOttoController();
         InitializePowerManager();
+        InitializeOttoController();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

@@ -3,14 +3,7 @@
 #include <libs/gif/lv_gif.h>
 
 #include "display/lcd_display.h"
-
-// Otto机器人表情GIF声明 - 目前可用的6个表情
-LV_IMG_DECLARE(staticstate);  // 静态状态/中性表情
-LV_IMG_DECLARE(sad);          // 悲伤
-LV_IMG_DECLARE(happy);        // 开心
-LV_IMG_DECLARE(scare);        // 惊吓/惊讶
-LV_IMG_DECLARE(buxue);        // 不学/困惑
-LV_IMG_DECLARE(anger);        // 愤怒
+#include "otto_emoji_gif.h"
 
 /**
  * @brief Otto机器人GIF表情显示类
