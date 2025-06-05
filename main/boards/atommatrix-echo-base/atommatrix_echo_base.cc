@@ -105,6 +105,9 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
+#if CONFIG_USE_ALARM
+        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
+#endif
     }
 
 public:

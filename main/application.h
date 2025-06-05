@@ -22,7 +22,10 @@
 #include "background_task.h"
 #include "audio_processor.h"
 #include "wake_word.h"
-
+#if CONFIG_USE_ALARM
+#include "AlarmClock.h"
+#define ALARM_EVENT (1 << 2)
+#endif
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
 #define CHECK_NEW_VERSION_DONE_EVENT (1 << 2)
@@ -43,6 +46,9 @@ enum DeviceState {
     kDeviceStateSpeaking,
     kDeviceStateUpgrading,
     kDeviceStateActivating,
+#if CONFIG_USE_ALARM
+    kDeviceStateAlarm,
+#endif
     kDeviceStateFatalError
 };
 
@@ -79,7 +85,12 @@ public:
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     BackgroundTask* GetBackgroundTask() const { return background_task_; }
-
+#if CONFIG_USE_ALARM
+    //test
+    AlarmManager* alarm_m_ = nullptr;
+    void SetAlarmEvent();
+    void ClearAlarmEvent();
+#endif
 private:
     Application();
     ~Application();

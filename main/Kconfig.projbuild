@@ -393,4 +393,10 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+config USE_ALARM
+    bool "启用提醒闹钟功能"
+    default y
+    help
+        一个自定义的闹钟功能,必须使用可以获取时间的ota服务器!!!
+
 endmenu
