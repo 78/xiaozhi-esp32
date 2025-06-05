@@ -253,6 +253,8 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3-1.28-BOX"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_49
+        bool "Waveshare ESP32-S3-Touch-LCD-3.49"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
