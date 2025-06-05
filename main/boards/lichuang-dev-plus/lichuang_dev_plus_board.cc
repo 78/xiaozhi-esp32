@@ -28,48 +28,6 @@ LV_FONT_DECLARE(font_awesome_20_4);
 // Forward declaration
 class Pca9557;
 
-class LichuangDevPlusAudioCodec : public BoxAudioCodec {
-private:
-    Pca9557* pca9557_;
-    bool speaker_enabled_ = false; // To track speaker state
-
-public:
-    LichuangDevPlusAudioCodec(i2c_master_bus_handle_t i2c_bus, Pca9557* pca9557)
-        : BoxAudioCodec(i2c_bus,
-                       AUDIO_INPUT_SAMPLE_RATE,
-                       AUDIO_OUTPUT_SAMPLE_RATE,
-                       AUDIO_I2S_GPIO_MCLK,
-                       AUDIO_I2S_GPIO_BCLK,
-                       AUDIO_I2S_GPIO_WS,
-                       AUDIO_I2S_GPIO_DOUT,
-                       AUDIO_I2S_GPIO_DIN,
-                       GPIO_NUM_NC, // PA Enable Pin (not used iimage.png
-                       AUDIO_CODEC_ES8311_ADDR,
-                       AUDIO_CODEC_ES7210_ADDR,
-                       AUDIO_INPUT_REFERENCE),
-          pca9557_(pca9557) {
-    }
-
-    virtual void EnableOutput(bool enable) override {
-        BoxAudioCodec::EnableOutput(enable); // Call base method for ES8311
-        if (pca9557_) {
-            if (enable) {
-                // Enable NS4150B connected to PCA9557 IO1
-                pca9557_->SetOutputState(PCA9557_PIN_SPEAKER_CTRL, SPEAKER_ENABLE_LEVEL);
-                speaker_enabled_ = true;
-            } else {
-                // Disable NS4150B
-                pca9557_->SetOutputState(PCA9557_PIN_SPEAKER_CTRL, !SPEAKER_ENABLE_LEVEL);
-                speaker_enabled_ = false;
-            }
-        }
-    }
-
-    bool IsSpeakerEnabled() const {
-        return speaker_enabled_;
-    }
-};
-
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
@@ -126,27 +84,72 @@ public:
         return (inputs & (1 << bit)) == 0; // PCA955x inputs are active low (pressed = 0)
                                            // So, we return true if the bit IS 0.
                                            // This depends on pull-up/pull-down configuration.
-                                           // Assuming internal pull-ups are used or external pull-ups are present for inputs.
                                            // If the button pulls the line low when pressed, then (inputs & (1 << bit)) == 0 means pressed.
     }
 };
 
+class LichuangDevPlusAudioCodec : public BoxAudioCodec {
+private:
+    Pca9557* pca9557_;
+    bool speaker_enabled_ = false; // To track speaker state
+
+public:
+    LichuangDevPlusAudioCodec(i2c_master_bus_handle_t i2c_bus, Pca9557* pca9557) 
+        : BoxAudioCodec(i2c_bus, 
+                       AUDIO_INPUT_SAMPLE_RATE, 
+                       AUDIO_OUTPUT_SAMPLE_RATE,
+                       AUDIO_I2S_GPIO_MCLK, 
+                       AUDIO_I2S_GPIO_BCLK, 
+                       AUDIO_I2S_GPIO_WS, 
+                       AUDIO_I2S_GPIO_DOUT, 
+                       AUDIO_I2S_GPIO_DIN,
+                       GPIO_NUM_NC, 
+                       AUDIO_CODEC_ES8311_ADDR, 
+                       AUDIO_CODEC_ES7210_ADDR, 
+                       AUDIO_INPUT_REFERENCE),
+          pca9557_(pca9557) {
+    }
+
+    virtual void EnableOutput(bool enable) override {
+        BoxAudioCodec::EnableOutput(enable); // Call base method for ES8311
+        if (pca9557_) {
+            if (enable) {
+                // Enable NS4150B connected to PCA9557 IO1
+                pca9557_->SetOutputState(PCA9557_PIN_SPEAKER_CTRL, SPEAKER_ENABLE_LEVEL);
+                speaker_enabled_ = true;
+            } else {
+                // Disable NS4150B
+                pca9557_->SetOutputState(PCA9557_PIN_SPEAKER_CTRL, !SPEAKER_ENABLE_LEVEL);
+                speaker_enabled_ = false;
+            }
+        }
+    }
+
+    bool IsSpeakerEnabled() const {
+        return speaker_enabled_;
+    }
+};
 
 class LichuangDevPlusBoard : public DualNetworkBoard { // Changed base class
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
-    LcdDisplay* display_;
     Pca9557* pca9557_;
     Pmic* pmic_ = nullptr;
-    Button* volume_up_button_;
-    Button* volume_down_button_;
+    LcdDisplay* display_;
     esp_timer_handle_t headphone_check_timer_;
     PowerSaveTimer* power_save_timer_ = nullptr;
     Esp32Camera* camera_ = nullptr;
+    esp_timer_handle_t volume_check_timer_;
+    bool volume_up_pressed_ = false;
+    bool volume_down_pressed_ = false;
 
     static void headphone_check_callback(void* arg) {
         reinterpret_cast<LichuangDevPlusBoard*>(arg)->check_headphone_status();
+    }
+
+    static void volume_check_callback(void* arg) {
+        reinterpret_cast<LichuangDevPlusBoard*>(arg)->check_volume_buttons();
     }
 
     void check_headphone_status() {
@@ -165,6 +168,47 @@ private:
                 codec->EnableOutput(true);  // Enables NS4150B via PCA
                 ESP_LOGI(TAG, "Headphone removed, onboard speaker ON");
             }
+        }
+    }
+
+    void check_volume_buttons() {
+        if (!pca9557_) return;
+
+        bool current_volume_up_state = pca9557_->GetInputState(PCA9557_PIN_VOLUME_UP);
+        bool current_volume_down_state = pca9557_->GetInputState(PCA9557_PIN_VOLUME_DOWN);
+
+        if (power_save_timer_) power_save_timer_->WakeUp(); // Wake up on any volume button interaction
+
+        // Volume Up logic (simplified from Button class handlers)
+        if (current_volume_up_state && !volume_up_pressed_) {
+            // Button pressed (falling edge, assuming active low)
+            volume_up_pressed_ = true;
+            auto codec = GetAudioCodec();
+            if (codec) {
+                auto volume = codec->output_volume() + 10;
+                if (volume > 100) volume = 100;
+                codec->SetOutputVolume(volume);
+                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: " + std::to_string(volume));
+            }
+        } else if (!current_volume_up_state && volume_up_pressed_) {
+            // Button released (rising edge)
+            volume_up_pressed_ = false;
+        }
+
+        // Volume Down logic (simplified from Button class handlers)
+        if (current_volume_down_state && !volume_down_pressed_) {
+            // Button pressed (falling edge, assuming active low)
+            volume_down_pressed_ = true;
+            auto codec = GetAudioCodec();
+            if (codec) {
+                auto volume = codec->output_volume() - 10;
+                if (volume < 0) volume = 0;
+                codec->SetOutputVolume(volume);
+                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: " + std::to_string(volume));
+            }
+        } else if (!current_volume_down_state && volume_down_pressed_) {
+            // Button released (rising edge)
+            volume_down_pressed_ = false;
         }
     }
 
@@ -190,7 +234,7 @@ private:
 
     void InitializePmic() {
         // Initialize PMIC (AXP2101)
-        pmic_ = new Pmic(i2c_bus_, AXP2101_I2C_ADDR);
+        //pmic_ = new Pmic(i2c_bus_, AXP2101_I2C_ADDR);
     }
 
     void InitializeSpi() {
@@ -202,7 +246,6 @@ private:
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
-        }
     }
 
     void InitializeSt7789Display() {
@@ -276,11 +319,11 @@ private:
 
         /* Add touch input (for selected screen) */
         const lvgl_port_touch_cfg_t touch_cfg = {
-            .disp = lv_disp,
+            .disp = lv_display_get_default(), 
             .handle = tp,
         };
+
         lvgl_port_add_touch(&touch_cfg);
-        ESP_LOGI(TAG, "Touch interface initialized.");
     }
 
     void InitializePowerSaveTimer() {
@@ -322,26 +365,24 @@ private:
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
                 if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                    // Assuming DualNetworkBoard provides ResetWifiConfig() or similar
-                    if (HasWifiInterface()) ResetWifiConfig();
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
                 }
             }
             app.ToggleChatState();
         });
 
         boot_button_.OnDoubleClick([this]() {
-            if (power_save_timer_) power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
 #if CONFIG_USE_DEVICE_AEC
             if (app.GetDeviceState() == kDeviceStateIdle) {
                 app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
-            } else
+                return; // AEC handled, exit
+            }
 #endif
-            if (app.GetDeviceState() == kDeviceStateIdle ||
-                app.GetDeviceState() == kDeviceStateStarting ||
-                app.GetDeviceState() == kDeviceStateAudioPlaying ||
-                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
-                SwitchNetworkType(); // Assumed method in DualNetworkBoard
+            // If AEC not handled or CONFIG_USE_DEVICE_AEC is not defined, proceed with network switch
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
             }
         });
 
@@ -356,58 +397,15 @@ private:
             if (power_save_timer_) power_save_timer_->WakeUp();
             Application::GetInstance().StopListening();
         });
-        
-        volume_up_button_ = new Button([this]() { if(power_save_timer_) power_save_timer_->WakeUp(); return pca9557_->GetInputState(PCA9557_PIN_VOLUME_UP); }, true, 50);
-        volume_down_button_ = new Button([this]() { if(power_save_timer_) power_save_timer_->WakeUp(); return pca9557_->GetInputState(PCA9557_PIN_VOLUME_DOWN); }, true, 50);
-
-        volume_up_button_->OnClick([this]() {
-            if(power_save_timer_) power_save_timer_->WakeUp();
-            auto codec = GetAudioCodec();
-            if (codec) {
-                auto volume = codec->output_volume() + 10;
-                if (volume > 100) volume = 100;
-                codec->SetOutputVolume(volume);
-                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: " + std::to_string(volume));
-            }
-        });
-
-        volume_up_button_->OnLongPress([this]() {
-            if(power_save_timer_) power_save_timer_->WakeUp();
-            auto codec = GetAudioCodec();
-            if (codec) {
-                codec->SetOutputVolume(100);
-                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: Max");
-            }
-        });
-
-        volume_down_button_->OnClick([this]() {
-            if(power_save_timer_) power_save_timer_->WakeUp();
-            auto codec = GetAudioCodec();
-            if (codec) {
-                auto volume = codec->output_volume() - 10;
-                if (volume < 0) volume = 0;
-                codec->SetOutputVolume(volume);
-                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: " + std::to_string(volume));
-            }
-        });
-
-        volume_down_button_->OnLongPress([this]() {
-            if(power_save_timer_) power_save_timer_->WakeUp();
-            auto codec = GetAudioCodec();
-            if (codec) {
-                codec->SetOutputVolume(0);
-                if (GetDisplay()) GetDisplay()->ShowNotification("Volume: Muted");
-            }
-        });
     }
 
     void InitializeCamera() {
         // Open camera power
-        pca9557_->SetOutputState(2, 0);
+        if (pca9557_) pca9557_->SetOutputState(2, 0);
 
         camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_channel = LEDC_CHANNEL_2;
+        config.ledc_timer = LEDC_TIMER_2;
         config.pin_d0 = CAMERA_PIN_D0;
         config.pin_d1 = CAMERA_PIN_D1;
         config.pin_d2 = CAMERA_PIN_D2;
@@ -433,42 +431,36 @@ private:
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
-        if (camera_) delete camera_; // Delete if already exists from a previous init attempt
         camera_ = new Esp32Camera(config);
-        // Esp32Camera constructor calls Init(). Check camera_init_ok() if provided by Esp32Camera class, or assume success if no crash.
-        // For this example, we assume Init() is called internally and we'd check a status if API provides one.
-        // The provided snippet for this subtask implies Init() is called by constructor.
-        // Let's assume if new doesn't throw and camera_ is not null, it's "ok" for now, or add a hypothetical IsInitOk()
-        if (!camera_ /* || !camera_->IsInitOk() */) { // Replace with actual check if available
+        if (!camera_ /* || !camera_->IsInitOk() */) {
             ESP_LOGE(TAG, "Camera initialization failed!");
-            delete camera_; // Clean up
             camera_ = nullptr;
         } else {
              ESP_LOGI(TAG, "Camera Initialized successfully.");
         }
     }
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
+    void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-#endif
+        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+    }
 
 public:
-    LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ML307_RX_BUFFER_SIZE), boot_button_(BOOT_BUTTON_GPIO), pca9557_(nullptr), pmic_(nullptr), volume_up_button_(nullptr), volume_down_button_(nullptr), display_(nullptr), headphone_check_timer_(nullptr), power_save_timer_(nullptr), camera_(nullptr) {
-        InitializeI2c();          // 1. 初始化 I2C 总线和 PCA9557 (更像 lichuang_dev_board)
-        InitializePmic();         // 2. 初始化 PMIC (新功能)
-        InitializeSpi();          // 3. 初始化 SPI
-        InitializeSt7789Display(); // 4. 初始化显示
-        InitializeTouch();        // 5. 初始化触摸 (新功能)
-        InitializeButtons();      // 6. 初始化按键 (包含音量键等新功能)
-        InitializePowerSaveTimer(); // 7. 初始化节能定时器 (新功能)
-        InitializeCamera();       // 8. 初始化摄像头 (新功能)
-        InitializeIot();          // 9. 初始化物联网
+    LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ML307_RX_BUFFER_SIZE), boot_button_(BOOT_BUTTON_GPIO), pca9557_(nullptr), pmic_(nullptr), display_(nullptr), headphone_check_timer_(nullptr), power_save_timer_(nullptr), camera_(nullptr) {
+        InitializeI2c();
+        InitializePmic();
+        InitializeSpi();
+        InitializeSt7789Display();
+        InitializeTouch();
+        InitializeButtons();
+        InitializePowerSaveTimer();
+        InitializeCamera();
+        InitializeIot();
 
-        // 放在所有初始化之后，因为依赖于 GetAudioCodec() 和 pca9557_
-        check_headphone_status(); // 耳机检测 (新功能)
-        GetBacklight()->RestoreBrightness(); // 确保背光恢复 (原有功能，调整位置)
+        check_headphone_status();
+        GetBacklight()->RestoreBrightness();
 
         const esp_timer_create_args_t headphone_timer_args = {
             .callback = &LichuangDevPlusBoard::headphone_check_callback,
@@ -476,16 +468,31 @@ public:
             .name = "headphone_check"
         };
         ESP_ERROR_CHECK(esp_timer_create(&headphone_timer_args, &headphone_check_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(headphone_check_timer_, 500000)); // Check every 500ms
+        ESP_ERROR_CHECK(esp_timer_start_periodic(headphone_check_timer_, 500000));
+
+        const esp_timer_create_args_t volume_timer_args = {
+            .callback = &LichuangDevPlusBoard::volume_check_callback,
+            .arg = this,
+            .name = "volume_check"
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&volume_timer_args, &volume_check_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(volume_check_timer_, 50000));
+    }
+
+    virtual ~LichuangDevPlusBoard() {
+        if (display_) delete display_;
+        if (pmic_) delete pmic_;
+        if (pca9557_) delete pca9557_;
+        if (power_save_timer_) delete power_save_timer_;
+        // if (camera_) delete camera_; // Removed due to non-virtual destructor constraint
+
+        if (headphone_check_timer_) esp_timer_delete(headphone_check_timer_);
+        if (volume_check_timer_) esp_timer_delete(volume_check_timer_);
     }
 
     virtual AudioCodec* GetAudioCodec() override {
         static LichuangDevPlusAudioCodec audio_codec(i2c_bus_, pca9557_);
         return &audio_codec;
-    }
-
-    virtual Camera* GetCamera() override {
-        return camera_;
     }
 
     virtual Display* GetDisplay() override {
@@ -499,47 +506,21 @@ public:
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         if (!pmic_) return false;
-        static bool last_discharging_state = false;
-
+        static bool last_discharging = false;
         charging = pmic_->IsCharging();
-        // Assuming pmic_->IsDischarging() is available from Axp2101 base or Pmic implementation
-        // If not, it might be inferred e.g. !charging && pmic_->IsBatteryConnected() && !pmic_->IsVbusGood()
-        // For now, let's assume Axp2101 provides IsDischarging() or Pmic implements it.
-        // A simple inference if IsDischarging() is not directly available:
-        if (pmic_->IsVbusGood()) { // If VBUS is present
-            discharging = false; // Not discharging if external power is connected
-        } else {
-            discharging = !charging && pmic_->IsBatteryConnected(); // Discharging if no VBUS, not charging, and battery connected
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
         }
 
-        if (power_save_timer_) {
-            // Enable power save timer only when discharging (on battery)
-            // Disable when charging or external power is present
-            bool should_enable_pst = discharging;
-            if (should_enable_pst != last_discharging_state) {
-                 power_save_timer_->SetEnabled(should_enable_pst);
-                 ESP_LOGI(TAG, "PowerSaveTimer %s (discharging: %d)", should_enable_pst ? "enabled" : "disabled", discharging);
-                 last_discharging_state = should_enable_pst;
-            }
-        }
         level = pmic_->GetBatteryLevel();
         return true;
     }
 
-    // PowerOff() method is removed, PMIC hardware long-press or PowerSaveTimer handles shutdown.
-
-    ~LichuangDevPlusBoard() {
-        if (headphone_check_timer_) {
-            esp_timer_stop(headphone_check_timer_);
-            esp_timer_delete(headphone_check_timer_);
-        }
-        delete volume_up_button_;
-        delete volume_down_button_;
-        delete pca9557_;
-        delete pmic_;
-        delete display_;
-        delete power_save_timer_;
-        delete camera_; // Added
+    virtual bool GetTemperature(float& esp32temp) override {
+        esp32temp = 0.0f; // Default to 0.0f
+        return false; // Indicate that temperature is not obtained
     }
 };
 
