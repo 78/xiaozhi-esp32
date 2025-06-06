@@ -38,7 +38,7 @@ Serial flasher config -> Flash size -> 4 MB
 **修改分区表：**
 
 ```
-Partition Table -> Custom partition CSV file -> partitions_4M.csv
+Partition Table -> Custom partition CSV file -> partitions/v1/4m.csv
 ```
 
 **编译：**

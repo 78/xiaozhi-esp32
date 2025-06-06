@@ -270,6 +270,11 @@ void Ota::Upgrade(const std::string& firmware_url) {
         return;
     }
 
+    if (http->GetStatusCode() != 200) {
+        ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
+        return;
+    }
+
     size_t content_length = http->GetBodyLength();
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");

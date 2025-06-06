@@ -1,6 +1,6 @@
 # 自定义开发板指南
 
-本指南介绍如何为小智AI语音聊天机器人项目定制一个新的开发板初始化程序。小智AI支持50多种ESP32系列开发板，每个开发板的初始化代码都放在对应的目录下。
+本指南介绍如何为小智AI语音聊天机器人项目定制一个新的开发板初始化程序。小智AI支持70多种ESP32系列开发板，每个开发板的初始化代码都放在对应的目录下。
 
 ## 重要提示
 
@@ -98,7 +98,7 @@ mkdir main/boards/my-custom-board
             "sdkconfig_append": [
                 // 额外需要的编译配置
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\""
             ]
         }
     ]

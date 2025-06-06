@@ -33,8 +33,8 @@
 - OLED / LCD 显示屏，支持表情显示
 - 电量显示与电源管理
 - 支持多语言（中文、英文、日文）
-- 支持ESP32-C3、ESP32-S3、ESP32-P4芯片平台
-- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO等）
+- 支持 ESP32-C3、ESP32-S3、ESP32-P4 芯片平台
+- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
 - 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
 
 ## 硬件
@@ -122,7 +122,7 @@
 
 ### 开发者文档
 
-- [自定义开发板指南](main/boards/README.md) - 学习如何为小智AI创建自定义开发板
+- [自定义开发板指南](main/boards/README.md) - 学习如何为小智 AI 创建自定义开发板
 - [MCP 协议物联网控制用法说明](docs/mcp-usage.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol.md) - 设备端 MCP 协议的实现方式
 - [一份详细的 WebSocket 通信协议文档](docs/websocket.md)
@@ -135,16 +135,19 @@
 
 ## 相关开源项目
 
-在个人电脑上部署服务器，可以参考以下开源的项目：
+在个人电脑上部署服务器，可以参考以下第三方开源的项目：
 
 - [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Python 服务器
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java 服务器
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang 服务器
 
-使用小智通信协议的其他客户端项目：
+使用小智通信协议的第三方客户端项目：
 
 - [huangjunsen0406/py-xiaozhi](https://github.com/huangjunsen0406/py-xiaozhi) Python 客户端
 - [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client) Android 客户端
+- [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百问科技提供的 Linux 客户端
+- [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技的蓝牙芯片固件
+- [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移远提供的 QuecPython 固件
 
 ## Star History
 
