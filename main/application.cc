@@ -302,9 +302,11 @@ void Application::ToggleChatState() {
 
     if (device_state_ == kDeviceStateIdle) {
         Schedule([this]() {
-            SetDeviceState(kDeviceStateConnecting);
-            if (!protocol_->OpenAudioChannel()) {
-                return;
+            if (!protocol_->IsAudioChannelOpened()) {
+                SetDeviceState(kDeviceStateConnecting);
+                if (!protocol_->OpenAudioChannel()) {
+                    return;
+                }
             }
 
             SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
@@ -717,6 +719,9 @@ void Application::Schedule(std::function<void()> callback) {
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
+    // Raise the priority of the main event loop to avoid being interrupted by background tasks (which has priority 2)
+    vTaskPrioritySet(NULL, 3);
+
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, SCHEDULE_EVENT | SEND_AUDIO_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
 

@@ -31,6 +31,7 @@ dependencies:
   espressif2022/image_player: ^1.1.0
   espressif/adc_mic: ^0.2.0
   espressif/esp_mmap_assets: ">=1.2"
+  txp666/otto-emoji-gif-component: ~1.0.2
 
   tny-robotics/sh1106-esp-idf:
     version: ^1.0.0
@@ -54,7 +55,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   lijunru-hub/servo_dog_ctrl:
-    version: '^0.1.4'
+    version: '^0.1.6'
     rules:
     - if: target in [esp32c3]
 

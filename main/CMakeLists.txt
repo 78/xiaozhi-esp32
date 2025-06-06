@@ -189,6 +189,10 @@ elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
 elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_28_BOX)
     set(BOARD_TYPE "sp-esp32-s3-1.28-box")
+elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
+    set(BOARD_TYPE "otto-robot")
+elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+    set(BOARD_TYPE "electron-bot")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
