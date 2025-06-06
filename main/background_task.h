@@ -15,7 +15,9 @@ public:
 
     void Schedule(std::function<void()> callback);
     void WaitForCompletion();
-
+#if CONFIG_USE_ALARM
+    int GetTaskNum(){return active_tasks_;}
+#endif 
 private:
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
