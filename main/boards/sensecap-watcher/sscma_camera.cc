@@ -15,7 +15,6 @@
 #define IMG_JPEG_BUF_SIZE   48 * 1024
 
 SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
-
     sscma_client_io_spi_config_t spi_io_config = {0};
     spi_io_config.sync_gpio_num = BSP_SSCMA_CLIENT_SPI_SYNC;
     spi_io_config.cs_gpio_num = BSP_SSCMA_CLIENT_SPI_CS;
@@ -147,10 +146,10 @@ SscmaCamera::~SscmaCamera() {
         heap_caps_free((void*)preview_image_.data);
         preview_image_.data = nullptr;
     }
-    if ( sscma_client_handle_) {
+    if (sscma_client_handle_) {
         sscma_client_del(sscma_client_handle_);
     }
-    if ( sscma_data_queue_) {
+    if (sscma_data_queue_) {
         vQueueDelete(sscma_data_queue_);
     }
     if (jpeg_data_.buf) {
@@ -190,23 +189,23 @@ bool SscmaCamera::Capture() {
     ESP_LOGI(TAG, "Capturing image...");
 
     // himax 有缓存数据,需要拍两张照片, 只获取最新的照片即可.
-    if( sscma_client_sample(sscma_client_handle_, 2) ) {
+    if (sscma_client_sample(sscma_client_handle_, 2) ) {
         ESP_LOGE(TAG, "Failed to capture image from SSCMA client");
         return false;
     }
     vTaskDelay(pdMS_TO_TICKS(500)); // 等待SSCMA客户端处理数据
-    if(xQueueReceive(sscma_data_queue_, &data, pdMS_TO_TICKS(1000)) != pdPASS) {
+    if (xQueueReceive(sscma_data_queue_, &data, pdMS_TO_TICKS(1000)) != pdPASS) {
         ESP_LOGE(TAG, "Failed to receive JPEG data from SSCMA client");
         return false;
     }
 
-    if( jpeg_data_.buf == nullptr ) {
+    if (jpeg_data_.buf == nullptr) {
         heap_caps_free(data.img);
         return false;
     }
 
     ret = mbedtls_base64_decode(jpeg_data_.buf, IMG_JPEG_BUF_SIZE, &jpeg_data_.len, data.img, data.len);
-    if( ret != 0 || jpeg_data_.len == 0) {
+    if (ret != 0 || jpeg_data_.len == 0) {
         ESP_LOGE(TAG, "Failed to decode base64 image data, ret: %d, output_len: %zu", ret, jpeg_data_.len);
         heap_caps_free(data.img);
         return false;
