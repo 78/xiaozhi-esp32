@@ -271,6 +271,7 @@ choice BOARD_TYPE
         select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_FOGSEEK_AUS3_V1
         bool "雾岸科技AUS3邮票板"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
