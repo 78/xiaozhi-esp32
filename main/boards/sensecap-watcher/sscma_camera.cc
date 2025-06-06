@@ -17,12 +17,11 @@
 SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
 
     sscma_client_io_spi_config_t spi_io_config = {0};
-
     spi_io_config.sync_gpio_num = BSP_SSCMA_CLIENT_SPI_SYNC;
     spi_io_config.cs_gpio_num = BSP_SSCMA_CLIENT_SPI_CS;
     spi_io_config.pclk_hz = BSP_SSCMA_CLIENT_SPI_CLK;
     spi_io_config.spi_mode = 0;
-    spi_io_config.wait_delay = 2;
+    spi_io_config.wait_delay = 10; //两个transfer之间至少延时4ms,但当前 FREERTOS_HZ=100, 延时精度只能达到10ms, 
     spi_io_config.user_ctx = NULL;
     spi_io_config.io_expander = io_exp_handle;
     spi_io_config.flags.sync_use_expander = BSP_SSCMA_CLIENT_RST_USE_EXPANDER;
@@ -30,16 +29,15 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     sscma_client_new_io_spi_bus((sscma_client_spi_bus_handle_t)BSP_SSCMA_CLIENT_SPI_NUM, &spi_io_config, &sscma_client_io_handle_);
 
     sscma_client_config_t sscma_client_config = SSCMA_CLIENT_CONFIG_DEFAULT();
-
-    sscma_client_config.event_queue_size = 1;
-    sscma_client_config.tx_buffer_size = 8192;
-    sscma_client_config.rx_buffer_size = 98304;
-    sscma_client_config.process_task_stack = 10240;
-    sscma_client_config.process_task_affinity = 1;
-    sscma_client_config.process_task_priority = 5;
-    sscma_client_config.monitor_task_stack = 10240;
-    sscma_client_config.monitor_task_affinity = 1;
-    sscma_client_config.monitor_task_priority = 4;
+    sscma_client_config.event_queue_size = CONFIG_SSCMA_EVENT_QUEUE_SIZE;
+    sscma_client_config.tx_buffer_size = CONFIG_SSCMA_TX_BUFFER_SIZE;
+    sscma_client_config.rx_buffer_size = CONFIG_SSCMA_RX_BUFFER_SIZE;
+    sscma_client_config.process_task_stack = CONFIG_SSCMA_PROCESS_TASK_STACK_SIZE;
+    sscma_client_config.process_task_affinity = CONFIG_SSCMA_PROCESS_TASK_AFFINITY;
+    sscma_client_config.process_task_priority = CONFIG_SSCMA_PROCESS_TASK_PRIORITY;
+    sscma_client_config.monitor_task_stack = CONFIG_SSCMA_MONITOR_TASK_STACK_SIZE;
+    sscma_client_config.monitor_task_affinity = CONFIG_SSCMA_MONITOR_TASK_AFFINITY;
+    sscma_client_config.monitor_task_priority = CONFIG_SSCMA_MONITOR_TASK_PRIORITY;
     sscma_client_config.reset_gpio_num = BSP_SSCMA_CLIENT_RST;
     sscma_client_config.io_expander = io_exp_handle;
     sscma_client_config.flags.reset_use_expander = BSP_SSCMA_CLIENT_RST_USE_EXPANDER;
@@ -62,7 +60,15 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
             SscmaData data;
             data.img = (uint8_t*)img;
             data.len = img_size;
-            xQueueSend(self->sscma_data_queue_, &data, portMAX_DELAY);
+
+            // 清空队列，保证只保存最新的数据
+            SscmaData dummy;
+            while (xQueueReceive(self->sscma_data_queue_, &dummy, 0) == pdPASS) {
+                if (dummy.img) {
+                    heap_caps_free(dummy.img);
+                }
+            }
+            xQueueSend(self->sscma_data_queue_, &data, 0);
             // 注意：img 的释放由接收方负责
         }
     };
@@ -78,6 +84,13 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
 
     sscma_client_init(sscma_client_handle_);
 
+    // 获取设备信息
+    sscma_client_info_t *info;
+    if (sscma_client_get_info(sscma_client_handle_, &info, true) == ESP_OK) {
+        ESP_LOGI(TAG, "Device Info - ID: %s, Name: %s", 
+            info->id ? info->id : "NULL", 
+            info->name ? info->name : "NULL");
+    }
     sscma_client_set_sensor(sscma_client_handle_, 1, 3, true); // 3 = 640x480
 
     // 初始化JPEG数据的内存
@@ -89,8 +102,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     }
 
     //初始化JPEG解码
-
-    jpeg_dec_config_t config = { .output_type = JPEG_RAW_TYPE_RGB565_BE, .rotate = JPEG_ROTATE_0D };
+    jpeg_dec_config_t config = { .output_type = JPEG_RAW_TYPE_RGB565_LE, .rotate = JPEG_ROTATE_0D };
     jpeg_dec_ = jpeg_dec_open(&config);
     if (!jpeg_dec_) {
         ESP_LOGE(TAG, "Failed to open JPEG decoder");
@@ -169,14 +181,20 @@ bool SscmaCamera::Capture() {
     SscmaData data;
     size_t output_len = 0;
     int ret = 0;
+    
+    if (sscma_client_handle_ == nullptr) {
+        ESP_LOGE(TAG, "SSCMA client handle is not initialized");
+        return false;
+    }
 
-    // printf("Capture\n");
+    ESP_LOGI(TAG, "Capturing image...");
 
-    // sscma_client_set_sensor(sscma_client_handle_, 1, 3, true);
-    if( sscma_client_sample(sscma_client_handle_, 1) ) {
+    // himax 有缓存数据,需要拍两张照片, 只获取最新的照片即可.
+    if( sscma_client_sample(sscma_client_handle_, 2) ) {
         ESP_LOGE(TAG, "Failed to capture image from SSCMA client");
         return false;
     }
+    vTaskDelay(pdMS_TO_TICKS(500)); // 等待SSCMA客户端处理数据
     if(xQueueReceive(sscma_data_queue_, &data, pdMS_TO_TICKS(1000)) != pdPASS) {
         ESP_LOGE(TAG, "Failed to receive JPEG data from SSCMA client");
         return false;
@@ -202,7 +220,7 @@ bool SscmaCamera::Capture() {
     jpeg_io_->inbuf = jpeg_data_.buf;
     jpeg_io_->inbuf_len = jpeg_data_.len;
     ret = jpeg_dec_parse_header(jpeg_dec_, jpeg_io_, jpeg_out_);
-    if (ret <= 0) {
+    if (ret < 0) {
         ESP_LOGE(TAG, "Failed to parse JPEG header, ret: %d", ret);
         return true;
     }

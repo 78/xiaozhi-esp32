@@ -98,7 +98,7 @@ private:
     uint32_t long_press_cnt_;
     button_driver_t* btn_driver_ = nullptr;
     static SensecapWatcher* instance_;
-    SscmaCamera* camera_;
+    SscmaCamera* camera_ = nullptr;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
