@@ -8,7 +8,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <esp_io_expander_tca95xx_16bit.h>
-#include "esp_jpeg_dec.h"
+#include <esp_jpeg_dec.h>
 #include <mbedtls/base64.h>
 
 #include "sscma_client.h"
@@ -28,7 +28,6 @@ private:
     lv_img_dsc_t preview_image_;
     std::string explain_url_;
     std::string explain_token_;
-    std::thread encoder_thread_;
     sscma_client_io_handle_t sscma_client_io_handle_;
     sscma_client_handle_t sscma_client_handle_;
     QueueHandle_t sscma_data_queue_;
