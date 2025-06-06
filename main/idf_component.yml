@@ -55,7 +55,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   lijunru-hub/servo_dog_ctrl:
-    version: '^0.1.5'
+    version: '^0.1.6'
     rules:
     - if: target in [esp32c3]
 

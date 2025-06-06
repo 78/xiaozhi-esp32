@@ -2,7 +2,7 @@
 
 #include <esp_log.h>
 
-static const char TAG[] = "Es8374AudioCodec";
+#define TAG "Es8374AudioCodec"
 
 Es8374AudioCodec::Es8374AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
@@ -145,7 +145,7 @@ void Es8374AudioCodec::EnableInput(bool enable) {
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 40.0));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, AUDIO_CODEC_DEFAULT_MIC_GAIN));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
