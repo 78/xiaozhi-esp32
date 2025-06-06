@@ -392,6 +392,19 @@ config USE_SERVER_AEC
     help
         启用服务器端 AEC，需要服务器支持
 
+config USE_AUDIO_DEBUGGER
+    bool "Enable Audio Debugger"
+    default n
+    help
+        启用音频调试功能，通过UDP发送音频数据
+
+config AUDIO_DEBUG_UDP_SERVER
+    string "Audio Debug UDP Server Address"
+    default "192.168.2.100:8000"
+    depends on USE_AUDIO_DEBUGGER
+    help
+        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
+
 choice IOT_PROTOCOL
     prompt "IoT Protocol"
     default IOT_PROTOCOL_MCP

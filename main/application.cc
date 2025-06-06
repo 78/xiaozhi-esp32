@@ -10,6 +10,7 @@
 #include "iot/thing_manager.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
+#include "audio_debugger.h"
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "afe_audio_processor.h"
@@ -569,6 +570,7 @@ void Application::Start() {
     });
     bool protocol_started = protocol_->Start();
 
+    audio_debugger_ = std::make_unique<AudioDebugger>();
     audio_processor_->Initialize(codec);
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
         {
@@ -884,6 +886,12 @@ bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
             return false;
         }
     }
+    
+    // 音频调试：发送原始音频数据
+    if (audio_debugger_) {
+        audio_debugger_->Feed(data);
+    }
+    
     return true;
 }
 
