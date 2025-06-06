@@ -48,12 +48,10 @@ void EspWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
 }
 
 void EspWakeWord::StartDetection() {
-    ESP_LOGI(TAG, "Start wake word detection");
     xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
 }
 
 void EspWakeWord::StopDetection() {
-    ESP_LOGI(TAG, "Stop wake word detection");
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
 }
 
