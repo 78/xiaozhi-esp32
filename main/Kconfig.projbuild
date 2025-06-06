@@ -67,6 +67,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX_LITE
         bool "ESP BOX Lite"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32_S3_TOTO_MB
+        bool "ESP32-S3-TOTO-MB"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_BOX_1
         bool "Kevin Box 1"
         depends on IDF_TARGET_ESP32S3
@@ -133,8 +136,6 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_S3_TOTO_MB
-        bool "ESP32-S3-TOTO-MB"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
