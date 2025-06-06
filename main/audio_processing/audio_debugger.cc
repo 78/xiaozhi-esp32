@@ -43,13 +43,16 @@ AudioDebugger::AudioDebugger() {
 }
 
 AudioDebugger::~AudioDebugger() {
+#if CONFIG_USE_AUDIO_DEBUGGER
     if (udp_sockfd_ >= 0) {
         close(udp_sockfd_);
         ESP_LOGI(TAG, "Closed UDP socket");
     }
+#endif
 }
 
 void AudioDebugger::Feed(const std::vector<int16_t>& data) {
+#if CONFIG_USE_AUDIO_DEBUGGER
     if (udp_sockfd_ >= 0) {
         ssize_t sent = sendto(udp_sockfd_, data.data(), data.size() * sizeof(int16_t), 0,
                              (struct sockaddr*)&udp_server_addr_, sizeof(udp_server_addr_));
@@ -59,6 +62,7 @@ void AudioDebugger::Feed(const std::vector<int16_t>& data) {
             ESP_LOGD(TAG, "Sent %d bytes audio data to %s", sent, CONFIG_AUDIO_DEBUG_UDP_SERVER);
         }
     }
+#endif
 }
 
  
