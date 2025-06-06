@@ -244,9 +244,6 @@ private:
     void InitializeIot() {
         auto &thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
     }
 
 public:
@@ -262,9 +259,6 @@ public:
 #if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
 #endif
     }
 

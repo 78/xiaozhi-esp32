@@ -34,9 +34,6 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
     }
 
     void InitializeCamera() {
@@ -82,9 +79,6 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
 #if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
 #endif
     }
 

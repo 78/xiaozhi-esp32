@@ -394,6 +394,7 @@ choice IOT_PROTOCOL
 endchoice
 
 config USE_ALARM
+    depends on IOT_PROTOCOL_MCP
     bool "启用提醒闹钟功能"
     default y
     help

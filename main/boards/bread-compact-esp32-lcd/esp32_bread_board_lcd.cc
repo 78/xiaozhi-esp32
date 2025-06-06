@@ -180,9 +180,6 @@ private:
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             thing_manager.AddThing(iot::CreateThing("Screen"));
         }
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
     }
 
 public:

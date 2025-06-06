@@ -145,9 +145,6 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
-#if CONFIG_USE_ALARM
-        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
-#endif
     }
 
 public:

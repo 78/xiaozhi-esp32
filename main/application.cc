@@ -808,6 +808,7 @@ void Application::MainEventLoop() {
 #if CONFIG_USE_ALARM
         if(alarm_m_ != nullptr){
             // 闹钟来了
+            static bool to_clear_alarm_event = false;
             if(alarm_m_->IsRing()){
                 
                 if(device_state_ != kDeviceStateAlarm){
@@ -817,6 +818,7 @@ void Application::MainEventLoop() {
                     } else if (device_state_ == kDeviceStateSpeaking) {
                         ESP_LOGI(TAG, "Alarm ring, abort speaking");
                         AbortSpeaking(kAbortReasonNone);
+                        protocol_->CloseAudioChannel();
                         aborted_ = false; // 不停止本地的播放
                     } else if (device_state_ == kDeviceStateListening) {
                         ESP_LOGI(TAG, "Alarm ring, close audio channel");
@@ -832,8 +834,12 @@ void Application::MainEventLoop() {
                     PlaySound(Lang::Sounds::P3_ALARM_RING);
                 }
                 SetAlarmEvent();
+                to_clear_alarm_event = true;
             }else{
-                ClearAlarmEvent();
+                if(to_clear_alarm_event){
+                    ClearAlarmEvent();
+                    to_clear_alarm_event = false;
+                }
             }
         }
 #endif
