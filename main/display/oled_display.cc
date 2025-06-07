@@ -25,7 +25,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     port_cfg.timer_period_ms = 50;
     lvgl_port_init(&port_cfg);
 
-    ESP_LOGI(TAG, "Adding LCD screen");
+    ESP_LOGI(TAG, "Adding OLED display");
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,

@@ -18,6 +18,17 @@ idf.py menuconfig
 Xiaozhi Assistant -> Board Type -> SenseCAP Watcher
 ```
 
+watcher 中一些额外的配置项如下，需要menuconfig 选择， 或者拷贝放入sdkconfig.defaults中.
+
+```
+CONFIG_BOARD_TYPE_SENSECAP_WATCHER=y
+CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v1/32m.csv"
+CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y
+CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+```
+
 **编译烧入：**
 
 ```bash
