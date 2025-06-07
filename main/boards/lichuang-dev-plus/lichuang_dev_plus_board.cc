@@ -364,10 +364,11 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            if (power_save_timer_) power_save_timer_->WakeUp();
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
                 if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
                     auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
                     wifi_board.ResetWifiConfiguration();
                 }
@@ -392,14 +393,14 @@ private:
         // Keep existing PressDown, PressUp, LongPress for boot_button_ if they are still relevant
         // For example, StartListening/StopListening are likely still good.
         // LongPress for AXP2101 power off is also fine as a comment or log.
-        boot_button_.OnPressDown([this]() {
-            if (power_save_timer_) power_save_timer_->WakeUp(); // Good practice to wake on any interaction
-            Application::GetInstance().StartListening();
-        });
-        boot_button_.OnPressUp([this]() {
-            if (power_save_timer_) power_save_timer_->WakeUp();
-            Application::GetInstance().StopListening();
-        });
+        //boot_button_.OnPressDown([this]() {
+        //    if (power_save_timer_) power_save_timer_->WakeUp(); // Good practice to wake on any interaction
+        //    Application::GetInstance().StartListening();
+        //});
+        //boot_button_.OnPressUp([this]() {
+        //    if (power_save_timer_) power_save_timer_->WakeUp();
+        //    Application::GetInstance().StopListening();
+        //});
     }
 
     void InitializeCamera() {
