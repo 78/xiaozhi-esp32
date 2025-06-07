@@ -3,6 +3,7 @@
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
+//#include "led/single_led.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
@@ -306,9 +307,9 @@ private:
                 .interrupt = 0,
             },
             .flags = {
-                .swap_xy = 1,
-                .mirror_x = 1,
-                .mirror_y = 0,
+                .swap_xy = DISPLAY_SWAP_XY,
+                .mirror_x = DISPLAY_MIRROR_X,
+                .mirror_y = DISPLAY_MIRROR_Y,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
@@ -445,7 +446,7 @@ private:
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
@@ -509,6 +510,11 @@ public:
         return &backlight;
     }
 
+	//virtual Led* GetLed() override {
+    //    static SingleLed led(PCA9557_PIN_BUILTIN_LED);
+    //    return &led;
+    //}
+
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         if (!pmic_) return false;
         static bool last_discharging = false;
@@ -526,6 +532,13 @@ public:
     virtual bool GetTemperature(float& esp32temp) override {
         esp32temp = 0.0f; // Default to 0.0f
         return false; // Indicate that temperature is not obtained
+    }
+
+	virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 

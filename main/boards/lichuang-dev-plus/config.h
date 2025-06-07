@@ -20,7 +20,7 @@
 #define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
 #define AUDIO_CODEC_ES7210_ADDR  0x82
 
-#define BUILTIN_LED_GPIO        GPIO_NUM_48
+//#define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 // #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC // Now on PCA9557
 // #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC // Now on PCA9557
@@ -32,6 +32,7 @@
 // PCA9557 Pin definitions for Headphone Detection and Speaker Control
 #define PCA9557_PIN_HEADPHONE_DETECT 4
 #define PCA9557_PIN_SPEAKER_CTRL   1
+#define PCA9557_PIN_BUILTIN_LED   3
 #define HEADPHONE_DETECT_ACTIVE_LEVEL 0 // LOW when headphone inserted
 #define SPEAKER_ENABLE_LEVEL 1          // HIGH to enable speaker (NS4150B CTRL pin)
 
@@ -39,8 +40,8 @@
 #define AXP2101_I2C_ADDR 0x34
 
 // ML307 4G Module UART Pins
-#define ML307_TX_PIN GPIO_NUM_10
-#define ML307_RX_PIN GPIO_NUM_11
+#define ML307_TX_PIN GPIO_NUM_11
+#define ML307_RX_PIN GPIO_NUM_10
 #define ML307_RX_BUFFER_SIZE 4096
 
 /* Camera pins */
@@ -64,11 +65,11 @@
 
 #define XCLK_FREQ_HZ 24000000
 
-#define DISPLAY_WIDTH   320
-#define DISPLAY_HEIGHT  240
-#define DISPLAY_MIRROR_X true
+#define DISPLAY_WIDTH   240
+#define DISPLAY_HEIGHT  320
+#define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY true
+#define DISPLAY_SWAP_XY false
 
 #define DISPLAY_OFFSET_X  0
 #define DISPLAY_OFFSET_Y  0
