@@ -66,6 +66,8 @@ dependencies:
   esp_jpeg_simd:
     git: https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware.git
     path: components/esp_jpeg_simd
+    rules:
+      - if: target not in [esp32p4]
 
   ## Required IDF version
   idf:
