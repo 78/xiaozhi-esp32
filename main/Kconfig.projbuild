@@ -360,9 +360,9 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
     default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
+    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32
     help
-        支持 ESP32 C3 与 ESP32 C5
+        支持 ESP32 C3 与 ESP32 C5，增加ESP32支持（需要开启PSRAM）
 
 config USE_AFE_WAKE_WORD
     bool "Enable Wake Word Detection (AFE)"
