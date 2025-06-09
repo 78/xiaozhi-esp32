@@ -690,13 +690,6 @@ private:
         gpio_set_level(POWER_CTRL, 0);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
-    }
-
 public:
     EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
@@ -706,7 +699,6 @@ public:
         InitializeSpi();
         Initializest77916Display();
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
