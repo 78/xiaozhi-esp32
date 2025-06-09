@@ -23,17 +23,25 @@ static const char TAG[] = "AdcPdmAudioCodec";
         },                     \
     }
 
+#define BSP_I2S_PDM_TX_CLK_DEFAULT_CONFIG(rate) { \
+    .sample_rate_hz = rate, \
+    .clk_src = I2S_CLK_SRC_DEFAULT, \
+    .mclk_multiple = I2S_MCLK_MULTIPLE_256, \
+    .up_sample_fp = 960, \
+    .up_sample_fs = 441, \
+    .bclk_div = 8, \
+}
+
 /**
  * @brief Mono Duplex I2S configuration structure
  *
  * This configuration is used by default in bsp_audio_init()
  */
-#define BSP_I2S_DUPLEX_MONO_CFG(_sample_rate, _dout)                                                         \
-    {                                                                                                 \
-        .clk_cfg = I2S_PDM_TX_CLK_DEFAULT_CONFIG(_sample_rate),                                          \
-        .slot_cfg = I2S_PDM_TX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO), \
-        .gpio_cfg = BSP_I2S_GPIO_CFG(_dout),                                                                 \
-    }
+#define BSP_I2S_DUPLEX_MONO_CFG(_sample_rate, _dout) { \
+    .clk_cfg = BSP_I2S_PDM_TX_CLK_DEFAULT_CONFIG(_sample_rate), \
+    .slot_cfg = I2S_PDM_TX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO), \
+    .gpio_cfg = BSP_I2S_GPIO_CFG(_dout), \
+}
 
 AdcPdmAudioCodec::AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate,
     uint32_t adc_mic_channel, gpio_num_t pdm_speak_p,gpio_num_t pdm_speak_n, gpio_num_t pa_ctl) {
