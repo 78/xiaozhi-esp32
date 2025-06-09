@@ -5,6 +5,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "backlight.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -507,6 +508,7 @@ private:
     Charge* charge_;
     Button boot_button_;
     LcdDisplay* display_;
+    PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
 
@@ -659,13 +661,15 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
+        display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
                                         .emoji_font = font_emoji_64_init(),
                                     });
+        backlight_ = new PwmBacklight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        backlight_->RestoreBrightness();
     }
 
     void InitializeButtons() {
@@ -728,6 +732,10 @@ public:
 
     Cst816s* GetTouchpad() {
         return cst816s_;
+    }
+
+    virtual Backlight* GetBacklight() override {
+        return backlight_;
     }
 };
 
