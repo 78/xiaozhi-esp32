@@ -62,6 +62,8 @@ dependencies:
   sscma_client:
     git: https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware.git
     path: components/sscma_client
+    rules:
+    - if: "CONFIG_BOARD_TYPE_SENSECAP_WATCHER == 'y'"
   
   esp_jpeg_simd:
     git: https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware.git
