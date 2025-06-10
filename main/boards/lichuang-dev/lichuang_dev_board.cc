@@ -16,6 +16,8 @@
 #include <esp_lcd_touch_ft5x06.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
+#include <driver/i2c.h>
+#include <freertos/task.h>
 
 
 #define TAG "LichuangDevBoard"
@@ -206,8 +208,24 @@ private:
     }
 
     void InitializeCamera() {
+        ESP_LOGI(TAG, "Attempting to open camera power.");
         // Open camera power
         pca9557_->SetOutputState(2, 0);
+        ESP_LOGI(TAG, "Camera power opened. Waiting 100ms for camera to stabilize.");
+        vTaskDelay(pdMS_TO_TICKS(100)); // Give camera some time to power up and stabilize
+
+        // --- Start I2C Bus Scan (for debugging) ---
+        ESP_LOGI(TAG, "Scanning I2C bus for devices...");
+        for (uint8_t i = 1; i < 127; i++) {
+            esp_err_t ret = i2c_master_probe(i2c_bus_, i, 100 / portTICK_PERIOD_MS);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "I2C device found at address 0x%02x", i);
+            } else if (ret != ESP_ERR_TIMEOUT) { // Log other errors, but not timeouts (expected for empty addresses)
+                ESP_LOGE(TAG, "I2C probe error at address 0x%02x: 0x%x", i, ret);
+            }
+        }
+        ESP_LOGI(TAG, "I2C bus scan complete.");
+        // --- End I2C Bus Scan ---
 
         camera_config_t config = {};
         config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
@@ -226,7 +244,7 @@ private:
         config.pin_href = CAMERA_PIN_HREF;
         config.pin_sccb_sda = -1;   // 这里写-1 表示使用已经初始化的I2C接口
         config.pin_sccb_scl = CAMERA_PIN_SIOC;
-        config.sccb_i2c_port = 1;
+        config.sccb_i2c_port = 1; // 确认这个I2C端口是否与InitializeI2c中配置的I2C总线一致
         config.pin_pwdn = CAMERA_PIN_PWDN;
         config.pin_reset = CAMERA_PIN_RESET;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
@@ -237,7 +255,13 @@ private:
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
+        ESP_LOGI(TAG, "Camera configuration prepared. Attempting to initialize camera...");
         camera_ = new Esp32Camera(config);
+        if (camera_ == nullptr) {
+            ESP_LOGE(TAG, "Esp32Camera initialization failed. Camera object is null.");
+        } else {
+            ESP_LOGI(TAG, "Esp32Camera initialized successfully.");
+        }
     }
 
 public:
@@ -245,7 +269,7 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeSt7789Display();
-        InitializeTouch();
+        //InitializeTouch();
         InitializeButtons();
         InitializeCamera();
 
