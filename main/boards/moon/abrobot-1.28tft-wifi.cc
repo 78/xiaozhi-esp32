@@ -938,10 +938,9 @@ private:
     // 图片显示任务句柄
     TaskHandle_t image_task_handle_ = nullptr;
 
-    // 将URL定义为静态变量
+    // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
     static const char* VERSION_URL;
-    static const char* LOGO_VERSION_URL;  // 新增：logo版本URL
 
     // 初始化编解码器I2C总线
     void InitializeCodecI2c() {
@@ -1050,6 +1049,75 @@ private:
         }
     }
 
+    // 检查图片资源更新
+    void CheckImageResources() {
+        auto& image_manager = ImageResourceManager::GetInstance();
+        
+        // 等待WiFi连接
+        auto& wifi = WifiStation::GetInstance();
+        while (!wifi.IsConnected()) {
+            ESP_LOGI(TAG, "等待WiFi连接以检查图片资源...");
+            vTaskDelay(pdMS_TO_TICKS(3000));
+        }
+        
+        ESP_LOGI(TAG, "WiFi已连接，开始检查图片资源");
+        
+        // 一次性检查并更新所有资源（动画图片和logo）
+        esp_err_t all_resources_result = image_manager.CheckAndUpdateAllResources(API_URL, VERSION_URL);
+        
+        // 为了兼容后续逻辑，设置对应的结果值
+        esp_err_t animation_result = all_resources_result;
+        esp_err_t logo_result = all_resources_result;
+        
+        // 处理一次性资源检查结果
+        bool has_updates = false;
+        bool has_errors = false;
+        
+        if (all_resources_result == ESP_OK) {
+            ESP_LOGI(TAG, "图片资源更新完成（一次API请求完成所有下载）");
+            has_updates = true;
+        } else if (all_resources_result == ESP_ERR_NOT_FOUND) {
+            ESP_LOGI(TAG, "所有图片资源已是最新版本，无需更新");
+        } else {
+            ESP_LOGE(TAG, "图片资源检查/下载失败");
+            has_errors = true;
+        }
+        
+        // 更新静态logo图片
+        const uint8_t* logo = image_manager.GetLogoImage();
+        if (logo) {
+            iot::g_static_image = logo;
+            ESP_LOGI(TAG, "logo图片已设置");
+        } else {
+            ESP_LOGW(TAG, "未能获取logo图片，将使用默认显示");
+        }
+        
+        // 仅当有实际下载更新且无严重错误时才重启
+        if (has_updates && !has_errors) {
+            ESP_LOGI(TAG, "图片资源有更新，3秒后重启设备...");
+            for (int i = 3; i > 0; i--) {
+                ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+            esp_restart();
+        } else if (has_errors) {
+            ESP_LOGW(TAG, "图片资源下载存在错误，设备继续运行但可能缺少部分图片");
+        } else {
+            ESP_LOGI(TAG, "所有图片资源已是最新版本，无需重启");
+        }
+        
+        // 在系统初始化完成后，预加载所有剩余图片
+        ESP_LOGI(TAG, "系统初始化完成，开始预加载剩余图片...");
+        esp_err_t preload_result = image_manager.PreloadRemainingImages();
+        if (preload_result == ESP_OK) {
+            ESP_LOGI(TAG, "图片预加载完成，动画播放将更加流畅");
+        } else if (preload_result == ESP_ERR_NO_MEM) {
+            ESP_LOGW(TAG, "内存不足，跳过图片预加载，将继续使用按需加载策略");
+        } else {
+            ESP_LOGW(TAG, "图片预加载失败，将继续使用按需加载策略");
+        }
+    }
+
     // 启动图片循环显示任务
     void StartImageSlideshow() {
         // 设置图片资源管理器的进度回调
@@ -1071,6 +1139,18 @@ private:
         // 启动图片轮播任务
         xTaskCreate(ImageSlideshowTask, "img_slideshow", 8192, this, 3, &image_task_handle_);
         ESP_LOGI(TAG, "图片循环显示任务已启动");
+        
+        // 设置图片资源检查回调，等待OTA检查完成后执行
+        auto& app = Application::GetInstance();
+        app.SetImageResourceCallback([this]() {
+            ESP_LOGI(TAG, "OTA检查完成，开始检查图片资源");
+            // 创建后台任务执行图片资源检查
+            xTaskCreate([](void* param) {
+                CustomBoard* board = static_cast<CustomBoard*>(param);
+                board->CheckImageResources();
+                vTaskDelete(NULL);
+            }, "img_resource_check", 16384, this, 3, NULL);
+        });
     }
 
     // 添加帮助函数用于创建回调参数
@@ -1183,84 +1263,7 @@ private:
             }
         }
         
-        // 等待WiFi连接，然后从API获取图片资源
-        bool resources_updated = false;
-        esp_timer_handle_t resource_timer = nullptr;
-        
-        // 创建定时器，定期检查WiFi并尝试更新资源
-        esp_timer_create_args_t timer_args = {
-            .callback = [](void* arg) {
-                auto& wifi = WifiStation::GetInstance();
-                auto& image_mgr = ImageResourceManager::GetInstance();
-                bool* updated = (bool*)arg;
-                
-                // 如果已经更新过了，就停止检查
-                if (*updated) {
-                    return;
-                }
-                
-                if (wifi.IsConnected()) {
-                    ESP_LOGI(TAG, "WiFi已连接，检查并更新图片资源");
-                    
-                    // 检查并更新动画图片 - 移到后台任务中执行，避免在定时器中执行大内存操作
-                    static bool download_started = false;
-                    if (!download_started) {
-                        download_started = true;
-                        *updated = true; // 先标记为已更新，避免重复执行
-                        
-                        // 创建后台任务执行实际的下载工作
-                        xTaskCreate([](void* param) {
-                            auto& image_mgr = ImageResourceManager::GetInstance();
-                            
-                            // 检查并更新动画图片
-                            esp_err_t animation_result = image_mgr.CheckAndUpdateResources(API_URL, VERSION_URL);
-                            
-                            // 检查并更新logo图片  
-                            esp_err_t logo_result = image_mgr.CheckAndUpdateLogo(API_URL, LOGO_VERSION_URL);
-                            
-                            // 仅当有实际下载更新时才重启
-                            if (animation_result == ESP_OK || logo_result == ESP_OK) {
-                                ESP_LOGI(TAG, "图片资源更新完成");
-                                
-                                // 更新静态logo图片
-                                const uint8_t* logo = image_mgr.GetLogoImage();
-                                if (logo) {
-                                    iot::g_static_image = logo;
-                                    ESP_LOGI(TAG, "logo图片已从网络下载并更新");
-                                }
-                                
-                                // 有真正的资源更新时重启设备
-                                ESP_LOGI(TAG, "资源有更新，3秒后重启设备...");
-                                for (int i = 3; i > 0; i--) {
-                                    ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
-                                    vTaskDelay(pdMS_TO_TICKS(1000));
-                                }
-                                esp_restart();
-                            } else {
-                                ESP_LOGI(TAG, "所有图片资源已是最新版本");
-                                
-                                // 确保logo图片已设置
-                                const uint8_t* logo = image_mgr.GetLogoImage();
-                                if (logo) {
-                                    iot::g_static_image = logo;
-                                    ESP_LOGI(TAG, "logo图片已确认设置");
-                                }
-                            }
-                            
-                            // 删除任务
-                            vTaskDelete(NULL);
-                        }, "img_download", 16384, NULL, 3, NULL);
-                    }
-                } else {
-                    ESP_LOGD(TAG, "WiFi未连接，等待连接...");
-                }
-            },
-            .arg = &resources_updated,
-            .name = "resource_timer"
-        };
-        esp_timer_create(&timer_args, &resource_timer);
-        // 改为周期性执行，每3秒检查一次
-        esp_timer_start_periodic(resource_timer, 3000 * 1000); // 每3秒检查一次
+        // 资源检查现在由OTA完成后的回调触发，这里不再需要定时器检查
         
         // 当前索引和方向控制
         int currentIndex = 0;
@@ -1282,19 +1285,28 @@ private:
             // 获取图片数组
             const auto& imageArray = image_manager.GetImageArray();
             
-            // 如果图片已成功更新，停止资源检查定时器
-            if (resources_updated && resource_timer) {
-                esp_timer_stop(resource_timer);
-                esp_timer_delete(resource_timer);
-                resource_timer = nullptr;
-                ESP_LOGI(TAG, "资源更新完成，停止检查定时器");
-            }
+            // 资源检查现在由OTA完成后的回调处理，不再需要定时器
             
             // 如果没有图片资源，等待一段时间后重试
             if (imageArray.empty()) {
-                ESP_LOGW(TAG, "图片资源未加载，等待...");
-                vTaskDelay(pdMS_TO_TICKS(5000));
-                continue;
+                static int wait_count = 0;
+                wait_count++;
+                
+                if (wait_count <= 60) {  // 等待最多5分钟 (60 * 5秒)
+                    ESP_LOGW(TAG, "图片资源未加载，等待... (%d/60)", wait_count);
+                    vTaskDelay(pdMS_TO_TICKS(5000));
+                    continue;
+                } else {
+                    ESP_LOGE(TAG, "图片资源等待超时，显示黑屏");
+                    // 隐藏图像容器，显示黑屏
+                    DisplayLockGuard lock(display);
+                    if (img_container) {
+                        lv_obj_add_flag(img_container, LV_OBJ_FLAG_HIDDEN);
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(10000));  // 等待10秒后重新检查
+                    wait_count = 0;  // 重置计数器
+                    continue;
+                }
             }
             
             // 确保currentIndex在有效范围内
@@ -1358,6 +1370,18 @@ private:
                 directionForward = true;  // 确保方向为正向
                 
                 if (currentIndex < imageArray.size()) {
+                    // 检查图片是否已加载（应该已经在预加载阶段完成）
+                    int actual_image_index = currentIndex + 1;  // 转换为1基索引
+                    if (!image_manager.IsImageLoaded(actual_image_index)) {
+                        ESP_LOGW(TAG, "动画启动：图片 %d 未预加载，正在紧急加载...", actual_image_index);
+                        if (!image_manager.LoadImageOnDemand(actual_image_index)) {
+                            ESP_LOGE(TAG, "动画启动：图片 %d 紧急加载失败，使用第一张图片", actual_image_index);
+                            currentIndex = 0;  // 回退到第一张图片
+                        }
+                    } else {
+                        ESP_LOGI(TAG, "动画启动：图片 %d 已预加载，开始流畅播放", actual_image_index);
+                    }
+                    
                     currentImage = imageArray[currentIndex];
                     
                     // 直接使用图片数据，不再进行字节序转换
@@ -1379,7 +1403,7 @@ private:
             // 根据显示模式确定是否应该动画
             bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
 
-            // 动画播放逻辑 - 实现双向循环
+            // 动画播放逻辑 - 实现双向循环（支持按需加载）
             if (shouldAnimate && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
                 // 根据方向更新索引
                 if (directionForward) {
@@ -1399,6 +1423,17 @@ private:
                 
                 // 确保索引在有效范围内
                 if (currentIndex >= 0 && currentIndex < imageArray.size()) {
+                    // 检查图片是否已加载（应该已经在预加载阶段完成）
+                    int actual_image_index = currentIndex + 1;  // 转换为1基索引
+                    if (!image_manager.IsImageLoaded(actual_image_index)) {
+                        ESP_LOGW(TAG, "动画播放：图片 %d 未预加载，正在紧急加载...", actual_image_index);
+                        if (!image_manager.LoadImageOnDemand(actual_image_index)) {
+                            ESP_LOGE(TAG, "动画播放：图片 %d 紧急加载失败，跳过此帧", actual_image_index);
+                            lastUpdateTime = currentTime;
+                            continue;  // 跳过这一帧，继续下一帧
+                        }
+                    }
+                    
                     currentImage = imageArray[currentIndex];
                     
                     // 直接使用图片数据，不再进行字节序转换
@@ -1446,11 +1481,7 @@ private:
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         
-        // 确保定时器被正确清理
-        if (resource_timer) {
-            esp_timer_stop(resource_timer);
-            esp_timer_delete(resource_timer);
-        }
+        // 资源检查现在由OTA完成后的回调处理，不再使用定时器
         vTaskDelete(NULL);
     }
 
@@ -1527,10 +1558,9 @@ public:
     }
 };
 
-// 将URL定义为静态变量
+// 将URL定义为静态变量 - 现在只需要一个API URL
 const char* CustomBoard::API_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
 const char* CustomBoard::VERSION_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
-const char* CustomBoard::LOGO_VERSION_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);

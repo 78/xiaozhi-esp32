@@ -71,6 +71,11 @@ void Application::CheckNewVersion() {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
                 ESP_LOGE(TAG, "Too many retries, exit version check");
+                // 即使OTA检查失败，也标记为完成，让图片资源检查可以继续
+                ota_check_completed_ = true;
+                if (image_resource_callback_) {
+                    Schedule(image_resource_callback_);
+                }
                 return;
             }
             ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", 60, retry_count, MAX_RETRY);
@@ -152,6 +157,14 @@ void Application::CheckNewVersion() {
         display->SetChatMessage("system", "");
         ResetDecoder();
         PlaySound(Lang::Sounds::P3_CCC_SUCCESS);
+        
+        // OTA检查完成，标记为完成状态
+        ESP_LOGI(TAG, "OTA check completed, triggering image resource check");
+        ota_check_completed_ = true;
+        if (image_resource_callback_) {
+            Schedule(image_resource_callback_);
+        }
+        
         // Exit the loop if upgrade or idle
         break;
     }
@@ -905,4 +918,62 @@ bool Application::CanEnterSleepMode() {
 
     // Now it is safe to enter sleep mode
     return true;
+}
+
+void Application::SetImageResourceCallback(std::function<void()> callback) {
+    image_resource_callback_ = callback;
+    // 如果OTA检查已经完成，立即执行回调
+    if (ota_check_completed_) {
+        Schedule(callback);
+    }
+}
+
+void Application::PauseAudioProcessing() {
+    ESP_LOGI(TAG, "暂停音频处理模块...");
+    
+#if CONFIG_USE_AUDIO_PROCESSOR
+    if (audio_processor_.IsRunning()) {
+        audio_processor_.Stop();
+        ESP_LOGI(TAG, "音频处理器已停止");
+    }
+#endif
+
+#if CONFIG_USE_WAKE_WORD_DETECT
+    if (wake_word_detect_.IsDetectionRunning()) {
+        wake_word_detect_.StopDetection();
+        ESP_LOGI(TAG, "唤醒词检测已停止");
+    }
+#endif
+    
+    // 清空音频队列，释放内存
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        audio_decode_queue_.clear();
+        ESP_LOGI(TAG, "音频解码队列已清空");
+    }
+    
+    // 等待背景任务完成，确保所有音频处理都停止
+    if (background_task_) {
+        background_task_->WaitForCompletion();
+        ESP_LOGI(TAG, "背景音频任务已完成");
+    }
+}
+
+void Application::ResumeAudioProcessing() {
+    ESP_LOGI(TAG, "恢复音频处理模块...");
+    
+    // 根据当前设备状态决定是否重启音频处理
+    if (device_state_ == kDeviceStateIdle) {
+#if CONFIG_USE_WAKE_WORD_DETECT
+        wake_word_detect_.StartDetection();
+        ESP_LOGI(TAG, "唤醒词检测已重启");
+#endif
+    } else if (device_state_ == kDeviceStateListening) {
+#if CONFIG_USE_AUDIO_PROCESSOR
+        if (!audio_processor_.IsRunning()) {
+            audio_processor_.Start();
+            ESP_LOGI(TAG, "音频处理器已重启");
+        }
+#endif
+    }
 }

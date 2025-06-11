@@ -75,6 +75,14 @@ public:
     bool CanEnterSleepMode();
     Protocol& GetProtocol() { return *protocol_; }
     Ota& GetOta() { return ota_; }
+    
+    // 图片资源管理相关方法
+    void SetImageResourceCallback(std::function<void()> callback);
+    bool IsOtaCheckCompleted() const { return ota_check_completed_; }
+    
+    // 图片下载模式控制方法
+    void PauseAudioProcessing();  // 暂停音频处理
+    void ResumeAudioProcessing(); // 恢复音频处理
 #if CONFIG_USE_ALARM
     //test
     AlarmManager* alarm_m_ = nullptr;
@@ -108,6 +116,10 @@ private:
     int clock_ticks_ = 0;
     TaskHandle_t main_loop_task_handle_ = nullptr;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
+    
+    // 图片资源管理相关变量
+    bool ota_check_completed_ = false;
+    std::function<void()> image_resource_callback_;
 
     // Audio encode / decode
     TaskHandle_t audio_loop_task_handle_ = nullptr;
