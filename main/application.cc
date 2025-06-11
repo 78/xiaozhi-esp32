@@ -977,3 +977,8 @@ void Application::ResumeAudioProcessing() {
 #endif
     }
 }
+
+bool Application::IsAudioQueueEmpty() const {
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mutex_));
+    return audio_decode_queue_.empty();
+}

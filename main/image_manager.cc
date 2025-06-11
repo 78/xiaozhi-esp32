@@ -2186,6 +2186,9 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         return ESP_ERR_NO_MEM;
     }
     
+    // 获取Application实例以检查音频状态
+    auto& app = Application::GetInstance();
+    
     int loaded_count = 0;
     int total_images = image_array_.size();
     
@@ -2195,6 +2198,12 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         // 检查图片是否已经加载
         if (IsImageLoaded(i)) {
             continue; // 已加载，跳过
+        }
+        
+        // 检查音频状态，如果有音频播放则暂停预加载
+        if (!app.IsAudioQueueEmpty() || app.GetDeviceState() != kDeviceStateIdle) {
+            ESP_LOGW(TAG, "检测到音频活动，暂停预加载以避免冲突，已加载: %d/%d", loaded_count, total_images);
+            break;
         }
         
         // 检查内存状况
@@ -2213,8 +2222,8 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
             ESP_LOGE(TAG, "预加载图片 %d 失败", i);
         }
         
-        // 给系统一点时间进行其他操作
-        vTaskDelay(pdMS_TO_TICKS(50));
+        // 给系统更多时间进行其他操作，特别是音频处理
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
     free_heap = esp_get_free_heap_size();

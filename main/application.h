@@ -83,6 +83,9 @@ public:
     // 图片下载模式控制方法
     void PauseAudioProcessing();  // 暂停音频处理
     void ResumeAudioProcessing(); // 恢复音频处理
+    
+    // 检查音频队列是否为空（用于判断开机提示音是否播放完成）
+    bool IsAudioQueueEmpty() const;
 #if CONFIG_USE_ALARM
     //test
     AlarmManager* alarm_m_ = nullptr;

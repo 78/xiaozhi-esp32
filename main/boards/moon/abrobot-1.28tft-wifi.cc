@@ -1060,7 +1060,38 @@ private:
             vTaskDelay(pdMS_TO_TICKS(3000));
         }
         
-        ESP_LOGI(TAG, "WiFi已连接，开始检查图片资源");
+        ESP_LOGI(TAG, "WiFi已连接，等待开机提示音播放完成...");
+        
+        // 等待开机提示音播放完成，避免与图片预加载冲突
+        auto& app = Application::GetInstance();
+        int wait_count = 0;
+        const int max_wait_time = 8; // 最多等待8秒
+        bool audio_finished = false;
+        
+        while (wait_count < max_wait_time && !audio_finished) {
+            DeviceState state = app.GetDeviceState();
+            bool queue_empty = app.IsAudioQueueEmpty();
+            
+            // 如果设备处于空闲状态且音频队列为空，说明提示音已播放完成
+            if (state == kDeviceStateIdle && queue_empty) {
+                // 再等待1秒确保音频完全播放完成（包括硬件缓冲区）
+                if (wait_count >= 1) {
+                    audio_finished = true;
+                    break;
+                }
+            }
+            
+            ESP_LOGI(TAG, "等待开机提示音播放完成... (%d/%d秒) [状态:%d, 队列空:%s]", 
+                    wait_count + 1, max_wait_time, (int)state, queue_empty ? "是" : "否");
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            wait_count++;
+        }
+        
+        if (audio_finished) {
+            ESP_LOGI(TAG, "开机提示音播放完成，开始检查图片资源");
+        } else {
+            ESP_LOGW(TAG, "等待超时，强制开始检查图片资源");
+        }
         
         // 一次性检查并更新所有资源（动画图片和logo）
         esp_err_t all_resources_result = image_manager.CheckAndUpdateAllResources(API_URL, VERSION_URL);
@@ -1107,7 +1138,21 @@ private:
         }
         
         // 在系统初始化完成后，预加载所有剩余图片
-        ESP_LOGI(TAG, "系统初始化完成，开始预加载剩余图片...");
+        ESP_LOGI(TAG, "系统初始化完成，准备开始预加载剩余图片...");
+        
+        // 再次确认音频系统稳定后才开始预加载
+        auto& app_preload = Application::GetInstance();
+        int preload_wait = 0;
+        while (preload_wait < 3) { // 最多再等3秒
+            if (app_preload.GetDeviceState() == kDeviceStateIdle && app_preload.IsAudioQueueEmpty()) {
+                break;
+            }
+            ESP_LOGI(TAG, "等待音频系统完全稳定后开始预加载... (%d/3秒)", preload_wait + 1);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            preload_wait++;
+        }
+        
+        ESP_LOGI(TAG, "开始预加载剩余图片...");
         esp_err_t preload_result = image_manager.PreloadRemainingImages();
         if (preload_result == ESP_OK) {
             ESP_LOGI(TAG, "图片预加载完成，动画播放将更加流畅");
