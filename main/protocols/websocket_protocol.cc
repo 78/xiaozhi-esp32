@@ -108,8 +108,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
                 on_incoming_audio_(std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len));
             }
         } else {
-            // Parse JSON data
-            auto root = cJSON_Parse(data);
+            // Parse JSON data - 修复：创建null终止的字符串
+            std::string json_string(data, len);  // 安全地创建字符串副本
+            auto root = cJSON_Parse(json_string.c_str());
             auto type = cJSON_GetObjectItem(root, "type");
             if (type != NULL) {
                 if (strcmp(type->valuestring, "hello") == 0) {
@@ -120,7 +121,30 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     }
                 }
             } else {
-                ESP_LOGE(TAG, "Missing message type, data: %s", data);
+                // 兼容性处理：检查是否是裸IoT命令（缺少type字段但有name、method、parameters）
+                auto name = cJSON_GetObjectItem(root, "name");
+                auto method = cJSON_GetObjectItem(root, "method");
+                auto parameters = cJSON_GetObjectItem(root, "parameters");
+                
+                if (name != NULL && method != NULL && parameters != NULL) {
+                    ESP_LOGI(TAG, "检测到裸IoT命令，自动包装为标准格式");
+                    
+                    // 创建标准的IoT消息格式
+                    cJSON* wrapped_root = cJSON_CreateObject();
+                    cJSON_AddStringToObject(wrapped_root, "type", "iot");
+                    
+                    cJSON* commands_array = cJSON_CreateArray();
+                    cJSON_AddItemToArray(commands_array, cJSON_Duplicate(root, 1));
+                    cJSON_AddItemToObject(wrapped_root, "commands", commands_array);
+                    
+                    if (on_incoming_json_ != nullptr) {
+                        on_incoming_json_(wrapped_root);
+                    }
+                    
+                    cJSON_Delete(wrapped_root);
+                } else {
+                    ESP_LOGE(TAG, "Missing message type, data: %s", json_string.c_str());
+                }
             }
             cJSON_Delete(root);
         }
