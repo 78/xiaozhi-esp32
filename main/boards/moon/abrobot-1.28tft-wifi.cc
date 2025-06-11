@@ -1037,6 +1037,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("ColorStrip"));      // 添加彩色灯带设备
         thing_manager.AddThing(iot::CreateThing("RotateDisplay"));   // 添加旋转显示设备
         thing_manager.AddThing(iot::CreateThing("ImageDisplay"));    // 添加图片显示控制设备
+        thing_manager.AddThing(iot::CreateThing("AlarmManager")); 
     }
 
     // 初始化图片资源管理器

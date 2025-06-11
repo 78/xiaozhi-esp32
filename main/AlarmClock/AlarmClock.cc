@@ -92,39 +92,75 @@ AlarmManager::~AlarmManager(){
 
 void AlarmManager::SetAlarm(int second_from_now, std::string alarm_name){
     std::lock_guard<std::mutex> lock(mutex_);
-    if(alarms_.size() >= 10){
-        ESP_LOGE(TAG, "Too many alarms");
-        return;
-    }
     if(second_from_now <= 0){
         ESP_LOGE(TAG, "Invalid alarm time");
         return;
     }
 
     Settings settings_("alarm_clock", true); // 闹钟设置
-    Alarm alarm; // 一个新的闹钟
-    alarm.name = alarm_name;
     time_t now = time(NULL);
-    alarm.time = now + second_from_now;
-    alarms_.push_back(alarm);
-    // 从设置里面找到第一个空闲的闹钟, 记录新的闹钟
-    for(int i = 0; i < 10; i++){
-        if(settings_.GetString("alarm_" + std::to_string(i)) == ""){
-            settings_.SetString("alarm_" + std::to_string(i), alarm_name);
-            settings_.SetInt("alarm_time_" + std::to_string(i), alarm.time);
+    time_t new_time = now + second_from_now;
+    
+    // 检查是否已存在同名闹钟
+    bool found_existing = false;
+    for(auto& alarm : alarms_){
+        if(alarm.name == alarm_name){
+            ESP_LOGI(TAG, "Found existing alarm with name: %s, updating time from %d to %d", 
+                     alarm_name.c_str(), alarm.time, new_time);
+            
+            // 更新现有闹钟的时间
+            time_t old_time = alarm.time;
+            alarm.time = new_time;
+            
+            // 更新存储中的时间
+            for(int i = 0; i < 10; i++){
+                if(settings_.GetString("alarm_" + std::to_string(i)) == alarm_name && 
+                   settings_.GetInt("alarm_time_" + std::to_string(i)) == old_time){
+                    settings_.SetInt("alarm_time_" + std::to_string(i), new_time);
+                    ESP_LOGI(TAG, "Updated stored alarm time for %s", alarm_name.c_str());
+                    break;
+                }
+            }
+            found_existing = true;
             break;
+        }
+    }
+    
+    // 如果没有找到同名闹钟，创建新闹钟
+    if(!found_existing){
+        if(alarms_.size() >= 10){
+            ESP_LOGE(TAG, "Too many alarms");
+            return;
+        }
+        
+        Alarm alarm; // 一个新的闹钟
+        alarm.name = alarm_name;
+        alarm.time = new_time;
+        alarms_.push_back(alarm);
+        
+        // 从设置里面找到第一个空闲的闹钟, 记录新的闹钟
+        for(int i = 0; i < 10; i++){
+            if(settings_.GetString("alarm_" + std::to_string(i)) == ""){
+                settings_.SetString("alarm_" + std::to_string(i), alarm_name);
+                settings_.SetInt("alarm_time_" + std::to_string(i), alarm.time);
+                ESP_LOGI(TAG, "Created new alarm: %s at %d", alarm_name.c_str(), alarm.time);
+                break;
+            }
         }
     }
 
     Alarm *alarm_first = GetProximateAlarm(now);
-    ESP_LOGI(TAG, "Alarm %s set at %d, now first %d", alarm.name.c_str(), alarm.time, alarm_first->time);
-    if(running_flag == true){
-        esp_timer_stop(timer_);
-    }
+    if(alarm_first != nullptr){
+        ESP_LOGI(TAG, "Next alarm: %s at %d", alarm_first->name.c_str(), alarm_first->time);
+        if(running_flag == true){
+            esp_timer_stop(timer_);
+        }
 
-    second_from_now = alarm_first->time - now;
-    ESP_LOGI(TAG, "begin a alarm at %d", second_from_now);
-    esp_timer_start_once(timer_, second_from_now * 1000000); // 当前一定有时钟, 所以不需要清除标志
+        int seconds_from_now = alarm_first->time - now;
+        ESP_LOGI(TAG, "Setting timer for %d seconds", seconds_from_now);
+        esp_timer_start_once(timer_, seconds_from_now * 1000000); // 当前一定有时钟, 所以不需要清除标志
+        running_flag = true;
+    }
 }
 
 void AlarmManager::CancelAlarm(std::string alarm_name) {
