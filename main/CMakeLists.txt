@@ -190,8 +190,8 @@ elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
     set(BOARD_TYPE "otto-robot")
 elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
     set(BOARD_TYPE "electron-bot")
-elseif(CONFIG_BOARD_TYPE_JIUCHUANG )
-    set(BOARD_TYPE "jiuchuang-s3")
+elseif(CONFIG_BOARD_TYPE_JIUCHUAN )
+    set(BOARD_TYPE "jiuchuan-s3")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

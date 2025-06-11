@@ -23,13 +23,13 @@
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
-#define TAG "JiuchuangDevBoard"
+#define TAG "JiuchuanDevBoard"
 #define __USER_GPIO_PWRDOWN__
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class JiuchuangDevBoard : public WifiBoard {
+class JiuchuanDevBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -290,7 +290,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 public:
-    JiuchuangDevBoard() :
+    JiuchuanDevBoard() :
     boot_button_(BOOT_BUTTON_GPIO),
     pwr_button_(PWR_BUTTON_GPIO,true),
     wifi_button(WIFI_BUTTON_GPIO),
@@ -358,4 +358,4 @@ public:
     }
 };
 
-DECLARE_BOARD(JiuchuangDevBoard);
+DECLARE_BOARD(JiuchuanDevBoard);
