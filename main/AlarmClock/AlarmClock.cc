@@ -19,13 +19,13 @@ Alarm * AlarmManager::GetProximateAlarm(time_t now){
 void AlarmManager::ClearOverdueAlarm(time_t now){
     std::lock_guard<std::mutex> lock(mutex_);
     Settings settings_("alarm_clock", true); // 闹钟设置(硬盘存储)
-    for(auto it = alarms_.begin(); it != alarms_.end();){
+            for(auto it = alarms_.begin(); it != alarms_.end();){
         if(it->time <= now){
             for (int i = 0; i < 10; i++){
                 if(settings_.GetString("alarm_" + std::to_string(i)) == it->name && settings_.GetInt("alarm_time_" + std::to_string(i)) == it->time){
                     settings_.SetString("alarm_" + std::to_string(i), "");
                     settings_.SetInt("alarm_time_" + std::to_string(i), 0);
-                    ESP_LOGI(TAG, "Alarm %s at %d is overdue", it->name.c_str(), it->time);
+                    ESP_LOGI(TAG, "Alarm %s at %lld is overdue", it->name.c_str(), (long long)it->time);
                 }
             }
             it = alarms_.erase(it); // 删除过期的闹钟, 此时it指向下一个元素
@@ -50,7 +50,7 @@ AlarmManager::AlarmManager(){
             alarm.name = alarm_name;
             alarm.time = settings_.GetInt("alarm_time_" + std::to_string(i));
             alarms_.push_back(alarm);
-            ESP_LOGI(TAG, "Alarm %s add agein at %d", alarm.name.c_str(), alarm.time);
+            ESP_LOGI(TAG, "Alarm %s add agein at %lld", alarm.name.c_str(), (long long)alarm.time);
         }
     }
 
@@ -105,8 +105,8 @@ void AlarmManager::SetAlarm(int second_from_now, std::string alarm_name){
     bool found_existing = false;
     for(auto& alarm : alarms_){
         if(alarm.name == alarm_name){
-            ESP_LOGI(TAG, "Found existing alarm with name: %s, updating time from %d to %d", 
-                     alarm_name.c_str(), alarm.time, new_time);
+            ESP_LOGI(TAG, "Found existing alarm with name: %s, updating time from %lld to %lld", 
+                     alarm_name.c_str(), (long long)alarm.time, (long long)new_time);
             
             // 更新现有闹钟的时间
             time_t old_time = alarm.time;
@@ -143,7 +143,7 @@ void AlarmManager::SetAlarm(int second_from_now, std::string alarm_name){
             if(settings_.GetString("alarm_" + std::to_string(i)) == ""){
                 settings_.SetString("alarm_" + std::to_string(i), alarm_name);
                 settings_.SetInt("alarm_time_" + std::to_string(i), alarm.time);
-                ESP_LOGI(TAG, "Created new alarm: %s at %d", alarm_name.c_str(), alarm.time);
+                ESP_LOGI(TAG, "Created new alarm: %s at %lld", alarm_name.c_str(), (long long)alarm.time);
                 break;
             }
         }
@@ -151,7 +151,7 @@ void AlarmManager::SetAlarm(int second_from_now, std::string alarm_name){
 
     Alarm *alarm_first = GetProximateAlarm(now);
     if(alarm_first != nullptr){
-        ESP_LOGI(TAG, "Next alarm: %s at %d", alarm_first->name.c_str(), alarm_first->time);
+        ESP_LOGI(TAG, "Next alarm: %s at %lld", alarm_first->name.c_str(), (long long)alarm_first->time);
         if(running_flag == true){
             esp_timer_stop(timer_);
         }
@@ -181,7 +181,7 @@ void AlarmManager::CancelAlarm(std::string alarm_name) {
                     ESP_LOGI(TAG, "从设置中移除闹钟 %s", alarm_name.c_str());
                 }
             }
-            ESP_LOGI(TAG, "从内存中移除闹钟: %s (时间: %d)", alarm_name.c_str(), it->time);
+            ESP_LOGI(TAG, "从内存中移除闹钟: %s (时间: %lld)", alarm_name.c_str(), (long long)it->time);
             it = alarms_.erase(it); // 删除闹钟并更新迭代器
             found = true;
         } else {
@@ -197,7 +197,7 @@ void AlarmManager::CancelAlarm(std::string alarm_name) {
     // 输出所有剩余闹钟的信息，用于调试
     ESP_LOGI(TAG, "剩余闹钟列表:");
     for(auto& alarm : alarms_) {
-        ESP_LOGI(TAG, "  - %s (时间: %d)", alarm.name.c_str(), alarm.time);
+        ESP_LOGI(TAG, "  - %s (时间: %lld)", alarm.name.c_str(), (long long)alarm.time);
     }
     
     // 重置定时器，使其指向下一个闹钟

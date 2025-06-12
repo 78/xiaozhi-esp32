@@ -1038,6 +1038,9 @@ private:
         thing_manager.AddThing(iot::CreateThing("RotateDisplay"));   // 添加旋转显示设备
         thing_manager.AddThing(iot::CreateThing("ImageDisplay"));    // 添加图片显示控制设备
         thing_manager.AddThing(iot::CreateThing("AlarmManager")); 
+#if CONFIG_USE_ALARM
+        thing_manager.AddThing(iot::CreateThing("AlarmIot"));
+#endif
     }
 
     // 初始化图片资源管理器
