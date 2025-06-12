@@ -184,6 +184,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
         bool "Movecall CuiCan 璀璨·AI吊坠"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOLUNSMARTHOME_ESP32S3
+        bool "默语小智ESP32S3版"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOLUNSMARTHOME_ESP32
+        bool "默语小智ESP32版"
+        depends on IDF_TARGET_ESP32        
     config BOARD_TYPE_ATK_DNESP32S3
         bool "正点原子DNESP32S3开发板"
         depends on IDF_TARGET_ESP32S3
@@ -278,7 +284,7 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_MOLUNSMARTHOME_ESP32
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
