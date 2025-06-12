@@ -492,8 +492,7 @@ void Application::Start() {
                 } else {
                     voice_detected_ = false;
                 }
-                auto led = Board::GetInstance().GetLed();
-                led->OnStateChanged();
+                // LED功能已移除
             });
         }
     });
@@ -777,8 +776,7 @@ void Application::SetDeviceState(DeviceState state) {
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto led = board.GetLed();
-    led->OnStateChanged();
+    // LED功能已移除
     if(state != kDeviceStateIdle) {
         display->SetIdle(false);
     }

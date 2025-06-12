@@ -65,10 +65,7 @@ Display* Board::GetDisplay() {
     return &display;
 }
 
-Led* Board::GetLed() {
-    static NoLed led;
-    return &led;
-}
+// LED功能已完全移除
 
 std::string Board::GetJson() {
     /* 

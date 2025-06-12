@@ -31,12 +31,11 @@
 #include "power_save_timer.h"     // 省电定时器
 #include <esp_sleep.h>            // ESP32睡眠模式
 #include "button.h"               // 按钮控制
-#include "circular_led_strip.h"   // 环形LED条
-#include "ws2812_task.h"          // WS2812 LED控制任务
 #include "settings.h"             // 设置管理
 #include "iot_image_display.h"  // 引入图片显示模式定义
 #include "image_manager.h"  // 引入图片资源管理器头文件
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
+#define TAG "CIRCLE128S32"
 
 // 在abrobot-1.28tft-wifi.cc文件开头添加外部声明
 extern "C" {
@@ -251,7 +250,6 @@ public:
             // 查找tabview并切换到tab2
             lv_obj_t *tabview = lv_obj_get_parent(lv_obj_get_parent(display->tab2));
             if (tabview) {
-                ws2812_set_mode(WS2812_MODE_OFF);  // 关闭WS2812 LED灯
                 // 在切换标签页前加锁，防止异常
                 lv_lock();
                 lv_tabview_set_act(tabview, 1, LV_ANIM_OFF);  // 切换到tab2（索引1）
@@ -932,7 +930,7 @@ private:
     CustomLcdDisplay* display_;              // LCD显示对象指针
     Button boot_btn;                         // 启动按钮
  
-    esp_lcd_panel_io_handle_t panel_io = nullptr;  // LCD面板IO句柄
+    esp_lcd_panel_io_handle_t io_handle = nullptr;  // LCD面板IO句柄
     esp_lcd_panel_handle_t panel = nullptr;        // LCD面板句柄
 
     // 图片显示任务句柄
@@ -962,49 +960,40 @@ private:
  
     // 初始化SPI总线
     void InitializeSpi() {
-        spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = DISPLAY_MOSI_PIN;        // MOSI引脚
-        buscfg.miso_io_num = GPIO_NUM_NC;             // 不使用MISO
-        buscfg.sclk_io_num = DISPLAY_CLK_PIN;         // SCLK引脚
-        buscfg.quadwp_io_num = GPIO_NUM_NC;           // 不使用QSPI WP
-        buscfg.quadhd_io_num = GPIO_NUM_NC;           // 不使用QSPI HD
-        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);  // 最大传输大小
+        ESP_LOGI(TAG, "Initialize SPI bus");
+        spi_bus_config_t buscfg = GC9A01_PANEL_BUS_SPI_CONFIG(DISPLAY_SPI_SCLK_PIN, DISPLAY_SPI_MOSI_PIN, 
+                                    DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t));
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));    // 初始化SPI总线
     }
 
     // 初始化LCD显示器
     void InitializeLcdDisplay() {
+        ESP_LOGI(TAG, "Init GC9A01 display");
         
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_CS_PIN;         // 片选引脚
-        io_config.dc_gpio_num = DISPLAY_DC_PIN;         // 数据/命令选择引脚
-        io_config.spi_mode = DISPLAY_SPI_MODE;          // SPI模式
-        io_config.pclk_hz = 40 * 1000 * 1000;           // 时钟频率40MHz
-        io_config.trans_queue_depth = 10;               // 传输队列深度
-        io_config.lcd_cmd_bits = 8;                     // 命令位数
-        io_config.lcd_param_bits = 8;                   // 参数位数
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));  // 创建SPI面板IO
+        esp_lcd_panel_io_handle_t io_handle = NULL;
+        esp_lcd_panel_io_spi_config_t io_config = GC9A01_PANEL_IO_SPI_CONFIG(DISPLAY_SPI_CS_PIN, DISPLAY_SPI_DC_PIN, NULL, NULL);
+        io_config.pclk_hz = DISPLAY_SPI_SCLK_HZ;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &io_handle));  // 创建SPI面板IO
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_RST_PIN;    // 复位引脚
-        panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;   // RGB元素顺序
-        panel_config.bits_per_pixel = 16;                 // 每像素位数
+        panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;    // 复位引脚
+        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;           // RGB字节序
+        panel_config.bits_per_pixel = 16;                       // 每像素位数
  
-        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel));  // 创建GC9A01面板
-   
-        esp_lcd_panel_reset(panel);  // 重置面板
- 
-        esp_lcd_panel_init(panel);  // 初始化面板
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);  // 是否反转颜色
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);            // 是否交换XY坐标
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);  // 设置镜像
+        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle, &panel_config, &panel));  // 创建GC9A01面板
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));  // 重置面板
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));  // 初始化面板
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));  // 反转颜色
+        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));            // 是否交换XY坐标
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));  // 设置镜像
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true)); // 开启显示
         
         // 创建自定义LCD显示对象
-        display_ = new CustomLcdDisplay(panel_io, panel,
+        display_ = new CustomLcdDisplay(io_handle, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
                                     DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
@@ -1034,7 +1023,6 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));         // 添加扬声器设备
         thing_manager.AddThing(iot::CreateThing("Screen"));          // 添加屏幕设备
-        thing_manager.AddThing(iot::CreateThing("ColorStrip"));      // 添加彩色灯带设备
         thing_manager.AddThing(iot::CreateThing("RotateDisplay"));   // 添加旋转显示设备
         thing_manager.AddThing(iot::CreateThing("ImageDisplay"));    // 添加图片显示控制设备
 #if CONFIG_USE_ALARM
@@ -1044,7 +1032,6 @@ private:
 
     // 初始化图片资源管理器
     void InitializeImageResources() {
-        // 初始化图片资源管理器
         auto& image_manager = ImageResourceManager::GetInstance();
         esp_err_t result = image_manager.Initialize();
         if (result != ESP_OK) {
@@ -1571,11 +1558,7 @@ public:
         }
     }
 
-    // 获取LED对象
-    virtual Led* GetLed() override {
-        static CircularLedStrip led(BUILTIN_LED_GPIO);  // 创建环形LED灯带对象
-        return &led;
-    }
+    // LED功能已完全移除
 
     // 获取音频编解码器对象
     virtual AudioCodec* GetAudioCodec() override {

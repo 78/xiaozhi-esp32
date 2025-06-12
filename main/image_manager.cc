@@ -2072,12 +2072,7 @@ void ImageResourceManager::EnterDownloadMode() {
         ESP_LOGI(TAG, "已暂停音频输入输出");
     }
     
-    // 4. 关闭LED灯效，节省资源
-    auto led = board.GetLed();
-    if (led) {
-        // LED会在状态变化时自动关闭
-        ESP_LOGI(TAG, "LED将自动调整为下载状态");
-    }
+    // 4. LED功能已移除，节省资源
     
     // 5. 提高当前任务优先级（下载任务）
     vTaskPrioritySet(NULL, configMAX_PRIORITIES - 2);  // 设置为高优先级
@@ -2115,12 +2110,7 @@ void ImageResourceManager::ExitDownloadMode() {
     auto& app = Application::GetInstance();
     app.ResumeAudioProcessing();  // 根据设备状态恢复音频处理器和唤醒词检测
     
-    // 5. LED会自动根据设备状态调整
-    auto led = board.GetLed();
-    if (led) {
-        led->OnStateChanged();  // 触发LED状态更新
-        ESP_LOGI(TAG, "已触发LED状态更新");
-    }
+    // 5. LED功能已移除
     
     // 6. 等待系统稳定
     vTaskDelay(pdMS_TO_TICKS(800));  // 增加等待时间确保音频系统完全恢复

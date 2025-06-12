@@ -27,7 +27,7 @@ private:
 
     void CheckBatteryStatus() {
         // Get charging status
-        bool new_charging_status = gpio_get_level(charging_pin_) == 1;
+        bool new_charging_status = gpio_get_level(charging_pin_) == 0;
         if (new_charging_status != is_charging_) {
             is_charging_ = new_charging_status;
             if (on_charging_status_changed_) {
@@ -52,7 +52,7 @@ private:
 
     void ReadBatteryAdcData() {
         int adc_value;
-        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle_, ADC_CHANNEL_6, &adc_value));
+        ESP_ERROR_CHECK(adc_oneshot_read(adc_handle_, ADC_CHANNEL_0, &adc_value));
         
         // 将 ADC 值添加到队列中
         adc_values_.push_back(adc_value);
@@ -137,7 +137,7 @@ public:
 
         // 初始化 ADC
         adc_oneshot_unit_init_cfg_t init_config = {
-            .unit_id = ADC_UNIT_2,
+            .unit_id = ADC_UNIT_1,
             .ulp_mode = ADC_ULP_MODE_DISABLE,
         };
         ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle_));
@@ -146,7 +146,7 @@ public:
             .atten = ADC_ATTEN_DB_12,
             .bitwidth = ADC_BITWIDTH_12,
         };
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle_, ADC_CHANNEL_6, &chan_config));
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle_, ADC_CHANNEL_0, &chan_config));
     }
 
     ~PowerManager() {
