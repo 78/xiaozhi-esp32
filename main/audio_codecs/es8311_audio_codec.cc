@@ -6,13 +6,14 @@
 
 Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk) {
+    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk, bool pa_inverted) {
     duplex_ = true; // 是否双工
     input_reference_ = false; // 是否使用参考输入，实现回声消除
     input_channels_ = 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     pa_pin_ = pa_pin;
+    pa_inverted_ = pa_inverted;
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
@@ -44,6 +45,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     es8311_cfg.use_mclk = use_mclk;
     es8311_cfg.hw_gain.pa_voltage = 5.0;
     es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
+    es8311_cfg.pa_reverted = pa_inverted_;
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
 
@@ -171,12 +173,12 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
         if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, 1);
+            gpio_set_level(pa_pin_, !pa_inverted_ ? 1 : 0);
         }
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
         if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, 0);
+            gpio_set_level(pa_pin_, !pa_inverted_ ? 0 : 1);
         }
     }
     AudioCodec::EnableOutput(enable);

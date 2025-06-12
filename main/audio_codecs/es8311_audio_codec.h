@@ -18,6 +18,7 @@ private:
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
+    bool pa_inverted_ = false;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 
@@ -27,7 +28,7 @@ private:
 public:
     Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
         gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-        gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk = true);
+        gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk = true, bool pa_inverted = false);
     virtual ~Es8311AudioCodec();
 
     virtual void SetOutputVolume(int volume) override;
