@@ -5,7 +5,7 @@ build/
 .vscode/
 .devcontainer/
 sdkconfig.old
-sdkconfig
+# sdkconfig
 dependencies.lock
 .env
 releases/
