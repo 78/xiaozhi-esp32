@@ -204,6 +204,12 @@ public:
             return;
         } 
 
+        // 如果用户交互被禁用（例如在预加载期间），不启用空闲定时器
+        if (user_interaction_disabled_) {
+            ESP_LOGI(TAG, "用户交互已禁用，暂不启用空闲定时器");
+            return;
+        }
+
         // 如果已存在定时器，先删除它
         if (idle_timer_ != nullptr) {
             lv_timer_del(idle_timer_);
@@ -221,10 +227,18 @@ public:
             download_ui_is_active_and_visible = true;
         }
         
+        // 检查预加载UI是否实际可见
+        bool preload_ui_is_active_and_visible = false;
+        if (preload_progress_container_ != nullptr &&
+            !lv_obj_has_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+            preload_ui_is_active_and_visible = true;
+        }
+        
         if (currentState == kDeviceStateStarting || 
             currentState == kDeviceStateWifiConfiguring ||
-            download_ui_is_active_and_visible) { 
-            ESP_LOGI(TAG, "设备处于启动/配置状态或下载UI可见，暂不启用空闲定时器");
+            download_ui_is_active_and_visible ||
+            preload_ui_is_active_and_visible) { 
+            ESP_LOGI(TAG, "设备处于启动/配置状态或下载/预加载UI可见，暂不启用空闲定时器");
             return;
         }
         
@@ -240,7 +254,9 @@ public:
             // 如果设备已进入某些特殊状态，取消切换
             if (currentState == kDeviceStateStarting || 
                 currentState == kDeviceStateWifiConfiguring ||
-                display->download_progress_container_ != nullptr) {
+                display->download_progress_container_ != nullptr ||
+                display->preload_progress_container_ != nullptr ||
+                display->user_interaction_disabled_) {
                 // 删除定时器但不切换
                 lv_timer_del(t);
                 display->idle_timer_ = nullptr;
@@ -817,6 +833,66 @@ public:
     lv_obj_t* download_progress_label_ = nullptr; // 百分比标签
     lv_obj_t* message_label_ = nullptr;          // 状态消息标签
     
+    // 添加预加载UI相关变量
+    lv_obj_t* preload_progress_container_ = nullptr;
+    lv_obj_t* preload_progress_label_ = nullptr;
+    lv_obj_t* preload_message_label_ = nullptr;
+    
+    // 用户交互禁用状态标志
+    bool user_interaction_disabled_ = false;
+    
+    // 更新预加载进度UI
+    void UpdatePreloadProgressUI(bool show, int current, int total, const char* message) {
+        DisplayLockGuard lock(this);
+        
+        // 如果容器不存在但需要显示，创建UI
+        if (preload_progress_container_ == nullptr && show) {
+            CreatePreloadProgressUI();
+            DisableUserInteraction(); // 禁用用户交互
+        }
+        
+        // 如果容器仍不存在，直接返回
+        if (preload_progress_container_ == nullptr) {
+            return;
+        }
+        
+        if (show) {
+            // 更新进度标签
+            if (preload_progress_label_) {
+                char progress_text[32];
+                snprintf(progress_text, sizeof(progress_text), "%d/%d", current, total);
+                lv_label_set_text(preload_progress_label_, progress_text);
+            }
+            
+            // 更新消息
+            if (message && preload_message_label_ != nullptr) {
+                lv_label_set_text(preload_message_label_, message);
+            }
+            
+            // 确保容器可见
+            lv_obj_clear_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            
+            // 确保在最顶层显示
+            lv_obj_move_foreground(preload_progress_container_);
+            
+            // 如果当前在时钟页面，切换回主页面
+            if (tabview_) {
+                uint32_t active_tab = lv_tabview_get_tab_act(tabview_);
+                if (active_tab == 1) {
+                    lv_tabview_set_act(tabview_, 0, LV_ANIM_OFF);
+                }
+            }
+        } else {
+            // 隐藏容器
+            if (preload_progress_container_) {
+                lv_obj_add_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN);
+            }
+            
+            // 重新启用用户交互
+            EnableUserInteraction();
+        }
+    }
+    
 private:
     
     // 创建下载进度UI
@@ -862,6 +938,78 @@ private:
         
         // 确保UI在最顶层
         lv_obj_move_foreground(download_progress_container_);
+    }
+
+    // 创建预加载进度UI
+    void CreatePreloadProgressUI() {
+        // 创建一个简单的文本容器
+        preload_progress_container_ = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(preload_progress_container_, lv_pct(85), lv_pct(35));
+        lv_obj_center(preload_progress_container_);
+        
+        // 设置文本容器样式
+        lv_obj_set_style_radius(preload_progress_container_, 12, 0); // 圆角矩形
+        lv_obj_set_style_bg_color(preload_progress_container_, lv_color_hex(0x1A1A1A), 0);
+        lv_obj_set_style_bg_opa(preload_progress_container_, LV_OPA_90, 0);  // 更高的不透明度
+        lv_obj_set_style_border_width(preload_progress_container_, 2, 0);
+        lv_obj_set_style_border_color(preload_progress_container_, lv_color_hex(0xFF9500), 0); // 橙色边框
+        
+        // 设置垂直布局
+        lv_obj_set_flex_flow(preload_progress_container_, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(preload_progress_container_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_all(preload_progress_container_, 18, 0);
+        lv_obj_set_style_pad_row(preload_progress_container_, 12, 0);
+
+        // 标题标签
+        lv_obj_t* title_label = lv_label_create(preload_progress_container_);
+        lv_obj_set_style_text_font(title_label, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(title_label, lv_color_hex(0xFF9500), 0); // 橙色标题
+        lv_label_set_text(title_label, "预加载图片资源");
+        
+        // 进度百分比标签
+        preload_progress_label_ = lv_label_create(preload_progress_container_);
+        lv_obj_set_style_text_font(preload_progress_label_, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(preload_progress_label_, lv_color_white(), 0);
+        lv_label_set_text(preload_progress_label_, "0/0");
+        
+        // 消息标签
+        preload_message_label_ = lv_label_create(preload_progress_container_);
+        lv_obj_set_style_text_font(preload_message_label_, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(preload_message_label_, lv_color_white(), 0);
+        lv_obj_set_width(preload_message_label_, lv_pct(90));
+        lv_obj_set_style_text_align(preload_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(preload_message_label_, LV_LABEL_LONG_WRAP);
+        lv_label_set_text(preload_message_label_, "准备预加载...");
+        
+        // 添加提示文本
+        lv_obj_t* hint_label = lv_label_create(preload_progress_container_);
+        lv_obj_set_style_text_font(hint_label, &font_puhui_20_4, 0);
+        lv_obj_set_style_text_color(hint_label, lv_color_hex(0xAAAAAA), 0); // 灰色提示
+        lv_obj_set_width(hint_label, lv_pct(90));
+        lv_obj_set_style_text_align(hint_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(hint_label, LV_LABEL_LONG_WRAP);
+        lv_label_set_text(hint_label, "请勿操作设备");
+        
+        // 确保UI在最顶层
+        lv_obj_move_foreground(preload_progress_container_);
+    }
+
+    // 禁用用户交互
+    void DisableUserInteraction() {
+        user_interaction_disabled_ = true;
+        ESP_LOGI(TAG, "用户交互已禁用");
+        
+        // 禁用空闲定时器，防止自动切换页面
+        SetIdle(false);
+    }
+    
+    // 启用用户交互
+    void EnableUserInteraction() {
+        user_interaction_disabled_ = false;
+        ESP_LOGI(TAG, "用户交互已启用");
+        
+        // 重新启用空闲定时器
+        SetIdle(true);
     }
 
     // 添加新方法直接更新UI，只在主线程中调用
@@ -1007,6 +1155,12 @@ private:
     // 按钮初始化
     void InitializeButtons() {
         boot_btn.OnClick([this]() {
+            // 检查用户交互是否被禁用
+            if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
+                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮点击");
+                return;
+            }
+            
             auto& app = Application::GetInstance();
             // 如果设备正在启动且WiFi未连接，则重置WiFi配置
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -1171,6 +1325,14 @@ private:
             }
         });
         
+        // 设置预加载进度回调函数，更新预加载UI进度
+        image_manager.SetPreloadProgressCallback([customDisplay](int current, int total, const char* message) {
+            if (customDisplay) {
+                // 使用预加载专用的UI更新方法
+                customDisplay->UpdatePreloadProgressUI(message != nullptr, current, total, message);
+            }
+        });
+        
         // 启动图片轮播任务
         xTaskCreate(ImageSlideshowTask, "img_slideshow", 8192, this, 3, &image_task_handle_);
         ESP_LOGI(TAG, "图片循环显示任务已启动");
@@ -1298,6 +1460,31 @@ private:
             }
         }
         
+        // 等待预加载完成（如果正在预加载）
+        ESP_LOGI(TAG, "检查预加载状态...");
+        int preload_check_count = 0;
+        while (preload_check_count < 100) { // 最多等待10秒
+            bool isPreloadActive = false;
+            if (customDisplay && customDisplay->preload_progress_container_ &&
+                !lv_obj_has_flag(customDisplay->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                isPreloadActive = true;
+            }
+            
+            if (!isPreloadActive) {
+                break; // 预加载已完成或未开始
+            }
+            
+            ESP_LOGI(TAG, "等待预加载完成... (%d/100)", preload_check_count + 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            preload_check_count++;
+        }
+        
+        if (preload_check_count >= 100) {
+            ESP_LOGW(TAG, "预加载等待超时，继续启动图片轮播");
+        } else {
+            ESP_LOGI(TAG, "预加载已完成，开始图片轮播");
+        }
+        
         // 资源检查现在由OTA完成后的回调触发，这里不再需要定时器检查
         
         // 当前索引和方向控制
@@ -1360,8 +1547,15 @@ private:
                 isClockTabActive = (active_tab == 1);
             }
             
-            // 时钟页面处理逻辑
-            if (isClockTabActive) {
+            // 检查预加载UI是否可见
+            bool isPreloadUIVisible = false;
+            if (customDisplay && customDisplay->preload_progress_container_ &&
+                !lv_obj_has_flag(customDisplay->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                isPreloadUIVisible = true;
+            }
+            
+            // 时钟页面或预加载UI显示时的处理逻辑
+            if (isClockTabActive || isPreloadUIVisible) {
                 DisplayLockGuard lock(display);
                 if (img_container) {
                     lv_obj_add_flag(img_container, LV_OBJ_FLAG_HIDDEN);

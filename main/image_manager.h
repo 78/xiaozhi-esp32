@@ -54,6 +54,11 @@ public:
     void SetDownloadProgressCallback(ProgressCallback callback) {
         progress_callback_ = callback;
     }
+    
+    // 设置预加载进度回调函数
+    void SetPreloadProgressCallback(ProgressCallback callback) {
+        preload_progress_callback_ = callback;
+    }
 
 private:
     ImageResourceManager();
@@ -98,5 +103,10 @@ private:
     std::vector<const uint8_t*> image_array_; // 图片数据指针数组
     std::vector<uint8_t*> image_data_pointers_;  // 管理内存的指针数组
     uint8_t* logo_data_; // logo图片数据
-    ProgressCallback progress_callback_ = nullptr; // 进度回调函数
+    
+    // 下载进度回调函数
+    ProgressCallback progress_callback_;
+    
+    // 预加载进度回调函数
+    ProgressCallback preload_progress_callback_;
 };

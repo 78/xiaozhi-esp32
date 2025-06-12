@@ -28,6 +28,8 @@ ImageResourceManager::ImageResourceManager() {
     logo_data_ = nullptr;
     cached_static_url_ = "";     // 缓存的静态图片URL
     cached_dynamic_urls_.clear(); // 缓存的动态图片URL列表
+    progress_callback_ = nullptr; // 初始化下载进度回调
+    preload_progress_callback_ = nullptr; // 初始化预加载进度回调
 }
 
 ImageResourceManager::~ImageResourceManager() {
@@ -101,18 +103,38 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
         return ESP_OK;
     }
     
+    ESP_LOGI(TAG, "准备挂载resources分区...");
+    
+    // 检查分区是否存在
+    const esp_partition_t* partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "resources");
+    if (partition == NULL) {
+        ESP_LOGE(TAG, "未找到resources分区");
+        return ESP_ERR_NOT_FOUND;
+    }
+    
+    ESP_LOGI(TAG, "找到resources分区，大小: %u字节 (%.1fMB)", (unsigned int)partition->size, partition->size / (1024.0 * 1024.0));
+    
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/resources",
-        .partition_label = "resources",
-        .max_files = 20,
+        .partition_label = "resources", 
+        .max_files = 30,                    // 增加最大文件数
         .format_if_mount_failed = true
     };
+    
+    ESP_LOGI(TAG, "开始挂载SPIFFS分区，如需格式化可能需要30-60秒...");
+    
+    // 记录开始时间
+    uint32_t start_time = esp_timer_get_time() / 1000;
     
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "挂载resources分区失败 (%s)", esp_err_to_name(ret));
         return ret;
     }
+    
+    // 记录结束时间
+    uint32_t end_time = esp_timer_get_time() / 1000;
+    uint32_t duration = end_time - start_time;
     
     size_t total = 0, used = 0;
     ret = esp_spiffs_info(conf.partition_label, &total, &used);
@@ -121,7 +143,8 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
         return ret;
     }
     
-    ESP_LOGI(TAG, "resources分区挂载成功, 总大小: %d字节, 已使用: %d字节", total, used);
+    ESP_LOGI(TAG, "resources分区挂载成功! 耗时: %u毫秒, 总大小: %u字节, 已使用: %u字节", 
+             (unsigned int)duration, (unsigned int)total, (unsigned int)used);
     mounted_ = true;
     return ESP_OK;
 }
@@ -591,7 +614,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         }
         
         // 在下载模式下适当增加文件间等待时间，确保网络连接稳定
-        vTaskDelay(pdMS_TO_TICKS(3000));  // 增加到3秒，给网络连接恢复时间
+        vTaskDelay(pdMS_TO_TICKS(500));  // 减少到500ms，大幅提升下载速度
     }
     
     // 如果至少有一半文件下载成功，认为是部分成功
@@ -781,7 +804,7 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             if (progress_callback_) {
                 progress_callback_(0, 100, "网络连接已断开，等待重连...");
             }
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(3000));  // 减少等待时间
             retry_count++;
             continue;
         }
@@ -810,11 +833,11 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             if (progress_callback_) {
                 progress_callback_(0, 100, "HTTP客户端创建失败");
             }
-            vTaskDelay(pdMS_TO_TICKS(2000 * retry_count));
+            vTaskDelay(pdMS_TO_TICKS(1000 * retry_count));  // 减少重试延时
             continue;
         }
         
-        // 先设置必要的请求头，再打开连接
+        // 优化HTTP请求头，提高下载速度
         std::string device_id = SystemInfo::GetMacAddress();
         std::string client_id = SystemInfo::GetClientId();
         
@@ -825,11 +848,13 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             http->SetHeader("Client-Id", client_id.c_str());
         }
         
-        // 添加其他常用请求头
+        // 优化网络性能的请求头
         auto app_desc = esp_app_get_description();
         http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
-        http->SetHeader("Connection", "close");  // 强制关闭连接，避免连接复用问题
-        http->SetHeader("Accept-Encoding", "identity");  // 禁用压缩，减少处理开销
+        http->SetHeader("Connection", "keep-alive");        // 启用连接复用提高速度
+        http->SetHeader("Accept-Encoding", "identity");     // 禁用压缩减少CPU开销
+        http->SetHeader("Cache-Control", "no-cache");       // 确保获取最新文件
+        http->SetHeader("Accept", "*/*");                   // 接受任何类型
         
         if (!http->Open("GET", url)) {
             ESP_LOGE(TAG, "无法连接到服务器: %s (尝试 %d/%d)", url, retry_count + 1, MAX_DOWNLOAD_RETRIES);
@@ -843,13 +868,13 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 progress_callback_(0, 100, message);
             }
             
-            // 重试前强制垃圾回收和等待网络恢复
-            vTaskDelay(pdMS_TO_TICKS(5000));  // 基础等待5秒
+            // 减少重试等待时间，提高整体下载速度
+            vTaskDelay(pdMS_TO_TICKS(2000));  // 减少到2秒
             
-            // 如果是网络超时问题，增加额外等待时间
+            // 渐进式重试延时，但上限更低
             if (retry_count >= 2) {
-                ESP_LOGW(TAG, "多次连接失败，延长等待时间以让网络恢复");
-                vTaskDelay(pdMS_TO_TICKS(10000 * retry_count));  // 渐进式增加等待时间
+                ESP_LOGW(TAG, "多次连接失败，短暂等待网络恢复");
+                vTaskDelay(pdMS_TO_TICKS(3000 * retry_count));  // 最多9秒
             }
             continue;
         }
@@ -879,17 +904,19 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         
         ESP_LOGI(TAG, "下载文件大小: %u字节", (unsigned int)content_length);
         
-        // 根据网络状况动态调整缓冲区大小
-        size_t buffer_size = 2048;  // 降低默认缓冲区，提高稳定性
+        // 大幅优化缓冲区大小，提高下载速度
+        size_t buffer_size = 8192;  // 默认8KB缓冲区，大幅提升速度
         
-        // 根据可用内存动态调整缓冲区大小，更保守的设置
+        // 根据可用内存动态调整缓冲区大小，更激进的设置
         size_t current_free_heap = esp_get_free_heap_size();
-        if (current_free_heap > 1000000) {
-            buffer_size = 4096;  // 1MB以上可用内存使用4KB缓冲区
+        if (current_free_heap > 2000000) {
+            buffer_size = 16384;  // 2MB以上可用内存使用16KB缓冲区
+        } else if (current_free_heap > 1000000) {
+            buffer_size = 12288;  // 1MB以上使用12KB缓冲区
         } else if (current_free_heap > 500000) {
-            buffer_size = 2048;  // 500KB以上使用2KB缓冲区
+            buffer_size = 8192;   // 500KB以上使用8KB缓冲区
         } else {
-            buffer_size = 1024;  // 否则使用1KB缓冲区，确保稳定性
+            buffer_size = 4096;   // 否则使用4KB缓冲区
         }
         
         char* buffer = (char*)malloc(buffer_size);
@@ -904,16 +931,16 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             return ESP_ERR_NO_MEM;
         }
         
-        ESP_LOGI(TAG, "使用%zu字节缓冲区进行下载", buffer_size);
+        ESP_LOGI(TAG, "使用%zu字节缓冲区进行高速下载", buffer_size);
         
         size_t total_read = 0;
         bool download_success = true;
         
         while (true) {
-            // 定期检查内存和网络连接（降低检查频率减少系统开销）
-            if (total_read % (1024 * 100) == 0) { // 每100KB检查一次
+            // 减少检查频率，提高下载速度
+            if (total_read % (1024 * 200) == 0) { // 每200KB检查一次（减少一半）
                 free_heap = esp_get_free_heap_size();
-                if (free_heap < 150000) { // 提高内存要求到150KB
+                if (free_heap < 100000) { // 降低内存要求到100KB
                     ESP_LOGW(TAG, "内存不足，中止下载，可用内存: %u字节", (unsigned int)free_heap);
                     download_success = false;
                     break;
@@ -927,7 +954,7 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 }
             }
             
-            int ret = http->Read(buffer, buffer_size);  // 使用动态缓冲区
+            int ret = http->Read(buffer, buffer_size);  // 使用大缓冲区
             if (ret < 0) {
                 ESP_LOGE(TAG, "读取HTTP数据失败 (错误码: %d)", ret);
                 download_success = false;
@@ -954,12 +981,12 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             
             total_read += ret;
             
-            // 更频繁地更新进度显示
+            // 优化进度更新频率
             if (content_length > 0) {
                 int percent = (float)total_read * 100 / content_length;
                 
-                // 每当进度变化时都更新显示
-                if (percent != last_logged_percent) {
+                // 减少进度更新频率，提高下载速度
+                if (percent != last_logged_percent && percent % 5 == 0) {  // 每5%更新一次
                     const char* filename = strrchr(filepath, '/') + 1;
                     char message[128];
                     if (retry_count > 0) {
@@ -973,18 +1000,19 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                         progress_callback_(percent, 100, message);
                     }
                     
-                    // 记录日志（但减少日志频率）
-                    if (percent % 20 == 0 || percent == 100) {  // 改为每20%记录一次
-                        ESP_LOGI(TAG, "下载进度: %d%%, 已下载: %zu/%zu字节, 可用内存: %u字节", 
-                                percent, total_read, content_length, (unsigned int)esp_get_free_heap_size());
+                    // 减少日志频率
+                    if (percent % 25 == 0 || percent == 100) {  // 改为每25%记录一次
+                        ESP_LOGI(TAG, "下载进度: %d%%, 已下载: %zu/%zu字节, 速度: %.1fKB/s", 
+                                percent, total_read, content_length, 
+                                (float)total_read / 1024.0 / ((esp_timer_get_time() / 1000 - esp_timer_get_time() / 1000) / 1000.0 + 1));
                     }
                     
                     last_logged_percent = percent;
                 }
             }
             
-            // 在下载模式下适度延迟，平衡速度和稳定性
-            vTaskDelay(pdMS_TO_TICKS(10));  // 10ms延迟确保系统稳定
+            // 移除下载延迟，最大化下载速度
+            // vTaskDelay(pdMS_TO_TICKS(10));  // 注释掉延迟，全速下载
         }
         
         // 清理资源
@@ -996,8 +1024,8 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         delete http;
         http = nullptr;
         
-        // 强制垃圾回收，释放内存
-        vTaskDelay(pdMS_TO_TICKS(200));  // 增加等待时间确保资源完全释放
+        // 减少垃圾回收等待时间
+        vTaskDelay(pdMS_TO_TICKS(50));  // 减少到50ms
         
         if (download_success) {
             if (progress_callback_) {
@@ -1025,9 +1053,9 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 progress_callback_(0, 100, message);
             }
             
-            ESP_LOGW(TAG, "下载失败，将在%d秒后重试 (第%d次重试)", 8 * retry_count, retry_count);
-            // 增加重试延时，每次递增，给网络更多恢复时间
-            vTaskDelay(pdMS_TO_TICKS(8000 * retry_count));
+            ESP_LOGW(TAG, "下载失败，将在%d秒后重试 (第%d次重试)", 3 * retry_count, retry_count);
+            // 减少重试延时，提高整体下载速度
+            vTaskDelay(pdMS_TO_TICKS(3000 * retry_count));  // 减少到3秒基础延时
         }
     }
     
@@ -1782,7 +1810,7 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
         }
         
         // 在下载模式下适当增加文件间等待时间，确保网络连接稳定
-        vTaskDelay(pdMS_TO_TICKS(3000));  // 增加到3秒，给网络连接恢复时间
+        vTaskDelay(pdMS_TO_TICKS(500));  // 减少到500ms，大幅提升下载速度
     }
     
     // 如果至少有一半文件下载成功，认为是部分成功
@@ -2182,17 +2210,38 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
     int loaded_count = 0;
     int total_images = image_array_.size();
     
+    // 通知开始预加载
+    if (preload_progress_callback_) {
+        preload_progress_callback_(0, total_images, "准备预加载图片资源...");
+    }
+    
     ESP_LOGI(TAG, "预加载策略：加载所有剩余图片 (总数: %d)", total_images);
     
     for (int i = 1; i <= total_images; i++) {
         // 检查图片是否已经加载
         if (IsImageLoaded(i)) {
+            loaded_count++;
+            // 更新进度（已加载的图片）
+            if (preload_progress_callback_) {
+                char message[64];
+                snprintf(message, sizeof(message), "图片 %d 已加载，跳过...", i);
+                preload_progress_callback_(loaded_count, total_images, message);
+            }
             continue; // 已加载，跳过
         }
         
         // 检查音频状态，如果有音频播放则暂停预加载
         if (!app.IsAudioQueueEmpty() || app.GetDeviceState() != kDeviceStateIdle) {
             ESP_LOGW(TAG, "检测到音频活动，暂停预加载以避免冲突，已加载: %d/%d", loaded_count, total_images);
+            
+            // 通知预加载被中断
+            if (preload_progress_callback_) {
+                char message[64];
+                snprintf(message, sizeof(message), "预加载中断：检测到音频活动");
+                preload_progress_callback_(loaded_count, total_images, message);
+                vTaskDelay(pdMS_TO_TICKS(2000)); // 显示消息2秒
+                preload_progress_callback_(loaded_count, total_images, nullptr); // 隐藏UI
+            }
             break;
         }
         
@@ -2200,7 +2249,23 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         free_heap = esp_get_free_heap_size();
         if (free_heap < 300000) { // 如果内存不足300KB，停止加载
             ESP_LOGW(TAG, "预加载过程中内存不足，停止加载，已加载: %d/%d", loaded_count, total_images);
+            
+            // 通知内存不足
+            if (preload_progress_callback_) {
+                char message[64];
+                snprintf(message, sizeof(message), "预加载停止：内存不足");
+                preload_progress_callback_(loaded_count, total_images, message);
+                vTaskDelay(pdMS_TO_TICKS(2000)); // 显示消息2秒
+                preload_progress_callback_(loaded_count, total_images, nullptr); // 隐藏UI
+            }
             break;
+        }
+        
+        // 更新进度 - 开始加载当前图片
+        if (preload_progress_callback_) {
+            char message[64];
+            snprintf(message, sizeof(message), "正在预加载图片 %d/%d", i, total_images);
+            preload_progress_callback_(loaded_count, total_images, message);
         }
         
         ESP_LOGI(TAG, "预加载图片 %d/%d...", i, total_images);
@@ -2208,8 +2273,22 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         if (LoadImageFile(i)) {
             loaded_count++;
             ESP_LOGI(TAG, "预加载图片 %d 成功", i);
+            
+            // 更新进度 - 当前图片加载完成
+            if (preload_progress_callback_) {
+                char message[64];
+                snprintf(message, sizeof(message), "图片 %d 预加载完成", i);
+                preload_progress_callback_(loaded_count, total_images, message);
+            }
         } else {
             ESP_LOGE(TAG, "预加载图片 %d 失败", i);
+            
+            // 通知加载失败但继续
+            if (preload_progress_callback_) {
+                char message[64];
+                snprintf(message, sizeof(message), "图片 %d 预加载失败，继续下一张", i);
+                preload_progress_callback_(loaded_count, total_images, message);
+            }
         }
         
         // 给系统更多时间进行其他操作，特别是音频处理
@@ -2219,6 +2298,21 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
     free_heap = esp_get_free_heap_size();
     ESP_LOGI(TAG, "预加载完成，成功加载: %d/%d 张图片，剩余内存: %u字节", 
              loaded_count, total_images, (unsigned int)free_heap);
+    
+    // 通知预加载完成
+    if (preload_progress_callback_) {
+        char message[64];
+        if (loaded_count == total_images) {
+            snprintf(message, sizeof(message), "所有图片预加载完成！");
+        } else {
+            snprintf(message, sizeof(message), "预加载完成：%d/%d 张图片", loaded_count, total_images);
+        }
+        preload_progress_callback_(loaded_count, total_images, message);
+        
+        // 延迟一段时间后隐藏进度条
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        preload_progress_callback_(loaded_count, total_images, nullptr);
+    }
     
     return loaded_count > 0 ? ESP_OK : ESP_FAIL;
 }
