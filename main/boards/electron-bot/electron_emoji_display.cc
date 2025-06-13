@@ -4,6 +4,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
+
+#include "font_awesome_symbols.h"
 
 #define TAG "ElectronEmojiDisplay"
 
@@ -141,4 +144,27 @@ void ElectronEmojiDisplay::SetChatMessage(const char* role, const char* content)
     lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
+}
+
+void ElectronEmojiDisplay::SetIcon(const char* icon) {
+    if (!icon) {
+        return;
+    }
+
+    DisplayLockGuard lock(this);
+
+    if (chat_message_label_ != nullptr) {
+        std::string icon_message = std::string(icon) + " ";
+
+        if (strcmp(icon, FONT_AWESOME_DOWNLOAD) == 0) {
+            icon_message += "正在升级...";
+        } else {
+            icon_message += "系统状态";
+        }
+
+        lv_label_set_text(chat_message_label_, icon_message.c_str());
+        lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+
+        ESP_LOGI(TAG, "设置图标: %s", icon);
+    }
 }
