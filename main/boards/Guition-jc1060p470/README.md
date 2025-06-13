@@ -1,3 +1,6 @@
+
+产品链接:https://www.displaysmodule.com/sale-51877354-86-5-86-5-37-8-mm-2-8-inches-jc1060wp470n-c-i-w-module-size-wall-plate-esp32-p4.html
+
 如果烧录完成之后出现屏幕一直不亮的情况请查看串口输出，是否有如下报错
 
 ```c
@@ -13,8 +16,4 @@ E (10902) task_wdt: Print CPU 0 (current core) backtrace
 ```
 
 如果出现此报错请修改.lane_bit_rate_mbps的值，尝试使用550，750或900
-
-
-
-
 
