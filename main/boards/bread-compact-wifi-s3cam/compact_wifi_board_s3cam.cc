@@ -60,12 +60,12 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 };
 #endif
  
-#define TAG "CompactWifiBoardESP32S3Cam"
+#define TAG "CompactWifiBoardS3Cam"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class CompactWifiBoardESP32S3Cam : public WifiBoard {
+class CompactWifiBoardS3Cam : public WifiBoard {
 private:
  
     Button boot_button_;
@@ -169,8 +169,6 @@ private:
         camera_->SetHMirror(false);
     }
 
-
- 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -193,7 +191,7 @@ private:
     }
 
 public:
-    CompactWifiBoardESP32S3Cam() :
+    CompactWifiBoardS3Cam() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
@@ -239,4 +237,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactWifiBoardESP32S3Cam);
+DECLARE_BOARD(CompactWifiBoardS3Cam);
