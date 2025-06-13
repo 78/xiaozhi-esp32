@@ -71,7 +71,7 @@ void ElectronEmojiDisplay::SetupGifContainer() {
         lv_obj_del(content_);
     }
 
-    lv_obj_t* content_ = lv_obj_create(container_);
+    content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(content_, LV_HOR_RES, LV_HOR_RES);
     lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);

@@ -341,7 +341,7 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
                 return;
             }
         }
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         ESP_LOGE(TAG, "tools/call: %s", e.what());
         ReplyError(id, e.what());
         return;
@@ -358,7 +358,7 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
     tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments)]() {
         try {
             ReplyResult(id, (*tool_iter)->Call(arguments));
-        } catch (const std::runtime_error& e) {
+        } catch (const std::exception& e) {
             ESP_LOGE(TAG, "tools/call: %s", e.what());
             ReplyError(id, e.what());
         }
