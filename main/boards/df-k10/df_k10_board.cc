@@ -245,9 +245,6 @@ private:
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-
         led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 3);
         new LedStripControl(led_strip_);
     }
@@ -269,7 +266,6 @@ public:
     }
 
    virtual Led* GetLed() override {
-        //static CircularStrip led(BUILTIN_LED_GPIO, 3);
         return led_strip_;
     }
 
