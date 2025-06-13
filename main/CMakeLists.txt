@@ -4,6 +4,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8374_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
+            "audio_processing/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -178,6 +179,8 @@ elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
     set(BOARD_TYPE "genjutech-s3-1.54tft")
 elseif(CONFIG_BOARD_TYPE_ESP32_CGC)
     set(BOARD_TYPE "esp32-cgc")
+elseif(CONFIG_BOARD_TYPE_ESP32_CGC_144)
+    set(BOARD_TYPE "esp32-cgc-144")  
 elseif(CONFIG_BOARD_TYPE_ESP_S3_LCD_EV_Board)
     set(BOARD_TYPE "esp-s3-lcd-ev-board")
 elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
@@ -190,6 +193,10 @@ elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
 elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_28_BOX)
     set(BOARD_TYPE "sp-esp32-s3-1.28-box")
+elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
+    set(BOARD_TYPE "otto-robot")
+elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+    set(BOARD_TYPE "electron-bot")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -200,13 +207,14 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
 else()
-    list(APPEND SOURCES "audio_processing/dummy_audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/no_audio_processor.cc")
 endif()
-if(CONFIG_USE_WAKE_WORD_DETECT)
-    list(APPEND SOURCES "audio_processing/wake_word_detect.cc")
-endif()
-if(CONFIG_USE_WAKE_WORD_DETECT_NO_AFE)
-    list(APPEND SOURCES "audio_processing/wake_word_no_afe.cc")
+if(CONFIG_USE_AFE_WAKE_WORD)
+    list(APPEND SOURCES "audio_processing/afe_wake_word.cc")
+elseif(CONFIG_USE_ESP_WAKE_WORD)
+    list(APPEND SOURCES "audio_processing/esp_wake_word.cc")
+else()
+    list(APPEND SOURCES "audio_processing/no_wake_word.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -286,12 +294,18 @@ list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
 foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
     set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
-    message(STATUS "Downloading ${FILENAME}")
-    file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
-         STATUS DOWNLOAD_STATUS)
-    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-    if(NOT STATUS_CODE EQUAL 0)
-        message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+    
+    # 检查本地文件是否存在
+    if(EXISTS ${LOCAL_FILE})
+        message(STATUS "File ${FILENAME} already exists, skipping download")
+    else()
+        message(STATUS "Downloading ${FILENAME}")
+        file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
+             STATUS DOWNLOAD_STATUS)
+        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+        if(NOT STATUS_CODE EQUAL 0)
+            message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+        endif()
     endif()
 endforeach()
 

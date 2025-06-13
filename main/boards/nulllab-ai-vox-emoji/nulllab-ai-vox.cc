@@ -36,10 +36,6 @@ class NulllabAIVox : public WifiBoard {
     void InitializePowerManager() { power_manager_ = new PowerManager(BATTERY_LEVEL_PIN, BATTERY_EN_PIN); }
 
     void InitializePowerSaveTimer() {
-        rtc_gpio_init(POWER_SAVER_PIN);
-        rtc_gpio_set_direction(POWER_SAVER_PIN, RTC_GPIO_MODE_OUTPUT_ONLY);
-        rtc_gpio_set_level(POWER_SAVER_PIN, 1);
-
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");

@@ -13,6 +13,7 @@
 
 #define AUDIO_CODEC_DMA_DESC_NUM 6
 #define AUDIO_CODEC_DMA_FRAME_NUM 240
+#define AUDIO_CODEC_DEFAULT_MIC_GAIN 30.0
 
 class AudioCodec {
 public:

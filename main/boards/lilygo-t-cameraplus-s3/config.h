@@ -51,4 +51,6 @@
 #define DISPLAY_BACKLIGHT_PIN DISPLAY_BL
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+#define AP1511B_GPIO static_cast<gpio_num_t>(AP1511B_FBC)
+
 #endif // _BOARD_CONFIG_H_

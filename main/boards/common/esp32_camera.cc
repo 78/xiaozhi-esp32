@@ -295,6 +295,9 @@ std::string Esp32Camera::Explain(const std::string& question) {
     std::string result = http->ReadAll();
     http->Close();
 
-    ESP_LOGI(TAG, "Explain image size=%dx%d, compressed size=%d, question=%s\n%s", fb_->width, fb_->height, total_sent, question.c_str(), result.c_str());
+    // Get remain task stack size
+    size_t remain_stack_size = uxTaskGetStackHighWaterMark(nullptr);
+    ESP_LOGI(TAG, "Explain image size=%dx%d, compressed size=%d, remain stack size=%d, question=%s\n%s",
+        fb_->width, fb_->height, total_sent, remain_stack_size, question.c_str(), result.c_str());
     return result;
 }

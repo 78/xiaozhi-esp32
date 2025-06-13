@@ -5,7 +5,7 @@
 #include <driver/i2s_tdm.h>
 
 
-static const char TAG[] = "CoreS3AudioCodec";
+#define TAG "CoreS3AudioCodec"
 
 CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
@@ -201,7 +201,7 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 40.0));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), AUDIO_CODEC_DEFAULT_MIC_GAIN));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }

@@ -124,6 +124,8 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     bp2->payload_size = ntohl(bp2->payload_size);
                     auto payload = (uint8_t*)bp2->payload;
                     on_incoming_audio_(AudioStreamPacket{
+                        .sample_rate = server_sample_rate_,
+                        .frame_duration = server_frame_duration_,
                         .timestamp = bp2->timestamp,
                         .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)
                     });
@@ -133,11 +135,15 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     bp3->payload_size = ntohs(bp3->payload_size);
                     auto payload = (uint8_t*)bp3->payload;
                     on_incoming_audio_(AudioStreamPacket{
+                        .sample_rate = server_sample_rate_,
+                        .frame_duration = server_frame_duration_,
                         .timestamp = 0,
                         .payload = std::vector<uint8_t>(payload, payload + bp3->payload_size)
                     });
                 } else {
                     on_incoming_audio_(AudioStreamPacket{
+                        .sample_rate = server_sample_rate_,
+                        .frame_duration = server_frame_duration_,
                         .timestamp = 0,
                         .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)
                     });

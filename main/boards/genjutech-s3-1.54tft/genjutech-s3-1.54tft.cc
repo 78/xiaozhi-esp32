@@ -70,7 +70,7 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(160, 60);
+        power_save_timer_ = new PowerSaveTimer(240, 60);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
