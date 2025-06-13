@@ -350,11 +350,15 @@ public:
         lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_style_radius(content_, 0, 0);
         lv_obj_set_width(content_, LV_HOR_RES);
-        lv_obj_set_height(content_, LV_SIZE_CONTENT);  // 仅适应内容，不覆盖整个屏幕
         lv_obj_set_style_pad_all(content_, 5, 0);
         lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(content_, LV_OPA_0, 0);  // 完全透明
         lv_obj_set_style_border_width(content_, 0, 0);   // 无边框
+
+        // 新增：限制内容区域高度、启用纵向滚动并隐藏滚动条，防止消息过多挤出状态栏
+        lv_obj_set_height(content_, LV_VER_RES - fonts_.text_font->line_height - 10); // 高度为屏幕减去状态栏
+        lv_obj_set_scroll_dir(content_, LV_DIR_VER);
+        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
 
         lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);
@@ -1784,8 +1788,8 @@ public:
 };
 
 // 将URL定义为静态变量 - 现在只需要一个API URL
-const char* CustomBoard::API_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
-const char* CustomBoard::VERSION_URL = "http://192.168.3.118:8081/app-api/xiaoqiao/system/skin";
+const char* CustomBoard::API_URL = "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin";
+const char* CustomBoard::VERSION_URL = "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin";
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);
