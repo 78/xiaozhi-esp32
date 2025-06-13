@@ -220,7 +220,14 @@ void Otto::Home(bool hands_down) {
                 }
             } else {
                 // 腿部和脚部舵机始终复位
-                homes[i] = 90;
+                
+                if (i == LEFT_LEG || i == RIGHT_LEG) {
+                    homes[i] =84;  // 添加腿部舵机的修正值
+                }else 
+                {
+                    homes[i] = 90;
+                }
+                
             }
         }
 

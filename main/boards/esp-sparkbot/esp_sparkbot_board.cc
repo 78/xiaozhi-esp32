@@ -14,9 +14,14 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <driver/uart.h>
+#include <touch_element/touch_button.h>
+#include <touch_element/touch_element.h>
+#include <esp_timer.h>
 #include <cstring>
 
 #include "esp32_camera.h"
+
+#include "sparkbot_emoji_display.h"
 
 #define TAG "esp_sparkbot"
 
@@ -49,9 +54,10 @@ class EspSparkBot : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
-    Display* display_;
+    LcdDisplay* display_;
     Esp32Camera* camera_;
     light_mode_t light_mode_ = LIGHT_MODE_ALWAYS_ON;
+    touch_button_handle_t touch_button_handle_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -126,16 +132,16 @@ private:
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
                                         .emoji_font = font_emoji_64_init(),
-                                    }); */
+                                    });  */
 
         display_ = new SparkbotEmojiDisplay(
             panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
             {
-                .text_font = &font_puhui_16_4,
-                .icon_font = &font_awesome_16_4,
-                .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-            });
+                .text_font = &font_puhui_20_4,
+                .icon_font = &font_awesome_20_4,
+                .emoji_font = font_emoji_64_init(),
+            }); 
     }
 
     void InitializeCamera() {
@@ -182,6 +188,39 @@ private:
         camera_->SetVFlip(camera_flipped);
     }
 
+    void InitializeTouchButton() {
+        ESP_LOGI(TAG, "Initializing touch button on GPIO 3");
+        
+        // 初始化触摸元素库
+        touch_elem_global_config_t global_config = TOUCH_ELEM_GLOBAL_DEFAULT_CONFIG();
+        ESP_ERROR_CHECK(touch_element_install(&global_config));
+        
+        // 初始化触摸按钮驱动
+        touch_button_global_config_t button_global_config = TOUCH_BUTTON_GLOBAL_DEFAULT_CONFIG();
+        ESP_ERROR_CHECK(touch_button_install(&button_global_config));
+        
+        // 配置触摸按钮
+        touch_button_config_t button_config = {
+            .channel_num = TOUCH_PAD_NUM3,
+            .channel_sens = 0.1f  // 触摸灵敏度，可根据需要调整
+        };
+        
+        // 创建触摸按钮
+        ESP_ERROR_CHECK(touch_button_create(&button_config, &touch_button_handle_));
+        
+        // 设置触摸按钮回调函数
+        ESP_ERROR_CHECK(touch_button_subscribe_event(touch_button_handle_, 
+                                                    TOUCH_ELEM_EVENT_ON_PRESS, 
+                                                    this));
+        ESP_ERROR_CHECK(touch_button_set_dispatch_method(touch_button_handle_, TOUCH_ELEM_DISP_CALLBACK));
+        ESP_ERROR_CHECK(touch_button_set_callback(touch_button_handle_, touch_button_callback));
+        
+        // 启动触摸元素库
+        ESP_ERROR_CHECK(touch_element_start());
+        
+        ESP_LOGI(TAG, "Touch button initialized successfully");
+    }
+
     /*
         ESP-SparkBot 的底座
         https://gitee.com/esp-friends/esp_sparkbot/tree/master/example/tank/c2_tracked_chassis
@@ -209,6 +248,26 @@ private:
         uart_write_bytes(ECHO_UART_PORT_NUM, command_str, len);
         ESP_LOGI(TAG, "Sent command: %s", command_str);
     }
+
+    static void touch_button_callback(touch_button_handle_t out_handle, touch_button_message_t *out_message, void *arg) {
+        EspSparkBot* board = static_cast<EspSparkBot*>(arg);
+        board->HandleTouchButtonEvent(out_message);
+    }
+
+    void HandleTouchButtonEvent(touch_button_message_t *message) {
+        if (message->event == TOUCH_BUTTON_EVT_ON_PRESS) {
+            ESP_LOGI(TAG, "Touch button pressed");
+            
+            // 触发与boot按键相同的功能
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        }
+    }
+
+    
 
     void InitializeTools() {
         auto& mcp_server = McpServer::GetInstance();
@@ -275,6 +334,39 @@ private:
             
             return true;
         });
+
+        mcp_server.AddTool("self.camera.capture_and_analyze", "拍照并识别物体", PropertyList({
+            Property("question", kPropertyTypeString, "请描述你看到了什么?")
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            // 先拍照
+            if (!camera_->Capture()) {
+                return "{\"success\": false, \"message\": \"Failed to capture image\"}";
+            }
+            
+            // 获取问题参数，如果没有提供则使用默认问题
+            std::string question = "请描述你看到了什么?";
+            try {
+                question = properties["question"].value<std::string>();
+            } catch (const std::runtime_error&) {
+                // 使用默认问题
+            }
+            
+            // 调用AI分析
+            std::string result = camera_->Explain(question);
+            return result;
+        });
+
+        mcp_server.AddTool("self.camera.identify_objects", "识别图像中的物体", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            // 先拍照
+            if (!camera_->Capture()) {
+                return "{\"success\": false, \"message\": \"Failed to capture image\"}";
+            }
+            
+            // 使用专门的物体识别问题
+            std::string question = "请识别图像中的所有物体，并描述它们的位置和特征。";
+            std::string result = camera_->Explain(question);
+            return result;
+        });
     }
 
 public:
@@ -283,6 +375,7 @@ public:
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
+        InitializeTouchButton();
         InitializeCamera();
         InitializeEchoUart();
         InitializeTools();

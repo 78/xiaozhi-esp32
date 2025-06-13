@@ -1,4 +1,4 @@
-#include "otto_emoji_display.h"
+#include "sparkbot_emoji_display.h"
 
 #include <esp_log.h>
 
@@ -54,9 +54,33 @@ SparkbotEmojiDisplay::SparkbotEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, e
                                    bool mirror_y, bool swap_xy, DisplayFonts fonts)
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     fonts),
-      emotion_gif_(nullptr) {
+      emotion_gif_(nullptr),
+      preview_image_obj_(nullptr),
+      preview_timer_(nullptr) {
+    
+    // 创建预览图片定时器
+    esp_timer_create_args_t preview_timer_args = {
+        .callback = [](void *arg) {
+            SparkbotEmojiDisplay *display = static_cast<SparkbotEmojiDisplay*>(arg);
+            display->HidePreviewImage();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "preview_timer",
+        .skip_unhandled_events = false,
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&preview_timer_args, &preview_timer_));
+    
     SetupGifContainer();
 };
+
+SparkbotEmojiDisplay::~SparkbotEmojiDisplay() {
+    if (preview_timer_ != nullptr) {
+        esp_timer_stop(preview_timer_);
+        esp_timer_delete(preview_timer_);
+        preview_timer_ = nullptr;
+    }
+}
 
 void SparkbotEmojiDisplay::SetupGifContainer() {
     DisplayLockGuard lock(this);
@@ -67,6 +91,9 @@ void SparkbotEmojiDisplay::SetupGifContainer() {
 
     if (chat_message_label_) {
         lv_obj_del(chat_message_label_);
+    }
+    if (preview_image_obj_) {
+        lv_obj_del(preview_image_obj_);
     }
     if (content_) {
         lv_obj_del(content_);
@@ -94,6 +121,14 @@ void SparkbotEmojiDisplay::SetupGifContainer() {
     lv_obj_center(emotion_gif_);
     lv_gif_set_src(emotion_gif_, &staticstate);
 
+    // 创建图片预览组件
+    preview_image_obj_ = lv_image_create(content_);
+    lv_obj_set_size(preview_image_obj_, LV_HOR_RES * 0.8, LV_HOR_RES * 0.8);
+    lv_obj_set_style_border_width(preview_image_obj_, 0, 0);
+    lv_obj_set_style_bg_opa(preview_image_obj_, LV_OPA_TRANSP, 0);
+    lv_obj_center(preview_image_obj_);
+    lv_obj_add_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN);  // 默认隐藏
+
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
@@ -118,6 +153,13 @@ void SparkbotEmojiDisplay::SetEmotion(const char* emotion) {
 
     DisplayLockGuard lock(this);
 
+
+    // 如果正在预览图片，则隐藏图片预览
+    /* if (preview_image_obj_ && !lv_obj_has_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_add_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN);
+        ESP_LOGI(TAG, "隐藏图片预览以显示表情");
+    } */
+    
     for (const auto& map : emotion_maps_) {
         if (map.name && strcmp(map.name, emotion) == 0) {
             lv_gif_set_src(emotion_gif_, map.gif);
@@ -167,5 +209,74 @@ void SparkbotEmojiDisplay::SetIcon(const char* icon) {
         lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
         ESP_LOGI(TAG, "设置图标: %s", icon);
+    }
+}
+
+void SparkbotEmojiDisplay::HidePreviewImage() {
+    DisplayLockGuard lock(this);
+    if (preview_image_obj_ == nullptr) {
+        return;
+    }
+    
+    // 隐藏预览图片，显示GIF表情
+    lv_obj_add_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN);
+    if (emotion_gif_ != nullptr) {
+        lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    ESP_LOGI(TAG, "预览图片定时隐藏，恢复表情显示");
+}
+
+void SparkbotEmojiDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+    DisplayLockGuard lock(this);
+    if (preview_image_obj_ == nullptr) {
+        return;
+    }
+    
+    // 停止之前的定时器
+    if (preview_timer_ != nullptr) {
+        esp_timer_stop(preview_timer_);
+    }
+    
+    if (img_dsc != nullptr) {
+        // 计算合适的缩放比例
+        lv_coord_t max_size = LV_HOR_RES * 0.8;  // 最大尺寸为屏幕宽度的80%
+        lv_coord_t img_width = img_dsc->header.w;
+        lv_coord_t img_height = img_dsc->header.h;
+        
+        // 计算缩放因子，保持宽高比
+        lv_coord_t zoom_w = (max_size * 256) / img_width;
+        lv_coord_t zoom_h = (max_size * 256) / img_height;
+        lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
+        
+        // 确保缩放不超过100%
+        if (zoom > 256) zoom = 256;
+        
+        // 设置图片源和缩放
+        lv_image_set_src(preview_image_obj_, img_dsc);
+        lv_image_set_scale(preview_image_obj_, zoom);
+        
+        // 显示预览图片，隐藏GIF表情
+        lv_obj_clear_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN);
+        if (emotion_gif_ != nullptr) {
+            lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        }
+        
+        ESP_LOGI(TAG, "显示图片预览，尺寸: %ldx%ld，缩放: %ld", (long)img_width, (long)img_height, (long)zoom);
+        
+        // 启动2秒定时器，自动隐藏预览图片
+        if (preview_timer_ != nullptr) {
+            ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, 2000000));  // 2秒 = 2,000,000微秒
+            ESP_LOGI(TAG, "启动2秒定时器，将自动隐藏预览图片");
+        }
+
+    } else {
+        // 隐藏预览图片，显示GIF表情
+        lv_obj_add_flag(preview_image_obj_, LV_OBJ_FLAG_HIDDEN);
+        if (emotion_gif_ != nullptr) {
+            lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        }
+        
+        ESP_LOGI(TAG, "隐藏图片预览，恢复表情显示");
     }
 }
