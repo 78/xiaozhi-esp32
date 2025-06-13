@@ -253,6 +253,16 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3-1.28-BOX"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OTTO_ROBOT
+        bool "ottoRobot"
+        depends on IDF_TARGET_ESP32S3
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
+    config BOARD_TYPE_ELECTRON_BOT
+        bool "electronBot"
+        depends on IDF_TARGET_ESP32S3
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -350,9 +360,9 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
     default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
+    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32
     help
-        支持 ESP32 C3 与 ESP32 C5
+        支持 ESP32 C3 与 ESP32 C5，增加ESP32支持（需要开启PSRAM）
 
 config USE_AFE_WAKE_WORD
     bool "Enable Wake Word Detection (AFE)"
@@ -381,6 +391,19 @@ config USE_SERVER_AEC
     depends on USE_AUDIO_PROCESSOR
     help
         启用服务器端 AEC，需要服务器支持
+
+config USE_AUDIO_DEBUGGER
+    bool "Enable Audio Debugger"
+    default n
+    help
+        启用音频调试功能，通过UDP发送音频数据
+
+config AUDIO_DEBUG_UDP_SERVER
+    string "Audio Debug UDP Server Address"
+    default "192.168.2.100:8000"
+    depends on USE_AUDIO_DEBUGGER
+    help
+        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
 
 choice IOT_PROTOCOL
     prompt "IoT Protocol"
