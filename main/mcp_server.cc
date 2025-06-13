@@ -13,6 +13,9 @@
 #include "application.h"
 #include "display.h"
 #include "board.h"
+#if CONFIG_USE_ALARM
+#include "AlarmClock.h"
+#endif
 
 #define TAG "MCP"
 
@@ -102,6 +105,32 @@ void McpServer::AddCommonTools() {
                 return camera->Explain(question);
             });
     }
+
+#if CONFIG_USE_ALARM
+        AddTool("self.alarm.set_Alarm",
+            "Set an alarm. The alarm will ring at the specified time.\n"
+            "Args:\n"
+            "  `time`: The time to set the alarm, in seconds from now.\n"
+            "  `name`: The name of the alarm.\n"
+            "Return:\n"
+            "  A JSON object that indicates whether the alarm is set successfully.",
+            PropertyList({
+                Property("time", kPropertyTypeInteger), // 1 second to 24 hours
+                Property("name", kPropertyTypeString)
+            }),
+            [](const PropertyList& properties) -> ReturnValue {
+                auto& app = Application::GetInstance();
+                if(app.alarm_m_ == nullptr){
+                    ESP_LOGE(TAG, "AlarmManager is nullptr");
+                    return "{\"success\": false, \"message\": \"AlarmManager is not initialized\"}";
+                }
+                ESP_LOGI(TAG, "SetAlarm");
+                int seconde_from_now = static_cast<uint8_t>(properties["time"].value<int>());
+                std::string alarm_name = properties["name"].value<std::string>();
+                app.alarm_m_->SetAlarm(seconde_from_now, alarm_name);
+                return "{\"success\": true, \"message\": \"Alarm set successfully\"}";
+            });
+#endif
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
