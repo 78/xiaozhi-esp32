@@ -1,0 +1,20 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
+
+
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_40
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_39
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_38
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_48
+
+#define BOOT_BUTTON_GPIO    GPIO_NUM_0
+
+#define LAMP_GPIO GPIO_NUM_18
+
+
+#endif
