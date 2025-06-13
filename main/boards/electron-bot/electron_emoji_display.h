@@ -33,6 +33,9 @@ public:
     // 重写聊天消息设置方法
     virtual void SetChatMessage(const char* role, const char* content) override;
 
+    // 重写图标设置方法
+    virtual void SetIcon(const char* icon) override;
+
 private:
     void SetupGifContainer();
 
