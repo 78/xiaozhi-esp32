@@ -85,17 +85,28 @@ private:
                                  int32_t event_id, void* event_data)
     {
         if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
-            EspHi* instance = static_cast<EspHi*>(arg);
-            if (!instance->web_server_initialized_) {
-                ESP_LOGI(TAG, "WiFi connected, init web control server");
-                esp_err_t err = esp_hi_web_control_server_init();
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to initialize web control server: %d", err);
-                } else {
-                    ESP_LOGI(TAG, "Web control server initialized");
-                    instance->web_server_initialized_ = true;
-                }
-            }
+
+            xTaskCreate(
+                [](void* arg) {
+                    EspHi* instance = static_cast<EspHi*>(arg);
+                    
+                    vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+                    if (!instance->web_server_initialized_) {
+                        ESP_LOGI(TAG, "WiFi connected, init web control server");
+                        esp_err_t err = esp_hi_web_control_server_init();
+                        if (err != ESP_OK) {
+                            ESP_LOGE(TAG, "Failed to initialize web control server: %d", err);
+                        } else {
+                            ESP_LOGI(TAG, "Web control server initialized");
+                            instance->web_server_initialized_ = true;
+                        }
+                    }
+
+                    vTaskDelete(NULL);
+                },
+                "web_server_init",
+                1024 * 10, arg, 5, nullptr);
         }
     }
 #endif //CONFIG_ESP_HI_WEB_CONTROL_ENABLED

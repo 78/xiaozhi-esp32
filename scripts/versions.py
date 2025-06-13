@@ -82,6 +82,8 @@ def read_binary(dir_path):
         data = merged_bin_data[0x100000:]
     elif merged_bin_data[0x200000] == 0xE9:
         data = merged_bin_data[0x200000:]
+    elif merged_bin_data[0xe0000] == 0xE9:
+        data = merged_bin_data[0xe0000:]
     else:
         print(dir_path, "is not a valid image")
         return
