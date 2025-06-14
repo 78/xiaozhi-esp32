@@ -156,7 +156,7 @@ void Application::CheckNewVersion() {
         SetDeviceState(kDeviceStateIdle);
         display->SetChatMessage("system", "");
         ResetDecoder();
-        PlaySound(Lang::Sounds::P3_CCC_SUCCESS);
+        PlaySound(Lang::Sounds::P3_SUCCESS);
         
         // OTA检查完成，标记为完成状态
         ESP_LOGI(TAG, "OTA check completed, triggering image resource check");

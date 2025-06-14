@@ -2,10 +2,21 @@ menu "Xiaozhi Assistant"
 
 config OTA_VERSION_URL
     string "OTA Version URL"
-    default "https://api.tenclass.net/xiaozhi/ota/"
+    default "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/version"
     help
         The application will access this URL to check for updates.
 
+config IMAGE_API_URL
+    string "Image API URL"
+    default "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
+    help
+        The application will access this URL to download image resources.
+
+config IMAGE_VERSION_URL
+    string "Image Version URL"
+    default "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
+    help
+        The application will access this URL to check for image resource updates.
 
 choice
     prompt "语言选择"

@@ -10,6 +10,7 @@
 #include "config.h"            // 包含配置管理头文件
 #include "iot/thing_manager.h"  // 包含IoT设备管理头文件
 #include "lunar_calendar.h"     // 包含农历日期转换头文件
+#include "sdkconfig.h"         // 包含SDK配置头文件
 
 #include <esp_log.h>           // ESP日志系统
 #include "i2c_device.h"        // I2C设备控制
@@ -1788,8 +1789,17 @@ public:
 };
 
 // 将URL定义为静态变量 - 现在只需要一个API URL
+#ifdef CONFIG_IMAGE_API_URL
+const char* CustomBoard::API_URL = CONFIG_IMAGE_API_URL;
+#else
 const char* CustomBoard::API_URL = "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin";
+#endif
+
+#ifdef CONFIG_IMAGE_VERSION_URL
+const char* CustomBoard::VERSION_URL = CONFIG_IMAGE_VERSION_URL;
+#else
 const char* CustomBoard::VERSION_URL = "https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin";
+#endif
 
 // 声明自定义板卡类为当前使用的板卡
 DECLARE_BOARD(CustomBoard);
