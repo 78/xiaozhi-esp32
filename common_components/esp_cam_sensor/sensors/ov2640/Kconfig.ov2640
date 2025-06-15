@@ -1,0 +1,75 @@
+menuconfig CAMERA_OV2640
+    bool "OV2640"
+    default n
+    help
+        Enabling this option will add the support for OV2640.
+
+if CAMERA_OV2640
+    menuconfig CAMERA_OV2640_AUTO_DETECT
+        bool "Auto detect OV2640"
+        default y
+        help
+            When enabled, it provides the ability in application layer to automatically
+            detect camera sensors one by one.
+
+    if CAMERA_OV2640_AUTO_DETECT
+        config CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR
+            bool "Detect for DVP interface sensor"
+            default y
+            help
+                When enabled, you don't need to call ov2640_detect manaually, ov5647
+                will be automatically detected and connected to the DVP interface
+                when the application starts.
+    endif
+
+    choice CAMERA_OV2640_DVP_DEFAULT_FMT
+        prompt "Default format select"
+        default CAMERA_OV2640_DVP_RGB565_640x480_6FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_OV2640_DVP_RGB565_640x480_6FPS
+            bool "RGB565 640x480 6fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_YUV422_640x480_6FPS
+            bool "YUV422 640x480 6fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_JPEG_640x480_25FPS
+            bool "JPEG 640x480 25fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_RGB565_240x240_25FPS
+            bool "RGB565 240x240 25fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_YUV422_240x240_25FPS
+            bool "YUV422 240x240 25fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_JPEG_320x240_50FPS
+            bool "JPEG 320x240 50fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_JPEG_1280x720_12FPS
+            bool "JPEG 1280x720 12fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_JPEG_1600x1200_12FPS
+            bool "JPEG 1600x1200 12fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_RAW8_800x640_30FPS
+            bool "RAW8 800x640 30fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_RAW8_800x640_15FPS
+            bool "RAW8 800x640 15fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_RAW8_800x800_15FPS
+            bool "RAW8 800x800 15fps, DVP 8bit 20M input"
+        config CAMERA_OV2640_DVP_RAW8_1024x600_15FPS
+            bool "RAW8 1024x600 15fps, DVP 8bit 20M input"
+    endchoice # CAMERA_OV2640_DVP_DEFAULT_FMT
+
+    config CAMERA_OV2640_DVP_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 0 if CAMERA_OV2640_DVP_RGB565_640x480_6FPS
+        default 1 if CAMERA_OV2640_DVP_YUV422_640x480_6FPS
+        default 2 if CAMERA_OV2640_DVP_JPEG_640x480_25FPS
+        default 3 if CAMERA_OV2640_DVP_RGB565_240x240_25FPS
+        default 4 if CAMERA_OV2640_DVP_GRAY_320x240_20FPS
+        default 5 if CAMERA_OV2640_DVP_YUV422_240x240_25FPS
+        default 6 if CAMERA_OV2640_DVP_JPEG_320x240_50FPS
+        default 7 if CAMERA_OV2640_DVP_JPEG_1280x720_12FPS
+        default 8 if CAMERA_OV2640_DVP_RAW8_800x640_30FPS
+        default 9 if CAMERA_OV2640_DVP_RAW8_800x640_15FPS
+        default 10 if CAMERA_OV2640_DVP_RAW8_800x800_15FPS
+        default 11 if CAMERA_OV2640_DVP_RAW8_1024x600_15FPS
+        help
+            Set the configuration loaded by default for the DVP interface.
+            More information can be obtained by calling the query_support_formats().
+endif

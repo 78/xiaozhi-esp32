@@ -1,0 +1,346 @@
+{
+    "version": 1,
+    "SC2336":
+    {
+        "awb":
+        {
+            "min_counted": 2000,
+            "min_red_gain_step": 0.034,
+            "min_blue_gain_step": 0.034
+        },
+        "agc":
+        {
+            "exposure":
+            {
+                "frame_delay": 3,
+                "adjust_delay": 0
+            },
+            "gain":
+            {
+                "min_step": 0.03,
+                "frame_delay": 3
+            },
+            "anti_flicker":
+            {
+                "mode": "part",
+                "ac_freq": 50
+            },
+            "f_n0": 0.32,
+            "luma_adjust":
+            {
+                "target_low": 105,
+                "target_high": 121,
+                "target": 113,
+                "low_threshold": 10,
+                "low_regions": 5,
+                "high_threshold": 240,
+                "high_regions": 3,
+                "weight":
+                [
+                    1, 1, 2, 1, 1,
+                    1, 2, 3, 2, 1,
+                    1, 3, 5, 3, 1,
+                    1, 2, 3, 2, 1,
+                    1, 1, 2, 1, 1
+                ]
+            },
+            "mode": "high_light_priority",
+            "high_light_priority":
+            {
+                "low_threshold": 141,
+                "high_threshold": 204,
+                "weight_offset": 5,
+                "luma_offset": -3
+            },
+            "low_light_priority":
+            {
+                "low_threshold": 65,
+                "high_threshold": 104,
+                "weight_offset": 5,
+                "luma_offset": 1
+            },
+            "light_threshold_priority":
+            [
+                {
+                    "luma_threshold": 20,
+                    "weight_offset": 1
+                },
+                {
+                    "luma_threshold": 55,
+                    "weight_offset": 2
+                },
+                {
+                    "luma_threshold": 95,
+                    "weight_offset": 3
+                },
+                {
+                    "luma_threshold": 155,
+                    "weight_offset": 4
+                },
+                {
+                    "luma_threshold": 235,
+                    "weight_offset": 5
+                }
+            ]
+        },
+        "ian":
+        {
+            "luma":
+            {
+                "ae":
+                {
+                    "weight":
+                    [
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1
+                    ]
+                }
+            }
+        },
+        "acc":
+        {
+            "saturation":
+            [
+                {
+                    "color_temp": 0,
+                    "value": 138
+                }
+            ],
+            "ccm":
+            {
+                "low_luma":
+                {
+                    "luma_env": "ae.luma.avg",
+                    "threshold": 28,
+                    "matrix":
+                    [
+                        1.00,  0.00, 0.00,
+                        0.00,    1.00,  0.00,
+                        0.00,  0.00,  1.00
+                    ]
+                },
+                "table":
+                [
+                    {
+                        "color_temp": 0,
+                        "matrix":
+                        [
+                            1.408,  -0.094, -0.314,
+                            -0.13,    1.28,  -0.15,
+                            -0.072,  -0.173,  1.245
+                        ]
+                    }
+                ]
+            }
+        },
+        "adn": {
+            "bf":
+            [
+                {
+                    "gain": 1,
+                    "param": {
+                        "level": 3,
+                        "matrix":
+                        [
+                            2, 4, 2,
+                            4, 5, 4,
+                            2, 4, 2
+                        ]
+                    }
+                },
+                {
+                    "gain": 4,
+                    "param": {
+                        "level": 3,
+                        "matrix":
+                        [
+                            1, 3, 1,
+                            3, 5, 3,
+                            1, 3, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 8,
+                    "param": {
+                        "level": 4,
+                        "matrix":
+                        [
+                            1, 3, 1,
+                            3, 4, 3,
+                            1, 3, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 16,
+                    "param": {
+                        "level": 5,
+                        "matrix":
+                        [
+                            1, 3, 1,
+                            3, 5, 3,
+                            1, 3, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 24,
+                    "param": {
+                        "level": 6,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 3, 2,
+                            1, 2, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 32,
+                    "param": {
+                        "level": 7,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 4, 2,
+                            1, 2, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 64,
+                    "param": {
+                        "level": 7,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 2, 2,
+                            1, 2, 1
+                        ]
+                    }
+                }
+            ],
+            "demosaic":
+            [
+                {
+                    "gain": 1,
+                    "gradient_ratio": 1.5
+                },
+                {
+                    "gain": 4,
+                    "gradient_ratio": 1.25
+                },
+                {
+                    "gain": 8,
+                    "gradient_ratio": 1.05
+                },
+                {
+                    "gain": 12,
+                    "gradient_ratio": 1.0
+                }
+            ]
+        },
+        "aen":
+        {
+            "gamma":
+            {
+                "use_gamma_param": true,
+                "luma_env": "ae.luma.avg",
+                "luma_min_step": 16.0,
+                "table":
+                [
+                    {
+                        "luma": 71.1,
+                        "gamma_param": 0.688
+                    }
+                ]
+            },    
+            "sharpen":
+            [
+                {
+                    "gain": 1,
+                    "param": {
+                        "h_thresh": 25,
+                        "l_thresh": 5,
+                        "h_coeff": 1.925,
+                        "m_coeff": 1.825,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 2, 2,
+                            1, 2, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 8,
+                    "param": {
+                        "h_thresh": 20,
+                        "l_thresh": 5,
+                        "h_coeff": 1.825,
+                        "m_coeff": 1.425,
+                        "matrix":
+                        [
+                            2, 2, 2,
+                            2, 1, 2,
+                            2, 2, 2
+                        ]
+                    }
+                },
+                {
+                    "gain": 12,
+                    "param": {
+                        "h_thresh": 16,
+                        "l_thresh": 6,
+                        "h_coeff": 1.625,
+                        "m_coeff": 1.325,
+                        "matrix":
+                        [
+                            1, 1, 1,
+                            1, 1, 1,
+                            1, 1, 1
+                        ]
+                    }
+                },
+                {
+                    "gain": 65,
+                    "param": {
+                        "h_thresh": 20,
+                        "l_thresh": 5,
+                        "h_coeff": 1.625,
+                        "m_coeff": 1.225,
+                        "matrix":
+                        [
+                            1, 1, 1,
+                            1, 1, 1,
+                            1, 1, 1
+                        ]
+                    }
+                }
+            ],
+            "contrast":
+            [
+                {
+                    "gain": 1,
+                    "value": 132
+                },
+                {
+                    "gain": 16,
+                    "value": 130
+                },
+                {
+                    "gain": 24,
+                    "value": 128
+                },
+                {
+                    "gain": 65,
+                    "value": 126
+                }
+            ]
+        }
+    }
+}

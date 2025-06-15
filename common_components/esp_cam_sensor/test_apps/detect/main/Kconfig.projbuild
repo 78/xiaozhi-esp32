@@ -1,0 +1,23 @@
+menu "Example Configuration"
+
+    menu "SCCB Configuration"
+        config SCCB0_SCL
+            int "SCCB0 SCL GPIO Num"
+            default 34
+            help
+                GPIO number for SCCB clock line.
+
+        config SCCB0_SDA
+            int "SCCB0 SDA GPIO Num"
+            default 31
+            help
+                GPIO number for SCCB data line.
+
+        config SCCB0_FREQUENCY
+            int "SCCB0 Frequency"
+            default 100000
+            help
+                SCCB clock frequency.
+    endmenu
+
+endmenu

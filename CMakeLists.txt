@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(PROJECT_VER "1.7.4")
 set(EXTRA_COMPONENT_DIRS
-    ../common_components
+    ./common_components
     )
 
 

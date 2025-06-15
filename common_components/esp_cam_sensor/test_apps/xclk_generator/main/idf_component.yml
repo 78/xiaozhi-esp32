@@ -1,0 +1,5 @@
+dependencies:
+  idf: ">=5.3"
+  esp_cam_sensor:
+    version: "*"
+    override_path: "../../../"

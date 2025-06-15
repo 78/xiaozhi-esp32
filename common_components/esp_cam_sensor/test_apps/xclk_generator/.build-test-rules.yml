@@ -1,0 +1,7 @@
+esp_cam_sensor/test_apps/xclk_generator:
+  disable:
+    - if: IDF_TARGET not in ["esp32p4"]
+      temporary: true
+      reason: only support on esp32p4
+  depends_components:
+    - esp_cam_sensor

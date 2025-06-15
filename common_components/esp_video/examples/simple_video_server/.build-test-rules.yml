@@ -1,0 +1,10 @@
+esp_video/examples/simple_video_server:
+  enable:
+    - if: IDF_TARGET == "esp32p4"
+      reason: only support on esp32p4
+  depends_filepatterns:
+    - simple_video_server/**/*
+  depends_components:
+    - esp_video
+    - esp_cam_sensor
+    - esp_sccb_intf

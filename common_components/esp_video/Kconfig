@@ -1,0 +1,86 @@
+menu "Espressif Video Configuration"
+
+    config ESP_VIDEO_ENABLE_H264_VIDEO_DEVICE
+        bool
+        default n
+
+    config ESP_VIDEO_ENABLE_JPEG_VIDEO_DEVICE
+        bool
+        default n
+
+    config ESP_VIDEO_ENABLE_ISP
+        bool
+        default n
+
+    config ESP_VIDEO_CHECK_PARAMETERS
+        bool "Check Video Function Parameters"
+        default y
+        help
+            Select this option, espressif video core functions will check
+            input parameters.
+
+    menuconfig ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE
+        bool "Enable MIPI-CSI based Video Device"
+        depends on SOC_MIPI_CSI_SUPPORTED
+        default y
+        select ESP_VIDEO_ENABLE_ISP
+        help
+            Select this option, enable MIPI-CSI based video device.
+
+    if ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE
+
+        config ESP_VIDEO_DISABLE_MIPI_CSI_DRIVER_BACKUP_BUFFER
+            bool "Disable MIPI-CSI Driver Backup Buffer"
+            default y
+            help
+                Select this option, esp-video disables MIPI-CSI driver backup buffer,
+                and always reserves a block of video buffer for MIPI-CSI driver to
+                receive data.
+
+                In this mode, video buffer number must > 1.
+    endif
+
+    menuconfig ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE
+        bool "Enable DVP based Video Device"
+        depends on SOC_LCDCAM_CAM_SUPPORTED
+        default y
+        help
+            Select this option, enable DVP based video device.
+
+    menuconfig ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE
+        bool "Enable Hardware H.264 based Video Device"
+        depends on IDF_TARGET_ESP32P4
+        select ESP_VIDEO_ENABLE_H264_VIDEO_DEVICE
+        default n
+        help
+            Select this option, enable hardware H.264 based video device.
+
+    menuconfig ESP_VIDEO_ENABLE_HW_JPEG_VIDEO_DEVICE
+        bool "Enable Hardware JPEG based Video Device"
+        depends on IDF_TARGET_ESP32P4
+        select ESP_VIDEO_ENABLE_JPEG_VIDEO_DEVICE
+        default n
+        help
+            Select this option, enable hardware JPEG based video device.
+
+    menuconfig ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE
+        bool "Enable ISP based Video Device"
+        depends on SOC_ISP_SUPPORTED
+        default y
+        select ESP_VIDEO_ENABLE_ISP
+        help
+            Select this option, enable ISP based video device. When using
+            camera sensor's internal ISP, this option can be disable.
+
+    if ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE
+
+        config ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER
+            bool "Enable ISP Pipeline Controller"
+            default n
+            help
+                Select this option, enable ISP pipeline controller by creating
+                the task "isp_task". This task reads statistics from the ISP
+                statistics module, passes statistics to the image process algorithm
+                module, and writes calculated data to the ISP or sensor.
+    endif
+endmenu

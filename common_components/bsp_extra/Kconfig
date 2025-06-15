@@ -1,0 +1,8 @@
+menu "Board Support Package"
+    config BSP_I2S_NUM
+        int "I2S peripheral index"
+        default 1
+        range 0 1
+        help
+            ESP32S3 has two I2S peripherals, pick the one you want to use.
+endmenu

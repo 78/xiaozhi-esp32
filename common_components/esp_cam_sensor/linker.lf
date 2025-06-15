@@ -1,0 +1,13 @@
+[sections:cameras_detect]
+entries:
+    .esp_cam_sensor_detect_fn+
+
+[scheme:cameras_detect_default]
+entries:
+    cameras_detect -> flash_rodata
+
+[mapping:cameras_detect]
+archive: *
+entries:
+    * (cameras_detect_default);
+        cameras_detect -> flash_rodata KEEP() SURROUND(_esp_cam_sensor_detect_fn_array)

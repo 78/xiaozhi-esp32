@@ -1,0 +1,84 @@
+menuconfig CAMERA_OV2710
+    bool "OV2710"
+    default n
+    help
+        Enabling this option will add the support for OV2710.
+
+if CAMERA_OV2710
+    menuconfig CAMERA_OV2710_AUTO_DETECT
+        bool "Auto detect OV2710"
+        default y
+        help
+            When enabled, it provides the ability in application layer to automatically
+            detect camera sensors one by one.
+
+    if CAMERA_OV2710_AUTO_DETECT
+        config CAMERA_OV2710_AUTO_DETECT_MIPI_INTERFACE_SENSOR
+            bool "Detect for MIPI interface sensor"
+            default y
+            help
+                When enabled, you don't need to call ov2710_detect manaually, OV2710 will
+                be automatically detected and connected to the MIPI CSI interface when
+                the application starts.
+    endif
+
+    choice CAMERA_OV2710_MIPI_DEFAULT_FMT
+        prompt "Default format select for MIPI"
+        default CAMERA_OV2710_MIPI_RAW10_1920x1080_30FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_OV2710_MIPI_RAW10_1920x1080_30FPS
+            bool "RAW10 1920x1080 30fps, MIPI 1lane 24M input"
+        config CAMERA_OV2710_MIPI_RAW10_1280x720_60FPS
+            bool "RAW10 1280x720 60fps, MIPI 1lane 24M input"                               
+    endchoice # CAMERA_OV2710_MIPI_DEFAULT_FMT
+
+    config CAMERA_OV2710_MIPI_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 0 if CAMERA_OV2710_MIPI_RAW10_1920x1080_30FPS
+        default 1 if CAMERA_OV2710_MIPI_RAW10_1280x720_60FPS
+        help
+            Set the configuration loaded by default for the MIPI interface.
+            More information can be obtained by calling the query_support_formats().
+    
+    config CAMERA_OV2710_STATS_UPDATE_EN
+        bool "Refresh sensor statistics"
+        default y
+        help
+            Enabling this option will start a timer to refresh sensor statistics.
+
+    config CAMERA_OV2710_STATS_UPDATE_INTERVAL
+        int "Stats update interval (millisecond)"
+        range 0 2000
+        default 120
+        depends on CAMERA_OV2710_STATS_UPDATE_EN
+        help
+            The value indicates the interval used to update the statistical parameters of the camera sensor.
+
+    choice CAMERA_OV2710_IPA_JSON_CONFIGURATION_FILE
+        prompt "IPA JSON Configuration File"
+        default CAMERA_OV2710_DEFAULT_IPA_JSON_CONFIGURATION_FILE
+        help
+            Select OV2710 JSON configuration file.
+
+        config CAMERA_OV2710_DEFAULT_IPA_JSON_CONFIGURATION_FILE
+            bool "Default"
+            help
+                Use the "esp_cam_sensor/sensors/ov2710/cfg/ov2710_default.json".
+
+        config CAMERA_OV2710_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE
+            bool "Customized"
+            help
+                Use a customized OV2710 JSON configuration file. Users should configure
+                the file's path using the option "CAMERA_OV2710_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH."
+    endchoice
+
+    config CAMERA_OV2710_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH
+        string "OV2710 Customized JSON Configuration File Path"
+        depends on CAMERA_OV2710_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE
+        help
+            Customized OV2710 JSON configuration file's path and this path is evaluated
+            relative to the project root directory by default.
+endif

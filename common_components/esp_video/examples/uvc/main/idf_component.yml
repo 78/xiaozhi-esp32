@@ -1,0 +1,8 @@
+dependencies:
+  esp_video:
+    version: "0.*"
+    override_path: "../../../"
+  usb_device_uvc:
+    version: "1.1.*"
+  espressif/tinyusb:
+    version: "0.15.0~10"

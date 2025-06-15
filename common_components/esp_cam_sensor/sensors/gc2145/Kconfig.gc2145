@@ -1,0 +1,77 @@
+menuconfig CAMERA_GC2145
+    bool "GC2145"
+    default n
+    help
+        Enabling this option will add the support for GC2145.
+
+if CAMERA_GC2145
+    menuconfig CAMERA_GC2145_AUTO_DETECT
+        bool "Auto detect GC2145"
+        default y
+        help
+            When enabled, it provides the ability in application layer to automatically
+            detect camera sensors one by one.
+
+    if CAMERA_GC2145_AUTO_DETECT
+        config CAMERA_GC2145_AUTO_DETECT_MIPI_INTERFACE_SENSOR
+            bool "Detect for MIPI interface sensor"
+            default y
+            help
+                When enabled, you don't need to call gc2145_detect manaually, GC2145 will
+                be automatically detected and connected to the MIPI interface when the
+                application starts.
+    
+        config CAMERA_GC2145_AUTO_DETECT_DVP_INTERFACE_SENSOR
+        bool "Detect for DVP interface sensor"
+        default n
+        help
+            When enabled, you don't need to call gc2145_detect manaually, GC2145 will
+            be automatically detected and connected to the DVP interface when the
+            application starts.
+    endif
+
+    choice CAMERA_GC2145_MIPI_DEFAULT_FMT
+        prompt "Default format select"
+        default CAMERA_GC2145_MIPI_RGB565_800x600_30FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_GC2145_MIPI_RGB565_1600x1200_7FPS
+            bool "RGB565 1600x1200 7fps, MIPI 1lane 24M input"
+        config CAMERA_GC2145_MIPI_RGB565_800x600_30FPS
+            bool "RGB565 800x600 30fps, MIPI 1lane 24M input"
+    endchoice # CAMERA_GC2145_MIPI_DEFAULT_FMT
+
+    config CAMERA_GC2145_MIPI_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 0 if CAMERA_GC2145_MIPI_RGB565_1600x1200_7FPS
+        default 1 if CAMERA_GC2145_MIPI_RGB565_800x600_30FPS
+        help
+            Set the configuration loaded by default for the MIPI interface.
+            More information can be obtained by calling the query_support_formats().
+    
+    choice CAMERA_GC2145_DVP_DEFAULT_FMT
+        prompt "Default format select for DVP"
+        default CAMERA_GC2145_DVP_YUV422_640x480_15FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_GC2145_DVP_YUV422_640x480_15FPS
+            bool "YUV422 640x480 15fps, DVP 8bit 20M input"
+        config CAMERA_GC2145_DVP_YUV422_1600x1200_13FPS
+            bool "YUV422 1600x1200 13fps, DVP 8bit 20M input"
+        config CAMERA_GC2145_DVP_YUV422_800x600_20FPS
+            bool "YUV422 800x600 20fps, DVP 8bit 20M input"
+    endchoice # CAMERA_GC2145_DVP_DEFAULT_FMT
+
+    config CAMERA_GC2145_DVP_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 2 if CAMERA_GC2145_DVP_YUV422_640x480_15FPS
+        default 3 if CAMERA_GC2145_DVP_YUV422_1600x1200_13FPS
+        default 4 if CAMERA_GC2145_DVP_YUV422_800x600_20FPS
+        help
+            Set the configuration loaded by default for the DVP interface.
+            More information can be obtained by calling the query_support_formats().
+endif
