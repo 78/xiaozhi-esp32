@@ -14,6 +14,8 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     output_sample_rate_ = output_sample_rate;
     pa_pin_ = pa_pin;
     pa_inverted_ = pa_inverted;
+
+    assert(input_sample_rate_ == output_sample_rate_);
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
@@ -49,31 +51,46 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     codec_if_ = es8311_codec_new(&es8311_cfg);
     assert(codec_if_ != NULL);
 
-    esp_codec_dev_cfg_t dev_cfg = {
-        .dev_type = ESP_CODEC_DEV_TYPE_OUT,
-        .codec_if = codec_if_,
-        .data_if = data_if_,
-    };
-    output_dev_ = esp_codec_dev_new(&dev_cfg);
-    assert(output_dev_ != NULL);
-    dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_IN;
-    input_dev_ = esp_codec_dev_new(&dev_cfg);
-    assert(input_dev_ != NULL);
-    esp_codec_set_disable_when_closed(output_dev_, false);
-    esp_codec_set_disable_when_closed(input_dev_, false);
     ESP_LOGI(TAG, "Es8311AudioCodec initialized");
 }
 
 Es8311AudioCodec::~Es8311AudioCodec() {
-    ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-    esp_codec_dev_delete(output_dev_);
-    ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
-    esp_codec_dev_delete(input_dev_);
+    esp_codec_dev_delete(dev_);
 
     audio_codec_delete_codec_if(codec_if_);
     audio_codec_delete_ctrl_if(ctrl_if_);
     audio_codec_delete_gpio_if(gpio_if_);
     audio_codec_delete_data_if(data_if_);
+}
+
+void Es8311AudioCodec::UpdateDeviceState() {
+    if ((input_enabled_ || output_enabled_) && dev_ == nullptr) {
+        esp_codec_dev_cfg_t dev_cfg = {
+            .dev_type = ESP_CODEC_DEV_TYPE_IN_OUT,
+            .codec_if = codec_if_,
+            .data_if = data_if_,
+        };
+        dev_ = esp_codec_dev_new(&dev_cfg);
+        assert(dev_ != NULL);
+
+        esp_codec_dev_sample_info_t fs = {
+            .bits_per_sample = 16,
+            .channel = 1,
+            .channel_mask = 0,
+            .sample_rate = (uint32_t)input_sample_rate_,
+            .mclk_multiple = 0,
+        };
+        ESP_ERROR_CHECK(esp_codec_dev_open(dev_, &fs));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, AUDIO_CODEC_DEFAULT_MIC_GAIN));
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, output_volume_));
+    } else if (!input_enabled_ && !output_enabled_ && dev_ != nullptr) {
+        esp_codec_dev_close(dev_);
+        dev_ = nullptr;
+    }
+    if (pa_pin_ != GPIO_NUM_NC) {
+        int level = output_enabled_ ? 1 : 0;
+        gpio_set_level(pa_pin_, pa_inverted_ ? !level : level);
+    }
 }
 
 void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
@@ -133,7 +150,7 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 }
 
 void Es8311AudioCodec::SetOutputVolume(int volume) {
-    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, volume));
+    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, volume));
     AudioCodec::SetOutputVolume(volume);
 }
 
@@ -141,59 +158,28 @@ void Es8311AudioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;
     }
-    if (enable) {
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
-            .sample_rate = (uint32_t)input_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, AUDIO_CODEC_DEFAULT_MIC_GAIN));
-    } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
-    }
     AudioCodec::EnableInput(enable);
+    UpdateDeviceState();
 }
 
 void Es8311AudioCodec::EnableOutput(bool enable) {
     if (enable == output_enabled_) {
         return;
     }
-    if (enable) {
-        // Play 16bit 1 channel
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-        if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, !pa_inverted_ ? 1 : 0);
-        }
-    } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-        if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, !pa_inverted_ ? 0 : 1);
-        }
-    }
     AudioCodec::EnableOutput(enable);
+    UpdateDeviceState();
 }
 
 int Es8311AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(dev_, (void*)dest, samples * sizeof(int16_t)));
     }
     return samples;
 }
 
 int Es8311AudioCodec::Write(const int16_t* data, int samples) {
     if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(dev_, (void*)data, samples * sizeof(int16_t)));
     }
     return samples;
 }
