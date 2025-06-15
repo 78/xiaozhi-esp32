@@ -27,12 +27,12 @@ void BackgroundTask::Schedule(std::function<void()> callback) {
         }
     }
     active_tasks_++;
-    main_tasks_.emplace_back([this, cb = std::move(callback)]() {
+    background_tasks_.emplace_back([this, cb = std::move(callback)]() {
         cb();
         {
             std::lock_guard<std::mutex> lock(mutex_);
             active_tasks_--;
-            if (main_tasks_.empty() && active_tasks_ == 0) {
+            if (background_tasks_.empty() && active_tasks_ == 0) {
                 condition_variable_.notify_all();
             }
         }
@@ -43,7 +43,7 @@ void BackgroundTask::Schedule(std::function<void()> callback) {
 void BackgroundTask::WaitForCompletion() {
     std::unique_lock<std::mutex> lock(mutex_);
     condition_variable_.wait(lock, [this]() {
-        return main_tasks_.empty() && active_tasks_ == 0;
+        return background_tasks_.empty() && active_tasks_ == 0;
     });
 }
 
@@ -51,9 +51,9 @@ void BackgroundTask::BackgroundTaskLoop() {
     ESP_LOGI(TAG, "background_task started");
     while (true) {
         std::unique_lock<std::mutex> lock(mutex_);
-        condition_variable_.wait(lock, [this]() { return !main_tasks_.empty(); });
+        condition_variable_.wait(lock, [this]() { return !background_tasks_.empty(); });
         
-        std::list<std::function<void()>> tasks = std::move(main_tasks_);
+        std::list<std::function<void()>> tasks = std::move(background_tasks_);
         lock.unlock();
 
         for (auto& task : tasks) {
