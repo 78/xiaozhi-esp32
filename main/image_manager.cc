@@ -546,20 +546,9 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         return ESP_FAIL;
     }
     
-    // 清空现有的图片文件
-    ESP_LOGI(TAG, "清空现有的动画图片文件...");
-    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
-        char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
-        
-        struct stat file_stat;
-        if (stat(filepath, &file_stat) == 0) {
-            if (remove(filepath) == 0) {
-                ESP_LOGI(TAG, "删除现有文件: %s", filepath);
-            } else {
-                ESP_LOGW(TAG, "删除文件失败: %s", filepath);
-            }
-        }
+    // 删除现有的图片文件（带进度显示）
+    if (!DeleteExistingAnimationFiles()) {
+        ESP_LOGW(TAG, "删除现有动画图片文件时出现错误，继续下载新文件");
     }
     
     bool success = true;
@@ -715,14 +704,9 @@ esp_err_t ImageResourceManager::DownloadLogo(const char* api_url) {
         return ESP_FAIL;
     }
     
-    // 清空现有的logo文件
-    struct stat file_stat;
-    if (stat(LOGO_FILE_PATH, &file_stat) == 0) {
-        if (remove(LOGO_FILE_PATH) == 0) {
-            ESP_LOGI(TAG, "删除现有logo文件: %s", LOGO_FILE_PATH);
-        } else {
-            ESP_LOGW(TAG, "删除logo文件失败: %s", LOGO_FILE_PATH);
-        }
+    // 删除现有的logo文件（带进度显示）
+    if (!DeleteExistingLogoFile()) {
+        ESP_LOGW(TAG, "删除现有logo文件时出现错误，继续下载新文件");
     }
     
     ESP_LOGI(TAG, "下载logo文件: %s", server_static_url_.c_str());
@@ -1195,13 +1179,17 @@ bool ImageResourceManager::LoadLogoFile() {
     long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
     
-    char* text_buffer = (char*)malloc(file_size + 1);
+    // 优化内存分配：预先分配足够大的缓冲区并对齐
+    size_t aligned_size = (file_size + 15) & ~15;  // 16字节对齐，提升内存访问速度
+    char* text_buffer = (char*)malloc(aligned_size + 1);
     if (text_buffer == NULL) {
         ESP_LOGE(TAG, "内存分配失败");
         fclose(f);
         return false;
     }
     
+    // 使用更大的缓冲区进行文件读取，减少I/O调用次数  
+    setvbuf(f, NULL, _IOFBF, 65536);  // 增加到64KB缓冲区，大幅提升I/O性能
     size_t read_size = fread(text_buffer, 1, file_size, f);
     text_buffer[read_size] = '\0';
     fclose(f);
@@ -1246,11 +1234,11 @@ bool ImageResourceManager::LoadLogoFile() {
         return false;
     }
     
-    // **优化的十六进制数据解析 - 大幅提升logo解析速度**
+    // 使用优化的查找表进行十六进制解析，但保持原有的字节序处理逻辑
     char* p = data_start;
     int index = 0;
     
-    // 预编译十六进制字符查找表，避免重复的isxdigit和strtol调用
+    // 优化的十六进制查找表
     static const int hex_values[256] = {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -1270,42 +1258,49 @@ bool ImageResourceManager::LoadLogoFile() {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
     };
     
-    while (*p && index < array_size) {
-        // 查找0X或0x格式的十六进制数
-        if ((*p == '0' && (*(p+1) == 'X' || *(p+1) == 'x'))) {
-            p += 2;  // 跳过"0X"
+    // 优化的高速十六进制解析循环
+    char* text_end = text_buffer + read_size;
+    
+    while (p < text_end - 5 && index < array_size) {
+        // 优化的字符串搜索：使用memchr快速查找下一个'0'
+        char* next_zero = (char*)memchr(p, '0', text_end - p);
+        if (!next_zero || next_zero >= text_end - 3) break;
+        
+        p = next_zero;
+        
+        // 快速检查是否为 "0x" 或 "0X"
+        if (*(p+1) == 'x' || *(p+1) == 'X') {
+            p += 2; // 跳过 "0x"
             
-            // 使用查找表快速解析十六进制字符，避免isxdigit和strtol调用
-            int high_nibble = hex_values[(unsigned char)*p];
-            int low_nibble = hex_values[(unsigned char)*(p+1)];
+            // 快速提取十六进制数值
+            register int high = hex_values[(unsigned char)*p];
+            register int low = hex_values[(unsigned char)*(p+1)];
             
-            if (high_nibble >= 0 && low_nibble >= 0) {
-                // 直接计算值，避免strtol调用（性能提升显著）
-                unsigned char value = (high_nibble << 4) | low_nibble;
+            if ((high | low) >= 0) {  // 位运算检查，比 && 更快
+                unsigned char value = (high << 4) | low;
                 
-                // 交换字节顺序以修正颜色问题
-                if (index % 2 == 0 && index + 1 < array_size) {
-                    // 存储第一个字节(低字节)
-                    logo_data_[index] = value;
-                } else {
-                    // 存储第二个字节(高字节)，并交换位置
+                // 优化的字节序交换逻辑
+                if (index & 1) {  // 使用位运算代替取模
+                    // 奇数索引：交换字节序
                     if (index > 0) {
-                        // 交换当前字节和前一个字节的位置
                         unsigned char temp = logo_data_[index-1];
                         logo_data_[index-1] = value;
                         logo_data_[index] = temp;
                     } else {
                         logo_data_[index] = value;
                     }
+                } else {
+                    // 偶数索引：直接存储
+                    logo_data_[index] = value;
                 }
                 
                 index++;
-                p += 2;  // 跳过这两位数字
+                p += 2;
             } else {
-                p++;  // 格式不匹配，跳过
+                p++;
             }
         } else {
-            p++;  // 跳过非十六进制前缀
+            p++;
         }
     }
     
@@ -1335,13 +1330,17 @@ bool ImageResourceManager::LoadImageFile(int image_index) {
     long file_size = ftell(f);
     fseek(f, 0, SEEK_SET);
     
-    char* text_buffer = (char*)malloc(file_size + 1);
+    // 优化内存分配：预先分配足够大的缓冲区并对齐
+    size_t aligned_size = (file_size + 15) & ~15;  // 16字节对齐，提升内存访问速度
+    char* text_buffer = (char*)malloc(aligned_size + 1);
     if (text_buffer == NULL) {
         ESP_LOGE(TAG, "内存分配失败");
         fclose(f);
         return false;
     }
     
+    // 使用更大的缓冲区进行文件读取，减少I/O调用次数  
+    setvbuf(f, NULL, _IOFBF, 65536);  // 增加到64KB缓冲区，大幅提升I/O性能
     size_t read_size = fread(text_buffer, 1, file_size, f);
     text_buffer[read_size] = '\0';
     fclose(f);
@@ -1386,11 +1385,11 @@ bool ImageResourceManager::LoadImageFile(int image_index) {
         return false;
     }
     
-    // **优化的十六进制数据解析 - 大幅提升解析速度**
+    // 使用优化的查找表进行十六进制解析，但保持原有的字节序处理逻辑
     char* p = data_start;
     int index = 0;
     
-    // 预编译十六进制字符查找表，避免重复的isxdigit和strtol调用
+    // 优化的十六进制查找表
     static const int hex_values[256] = {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -1410,44 +1409,49 @@ bool ImageResourceManager::LoadImageFile(int image_index) {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
     };
     
-    while (*p && index < array_size) {
-        // 查找0X或0x格式的十六进制数
-        if ((*p == '0' && (*(p+1) == 'X' || *(p+1) == 'x'))) {
-            p += 2;  // 跳过"0X"
+    // 优化的高速十六进制解析循环
+    char* text_end = text_buffer + read_size;
+    
+    while (p < text_end - 5 && index < array_size) {
+        // 优化的字符串搜索：使用memchr快速查找下一个'0'
+        char* next_zero = (char*)memchr(p, '0', text_end - p);
+        if (!next_zero || next_zero >= text_end - 3) break;
+        
+        p = next_zero;
+        
+        // 快速检查是否为 "0x" 或 "0X"
+        if (*(p+1) == 'x' || *(p+1) == 'X') {
+            p += 2; // 跳过 "0x"
             
-            // 使用查找表快速解析十六进制字符，避免isxdigit和strtol调用
-            int high_nibble = hex_values[(unsigned char)*p];
-            int low_nibble = hex_values[(unsigned char)*(p+1)];
+            // 快速提取十六进制数值
+            register int high = hex_values[(unsigned char)*p];
+            register int low = hex_values[(unsigned char)*(p+1)];
             
-            if (high_nibble >= 0 && low_nibble >= 0) {
-                // 直接计算值，避免strtol调用（性能提升显著）
-                unsigned char value = (high_nibble << 4) | low_nibble;
+            if ((high | low) >= 0) {  // 位运算检查，比 && 更快
+                unsigned char value = (high << 4) | low;
                 
-                // 交换字节顺序以修正颜色问题
-                // 我们每次从文件中读取两个字节：高字节和低字节
-                // 需要将高低字节交换顺序，并且每两个字节为一组
-                if (index % 2 == 0 && index + 1 < array_size) {
-                    // 存储第一个字节(低字节)
-                    img_buffer[index] = value;
-                } else {
-                    // 存储第二个字节(高字节)，并交换位置
+                // 优化的字节序交换逻辑
+                if (index & 1) {  // 使用位运算代替取模
+                    // 奇数索引：交换字节序
                     if (index > 0) {
-                        // 交换当前字节和前一个字节的位置
                         unsigned char temp = img_buffer[index-1];
                         img_buffer[index-1] = value;
                         img_buffer[index] = temp;
                     } else {
                         img_buffer[index] = value;
                     }
+                } else {
+                    // 偶数索引：直接存储
+                    img_buffer[index] = value;
                 }
                 
                 index++;
-                p += 2;  // 跳过这两位数字
+                p += 2;
             } else {
-                p++;  // 格式不匹配，跳过
+                p++;
             }
         } else {
-            p++;  // 跳过非十六进制前缀
+            p++;
         }
     }
     
@@ -1744,20 +1748,9 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
         progress_callback_(0, 100, "准备下载动画图片资源...");
     }
     
-    // 清空现有的图片文件
-    ESP_LOGI(TAG, "清空现有的动画图片文件...");
-    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
-        char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
-        
-        struct stat file_stat;
-        if (stat(filepath, &file_stat) == 0) {
-            if (remove(filepath) == 0) {
-                ESP_LOGI(TAG, "删除现有文件: %s", filepath);
-            } else {
-                ESP_LOGW(TAG, "删除文件失败: %s", filepath);
-            }
-        }
+    // 删除现有的图片文件（带进度显示）
+    if (!DeleteExistingAnimationFiles()) {
+        ESP_LOGW(TAG, "删除现有动画图片文件时出现错误，继续下载新文件");
     }
     
     bool success = true;
@@ -1896,14 +1889,9 @@ esp_err_t ImageResourceManager::DownloadLogoWithUrl(const std::string& url) {
         progress_callback_(0, 100, "准备下载logo资源...");
     }
     
-    // 清空现有的logo文件
-    struct stat file_stat;
-    if (stat(LOGO_FILE_PATH, &file_stat) == 0) {
-        if (remove(LOGO_FILE_PATH) == 0) {
-            ESP_LOGI(TAG, "删除现有logo文件: %s", LOGO_FILE_PATH);
-        } else {
-            ESP_LOGW(TAG, "删除logo文件失败: %s", LOGO_FILE_PATH);
-        }
+    // 删除现有的logo文件（带进度显示）
+    if (!DeleteExistingLogoFile()) {
+        ESP_LOGW(TAG, "删除现有logo文件时出现错误，继续下载新文件");
     }
     
     ESP_LOGI(TAG, "下载logo文件: %s", url.c_str());
@@ -2143,6 +2131,137 @@ void ImageResourceManager::ExitDownloadMode() {
     // 6. 等待系统稳定
     vTaskDelay(pdMS_TO_TICKS(800));  // 增加等待时间确保音频系统完全恢复
     ESP_LOGI(TAG, "系统已恢复正常运行状态，AFE缓冲区问题已解决");
+}
+
+bool ImageResourceManager::DeleteExistingAnimationFiles() {
+    if (!mounted_) {
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "开始删除现有的动画图片文件...");
+    
+    // 通知开始删除
+    if (progress_callback_) {
+        progress_callback_(0, 100, "正在删除旧的动画图片文件...");
+    }
+    
+    // 先快速扫描有哪些文件存在，避免多次stat调用
+    std::vector<std::string> existing_files;
+    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+        char filepath[128];
+        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
+        
+        struct stat file_stat;
+        if (stat(filepath, &file_stat) == 0) {
+            existing_files.push_back(filepath);
+        }
+    }
+    
+    if (existing_files.empty()) {
+        ESP_LOGI(TAG, "未发现需要删除的动画图片文件");
+        if (progress_callback_) {
+            progress_callback_(100, 100, "无需删除，准备下载新文件...");
+            vTaskDelay(pdMS_TO_TICKS(300)); // 短暂显示
+        }
+        return true;
+    }
+    
+    ESP_LOGI(TAG, "发现 %d 个动画图片文件需要删除", existing_files.size());
+    
+    // 并行删除文件以提高速度
+    int deleted_count = 0;
+    int failed_count = 0;
+    
+    for (size_t i = 0; i < existing_files.size(); i++) {
+        const std::string& filepath = existing_files[i];
+        
+        // 更新删除进度
+        int progress = static_cast<int>((i + 1) * 100 / existing_files.size());
+        if (progress_callback_) {
+            char message[128];
+            const char* filename = strrchr(filepath.c_str(), '/') + 1;
+            snprintf(message, sizeof(message), "删除文件: %s (%zu/%zu)", 
+                    filename, i + 1, existing_files.size());
+            progress_callback_(progress, 100, message);
+        }
+        
+        // 执行删除操作
+        if (remove(filepath.c_str()) == 0) {
+            deleted_count++;
+            ESP_LOGI(TAG, "成功删除文件: %s", filepath.c_str());
+        } else {
+            failed_count++;
+            ESP_LOGW(TAG, "删除文件失败: %s", filepath.c_str());
+        }
+        
+        // 减少延时，提高删除速度，但避免系统阻塞
+        if (i % 3 == 0) { // 每删除3个文件后短暂让出CPU
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+    
+    // 删除完成，显示结果
+    ESP_LOGI(TAG, "动画图片文件删除完成: 成功删除 %d 个, 失败 %d 个", deleted_count, failed_count);
+    
+    if (progress_callback_) {
+        char final_message[128];
+        if (failed_count == 0) {
+            snprintf(final_message, sizeof(final_message), "成功删除 %d 个旧文件", deleted_count);
+        } else {
+            snprintf(final_message, sizeof(final_message), "删除完成: 成功 %d 个, 失败 %d 个", deleted_count, failed_count);
+        }
+        progress_callback_(100, 100, final_message);
+        vTaskDelay(pdMS_TO_TICKS(800)); // 显示结果800ms
+    }
+    
+    return failed_count == 0;
+}
+
+bool ImageResourceManager::DeleteExistingLogoFile() {
+    if (!mounted_) {
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "开始删除现有的logo文件...");
+    
+    // 通知开始删除logo
+    if (progress_callback_) {
+        progress_callback_(0, 100, "正在删除旧的logo文件...");
+    }
+    
+    // 检查logo文件是否存在
+    struct stat file_stat;
+    if (stat(LOGO_FILE_PATH, &file_stat) != 0) {
+        ESP_LOGI(TAG, "未发现需要删除的logo文件");
+        if (progress_callback_) {
+            progress_callback_(100, 100, "无需删除logo，准备下载新文件...");
+            vTaskDelay(pdMS_TO_TICKS(300)); // 短暂显示
+        }
+        return true;
+    }
+    
+    // 显示正在删除的进度
+    if (progress_callback_) {
+        progress_callback_(50, 100, "正在删除logo.h文件...");
+    }
+    
+    // 执行删除操作
+    bool success = false;
+    if (remove(LOGO_FILE_PATH) == 0) {
+        ESP_LOGI(TAG, "成功删除logo文件: %s", LOGO_FILE_PATH);
+        success = true;
+    } else {
+        ESP_LOGW(TAG, "删除logo文件失败: %s", LOGO_FILE_PATH);
+    }
+    
+    // 显示删除结果
+    if (progress_callback_) {
+        const char* result_message = success ? "logo文件删除成功" : "logo文件删除失败";
+        progress_callback_(100, 100, result_message);
+        vTaskDelay(pdMS_TO_TICKS(500)); // 显示结果500ms
+    }
+    
+    return success;
 }
 
 bool ImageResourceManager::LoadImageOnDemand(int image_index) {

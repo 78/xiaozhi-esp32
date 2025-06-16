@@ -90,6 +90,8 @@ private:
     bool LoadLogoFile(); // 加载logo文件
     void EnterDownloadMode(); // 进入下载模式，优化系统资源
     void ExitDownloadMode();  // 退出下载模式，恢复正常状态
+    bool DeleteExistingAnimationFiles(); // 删除现有动画图片文件（带进度显示）
+    bool DeleteExistingLogoFile(); // 删除现有logo文件（带进度显示）
     
     // 成员变量
     bool mounted_;           // 分区是否已挂载
