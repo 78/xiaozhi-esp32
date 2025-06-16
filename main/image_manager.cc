@@ -118,7 +118,7 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
         .base_path = "/resources",
         .partition_label = "resources", 
         .max_files = 30,                    // 增加最大文件数
-        .format_if_mount_failed = true
+        .format_if_mount_failed = false
     };
     
     ESP_LOGI(TAG, "开始挂载SPIFFS分区，如需格式化可能需要30-60秒...");
@@ -904,19 +904,19 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         
         ESP_LOGI(TAG, "下载文件大小: %u字节", (unsigned int)content_length);
         
-        // 大幅优化缓冲区大小，提高下载速度
-        size_t buffer_size = 8192;  // 默认8KB缓冲区，大幅提升速度
+        // 调整缓冲区大小，降低下载速度以适应设备性能
+        size_t buffer_size = 8192;  // 默认1KB缓冲区，降低下载速度
         
-        // 根据可用内存动态调整缓冲区大小，更激进的设置
+        // 根据可用内存动态调整缓冲区大小，降低一个量级
         size_t current_free_heap = esp_get_free_heap_size();
         if (current_free_heap > 2000000) {
-            buffer_size = 16384;  // 2MB以上可用内存使用16KB缓冲区
+            buffer_size = 8192;   // 2MB以上可用内存使用2KB缓冲区
         } else if (current_free_heap > 1000000) {
-            buffer_size = 12288;  // 1MB以上使用12KB缓冲区
+            buffer_size = 4096;   // 1MB以上使用1.5KB缓冲区
         } else if (current_free_heap > 500000) {
-            buffer_size = 8192;   // 500KB以上使用8KB缓冲区
+            buffer_size = 2048;   // 500KB以上使用1KB缓冲区
         } else {
-            buffer_size = 4096;   // 否则使用4KB缓冲区
+            buffer_size = 1042;    // 否则使用512字节缓冲区
         }
         
         char* buffer = (char*)malloc(buffer_size);
@@ -1011,8 +1011,8 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
                 }
             }
             
-            // 移除下载延迟，最大化下载速度
-            // vTaskDelay(pdMS_TO_TICKS(10));  // 注释掉延迟，全速下载
+            // 添加下载延迟，降低下载速度以适应设备性能
+            vTaskDelay(pdMS_TO_TICKS(100));  // 添加100ms延迟，降低下载速度
         }
         
         // 清理资源

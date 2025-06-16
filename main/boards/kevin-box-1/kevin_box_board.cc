@@ -37,7 +37,7 @@ private:
             .base_path = "/storage",
             .partition_label = "storage",
             .max_files = 5,
-            .format_if_mount_failed = true,
+            .format_if_mount_failed = false,
         };
         esp_vfs_spiffs_register(&conf);
     }
