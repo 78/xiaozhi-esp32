@@ -42,6 +42,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto client_id = settings.GetString("client_id");
     auto username = settings.GetString("username");
     auto password = settings.GetString("password");
+    int keepalive_interval = settings.GetInt("keepalive", 120);
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint.empty()) {
@@ -53,7 +54,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     }
 
     mqtt_ = Board::GetInstance().CreateMqtt();
-    mqtt_->SetKeepAlive(90);
+    mqtt_->SetKeepAlive(keepalive_interval);
 
     mqtt_->OnDisconnected([this]() {
         ESP_LOGI(TAG, "Disconnected from endpoint");
