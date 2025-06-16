@@ -75,6 +75,28 @@ private:
 #endif
     }
 
+
+    void I2cScan() {
+        printf("I2C scan result (bus %d):\r\n", 1);
+        printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
+        for (int i = 0; i < 128; i += 16) {
+            printf("%02x: ", i);
+            for (int j = 0; j < 16; j++) {
+                uint8_t address = i + j;
+                esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(100));
+                if (ret == ESP_OK) {
+                    printf("%02x ", address);
+                } else if (ret == ESP_ERR_TIMEOUT) {
+                    printf("UU ");
+                } else {
+                    printf("-- ");
+                }
+            }
+            printf("\r\n");
+        }
+    }
+
+
     void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -117,40 +139,6 @@ private:
                                     });
     }
 
-    // void InitializeTouch()
-    // {
-    //     esp_lcd_touch_handle_t tp;
-    //     esp_lcd_touch_config_t tp_cfg = {
-    //         .x_max = DISPLAY_WIDTH,
-    //         .y_max = DISPLAY_HEIGHT,
-    //         .rst_gpio_num = GPIO_NUM_NC, // Shared with LCD reset
-    //         .int_gpio_num = GPIO_NUM_NC, 
-    //         .levels = {
-    //             .reset = 0,
-    //             .interrupt = 0,
-    //         },
-    //         .flags = {
-    //             .swap_xy = 1,
-    //             .mirror_x = 1,
-    //             .mirror_y = 0,
-    //         },
-    //     };
-    //     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-    //     esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
-    //     tp_io_config.scl_speed_hz = 400000;
-
-    //     esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);
-    //     esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp);
-    //     assert(tp);
-
-    //     /* Add touch input (for selected screen) */
-    //     const lvgl_port_touch_cfg_t touch_cfg = {
-    //         .disp = lv_display_get_default(), 
-    //         .handle = tp,
-    //     };
-
-    //     lvgl_port_add_touch(&touch_cfg);
-    // }
 
     void InitializeCamera() {
         camera_config_t config = {};
@@ -187,11 +175,13 @@ private:
 public:
     JKSTS3DevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        I2cScan(); // 调试时加上，量产时可注释
         InitializeSpi();
         InitializeSt7789Display();
         // InitializeTouch();
         InitializeButtons();
-        InitializeCamera();
+        // InitializeCamera();
 
 #if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
