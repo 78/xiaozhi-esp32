@@ -1341,7 +1341,7 @@ private:
         });
         
         // 启动图片轮播任务
-        xTaskCreate(ImageSlideshowTask, "img_slideshow", 8192, this, 3, &image_task_handle_);
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 8192, this, 1, &image_task_handle_);
         ESP_LOGI(TAG, "图片循环显示任务已启动");
         
         // 设置图片资源检查回调，等待OTA检查完成后执行
@@ -1501,7 +1501,7 @@ private:
         
         // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
-        const TickType_t cycleInterval = pdMS_TO_TICKS(120);  // 图片切换间隔120毫秒
+        const TickType_t cycleInterval = pdMS_TO_TICKS(200);  // 从120ms改为200ms
         
         // 循环变量定义
         bool isAudioPlaying = false;       
@@ -1546,6 +1546,21 @@ private:
             // 获取当前设备状态
             DeviceState currentState = app.GetDeviceState();
             TickType_t currentTime = xTaskGetTickCount();
+            
+            // **新增：音频活动检测 - 方案2实施**
+            bool isAudioActive = (currentState == kDeviceStateListening || 
+                                currentState == kDeviceStateConnecting ||
+                                !app.IsAudioQueueEmpty());
+            
+            // 根据显示模式确定是否应该动画
+            bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
+            
+            // **新增：如果检测到音频活动，暂停动画更新以避免干扰ASR**
+            if (isAudioActive && shouldAnimate) {
+                // 暂停动画，但保持当前图片显示
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;
+            }
             
             // 检查当前是否在时钟页面（tab2）
             bool isClockTabActive = false;
@@ -1620,12 +1635,14 @@ private:
                     
                     currentImage = imageArray[currentIndex];
                     
-                    // 直接使用图片数据，不再进行字节序转换
-                    DisplayLockGuard lock(display);
-                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                    if (img_obj && currentImage) {
-                        img_dsc.data = currentImage;  // 直接使用原始图像数据
-                        lv_img_set_src(img_obj, &img_dsc);
+                    // **优化：预先准备数据，减少锁持有时间 - 方案3实施**
+                    if (currentImage) {
+                        DisplayLockGuard lock(display);
+                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                        if (img_obj) {
+                            img_dsc.data = currentImage;  // 直接使用原始图像数据
+                            lv_img_set_src(img_obj, &img_dsc);
+                        }
                     }
                     
                     ESP_LOGI(TAG, "开始播放动画，与音频同步");
@@ -1636,11 +1653,8 @@ private:
                 }
             }
             
-            // 根据显示模式确定是否应该动画
-            bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
-
             // 动画播放逻辑 - 实现双向循环（支持按需加载）
-            if (shouldAnimate && !pendingAnimationStart && (currentTime - lastUpdateTime >= cycleInterval)) {
+            if (shouldAnimate && !pendingAnimationStart && !isAudioActive && (currentTime - lastUpdateTime >= cycleInterval)) {
                 // 根据方向更新索引
                 if (directionForward) {
                     currentIndex++;
@@ -1672,12 +1686,14 @@ private:
                     
                     currentImage = imageArray[currentIndex];
                     
-                    // 直接使用图片数据，不再进行字节序转换
-                    DisplayLockGuard lock(display);
-                    lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
-                    if (img_obj && currentImage) {
-                        img_dsc.data = currentImage;  // 直接使用原始图像数据
-                        lv_img_set_src(img_obj, &img_dsc);
+                    // **优化：预先准备数据，减少锁持有时间 - 方案3实施**
+                    if (currentImage) {
+                        DisplayLockGuard lock(display);
+                        lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
+                        if (img_obj) {
+                            img_dsc.data = currentImage;  // 直接使用原始图像数据
+                            lv_img_set_src(img_obj, &img_dsc);
+                        }
                     }
                 }
                 
@@ -1688,19 +1704,20 @@ private:
                      (g_image_display_mode == iot::MODE_STATIC && currentIndex != 0) || 
                      (!isAudioPlaying && currentIndex != 0)) {
                 
+                const uint8_t* staticImage = nullptr;
                 if (g_image_display_mode == iot::MODE_STATIC && iot::g_static_image) {
-                    currentImage = iot::g_static_image;
+                    staticImage = iot::g_static_image;
                 } else if (!imageArray.empty()) {
                     currentIndex = 0;
-                    currentImage = imageArray[currentIndex];
+                    staticImage = imageArray[currentIndex];
                 }
                 
-                // 直接使用图片数据，不再进行字节序转换
-                if (currentImage) {
+                // **优化：预先准备数据，减少锁持有时间 - 方案3实施**
+                if (staticImage) {
                     DisplayLockGuard lock(display);
                     lv_obj_t* img_obj = lv_obj_get_child(img_container, 0);
                     if (img_obj) {
-                        img_dsc.data = currentImage;  // 直接使用原始图像数据
+                        img_dsc.data = staticImage;  // 直接使用原始图像数据
                         lv_img_set_src(img_obj, &img_dsc);
                     }
                     

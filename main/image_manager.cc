@@ -123,7 +123,7 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
         .base_path = "/resources",
         .partition_label = "resources", 
         .max_files = 30,                    // 增加最大文件数
-        .format_if_mount_failed = true
+        .format_if_mount_failed = false
     };
     
     ESP_LOGI(TAG, "开始挂载SPIFFS分区，如需格式化可能需要30-60秒...");
