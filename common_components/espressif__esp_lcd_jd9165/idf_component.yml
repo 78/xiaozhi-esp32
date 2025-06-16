@@ -1,0 +1,14 @@
+dependencies:
+  cmake_utilities: 0.*
+  idf:
+    version: '>=5.3'
+description: ESP LCD JD9165 (MIPI-DSI)
+issues: https://github.com/espressif/esp-iot-solution/issues
+repository: git://github.com/espressif/esp-iot-solution.git
+repository_info:
+  commit_sha: 6a112f4ddfeaf30ec360567ea9260a39e195c385
+  path: components/display/lcd/esp_lcd_jd9165
+targets:
+- esp32p4
+url: https://github.com/espressif/esp-bsp/tree/master/components/lcd/esp_lcd_jd9165
+version: 1.0.2

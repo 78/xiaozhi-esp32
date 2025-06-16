@@ -232,6 +232,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_JC1060P470
+        bool "jc1060p470"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_JC1060P4A1
+        bool "jc1060p4a1"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_DOIT_S3_AIBOX
         bool "四博智联AI陪伴盒子"
         depends on IDF_TARGET_ESP32S3

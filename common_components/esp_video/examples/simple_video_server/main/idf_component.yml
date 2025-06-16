@@ -1,0 +1,10 @@
+dependencies:
+  idf: ">=5.3"
+  esp_video:
+    version: "0.*"
+    override_path: "../../../"
+  protocol_examples_common:
+    path: ${IDF_PATH}/examples/common_components/protocol_examples_common
+  espressif/mdns: "^1.0.3"
+  esp_wifi_remote:
+    version: "*"

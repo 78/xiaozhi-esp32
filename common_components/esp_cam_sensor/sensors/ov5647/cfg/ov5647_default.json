@@ -1,0 +1,115 @@
+{
+    "version": 1,
+    "OV5647":
+    {
+        "adn": {
+            "bf":
+            [
+                {
+                    "gain": 1,
+                    "param": {
+                        "level": 5,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 4, 2,
+                            1, 2, 1
+                        ]
+                    }
+                }
+            ]
+        },
+        "aen": {
+            "gamma":
+            {
+                "use_gamma_param": true,
+                "luma_env": "ae.luma.avg",
+                "luma_min_step": 16.0,
+                "table":
+                [
+                    {
+                        "luma": 71.1,
+                        "gamma_param": 0.72
+                    }
+                ]
+            },    
+            "sharpen":
+            [
+                {
+                    "gain": 1,
+                    "param": {
+                        "h_thresh": 56,
+                        "l_thresh": 10,
+                        "h_coeff": 0.425,
+                        "m_coeff": 0.625,
+                        "matrix":
+                        [
+                            1, 2, 1,
+                            2, 2, 2,
+                            1, 2, 1
+                        ]
+                    }
+                }
+            ],
+            "contrast":
+            [
+                {
+                    "gain": 1,
+                    "value": 134
+                }  
+            ]
+        },
+        "ian":
+        {
+            "luma":
+            {
+                "ae":
+                {
+                    "weight":
+                    [
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1
+                    ]
+                }
+            }
+        },
+        "acc": {
+            "saturation":
+            [
+                {
+                    "color_temp": 0,
+                    "value": 128
+                }
+            ],
+            "ccm":
+            {
+                "low_luma":
+                {
+                    "luma_env": "ae.luma.avg",
+                    "threshold": 28,
+                    "matrix":
+                    [
+                        1.00,  0.00, 0.00,
+                        0.00,    1.00,  0.00,
+                        0.00,  0.00,  1.00
+                    ]
+                },
+                "table":
+                [
+                    {
+                        "color_temp": 0,
+                        "matrix":
+                        [
+                             2.0000,  -0.5459, -0.4541,
+                            -0.4751,   1.7696, -0.2945,
+                            -0.2002,  -0.7998,  2.0000
+                        ]
+                    }   
+                ]
+            }
+        }
+    }
+}

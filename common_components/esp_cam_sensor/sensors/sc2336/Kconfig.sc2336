@@ -1,0 +1,152 @@
+menuconfig CAMERA_SC2336
+    bool "SC2336"
+    default n
+    help
+        Enabling this option will add the support for SC2336.
+
+if CAMERA_SC2336
+    menuconfig CAMERA_SC2336_AUTO_DETECT
+        bool "Auto detect SC2336"
+        default y
+        help
+            When enabled, it provides the ability in application layer to automatically
+            detect camera sensors one by one.
+
+    if CAMERA_SC2336_AUTO_DETECT
+        config CAMERA_SC2336_AUTO_DETECT_MIPI_INTERFACE_SENSOR
+            bool "Detect for MIPI interface sensor"
+            default y
+            help
+                When enabled, you don't need to call sc2336_detect manaually, SC2336 will
+                be automatically detected and connected to the MIPI CSI interface when
+                the application starts.
+
+        config CAMERA_SC2336_AUTO_DETECT_DVP_INTERFACE_SENSOR
+            bool "Detect for DVP interface sensor"
+            default n
+            help
+                When enabled, you don't need to call sc2336_detect manaually, SC2336 will
+                be automatically detected and connected to the DVP interface when the
+                application starts.
+    endif
+
+    choice CAMERA_SC2336_MIPI_DEFAULT_FMT
+        prompt "Default format select for MIPI"
+        default CAMERA_SC2336_MIPI_RAW8_1280x720_30FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_SC2336_MIPI_RAW10_1280x720_30FPS
+            bool "RAW10 1280x720 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_1280x720_50FPS
+            bool "RAW10 1280x720 50fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_1280x720_60FPS
+            bool "RAW10_1280x720 60fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_1920x1080_25FPS_1_LANE
+            bool "RAW10 1920x1080 25fps, MIPI 1lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_1920x1080_25FPS_2_LANE
+            bool "RAW10 1920x1080 25fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_1920x1080_30FPS
+            bool "RAW10 1920x1080 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_800x800_30FPS
+            bool "RAW10 800x800 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW10_640x480_50FPS
+            bool "RAW10 640x480 50fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW8_1920x1080_30FPS
+            bool "RAW8 1920x1080 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW8_1280x720_30FPS
+            bool "RAW8 1280x720 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW8_800x800_30FPS
+            bool "RAW8 800x800 30fps, MIPI 2lane 24M input"
+        config CAMERA_SC2336_MIPI_RAW8_1024x600_30FPS
+            bool "RAW8 1024x600 30fps, MIPI 2lane 24M input"                                       
+    endchoice # CAMERA_SC2336_MIPI_DEFAULT_FMT
+
+    config CAMERA_SC2336_MIPI_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 0 if CAMERA_SC2336_MIPI_RAW10_1280x720_30FPS
+        default 1 if CAMERA_SC2336_MIPI_RAW10_1280x720_50FPS
+        default 2 if CAMERA_SC2336_MIPI_RAW10_1280x720_60FPS
+        default 3 if CAMERA_SC2336_MIPI_RAW10_1920x1080_25FPS_1_LANE
+
+        default 4 if CAMERA_SC2336_MIPI_RAW10_1920x1080_25FPS_2_LANE
+        default 5 if CAMERA_SC2336_MIPI_RAW10_1920x1080_30FPS
+        default 6 if CAMERA_SC2336_MIPI_RAW10_800x800_30FPS
+        default 7 if CAMERA_SC2336_MIPI_RAW10_640x480_50FPS
+
+        default 8 if CAMERA_SC2336_MIPI_RAW8_1920x1080_30FPS
+        default 9 if CAMERA_SC2336_MIPI_RAW8_1280x720_30FPS
+        default 10 if CAMERA_SC2336_MIPI_RAW8_800x800_30FPS
+        default 11 if CAMERA_SC2336_MIPI_RAW8_1024x600_30FPS
+
+        help
+            Set the configuration loaded by default for the MIPI interface.
+            More information can be obtained by calling the query_support_formats().
+
+    choice CAMERA_SC2336_DVP_DEFAULT_FMT
+        prompt "Default format select for DVP"
+        default CAMERA_SC2336_DVP_RAW10_1280x720_30FPS
+        help
+            Select the default format to load when the sensor is detected.
+            When the sensor is in stream off state, the format can be changed.
+    
+        config CAMERA_SC2336_DVP_RAW10_1280x720_30FPS
+            bool "RAW10 1280x720 30fps, DVP 8bit 24M input"
+    endchoice # CAMERA_SC2336_DVP_DEFAULT_FMT
+
+    config CAMERA_SC2336_DVP_IF_FORMAT_INDEX_DAFAULT
+        int
+        default 12 if CAMERA_SC2336_DVP_RAW10_1280x720_30FPS
+        help
+            Set the configuration loaded by default for the DVP interface.
+            More information can be obtained by calling the query_support_formats().
+    
+    config CAMERA_SC2336_ABSOLUTE_GAIN_LIMIT
+            int "Maximum absolute gain limit"
+            default 66016
+            range 4000 126016
+            help
+                Use this value to limit the maximum gain that upper level applications can use.
+                To avoid using float type, the size of this value is gain x 1000.
+                Excessive gain can lead to a worse signal-to-noise ratio and may cause the device to overheat, affecting its functionality. 
+
+    choice CAMERA_SC2336_ABS_GAIN_MAP_PRIORITY
+        prompt "Gain map select"
+        default CAMERA_SC2336_DIG_GAIN_PRIORITY
+        help
+            The map of gains affects the size of the noise and the smoothness of the brightness change.
+            Compared with digital gain, analog gain has less noise.
+            Choose the appropriate gain map to balance the smoothness of the noise and brightness change.
+    
+        config CAMERA_SC2336_ANA_GAIN_PRIORITY
+            bool "Analog Gain Priority"
+        config CAMERA_SC2336_DIG_GAIN_PRIORITY
+            bool "Digital Gain Priority"
+    endchoice # CAMERA_SC2336_ABS_GAIN_MAP_PRIORITY
+
+    choice CAMERA_SC2336_IPA_JSON_CONFIGURATION_FILE
+        prompt "IPA JSON Configuration File"
+        default CAMERA_SC2336_DEFAULT_IPA_JSON_CONFIGURATION_FILE
+        help
+            Select SC2336 JSON configuration file.
+
+        config CAMERA_SC2336_DEFAULT_IPA_JSON_CONFIGURATION_FILE
+            bool "Default"
+            help
+                Use the "esp_cam_sensor/sensors/sc2336/cfg/sc2336_default.json".
+
+        config CAMERA_SC2336_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE
+            bool "Customized"
+            help
+                Use a customized SC2336 JSON configuration file. Users should configure
+                the file's path using the option "CAMERA_SC2336_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH."
+    endchoice
+
+    config CAMERA_SC2336_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH
+        string "SC2336 Customized JSON Configuration File Path"
+        depends on CAMERA_SC2336_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE
+        help
+            Customized SC2336 JSON configuration file's path and this path is evaluated
+            relative to the project root directory by default.
+endif

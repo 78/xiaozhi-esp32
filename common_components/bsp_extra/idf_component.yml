@@ -1,0 +1,19 @@
+dependencies:
+  idf:
+    version: '>=5.3.0'
+
+  espressif/esp32_p4_function_ev_board:
+    path: ../esp32_p4_function_ev_board
+
+  chmorgan/esp-audio-player:
+    version: "1.0.*"
+    public: true
+
+  chmorgan/esp-file-iterator:
+    version: "1.0.0"
+    public: true
+
+description: Board Support Package for ESP32-P4-Function-ev-board
+targets:
+- esp32p4
+version: 0.0.2
