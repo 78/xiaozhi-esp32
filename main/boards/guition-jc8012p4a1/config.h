@@ -23,8 +23,8 @@
 
 #define MIPI_DPI_PX_FORMAT         (LCD_COLOR_PIXEL_FORMAT_RGB888)
 #define DISPLAY_SWAP_XY false
-#define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y true
 #define BACKLIGHT_INVERT false
 
 #define DISPLAY_OFFSET_X  0

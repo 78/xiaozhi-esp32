@@ -2,7 +2,7 @@
     "target": "esp32p4",
     "builds": [
         {
-            "name": "Guition JC8012P4A1",
+            "name": "guition-jc8012p4a1",
             "sdkconfig_append": []
         }
     ]
