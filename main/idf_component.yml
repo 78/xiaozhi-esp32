@@ -14,7 +14,7 @@ dependencies:
   78/esp_lcd_nv3023: ~1.0.0
   78/esp-wifi-connect: ~2.4.2
   78/esp-opus-encoder: ~2.3.3
-  78/esp-ml307: ~2.1.5
+  78/esp-ml307: ~2.1.6
   78/xiaozhi-fonts: ~1.3.2
   espressif/led_strip: ^2.5.5
   espressif/esp_codec_dev: ~1.3.2

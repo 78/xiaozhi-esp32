@@ -35,6 +35,10 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
+    if (models == nullptr || models->num == -1) {
+        ESP_LOGE(TAG, "Failed to initialize wakenet model");
+        return;
+    }
     for (int i = 0; i < models->num; i++) {
         ESP_LOGI(TAG, "Model %d: %s", i, models->model_name[i]);
         if (strstr(models->model_name[i], ESP_WN_PREFIX) != NULL) {
