@@ -8,16 +8,16 @@
 
 该核心板与ESP32-S3-WROOM-1U高度兼容，使用原核心板不可使用的IO35、IO36、IO37引脚作为音频电源与扬声器输出。
 
-| 原引脚                   | 功能占用            | 备注          |
-| ------------------------ | ------------------- | ------------- |
-| IO35(内部 PSRAM)         | VDD_AU              | 模组/音频供电 |
-| IO36(内部 PSRAM)         | OUTP                | 音频输出P     |
-| IO36(内部 PSRAM)         | OUTN                | 音频输出N     |
-| **已占用引脚**（仍引出） |                     |               |
-| IO38                     | AUDIO_I2S_GPIO_DIN  |               |
-| IO39                     | AUDIO_I2S_GPIO_BCLK |               |
-| IO40                     | AUDIO_I2S_GPIO_DOUT |               |
-| IO48                     | AUDIO_I2S_GPIO_WS   |               |
+| 原引脚           | 功能占用            | 备注                 |
+| ---------------- | ------------------- | -------------------- |
+| IO35(内部 PSRAM) | VDD_AU              | 模组/音频供电        |
+| IO36(内部 PSRAM) | OUTP                | 音频输出P            |
+| IO36(内部 PSRAM) | OUTN                | 音频输出N            |
+| **已占用引脚**   |                     |                      |
+| IO1              | AUDIO_I2S_GPIO_DOUT | 保证天线净空区未引出 |
+| IO2              | AUDIO_I2S_GPIO_DIN  | 保证天线净空区未引出 |
+| IO38（仍引出）   | AUDIO_I2S_GPIO_WS   |                      |
+| IO39（仍引出）   | AUDIO_I2S_GPIO_BCLK |                      |
 
 **注意事项**
 
