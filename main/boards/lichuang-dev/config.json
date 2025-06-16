@@ -3,7 +3,10 @@
     "builds": [
         {
             "name": "lichuang-dev",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_SR_NSN_NSNET2=y"
+            ]
         }
     ]
 }

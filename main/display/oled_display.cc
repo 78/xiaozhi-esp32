@@ -25,7 +25,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     port_cfg.timer_period_ms = 50;
     lvgl_port_init(&port_cfg);
 
-    ESP_LOGI(TAG, "Adding LCD screen");
+    ESP_LOGI(TAG, "Adding OLED display");
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
@@ -218,10 +218,10 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
-    lv_obj_center(low_battery_label);
+    low_battery_label_ = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
+    lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 

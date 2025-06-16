@@ -41,5 +41,24 @@
 
 #define ML307_RX_PIN GPIO_NUM_12
 #define ML307_TX_PIN GPIO_NUM_13
+/* Camera pins */
+#define CAMERA_PIN_PWDN -1
+#define CAMERA_PIN_RESET -1
+#define CAMERA_PIN_XCLK 15
+#define CAMERA_PIN_SIOD 4
+#define CAMERA_PIN_SIOC 5
 
+#define CAMERA_PIN_D7 16
+#define CAMERA_PIN_D6 17
+#define CAMERA_PIN_D5 18
+#define CAMERA_PIN_D4 12
+#define CAMERA_PIN_D3 10
+#define CAMERA_PIN_D2 8
+#define CAMERA_PIN_D1 9
+#define CAMERA_PIN_D0 11
+#define CAMERA_PIN_VSYNC 6
+#define CAMERA_PIN_HREF 7
+#define CAMERA_PIN_PCLK 13
+
+#define XCLK_FREQ_HZ 20000000
 #endif // _BOARD_CONFIG_H_

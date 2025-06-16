@@ -1,9 +1,10 @@
 #include "tcircles3_audio_codec.h"
 
 #include <esp_log.h>
-#include <driver/i2c.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+
+#include "config.h"
 
 static const char TAG[] = "Tcircles3AudioCodec";
 
@@ -20,7 +21,7 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     CreateVoiceHardware(mic_bclk, mic_ws, mic_data, spkr_bclk, spkr_lrclk, spkr_data);
 
     gpio_config_t config;
-    config.pin_bit_mask = BIT64(45);
+    config.pin_bit_mask = BIT64(AUDIO_SPKR_ENABLE);
     config.mode = GPIO_MODE_OUTPUT;
     config.pull_up_en = GPIO_PULLUP_DISABLE;
     config.pull_down_en = GPIO_PULLDOWN_ENABLE;
@@ -29,7 +30,7 @@ Tcircles3AudioCodec::Tcircles3AudioCodec(int input_sample_rate, int output_sampl
     config.hys_ctrl_mode = GPIO_HYS_SOFT_ENABLE;
 #endif
     gpio_config(&config);
-    gpio_set_level(gpio_num_t(45), 0);
+    gpio_set_level(AUDIO_SPKR_ENABLE, 0);
     ESP_LOGI(TAG, "Tcircles3AudioCodec initialized");
 }
 
@@ -117,9 +118,9 @@ void Tcircles3AudioCodec::EnableInput(bool enable) {
 
 void Tcircles3AudioCodec::EnableOutput(bool enable) {
     if (enable){
-        gpio_set_level(gpio_num_t(45), 1);
+        gpio_set_level(AUDIO_SPKR_ENABLE, 1);
     }else{
-        gpio_set_level(gpio_num_t(45), 0);
+        gpio_set_level(AUDIO_SPKR_ENABLE, 0);
     }
     AudioCodec::EnableOutput(enable);
 }

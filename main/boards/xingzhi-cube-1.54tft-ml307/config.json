@@ -4,6 +4,12 @@
         {
             "name": "xingzhi-cube-1.54tft-ml307",
             "sdkconfig_append": []
+        },
+        {
+            "name": "xingzhi-cube-1.54tft-ml307-wechatui",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
+            ]
         }
     ]
 }
