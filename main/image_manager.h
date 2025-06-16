@@ -10,6 +10,20 @@
 #define ENABLE_SERIAL_DOWNLOAD 1  // 启用串行下载，避免并发网络请求
 #define DOWNLOAD_RETRY_BASE_DELAY_MS 5000  // 基础重试延时5秒
 
+// 二进制图片格式相关常量
+#define BINARY_IMAGE_MAGIC UINT32_C(0x42494D47)  // "BIMG" 魔数
+#define BINARY_IMAGE_VERSION UINT32_C(1)         // 版本号
+
+// 二进制图片文件头结构
+struct BinaryImageHeader {
+    uint32_t magic;        // 魔数 0x42494D47 ("BIMG")
+    uint32_t version;      // 版本号 1
+    uint32_t width;        // 图片宽度
+    uint32_t height;       // 图片高度
+    uint32_t data_size;    // 数据大小（字节）
+    uint32_t reserved[3];  // 保留字段，便于未来扩展
+};
+
 /**
  * 图片资源管理器类
  * 负责从网络下载和管理图片资源
@@ -59,6 +73,9 @@ public:
     void SetPreloadProgressCallback(ProgressCallback callback) {
         preload_progress_callback_ = callback;
     }
+    
+    // 调试功能：清理所有损坏的图片文件
+    bool ClearAllImageFiles();
 
 private:
     ImageResourceManager();
@@ -92,6 +109,9 @@ private:
     void ExitDownloadMode();  // 退出下载模式，恢复正常状态
     bool DeleteExistingAnimationFiles(); // 删除现有动画图片文件（带进度显示）
     bool DeleteExistingLogoFile(); // 删除现有logo文件（带进度显示）
+    bool ConvertHFileToBinary(const char* h_filepath, const char* bin_filepath); // 转换.h文件为二进制格式
+    bool LoadBinaryImageFile(int image_index); // 从二进制文件加载图片数据
+    bool LoadRawImageFile(int image_index, size_t file_size); // 从原始RGB数据文件加载图片
     
     // 成员变量
     bool mounted_;           // 分区是否已挂载

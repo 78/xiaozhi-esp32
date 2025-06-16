@@ -36,7 +36,6 @@
 #include "iot_image_display.h"  // 引入图片显示模式定义
 #include "image_manager.h"  // 引入图片资源管理器头文件
 #define TAG "abrobot-1.28tft-wifi"  // 日志标签
-#define TAG "CIRCLE128S32"
 
 // 在abrobot-1.28tft-wifi.cc文件开头添加外部声明
 extern "C" {
@@ -1192,6 +1191,13 @@ private:
     // 初始化图片资源管理器
     void InitializeImageResources() {
         auto& image_manager = ImageResourceManager::GetInstance();
+        
+#ifdef DEBUG_CLEAR_CORRUPTED_FILES
+        // 调试模式：自动清理损坏的文件
+        ESP_LOGI(TAG, "调试模式：清理所有图片文件");
+        image_manager.ClearAllImageFiles();
+#endif
+        
         esp_err_t result = image_manager.Initialize();
         if (result != ESP_OK) {
             ESP_LOGE(TAG, "图片资源管理器初始化失败");
@@ -1244,10 +1250,6 @@ private:
         
         // 一次性检查并更新所有资源（动画图片和logo）
         esp_err_t all_resources_result = image_manager.CheckAndUpdateAllResources(API_URL, VERSION_URL);
-        
-        // 为了兼容后续逻辑，设置对应的结果值
-        esp_err_t animation_result = all_resources_result;
-        esp_err_t logo_result = all_resources_result;
         
         // 处理一次性资源检查结果
         bool has_updates = false;
@@ -1386,18 +1388,18 @@ private:
         int imgWidth = 240;
         int imgHeight = 240;
         
-        // 创建图像描述符
+        // 创建图像描述符 - 兼容服务端RGB565格式
         lv_image_dsc_t img_dsc = {
             .header = {
                 .magic = LV_IMAGE_HEADER_MAGIC,
-                .cf = LV_COLOR_FORMAT_RGB565,
+                .cf = LV_COLOR_FORMAT_RGB565,        // 匹配服务端RGB565格式
                 .flags = 0,
-                .w = (uint32_t)imgWidth,
-                .h = (uint32_t)imgHeight,
-                .stride = (uint32_t)(imgWidth * 2),
+                .w = (uint32_t)imgWidth,             // 240像素宽度
+                .h = (uint32_t)imgHeight,            // 240像素高度
+                .stride = (uint32_t)(imgWidth * 2),  // 每行字节数 (240*2=480)
                 .reserved_2 = 0,
             },
-            .data_size = (uint32_t)(imgWidth * imgHeight * 2),
+            .data_size = (uint32_t)(imgWidth * imgHeight * 2),  // 115200字节总大小
             .data = NULL,  // 会在更新时设置
             .reserved = NULL
         };

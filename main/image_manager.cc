@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <cJSON.h>
+#include <inttypes.h>
 #include <wifi_station.h>
 #include "board.h"
 #include "system_info.h"  // 新增：包含系统信息头文件
@@ -16,9 +17,13 @@
 #define IMAGE_URL_CACHE_FILE "/resources/image_urls.json"  // 修改：图片URL缓存文件
 #define LOGO_URL_CACHE_FILE "/resources/logo_url.json"     // 修改：logo URL缓存文件
 #define IMAGE_BASE_PATH "/resources/images/"
-#define LOGO_FILE_PATH "/resources/images/logo.h"
+#define LOGO_FILE_PATH "/resources/images/logo.bin"
+#define LOGO_FILE_PATH_H "/resources/images/logo.h"
 #define MAX_IMAGE_FILES 9   // 修改：根据服务器返回有9个动态图片
 #define MAX_DOWNLOAD_RETRIES 3  // 设置合理的重试次数为3次
+
+// 添加调试开关，可以通过配置启用
+#define DEBUG_IMAGE_FILES 1
 
 ImageResourceManager::ImageResourceManager() {
     mounted_ = false;
@@ -118,7 +123,7 @@ esp_err_t ImageResourceManager::MountResourcesPartition() {
         .base_path = "/resources",
         .partition_label = "resources", 
         .max_files = 30,                    // 增加最大文件数
-        .format_if_mount_failed = false
+        .format_if_mount_failed = true
     };
     
     ESP_LOGI(TAG, "开始挂载SPIFFS分区，如需格式化可能需要30-60秒...");
@@ -245,9 +250,9 @@ bool ImageResourceManager::CheckImagesExist() {
     
     // 如果没有缓存的URL，则检查是否有任何图片文件
     if (cached_dynamic_urls_.empty()) {
-        // 检查是否有至少一个图片文件
+        // 检查是否有至少一个二进制图片文件
         char filename[64];
-        snprintf(filename, sizeof(filename), "%soutput_0001.h", IMAGE_BASE_PATH);
+        snprintf(filename, sizeof(filename), "%soutput_0001.bin", IMAGE_BASE_PATH);
         
         FILE* f = fopen(filename, "r");
         if (f == NULL) {
@@ -258,10 +263,10 @@ bool ImageResourceManager::CheckImagesExist() {
         return true;
     }
     
-    // 根据缓存的URL数量检查对应的文件
+    // 根据缓存的URL数量检查对应的二进制文件
     for (size_t i = 0; i < cached_dynamic_urls_.size(); i++) {
         char filename[64];
-        snprintf(filename, sizeof(filename), "%soutput_%04d.h", IMAGE_BASE_PATH, (int)(i + 1));
+        snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, (int)(i + 1));
         
         FILE* f = fopen(filename, "r");
         if (f == NULL) {
@@ -279,14 +284,24 @@ bool ImageResourceManager::CheckLogoExists() {
         return false;
     }
     
-    FILE* f = fopen(LOGO_FILE_PATH, "r");
-    if (f == NULL) {
-        ESP_LOGW(TAG, "未找到logo文件: %s", LOGO_FILE_PATH);
-        return false;
+    // 优先检查二进制格式logo文件
+    FILE* f = fopen(LOGO_FILE_PATH, "rb");
+    if (f != NULL) {
+        fclose(f);
+        ESP_LOGI(TAG, "找到二进制logo文件: %s", LOGO_FILE_PATH);
+        return true;
     }
-    fclose(f);
     
-    return true;
+    // 检查.h格式logo文件（向后兼容）
+    f = fopen(LOGO_FILE_PATH_H, "r");
+    if (f != NULL) {
+        fclose(f);
+        ESP_LOGI(TAG, "找到.h格式logo文件: %s", LOGO_FILE_PATH_H);
+        return true;
+    }
+    
+    ESP_LOGW(TAG, "未找到任何格式的logo文件");
+    return false;
 }
 
 void ImageResourceManager::CreateDirectoryIfNotExists(const char* path) {
@@ -514,7 +529,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         return ESP_FAIL;
     }
     
-    ESP_LOGI(TAG, "开始下载动画图片文件，进入专用下载模式...");
+    ESP_LOGI(TAG, "开始下载二进制动画图片文件，进入专用下载模式...");
     
     // 进入专用下载模式：优化系统资源
     EnterDownloadMode();
@@ -534,7 +549,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     
     // 通知开始下载
     if (progress_callback_) {
-        progress_callback_(0, 100, "准备下载动画图片资源...");
+        progress_callback_(0, 100, "准备下载二进制动画图片资源...");
     }
     
     // 检查是否有服务器URL列表
@@ -556,13 +571,13 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     // 使用服务器返回的URL列表进行下载
     std::vector<std::string> file_paths;
     
-    // 准备文件路径
+    // 准备文件路径（直接使用二进制格式）
     for (size_t i = 0; i < server_dynamic_urls_.size() && i < MAX_IMAGE_FILES; i++) {
         char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, (int)(i + 1));
+        snprintf(filepath, sizeof(filepath), "%soutput_%04d.bin", IMAGE_BASE_PATH, (int)(i + 1));
         file_paths.push_back(filepath);
         
-        ESP_LOGI(TAG, "准备下载动画图片文件 [%zu/%zu]: %s", i + 1, server_dynamic_urls_.size(), server_dynamic_urls_[i].c_str());
+        ESP_LOGI(TAG, "准备下载二进制动画图片文件 [%zu/%zu]: %s", i + 1, server_dynamic_urls_.size(), server_dynamic_urls_[i].c_str());
     }
     
     // 逐个下载文件
@@ -572,7 +587,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
             int overall_percent = static_cast<int>(i * 100 / server_dynamic_urls_.size());
             char message[128];
             const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
-            snprintf(message, sizeof(message), "准备下载动画图片: %s (%zu/%zu)", 
+            snprintf(message, sizeof(message), "准备下载二进制动画图片: %s (%zu/%zu)", 
                     filename, i + 1, server_dynamic_urls_.size());
             progress_callback_(overall_percent, 100, message);
         }
@@ -630,7 +645,7 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         
         // 通知完成
         if (progress_callback_) {
-            progress_callback_(100, 100, "动画图片下载完成，正在加载图片...");
+            progress_callback_(100, 100, "二进制动画图片下载完成，正在加载图片...");
         }
         
         // 加载新下载的图片数据
@@ -638,21 +653,21 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
         
         // 通知加载完成
         if (progress_callback_) {
-            progress_callback_(100, 100, "动画图片资源已就绪");
+            progress_callback_(100, 100, "二进制动画图片资源已就绪");
             
             // 延迟一段时间后隐藏进度条
             vTaskDelay(pdMS_TO_TICKS(1000));
             progress_callback_(100, 100, nullptr);
         }
         
-        ESP_LOGI(TAG, "所有动画图片文件下载完成");
+        ESP_LOGI(TAG, "所有二进制动画图片文件下载完成");
         ExitDownloadMode();  // 退出下载模式
         return ESP_OK;
     }
     
     // 通知失败
     if (progress_callback_) {
-        progress_callback_(0, 100, "下载动画图片资源失败");
+        progress_callback_(0, 100, "下载二进制动画图片资源失败");
     }
     
     ExitDownloadMode();  // 退出下载模式
@@ -863,7 +878,11 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             continue;
         }
         
-        FILE* f = fopen(filepath, "w");
+        // 根据文件类型选择正确的写入模式
+        const char* file_ext = strrchr(filepath, '.');
+        const char* mode = (file_ext && strcmp(file_ext, ".bin") == 0) ? "wb" : "w";
+        
+        FILE* f = fopen(filepath, mode);
         if (f == NULL) {
             ESP_LOGE(TAG, "无法创建文件: %s", filepath);
             http->Close();
@@ -1012,14 +1031,63 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
         vTaskDelay(pdMS_TO_TICKS(50));  // 减少到50ms
         
         if (download_success) {
+            // 验证下载的二进制文件
+            bool file_valid = true;
+            
+#if DEBUG_IMAGE_FILES
+            if (strstr(filepath, ".bin") != nullptr) {
+                FILE* verify_file = fopen(filepath, "rb");
+                if (verify_file) {
+                    // 检查文件大小
+                    fseek(verify_file, 0, SEEK_END);
+                    long verify_size = ftell(verify_file);
+                    fseek(verify_file, 0, SEEK_SET);
+                    
+                    if (verify_size < sizeof(BinaryImageHeader)) {
+                        ESP_LOGW(TAG, "下载文件 %s 太小，可能是原始RGB数据", filepath);
+                        file_valid = true; // 仍然认为有效，可能是原始数据
+                    } else {
+                        // 尝试读取文件头
+                        BinaryImageHeader verify_header;
+                        if (fread(&verify_header, sizeof(BinaryImageHeader), 1, verify_file) == 1) {
+                            if (verify_header.magic == BINARY_IMAGE_MAGIC) {
+                                ESP_LOGI(TAG, "下载的二进制文件格式验证成功: %s", filepath);
+                                file_valid = true;
+                            } else {
+                                ESP_LOGW(TAG, "下载的文件魔数不匹配 (0x%08" PRIX32 ")，可能是原始RGB数据: %s", 
+                                        verify_header.magic, filepath);
+                                file_valid = true; // 仍然认为有效，可能是原始数据
+                            }
+                        } else {
+                            ESP_LOGE(TAG, "无法读取下载文件的头部: %s", filepath);
+                            file_valid = false;
+                        }
+                    }
+                    fclose(verify_file);
+                } else {
+                    ESP_LOGE(TAG, "无法打开下载的文件进行验证: %s", filepath);
+                    file_valid = false;
+                }
+                
+                // 如果文件无效，删除它
+                if (!file_valid) {
+                    ESP_LOGE(TAG, "删除无效的下载文件: %s", filepath);
+                    remove(filepath);
+                    return ESP_FAIL;
+                }
+            }
+#endif
+            
+            // 直接处理下载完成的文件
             if (progress_callback_) {
                 const char* filename = strrchr(filepath, '/') + 1;
                 char message[128];
                 snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
                 progress_callback_(100, 100, message);
             }
+            
             last_logged_percent = -1;
-            ESP_LOGI(TAG, "下载完成后可用内存: %u字节", (unsigned int)esp_get_free_heap_size());
+            ESP_LOGI(TAG, "文件下载完成，可用内存: %u字节", (unsigned int)esp_get_free_heap_size());
             return ESP_OK;
         } else {
             retry_count++;
@@ -1052,6 +1120,385 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
     }
     
     return ESP_FAIL;
+}
+
+bool ImageResourceManager::ConvertHFileToBinary(const char* h_filepath, const char* bin_filepath) {
+    ESP_LOGI(TAG, "开始转换.h文件为二进制格式: %s -> %s", h_filepath, bin_filepath);
+    
+    FILE* f = fopen(h_filepath, "r");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "无法打开.h文件: %s", h_filepath);
+        return false;
+    }
+    
+    // 获取文件大小
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+    // 分配文本缓冲区
+    char* text_buffer = (char*)malloc(file_size + 1);
+    if (text_buffer == NULL) {
+        ESP_LOGE(TAG, "内存分配失败");
+        fclose(f);
+        return false;
+    }
+    
+    // 读取整个文件
+    size_t read_size = fread(text_buffer, 1, file_size, f);
+    text_buffer[read_size] = '\0';
+    fclose(f);
+    
+    // 解析.h文件获取图片数据
+    const char* array_pattern = "const unsigned char";
+    char* array_start = strstr(text_buffer, array_pattern);
+    if (!array_start) {
+        ESP_LOGE(TAG, "未找到数组声明");
+        free(text_buffer);
+        return false;
+    }
+    
+    // 查找数组大小
+    char* size_start = strstr(array_start, "[");
+    char* size_end = strstr(size_start, "]");
+    if (!size_start || !size_end) {
+        ESP_LOGE(TAG, "未找到数组大小");
+        free(text_buffer);
+        return false;
+    }
+    
+    // 提取数组大小
+    char size_str[32] = {0};
+    strncpy(size_str, size_start + 1, size_end - size_start - 1);
+    int array_size = atoi(size_str);
+    
+    if (array_size <= 0 || array_size > 200000) { // 安全检查
+        ESP_LOGE(TAG, "数组大小无效: %d", array_size);
+        free(text_buffer);
+        return false;
+    }
+    
+    // 查找数据开始的位置
+    char* data_start = strstr(size_end, "{");
+    if (!data_start) {
+        ESP_LOGE(TAG, "未找到数组数据");
+        free(text_buffer);
+        return false;
+    }
+    data_start++; // 跳过 '{'
+    
+    // 分配图像数据缓冲区
+    uint8_t* img_buffer = (uint8_t*)malloc(array_size);
+    if (!img_buffer) {
+        ESP_LOGE(TAG, "图像数据内存分配失败");
+        free(text_buffer);
+        return false;
+    }
+    
+    // 解析十六进制数据（使用优化的解析逻辑）
+    static const int hex_values[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+         0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,  // 0-9
+        -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,  // A-F
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,  // a-f
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+    };
+    
+    char* p = data_start;
+    char* text_end = text_buffer + read_size;
+    int index = 0;
+    
+    while (p < text_end - 5 && index < array_size) {
+        char* next_zero = (char*)memchr(p, '0', text_end - p);
+        if (!next_zero || next_zero >= text_end - 3) break;
+        
+        p = next_zero;
+        
+        if (*(p+1) == 'x' || *(p+1) == 'X') {
+            p += 2;
+            
+            int high = hex_values[(unsigned char)*p];
+            int low = hex_values[(unsigned char)*(p+1)];
+            
+            if ((high | low) >= 0) {
+                unsigned char value = (high << 4) | low;
+                
+                // 字节序交换逻辑
+                if (index & 1) {
+                    if (index > 0) {
+                        unsigned char temp = img_buffer[index-1];
+                        img_buffer[index-1] = value;
+                        img_buffer[index] = temp;
+                    } else {
+                        img_buffer[index] = value;
+                    }
+                } else {
+                    img_buffer[index] = value;
+                }
+                
+                index++;
+                p += 2;
+            } else {
+                p++;
+            }
+        } else {
+            p++;
+        }
+    }
+    
+    free(text_buffer);
+    
+    // 验证解析结果
+    if (index < array_size) {
+        ESP_LOGW(TAG, "解析的数据不完整: %d/%d 字节", index, array_size);
+    }
+    
+    // 创建二进制文件头
+    BinaryImageHeader header = {
+        .magic = BINARY_IMAGE_MAGIC,
+        .version = BINARY_IMAGE_VERSION,
+        .width = 240,  // 固定宽度，可以根据实际情况调整
+        .height = 240, // 固定高度，可以根据实际情况调整
+        .data_size = (uint32_t)index,
+        .reserved = {0, 0, 0}
+    };
+    
+    // 写入二进制文件
+    FILE* bin_file = fopen(bin_filepath, "wb");
+    if (bin_file == NULL) {
+        ESP_LOGE(TAG, "无法创建二进制文件: %s", bin_filepath);
+        free(img_buffer);
+        return false;
+    }
+    
+    // 写入文件头
+    if (fwrite(&header, sizeof(BinaryImageHeader), 1, bin_file) != 1) {
+        ESP_LOGE(TAG, "写入文件头失败");
+        fclose(bin_file);
+        free(img_buffer);
+        return false;
+    }
+    
+    // 写入图像数据
+    if (fwrite(img_buffer, 1, index, bin_file) != index) {
+        ESP_LOGE(TAG, "写入图像数据失败");
+        fclose(bin_file);
+        free(img_buffer);
+        return false;
+    }
+    
+    fclose(bin_file);
+    free(img_buffer);
+    
+    ESP_LOGI(TAG, "成功转换为二进制格式: %d 字节数据", index);
+    return true;
+}
+
+bool ImageResourceManager::LoadBinaryImageFile(int image_index) {
+    char filename[128];
+    snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, image_index);
+    
+    FILE* f = fopen(filename, "rb");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "无法打开二进制文件: %s", filename);
+        return false;
+    }
+    
+    // 获取文件大小用于调试
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+#if DEBUG_IMAGE_FILES
+    // 添加调试信息：显示文件的前16字节
+    uint8_t debug_bytes[16];
+    size_t debug_read = fread(debug_bytes, 1, 16, f);
+    ESP_LOGI(TAG, "调试文件 %s (大小:%ld字节):", filename, file_size);
+    ESP_LOGI(TAG, "前16字节: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", 
+             debug_bytes[0], debug_bytes[1], debug_bytes[2], debug_bytes[3],
+             debug_bytes[4], debug_bytes[5], debug_bytes[6], debug_bytes[7],
+             debug_bytes[8], debug_bytes[9], debug_bytes[10], debug_bytes[11],
+             debug_bytes[12], debug_bytes[13], debug_bytes[14], debug_bytes[15]);
+    
+    // 检查文件格式：优先检查是否为原始RGB565数据
+    if (debug_read >= 4) {
+        bool has_binary_header = false;
+        
+        // 检查是否有正确的BIMG魔数（小端序）
+        if (debug_bytes[0] == 0x47 && debug_bytes[1] == 0x4D && 
+            debug_bytes[2] == 0x49 && debug_bytes[3] == 0x42) {
+            has_binary_header = true;
+            ESP_LOGI(TAG, "检测到二进制文件头格式");
+        }
+        
+        // 检查文件大小是否符合原始RGB565格式 (115200字节)
+        const size_t rgb565_size = 240 * 240 * 2;
+        bool matches_rgb565_size = (file_size == rgb565_size);
+        
+        // 根据服务端文档，优先按原始RGB565处理
+        if (matches_rgb565_size && !has_binary_header) {
+            ESP_LOGI(TAG, "检测到标准RGB565格式文件 (240x240, 115200字节)");
+            fclose(f);
+            return LoadRawImageFile(image_index, file_size);
+        } else if (!has_binary_header) {
+            ESP_LOGW(TAG, "文件大小不匹配RGB565标准，尝试作为原始数据加载");
+            fclose(f);
+            return LoadRawImageFile(image_index, file_size);
+        }
+    }
+    
+    // 重置文件指针到开头
+    fseek(f, 0, SEEK_SET);
+#endif
+    
+    // 读取文件头
+    BinaryImageHeader header;
+    if (fread(&header, sizeof(BinaryImageHeader), 1, f) != 1) {
+        ESP_LOGE(TAG, "读取文件头失败: %s", filename);
+        fclose(f);
+        return false;
+    }
+    
+    // 验证魔数
+    if (header.magic != BINARY_IMAGE_MAGIC) {
+        ESP_LOGE(TAG, "文件魔数无效: 0x%08" PRIX32 ", 期望: 0x%08" PRIX32, header.magic, BINARY_IMAGE_MAGIC);
+        
+#if DEBUG_IMAGE_FILES
+        ESP_LOGE(TAG, "尝试删除损坏的文件: %s", filename);
+        fclose(f);
+        if (remove(filename) == 0) {
+            ESP_LOGI(TAG, "成功删除损坏的文件，将在下次检查时重新下载");
+        }
+        return false;
+#else
+        fclose(f);
+        return false;
+#endif
+    }
+    
+    // 验证版本
+    if (header.version != BINARY_IMAGE_VERSION) {
+        ESP_LOGE(TAG, "文件版本不支持: %" PRIu32 ", 期望: %" PRIu32, header.version, BINARY_IMAGE_VERSION);
+        fclose(f);
+        return false;
+    }
+    
+    // 验证数据大小
+    if (header.data_size == 0 || header.data_size > 200000) {
+        ESP_LOGE(TAG, "数据大小无效: %" PRIu32, header.data_size);
+        fclose(f);
+        return false;
+    }
+    
+    // 分配图像数据缓冲区
+    uint8_t* img_buffer = (uint8_t*)malloc(header.data_size);
+    if (!img_buffer) {
+        ESP_LOGE(TAG, "图像数据内存分配失败: %" PRIu32 " 字节", header.data_size);
+        fclose(f);
+        return false;
+    }
+    
+    // 直接读取图像数据（高速I/O）
+    size_t read_size = fread(img_buffer, 1, header.data_size, f);
+    fclose(f);
+    
+    if (read_size != header.data_size) {
+        ESP_LOGE(TAG, "读取图像数据不完整: %zu/%" PRIu32 " 字节", read_size, header.data_size);
+        free(img_buffer);
+        return false;
+    }
+    
+    // 保存到数组
+    int array_index = image_index - 1;
+    if (array_index >= 0 && array_index < image_array_.size()) {
+        // 释放旧数据
+        if (image_data_pointers_[array_index]) {
+            free(image_data_pointers_[array_index]);
+        }
+        
+        // 设置新数据
+        image_data_pointers_[array_index] = img_buffer;
+        image_array_[array_index] = img_buffer;
+        
+            ESP_LOGI(TAG, "成功加载二进制图片 %d: 大小 %" PRIu32 " 字节 (尺寸: %" PRIu32 "x%" PRIu32 ")", 
+            image_index, header.data_size, header.width, header.height);
+    return true;
+} else {
+    ESP_LOGE(TAG, "图片索引超出范围: %d", array_index);
+    free(img_buffer);
+    return false;
+}
+}
+
+bool ImageResourceManager::LoadRawImageFile(int image_index, size_t file_size) {
+    char filename[128];
+    snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, image_index);
+    
+    ESP_LOGI(TAG, "尝试作为原始RGB数据加载文件: %s (大小: %zu字节)", filename, file_size);
+    
+    // 检查文件大小是否符合RGB565格式（240x240x2 = 115200字节）
+    const size_t expected_size = 240 * 240 * 2;  // 115200字节
+    if (file_size != expected_size) {
+        ESP_LOGW(TAG, "文件大小 %zu 不符合标准 RGB565 格式大小 %zu", file_size, expected_size);
+        // 仍然尝试加载，可能是不同分辨率
+    } else {
+        ESP_LOGI(TAG, "文件大小匹配标准RGB565格式: %zu字节 (240x240)", file_size);
+    }
+    
+    FILE* f = fopen(filename, "rb");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "无法打开原始数据文件: %s", filename);
+        return false;
+    }
+    
+    // 分配缓冲区
+    uint8_t* img_buffer = (uint8_t*)malloc(file_size);
+    if (!img_buffer) {
+        ESP_LOGE(TAG, "内存分配失败: %zu 字节", file_size);
+        fclose(f);
+        return false;
+    }
+    
+    // 读取整个文件
+    size_t read_size = fread(img_buffer, 1, file_size, f);
+    fclose(f);
+    
+    if (read_size != file_size) {
+        ESP_LOGE(TAG, "读取原始数据失败: 期望 %zu 字节，实际读取 %zu 字节", file_size, read_size);
+        free(img_buffer);
+        return false;
+    }
+    
+    // 保存到数组
+    int array_index = image_index - 1;
+    if (array_index >= 0 && array_index < image_array_.size()) {
+        // 释放旧数据
+        if (image_data_pointers_[array_index]) {
+            free(image_data_pointers_[array_index]);
+        }
+        
+        // 设置新数据
+        image_data_pointers_[array_index] = img_buffer;
+        image_array_[array_index] = img_buffer;
+        
+        ESP_LOGI(TAG, "成功加载原始RGB数据 %d: 大小 %zu 字节", image_index, file_size);
+        return true;
+    } else {
+        ESP_LOGE(TAG, "图片索引超出范围: %d", array_index);
+        free(img_buffer);
+        return false;
+    }
 }
 
 bool ImageResourceManager::SaveDynamicUrls(const std::vector<std::string>& urls) {
@@ -1168,11 +1615,128 @@ void ImageResourceManager::LoadImageData() {
 }
 
 bool ImageResourceManager::LoadLogoFile() {
-    FILE* f = fopen(LOGO_FILE_PATH, "r");
+    // 首先尝试加载二进制格式logo
+    FILE* bin_test = fopen(LOGO_FILE_PATH, "rb");
+    if (bin_test != NULL) {
+        fclose(bin_test);
+        ESP_LOGI(TAG, "发现二进制logo文件，使用高速加载: %s", LOGO_FILE_PATH);
+        
+        // 读取二进制logo文件
+        FILE* f = fopen(LOGO_FILE_PATH, "rb");
+        if (f == NULL) {
+            ESP_LOGE(TAG, "无法打开二进制logo文件: %s", LOGO_FILE_PATH);
+            return false;
+        }
+        
+        // 获取文件大小
+        fseek(f, 0, SEEK_END);
+        long logo_file_size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        
+#if DEBUG_IMAGE_FILES
+        // 添加调试信息
+        uint8_t debug_bytes[16];
+        size_t debug_read = fread(debug_bytes, 1, 16, f);
+        ESP_LOGI(TAG, "调试logo文件 %s (大小:%ld字节):", LOGO_FILE_PATH, logo_file_size);
+        ESP_LOGI(TAG, "前16字节: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", 
+                 debug_bytes[0], debug_bytes[1], debug_bytes[2], debug_bytes[3],
+                 debug_bytes[4], debug_bytes[5], debug_bytes[6], debug_bytes[7],
+                 debug_bytes[8], debug_bytes[9], debug_bytes[10], debug_bytes[11],
+                 debug_bytes[12], debug_bytes[13], debug_bytes[14], debug_bytes[15]);
+        
+        // 检查是否为原始RGB数据
+        bool looks_like_raw_logo = true;
+        if (debug_read >= 4 && debug_bytes[0] == 0x47 && debug_bytes[1] == 0x4D && 
+            debug_bytes[2] == 0x49 && debug_bytes[3] == 0x42) {
+            looks_like_raw_logo = false;
+        }
+        
+        if (looks_like_raw_logo) {
+            ESP_LOGW(TAG, "logo文件看起来像原始RGB数据，直接加载");
+            fclose(f);
+            
+            // 直接作为原始数据加载
+            FILE* raw_f = fopen(LOGO_FILE_PATH, "rb");
+            if (raw_f) {
+                logo_data_ = (uint8_t*)malloc(logo_file_size);
+                if (logo_data_) {
+                    size_t read_size = fread(logo_data_, 1, logo_file_size, raw_f);
+                    fclose(raw_f);
+                    if (read_size == logo_file_size) {
+                        ESP_LOGI(TAG, "成功加载原始logo数据: 大小 %ld 字节", logo_file_size);
+                        return true;
+                    } else {
+                        free(logo_data_);
+                        logo_data_ = nullptr;
+                    }
+                } else {
+                    fclose(raw_f);
+                }
+            }
+            ESP_LOGE(TAG, "加载原始logo数据失败");
+            return false;
+        }
+        
+        // 重置文件指针
+        fseek(f, 0, SEEK_SET);
+#endif
+        
+        // 读取文件头
+        BinaryImageHeader header;
+        if (fread(&header, sizeof(BinaryImageHeader), 1, f) != 1) {
+            ESP_LOGE(TAG, "读取logo文件头失败");
+            fclose(f);
+            return false;
+        }
+        
+        // 验证魔数和版本
+        if (header.magic != BINARY_IMAGE_MAGIC || header.version != BINARY_IMAGE_VERSION) {
+            ESP_LOGE(TAG, "logo文件格式无效，魔数: 0x%08" PRIX32 "，版本: %" PRIu32, header.magic, header.version);
+            
+#if DEBUG_IMAGE_FILES
+            ESP_LOGE(TAG, "尝试删除损坏的logo文件: %s", LOGO_FILE_PATH);
+            fclose(f);
+            if (remove(LOGO_FILE_PATH) == 0) {
+                ESP_LOGI(TAG, "成功删除损坏的logo文件，将在下次检查时重新下载");
+            }
+            return false;
+#else
+            fclose(f);
+            return false;
+#endif
+        }
+        
+        // 分配logo数据缓冲区
+        logo_data_ = (uint8_t*)malloc(header.data_size);
+        if (!logo_data_) {
+            ESP_LOGE(TAG, "logo数据内存分配失败");
+            fclose(f);
+            return false;
+        }
+        
+        // 直接读取logo数据
+        size_t read_size = fread(logo_data_, 1, header.data_size, f);
+        fclose(f);
+        
+        if (read_size != header.data_size) {
+            ESP_LOGE(TAG, "读取logo数据不完整");
+            free(logo_data_);
+            logo_data_ = nullptr;
+            return false;
+        }
+        
+        ESP_LOGI(TAG, "成功加载二进制logo: 大小 %" PRIu32 " 字节", header.data_size);
+        return true;
+    }
+    
+    // 回退到.h文件解析（向后兼容）
+    FILE* f = fopen(LOGO_FILE_PATH_H, "r");
     if (f == NULL) {
-        ESP_LOGE(TAG, "无法打开logo文件: %s", LOGO_FILE_PATH);
+        ESP_LOGE(TAG, "无法打开.h格式logo文件: %s", LOGO_FILE_PATH_H);
         return false;
     }
+    
+    ESP_LOGI(TAG, "使用传统.h文件解析logo: %s", LOGO_FILE_PATH_H);
     
     // 获取文件大小
     fseek(f, 0, SEEK_END);
@@ -1273,8 +1837,8 @@ bool ImageResourceManager::LoadLogoFile() {
             p += 2; // 跳过 "0x"
             
             // 快速提取十六进制数值
-            register int high = hex_values[(unsigned char)*p];
-            register int low = hex_values[(unsigned char)*(p+1)];
+            int high = hex_values[(unsigned char)*p];
+            int low = hex_values[(unsigned char)*(p+1)];
             
             if ((high | low) >= 0) {  // 位运算检查，比 && 更快
                 unsigned char value = (high << 4) | low;
@@ -1316,6 +1880,18 @@ bool ImageResourceManager::LoadLogoFile() {
 }
 
 bool ImageResourceManager::LoadImageFile(int image_index) {
+    // 首先尝试加载二进制格式（高速加载）
+    char bin_filename[128];
+    snprintf(bin_filename, sizeof(bin_filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, image_index);
+    
+    FILE* bin_test = fopen(bin_filename, "rb");
+    if (bin_test != NULL) {
+        fclose(bin_test);
+        ESP_LOGI(TAG, "发现二进制文件，使用高速加载: %s", bin_filename);
+        return LoadBinaryImageFile(image_index);
+    }
+    
+    // 回退到.h文件解析（兼容性支持）
     char filename[128];
     snprintf(filename, sizeof(filename), "%soutput_%04d.h", IMAGE_BASE_PATH, image_index);
     
@@ -1324,6 +1900,8 @@ bool ImageResourceManager::LoadImageFile(int image_index) {
         ESP_LOGE(TAG, "无法打开文件: %s", filename);
         return false;
     }
+    
+    ESP_LOGI(TAG, "使用传统.h文件解析: %s", filename);
     
     // 获取文件大小
     fseek(f, 0, SEEK_END);
@@ -1424,8 +2002,8 @@ bool ImageResourceManager::LoadImageFile(int image_index) {
             p += 2; // 跳过 "0x"
             
             // 快速提取十六进制数值
-            register int high = hex_values[(unsigned char)*p];
-            register int low = hex_values[(unsigned char)*(p+1)];
+            int high = hex_values[(unsigned char)*p];
+            int low = hex_values[(unsigned char)*(p+1)];
             
             if ((high | low) >= 0) {  // 位运算检查，比 && 更快
                 unsigned char value = (high << 4) | low;
@@ -1725,7 +2303,7 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
         return ESP_FAIL;
     }
     
-    ESP_LOGI(TAG, "使用预获取的URL列表下载动画图片，进入专用下载模式...");
+    ESP_LOGI(TAG, "使用预获取的URL列表下载二进制动画图片，进入专用下载模式...");
     
     // 进入专用下载模式：优化系统资源
     EnterDownloadMode();
@@ -1745,7 +2323,7 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
     
     // 通知开始下载
     if (progress_callback_) {
-        progress_callback_(0, 100, "准备下载动画图片资源...");
+        progress_callback_(0, 100, "准备下载二进制动画图片资源...");
     }
     
     // 删除现有的图片文件（带进度显示）
@@ -1755,14 +2333,14 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
     
     bool success = true;
     
-    // 准备文件路径
+    // 准备文件路径（直接使用二进制格式）
     std::vector<std::string> file_paths;
     for (size_t i = 0; i < urls.size() && i < MAX_IMAGE_FILES; i++) {
         char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, (int)(i + 1));
+        snprintf(filepath, sizeof(filepath), "%soutput_%04d.bin", IMAGE_BASE_PATH, (int)(i + 1));
         file_paths.push_back(filepath);
         
-        ESP_LOGI(TAG, "准备下载动画图片文件 [%zu/%zu]: %s", i + 1, urls.size(), urls[i].c_str());
+        ESP_LOGI(TAG, "准备下载二进制动画图片文件 [%zu/%zu]: %s", i + 1, urls.size(), urls[i].c_str());
     }
     
     // 逐个下载文件
@@ -1772,7 +2350,7 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
             int overall_percent = static_cast<int>(i * 100 / urls.size());
             char message[128];
             const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
-            snprintf(message, sizeof(message), "下载动画图片: %s (%zu/%zu)", 
+            snprintf(message, sizeof(message), "下载二进制动画图片: %s (%zu/%zu)", 
                     filename, i + 1, urls.size());
             progress_callback_(overall_percent, 100, message);
         }
@@ -1831,7 +2409,7 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
         
         // 通知完成
         if (progress_callback_) {
-            progress_callback_(100, 100, "动画图片下载完成，正在加载图片...");
+            progress_callback_(100, 100, "二进制动画图片下载完成，正在加载图片...");
         }
         
         // 加载新下载的图片数据
@@ -1839,21 +2417,21 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
         
         // 通知加载完成
         if (progress_callback_) {
-            progress_callback_(100, 100, "动画图片资源已就绪");
+            progress_callback_(100, 100, "二进制动画图片资源已就绪");
             
             // 延迟一段时间后隐藏进度条
             vTaskDelay(pdMS_TO_TICKS(1000));
             progress_callback_(100, 100, nullptr);
         }
         
-        ESP_LOGI(TAG, "所有动画图片文件下载完成");
+        ESP_LOGI(TAG, "所有二进制动画图片文件下载完成");
         ExitDownloadMode();  // 退出下载模式
         return ESP_OK;
     }
     
     // 通知失败
     if (progress_callback_) {
-        progress_callback_(0, 100, "下载动画图片资源失败");
+        progress_callback_(0, 100, "下载二进制动画图片资源失败");
     }
     
     ExitDownloadMode();  // 退出下载模式
@@ -2145,15 +2723,24 @@ bool ImageResourceManager::DeleteExistingAnimationFiles() {
         progress_callback_(0, 100, "正在删除旧的动画图片文件...");
     }
     
-    // 先快速扫描有哪些文件存在，避免多次stat调用
+    // 先快速扫描有哪些文件存在，优先检查二进制文件
     std::vector<std::string> existing_files;
     for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
-        char filepath[128];
-        snprintf(filepath, sizeof(filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
+        char bin_filepath[128];
+        char h_filepath[128];
+        snprintf(bin_filepath, sizeof(bin_filepath), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
+        snprintf(h_filepath, sizeof(h_filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
         
         struct stat file_stat;
-        if (stat(filepath, &file_stat) == 0) {
-            existing_files.push_back(filepath);
+        
+        // 优先检查二进制文件
+        if (stat(bin_filepath, &file_stat) == 0) {
+            existing_files.push_back(bin_filepath);
+        }
+        
+        // 也检查.h文件（向后兼容）
+        if (stat(h_filepath, &file_stat) == 0) {
+            existing_files.push_back(h_filepath);
         }
     }
     
@@ -2229,9 +2816,12 @@ bool ImageResourceManager::DeleteExistingLogoFile() {
         progress_callback_(0, 100, "正在删除旧的logo文件...");
     }
     
-    // 检查logo文件是否存在
+    // 检查logo文件是否存在（优先检查二进制格式）
     struct stat file_stat;
-    if (stat(LOGO_FILE_PATH, &file_stat) != 0) {
+    bool bin_exists = (stat(LOGO_FILE_PATH, &file_stat) == 0);
+    bool h_exists = (stat(LOGO_FILE_PATH_H, &file_stat) == 0);
+    
+    if (!bin_exists && !h_exists) {
         ESP_LOGI(TAG, "未发现需要删除的logo文件");
         if (progress_callback_) {
             progress_callback_(100, 100, "无需删除logo，准备下载新文件...");
@@ -2240,27 +2830,54 @@ bool ImageResourceManager::DeleteExistingLogoFile() {
         return true;
     }
     
-    // 显示正在删除的进度
-    if (progress_callback_) {
-        progress_callback_(50, 100, "正在删除logo.h文件...");
+    bool success = true;
+    int deleted_count = 0;
+    
+    // 删除二进制格式logo文件
+    if (bin_exists) {
+        if (progress_callback_) {
+            progress_callback_(25, 100, "正在删除logo.bin文件...");
+        }
+        
+        if (remove(LOGO_FILE_PATH) == 0) {
+            ESP_LOGI(TAG, "成功删除二进制logo文件: %s", LOGO_FILE_PATH);
+            deleted_count++;
+        } else {
+            ESP_LOGW(TAG, "删除二进制logo文件失败: %s", LOGO_FILE_PATH);
+            success = false;
+        }
     }
     
-    // 执行删除操作
-    bool success = false;
-    if (remove(LOGO_FILE_PATH) == 0) {
-        ESP_LOGI(TAG, "成功删除logo文件: %s", LOGO_FILE_PATH);
-        success = true;
-    } else {
-        ESP_LOGW(TAG, "删除logo文件失败: %s", LOGO_FILE_PATH);
+    // 删除.h格式logo文件（如果存在）
+    if (h_exists) {
+        if (progress_callback_) {
+            progress_callback_(75, 100, "正在删除logo.h文件...");
+        }
+        
+        if (remove(LOGO_FILE_PATH_H) == 0) {
+            ESP_LOGI(TAG, "成功删除.h格式logo文件: %s", LOGO_FILE_PATH_H);
+            deleted_count++;
+        } else {
+            ESP_LOGW(TAG, "删除.h格式logo文件失败: %s", LOGO_FILE_PATH_H);
+            success = false;
+        }
     }
     
     // 显示删除结果
     if (progress_callback_) {
-        const char* result_message = success ? "logo文件删除成功" : "logo文件删除失败";
+        char result_message[128];
+        if (success && deleted_count > 0) {
+            snprintf(result_message, sizeof(result_message), "成功删除 %d 个logo文件", deleted_count);
+        } else if (deleted_count > 0) {
+            snprintf(result_message, sizeof(result_message), "部分logo文件删除失败");
+        } else {
+            snprintf(result_message, sizeof(result_message), "logo文件删除失败");
+        }
         progress_callback_(100, 100, result_message);
         vTaskDelay(pdMS_TO_TICKS(500)); // 显示结果500ms
     }
     
+    ESP_LOGI(TAG, "logo文件删除完成，成功删除: %d 个文件", deleted_count);
     return success;
 }
 
@@ -2306,6 +2923,83 @@ bool ImageResourceManager::IsImageLoaded(int image_index) const {
     
     int array_index = image_index - 1;
     return image_array_[array_index] != nullptr;
+}
+
+bool ImageResourceManager::ClearAllImageFiles() {
+    if (!mounted_) {
+        ESP_LOGE(TAG, "分区未挂载，无法清理文件");
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "开始清理所有图片文件...");
+    int deleted_count = 0;
+    
+    // 清理动画图片文件
+    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+        char bin_filepath[128];
+        char h_filepath[128];
+        snprintf(bin_filepath, sizeof(bin_filepath), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
+        snprintf(h_filepath, sizeof(h_filepath), "%soutput_%04d.h", IMAGE_BASE_PATH, i);
+        
+        if (remove(bin_filepath) == 0) {
+            ESP_LOGI(TAG, "删除文件: %s", bin_filepath);
+            deleted_count++;
+        }
+        
+        if (remove(h_filepath) == 0) {
+            ESP_LOGI(TAG, "删除文件: %s", h_filepath);
+            deleted_count++;
+        }
+    }
+    
+    // 清理logo文件
+    if (remove(LOGO_FILE_PATH) == 0) {
+        ESP_LOGI(TAG, "删除文件: %s", LOGO_FILE_PATH);
+        deleted_count++;
+    }
+    
+    if (remove(LOGO_FILE_PATH_H) == 0) {
+        ESP_LOGI(TAG, "删除文件: %s", LOGO_FILE_PATH_H);
+        deleted_count++;
+    }
+    
+    // 清理缓存文件
+    if (remove(IMAGE_URL_CACHE_FILE) == 0) {
+        ESP_LOGI(TAG, "删除文件: %s", IMAGE_URL_CACHE_FILE);
+        deleted_count++;
+    }
+    
+    if (remove(LOGO_URL_CACHE_FILE) == 0) {
+        ESP_LOGI(TAG, "删除文件: %s", LOGO_URL_CACHE_FILE);
+        deleted_count++;
+    }
+    
+    ESP_LOGI(TAG, "文件清理完成，共删除 %d 个文件", deleted_count);
+    
+    // 重置状态
+    has_valid_images_ = false;
+    has_valid_logo_ = false;
+    cached_dynamic_urls_.clear();
+    cached_static_url_.clear();
+    server_dynamic_urls_.clear();
+    server_static_url_.clear();
+    
+    // 清理内存中的图片数据
+    for (auto ptr : image_data_pointers_) {
+        if (ptr) {
+            free(ptr);
+        }
+    }
+    image_data_pointers_.clear();
+    image_array_.clear();
+    
+    if (logo_data_) {
+        free(logo_data_);
+        logo_data_ = nullptr;
+    }
+    
+    ESP_LOGI(TAG, "图片资源状态已重置，下次将重新下载所有文件");
+    return true;
 }
 
 esp_err_t ImageResourceManager::PreloadRemainingImages() {
@@ -2410,13 +3104,14 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
             }
         }
         
-        // 给系统更多时间进行其他操作，特别是音频处理
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // 二进制格式加载速度快，减少延迟时间
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
     
     free_heap = esp_get_free_heap_size();
     ESP_LOGI(TAG, "预加载完成，成功加载: %d/%d 张图片，剩余内存: %u字节", 
              loaded_count, total_images, (unsigned int)free_heap);
+    ESP_LOGI(TAG, "已启用服务器直传二进制格式优化，下载+预加载速度大幅提升");
     
     // 通知预加载完成
     if (preload_progress_callback_) {
