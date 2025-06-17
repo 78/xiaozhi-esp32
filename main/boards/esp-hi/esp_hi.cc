@@ -300,69 +300,58 @@ private:
         auto& mcp_server = McpServer::GetInstance();
         
         // 基础动作控制
-        mcp_server.AddTool("self.dog.forward", "机器人向前移动", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.backward", "机器人向后移动", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_BACKWARD, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.sway_back_forth", "机器人做前后摇摆动作", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_SWAY_BACK_FORTH, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.turn_left", "机器人向左转", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_TURN_LEFT, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.turn_right", "机器人向右转", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_TURN_RIGHT, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.lay_down", "机器人趴下", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_LAY_DOWN, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.sway", "机器人做左右摇摆动作", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            dog_action_args_t args = {
-                .repeat_count = 4,
-            };
-            servo_dog_ctrl_send(DOG_STATE_SWAY, &args);
-            return true;
-        });
-
+        mcp_server.AddTool("self.dog.basic_control", "机器人的基础动作。机器人可以做以下基础动作：\n"
+            "forward: 向前移动\nbackward: 向后移动\nturn_left: 向左转\nturn_right: 向右转\nstop: 立即停止当前动作", 
+            PropertyList({
+                Property("action", kPropertyTypeString),
+            }), [this](const PropertyList& properties) -> ReturnValue {
+                const std::string& action = properties["action"].value<std::string>();
+                if (action == "forward") {
+                    servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
+                } else if (action == "backward") {
+                    servo_dog_ctrl_send(DOG_STATE_BACKWARD, NULL);
+                } else if (action == "turn_left") {
+                    servo_dog_ctrl_send(DOG_STATE_TURN_LEFT, NULL);
+                } else if (action == "turn_right") {
+                    servo_dog_ctrl_send(DOG_STATE_TURN_RIGHT, NULL);
+                } else if (action == "stop") {
+                    servo_dog_ctrl_send(DOG_STATE_IDLE, NULL);
+                } else {
+                    return false;
+                }
+                return true;
+            });
+        
         // 扩展动作控制
-        mcp_server.AddTool("self.dog.retract_legs", "机器人收回腿部", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_RETRACT_LEGS, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.stop", "立即停止机器人当前动作", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_IDLE, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.shake_hand", "机器人做握手动作", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_SHAKE_HAND, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.shake_back_legs", "机器人伸懒腰", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_SHAKE_BACK_LEGS, NULL);
-            return true;
-        });
-
-        mcp_server.AddTool("self.dog.jump_forward", "机器人向前跳跃", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
-            servo_dog_ctrl_send(DOG_STATE_JUMP_FORWARD, NULL);
-            return true;
-        });
+        mcp_server.AddTool("self.dog.advanced_control", "机器人的扩展动作。机器人可以做以下扩展动作：\n"
+            "sway_back_forth: 前后摇摆\nlay_down: 趴下\nsway: 左右摇摆\nretract_legs: 收回腿部\n"
+            "shake_hand: 握手\nshake_back_legs: 伸懒腰\njump_forward: 向前跳跃", 
+            PropertyList({
+                Property("action", kPropertyTypeString),
+            }), [this](const PropertyList& properties) -> ReturnValue {
+                const std::string& action = properties["action"].value<std::string>();
+                if (action == "sway_back_forth") {
+                    servo_dog_ctrl_send(DOG_STATE_SWAY_BACK_FORTH, NULL);
+                } else if (action == "lay_down") {
+                    servo_dog_ctrl_send(DOG_STATE_LAY_DOWN, NULL);
+                } else if (action == "sway") {
+                    dog_action_args_t args = {
+                        .repeat_count = 4,
+                    };
+                    servo_dog_ctrl_send(DOG_STATE_SWAY, &args);
+                } else if (action == "retract_legs") {
+                    servo_dog_ctrl_send(DOG_STATE_RETRACT_LEGS, NULL);
+                } else if (action == "shake_hand") {
+                    servo_dog_ctrl_send(DOG_STATE_SHAKE_HAND, NULL);
+                } else if (action == "shake_back_legs") {
+                    servo_dog_ctrl_send(DOG_STATE_SHAKE_BACK_LEGS, NULL);
+                } else if (action == "jump_forward") {
+                    servo_dog_ctrl_send(DOG_STATE_JUMP_FORWARD, NULL);
+                } else {
+                    return false;
+                }
+                return true;
+            });
 
         // 灯光控制
         mcp_server.AddTool("self.light.get_power", "获取灯是否打开", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
