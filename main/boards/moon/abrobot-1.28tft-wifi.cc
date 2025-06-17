@@ -1080,11 +1080,10 @@ private:
 
     // 按钮初始化
     void InitializeButtons() {
-        // 按下按钮时开始监听
-        boot_btn.OnPressDown([this]() {
+        boot_btn.OnClick([this]() {
             // 检查用户交互是否被禁用
             if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
-                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮按下");
+                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮点击");
                 return;
             }
             
@@ -1092,24 +1091,9 @@ private:
             // 如果设备正在启动且WiFi未连接，则重置WiFi配置
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();  // 重置WiFi配置
-                return;
             }
+            app.ToggleChatState();  // 切换聊天状态
             
-            // 开始监听
-            app.StartListening();
-        });
-        
-        // 松开按钮时停止监听
-        boot_btn.OnPressUp([this]() {
-            // 检查用户交互是否被禁用
-            if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
-                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮松开");
-                return;
-            }
-            
-            auto& app = Application::GetInstance();
-            // 停止监听
-            app.StopListening();
         });
  
     }

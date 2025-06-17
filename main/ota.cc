@@ -158,18 +158,29 @@ bool Ota::CheckVersion() {
         }
     }
 
+    // 如果设备未绑定（有activation code），则跳过固件检查
+    if (has_activation_code_) {
+        ESP_LOGI(TAG, "Device not activated yet, skipping firmware version check");
+        has_new_version_ = false;  // 未绑定设备不需要升级
+        cJSON_Delete(root);
+        return true;
+    }
+
+    // 只有已绑定的设备才检查firmware字段
     cJSON *firmware = cJSON_GetObjectItem(root, "firmware");
     if (firmware == NULL) {
-        ESP_LOGE(TAG, "Failed to get firmware object");
+        ESP_LOGE(TAG, "Failed to get firmware object for activated device");
         cJSON_Delete(root);
         return false;
     }
+
     cJSON *version = cJSON_GetObjectItem(firmware, "version");
     if (version == NULL) {
         ESP_LOGE(TAG, "Failed to get version object");
         cJSON_Delete(root);
         return false;
     }
+
     cJSON *url = cJSON_GetObjectItem(firmware, "url");
     if (url == NULL) {
         ESP_LOGE(TAG, "Failed to get url object");
@@ -181,7 +192,7 @@ bool Ota::CheckVersion() {
     firmware_url_ = url->valuestring;
     cJSON_Delete(root);
 
-    // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+    // Check if the version is newer
     has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
     if (has_new_version_) {
         ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
