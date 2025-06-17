@@ -1,0 +1,7 @@
+{
+    "client_type": "esp32s3",
+    "device_name": "",
+    "device_version": "1.0.0",
+    "idf_path": "C:\\Users\\1\\esp\\v5.4.1\\esp-idf",
+    "last_port": "COM1"
+}

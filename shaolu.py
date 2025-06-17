@@ -16,7 +16,6 @@ except ImportError:
 
 # 基本配置
 API_URL = "https://xiaoqiao-api.oaibro.com/admin-api/xiaoqiao/admin/device/add"  # 设备入库API地址
-DEFAULT_WEBSOCKET_URL = "ws://113.45.139.160:8896/ws/device"  # 您的WebSocket服务器地址
 
 def check_esp_idf_installed():
     """检查ESP-IDF开发环境是否已安装"""
@@ -209,7 +208,7 @@ def register_device(mac_address):
         print(f"设备入库失败: {e}")
         return None, None
 
-def update_config(token, websocket_url, client_id=None):
+def update_config(token, client_id=None):
     """更新sdkconfig文件中的连接类型设置和Client-Id"""
     try:
         print("正在更新sdkconfig配置...")
@@ -250,7 +249,7 @@ def update_config(token, websocket_url, client_id=None):
         print(f"- 连接类型: WebSocket")
         if client_id:
             print(f"- Client-Id: {client_id}")
-        print(f"- WebSocket URL和Token将从OTA接口动态获取")
+        print(f"- WebSocket URL将从OTA接口动态获取")
         
         return True
     except Exception as e:
@@ -360,7 +359,7 @@ def main():
         return 1
     
     # 3. 更新SDK配置，将client_id写入配置作为设备的永久标识符
-    if not update_config(token, args.websocket_url, client_id):
+    if not update_config(token, client_id):
         print("更新配置失败，退出")
         return 1
     
@@ -384,7 +383,6 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ESP32S3自动烧录工具")
     parser.add_argument("--port", "-p", help="设备串口，例如 COM3 或 /dev/ttyUSB0")
-    parser.add_argument("--websocket_url", help=f"Websocket URL，默认为 {DEFAULT_WEBSOCKET_URL}", default=DEFAULT_WEBSOCKET_URL)
     parser.add_argument("--auto-select", action="store_true", help="当检测到多个串口时自动选择第一个")
     args = parser.parse_args()
     

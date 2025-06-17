@@ -411,11 +411,11 @@ public:
         lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);  // 设置图标字体
         lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置文本颜色
 
-        // 电池标签
-        battery_label_ = lv_label_create(status_bar_);
-        lv_label_set_text(battery_label_, "");  // 初始化为空文本
-        lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
-        lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置文本颜色
+        // 电池标签 - 已删除电量UI显示
+        // battery_label_ = lv_label_create(status_bar_);
+        // lv_label_set_text(battery_label_, "");  // 初始化为空文本
+        // lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
+        // lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置文本颜色
 
         // 低电量弹窗
         low_battery_popup_ = lv_obj_create(tab1);
@@ -570,83 +570,7 @@ public:
             
         }, 1000, NULL);  // 每1000毫秒更新一次
 
-        // 创建电池状态显示 - 调整位置和样式
-        lv_obj_t *battery_container = lv_obj_create(tab2);
-        lv_obj_remove_style_all(battery_container);
-        // 增加容器宽度，确保有足够空间容纳图标和文本
-        lv_obj_set_size(battery_container, 100, 30);
-        // 添加半透明背景使图标更醒目
-        lv_obj_set_style_bg_opa(battery_container, LV_OPA_30, 0);
-        lv_obj_set_style_bg_color(battery_container, lv_color_black(), 0);
-        lv_obj_set_style_radius(battery_container, 15, 0);  // 圆角边框
-        lv_obj_set_style_border_width(battery_container, 0, 0);
-
-        // 设置为水平Flex布局，让元素自动排列
-        lv_obj_set_flex_flow(battery_container, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(battery_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_all(battery_container, 8, 0);  // 设置内边距
-        lv_obj_set_style_pad_column(battery_container, 5, 0);  // 设置元素间距
-
-        // 位置居中底部，往下移动一点
-        lv_obj_align(battery_container, LV_ALIGN_BOTTOM_MID, 0, -5);
-
-        // 创建电池图标
-        lv_obj_t *tab2_battery_label = lv_label_create(battery_container);
-        lv_obj_set_style_text_font(tab2_battery_label, fonts_.icon_font, 0);
-        // 使用更亮的颜色确保可见
-        lv_obj_set_style_text_color(tab2_battery_label, lv_color_hex(0xFFFFFF), 0);
-        lv_label_set_text(tab2_battery_label, FONT_AWESOME_BATTERY_FULL);  // 先设置一个初始值确保可见
-        // 不再需要手动居中，Flex布局会自动处理
-
-        // 添加电量百分比显示
-        lv_obj_t *battery_percent = lv_label_create(battery_container); 
-        lv_obj_set_style_text_font(battery_percent, fonts_.text_font, 0);
-        lv_obj_set_style_text_color(battery_percent, lv_color_hex(0xFFFFFF), 0);
-        lv_label_set_text(battery_percent, "100%");  // 初始化为可见值
-        // 不再需要手动对齐，Flex布局会自动处理
-
-        // 更新静态引用
-        static lv_obj_t* batt_icon = tab2_battery_label;
-        static lv_obj_t* batt_text = battery_percent;
-
-        // 更新定时器代码，同时更新图标和百分比
-        lv_timer_create([](lv_timer_t *t) {
-            if (!batt_icon || !batt_text) return;
-            
-            auto& board = Board::GetInstance();
-            int battery_level;
-            bool charging, discharging;
-            
-            if (board.GetBatteryLevel(battery_level, charging, discharging)) {
-                lv_lock();
-                // 更新电池图标
-                const char* icon = nullptr;
-                if (charging) {
-                    icon = FONT_AWESOME_BATTERY_CHARGING;
-                } else {
-                    const char* levels[] = {
-                        FONT_AWESOME_BATTERY_EMPTY,  // 0-19%
-                        FONT_AWESOME_BATTERY_1,      // 20-39%
-                        FONT_AWESOME_BATTERY_2,      // 40-59%
-                        FONT_AWESOME_BATTERY_3,      // 60-79%
-                        FONT_AWESOME_BATTERY_FULL,   // 80-100%
-                    };
-                    icon = levels[battery_level / 20];
-                }
-                
-                // 更新图标
-                if (icon) {
-                    lv_label_set_text(batt_icon, icon);
-                }
-                
-                // 更新百分比文本
-                char percent_str[8];
-                snprintf(percent_str, sizeof(percent_str), "%d%%", battery_level);
-                lv_label_set_text(batt_text, percent_str);
-                
-                lv_unlock();
-            }
-        }, 3000, NULL);  // 缩短更新间隔为3秒
+        // 电池状态显示已删除 - 不再显示电量UI
     }
 
     // 设置用户界面，初始化所有UI组件
@@ -782,9 +706,7 @@ public:
             if (mute_label_ != nullptr) {
                 lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置静音标签文本颜色
             }
-            if (battery_label_ != nullptr) {
-                lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置电池标签文本颜色
-            }
+            // 电池标签已删除 - 不再更新电池标签文本颜色
         }
         
         // 更新内容区域颜色
@@ -1158,10 +1080,11 @@ private:
 
     // 按钮初始化
     void InitializeButtons() {
-        boot_btn.OnClick([this]() {
+        // 按下按钮时开始监听
+        boot_btn.OnPressDown([this]() {
             // 检查用户交互是否被禁用
             if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
-                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮点击");
+                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮按下");
                 return;
             }
             
@@ -1169,9 +1092,24 @@ private:
             // 如果设备正在启动且WiFi未连接，则重置WiFi配置
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();  // 重置WiFi配置
+                return;
             }
-            app.ToggleChatState();  // 切换聊天状态
             
+            // 开始监听
+            app.StartListening();
+        });
+        
+        // 松开按钮时停止监听
+        boot_btn.OnPressUp([this]() {
+            // 检查用户交互是否被禁用
+            if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
+                ESP_LOGW(TAG, "用户交互已禁用，忽略按钮松开");
+                return;
+            }
+            
+            auto& app = Application::GetInstance();
+            // 停止监听
+            app.StopListening();
         });
  
     }
@@ -1501,7 +1439,7 @@ private:
         
         // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
-        const TickType_t cycleInterval = pdMS_TO_TICKS(200);  // 从120ms改为200ms
+        const TickType_t cycleInterval = pdMS_TO_TICKS(150);  // 从120ms改为200ms
         
         // 循环变量定义
         bool isAudioPlaying = false;       

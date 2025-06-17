@@ -19,7 +19,7 @@ try:
     from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                                 QPushButton, QLabel, QComboBox, QLineEdit, QTextEdit, 
                                 QGroupBox, QFormLayout, QProgressBar, QMessageBox, QFileDialog,
-                                QSplitter, QFrame)
+                                QSplitter, QFrame, QAbstractItemView)
     from PySide6.QtCore import Qt, QThread, Signal, Slot, QObject, QTimer
     from PySide6.QtGui import QFont, QIcon, QTextCursor, QColor, QPalette
     HAS_PYSIDE6 = True
@@ -41,13 +41,17 @@ except ImportError:
     sys.exit(1)
 
 # 基本配置
-API_URL = "https://xiaoqiao-api.oaibro.com/admin-api/xiaoqiao/admin/device/add"  # 设备入库API地址
-DEFAULT_WEBSOCKET_URL = "ws://113.45.139.160:8896/ws/device"  # 您的WebSocket服务器地址
+LOGIN_API_URL = "https://xiaoqiao-v2api.xmduzhong.com/admin-api/xiaoqiao/admin/auth/login"  # 管理员登录API地址
+DEVICE_API_URL = "https://xiaoqiao-v2api.xmduzhong.com/admin-api/xiaoqiao/admin/device/add"  # 设备入库API地址
 MAX_RETRIES = 3  # 重试次数
 TIMEOUT = 10  # 超时时间(秒)
 
 # 定义日志批处理大小
-LOG_BATCH_SIZE = 100 # 每 20 行发送一次更新
+LOG_BATCH_SIZE = 100 # 每 100 行发送一次更新
+
+# 管理员登录配置（硬编码）
+ADMIN_PHONE = "13607365287"  # 管理员手机号
+ADMIN_PASSWORD = "2247987688hgy"  # 管理员密码
 
 def is_valid_mac(mac):
     """验证MAC地址格式是否有效"""
@@ -303,31 +307,112 @@ def get_device_mac(port):
     
     return None
 
-def register_device(mac_address):
-    """通过API注册设备，获取token和clientId"""
+def get_admin_token():
+    """获取管理员入库token"""
     if not check_internet_connection():
-        logger.error("无法连接到互联网，设备注册失败")
-        return None, None, None
+        logger.error("无法连接到互联网，无法获取管理员token")
+        return None
         
+    for attempt in range(MAX_RETRIES):
+        try:
+            logger.info(f"正在获取管理员token... 尝试 {attempt+1}/{MAX_RETRIES}")
+            headers = {
+                "tenantId": "000001",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "phone": ADMIN_PHONE,
+                "password": ADMIN_PASSWORD
+            }
+            
+            logger.info(f"发送登录请求到: {LOGIN_API_URL}")
+            logger.debug(f"登录数据: {json.dumps(data, ensure_ascii=False)}")
+            
+            response = requests.post(LOGIN_API_URL, headers=headers, json=data, timeout=TIMEOUT)
+            logger.info(f"登录API响应状态码: {response.status_code}")
+            logger.debug(f"登录API响应内容: {response.text}")
+            
+            response.raise_for_status()
+            
+            result = response.json()
+            if result.get("code") != 0:
+                logger.error(f"管理员登录失败: {result.get('msg', '未知错误')}")
+                if attempt < MAX_RETRIES - 1:
+                    logger.info(f"等待3秒后重试...")
+                    time.sleep(3)
+                    continue
+                return None
+                
+            admin_token = result.get("data", {}).get("accessToken")
+            
+            if not admin_token:
+                logger.error(f"登录响应中没有accessToken: {result}")
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                return None
+                
+            logger.info(f"管理员token获取成功")
+            return admin_token
+            
+        except Timeout:
+            logger.error(f"登录API请求超时 (尝试 {attempt+1}/{MAX_RETRIES})")
+        except ConnectionError:
+            logger.error(f"登录API连接错误 (尝试 {attempt+1}/{MAX_RETRIES})")
+        except RequestException as e:
+            logger.error(f"登录API请求异常: {e} (尝试 {attempt+1}/{MAX_RETRIES})")
+        except json.JSONDecodeError:
+            logger.error(f"登录API响应格式无效 (尝试 {attempt+1}/{MAX_RETRIES})")
+        except Exception as e:
+            logger.error(f"获取管理员token失败: {e} (尝试 {attempt+1}/{MAX_RETRIES})")
+            logger.debug(traceback.format_exc())
+        
+        if attempt < MAX_RETRIES - 1:
+            wait_time = 3 * (attempt + 1)  # 指数退避
+            logger.info(f"等待{wait_time}秒后重试...")
+            time.sleep(wait_time)
+    
+    logger.error("多次尝试获取管理员token均失败")
+    return None
+
+def register_device(mac_address, client_type=None, device_name=None, device_version=None):
+    """通过API注册设备，获取clientId"""
+    # 第一步：获取管理员token
+    admin_token = get_admin_token()
+    if not admin_token:
+        logger.error("无法获取管理员token，设备注册失败")
+        return None, None
+        
+    # 第二步：使用管理员token进行设备入库
     for attempt in range(MAX_RETRIES):
         try:
             logger.info(f"正在通过API注册设备 (MAC: {mac_address})... 尝试 {attempt+1}/{MAX_RETRIES}")
             headers = {
+                "Authorization": f"Bearer {admin_token}",
+                "tenantId": "000001",
                 "Content-Type": "application/json"
             }
+            
+            # 设置默认值
+            if not client_type:
+                client_type = "esp32"
+            if not device_name:
+                device_name = f"小乔设备-{mac_address.replace(':', '')[-4:]}"
+            if not device_version:
+                device_version = "1.0.0"
+                
             data = {
-                "clientType": "esp32",
+                "clientType": client_type,
                 "deviceId": mac_address,
-                "deviceName": f"ESP32设备-{mac_address.replace(':', '')[-4:]}",
-                "deviceVersion": "1.0.0"
+                "deviceName": device_name,
+                "deviceVersion": device_version
             }
             
-            logger.info(f"发送请求到: {API_URL}")
-            logger.debug(f"请求数据: {json.dumps(data, ensure_ascii=False)}")
+            logger.info(f"发送设备入库请求到: {DEVICE_API_URL}")
+            logger.debug(f"设备入库数据: {json.dumps(data, ensure_ascii=False)}")
             
-            response = requests.post(API_URL, headers=headers, json=data, timeout=TIMEOUT)
-            logger.info(f"API响应状态码: {response.status_code}")
-            logger.debug(f"API响应内容: {response.text}")
+            response = requests.post(DEVICE_API_URL, headers=headers, json=data, timeout=TIMEOUT)
+            logger.info(f"设备入库API响应状态码: {response.status_code}")
+            logger.debug(f"设备入库API响应内容: {response.text}")
             
             response.raise_for_status()
             
@@ -338,38 +423,30 @@ def register_device(mac_address):
                     logger.info(f"等待3秒后重试...")
                     time.sleep(3)
                     continue
-                return None, None, None
+                return None, None
                 
-            token = result.get("data", {}).get("apiKey")
             client_id = result.get("data", {}).get("clientId")
             bind_key = result.get("data", {}).get("bindKey")
             
-            if not token:
-                logger.error(f"API响应中没有apiKey: {result}")
-                if attempt < MAX_RETRIES - 1:
-                    continue
-                return None, None, None
-                
             if not client_id:
                 logger.warning(f"API响应中没有clientId，使用MAC地址代替")
                 client_id = mac_address.replace(':', '')  # 降级到默认行为
             
             logger.info(f"设备入库成功:")
-            logger.info(f"- Token: {token}")
             logger.info(f"- Client ID: {client_id}")
             if bind_key:
                 logger.info(f"- 绑定码: {bind_key}")
             
-            return token, client_id, bind_key
+            return client_id, bind_key
             
         except Timeout:
-            logger.error(f"API请求超时 (尝试 {attempt+1}/{MAX_RETRIES})")
+            logger.error(f"设备入库API请求超时 (尝试 {attempt+1}/{MAX_RETRIES})")
         except ConnectionError:
-            logger.error(f"API连接错误 (尝试 {attempt+1}/{MAX_RETRIES})")
+            logger.error(f"设备入库API连接错误 (尝试 {attempt+1}/{MAX_RETRIES})")
         except RequestException as e:
-            logger.error(f"API请求异常: {e} (尝试 {attempt+1}/{MAX_RETRIES})")
+            logger.error(f"设备入库API请求异常: {e} (尝试 {attempt+1}/{MAX_RETRIES})")
         except json.JSONDecodeError:
-            logger.error(f"API响应格式无效 (尝试 {attempt+1}/{MAX_RETRIES})")
+            logger.error(f"设备入库API响应格式无效 (尝试 {attempt+1}/{MAX_RETRIES})")
         except Exception as e:
             logger.error(f"设备入库失败: {e} (尝试 {attempt+1}/{MAX_RETRIES})")
             logger.debug(traceback.format_exc())
@@ -380,10 +457,10 @@ def register_device(mac_address):
             time.sleep(wait_time)
     
     logger.error("多次尝试设备入库均失败")
-    return None, None, None
+    return None, None
 
-def update_config(token, websocket_url, client_id=None):
-    """更新sdkconfig文件中的连接类型设置和Client-Id"""
+def update_config(client_id):
+    """更新sdkconfig文件中的Client-Id配置"""
     try:
         logger.info("正在更新sdkconfig配置...")
         
@@ -437,7 +514,6 @@ def update_config(token, websocket_url, client_id=None):
         logger.info(f"- 连接类型: WebSocket")
         if client_id:
             logger.info(f"- Client-Id: {client_id}")
-        logger.info(f"- WebSocket URL和Token将从OTA接口动态获取")
         
         return True
     except Exception as e:
@@ -761,13 +837,21 @@ class ShaoluUI(QMainWindow):
         self._active_threads = []
         
         # 基础设置
-        self.setWindowTitle("ESP32S3自动烧录工具")
-        self.setMinimumSize(900, 650)
-        self.idf_path = None
+        self.setWindowTitle("小乔智能设备自动烧录工具")
+        self.setMinimumSize(1000, 700)
+        self.idf_path = "C:\\Users\\1\\esp\\v5.4.1\\esp-idf"  # 默认使用v5.4.1
         self.mac_address = None
-        self.token = None
         self.client_id = None
         self.bind_key = None
+        
+        # 设备入库参数
+        self.client_type = "esp32"
+        self.device_name = ""
+        self.device_version = "1.0.0"
+        self.last_port = ""  # 保存上次使用的串口
+        
+        # 设置应用样式
+        self.setStyleSheet(self.get_modern_stylesheet())
         
         # 创建UI组件
         self.init_ui()
@@ -776,11 +860,240 @@ class ShaoluUI(QMainWindow):
         self.log_redirector = LogRedirector(logger)
         self.log_redirector.log_signal.connect(self.update_log)
         
+        # 加载之前保存的配置
+        self.load_config()
+        
         # 检查ESP-IDF
         self.check_esp_idf()
         
         # 初始刷新串口
         self.port_refresh()
+    
+    def get_modern_stylesheet(self):
+        """获取现代化样式表"""
+        return """
+        QMainWindow {
+            background-color: #f5f5f5;
+        }
+        
+        QGroupBox {
+            font-weight: bold;
+            border: 2px solid #cccccc;
+            border-radius: 8px;
+            margin-top: 1ex;
+            padding-top: 10px;
+            background-color: white;
+        }
+        
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 8px 0 8px;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        QPushButton {
+            background-color: #3498db;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            font-size: 12px;
+            margin: 2px 1px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        
+        QPushButton:hover {
+            background-color: #2980b9;
+        }
+        
+        QPushButton:pressed {
+            background-color: #21618c;
+        }
+        
+        QPushButton:disabled {
+            background-color: #bdc3c7;
+            color: #7f8c8d;
+        }
+        
+        QPushButton#all_in_one_button {
+            background-color: #e74c3c;
+            font-size: 14px;
+            padding: 12px 20px;
+        }
+        
+        QPushButton#all_in_one_button:hover {
+            background-color: #c0392b;
+        }
+        
+        QLineEdit {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 12px;
+            background-color: white;
+        }
+        
+        QLineEdit:focus {
+            border-color: #3498db;
+        }
+        
+        QLineEdit:read-only {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+        }
+        
+        QComboBox {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            padding: 6px 25px 6px 6px;
+            font-size: 12px;
+            background-color: white;
+            min-height: 20px;
+            selection-background-color: transparent;
+            color: #2c3e50;
+            text-align: left;
+        }
+        
+        QComboBox:editable {
+            background-color: white;
+        }
+        
+        QComboBox:on { /* 下拉时样式 */
+            border-color: #3498db;
+        }
+        
+        QComboBox:focus {
+            border-color: #3498db;
+        }
+        
+        QComboBox:hover {
+            border-color: #3498db;
+            background-color: #f8f9fa;
+        }
+        
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 20px;
+            border-left: 1px solid #bdc3c7;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background-color: #ecf0f1;
+        }
+        
+        QComboBox::drop-down:hover {
+            background-color: #dcdde1;
+        }
+        
+        QComboBox::down-arrow {
+            width: 0;
+            height: 0;
+            border: 5px solid transparent;
+            border-top: 5px solid #7f8c8d;
+            margin-top: 3px;
+        }
+        
+        QListView {
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background-color: white;
+            selection-background-color: #3498db;
+            selection-color: white;
+            outline: none;
+            show-decoration-selected: 1;
+        }
+        
+        QListView::item {
+            min-height: 25px;
+            padding: 3px 8px;
+            border: none;
+            background-color: transparent;
+        }
+        
+        QListView::item:hover {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        QListView::item:selected {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        QListView::item:selected:hover {
+            background-color: #2980b9;
+            color: white;
+        }
+        
+        QComboBox QAbstractItemView {
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background-color: white;
+            selection-background-color: #3498db;
+            selection-color: white;
+            outline: none;
+        }
+        
+        QTextEdit {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 10px;
+            background-color: #f8f9fa;
+            color: #2c3e50;
+        }
+        
+        QProgressBar {
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            background-color: #ecf0f1;
+        }
+        
+        QProgressBar::chunk {
+            background-color: #27ae60;
+            border-radius: 4px;
+        }
+        
+        QLabel {
+            color: #2c3e50;
+            font-size: 12px;
+        }
+        
+        QLabel#title_label {
+            color: #2c3e50;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+        }
+        
+        QLabel#status_label {
+            color: #27ae60;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 5px;
+        }
+        
+        QSplitter::handle {
+            background-color: #bdc3c7;
+        }
+        
+        QSplitter::handle:horizontal {
+            width: 3px;
+        }
+        
+        QSplitter::handle:vertical {
+            height: 3px;
+        }
+        """
+    
+
     
     def init_ui(self):
         """初始化UI界面"""
@@ -792,9 +1105,8 @@ class ShaoluUI(QMainWindow):
         main_layout.setSpacing(10)
         
         # 顶部标题
-        title_label = QLabel("独众固件 自动烧录工具")
-        title_font = QFont("微软雅黑", 16, QFont.Bold)
-        title_label.setFont(title_font)
+        title_label = QLabel("小乔智能设备 自动烧录工具")
+        title_label.setObjectName("title_label")
         title_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title_label)
         
@@ -829,6 +1141,7 @@ class ShaoluUI(QMainWindow):
         
         # 状态标签
         self.status_label = QLabel("准备就绪")
+        self.status_label.setObjectName("status_label")
         self.status_label.setAlignment(Qt.AlignCenter)
         top_layout.addWidget(self.status_label)
         
@@ -850,6 +1163,31 @@ class ShaoluUI(QMainWindow):
         layout.addWidget(QLabel("串口:"))
         self.port_combo = QComboBox()
         self.port_combo.setMinimumWidth(200)
+        self.port_combo.setMinimumHeight(30)
+        self.port_combo.setMaxVisibleItems(10)
+        self.port_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.port_combo.currentTextChanged.connect(self.on_port_changed)
+        
+        # 设置下拉视图属性以确保悬停效果工作
+        view = self.port_combo.view()
+        view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        view.setMouseTracking(True)  # 启用鼠标跟踪
+        view.setSelectionMode(QAbstractItemView.SingleSelection)
+        view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # 应用特定的样式来确保悬停效果
+        combo_style = """
+        QListView::item:hover {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        QListView::item:selected {
+            background-color: #3498db;
+            color: white;
+        }
+        """
+        view.setStyleSheet(combo_style)
+        
         layout.addWidget(self.port_combo, 1)
         
         # 刷新按钮
@@ -861,7 +1199,6 @@ class ShaoluUI(QMainWindow):
         # MAC地址显示
         layout.addWidget(QLabel("MAC:"))
         self.mac_display = QLineEdit()
-        self.mac_display.setReadOnly(True)
         self.mac_display.setPlaceholderText("未获取")
         layout.addWidget(self.mac_display, 1)
         
@@ -878,27 +1215,44 @@ class ShaoluUI(QMainWindow):
         group_box = QGroupBox("设备配置")
         layout = QFormLayout()
         
-        # WebSocket URL
-        self.websocket_url_edit = QLineEdit(DEFAULT_WEBSOCKET_URL)
-        layout.addRow("WebSocket URL:", self.websocket_url_edit)
-        
-        # Token显示
-        self.token_display = QLineEdit()
-        self.token_display.setReadOnly(True)
-        self.token_display.setPlaceholderText("未获取")
-        layout.addRow("Access Token:", self.token_display)
-        
         # Client ID显示
         self.client_id_display = QLineEdit()
-        self.client_id_display.setReadOnly(True)
         self.client_id_display.setPlaceholderText("未获取")
         layout.addRow("Client ID:", self.client_id_display)
         
-        # ESP-IDF路径显示
-        self.idf_path_display = QLineEdit()
-        self.idf_path_display.setReadOnly(True)
-        self.idf_path_display.setPlaceholderText("未检测")
-        layout.addRow("ESP-IDF路径:", self.idf_path_display)
+        # 添加设备入库信息编辑字段
+        # 客户端类型
+        self.client_type_combo = QComboBox()
+        self.client_type_combo.addItems(["esp32", "esp32s2", "esp32s3", "esp32c3"])
+        self.client_type_combo.currentTextChanged.connect(self.on_device_info_changed)
+        layout.addRow("客户端类型:", self.client_type_combo)
+        
+        # 设备名称
+        self.device_name_edit = QLineEdit()
+        self.device_name_edit.setPlaceholderText("小乔设备-XXXX")
+        self.device_name_edit.textChanged.connect(self.on_device_info_changed)
+        layout.addRow("设备名称:", self.device_name_edit)
+        
+        # 设备版本
+        self.device_version_edit = QLineEdit()
+        self.device_version_edit.setText("1.0.0")
+        self.device_version_edit.textChanged.connect(self.on_device_info_changed)
+        layout.addRow("设备版本:", self.device_version_edit)
+        
+        # ESP-IDF路径选择
+        idf_path_layout = QHBoxLayout()
+        self.idf_path_combo = QComboBox()
+        self.idf_path_combo.addItem("C:\\Users\\1\\esp\\v5.4.1\\esp-idf")
+        self.idf_path_combo.addItem("C:\\Users\\1\\esp\\v5.3.2\\esp-idf")
+        self.idf_path_combo.currentTextChanged.connect(self.on_idf_path_changed)
+        
+        self.refresh_idf_button = QPushButton("刷新")
+        self.refresh_idf_button.setMaximumWidth(60)
+        self.refresh_idf_button.clicked.connect(self.check_esp_idf)
+        
+        idf_path_layout.addWidget(self.idf_path_combo)
+        idf_path_layout.addWidget(self.refresh_idf_button)
+        layout.addRow("ESP-IDF路径:", idf_path_layout)
         
         group_box.setLayout(layout)
         parent_layout.addWidget(group_box)
@@ -931,10 +1285,8 @@ class ShaoluUI(QMainWindow):
         
         # 一键操作按钮
         self.all_in_one_button = QPushButton("一键完成全部流程")
+        self.all_in_one_button.setObjectName("all_in_one_button")
         self.all_in_one_button.setMinimumHeight(40)
-        font = self.all_in_one_button.font()
-        font.setBold(True)
-        self.all_in_one_button.setFont(font)
         self.all_in_one_button.clicked.connect(self.on_all_in_one_clicked)
         layout.addWidget(self.all_in_one_button)
         
@@ -977,7 +1329,18 @@ class ShaoluUI(QMainWindow):
         self.progress_bar.setFormat("检查ESP-IDF环境...")
         self.status_label.setText("正在检查ESP-IDF环境...")
         
-        self.worker = self.start_worker(check_esp_idf_installed, self.on_esp_idf_check_finished)
+        # 获取当前选择的路径
+        selected_path = self.idf_path_combo.currentText()
+        
+        # 检查路径是否存在
+        if selected_path and os.path.exists(selected_path):
+            self.idf_path = selected_path
+            self.status_label.setText(f"ESP-IDF环境已检测: {selected_path}")
+            self.progress_bar.setValue(0)
+            self.progress_bar.setFormat("就绪")
+        else:
+            # 如果选择的路径不存在，尝试自动检测
+            self.worker = self.start_worker(check_esp_idf_installed, self.on_esp_idf_check_finished)
     
     @Slot(object, str)
     def on_esp_idf_check_finished(self, result, error):
@@ -986,7 +1349,16 @@ class ShaoluUI(QMainWindow):
             is_installed, idf_path = result
             if is_installed and idf_path:
                 self.idf_path = idf_path
-                self.idf_path_display.setText(idf_path)
+                
+                # 检查是否在下拉列表中，如果不在则添加
+                if self.idf_path_combo.findText(idf_path) == -1:
+                    self.idf_path_combo.addItem(idf_path)
+                
+                # 设置为当前选中项
+                index = self.idf_path_combo.findText(idf_path)
+                if index >= 0:
+                    self.idf_path_combo.setCurrentIndex(index)
+                
                 self.status_label.setText(f"ESP-IDF环境已检测: {idf_path}")
             else:
                 self.status_label.setText("未检测到ESP-IDF环境")
@@ -1010,25 +1382,51 @@ class ShaoluUI(QMainWindow):
     def on_port_refresh_finished(self, ports, error):
         """串口刷新完成的处理"""
         if ports and isinstance(ports, list):
+            # 先记住当前选中的端口（如果有的话）
+            current_port = self.port_combo.currentText()
+            
+            # 清空并添加新的端口列表
+            self.port_combo.clear()
             self.port_combo.addItems(ports)
+            
+            # 如果之前有选中的端口并且它还在新列表中，则重新选中它
+            if current_port and current_port in ports:
+                index = self.port_combo.findText(current_port)
+                if index >= 0:
+                    self.port_combo.setCurrentIndex(index)
+            # 如果有保存的上次使用的端口，且它在新列表中，则选中它
+            elif self.last_port and self.last_port in ports:
+                index = self.port_combo.findText(self.last_port)
+                if index >= 0:
+                    self.port_combo.setCurrentIndex(index)
+            # 否则选中第一个端口（如果有）
+            elif ports:
+                self.port_combo.setCurrentIndex(0)
+                
             self.status_label.setText(f"检测到 {len(ports)} 个串口")
             self.statusBar().showMessage(f"检测到 {len(ports)} 个串口")
         else:
+            self.port_combo.clear()
             self.status_label.setText("未检测到可用串口")
             self.statusBar().showMessage("未检测到可用串口")
+        
+        # 更新保存的串口
+        if self.port_combo.currentText():
+            self.last_port = self.port_combo.currentText()
+            self.save_config()
     
     @Slot(str, int)
     def update_log(self, message, level):
         """更新日志显示 (处理标准日志)"""
         # 设置不同级别的颜色
         if level >= logging.ERROR:
-            color = "red"
+            color = "#e74c3c"  # 鲜红色
         elif level >= logging.WARNING:
-            color = "orange"
+            color = "#e67e22"  # 橙色
         elif level >= logging.INFO:
-            color = "black"
+            color = "#2c3e50"  # 深蓝黑色
         else:
-            color = "gray"
+            color = "#7f8c8d"  # 灰色
             
         # 添加带颜色的文本
         self.log_text.moveCursor(QTextCursor.End)
@@ -1055,7 +1453,13 @@ class ShaoluUI(QMainWindow):
         self.flash_button.setEnabled(enabled)
         self.all_in_one_button.setEnabled(enabled)
         self.port_combo.setEnabled(enabled)
-        self.websocket_url_edit.setEnabled(enabled)
+        self.idf_path_combo.setEnabled(enabled)
+        self.refresh_idf_button.setEnabled(enabled)
+        
+        # 设置设备信息编辑控件
+        self.client_type_combo.setEnabled(enabled)
+        self.device_name_edit.setEnabled(enabled)
+        self.device_version_edit.setEnabled(enabled)
     
     @Slot()
     def on_get_mac_clicked(self):
@@ -1084,6 +1488,11 @@ class ShaoluUI(QMainWindow):
             self.status_label.setText(f"MAC地址获取成功: {mac_address}")
             self.mac_address = mac_address
             self.mac_display.setText(mac_address)
+            
+            # 更新设备名称默认值
+            default_device_name = f"小乔设备-{mac_address.replace(':', '')[-4:]}"
+            if not self.device_name_edit.text().strip():
+                self.device_name_edit.setText(default_device_name)
         else:
             self.status_label.setText(f"MAC地址获取失败")
             QMessageBox.warning(self, "错误", f"无法获取MAC地址: {error}")
@@ -1100,8 +1509,30 @@ class ShaoluUI(QMainWindow):
         self.progress_bar.setValue(30)
         self.progress_bar.setFormat("注册设备...")
         
-        # 正确传递参数 - 先传回调函数，然后是mac_address参数
-        self.worker = self.start_worker(register_device, self.on_register_finished, self.mac_address)
+        # 获取用户在UI中输入的设备信息
+        client_type = self.client_type_combo.currentText()
+        
+        device_name = self.device_name_edit.text()
+        if not device_name.strip():
+            # 如果用户未输入设备名称，使用默认名称格式
+            device_name = f"小乔设备-{self.mac_address.replace(':', '')[-4:]}"
+            self.device_name_edit.setText(device_name)
+        
+        device_version = self.device_version_edit.text()
+        if not device_version.strip():
+            # 如果用户未输入设备版本，使用默认版本
+            device_version = "1.0.0"
+            self.device_version_edit.setText(device_version)
+        
+        # 传递所有参数给register_device函数
+        self.worker = self.start_worker(
+            register_device, 
+            self.on_register_finished, 
+            self.mac_address,
+            client_type,
+            device_name,
+            device_version
+        )
     
     @Slot(object, str)
     def on_register_finished(self, result, error):
@@ -1110,20 +1541,18 @@ class ShaoluUI(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("就绪")
         
-        if result and isinstance(result, tuple) and len(result) >= 2:
-            token, client_id = result[0], result[1]
-            bind_key = result[2] if len(result) > 2 else None
+        if result and isinstance(result, tuple) and len(result) >= 1:
+            client_id = result[0]
+            bind_key = result[1] if len(result) > 1 else None
             
-            if token:
-                self.token = token
+            if client_id:
                 self.client_id = client_id
                 self.bind_key = bind_key
-                self.token_display.setText(token)
-                self.client_id_display.setText(client_id if client_id else "使用MAC地址替代")
+                self.client_id_display.setText(client_id)
                 self.status_label.setText("设备注册成功")
             else:
-                self.status_label.setText("设备注册失败: 未获取到token")
-                QMessageBox.warning(self, "错误", "设备注册失败: 未获取到token")
+                self.status_label.setText("设备注册失败: 未获取到client_id")
+                QMessageBox.warning(self, "错误", "设备注册失败: 未获取到client_id")
         else:
             self.status_label.setText(f"设备注册失败")
             QMessageBox.warning(self, "错误", f"设备注册失败: {error}")
@@ -1131,13 +1560,8 @@ class ShaoluUI(QMainWindow):
     @Slot()
     def on_update_config_clicked(self):
         """更新配置按钮点击事件"""
-        if not self.token:
-            QMessageBox.warning(self, "错误", "请先注册设备获取Token")
-            return
-            
-        websocket_url = self.websocket_url_edit.text()
-        if not websocket_url:
-            QMessageBox.warning(self, "错误", "WebSocket URL不能为空")
+        if not self.client_id:
+            QMessageBox.warning(self, "错误", "请先注册设备获取Client ID")
             return
             
         self.set_ui_enabled(False)
@@ -1149,7 +1573,7 @@ class ShaoluUI(QMainWindow):
         self.worker = self.start_worker(
             update_config, 
             self.on_update_config_finished, 
-            self.token, websocket_url, self.client_id
+            self.client_id
         )
     
     @Slot(object, str)
@@ -1230,19 +1654,14 @@ class ShaoluUI(QMainWindow):
             QMessageBox.warning(self, "错误", "请选择一个串口")
             return
             
-        websocket_url = self.websocket_url_edit.text()
-        if not websocket_url:
-            QMessageBox.warning(self, "错误", "WebSocket URL不能为空")
-            return
-            
         self.set_ui_enabled(False)
         self.progress_bar.setValue(10)
         self.progress_bar.setFormat("开始一键烧录流程...")
         
         # 启动一键烧录流程
-        self.perform_all_in_one(port, websocket_url)
+        self.perform_all_in_one(port)
     
-    def perform_all_in_one(self, port, websocket_url):
+    def perform_all_in_one(self, port):
         """执行一键烧录流程"""
         # 1. 获取MAC地址
         self.status_label.setText("第1步: 获取MAC地址...")
@@ -1252,11 +1671,11 @@ class ShaoluUI(QMainWindow):
         # 使用特殊的回调，传递额外参数给下一步
         self.worker = self.start_worker(
             get_device_mac, 
-            lambda mac, error: self.all_in_one_step2(mac, error, port, websocket_url),
+            lambda mac, error: self.all_in_one_step2(mac, error, port),
             port
         )
     
-    def all_in_one_step2(self, mac_address, error, port, websocket_url):
+    def all_in_one_step2(self, mac_address, error, port):
         """一键烧录第2步: 注册设备"""
         if not mac_address:
             self.all_in_one_failed("获取MAC地址失败", error)
@@ -1266,37 +1685,48 @@ class ShaoluUI(QMainWindow):
         self.mac_address = mac_address
         self.mac_display.setText(mac_address)
         
+        # 更新设备名称默认值
+        default_device_name = f"小乔设备-{mac_address.replace(':', '')[-4:]}"
+        if not self.device_name_edit.text().strip():
+            self.device_name_edit.setText(default_device_name)
+        
         # 继续注册设备
         self.status_label.setText("第2步: 注册设备...")
         self.progress_bar.setValue(30)
         self.progress_bar.setFormat("注册设备 (30%)")
         
+        # 获取用户在UI中输入的设备信息
+        client_type = self.client_type_combo.currentText()
+        device_name = self.device_name_edit.text()
+        device_version = self.device_version_edit.text()
+        
         # 这里使用专门为一键流程设计的回调，传递参数给下一步
         self.worker = self.start_worker(
             register_device,
-            lambda result, error: self.all_in_one_step3(result, error, port, websocket_url),
-            mac_address
+            lambda result, error: self.all_in_one_step3(result, error, port),
+            mac_address,
+            client_type,
+            device_name,
+            device_version
         )
     
-    def all_in_one_step3(self, result, error, port, websocket_url):
+    def all_in_one_step3(self, result, error, port):
         """一键烧录第3步: 更新配置"""
-        if not result or not isinstance(result, tuple) or len(result) < 2:
+        if not result or not isinstance(result, tuple) or len(result) < 1:
             self.all_in_one_failed("注册设备失败", error)
             return
             
-        token, client_id = result[0], result[1]
-        bind_key = result[2] if len(result) > 2 else None
+        client_id = result[0]
+        bind_key = result[1] if len(result) > 1 else None
         
-        if not token:
-            self.all_in_one_failed("注册设备失败: 未获取到token", error)
+        if not client_id:
+            self.all_in_one_failed("注册设备失败: 未获取到client_id", error)
             return
             
-        # 更新token和client_id显示
-        self.token = token
+        # 更新client_id显示
         self.client_id = client_id
         self.bind_key = bind_key
-        self.token_display.setText(token)
-        self.client_id_display.setText(client_id if client_id else "使用MAC地址替代")
+        self.client_id_display.setText(client_id)
         
         # 继续更新配置
         self.status_label.setText("第3步: 更新配置...")
@@ -1305,11 +1735,11 @@ class ShaoluUI(QMainWindow):
         
         self.worker = self.start_worker(
             update_config, 
-            lambda success, error: self.all_in_one_step4(success, error, port, websocket_url), 
-            self.token, websocket_url, self.client_id
+            lambda success, error: self.all_in_one_step4(success, error, port), 
+            self.client_id
         )
     
-    def all_in_one_step4(self, success, error, port, websocket_url):
+    def all_in_one_step4(self, success, error, port):
         """一键烧录第4步: 编译固件"""
         if not success:
             self.all_in_one_failed("更新配置失败", error)
@@ -1372,6 +1802,9 @@ class ShaoluUI(QMainWindow):
         """窗口关闭事件，确保所有线程安全终止"""
         logger.debug(f"正在关闭应用程序，终止{len(self._active_threads)}个活动线程...")
         
+        # 保存当前配置
+        self.save_config()
+        
         # 请求所有线程停止
         for thread in self._active_threads:
             thread.stop()
@@ -1427,6 +1860,103 @@ class ShaoluUI(QMainWindow):
         self.log_text.insertPlainText(batch_text) # 使用 PlainText 提高性能
         self.log_text.moveCursor(QTextCursor.End) # 确保滚动到底部
 
+    @Slot(str)
+    def on_idf_path_changed(self, path):
+        """ESP-IDF路径变更回调"""
+        if path and os.path.exists(path):
+            self.idf_path = path
+            logger.info(f"ESP-IDF路径已切换为: {path}")
+            self.status_label.setText(f"ESP-IDF路径已切换: {path}")
+            # 保存配置
+            self.save_config()
+        else:
+            logger.warning(f"选择的ESP-IDF路径不存在: {path}")
+            self.status_label.setText("选择的ESP-IDF路径不存在")
+            
+    def save_config(self):
+        """保存配置到文件"""
+        try:
+            config = {
+                "client_type": self.client_type_combo.currentText(),
+                "device_name": self.device_name_edit.text(),
+                "device_version": self.device_version_edit.text(),
+                "idf_path": self.idf_path_combo.currentText(),
+                "last_port": self.port_combo.currentText()
+            }
+            
+            # 创建配置目录(如果不存在)
+            config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".config")
+            os.makedirs(config_dir, exist_ok=True)
+            
+            config_path = os.path.join(config_dir, "shaolu_config.json")
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+                
+            logger.debug(f"配置已保存: {config_path}")
+        except Exception as e:
+            logger.warning(f"保存配置失败: {e}")
+            logger.debug(traceback.format_exc())
+    
+    def load_config(self):
+        """从文件加载配置"""
+        try:
+            config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".config")
+            config_path = os.path.join(config_dir, "shaolu_config.json")
+            
+            if not os.path.exists(config_path):
+                logger.debug("配置文件不存在，使用默认配置")
+                return
+                
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                
+            # 设置客户端类型
+            client_type = config.get("client_type", "esp32")
+            index = self.client_type_combo.findText(client_type)
+            if index >= 0:
+                self.client_type_combo.setCurrentIndex(index)
+                
+            # 设置设备名称和版本
+            self.device_name_edit.setText(config.get("device_name", ""))
+            self.device_version_edit.setText(config.get("device_version", "1.0.0"))
+            
+            # 设置ESP-IDF路径
+            idf_path = config.get("idf_path")
+            if idf_path:
+                index = self.idf_path_combo.findText(idf_path)
+                if index >= 0:
+                    self.idf_path_combo.setCurrentIndex(index)
+                else:
+                    # 如果保存的路径不在列表中，添加它
+                    self.idf_path_combo.addItem(idf_path)
+                    self.idf_path_combo.setCurrentText(idf_path)
+                    
+            # 设置上次使用的串口
+            last_port = config.get("last_port")
+            if last_port:
+                # 串口会在port_refresh方法中设置，这里先保存起来
+                self.last_port = last_port
+                
+            logger.debug(f"配置已加载: {config_path}")
+        except Exception as e:
+            logger.warning(f"加载配置失败: {e}")
+            logger.debug(traceback.format_exc())
+
+    @Slot(str)
+    def on_device_info_changed(self, text):
+        """设备信息变更时的处理"""
+        self.client_type = self.client_type_combo.currentText()
+        self.device_name = self.device_name_edit.text()
+        self.device_version = self.device_version_edit.text()
+        self.save_config()
+
+    @Slot(str)
+    def on_port_changed(self, port):
+        """串口选择变更时的处理"""
+        if port:
+            self.last_port = port
+            self.save_config()
+
 def run_ui():
     """运行GUI界面"""
     app = QApplication(sys.argv)
@@ -1445,7 +1975,7 @@ def run_ui():
 
 # 修改主函数，支持GUI模式
 def main():
-    logger.info("=== 独众固件自动烧录工具 ===")
+    logger.info("=== 小乔智能设备自动烧录工具 ===")
     
     # 检查是否应该使用GUI模式
     if not args.cli and HAS_PYSIDE6:
@@ -1454,6 +1984,12 @@ def main():
     
     # 命令行模式逻辑
     try:
+        # 检查管理员凭证
+        if not ADMIN_PHONE or not ADMIN_PASSWORD:
+            logger.error("命令行模式需要提供管理员凭证")
+            logger.info("请使用 --phone 和 --password 参数提供管理员手机号和密码")
+            return 1
+        
         # 检查ESP-IDF是否已安装
         is_installed, idf_path = check_esp_idf_installed()
         if not is_installed:
@@ -1481,15 +2017,14 @@ def main():
             logger.error("无法获取设备MAC地址，退出")
             return 1
         
-        # 2. 通过API入库设备，获取token和clientId
-        token, client_id, bind_key = register_device(mac_address)
-        if not token:
-            logger.error("无法获取设备token，退出")
+        # 2. 通过API入库设备，获取clientId
+        client_id, bind_key = register_device(mac_address)
+        if not client_id:
+            logger.error("无法获取设备client_id，退出")
             return 1
         
-        # 使用API返回的clientId，如果API没返回，脚本中已有降级处理
         # 3. 更新SDK配置
-        if not update_config(token, args.websocket_url, client_id):
+        if not update_config(client_id):
             logger.error("更新配置失败，退出")
             return 1
         
@@ -1506,8 +2041,9 @@ def main():
         logger.info("===== 设备自动烧录完成 =====")
         logger.info(f"串口: {port}")
         logger.info(f"MAC地址: {mac_address}")
-        logger.info(f"Token: {token}")
-        logger.info(f"Websocket URL: {args.websocket_url}")
+        logger.info(f"Client ID: {client_id}")
+        if bind_key:
+            logger.info(f"绑定码: {bind_key}")
         return 0
     except KeyboardInterrupt:
         logger.info("\n用户取消操作")
@@ -1520,14 +2056,21 @@ def main():
         cleanup()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="独众固件自动烧录工具")
+    parser = argparse.ArgumentParser(description="小乔智能设备自动烧录工具")
     parser.add_argument("--port", "-p", help="设备串口，例如 COM3 或 /dev/ttyUSB0")
-    parser.add_argument("--websocket_url", help=f"Websocket URL，默认为 {DEFAULT_WEBSOCKET_URL}", default=DEFAULT_WEBSOCKET_URL)
+    parser.add_argument("--phone", help="管理员手机号")
+    parser.add_argument("--password", help="管理员密码")
     parser.add_argument("--auto-select", action="store_true", help="当检测到多个串口时自动选择第一个")
     parser.add_argument("--debug", action="store_true", help="启用调试日志")
     parser.add_argument("--cli", action="store_true", help="强制使用命令行模式而非GUI")
     parser.add_argument("--skip-clean", action="store_true", help="跳过清理步骤")
     args = parser.parse_args()
+    
+    # 设置管理员凭证（如果通过命令行提供）
+    if args.phone:
+        ADMIN_PHONE = args.phone
+    if args.password:
+        ADMIN_PASSWORD = args.password
     
     # 设置日志级别
     if args.debug:

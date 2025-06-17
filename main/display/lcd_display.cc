@@ -350,11 +350,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
     lv_obj_set_style_margin_left(network_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
-    battery_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
-    lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
+    // 电池标签已删除 - 不再显示电量UI
+    // battery_label_ = lv_label_create(status_bar_);
+    // lv_label_set_text(battery_label_, "");
+    // lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    // lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+    // lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -617,10 +618,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
 
-    battery_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+    // 电池标签已删除 - 不再显示电量UI
+    // battery_label_ = lv_label_create(status_bar_);
+    // lv_label_set_text(battery_label_, "");
+    // lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    // lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -695,7 +697,8 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         if (mute_label_ != nullptr) {
             lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
         }
-                if (battery_label_ != nullptr) {            lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);        }        // 移除对emotion_label_的引用
+                // 电池标签已删除 - 不再更新电池标签文本颜色
+                // if (battery_label_ != nullptr) {            lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);        }        // 移除对emotion_label_的引用
     }
     
     // Update content area colors

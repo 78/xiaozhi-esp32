@@ -72,7 +72,7 @@ Display::~Display() {
         lv_obj_del(notification_label_);
         lv_obj_del(status_label_);
         lv_obj_del(mute_label_);
-        lv_obj_del(battery_label_);
+        // lv_obj_del(battery_label_);  // 已删除电量UI显示
         lv_obj_del(emotion_label_);
     }
     if( low_battery_popup_ != nullptr ) {
@@ -150,10 +150,11 @@ void Display::Update() {
             icon = levels[battery_level / 20];
         }
         DisplayLockGuard lock(this);
-        if (battery_label_ != nullptr && battery_icon_ != icon) {
-            battery_icon_ = icon;
-            lv_label_set_text(battery_label_, battery_icon_);
-        }
+        // 电池标签已删除 - 不再更新电池图标
+        // if (battery_label_ != nullptr && battery_icon_ != icon) {
+        //     battery_icon_ = icon;
+        //     lv_label_set_text(battery_label_, battery_icon_);
+        // }
 
         if (low_battery_popup_ != nullptr) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
