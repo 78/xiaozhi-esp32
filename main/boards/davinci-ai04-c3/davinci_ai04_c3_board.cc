@@ -17,7 +17,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
-#define TAG "XminiC3Board"
+#define TAG "DavinciAi04C3Board"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
