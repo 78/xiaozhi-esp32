@@ -15,3 +15,6 @@ _internal/
 esp-idf-tools-setup-offline-5.3.2.exe
 Git-2.49.0-64-bit.exe
 shaolu_log.txt
+templates/
+instances/
+__pycache__/

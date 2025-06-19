@@ -459,14 +459,18 @@ def register_device(mac_address, client_type=None, device_name=None, device_vers
     logger.error("多次尝试设备入库均失败")
     return None, None
 
-def update_config(client_id):
+def update_config(client_id, workspace_path=None):
     """更新sdkconfig文件中的Client-Id配置"""
     try:
         logger.info("正在更新sdkconfig配置...")
         
         # 确定sdkconfig文件路径
-        sdkconfig_path = "sdkconfig"
-        backup_path = "sdkconfig.backup"
+        if workspace_path:
+            sdkconfig_path = os.path.join(workspace_path, "sdkconfig")
+            backup_path = os.path.join(workspace_path, "sdkconfig.backup")
+        else:
+            sdkconfig_path = "sdkconfig"
+            backup_path = "sdkconfig.backup"
         
         # 创建备份
         try:
@@ -521,173 +525,200 @@ def update_config(client_id):
         logger.debug(traceback.format_exc())
         return False
 
-def build_firmware(idf_path=None, skip_clean=False, progress_callback=None):
+def build_firmware(idf_path=None, skip_clean=False, progress_callback=None, workspace_path=None):
     try:
         logger.info("正在编译固件...")
 
-        # 如果没有提供ESP-IDF路径，尝试获取
-        if not idf_path:
-            idf_path_env = os.environ.get("IDF_PATH")
-            if idf_path_env:
-                idf_path = idf_path_env
-            else:
-                # 尝试检测ESP-IDF安装
-                is_installed, detected_path = check_esp_idf_installed()
-                if is_installed and detected_path:
-                    idf_path = detected_path
+        # 如果指定了工作目录，保存当前目录并切换
+        original_cwd = None
+        if workspace_path:
+            original_cwd = os.getcwd()
+            os.chdir(workspace_path)
+            logger.info(f"切换到工作目录: {workspace_path}")
+
+        try:
+            # 如果没有提供ESP-IDF路径，尝试获取
+            if not idf_path:
+                idf_path_env = os.environ.get("IDF_PATH")
+                if idf_path_env:
+                    idf_path = idf_path_env
                 else:
-                    logger.error("无法确定ESP-IDF路径，请手动提供")
-                    return False
+                    # 尝试检测ESP-IDF安装
+                    is_installed, detected_path = check_esp_idf_installed()
+                    if is_installed and detected_path:
+                        idf_path = detected_path
+                    else:
+                        logger.error("无法确定ESP-IDF路径，请手动提供")
+                        return False
 
-        logger.info(f"使用ESP-IDF路径: {idf_path}")
+            logger.info(f"使用ESP-IDF路径: {idf_path}")
 
-        # 根据操作系统选择正确的激活脚本
-        system_name = platform.system()
-        if system_name == "Windows":
-            export_script = os.path.join(idf_path, "export.bat")
-            # 确保路径被正确引用，特别是包含空格时
-            activate_cmd = f"call \"{export_script}\""
-        else:  # Linux/MacOS
-            export_script = os.path.join(idf_path, "export.sh")
-            activate_cmd = f"source \"{export_script}\""
+            # 根据操作系统选择正确的激活脚本
+            system_name = platform.system()
+            if system_name == "Windows":
+                export_script = os.path.join(idf_path, "export.bat")
+                # 确保路径被正确引用，特别是包含空格时
+                activate_cmd = f"call \"{export_script}\""
+            else:  # Linux/MacOS
+                export_script = os.path.join(idf_path, "export.sh")
+                activate_cmd = f"source \"{export_script}\""
 
-        # 先执行清理命令
-        if not skip_clean:
-            clean_cmd = f"{activate_cmd} && idf.py fullclean"
-            logger.info(f"执行命令: {clean_cmd}")
+            # 先执行清理命令
+            if not skip_clean:
+                clean_cmd = f"{activate_cmd} && idf.py fullclean"
+                logger.info(f"执行命令: {clean_cmd}")
 
-            # 简化子进程处理
-            process_clean = subprocess.Popen(clean_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
-            for line in iter(process_clean.stdout.readline, ''):
-                logger.info(line.strip())
-            process_clean.wait()
-            if process_clean.returncode != 0:
-                logger.warning(f"清理项目返回非零值: {process_clean.returncode}，但将继续编译")
-        else:
-             logger.info("跳过清理步骤")
-
-        # 修改编译命令部分
-        build_cmd = f"{activate_cmd} && idf.py build"
-        logger.info(f"执行命令: {build_cmd}")
-
-        process_build = subprocess.Popen(build_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
-
-        # 修改输出处理循环
-        for line in iter(process_build.stdout.readline, ''):
-            if progress_callback:
-                progress_callback(line)
+                # 简化子进程处理
+                process_clean = subprocess.Popen(clean_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+                for line in iter(process_clean.stdout.readline, ''):
+                    logger.info(line.strip())
+                process_clean.wait()
+                if process_clean.returncode != 0:
+                    logger.warning(f"清理项目返回非零值: {process_clean.returncode}，但将继续编译")
             else:
-                logger.debug(line.strip())
+                 logger.info("跳过清理步骤")
 
-            # 检查是否有错误信息
-            if "error:" in line.lower() or "fail" in line.lower():
-                 logger.error(line.strip())
+            # 修改编译命令部分
+            build_cmd = f"{activate_cmd} && idf.py build"
+            logger.info(f"执行命令: {build_cmd}")
 
-        process_build.wait()
-        if process_build.returncode != 0:
-            logger.error(f"编译固件失败，返回码: {process_build.returncode}")
-            return False
+            process_build = subprocess.Popen(build_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
 
-        logger.info("固件编译成功")
-        return True
+            # 修改输出处理循环
+            for line in iter(process_build.stdout.readline, ''):
+                if progress_callback:
+                    progress_callback(line)
+                else:
+                    logger.debug(line.strip())
+
+                # 检查是否有错误信息
+                if "error:" in line.lower() or "fail" in line.lower():
+                     logger.error(line.strip())
+
+            process_build.wait()
+            if process_build.returncode != 0:
+                logger.error(f"编译固件失败，返回码: {process_build.returncode}")
+                return False
+
+            logger.info("固件编译成功")
+            return True
+
+        finally:
+            # 恢复原工作目录
+            if original_cwd:
+                os.chdir(original_cwd)
+
     except Exception as e:
         logger.error(f"编译固件时发生错误: {str(e)}")
         logger.debug(traceback.format_exc())
         return False
 
-def flash_firmware(port, idf_path=None, progress_callback=None):
+def flash_firmware(port, idf_path=None, progress_callback=None, workspace_path=None):
     """烧录固件"""
     try:
         logger.info(f"正在烧录固件到设备 (端口: {port})...")
         
-        # 首先测试串口连接
-        if not test_port_connection(port):
-            logger.error("串口连接测试失败，无法继续烧录")
-            return False
-        
-        # 如果没有提供ESP-IDF路径，尝试获取
-        if not idf_path:
-            idf_path_env = os.environ.get("IDF_PATH")
-            if idf_path_env:
-                idf_path = idf_path_env
-            else:
-                # 尝试检测ESP-IDF安装
-                is_installed, detected_path = check_esp_idf_installed()
-                if is_installed and detected_path:
-                    idf_path = detected_path
+        # 如果指定了工作目录，保存当前目录并切换
+        original_cwd = None
+        if workspace_path:
+            original_cwd = os.getcwd()
+            os.chdir(workspace_path)
+            logger.info(f"切换到工作目录: {workspace_path}")
+
+        try:
+            # 首先测试串口连接
+            if not test_port_connection(port):
+                logger.error("串口连接测试失败，无法继续烧录")
+                return False
+            
+            # 如果没有提供ESP-IDF路径，尝试获取
+            if not idf_path:
+                idf_path_env = os.environ.get("IDF_PATH")
+                if idf_path_env:
+                    idf_path = idf_path_env
                 else:
-                    logger.error("无法确定ESP-IDF路径，请手动提供")
-                    return False
-        
-        # 根据操作系统选择正确的激活脚本
-        system_name = platform.system()
-        if system_name == "Windows":
-            export_script = os.path.join(idf_path, "export.bat")
-            activate_cmd = f"call \"{export_script}\" && "
-        else:  # Linux/MacOS
-            export_script = os.path.join(idf_path, "export.sh")
-            activate_cmd = f"source \"{export_script}\" && "
-        
-        # 检查固件文件是否存在
-        build_dir = "build"
-        if not os.path.exists(build_dir) or not os.path.isdir(build_dir):
-            logger.error(f"找不到编译输出目录: {build_dir}")
-            logger.info("请先成功编译固件")
-            return False
-        
-        # 执行export.bat激活环境并烧录
-        flash_cmd = f"{activate_cmd}idf.py -p {port} flash"
-        logger.info(f"执行命令: {flash_cmd}")
-        
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                logger.info(f"烧录尝试 {attempt+1}/{max_attempts}")
-                
-                process = subprocess.Popen(flash_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
-                
-                for line in iter(process.stdout.readline, ''):
-                    if progress_callback:
-                        progress_callback(line)
+                    # 尝试检测ESP-IDF安装
+                    is_installed, detected_path = check_esp_idf_installed()
+                    if is_installed and detected_path:
+                        idf_path = detected_path
                     else:
-                        logger.debug(line.strip())
-                
-                    if "error" in line.lower() or "fail" in line.lower():
-                        logger.error(line.strip())
-                
-                process.wait(timeout=300)  # 5分钟超时
-                if process.returncode == 0:
-                    logger.info("固件烧录成功")
-                    return True
-                else:
-                    logger.error(f"烧录固件失败，返回码: {process.returncode}")
+                        logger.error("无法确定ESP-IDF路径，请手动提供")
+                        return False
+            
+            # 根据操作系统选择正确的激活脚本
+            system_name = platform.system()
+            if system_name == "Windows":
+                export_script = os.path.join(idf_path, "export.bat")
+                activate_cmd = f"call \"{export_script}\" && "
+            else:  # Linux/MacOS
+                export_script = os.path.join(idf_path, "export.sh")
+                activate_cmd = f"source \"{export_script}\" && "
+            
+            # 检查固件文件是否存在
+            build_dir = "build"
+            if not os.path.exists(build_dir) or not os.path.isdir(build_dir):
+                logger.error(f"找不到编译输出目录: {build_dir}")
+                logger.info("请先成功编译固件")
+                return False
+            
+            # 执行export.bat激活环境并烧录
+            flash_cmd = f"{activate_cmd}idf.py -p {port} flash"
+            logger.info(f"执行命令: {flash_cmd}")
+            
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    logger.info(f"烧录尝试 {attempt+1}/{max_attempts}")
+                    
+                    process = subprocess.Popen(flash_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
+                    
+                    for line in iter(process.stdout.readline, ''):
+                        if progress_callback:
+                            progress_callback(line)
+                        else:
+                            logger.debug(line.strip())
+                    
+                        if "error" in line.lower() or "fail" in line.lower():
+                            logger.error(line.strip())
+                    
+                    process.wait(timeout=300)  # 5分钟超时
+                    if process.returncode == 0:
+                        logger.info("固件烧录成功")
+                        return True
+                    else:
+                        logger.error(f"烧录固件失败，返回码: {process.returncode}")
+                        
+                        if attempt < max_attempts - 1:
+                            logger.info("等待10秒后重试...")
+                            time.sleep(10)
+                        else:
+                            logger.error("多次尝试烧录均失败")
+                            return False
+                            
+                except subprocess.TimeoutExpired:
+                    logger.error("烧录固件超时")
+                    process.kill()
                     
                     if attempt < max_attempts - 1:
                         logger.info("等待10秒后重试...")
                         time.sleep(10)
                     else:
-                        logger.error("多次尝试烧录均失败")
                         return False
-                        
-            except subprocess.TimeoutExpired:
-                logger.error("烧录固件超时")
-                process.kill()
-                
-                if attempt < max_attempts - 1:
-                    logger.info("等待10秒后重试...")
-                    time.sleep(10)
-                else:
-                    return False
-            except Exception as e:
-                logger.error(f"烧录过程中发生错误: {e}")
-                
-                if attempt < max_attempts - 1:
-                    logger.info("等待10秒后重试...")
-                    time.sleep(10)
-                else:
-                    return False
-        
-        return False
+                except Exception as e:
+                    logger.error(f"烧录过程中发生错误: {e}")
+                    
+                    if attempt < max_attempts - 1:
+                        logger.info("等待10秒后重试...")
+                        time.sleep(10)
+                    else:
+                        return False
+            
+            return False
+
+        finally:
+            # 恢复原工作目录
+            if original_cwd:
+                os.chdir(original_cwd)
     except Exception as e:
         logger.error(f"烧录固件时发生错误: {str(e)}")
         logger.debug(traceback.format_exc())
@@ -704,11 +735,17 @@ def cleanup():
     except Exception as e:
         logger.warning(f"清理资源时发生错误: {e}")
 
-def check_project_valid():
-    """检查当前目录是否是有效的ESP-IDF项目"""
-    if not os.path.exists("CMakeLists.txt"):
-        logger.error("当前目录不是有效的ESP-IDF项目，缺少CMakeLists.txt")
-        return False
+def check_project_valid(workspace_path=None):
+    """检查指定目录或当前目录是否是有效的ESP-IDF项目"""
+    if workspace_path:
+        cmake_path = os.path.join(workspace_path, "CMakeLists.txt")
+        if not os.path.exists(cmake_path):
+            logger.error(f"目录 {workspace_path} 不是有效的ESP-IDF项目，缺少CMakeLists.txt")
+            return False
+    else:
+        if not os.path.exists("CMakeLists.txt"):
+            logger.error("当前目录不是有效的ESP-IDF项目，缺少CMakeLists.txt")
+            return False
     return True
 
 # 添加GUI相关代码
