@@ -1,0 +1,10 @@
+name: "esp-wifi-connect"
+version: "2.4.2"
+dependencies:
+  idf: '>=5.3'
+description: ESP32 WiFi Configuration
+files:
+  exclude:
+  - .git
+  - dist
+license: MIT
