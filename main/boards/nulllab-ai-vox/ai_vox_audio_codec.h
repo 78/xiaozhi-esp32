@@ -71,7 +71,7 @@ class AIVoxAudioCodec : public NoAudioCodec {
                 int i = 0;
                 while (i < samples) {
                     // mic data
-                    int32_t value = buffer[i++] >> 14;
+                    int32_t value = buffer[i] >> 14;
                     dest[i++] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
                 }
             } else {
