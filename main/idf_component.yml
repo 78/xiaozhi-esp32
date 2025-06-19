@@ -69,6 +69,15 @@ dependencies:
     rules:
     - if: target in [esp32c3]
 
+  espressif/esp_lcd_jd9165: 
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
+
+  espressif/esp_lcd_jd9365: 
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
   ## Required IDF version
   idf:
     version: '>=5.4.0'
