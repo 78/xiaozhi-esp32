@@ -263,6 +263,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
         select LV_USE_GIF
         select LV_GIF_CACHE_DECODE_DATA
+    config BOARD_TYPE_BIAO_BOX_ESP32S3
+        bool "BIAO GE ESP32-S3-BOX-ONE"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
