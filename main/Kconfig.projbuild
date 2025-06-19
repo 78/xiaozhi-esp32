@@ -135,7 +135,7 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
-        depends on IDF_TARGET_ESP32S3
+        depends on IDF_TARGET_ESP32
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
