@@ -132,6 +132,11 @@ class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     
     lv_timer_t *idle_timer_ = nullptr;  // 空闲定时器指针，用于自动切换到时钟界面
+    
+    // 睡眠管理相关
+    lv_timer_t* sleep_timer_ = nullptr;  // 睡眠定时器
+    bool is_sleeping_ = false;           // 睡眠状态标志
+    int normal_brightness_ = 100;        // 正常亮度值
  
     lv_obj_t * tab1 = nullptr;          // 第一个标签页（主界面）
     lv_obj_t * tab2 = nullptr;          // 第二个标签页（时钟界面）
@@ -190,59 +195,94 @@ public:
             }
         }, 100, this); // 100ms检查一次
     }
+    
+    // 析构函数 - 清理定时器
+    ~CustomLcdDisplay() {
+        if (idle_timer_) {
+            lv_timer_del(idle_timer_);
+            idle_timer_ = nullptr;
+        }
+        if (sleep_timer_) {
+            lv_timer_del(sleep_timer_);
+            sleep_timer_ = nullptr;
+        }
+    }
 
     // 设置空闲状态方法，控制是否启用空闲定时器
     void SetIdle(bool status) override 
     {
-        // 如果status为false，直接返回（禁用空闲定时器）
+        // 如果status为false，表示有用户交互，需要停止定时器
         if (status == false)
         {
+            // 停止空闲定时器
             if (idle_timer_ != nullptr) {
                 lv_timer_del(idle_timer_);  // 删除现有定时器
                 idle_timer_ = nullptr;
             }
+            
+            // 停止睡眠定时器
+            if (sleep_timer_ != nullptr) {
+                lv_timer_del(sleep_timer_);
+                sleep_timer_ = nullptr;
+            }
+            
+            // 如果设备在睡眠状态，恢复亮度
+            if (is_sleeping_) {
+                static auto& board = Board::GetInstance();  // 静态引用避免重复获取
+                auto backlight = board.GetBacklight();
+                if (backlight) {
+                    backlight->SetBrightness(normal_brightness_);
+                }
+                is_sleeping_ = false;
+                ESP_LOGI(TAG, "用户交互唤醒设备，恢复亮度到 %d", normal_brightness_);
+            }
             return;
         } 
 
-        // 如果用户交互被禁用（例如在预加载期间），不启用空闲定时器
-        if (user_interaction_disabled_) {
-            ESP_LOGI(TAG, "用户交互已禁用，暂不启用空闲定时器");
-            return;
-        }
+            // 如果用户交互被禁用（例如在预加载期间），不启用空闲定时器
+    if (user_interaction_disabled_) {
+        ESP_LOGI(TAG, "用户交互已禁用，暂不启用空闲定时器");
+        return;
+    }
 
-        // 如果已存在定时器，先删除它
-        if (idle_timer_ != nullptr) {
-            lv_timer_del(idle_timer_);
-            idle_timer_ = nullptr;
-        }
-        
-        // 获取当前设备状态，判断是否应该启用空闲定时器
-        auto& app = Application::GetInstance();
-        DeviceState currentState = app.GetDeviceState();
-        
-        // 检查下载UI是否实际可见
-        bool download_ui_is_active_and_visible = false;
-        if (download_progress_container_ != nullptr &&
-            !lv_obj_has_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
-            download_ui_is_active_and_visible = true;
-        }
-        
-        // 检查预加载UI是否实际可见
-        bool preload_ui_is_active_and_visible = false;
-        if (preload_progress_container_ != nullptr &&
-            !lv_obj_has_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
-            preload_ui_is_active_and_visible = true;
-        }
-        
-        if (currentState == kDeviceStateStarting || 
-            currentState == kDeviceStateWifiConfiguring ||
-            download_ui_is_active_and_visible ||
-            preload_ui_is_active_and_visible) { 
-            ESP_LOGI(TAG, "设备处于启动/配置状态或下载/预加载UI可见，暂不启用空闲定时器");
-            return;
-        }
+    // 如果已存在定时器，先删除它
+    if (idle_timer_ != nullptr) {
+        lv_timer_del(idle_timer_);
+        idle_timer_ = nullptr;
+    }
+    
+    // 获取当前设备状态，判断是否应该启用空闲定时器
+    auto& app = Application::GetInstance();
+    DeviceState currentState = app.GetDeviceState();
+    
+    // 检查下载UI是否实际可见
+    bool download_ui_is_active_and_visible = false;
+    if (download_progress_container_ != nullptr &&
+        !lv_obj_has_flag(download_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+        download_ui_is_active_and_visible = true;
+    }
+    
+    // 检查预加载UI是否实际可见
+    bool preload_ui_is_active_and_visible = false;
+    if (preload_progress_container_ != nullptr &&
+        !lv_obj_has_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+        preload_ui_is_active_and_visible = true;
+    }
+    
+    ESP_LOGI(TAG, "SetIdle(true) 状态检查: 设备状态=%d, 下载UI可见=%s, 预加载UI可见=%s", 
+            currentState, download_ui_is_active_and_visible ? "是" : "否", 
+            preload_ui_is_active_and_visible ? "是" : "否");
+    
+    if (currentState == kDeviceStateStarting || 
+        currentState == kDeviceStateWifiConfiguring ||
+        download_ui_is_active_and_visible ||
+        preload_ui_is_active_and_visible) { 
+        ESP_LOGI(TAG, "设备处于启动/配置状态或下载/预加载UI可见，暂不启用空闲定时器");
+        return;
+    }
         
         // 创建一个定时器，15秒后切换到时钟页面（tab2）
+        ESP_LOGI(TAG, "创建空闲定时器，15秒后切换到时钟页面");
         idle_timer_ = lv_timer_create([](lv_timer_t * t) {
             CustomLcdDisplay *display = (CustomLcdDisplay *)lv_timer_get_user_data(t);
             if (!display) return;
@@ -251,13 +291,31 @@ public:
             auto& app = Application::GetInstance();
             DeviceState currentState = app.GetDeviceState();
             
+            // 检查下载UI是否实际可见
+            bool download_ui_active = false;
+            if (display->download_progress_container_ != nullptr &&
+                !lv_obj_has_flag(display->download_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                download_ui_active = true;
+            }
+            
+            // 检查预加载UI是否实际可见
+            bool preload_ui_active = false;
+            if (display->preload_progress_container_ != nullptr &&
+                !lv_obj_has_flag(display->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                preload_ui_active = true;
+            }
+            
             // 如果设备已进入某些特殊状态，取消切换
             if (currentState == kDeviceStateStarting || 
                 currentState == kDeviceStateWifiConfiguring ||
-                display->download_progress_container_ != nullptr ||
-                display->preload_progress_container_ != nullptr ||
+                download_ui_active ||
+                preload_ui_active ||
                 display->user_interaction_disabled_) {
                 // 删除定时器但不切换
+                ESP_LOGW(TAG, "空闲定时器触发时检测到阻塞条件，取消切换: 状态=%d, 下载UI=%s, 预加载UI=%s, 交互禁用=%s", 
+                        currentState, download_ui_active ? "可见" : "隐藏", 
+                        preload_ui_active ? "可见" : "隐藏", 
+                        display->user_interaction_disabled_ ? "是" : "否");
                 lv_timer_del(t);
                 display->idle_timer_ = nullptr;
                 return;
@@ -266,6 +324,7 @@ public:
             // 查找tabview并切换到tab2
             lv_obj_t *tabview = lv_obj_get_parent(lv_obj_get_parent(display->tab2));
             if (tabview) {
+                ESP_LOGI(TAG, "空闲定时器触发，切换到时钟页面");
                 // 在切换标签页前加锁，防止异常
                 lv_lock();
                 lv_tabview_set_act(tabview, 1, LV_ANIM_OFF);  // 切换到tab2（索引1）
@@ -279,12 +338,118 @@ public:
                 }
                 
                 lv_unlock();  // 解锁LVGL
+                ESP_LOGI(TAG, "成功切换到时钟页面");
             }
             
             // 完成后删除定时器
             lv_timer_del(t);
             display->idle_timer_ = nullptr;
+            
+            // 启动睡眠定时器 - 1分钟后进入睡眠模式
+            ESP_LOGI(TAG, "启动睡眠定时器 - 60秒后进入睡眠模式");
+            display->sleep_timer_ = lv_timer_create([](lv_timer_t *timer) {
+                CustomLcdDisplay *lcd_display = (CustomLcdDisplay *)lv_timer_get_user_data(timer);
+                if (lcd_display) {
+                    // 进入睡眠模式
+                    ESP_LOGI(TAG, "进入睡眠模式 - 降低屏幕亮度到1");
+                    
+                    static auto& board = Board::GetInstance();  // 静态引用避免重复获取
+                    auto backlight = board.GetBacklight();
+                    if (backlight) {
+                        lcd_display->normal_brightness_ = backlight->brightness();
+                        backlight->SetBrightness(10);  // 设置亮度为10
+                    }
+                    
+                    lcd_display->is_sleeping_ = true;
+                    
+                    // 清理定时器
+                    lcd_display->sleep_timer_ = nullptr;
+                }
+            }, 60000, display);  // 60秒后执行
+            lv_timer_set_repeat_count(display->sleep_timer_, 1);  // 只执行一次
         }, 15000, this);  // 15000ms = 15秒
+    }
+    
+    // 进入睡眠模式
+    void EnterSleepMode() {
+        if (is_sleeping_) return;  // 已经在睡眠状态
+        
+        ESP_LOGI(TAG, "进入睡眠模式 - 降低屏幕亮度到1");
+        
+        // 获取当前亮度作为正常亮度（通过Board实例）
+        auto& board = Board::GetInstance();
+        auto backlight = board.GetBacklight();
+        if (backlight) {
+            normal_brightness_ = backlight->brightness();
+            backlight->SetBrightness(1);  // 设置亮度为1
+        }
+        
+        is_sleeping_ = true;
+        
+        // 停止睡眠定时器
+        if (sleep_timer_) {
+            lv_timer_del(sleep_timer_);
+            sleep_timer_ = nullptr;
+        }
+    }
+    
+    // 退出睡眠模式（唤醒）
+    void ExitSleepMode() {
+        if (!is_sleeping_) return;  // 不在睡眠状态
+        
+        ESP_LOGI(TAG, "退出睡眠模式 - 恢复屏幕亮度到 %d", normal_brightness_);
+        
+        // 恢复正常亮度
+        auto& board = Board::GetInstance();
+        auto backlight = board.GetBacklight();
+        if (backlight) {
+            backlight->SetBrightness(normal_brightness_);
+        }
+        
+        is_sleeping_ = false;
+        
+        // 重新启动睡眠定时器（如果在时钟页面）
+        StartSleepTimer();
+    }
+    
+    // 启动睡眠定时器
+    void StartSleepTimer() {
+        // 检查当前是否在时钟页面（tab2）
+        lv_obj_t *tabview = lv_obj_get_parent(lv_obj_get_parent(tab2));
+        if (!tabview) return;
+        
+        uint32_t active_tab = lv_tabview_get_tab_act(tabview);
+        if (active_tab != 1) return;  // 不在时钟页面，不启动睡眠定时器
+        
+        // 如果已经在睡眠状态，不启动定时器
+        if (is_sleeping_) return;
+        
+        // 停止现有睡眠定时器
+        if (sleep_timer_) {
+            lv_timer_del(sleep_timer_);
+            sleep_timer_ = nullptr;
+        }
+        
+        ESP_LOGI(TAG, "启动睡眠定时器 - 60秒后进入睡眠模式");
+        
+        // 创建睡眠定时器：60秒后进入睡眠模式
+        sleep_timer_ = lv_timer_create([](lv_timer_t *t) {
+            CustomLcdDisplay *display = (CustomLcdDisplay *)lv_timer_get_user_data(t);
+            if (display) {
+                display->EnterSleepMode();
+            }
+        }, 60000, this);  // 60000ms = 60秒 = 1分钟
+        
+        lv_timer_set_repeat_count(sleep_timer_, 1);  // 只执行一次
+    }
+    
+    // 停止睡眠定时器
+    void StopSleepTimer() {
+        if (sleep_timer_) {
+            ESP_LOGI(TAG, "停止睡眠定时器");
+            lv_timer_del(sleep_timer_);
+            sleep_timer_ = nullptr;
+        }
     }
 
     // 设置聊天消息内容
@@ -298,8 +463,7 @@ public:
         
         // 如果当前处于WiFi配置模式，显示到时钟页面也显示提示
         if (std::string(content).find(Lang::Strings::CONNECT_TO_HOTSPOT) != std::string::npos) {
-            // 在时钟页面添加配网提示
-            DisplayLockGuard lock(this);
+            // 在时钟页面添加配网提示（已在外层获取锁，无需重复获取）
             lv_obj_t* wifi_hint = lv_label_create(tab2);
             lv_obj_set_size(wifi_hint, LV_HOR_RES * 0.8, LV_SIZE_CONTENT);
             lv_obj_align(wifi_hint, LV_ALIGN_CENTER, 0, -20);
@@ -411,11 +575,7 @@ public:
         lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);  // 设置图标字体
         lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置文本颜色
 
-        // 电池标签 - 已删除电量UI显示
-        // battery_label_ = lv_label_create(status_bar_);
-        // lv_label_set_text(battery_label_, "");  // 初始化为空文本
-        // lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
-        // lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);  // 设置文本颜色
+        // 电池标签已移至时钟页面（Tab2），适配圆形屏幕
 
         // 低电量弹窗
         low_battery_popup_ = lv_obj_create(tab1);
@@ -499,6 +659,13 @@ public:
         lv_label_set_text(lunar_label, "农历癸卯年正月初一");  // 初始显示农历文本
         lv_obj_align(lunar_label, LV_ALIGN_BOTTOM_MID, 0, -36);  // 底部居中对齐，向上偏移36像素
         
+        // 创建电池标签 - 适配圆形屏幕，放在农历标签下方
+        battery_label_ = lv_label_create(tab2);
+        lv_label_set_text(battery_label_, "");  // 初始化为空文本
+        lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
+        lv_obj_set_style_text_color(battery_label_, lv_color_white(), 0);  // 设置文本颜色为白色
+        lv_obj_align_to(battery_label_, lunar_label, LV_ALIGN_OUT_BOTTOM_MID, -5, 8);  // 农历标签下方，向下偏移8像素
+        
         // 定时器更新时间 - 存储静态引用以在回调中使用
         static lv_obj_t* hour_lbl = hour_label;
         static lv_obj_t* minute_lbl = minute_label;
@@ -508,67 +675,106 @@ public:
         static lv_obj_t* weekday_lbl = weekday_label;
         static lv_obj_t* lunar_lbl = lunar_label;
         
-        // 创建定时器每秒更新时间
+        // 创建定时器每秒更新时间 - 使用lambda捕获this指针
         lv_timer_create([](lv_timer_t *t) {
+            // 获取CustomLcdDisplay实例
+            CustomLcdDisplay* display_instance = static_cast<CustomLcdDisplay*>(lv_timer_get_user_data(t));
+            if (!display_instance) return;
             
-            // 检查标签是否有效
+            // 检查标签是否有效（不包括battery_lbl，因为它现在是成员变量）
             if (!hour_lbl || !minute_lbl || !second_lbl || 
                 !date_lbl || !weekday_lbl || !lunar_lbl) return;
             
-            lv_lock();  // 获取LVGL锁
-            // 获取当前时间
+            // 获取当前时间和电池状态（不需要锁）
+            static auto& board = Board::GetInstance();  // 静态引用，避免重复获取
+            auto display = board.GetDisplay();
+            if (!display) return;
+            
             time_t now;
             struct tm timeinfo;
             time(&now);
             localtime_r(&now, &timeinfo);
             
-            // 格式化时、分、秒
-            char hour_str[6];
-            char minute_str[3];
-            char second_str[3];
+            // 获取电池状态（不需要锁，用于调试日志）
+            int battery_level;
+            bool charging, discharging;
+            const char* icon = nullptr;
             
-            sprintf(hour_str, "%02d : ", timeinfo.tm_hour);  // 格式化小时，保持两位数
-            sprintf(minute_str, "%02d", timeinfo.tm_min);    // 格式化分钟，保持两位数
-            sprintf(second_str, "%02d", timeinfo.tm_sec);    // 格式化秒钟，保持两位数
-            
-            // 更新时间标签
-            lv_label_set_text(hour_lbl, hour_str);    // 更新小时
-            lv_label_set_text(minute_lbl, minute_str); // 更新分钟
-            lv_label_set_text(second_lbl, second_str); // 更新秒钟
-            
-            // 格式化年份
-            char year_str[12];
-            snprintf(year_str, sizeof(year_str), "%d", timeinfo.tm_year + 1900);  // 年份从1900年开始计算
-            
-            // 更新年份标签（当前被注释）
-            //lv_label_set_text(year_lbl, year_str);
-            
-            // 格式化日期为 MM/DD
-            char date_str[25];
-            snprintf(date_str, sizeof(date_str), "%d/%d", timeinfo.tm_mon + 1, timeinfo.tm_mday);  // 月份从0开始计算
-            
-            // 获取中文星期
-            const char *weekdays[] = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
-            
-            // 更新日期和星期标签
-            lv_label_set_text(date_lbl, date_str);  // 更新日期
-            
-            // 检查星期是否在有效范围内
-            if (timeinfo.tm_wday >= 0 && timeinfo.tm_wday < 7) {
-                lv_label_set_text(weekday_lbl, weekdays[timeinfo.tm_wday]);  // 更新星期
+            if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+                ESP_LOGI("ClockTimer", "电池状态 - 电量: %d%%, 充电: %s, 放电: %s", 
+                        battery_level, charging ? "是" : "否", discharging ? "是" : "否");
+                
+                if (charging) {
+                    icon = FONT_AWESOME_BATTERY_CHARGING;
+                } else {
+                    const char* levels[] = {
+                        FONT_AWESOME_BATTERY_EMPTY, // 0-19%
+                        FONT_AWESOME_BATTERY_1,     // 20-39%
+                        FONT_AWESOME_BATTERY_2,     // 40-59%
+                        FONT_AWESOME_BATTERY_3,     // 60-79%
+                        FONT_AWESOME_BATTERY_FULL,  // 80-99%
+                        FONT_AWESOME_BATTERY_FULL,  // 100%
+                    };
+                    icon = levels[battery_level / 20];
+                }
             }
             
-            // 计算并更新农历日期
-            std::string lunar_date = LunarCalendar::GetLunarDate(
-                timeinfo.tm_year + 1900,
-                timeinfo.tm_mon + 1,
-                timeinfo.tm_mday
-            );
-            lv_label_set_text(lunar_lbl, lunar_date.c_str());  // 更新农历日期
+            // 尝试获取显示锁并更新UI
+            {
+                DisplayLockGuard lock_guard(display);  // 使用DisplayLockGuard，内部有2秒超时
+                
+                // 格式化时、分、秒
+                char hour_str[6];
+                char minute_str[3];
+                char second_str[3];
+                
+                sprintf(hour_str, "%02d : ", timeinfo.tm_hour);  // 格式化小时，保持两位数
+                sprintf(minute_str, "%02d", timeinfo.tm_min);    // 格式化分钟，保持两位数
+                sprintf(second_str, "%02d", timeinfo.tm_sec);    // 格式化秒钟，保持两位数
+                
+                // 更新时间标签
+                lv_label_set_text(hour_lbl, hour_str);    // 更新小时
+                lv_label_set_text(minute_lbl, minute_str); // 更新分钟
+                lv_label_set_text(second_lbl, second_str); // 更新秒钟
+                
+                // 格式化年份
+                char year_str[12];
+                snprintf(year_str, sizeof(year_str), "%d", timeinfo.tm_year + 1900);  // 年份从1900年开始计算
+                
+                // 更新年份标签（当前被注释）
+                //lv_label_set_text(year_lbl, year_str);
+                
+                // 格式化日期为 MM/DD
+                char date_str[25];
+                snprintf(date_str, sizeof(date_str), "%d/%d", timeinfo.tm_mon + 1, timeinfo.tm_mday);  // 月份从0开始计算
+                
+                // 获取中文星期
+                const char *weekdays[] = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
+                
+                // 更新日期和星期标签
+                lv_label_set_text(date_lbl, date_str);  // 更新日期
+                
+                // 检查星期是否在有效范围内
+                if (timeinfo.tm_wday >= 0 && timeinfo.tm_wday < 7) {
+                    lv_label_set_text(weekday_lbl, weekdays[timeinfo.tm_wday]);  // 更新星期
+                }
+                
+                // 计算并更新农历日期
+                std::string lunar_date = LunarCalendar::GetLunarDate(
+                    timeinfo.tm_year + 1900,
+                    timeinfo.tm_mon + 1,
+                    timeinfo.tm_mday
+                );
+                lv_label_set_text(lunar_lbl, lunar_date.c_str());  // 更新农历日期
+                
+                // 更新电池图标UI - 使用成员变量并添加空指针检查
+                if (icon && display_instance->battery_label_) {
+                    lv_label_set_text(display_instance->battery_label_, icon);  // 更新电池图标
+                    ESP_LOGI("ClockTimer", "电池图标已更新: %s", icon);
+                }
+            }  // DisplayLockGuard 会自动释放锁
             
-            lv_unlock();  // 释放LVGL锁
-            
-        }, 1000, NULL);  // 每1000毫秒更新一次
+        }, 1000, this);  // 每1000毫秒更新一次，传递this指针
 
         // 电池状态显示已删除 - 不再显示电量UI
     }
@@ -706,7 +912,10 @@ public:
             if (mute_label_ != nullptr) {
                 lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);  // 设置静音标签文本颜色
             }
-            // 电池标签已删除 - 不再更新电池标签文本颜色
+            // 电池标签颜色更新 - 现在在时钟页面(Tab2)中
+            if (battery_label_ != nullptr) {
+                lv_obj_set_style_text_color(battery_label_, lv_color_white(), 0);  // 时钟页面使用白色
+            }
         }
         
         // 更新内容区域颜色
@@ -737,7 +946,7 @@ public:
             return;
         }
 
-        // 直接使用SetChatMessage显示下载进度
+        // 使用DisplayLockGuard管理锁
         DisplayLockGuard lock(this);
         if (chat_message_label_ != nullptr) {
             char full_message[256];
@@ -769,6 +978,7 @@ public:
     
     // 更新预加载进度UI
     void UpdatePreloadProgressUI(bool show, int current, int total, const char* message) {
+        // 使用DisplayLockGuard管理锁
         DisplayLockGuard lock(this);
         
         // 如果容器不存在但需要显示，创建UI
@@ -810,11 +1020,16 @@ public:
             }
         } else {
             // 隐藏容器
+            ESP_LOGI(TAG, "预加载完成，隐藏预加载UI容器");
             if (preload_progress_container_) {
                 lv_obj_add_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN);
+                ESP_LOGI(TAG, "预加载UI容器已隐藏");
+            } else {
+                ESP_LOGI(TAG, "预加载UI容器为空，无需隐藏");
             }
             
             // 重新启用用户交互
+            ESP_LOGI(TAG, "预加载完成，准备重新启用用户交互");
             EnableUserInteraction();
         }
     }
@@ -926,6 +1141,7 @@ private:
         ESP_LOGI(TAG, "用户交互已禁用");
         
         // 禁用空闲定时器，防止自动切换页面
+        ESP_LOGI(TAG, "调用 SetIdle(false) 禁用空闲定时器");
         SetIdle(false);
     }
     
@@ -935,12 +1151,13 @@ private:
         ESP_LOGI(TAG, "用户交互已启用");
         
         // 重新启用空闲定时器
+        ESP_LOGI(TAG, "调用 SetIdle(true) 重新启用空闲定时器");
         SetIdle(true);
     }
 
     // 添加新方法直接更新UI，只在主线程中调用
     void UpdateDownloadProgressUI(bool show, int progress, const char* message) {
-        // UI更新逻辑
+        // 使用DisplayLockGuard管理锁
         DisplayLockGuard lock(this);
         
         // 如果容器不存在但需要显示，创建UI
@@ -1010,6 +1227,9 @@ private:
     // 图片显示任务句柄
     TaskHandle_t image_task_handle_ = nullptr;
 
+    // 电源管理器实例
+    PowerManager* power_manager_ = nullptr;
+    
     // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
     static const char* VERSION_URL;
@@ -1124,6 +1344,23 @@ private:
         if (result != ESP_OK) {
             ESP_LOGE(TAG, "图片资源管理器初始化失败");
         }
+    }
+
+    // 初始化电源管理器
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(CHARGING_STATUS_PIN);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            ESP_LOGI(TAG, "充电状态变化: %s", is_charging ? "充电中" : "未充电");
+            // 在此处可以添加充电状态变化的处理逻辑
+        });
+        power_manager_->OnLowBatteryStatusChanged([this](bool is_low_battery) {
+            ESP_LOGI(TAG, "低电量状态变化: %s", is_low_battery ? "低电量" : "正常电量");
+            if (is_low_battery && display_) {
+                // 显示低电量警告
+                display_->ShowNotification("电量不足，请及时充电", 5000);
+            }
+        });
+        ESP_LOGI(TAG, "电源管理器初始化完成");
     }
 
     // 检查图片资源更新
@@ -1669,6 +1906,7 @@ public:
         InitializeButtons();         // 初始化按钮
         InitializeIot();             // 初始化IoT设备
         InitializeImageResources();  // 初始化图片资源管理器
+        InitializePowerManager();    // 初始化电源管理器
         GetBacklight()->RestoreBrightness();  // 恢复背光亮度
         
         // 显示初始化欢迎信息
@@ -1719,12 +1957,34 @@ public:
         return &backlight;
     }
 
+    // 获取电池电量信息
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        if (!power_manager_) {
+            return false;  // 如果电源管理器未初始化，返回false
+        }
+        
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        level = power_manager_->GetBatteryLevel();
+        
+        ESP_LOGD(TAG, "电池状态 - 电量: %d%%, 充电: %s, 放电: %s", 
+                level, charging ? "是" : "否", discharging ? "是" : "否");
+        
+        return true;
+    }
+
     // 析构函数
     ~CustomBoard() {
         // 如果任务在运行中，停止它
         if (image_task_handle_ != nullptr) {
             vTaskDelete(image_task_handle_);  // 删除图片显示任务
             image_task_handle_ = nullptr;
+        }
+        
+        // 清理电源管理器
+        if (power_manager_ != nullptr) {
+            delete power_manager_;
+            power_manager_ = nullptr;
         }
     }
 };

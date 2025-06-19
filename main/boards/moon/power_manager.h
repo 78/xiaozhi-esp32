@@ -26,9 +26,19 @@ private:
     adc_oneshot_unit_handle_t adc_handle_;
 
     void CheckBatteryStatus() {
-        // Get charging status
-        bool new_charging_status = gpio_get_level(charging_pin_) == 0;
+        // 使用GPIO_NUM_5检测充电状态（CHSTA信号）
+        int gpio_level = gpio_get_level(charging_pin_);
+        
+        // 添加详细调试日志
+        ESP_LOGI("PowerManager", "GPIO[5] (CHSTA) 充电状态检测: %d", gpio_level);
+        
+        // GPIO_NUM_5的CHSTA信号：低电平表示正在充电，高电平表示未充电
+        bool new_charging_status = gpio_level == 0;  // 低电平表示充电中
+        
         if (new_charging_status != is_charging_) {
+            ESP_LOGI("PowerManager", "充电状态发生变化: %s -> %s", 
+                    is_charging_ ? "充电中" : "未充电", 
+                    new_charging_status ? "充电中" : "未充电");
             is_charging_ = new_charging_status;
             if (on_charging_status_changed_) {
                 on_charging_status_changed_(is_charging_);
@@ -112,14 +122,16 @@ private:
 
 public:
     PowerManager(gpio_num_t pin) : charging_pin_(pin) {
-        // 初始化充电引脚
+        // 初始化充电状态检测引脚
         gpio_config_t io_conf = {};
         io_conf.intr_type = GPIO_INTR_DISABLE;
         io_conf.mode = GPIO_MODE_INPUT;
         io_conf.pin_bit_mask = (1ULL << charging_pin_);
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE; 
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;     
+        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;     // 启用内部上拉，解决浮空问题
         gpio_config(&io_conf);
+        
+        ESP_LOGI("PowerManager", "初始化充电状态检测引脚 GPIO[%d] (CHSTA)，启用内部上拉电阻", charging_pin_);
 
         // 创建电池电量检查定时器
         esp_timer_create_args_t timer_args = {
@@ -133,6 +145,12 @@ public:
             .skip_unhandled_events = true,
         };
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &timer_handle_));
+        
+        // 初始化后立即读取GPIO状态用于调试
+        vTaskDelay(pdMS_TO_TICKS(100));  // 等待GPIO稳定
+        int gpio_initial = gpio_get_level(charging_pin_);
+        ESP_LOGI("PowerManager", "初始充电状态 - GPIO[%d] (CHSTA): %d", charging_pin_, gpio_initial);
+        
         ESP_ERROR_CHECK(esp_timer_start_periodic(timer_handle_, 1000000));
 
         // 初始化 ADC
@@ -160,10 +178,8 @@ public:
     }
 
     bool IsCharging() {
-        // 如果电量已经满了，则不再显示充电中
-        if (battery_level_ == 100) {
-            return false;
-        }
+        // 直接返回真实的充电状态，不受电量百分比影响
+        // 即使电量100%，插上充电器时仍应显示充电图标
         return is_charging_;
     }
 

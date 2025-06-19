@@ -46,7 +46,7 @@ Display::Display() {
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
+    // 不立即启动定时器，等待音频系统初始化完成后再启动
 
     // Create a power management lock
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
@@ -72,7 +72,7 @@ Display::~Display() {
         lv_obj_del(notification_label_);
         lv_obj_del(status_label_);
         lv_obj_del(mute_label_);
-        // lv_obj_del(battery_label_);  // 已删除电量UI显示
+        lv_obj_del(battery_label_);  // 恢复电量UI显示
         lv_obj_del(emotion_label_);
     }
     if( low_battery_popup_ != nullptr ) {
@@ -131,7 +131,7 @@ void Display::Update() {
     }
 
     esp_pm_lock_acquire(pm_lock_);
-    // 更新电池图标
+    // 电池图标更新已移至时钟页面(Tab2)的定时器中处理
     int battery_level;
     bool charging, discharging;
     const char* icon = nullptr;
@@ -149,12 +149,7 @@ void Display::Update() {
             };
             icon = levels[battery_level / 20];
         }
-        DisplayLockGuard lock(this);
-        // 电池标签已删除 - 不再更新电池图标
-        // if (battery_label_ != nullptr && battery_icon_ != icon) {
-        //     battery_icon_ = icon;
-        //     lv_label_set_text(battery_label_, battery_icon_);
-        // }
+        // 电池图标现在通过时钟页面定时器更新，这里只处理低电量弹窗
 
         if (low_battery_popup_ != nullptr) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
@@ -191,6 +186,13 @@ void Display::Update() {
     }
 
     esp_pm_lock_release(pm_lock_);
+}
+
+void Display::StartUpdateTimer() {
+    if (update_timer_ != nullptr) {
+        ESP_LOGI(TAG, "启动显示更新定时器");
+        ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
+    }
 }
 
 void Display::SetEmotion(const char* emotion) {

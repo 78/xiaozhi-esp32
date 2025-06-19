@@ -333,6 +333,10 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
     opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
+    
+    // 音频系统初始化完成，现在可以安全启动Display定时器
+    ESP_LOGI(TAG, "音频系统初始化完成，启动Display定时器");
+    display->StartUpdateTimer();
     if (realtime_chat_enabled_) {
         ESP_LOGI(TAG, "Realtime chat enabled, setting opus encoder complexity to 0");
         opus_encoder_->SetComplexity(0);
@@ -783,6 +787,7 @@ void Application::SetDeviceState(DeviceState state) {
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
+            ESP_LOGI(TAG, "设备进入 idle 状态，调用 display->SetIdle(true)");
             display->SetIdle(true);
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
@@ -857,6 +862,12 @@ void Application::ResetDecoder() {
 }
 
 void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
+    // 添加空指针检查，防止在音频系统初始化完成前访问
+    if (!opus_decoder_) {
+        ESP_LOGW(TAG, "opus_decoder_未初始化，跳过设置采样率");
+        return;
+    }
+    
     if (opus_decoder_->sample_rate() == sample_rate && opus_decoder_->duration_ms() == frame_duration) {
         return;
     }

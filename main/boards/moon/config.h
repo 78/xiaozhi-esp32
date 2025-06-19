@@ -88,6 +88,11 @@
 #define DISPLAY_SPI_RESET_PIN   GPIO_NUM_10
 
 #define DISPLAY_SPI_SCLK_HZ     (40 * 1000 * 1000)
+
+// 电池管理相关引脚定义
+#define BATTERY_ADC_PIN         GPIO_NUM_1     // 电池电压检测ADC引脚
+#define CHARGING_STATUS_PIN     GPIO_NUM_5     // 充电状态检测引脚（CHSTA信号）
+#define BATTERY_ADC_CHANNEL     ADC_CHANNEL_0  // 对应GPIO1的ADC通道
 #endif
 
 #endif // _BOARD_CONFIG_H_
