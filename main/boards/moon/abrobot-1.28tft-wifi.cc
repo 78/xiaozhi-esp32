@@ -676,6 +676,7 @@ public:
         static lv_obj_t* lunar_lbl = lunar_label;
         
         // 创建定时器每秒更新时间 - 使用lambda捕获this指针
+        // 性能优化：降低时钟更新频率到2秒一次，减少CPU占用
         lv_timer_create([](lv_timer_t *t) {
             // 获取CustomLcdDisplay实例
             CustomLcdDisplay* display_instance = static_cast<CustomLcdDisplay*>(lv_timer_get_user_data(t));
@@ -774,7 +775,7 @@ public:
                 }
             }  // DisplayLockGuard 会自动释放锁
             
-        }, 1000, this);  // 每1000毫秒更新一次，传递this指针
+        }, 2000, this);  // 性能优化：每2000毫秒更新一次，减少CPU占用
 
         // 电池状态显示已删除 - 不再显示电量UI
     }
@@ -1660,7 +1661,7 @@ private:
         
         // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
-        const TickType_t cycleInterval = pdMS_TO_TICKS(150);  // 从120ms改为200ms
+        const TickType_t cycleInterval = pdMS_TO_TICKS(200);  // 性能优化：降低动画帧率减少CPU占用
         
         // 循环变量定义
         bool isAudioPlaying = false;       

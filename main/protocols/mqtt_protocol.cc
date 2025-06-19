@@ -157,6 +157,7 @@ void MqttProtocol::CloseAudioChannel() {
 }
 
 bool MqttProtocol::OpenAudioChannel() {
+    ESP_LOGI(TAG, "🔓 开始打开MQTT+UDP音频通道...");
     if (mqtt_ == nullptr || !mqtt_->IsConnected()) {
         ESP_LOGI(TAG, "MQTT is not connected, try to connect now");
         if (!StartMqttClient(true)) {
@@ -176,6 +177,7 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
+    ESP_LOGI(TAG, "📤 发送MQTT Hello消息: %s", message.c_str());
     if (!SendText(message)) {
         return false;
     }
@@ -239,6 +241,8 @@ bool MqttProtocol::OpenAudioChannel() {
 }
 
 void MqttProtocol::ParseServerHello(const cJSON* root) {
+    ESP_LOGI(TAG, "📥 收到MQTT服务器Hello响应");
+    
     auto transport = cJSON_GetObjectItem(root, "transport");
     if (transport == nullptr || strcmp(transport->valuestring, "udp") != 0) {
         ESP_LOGE(TAG, "Unsupported transport: %s", transport->valuestring);
@@ -262,6 +266,10 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         if (frame_duration != NULL) {
             server_frame_duration_ = frame_duration->valueint;
         }
+        ESP_LOGI(TAG, "🎵 MQTT服务器音频参数: [采样率:%d, 帧长度:%dms]", 
+                 server_sample_rate_, server_frame_duration_);
+    } else {
+        ESP_LOGW(TAG, "⚠️  服务器Hello响应中没有音频参数，使用默认值");
     }
 
     auto udp = cJSON_GetObjectItem(root, "udp");

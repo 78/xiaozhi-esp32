@@ -337,16 +337,13 @@ void Application::Start() {
     // 音频系统初始化完成，现在可以安全启动Display定时器
     ESP_LOGI(TAG, "音频系统初始化完成，启动Display定时器");
     display->StartUpdateTimer();
-    if (realtime_chat_enabled_) {
-        ESP_LOGI(TAG, "Realtime chat enabled, setting opus encoder complexity to 0");
-        opus_encoder_->SetComplexity(0);
-    } else if (board.GetBoardType() == "ml307") {
-        ESP_LOGI(TAG, "ML307 board detected, setting opus encoder complexity to 5");
-        opus_encoder_->SetComplexity(5);
-    } else {
-        ESP_LOGI(TAG, "WiFi board detected, setting opus encoder complexity to 3");
-        opus_encoder_->SetComplexity(3);
-    }
+    // 性能优化：强制使用最快编码速度
+    ESP_LOGI(TAG, "Performance optimization: setting opus encoder complexity to 0 (fastest)");
+    opus_encoder_->SetComplexity(0);
+    
+    // 启用实时模式相关优化
+    realtime_chat_enabled_ = true;
+    ESP_LOGI(TAG, "Force enabling realtime chat mode for better performance");
 
     if (codec->input_sample_rate() != 16000) {
         input_resampler_.Configure(codec->input_sample_rate(), 16000);
@@ -354,11 +351,12 @@ void Application::Start() {
     }
     codec->Start();
 
+    // 性能优化：音频任务固定绑定到Core 1，使用最高优先级
     xTaskCreatePinnedToCore([](void* arg) {
         Application* app = (Application*)arg;
         app->AudioLoop();
         vTaskDelete(NULL);
-    }, "audio_loop", 4096 * 2, this, 8, &audio_loop_task_handle_, realtime_chat_enabled_ ? 1 : 0);
+    }, "audio_loop", 4096 * 2, this, 9, &audio_loop_task_handle_, 1);  // 优先级9，绑定Core 1
 
     /* Start the main loop */
     xTaskCreatePinnedToCore([](void* arg) {
@@ -373,8 +371,10 @@ void Application::Start() {
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 #ifdef CONFIG_CONNECTION_TYPE_WEBSOCKET
+    ESP_LOGI(TAG, "🔧 使用WebSocket协议");
     protocol_ = std::make_unique<WebsocketProtocol>();
 #else
+    ESP_LOGI(TAG, "🔧 使用MQTT+UDP协议");
     protocol_ = std::make_unique<MqttProtocol>();
 #endif
     protocol_->OnNetworkError([this](const std::string& message) {
@@ -387,6 +387,11 @@ void Application::Start() {
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
         board.SetPowerSaveMode(false);
+        
+        // 调试信息：显示服务器音频参数
+        ESP_LOGI(TAG, "🔗 音频通道已打开 - 服务器参数: [采样率:%d, 帧长度:%dms], 客户端发送帧长度:%dms", 
+                 protocol_->server_sample_rate(), protocol_->server_frame_duration(), OPUS_FRAME_DURATION_MS);
+        
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG, "Server sample rate %d does not match device output sample rate %d, resampling may cause distortion",
                 protocol_->server_sample_rate(), codec->output_sample_rate());
@@ -673,6 +678,8 @@ void Application::OnAudioOutput() {
 
         std::vector<int16_t> pcm;
         if (!opus_decoder_->Decode(std::move(opus), pcm)) {
+            ESP_LOGE(TAG, "🔥 Opus解码失败 - 数据包大小:%zu bytes, 解码器配置: [采样率:%d, 帧长度:%dms]", 
+                     opus.size(), opus_decoder_->sample_rate(), opus_decoder_->duration_ms());
             return;
         }
         // Resample if the sample rate is different
@@ -819,8 +826,8 @@ void Application::SetDeviceState(DeviceState state) {
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
                 if (listening_mode_ == kListeningModeAutoStop && previous_state == kDeviceStateSpeaking) {
-                    // FIXME: Wait for the speaker to empty the buffer
-                    vTaskDelay(pdMS_TO_TICKS(120));
+                    // 性能优化：减少缓冲区等待时间从120ms到50ms
+                    vTaskDelay(pdMS_TO_TICKS(50));
                 }
                 opus_encoder_->ResetState();
 #if CONFIG_USE_WAKE_WORD_DETECT
@@ -868,12 +875,19 @@ void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
         return;
     }
     
+    // 调试信息：显示当前和目标设置
+    ESP_LOGI(TAG, "SetDecodeSampleRate: 当前解码器 [采样率:%d, 帧长度:%dms] -> 目标 [采样率:%d, 帧长度:%dms]", 
+             opus_decoder_->sample_rate(), opus_decoder_->duration_ms(), sample_rate, frame_duration);
+    
     if (opus_decoder_->sample_rate() == sample_rate && opus_decoder_->duration_ms() == frame_duration) {
+        ESP_LOGI(TAG, "解码器参数已匹配，无需重新创建");
         return;
     }
 
     opus_decoder_.reset();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(sample_rate, 1, frame_duration);
+    ESP_LOGI(TAG, "✅ 解码器已重新创建: [采样率:%d, 帧长度:%dms]", 
+             opus_decoder_->sample_rate(), opus_decoder_->duration_ms());
 
     auto codec = Board::GetInstance().GetAudioCodec();
     if (opus_decoder_->sample_rate() != codec->output_sample_rate()) {

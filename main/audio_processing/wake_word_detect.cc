@@ -131,8 +131,8 @@ void WakeWordDetect::AudioDetectionTask() {
 void WakeWordDetect::StoreWakeWordData(uint16_t* data, size_t samples) {
     // store audio data to wake_word_pcm_
     wake_word_pcm_.emplace_back(std::vector<int16_t>(data, data + samples));
-    // keep about 2 seconds of data, detect duration is 32ms (sample_rate == 16000, chunksize == 512)
-    while (wake_word_pcm_.size() > 2000 / 32) {
+    // 性能优化：减少缓存到1秒数据，降低内存使用和编码延迟
+    while (wake_word_pcm_.size() > 1000 / 32) {
         wake_word_pcm_.pop_front();
     }
 }
@@ -146,8 +146,8 @@ void WakeWordDetect::EncodeWakeWordData() {
         auto this_ = (WakeWordDetect*)arg;
         {
             auto start_time = esp_timer_get_time();
-            auto encoder = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
-            encoder->SetComplexity(0); // 0 is the fastest
+            auto encoder = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS); // 使用统一的帧长度
+            encoder->SetComplexity(0); // 0 is the fastest - 保持最快编码速度
 
             for (auto& pcm: this_->wake_word_pcm_) {
                 encoder->Encode(std::move(pcm), [this_](std::vector<uint8_t>&& opus) {

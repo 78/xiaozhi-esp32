@@ -45,7 +45,7 @@ enum DeviceState {
     kDeviceStateFatalError
 };
 
-#define OPUS_FRAME_DURATION_MS 60
+#define OPUS_FRAME_DURATION_MS 60  // 恢复原始值确保与服务器兼容
 
 class Application {
 public:
@@ -112,7 +112,7 @@ private:
 #if CONFIG_USE_REALTIME_CHAT
     bool realtime_chat_enabled_ = true;
 #else
-    bool realtime_chat_enabled_ = false;
+    bool realtime_chat_enabled_ = true;  // 性能优化：强制启用实时模式
 #endif
     bool aborted_ = false;
     bool voice_detected_ = false;

@@ -60,6 +60,7 @@ void WebsocketProtocol::CloseAudioChannel() {
 }
 
 bool WebsocketProtocol::OpenAudioChannel() {
+    ESP_LOGI(TAG, "🔓 开始打开WebSocket音频通道...");
     if (websocket_ != nullptr) {
         delete websocket_;
     }
@@ -173,6 +174,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     message += "\"audio_params\":{";
     message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
+    ESP_LOGI(TAG, "📤 发送WebSocket Hello消息: %s", message.c_str());
     if (!SendText(message)) {
         return false;
     }
@@ -193,6 +195,8 @@ bool WebsocketProtocol::OpenAudioChannel() {
 }
 
 void WebsocketProtocol::ParseServerHello(const cJSON* root) {
+    ESP_LOGI(TAG, "📥 收到WebSocket服务器Hello响应");
+    
     auto transport = cJSON_GetObjectItem(root, "transport");
     if (transport == nullptr || strcmp(transport->valuestring, "websocket") != 0) {
         ESP_LOGE(TAG, "Unsupported transport: %s", transport->valuestring);
@@ -209,6 +213,10 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
         if (frame_duration != NULL) {
             server_frame_duration_ = frame_duration->valueint;
         }
+        ESP_LOGI(TAG, "🎵 WebSocket服务器音频参数: [采样率:%d, 帧长度:%dms]", 
+                 server_sample_rate_, server_frame_duration_);
+    } else {
+        ESP_LOGW(TAG, "⚠️  服务器Hello响应中没有音频参数，使用默认值");
     }
 
     xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT);
