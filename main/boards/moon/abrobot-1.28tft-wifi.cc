@@ -11,6 +11,7 @@
 #include "iot/thing_manager.h"  // 包含IoT设备管理头文件
 #include "lunar_calendar.h"     // 包含农历日期转换头文件
 #include "sdkconfig.h"         // 包含SDK配置头文件
+#include "power_save_timer.h"  // 包含电源节省定时器头文件
 
 #include <esp_log.h>           // ESP日志系统
 #include "i2c_device.h"        // I2C设备控制
@@ -31,6 +32,8 @@
 #include "power_manager.h"        // 电源管理
 #include "power_save_timer.h"     // 省电定时器
 #include <esp_sleep.h>            // ESP32睡眠模式
+#include <esp_pm.h>               // ESP32电源管理
+#include <esp_wifi.h>             // ESP32 WiFi功能
 #include "button.h"               // 按钮控制
 #include "settings.h"             // 设置管理
 #include "iot_image_display.h"  // 引入图片显示模式定义
@@ -211,7 +214,7 @@ public:
     // 设置空闲状态方法，控制是否启用空闲定时器
     void SetIdle(bool status) override 
     {
-        // 如果status为false，表示有用户交互，需要停止定时器
+                // 如果status为false，表示有用户交互，需要停止定时器
         if (status == false)
         {
             // 停止空闲定时器
@@ -228,7 +231,7 @@ public:
             
             // 如果设备在睡眠状态，恢复亮度
             if (is_sleeping_) {
-                static auto& board = Board::GetInstance();  // 静态引用避免重复获取
+                static auto& board = Board::GetInstance();
                 auto backlight = board.GetBacklight();
                 if (backlight) {
                     backlight->SetBrightness(normal_brightness_);
@@ -1231,6 +1234,9 @@ private:
     // 电源管理器实例
     PowerManager* power_manager_ = nullptr;
     
+    // 3级省电定时器实例
+    PowerSaveTimer* power_save_timer_ = nullptr;
+    
     // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
     static const char* VERSION_URL;
@@ -1302,6 +1308,12 @@ private:
     // 按钮初始化
     void InitializeButtons() {
         boot_btn.OnClick([this]() {
+            // 唤醒省电定时器
+            if (power_save_timer_) {
+                power_save_timer_->WakeUp();
+                ESP_LOGI(TAG, "用户交互，唤醒省电定时器");
+            }
+            
             // 检查用户交互是否被禁用
             if (display_ && static_cast<CustomLcdDisplay*>(display_)->user_interaction_disabled_) {
                 ESP_LOGW(TAG, "用户交互已禁用，忽略按钮点击");
@@ -1362,6 +1374,137 @@ private:
             }
         });
         ESP_LOGI(TAG, "电源管理器初始化完成");
+    }
+
+    // 初始化3级省电定时器
+    void InitializePowerSaveTimer() {
+        // 创建3级省电定时器：60秒后进入浅睡眠，180秒后进入深度睡眠
+        power_save_timer_ = new PowerSaveTimer(240, 60, 180);
+        
+        // 第二级：60秒后进入浅睡眠模式
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "60秒后进入浅睡眠模式");
+            EnterLightSleepMode();
+        });
+        
+        // 退出浅睡眠模式（用户交互唤醒时）
+        power_save_timer_->OnExitSleepMode([this]() {
+            ESP_LOGI(TAG, "退出浅睡眠模式");
+            ExitLightSleepMode();
+        });
+        
+        // 第三级：180秒后进入深度睡眠模式
+        power_save_timer_->OnShutdownRequest([this]() {
+            ESP_LOGI(TAG, "180秒后进入深度睡眠模式");
+            EnterDeepSleepMode();
+        });
+        
+        // 启用省电定时器
+        power_save_timer_->SetEnabled(true);
+        ESP_LOGI(TAG, "3级省电定时器初始化完成 - 60秒浅睡眠, 180秒深度睡眠");
+    }
+
+    // 进入浅睡眠模式 - 降低功耗但保持基本功能
+    void EnterLightSleepMode() {
+        ESP_LOGI(TAG, "进入浅睡眠模式 - 适度降低功耗");
+        
+        // 1. 降低屏幕亮度到较低水平
+        auto backlight = GetBacklight();
+        if (backlight) {
+            backlight->SetBrightness(10);  // 设置为较低亮度10
+            ESP_LOGI(TAG, "屏幕亮度已降至10");
+        }
+        
+        // 2. 暂停图片轮播任务以节省CPU
+        SuspendImageTask();
+        ESP_LOGI(TAG, "图片轮播任务已暂停");
+        
+        // 3. 启用WiFi省电模式（保持连接但降低功耗）
+        SetPowerSaveMode(true);
+        ESP_LOGI(TAG, "WiFi省电模式已启用");
+        
+        // 4. 降低CPU频率（PowerSaveTimer会自动处理）
+        ESP_LOGI(TAG, "浅睡眠模式激活完成");
+    }
+    
+    // 退出浅睡眠模式 - 恢复正常功能
+    void ExitLightSleepMode() {
+        ESP_LOGI(TAG, "退出浅睡眠模式 - 恢复正常功能");
+        
+        // 1. 恢复屏幕亮度
+        auto backlight = GetBacklight();
+        if (backlight) {
+            backlight->RestoreBrightness();  // 恢复到保存的亮度
+            ESP_LOGI(TAG, "屏幕亮度已恢复");
+        }
+        
+        // 2. 恢复图片轮播任务
+        ResumeImageTask();
+        ESP_LOGI(TAG, "图片轮播任务已恢复");
+        
+        // 3. 禁用WiFi省电模式
+        SetPowerSaveMode(false);
+        ESP_LOGI(TAG, "WiFi省电模式已禁用");
+        
+        ESP_LOGI(TAG, "浅睡眠模式退出完成");
+    }
+
+    // 进入深度睡眠模式 - 关闭所有功能，只保留按键唤醒
+    void EnterDeepSleepMode() {
+        ESP_LOGI(TAG, "进入深度睡眠模式 - 关闭所有功能");
+        
+        // 1. 显示省电提示信息
+        if (display_) {
+            display_->SetChatMessage("system", "进入深度睡眠模式\n按按键唤醒设备");
+            vTaskDelay(pdMS_TO_TICKS(3000));  // 显示3秒让用户看到
+        }
+        
+        // 2. 停止所有图片相关任务
+        SuspendImageTask();
+        ESP_LOGI(TAG, "图片轮播任务已停止");
+        
+        // 3. 关闭音频编解码器
+        auto codec = GetAudioCodec();
+        if (codec) {
+            codec->EnableInput(false);
+            codec->EnableOutput(false);
+            ESP_LOGI(TAG, "音频编解码器已关闭");
+        }
+        
+        // 4. 关闭WiFi以节省最大功耗
+        auto& wifi_station = WifiStation::GetInstance();
+        wifi_station.Stop();
+        ESP_LOGI(TAG, "WiFi已断开");
+        
+        // 5. 关闭LCD显示面板
+        if (panel) {
+            esp_lcd_panel_disp_on_off(panel, false);
+            ESP_LOGI(TAG, "LCD显示面板已关闭");
+        }
+        
+        // 6. 设置按键为唤醒源
+        esp_sleep_enable_ext0_wakeup((gpio_num_t)BOOT_BUTTON_GPIO, 0);  // 低电平唤醒
+        ESP_LOGI(TAG, "按键唤醒已配置");
+        
+        // 7. 进入深度睡眠，实现最低功耗
+        ESP_LOGI(TAG, "进入深度睡眠模式，按BOOT键唤醒");
+        esp_deep_sleep_start();
+    }
+    
+    // 暂停图片任务以节省CPU
+    void SuspendImageTask() {
+        if (image_task_handle_ != nullptr) {
+            vTaskSuspend(image_task_handle_);
+            ESP_LOGI(TAG, "图片轮播任务已暂停");
+        }
+    }
+    
+    // 恢复图片任务
+    void ResumeImageTask() {
+        if (image_task_handle_ != nullptr) {
+            vTaskResume(image_task_handle_);
+            ESP_LOGI(TAG, "图片轮播任务已恢复");
+        }
     }
 
     // 检查图片资源更新
@@ -1899,6 +2042,14 @@ private:
     }
 
 public:
+    // 安全唤醒省电定时器的方法
+    void SafeWakeUpPowerSaveTimer() {
+        if (power_save_timer_) {
+            power_save_timer_->WakeUp();
+            ESP_LOGI(TAG, "安全唤醒省电定时器");
+        }
+    }
+
     // 构造函数
     CustomBoard() : boot_btn(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();        // 初始化编解码器I2C总线
@@ -1908,6 +2059,7 @@ public:
         InitializeIot();             // 初始化IoT设备
         InitializeImageResources();  // 初始化图片资源管理器
         InitializePowerManager();    // 初始化电源管理器
+        InitializePowerSaveTimer();  // 初始化3级省电定时器
         GetBacklight()->RestoreBrightness();  // 恢复背光亮度
         
         // 显示初始化欢迎信息
@@ -1974,12 +2126,38 @@ public:
         return true;
     }
 
+    // 设置省电模式
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled && power_save_timer_) {
+            power_save_timer_->WakeUp();  // 唤醒省电定时器
+        }
+        
+        // 检查应用状态，避免在WiFi未初始化时调用WiFi功能
+        auto& app = Application::GetInstance();
+        DeviceState currentState = app.GetDeviceState();
+        
+        // 只有在设备完全启动后才调用WiFi省电模式
+        if (currentState == kDeviceStateIdle || currentState == kDeviceStateListening || 
+            currentState == kDeviceStateConnecting || currentState == kDeviceStateSpeaking) {
+            // 设备已完全启动，可以安全调用WiFi功能
+            WifiBoard::SetPowerSaveMode(enabled);
+        } else {
+            ESP_LOGW(TAG, "设备未完全启动(状态:%d)，跳过WiFi省电模式设置", (int)currentState);
+        }
+    }
+
     // 析构函数
     ~CustomBoard() {
         // 如果任务在运行中，停止它
         if (image_task_handle_ != nullptr) {
             vTaskDelete(image_task_handle_);  // 删除图片显示任务
             image_task_handle_ = nullptr;
+        }
+        
+        // 清理3级省电定时器
+        if (power_save_timer_ != nullptr) {
+            delete power_save_timer_;
+            power_save_timer_ = nullptr;
         }
         
         // 清理电源管理器
