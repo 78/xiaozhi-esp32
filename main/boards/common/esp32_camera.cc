@@ -13,6 +13,9 @@
 
 Esp32Camera::Esp32Camera(const camera_config_t& config) {
     // camera init
+    ESP_LOGI(TAG, "Camera config: D0=%d D1=%d ... SCL=%d SDA=%d XCLK=%d",
+             config.pin_d0, config.pin_d1, config.pin_sccb_scl, config.pin_sccb_sda, config.pin_xclk);
+
     esp_err_t err = esp_camera_init(&config); // 配置上面定义的参数
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Camera init failed with error 0x%x", err);

@@ -193,6 +193,8 @@ elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
     set(BOARD_TYPE "electron-bot")
 elseif(CONFIG_BOARD_TYPE_JKST_S3_DEV)
     set(BOARD_TYPE "jkst-s3-dev")
+elseif(CONFIG_BOARD_TYPE_JKST_SPACEMAN)
+    set(BOARD_TYPE "jkst-spaceman")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
