@@ -69,3 +69,33 @@
 2025-06-19 13:47:53,643 - shaolu.multi - INFO - 所有设备处理已停止
 2025-06-19 13:47:53,643 - shaolu.multi - INFO - 多设备管理器资源清理完成
 2025-06-19 13:47:53,649 - shaolu - ERROR - 目录 /fake/path 不是有效的ESP-IDF项目，缺少CMakeLists.txt
+2025-06-20 15:12:18,623 - shaolu.workspace - INFO - 工作目录管理器初始化完成
+2025-06-20 15:12:18,623 - shaolu.workspace - INFO - 基础路径: E:\work\xiaozhi-esp32
+2025-06-20 15:12:18,624 - shaolu.workspace - INFO - 实例目录: E:\work\xiaozhi-esp32\instances
+2025-06-20 15:12:18,624 - shaolu.workspace - INFO - 项目模板已存在，跳过创建
+2025-06-20 15:12:18,624 - shaolu.workspace - INFO - 项目模板已存在，跳过创建
+2025-06-20 15:12:18,624 - shaolu.workspace - INFO - 正在为设备 demo_device_1 创建工作目录: E:\work\xiaozhi-esp32\instances\device_COM3_20250620_151218
+2025-06-20 15:12:18,859 - shaolu.workspace - INFO - 设备工作目录创建成功: E:\work\xiaozhi-esp32\instances\device_COM3_20250620_151218
+2025-06-20 15:12:18,859 - shaolu.workspace - INFO - 项目模板已存在，跳过创建
+2025-06-20 15:12:18,859 - shaolu.workspace - INFO - 正在为设备 demo_device_2 创建工作目录: E:\work\xiaozhi-esp32\instances\device_COM4_20250620_151218
+2025-06-20 15:12:19,085 - shaolu.workspace - INFO - 设备工作目录创建成功: E:\work\xiaozhi-esp32\instances\device_COM4_20250620_151218
+2025-06-20 15:12:19,119 - shaolu.workspace - INFO - 工作目录已清理: E:\work\xiaozhi-esp32\instances\device_COM3_20250620_151218
+2025-06-20 15:12:19,154 - shaolu.workspace - INFO - 工作目录已清理: E:\work\xiaozhi-esp32\instances\device_COM4_20250620_151218
+2025-06-20 15:12:19,157 - shaolu.device - INFO - 设备实例创建: demo_device_1 (端口: COM3)
+2025-06-20 15:12:19,158 - shaolu.device - INFO - 设备实例创建: demo_device_2 (端口: COM4)
+2025-06-20 15:12:19,158 - shaolu.device - INFO - [demo_device_1] MAC地址已获取: AA:BB:CC:DD:EE:F1
+2025-06-20 15:12:19,158 - shaolu.device - INFO - [demo_device_1] 设备注册成功 - Client ID: client_12345
+2025-06-20 15:12:19,158 - shaolu.device - INFO - [demo_device_1] 绑定码: bind_67890
+2025-06-20 15:12:19,158 - shaolu.device - ERROR - [demo_device_2] 发生错误: 编译失败: 缺少依赖
+2025-06-20 15:12:19,320 - shaolu.workspace - INFO - 工作目录管理器初始化完成
+2025-06-20 15:12:19,321 - shaolu.workspace - INFO - 基础路径: E:\work\xiaozhi-esp32
+2025-06-20 15:12:19,321 - shaolu.workspace - INFO - 实例目录: E:\work\xiaozhi-esp32\instances
+2025-06-20 15:12:19,321 - shaolu.multi - INFO - 多设备管理器初始化完成，使用队列处理机制
+2025-06-20 15:12:19,321 - shaolu.device - INFO - 设备实例创建: demo_device_1 (端口: COM3)
+2025-06-20 15:12:19,321 - shaolu.multi - INFO - 设备已添加: demo_device_1 (端口: COM3)
+2025-06-20 15:12:19,321 - shaolu.device - INFO - 设备实例创建: demo_device_2 (端口: COM4)
+2025-06-20 15:12:19,321 - shaolu.multi - INFO - 设备已添加: demo_device_2 (端口: COM4)
+2025-06-20 15:12:19,322 - shaolu.multi - INFO - 正在清理多设备管理器资源...
+2025-06-20 15:12:19,322 - shaolu.multi - INFO - 所有设备处理已停止，队列已清空
+2025-06-20 15:12:19,322 - shaolu.multi - INFO - 多设备管理器资源清理完成
+2025-06-20 15:12:19,330 - shaolu - ERROR - 目录 /fake/path 不是有效的ESP-IDF项目，缺少CMakeLists.txt

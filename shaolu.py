@@ -264,7 +264,7 @@ def build_firmware():
         print("正在编译固件...")
         
         # 使用ESP-IDF安装路径
-        idf_path = "C:\\Users\\1\\esp\\v5.3.2\\esp-idf"
+        idf_path = "C:\\Users\\1\\esp\\v5.4.1\\esp-idf"
         
         # 先执行fullclean清理项目
         activate_cmd = f"call {idf_path}\\export.bat && idf.py fullclean"
@@ -302,7 +302,7 @@ def flash_firmware(port):
         print(f"正在烧录固件到设备 (端口: {port})...")
         
         # 使用您的ESP-IDF具体安装路径
-        idf_path = "C:\\Users\\1\\esp\\v5.3.2\\esp-idf"
+        idf_path = "C:\\Users\\1\\esp\\v5.4.1\\esp-idf"
         
         # 执行export.bat激活环境并烧录
         activate_cmd = f"call {idf_path}\\export.bat && idf.py -p {port} flash"

@@ -132,7 +132,7 @@ def demo_multi_device_manager():
         
         # 创建多设备管理器
         print("1. 创建多设备管理器...")
-        manager = MultiDeviceManager(max_workers=2, idf_path="C:\\Users\\1\\esp\\v5.4.1\\esp-idf")
+        manager = MultiDeviceManager(idf_path="C:\\Users\\1\\esp\\v5.4.1\\esp-idf")
         print("   ✓ 多设备管理器创建成功")
         
         # 添加设备

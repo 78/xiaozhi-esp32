@@ -35,8 +35,8 @@ class SimpleMultiDeviceUI(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # 初始化设备管理器
-        self.device_manager = MultiDeviceManager(max_workers=4)
+        # 初始化设备管理器（已改为排队机制）
+        self.device_manager = MultiDeviceManager()
         self.device_manager.set_callbacks(
             device_status_callback=self.on_device_status_changed,
             log_callback=self.on_device_log
@@ -188,13 +188,15 @@ class SimpleMultiDeviceUI(QMainWindow):
     
     @Slot()
     def start_all_devices(self):
-        """开始处理所有设备"""
+        """开始处理所有设备（排队模式）"""
         try:
-            started_count = self.device_manager.start_all_devices_processing()
-            self.log_message(f"开始批量处理，共启动 {started_count} 个设备")
+            queued_count = self.device_manager.start_all_devices_processing()
+            self.log_message(f"开始批量处理（排队机制），共 {queued_count} 个设备加入队列")
             
-            if started_count == 0:
+            if queued_count == 0:
                 QMessageBox.information(self, "提示", "没有可以开始的设备")
+            else:
+                QMessageBox.information(self, "队列开始", f"已启动排队处理，共 {queued_count} 个设备将依次处理")
             
         except Exception as e:
             logger.error(f"开始全部设备失败: {e}")
@@ -205,7 +207,7 @@ class SimpleMultiDeviceUI(QMainWindow):
         """停止处理所有设备"""
         try:
             self.device_manager.stop_all_processing()
-            self.log_message("已停止所有设备处理")
+            self.log_message("已停止所有设备处理并清空队列")
             
         except Exception as e:
             logger.error(f"停止全部设备失败: {e}")
@@ -261,7 +263,16 @@ class SimpleMultiDeviceUI(QMainWindow):
         
         # 更新统计信息
         stats = self.device_manager.get_statistics()
-        stats_text = f"总计: {stats['total']} | 活动: {stats['active']} | 完成: {stats['completed']} | 失败: {stats['failed']}"
+        queue_status = self.device_manager.get_queue_status()
+        
+        # 显示队列状态
+        if queue_status['queue_enabled']:
+            stats_text = f"总计: {stats['total']} | 排队: {stats['queued']} | 活动: {stats['active']} | 完成: {stats['completed']} | 失败: {stats['failed']}"
+            if queue_status['current_processing']:
+                stats_text += f" | 当前: {queue_status['current_processing']}"
+        else:
+            stats_text = f"总计: {stats['total']} | 活动: {stats['active']} | 完成: {stats['completed']} | 失败: {stats['failed']}"
+        
         self.stats_label.setText(stats_text)
     
     def create_action_widget(self, device_id: str):

@@ -247,14 +247,14 @@ def get_device_mac(port):
             cmd = [sys.executable, "-m", "esptool", "--port", port, "read_mac"]
             logger.info(f"执行命令: {' '.join(cmd)}")
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
                 logger.warning(f"使用Python模块运行失败: {result.stderr}")
                 
                 # 尝试直接调用esptool.py
                 cmd = [esptool_path, "--port", port, "read_mac"]
                 logger.info(f"尝试直接调用: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 
                 if result.returncode != 0:
                     logger.error(f"获取MAC地址失败: {result.stderr}")
@@ -578,9 +578,12 @@ def build_firmware(idf_path=None, skip_clean=False, progress_callback=None, work
             else:
                  logger.info("跳过清理步骤")
 
-            # 修改编译命令部分
-            build_cmd = f"{activate_cmd} && idf.py build"
-            logger.info(f"执行命令: {build_cmd}")
+            # 修改编译命令部分 - 启用并行编译，ESP-IDF会自动检测CPU核心数
+            import multiprocessing
+            cpu_cores = multiprocessing.cpu_count()
+            # ESP-IDF 会自动使用所有可用CPU核心，也可以通过环境变量控制
+            build_cmd = f'{activate_cmd} && set "CMAKE_BUILD_PARALLEL_LEVEL={cpu_cores}" && idf.py build'
+            logger.info(f"执行命令: {build_cmd} (设置{cpu_cores}个CPU核心并行编译)")
 
             process_build = subprocess.Popen(build_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
 

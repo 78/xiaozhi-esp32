@@ -326,7 +326,7 @@ class DeviceInstance:
 
 ```python
 class MultiDeviceManager:
-    def __init__(self, max_workers: int = 4, idf_path: str = None):
+    def __init__(self, idf_path: str = None):
         """创建多设备管理器"""
     
     def add_device(self, device_id: str, port: str) -> DeviceInstance:
