@@ -25,7 +25,7 @@
         "SERVER_NOT_FOUND":"正在寻找可用服务",
         "SERVER_NOT_CONNECTED":"无法连接服务，请稍后再试",
         "SERVER_TIMEOUT":"等待响应超时",
-        "SERVER_ERROR":"发送失败，请检查网络",
+        "SERVER_ERROR":"连接失败，请检查网络并从启设备",
 
         "CONNECT_TO_HOTSPOT":"手机连接热点 ",
         "ACCESS_VIA_BROWSER":"，浏览器访问 ",

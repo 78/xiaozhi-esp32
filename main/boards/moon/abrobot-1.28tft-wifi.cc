@@ -140,6 +140,9 @@ public:
     lv_timer_t* sleep_timer_ = nullptr;  // 睡眠定时器
     bool is_sleeping_ = false;           // 睡眠状态标志
     int normal_brightness_ = 100;        // 正常亮度值
+    
+    // 浅睡眠状态管理
+    bool is_light_sleeping_ = false;     // 浅睡眠状态标志
  
     lv_obj_t * tab1 = nullptr;          // 第一个标签页（主界面）
     lv_obj_t * tab2 = nullptr;          // 第二个标签页（时钟界面）
@@ -454,6 +457,16 @@ public:
             sleep_timer_ = nullptr;
         }
     }
+    
+    // 浅睡眠状态管理方法
+    void SetLightSleeping(bool sleeping) {
+        is_light_sleeping_ = sleeping;
+        ESP_LOGD(TAG, "浅睡眠状态更新: %s", sleeping ? "进入" : "退出");
+    }
+    
+    bool IsLightSleeping() const {
+        return is_light_sleeping_;
+    }
 
     // 设置聊天消息内容
     void SetChatMessage(const char* role, const char* content) override{
@@ -667,7 +680,7 @@ public:
         lv_label_set_text(battery_label_, "");  // 初始化为空文本
         lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
         lv_obj_set_style_text_color(battery_label_, lv_color_white(), 0);  // 设置文本颜色为白色
-        lv_obj_align_to(battery_label_, lunar_label, LV_ALIGN_OUT_BOTTOM_MID, -5, 8);  // 农历标签下方，向下偏移8像素
+        lv_obj_align_to(battery_label_, lunar_label, LV_ALIGN_OUT_BOTTOM_MID, -8, 8);  // 农历标签下方，向下偏移8像素
         
         // 定时器更新时间 - 存储静态引用以在回调中使用
         static lv_obj_t* hour_lbl = hour_label;
@@ -684,6 +697,12 @@ public:
             // 获取CustomLcdDisplay实例
             CustomLcdDisplay* display_instance = static_cast<CustomLcdDisplay*>(lv_timer_get_user_data(t));
             if (!display_instance) return;
+            
+            // 如果处于浅睡眠状态，跳过UI更新避免锁冲突
+            if (display_instance->IsLightSleeping()) {
+                ESP_LOGD("ClockTimer", "浅睡眠模式中，跳过时钟UI更新");
+                return;
+            }
             
             // 检查标签是否有效（不包括battery_lbl，因为它现在是成员变量）
             if (!hour_lbl || !minute_lbl || !second_lbl || 
@@ -705,7 +724,7 @@ public:
             const char* icon = nullptr;
             
             if (board.GetBatteryLevel(battery_level, charging, discharging)) {
-                ESP_LOGI("ClockTimer", "电池状态 - 电量: %d%%, 充电: %s, 放电: %s", 
+                ESP_LOGD("ClockTimer", "电池状态 - 电量: %d%%, 充电: %s, 放电: %s", 
                         battery_level, charging ? "是" : "否", discharging ? "是" : "否");
                 
                 if (charging) {
@@ -723,9 +742,15 @@ public:
                 }
             }
             
-            // 尝试获取显示锁并更新UI
+            // 尝试获取显示锁并更新UI - 缩短超时时间，减少阻塞
             {
-                DisplayLockGuard lock_guard(display);  // 使用DisplayLockGuard，内部有2秒超时
+                DisplayLockGuard lock_guard(display);  // 使用DisplayLockGuard，内部有500ms超时
+                
+                // 检查锁是否成功获取，失败时跳过更新
+                if (!lock_guard.IsLocked()) {
+                    ESP_LOGD("ClockTimer", "无法获取显示锁，跳过本次时钟更新");
+                    return;
+                }
                 
                 // 格式化时、分、秒
                 char hour_str[6];
@@ -774,7 +799,7 @@ public:
                 // 更新电池图标UI - 使用成员变量并添加空指针检查
                 if (icon && display_instance->battery_label_) {
                     lv_label_set_text(display_instance->battery_label_, icon);  // 更新电池图标
-                    ESP_LOGI("ClockTimer", "电池图标已更新: %s", icon);
+                    ESP_LOGD("ClockTimer", "电池图标已更新: %s", icon);  // 改为DEBUG级别
                 }
             }  // DisplayLockGuard 会自动释放锁
             
@@ -1121,9 +1146,6 @@ private:
         preload_message_label_ = lv_label_create(preload_progress_container_);
         lv_obj_set_style_text_font(preload_message_label_, &font_puhui_20_4, 0);
         lv_obj_set_style_text_color(preload_message_label_, lv_color_white(), 0);
-        lv_obj_set_width(preload_message_label_, lv_pct(90));
-        lv_obj_set_style_text_align(preload_message_label_, LV_TEXT_ALIGN_CENTER, 0);
-        lv_label_set_long_mode(preload_message_label_, LV_LABEL_LONG_WRAP);
         lv_label_set_text(preload_message_label_, "准备预加载...");
         
         // 添加提示文本
@@ -1236,6 +1258,9 @@ private:
     
     // 3级省电定时器实例
     PowerSaveTimer* power_save_timer_ = nullptr;
+    
+    // 添加浅睡眠状态标志
+    bool is_light_sleeping_ = false;
     
     // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
@@ -1408,6 +1433,15 @@ private:
     void EnterLightSleepMode() {
         ESP_LOGI(TAG, "进入浅睡眠模式 - 适度降低功耗");
         
+        // 设置浅睡眠状态标志
+        is_light_sleeping_ = true;
+        
+        // 同步状态到CustomLcdDisplay
+        if (display_) {
+            CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display_);
+            customDisplay->SetLightSleeping(true);
+        }
+        
         // 1. 降低屏幕亮度到较低水平
         auto backlight = GetBacklight();
         if (backlight) {
@@ -1415,21 +1449,34 @@ private:
             ESP_LOGI(TAG, "屏幕亮度已降至10");
         }
         
-        // 2. 暂停图片轮播任务以节省CPU
-        SuspendImageTask();
-        ESP_LOGI(TAG, "图片轮播任务已暂停");
+        // 2. 先确保图片任务释放所有锁，然后暂停任务
+        ESP_LOGI(TAG, "准备暂停图片轮播任务...");
+        if (image_task_handle_ != nullptr) {
+            // 给图片任务一些时间完成当前操作并释放锁
+            vTaskDelay(pdMS_TO_TICKS(200));  // 200ms缓冲时间
+            vTaskSuspend(image_task_handle_);
+            ESP_LOGI(TAG, "图片轮播任务已安全暂停");
+        }
         
         // 3. 启用WiFi省电模式（保持连接但降低功耗）
         SetPowerSaveMode(true);
         ESP_LOGI(TAG, "WiFi省电模式已启用");
         
-        // 4. 降低CPU频率（PowerSaveTimer会自动处理）
         ESP_LOGI(TAG, "浅睡眠模式激活完成");
     }
     
     // 退出浅睡眠模式 - 恢复正常功能
     void ExitLightSleepMode() {
         ESP_LOGI(TAG, "退出浅睡眠模式 - 恢复正常功能");
+        
+        // 清除浅睡眠状态标志
+        is_light_sleeping_ = false;
+        
+        // 同步状态到CustomLcdDisplay
+        if (display_) {
+            CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display_);
+            customDisplay->SetLightSleeping(false);
+        }
         
         // 1. 恢复屏幕亮度
         auto backlight = GetBacklight();
@@ -1515,15 +1562,15 @@ private:
         auto& wifi = WifiStation::GetInstance();
         while (!wifi.IsConnected()) {
             ESP_LOGI(TAG, "等待WiFi连接以检查图片资源...");
-            vTaskDelay(pdMS_TO_TICKS(3000));
+            vTaskDelay(pdMS_TO_TICKS(2000));  // 从3秒减少到2秒
         }
         
-        ESP_LOGI(TAG, "WiFi已连接，等待开机提示音播放完成...");
+        ESP_LOGI(TAG, "WiFi已连接，优化等待策略检查开机提示音...");
         
-        // 等待开机提示音播放完成，避免与图片预加载冲突
+        // 优化：减少等待开机提示音的时间，提高检查频率
         auto& app = Application::GetInstance();
         int wait_count = 0;
-        const int max_wait_time = 8; // 最多等待8秒
+        const int max_wait_time = 5; // 从8秒减少到5秒
         bool audio_finished = false;
         
         while (wait_count < max_wait_time && !audio_finished) {
@@ -1532,23 +1579,23 @@ private:
             
             // 如果设备处于空闲状态且音频队列为空，说明提示音已播放完成
             if (state == kDeviceStateIdle && queue_empty) {
-                // 再等待1秒确保音频完全播放完成（包括硬件缓冲区）
+                // 减少确认等待时间
                 if (wait_count >= 1) {
                     audio_finished = true;
                     break;
                 }
             }
             
-            ESP_LOGI(TAG, "等待开机提示音播放完成... (%d/%d秒) [状态:%d, 队列空:%s]", 
+            ESP_LOGI(TAG, "优化等待策略：检查开机提示音... (%d/%d秒) [状态:%d, 队列空:%s]", 
                     wait_count + 1, max_wait_time, (int)state, queue_empty ? "是" : "否");
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(500));  // 从1秒减少到500ms，提高响应速度
             wait_count++;
         }
         
         if (audio_finished) {
-            ESP_LOGI(TAG, "开机提示音播放完成，开始检查图片资源");
+            ESP_LOGI(TAG, "开机提示音播放完成，立即开始检查图片资源");
         } else {
-            ESP_LOGW(TAG, "等待超时，强制开始检查图片资源");
+            ESP_LOGW(TAG, "等待超时，强制开始检查图片资源（优化：减少等待时间）");
         }
         
         // 一次性检查并更新所有资源（动画图片和logo）
@@ -1579,8 +1626,8 @@ private:
         
         // 仅当有实际下载更新且无严重错误时才重启
         if (has_updates && !has_errors) {
-            ESP_LOGI(TAG, "图片资源有更新，3秒后重启设备...");
-            for (int i = 3; i > 0; i--) {
+            ESP_LOGI(TAG, "图片资源有更新，2秒后重启设备...");  // 从3秒减少到2秒
+            for (int i = 2; i > 0; i--) {
                 ESP_LOGI(TAG, "将在 %d 秒后重启...", i);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
@@ -1591,30 +1638,38 @@ private:
             ESP_LOGI(TAG, "所有图片资源已是最新版本，无需重启");
         }
         
-        // 在系统初始化完成后，预加载所有剩余图片
-        ESP_LOGI(TAG, "系统初始化完成，准备开始预加载剩余图片...");
+        // 优化：并行启动预加载任务，不阻塞主流程
+        ESP_LOGI(TAG, "系统初始化完成，启动异步预加载任务...");
         
-        // 再次确认音频系统稳定后才开始预加载
-        auto& app_preload = Application::GetInstance();
-        int preload_wait = 0;
-        while (preload_wait < 3) { // 最多再等3秒
-            if (app_preload.GetDeviceState() == kDeviceStateIdle && app_preload.IsAudioQueueEmpty()) {
-                break;
+        // 创建异步预加载任务，不阻塞主流程
+        xTaskCreate([](void* param) {
+            ImageResourceManager* img_mgr = static_cast<ImageResourceManager*>(param);
+            
+            // 简化音频系统检查，减少等待时间
+            auto& app_preload = Application::GetInstance();
+            int preload_wait = 0;
+            while (preload_wait < 2) { // 从3秒减少到2秒
+                if (app_preload.GetDeviceState() == kDeviceStateIdle && app_preload.IsAudioQueueEmpty()) {
+                    break;
+                }
+                ESP_LOGI(TAG, "优化预加载：快速检查音频状态... (%d/2秒)", preload_wait + 1);
+                vTaskDelay(pdMS_TO_TICKS(500));  // 500ms检查间隔
+                preload_wait++;
             }
-            ESP_LOGI(TAG, "等待音频系统完全稳定后开始预加载... (%d/3秒)", preload_wait + 1);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            preload_wait++;
-        }
-        
-        ESP_LOGI(TAG, "开始预加载剩余图片...");
-        esp_err_t preload_result = image_manager.PreloadRemainingImages();
-        if (preload_result == ESP_OK) {
-            ESP_LOGI(TAG, "图片预加载完成，动画播放将更加流畅");
-        } else if (preload_result == ESP_ERR_NO_MEM) {
-            ESP_LOGW(TAG, "内存不足，跳过图片预加载，将继续使用按需加载策略");
-        } else {
-            ESP_LOGW(TAG, "图片预加载失败，将继续使用按需加载策略");
-        }
+            
+            ESP_LOGI(TAG, "开始异步预加载剩余图片...");
+            esp_err_t preload_result = img_mgr->PreloadRemainingImages();
+            if (preload_result == ESP_OK) {
+                ESP_LOGI(TAG, "图片预加载完成，动画播放将更加流畅");
+            } else if (preload_result == ESP_ERR_NO_MEM) {
+                ESP_LOGW(TAG, "内存不足，跳过图片预加载，将继续使用按需加载策略");
+            } else {
+                ESP_LOGW(TAG, "图片预加载失败，将继续使用按需加载策略");
+            }
+            
+            // 任务完成，删除自己
+            vTaskDelete(NULL);
+        }, "async_preload", 8192, &image_manager, 2, NULL);
     }
 
     // 启动图片循环显示任务
@@ -1733,14 +1788,14 @@ private:
         // 获取图片资源管理器实例
         auto& image_manager = ImageResourceManager::GetInstance();
         
-        // 添加延迟，确保资源管理器有足够时间初始化
-        vTaskDelay(pdMS_TO_TICKS(500));
+        // 优化：减少初始化等待时间，加快图片显示
+        vTaskDelay(pdMS_TO_TICKS(100));  // 从500ms减少到100ms
         
         // 尝试从资源管理器获取logo图片
         const uint8_t* logo = image_manager.GetLogoImage();
         if (logo) {
             iot::g_static_image = logo;
-            ESP_LOGI(TAG, "已从资源管理器获取logo图片");
+            ESP_LOGI(TAG, "已从资源管理器快速获取logo图片");
         } else {
             ESP_LOGW(TAG, "暂无logo图片，等待下载...");
         }
@@ -1771,9 +1826,9 @@ private:
         }
         
         // 等待预加载完成（如果正在预加载）
-        ESP_LOGI(TAG, "检查预加载状态...");
+        ESP_LOGI(TAG, "优化检查：快速检查预加载状态...");
         int preload_check_count = 0;
-        while (preload_check_count < 100) { // 最多等待10秒
+        while (preload_check_count < 50) { // 从100减少到50，从最多10秒减少到5秒
             bool isPreloadActive = false;
             if (customDisplay && customDisplay->preload_progress_container_ &&
                 !lv_obj_has_flag(customDisplay->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
@@ -1784,15 +1839,15 @@ private:
                 break; // 预加载已完成或未开始
             }
             
-            ESP_LOGI(TAG, "等待预加载完成... (%d/100)", preload_check_count + 1);
+            ESP_LOGI(TAG, "快速检查预加载状态... (%d/50)", preload_check_count + 1);
             vTaskDelay(pdMS_TO_TICKS(100));
             preload_check_count++;
         }
         
-        if (preload_check_count >= 100) {
-            ESP_LOGW(TAG, "预加载等待超时，继续启动图片轮播");
+        if (preload_check_count >= 50) {
+            ESP_LOGW(TAG, "预加载等待优化：超时后继续启动图片轮播");
         } else {
-            ESP_LOGI(TAG, "预加载已完成，开始图片轮播");
+            ESP_LOGI(TAG, "预加载状态检查完成，快速启动图片轮播");
         }
         
         // 资源检查现在由OTA完成后的回调触发，这里不再需要定时器检查
@@ -1804,7 +1859,7 @@ private:
         
         // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
-        const TickType_t cycleInterval = pdMS_TO_TICKS(200);  // 性能优化：降低动画帧率减少CPU占用
+        const TickType_t cycleInterval = pdMS_TO_TICKS(150);  // 优化：从200ms调整到150ms，提高动画流畅度
         
         // 循环变量定义
         bool isAudioPlaying = false;       
@@ -1824,9 +1879,9 @@ private:
                 static int wait_count = 0;
                 wait_count++;
                 
-                if (wait_count <= 60) {  // 等待最多5分钟 (60 * 5秒)
-                    ESP_LOGW(TAG, "图片资源未加载，等待... (%d/60)", wait_count);
-                    vTaskDelay(pdMS_TO_TICKS(5000));
+                if (wait_count <= 30) {  // 从60减少到30，等待时间从5分钟减少到2.5分钟
+                    ESP_LOGW(TAG, "图片资源未加载，优化等待策略... (%d/30)", wait_count);
+                    vTaskDelay(pdMS_TO_TICKS(3000));  // 从5秒减少到3秒
                     continue;
                 } else {
                     ESP_LOGE(TAG, "图片资源等待超时，显示黑屏");
@@ -1835,7 +1890,7 @@ private:
                     if (img_container) {
                         lv_obj_add_flag(img_container, LV_OBJ_FLAG_HIDDEN);
                     }
-                    vTaskDelay(pdMS_TO_TICKS(10000));  // 等待10秒后重新检查
+                    vTaskDelay(pdMS_TO_TICKS(5000));  // 从10秒减少到5秒后重新检查
                     wait_count = 0;  // 重置计数器
                     continue;
                 }
@@ -2048,6 +2103,11 @@ public:
             power_save_timer_->WakeUp();
             ESP_LOGI(TAG, "安全唤醒省电定时器");
         }
+    }
+    
+    // 获取浅睡眠状态
+    bool IsLightSleeping() const {
+        return is_light_sleeping_;
     }
 
     // 构造函数

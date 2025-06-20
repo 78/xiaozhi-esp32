@@ -1560,7 +1560,7 @@ void ImageResourceManager::LoadImageData() {
     size_t free_heap = esp_get_free_heap_size();
     ESP_LOGI(TAG, "加载图片前可用内存: %u字节", (unsigned int)free_heap);
     
-    if (free_heap < 200000) { // 至少需要200KB可用内存来加载图片
+    if (free_heap < 150000) { // 从200KB减少到150KB，降低内存门槛
         ESP_LOGW(TAG, "内存不足，跳过图片加载，可用内存: %u字节", (unsigned int)free_heap);
         return;
     }
@@ -1580,12 +1580,12 @@ void ImageResourceManager::LoadImageData() {
         logo_data_ = nullptr;
     }
     
-    // 首先加载logo文件（优先级最高，总是需要显示）
+    // 优先加载logo文件（最高优先级，确保快速显示）
     if (has_valid_logo_ && !LoadLogoFile()) {
         ESP_LOGE(TAG, "加载logo文件失败");
     }
     
-    // 延迟加载策略：启动时只加载必要的图片，其他按需加载
+    // 优化启动加载策略：快速启动，延迟加载
     if (has_valid_images_) {
         // 根据缓存的URL数量确定要加载的图片数量
         int actual_image_count = std::min((int)cached_dynamic_urls_.size(), MAX_IMAGE_FILES);
@@ -1594,24 +1594,33 @@ void ImageResourceManager::LoadImageData() {
         image_array_.resize(actual_image_count);
         image_data_pointers_.resize(actual_image_count, nullptr);
         
-        // **启动时只加载第一张图片**，减少启动时间
+        // **优化：启动时立即加载前两张图片**，确保快速显示和基本动画
         if (actual_image_count > 0) {
-            ESP_LOGI(TAG, "启动时加载第一张动画图片，其余图片将在系统初始化完成后预加载");
+            ESP_LOGI(TAG, "优化启动策略：立即加载前两张关键图片，其余图片异步预加载");
+            
+            // 加载第一张图片（静态显示用）
             if (!LoadImageFile(1)) {
                 ESP_LOGE(TAG, "加载第一张动画图片失败，索引: 1");
             }
+            
+            // 如果有第二张图片，也立即加载（基本动画用）
+            if (actual_image_count > 1) {
+                if (!LoadImageFile(2)) {
+                    ESP_LOGW(TAG, "加载第二张动画图片失败，索引: 2");
+                }
+            }
         }
         
-        ESP_LOGI(TAG, "预加载策略：已预分配 %d 个图片槽位，当前已加载 1 个", actual_image_count);
+        ESP_LOGI(TAG, "优化预加载策略：已预分配 %d 个图片槽位，立即加载了关键图片", actual_image_count);
     }
     
     if (has_valid_logo_) {
-        ESP_LOGI(TAG, "logo文件已加载");
+        ESP_LOGI(TAG, "logo文件已快速加载");
     }
     
     // 最终内存检查
     free_heap = esp_get_free_heap_size();
-    ESP_LOGI(TAG, "加载图片后可用内存: %u字节", (unsigned int)free_heap);
+    ESP_LOGI(TAG, "优化加载完成，剩余内存: %u字节", (unsigned int)free_heap);
 }
 
 bool ImageResourceManager::LoadLogoFile() {
@@ -3012,7 +3021,7 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
     size_t free_heap = esp_get_free_heap_size();
     ESP_LOGI(TAG, "开始预加载剩余图片，当前可用内存: %u字节", (unsigned int)free_heap);
     
-    if (free_heap < 1000000) { // 需要至少1MB可用内存来预加载
+    if (free_heap < 500000) { // 从1MB减少到500KB，降低内存门槛
         ESP_LOGW(TAG, "内存不足，跳过预加载，可用内存: %u字节", (unsigned int)free_heap);
         return ESP_ERR_NO_MEM;
     }
@@ -3028,7 +3037,7 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         preload_progress_callback_(0, total_images, "准备预加载图片资源...");
     }
     
-    ESP_LOGI(TAG, "预加载策略：加载所有剩余图片 (总数: %d)", total_images);
+    ESP_LOGI(TAG, "优化预加载策略：智能加载剩余图片 (总数: %d)", total_images);
     
     for (int i = 1; i <= total_images; i++) {
         // 检查图片是否已经加载
@@ -3043,24 +3052,26 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
             continue; // 已加载，跳过
         }
         
-        // 检查音频状态，如果有音频播放则暂停预加载
-        if (!app.IsAudioQueueEmpty() || app.GetDeviceState() != kDeviceStateIdle) {
-            ESP_LOGW(TAG, "检测到音频活动，暂停预加载以避免冲突，已加载: %d/%d", loaded_count, total_images);
-            
-            // 通知预加载被中断
-            if (preload_progress_callback_) {
-                char message[64];
-                snprintf(message, sizeof(message), "预加载中断：检测到音频活动");
-                preload_progress_callback_(loaded_count, total_images, message);
-                vTaskDelay(pdMS_TO_TICKS(2000)); // 显示消息2秒
-                preload_progress_callback_(loaded_count, total_images, nullptr); // 隐藏UI
+        // 优化：减少音频状态检查频率，只检查关键状态
+        if (i % 3 == 0) { // 每3张图片检查一次，减少检查频率
+            if (!app.IsAudioQueueEmpty() || app.GetDeviceState() != kDeviceStateIdle) {
+                ESP_LOGW(TAG, "检测到音频活动，暂停预加载以避免冲突，已加载: %d/%d", loaded_count, total_images);
+                
+                // 通知预加载被中断
+                if (preload_progress_callback_) {
+                    char message[64];
+                    snprintf(message, sizeof(message), "预加载中断：检测到音频活动");
+                    preload_progress_callback_(loaded_count, total_images, message);
+                    vTaskDelay(pdMS_TO_TICKS(1500)); // 从2秒减少到1.5秒显示时间
+                    preload_progress_callback_(loaded_count, total_images, nullptr); // 隐藏UI
+                }
+                break;
             }
-            break;
         }
         
         // 检查内存状况
         free_heap = esp_get_free_heap_size();
-        if (free_heap < 300000) { // 如果内存不足300KB，停止加载
+        if (free_heap < 200000) { // 从300KB减少到200KB，更激进的内存使用
             ESP_LOGW(TAG, "预加载过程中内存不足，停止加载，已加载: %d/%d", loaded_count, total_images);
             
             // 通知内存不足
@@ -3068,7 +3079,7 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
                 char message[64];
                 snprintf(message, sizeof(message), "预加载停止：内存不足");
                 preload_progress_callback_(loaded_count, total_images, message);
-                vTaskDelay(pdMS_TO_TICKS(2000)); // 显示消息2秒
+                vTaskDelay(pdMS_TO_TICKS(1500)); // 从2秒减少到1.5秒显示时间
                 preload_progress_callback_(loaded_count, total_images, nullptr); // 隐藏UI
             }
             break;
@@ -3104,8 +3115,8 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
             }
         }
         
-        // 二进制格式加载速度快，减少延迟时间
-        vTaskDelay(pdMS_TO_TICKS(20));
+        // 优化：进一步减少延迟时间，加快预加载速度
+        vTaskDelay(pdMS_TO_TICKS(10)); // 从20ms减少到10ms
     }
     
     free_heap = esp_get_free_heap_size();
@@ -3123,8 +3134,8 @@ esp_err_t ImageResourceManager::PreloadRemainingImages() {
         }
         preload_progress_callback_(loaded_count, total_images, message);
         
-        // 延迟一段时间后隐藏进度条
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        // 优化：减少UI显示时间
+        vTaskDelay(pdMS_TO_TICKS(1500)); // 从2秒减少到1.5秒
         preload_progress_callback_(loaded_count, total_images, nullptr);
     }
     

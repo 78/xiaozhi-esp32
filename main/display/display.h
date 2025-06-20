@@ -78,17 +78,26 @@ protected:
 
 class DisplayLockGuard {
 public:
-    DisplayLockGuard(Display *display) : display_(display) {
-        if (!display_->Lock(1000)) {  // 缩短超时时间到1秒
-            ESP_LOGE("Display", "Failed to lock display");
+    DisplayLockGuard(Display *display) : display_(display), locked_(false) {
+        if (display_->Lock(500)) {  // 缩短超时时间到500ms，减少等待
+            locked_ = true;
+        } else {
+            // 只在非调试模式下输出错误，减少日志噪音
+            ESP_LOGD("Display", "Failed to lock display (timeout 500ms)");
         }
     }
     ~DisplayLockGuard() {
-        display_->Unlock();
+        if (locked_) {
+            display_->Unlock();
+        }
     }
+    
+    // 添加方法检查锁是否成功获取
+    bool IsLocked() const { return locked_; }
 
 private:
     Display *display_;
+    bool locked_;
 };
 
 class NoDisplay : public Display {
