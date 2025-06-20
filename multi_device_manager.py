@@ -284,6 +284,10 @@ class MultiDeviceManager:
         self.completed_devices = 0
         self.failed_devices = 0
         
+        # NVS直写模式相关
+        self.nvs_direct_mode = False
+        self.universal_firmware_path = None
+        
         logger.info(f"多设备管理器初始化完成，使用队列处理机制")
     
     def set_callbacks(self, device_status_callback=None, progress_callback=None, log_callback=None):
@@ -366,6 +370,22 @@ class MultiDeviceManager:
             if current_device_id and current_device_id in self.devices:
                 active_devices.append(self.devices[current_device_id])
             return active_devices
+    
+    def set_nvs_direct_mode(self, enabled: bool):
+        """设置NVS直写模式"""
+        with self._lock:
+            self.nvs_direct_mode = enabled
+            logger.info(f"NVS直写模式: {'启用' if enabled else '禁用'}")
+    
+    def set_universal_firmware_path(self, path: str):
+        """设置通用固件路径"""
+        with self._lock:
+            if path and os.path.exists(path):
+                self.universal_firmware_path = path
+                logger.info(f"通用固件路径已设置: {path}")
+            else:
+                logger.warning(f"通用固件路径无效: {path}")
+                self.universal_firmware_path = None
     
     def add_device_to_queue(self, device_id: str) -> bool:
         """将设备添加到处理队列"""
@@ -544,35 +564,58 @@ class MultiDeviceManager:
             device.set_client_info(client_id)
             device.end_processing_phase(ProcessingPhase.DEVICE_REGISTRATION)
             
-            # 3. 更新配置
-            device.update_status(DeviceStatus.CONFIG_UPDATING, 50, "正在更新配置...")
-            device.start_processing_phase(ProcessingPhase.CONFIG_UPDATE)
-            
-            if not self._update_config_safe(device):
-                device.set_error("更新配置失败", failed_phase=ProcessingPhase.CONFIG_UPDATE)
-                return False
-            
-            device.end_processing_phase(ProcessingPhase.CONFIG_UPDATE)
-            
-            # 4. 编译固件
-            device.update_status(DeviceStatus.BUILDING, 70, "正在编译固件...")
-            device.start_processing_phase(ProcessingPhase.FIRMWARE_BUILD)
-            
-            if not self._build_firmware_safe(device):
-                device.set_error("编译固件失败", failed_phase=ProcessingPhase.FIRMWARE_BUILD)
-                return False
-            
-            device.end_processing_phase(ProcessingPhase.FIRMWARE_BUILD)
-            
-            # 5. 烧录固件
-            device.update_status(DeviceStatus.FLASHING, 90, "正在烧录固件...")
-            device.start_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
-            
-            if not self._flash_firmware_safe(device):
-                device.set_error("烧录固件失败", failed_phase=ProcessingPhase.FIRMWARE_FLASH)
-                return False
-            
-            device.end_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
+            # 检查是否启用NVS直写模式
+            if self.nvs_direct_mode:
+                device.update_status(DeviceStatus.CONFIG_UPDATING, 50, "NVS直写模式: 跳过配置更新和编译...")
+                device.log_message("已启用NVS直写模式，跳过配置更新和固件编译")
+                
+                # 直接进入烧录阶段
+                device.update_status(DeviceStatus.FLASHING, 70, "正在烧录通用固件...")
+                device.start_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
+                
+                if not self._flash_universal_firmware_safe(device):
+                    device.set_error("烧录通用固件失败", failed_phase=ProcessingPhase.FIRMWARE_FLASH)
+                    return False
+                
+                device.end_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
+                
+                # NVS直写CLIENT_ID
+                device.update_status(DeviceStatus.FLASHING, 90, "正在写入CLIENT_ID到NVS...")
+                
+                if not self._write_client_id_to_nvs_safe(device):
+                    device.set_error("写入CLIENT_ID到NVS失败")
+                    return False
+                
+            else:
+                # 标准模式：3. 更新配置
+                device.update_status(DeviceStatus.CONFIG_UPDATING, 50, "正在更新配置...")
+                device.start_processing_phase(ProcessingPhase.CONFIG_UPDATE)
+                
+                if not self._update_config_safe(device):
+                    device.set_error("更新配置失败", failed_phase=ProcessingPhase.CONFIG_UPDATE)
+                    return False
+                
+                device.end_processing_phase(ProcessingPhase.CONFIG_UPDATE)
+                
+                # 4. 编译固件
+                device.update_status(DeviceStatus.BUILDING, 70, "正在编译固件...")
+                device.start_processing_phase(ProcessingPhase.FIRMWARE_BUILD)
+                
+                if not self._build_firmware_safe(device):
+                    device.set_error("编译固件失败", failed_phase=ProcessingPhase.FIRMWARE_BUILD)
+                    return False
+                
+                device.end_processing_phase(ProcessingPhase.FIRMWARE_BUILD)
+                
+                # 5. 烧录固件
+                device.update_status(DeviceStatus.FLASHING, 90, "正在烧录固件...")
+                device.start_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
+                
+                if not self._flash_firmware_safe(device):
+                    device.set_error("烧录固件失败", failed_phase=ProcessingPhase.FIRMWARE_FLASH)
+                    return False
+                
+                device.end_processing_phase(ProcessingPhase.FIRMWARE_FLASH)
             
             # 完成处理
             device.complete_processing()
@@ -660,6 +703,262 @@ class MultiDeviceManager:
             return flash_firmware(device.port, self.idf_path, progress_callback=progress_callback)
         except Exception as e:
             device.log_message(f"烧录固件异常: {e}", logging.ERROR)
+            return False
+    
+    def _flash_universal_firmware_safe(self, device: DeviceInstance) -> bool:
+        """安全烧录通用固件"""
+        try:
+            if not self.universal_firmware_path:
+                device.log_message("错误: 未设置通用固件路径", logging.ERROR)
+                return False
+            
+            if not os.path.exists(self.universal_firmware_path):
+                device.log_message(f"错误: 通用固件文件不存在: {self.universal_firmware_path}", logging.ERROR)
+                return False
+            
+            device.log_message(f"开始烧录通用固件: {self.universal_firmware_path}")
+            
+            # 导入esptool
+            try:
+                import esptool
+            except ImportError:
+                device.log_message("错误: 缺少esptool依赖，请安装: pip install esptool", logging.ERROR)
+                return False
+            
+            # 检查是否为合并固件文件
+            firmware_name = os.path.basename(self.universal_firmware_path)
+            
+            if "merged" in firmware_name.lower():
+                # 合并固件，直接烧录到0x0
+                device.log_message("检测到合并固件，执行单文件烧录")
+                cmd_args = [
+                    '--chip', 'auto',
+                    '--port', device.port,
+                    '--baud', '921600',
+                    'write_flash',
+                    '0x0', self.universal_firmware_path
+                ]
+            else:
+                # 检查是否需要分区烧录
+                firmware_dir = os.path.dirname(self.universal_firmware_path)
+                bootloader_path = os.path.join(firmware_dir, "bootloader", "bootloader.bin")
+                partition_table_path = os.path.join(firmware_dir, "partition_table", "partition-table.bin")
+                ota_data_path = os.path.join(firmware_dir, "ota_data_initial.bin")
+                srmodels_path = os.path.join(firmware_dir, "srmodels", "srmodels.bin")
+                
+                if (os.path.exists(bootloader_path) and 
+                    os.path.exists(partition_table_path) and 
+                    os.path.exists(ota_data_path)):
+                    
+                    # 分区烧录模式
+                    device.log_message("使用分区烧录模式")
+                    cmd_args = [
+                        '--chip', 'auto',
+                        '--port', device.port,
+                        '--baud', '921600',
+                        'write_flash',
+                        '--flash_mode', 'dio',
+                        '--flash_freq', '80m',
+                        '0x0', bootloader_path,
+                        '0x8000', partition_table_path,
+                        '0xd000', ota_data_path
+                    ]
+                    
+                    # 添加语音模型和主固件
+                    if os.path.exists(srmodels_path):
+                        cmd_args.extend(['0x10000', srmodels_path])
+                        cmd_args.extend(['0x400000', self.universal_firmware_path])
+                    else:
+                        cmd_args.extend(['0x10000', self.universal_firmware_path])
+                        
+                else:
+                    # 回退到单文件烧录
+                    device.log_message("回退到单文件烧录模式")
+                    cmd_args = [
+                        '--chip', 'auto',
+                        '--port', device.port,
+                        '--baud', '921600',
+                        'write_flash',
+                        '0x0', self.universal_firmware_path
+                    ]
+            
+            device.log_message(f"执行烧录命令: esptool.py {' '.join(cmd_args)}")
+            
+            # 执行烧录
+            try:
+                esptool.main(cmd_args)
+                device.log_message("通用固件烧录成功")
+                return True
+            except SystemExit as e:
+                if e.code == 0:
+                    device.log_message("通用固件烧录成功")
+                    return True
+                else:
+                    device.log_message(f"通用固件烧录失败，退出代码: {e.code}", logging.ERROR)
+                    return False
+                    
+        except Exception as e:
+            device.log_message(f"烧录通用固件异常: {e}", logging.ERROR)
+            return False
+    
+    def _find_idf_python(self) -> Optional[str]:
+        """查找ESP-IDF的Python环境"""
+        try:
+            # 方法1: 查找.espressif目录下的Python环境
+            espressif_base = os.path.expanduser("~/.espressif")
+            if os.name == 'nt':  # Windows
+                espressif_base = os.path.expanduser("~\\.espressif")
+            
+            if os.path.exists(espressif_base):
+                python_env_dir = os.path.join(espressif_base, "python_env")
+                if os.path.exists(python_env_dir):
+                    # 查找匹配的IDF版本环境
+                    for env_name in os.listdir(python_env_dir):
+                        if "idf" in env_name.lower():
+                            if os.name == 'nt':  # Windows
+                                python_exe = os.path.join(python_env_dir, env_name, "Scripts", "python.exe")
+                            else:  # Linux/Mac
+                                python_exe = os.path.join(python_env_dir, env_name, "bin", "python")
+                            
+                            if os.path.exists(python_exe):
+                                return python_exe
+            
+            # 方法2: 尝试使用IDF_PYTHON环境变量
+            idf_python = os.environ.get('IDF_PYTHON')
+            if idf_python and os.path.exists(idf_python):
+                return idf_python
+            
+            # 方法3: 尝试从IDF_PATH推断Python路径
+            if self.idf_path:
+                # 在Windows上，ESP-IDF通常有install.bat设置的Python环境
+                if os.name == 'nt':
+                    possible_paths = [
+                        os.path.join(os.path.dirname(self.idf_path), "python_env", "idf5.4_py3.10_env", "Scripts", "python.exe"),
+                        os.path.join(os.path.dirname(self.idf_path), "python_env", "idf_py3.10_env", "Scripts", "python.exe"),
+                        os.path.join(self.idf_path, "tools", "python_env", "Scripts", "python.exe")
+                    ]
+                else:
+                    possible_paths = [
+                        os.path.join(os.path.dirname(self.idf_path), "python_env", "idf5.4_py3.10_env", "bin", "python"),
+                        os.path.join(os.path.dirname(self.idf_path), "python_env", "idf_py3.10_env", "bin", "python"),
+                        os.path.join(self.idf_path, "tools", "python_env", "bin", "python")
+                    ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        return path
+            
+            # 方法4: 回退到系统Python，但这可能不工作
+            import sys
+            return sys.executable
+            
+        except Exception as e:
+            logger.error(f"查找ESP-IDF Python环境失败: {e}")
+            return None
+
+    def _write_client_id_to_nvs_safe(self, device: DeviceInstance) -> bool:
+        """安全写入CLIENT_ID到NVS分区"""
+        try:
+            if not device.client_id:
+                device.log_message("错误: 设备CLIENT_ID为空", logging.ERROR)
+                return False
+            
+            device.log_message(f"开始写入CLIENT_ID到NVS: {device.client_id}")
+            
+            # 导入esptool
+            try:
+                import esptool
+            except ImportError:
+                device.log_message("错误: 缺少esptool依赖，请安装: pip install esptool", logging.ERROR)
+                return False
+            
+            # 使用NVS分区工具写入
+            try:
+                # 创建临时NVS CSV文件
+                import tempfile
+                import csv
+                
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow(['key', 'type', 'encoding', 'value'])
+                    csv_writer.writerow(['websocket', 'namespace', '', ''])
+                    csv_writer.writerow(['client_id', 'data', 'string', device.client_id])
+                    csv_temp_path = csv_file.name
+                
+                # 生成NVS分区bin文件
+                with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as bin_file:
+                    nvs_bin_path = bin_file.name
+                
+                # 查找nvs_partition_gen.py
+                idf_path = self.idf_path or os.environ.get('IDF_PATH')
+                if not idf_path:
+                    device.log_message("错误: 未设置IDF_PATH", logging.ERROR)
+                    return False
+                
+                nvs_gen_path = os.path.join(idf_path, 'components', 'nvs_flash', 'nvs_partition_generator', 'nvs_partition_gen.py')
+                
+                if not os.path.exists(nvs_gen_path):
+                    device.log_message(f"错误: 找不到NVS分区生成工具: {nvs_gen_path}", logging.ERROR)
+                    return False
+                
+                # 生成NVS分区
+                import subprocess
+                
+                # 查找ESP-IDF的Python环境
+                idf_python = self._find_idf_python()
+                if not idf_python:
+                    device.log_message("错误: 找不到ESP-IDF的Python环境", logging.ERROR)
+                    return False
+                
+                gen_cmd = [
+                    idf_python, nvs_gen_path,
+                    'generate', csv_temp_path, nvs_bin_path, '0x4000'
+                ]
+                
+                device.log_message(f"生成NVS分区: {' '.join(gen_cmd)}")
+                result = subprocess.run(gen_cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    device.log_message(f"生成NVS分区失败: {result.stderr}", logging.ERROR)
+                    return False
+                
+                # 烧录NVS分区到设备
+                flash_cmd = [
+                    '--chip', 'auto',
+                    '--port', device.port,
+                    '--baud', '921600',
+                    'write_flash',
+                    '0x9000', nvs_bin_path  # NVS分区通常在0x9000地址
+                ]
+                
+                device.log_message(f"写入NVS分区: esptool.py {' '.join(flash_cmd)}")
+                
+                try:
+                    esptool.main(flash_cmd)
+                    device.log_message(f"CLIENT_ID已成功写入NVS: {device.client_id}")
+                    return True
+                except SystemExit as e:
+                    if e.code == 0:
+                        device.log_message(f"CLIENT_ID已成功写入NVS: {device.client_id}")
+                        return True
+                    else:
+                        device.log_message(f"写入NVS失败，退出代码: {e.code}", logging.ERROR)
+                        return False
+                        
+                # 清理临时文件
+                finally:
+                    try:
+                        os.unlink(csv_temp_path)
+                        os.unlink(nvs_bin_path)
+                    except:
+                        pass
+                        
+            except Exception as e:
+                device.log_message(f"NVS操作异常: {e}", logging.ERROR)
+                return False
+                
+        except Exception as e:
+            device.log_message(f"写入CLIENT_ID到NVS异常: {e}", logging.ERROR)
             return False
     
     def _on_device_status_changed(self, device: DeviceInstance, old_status: DeviceStatus, new_status: DeviceStatus):

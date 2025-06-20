@@ -11,7 +11,7 @@ try:
                                 QPushButton, QLabel, QTableWidget, QTableWidgetItem, QHeaderView,
                                 QProgressBar, QTextEdit, QComboBox, QLineEdit, QGroupBox, QFormLayout,
                                 QSplitter, QFrame, QMessageBox, QTabWidget, QCheckBox, QSpinBox,
-                                QAbstractItemView, QMenu, QInputDialog, QDialog)
+                                QAbstractItemView, QMenu, QInputDialog, QDialog, QProgressDialog)
     from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer
     from PySide6.QtGui import QFont, QIcon, QColor, QAction
     HAS_PYSIDE6 = True
@@ -24,6 +24,50 @@ except ImportError:
 from multi_device_manager import MultiDeviceManager
 from device_instance import DeviceInstance, DeviceStatus
 from workspace_manager import WorkspaceManager
+
+class FirmwareCompileThread(QThread):
+    """固件编译线程"""
+    
+    # 信号定义
+    progress_updated = Signal(str)  # 进度消息
+    compile_finished = Signal(bool, str)  # 编译完成(成功, 固件路径或错误信息)
+    
+    def __init__(self, idf_path, parent=None):
+        super().__init__(parent)
+        self.idf_path = idf_path
+        self.should_cancel = False
+    
+    def run(self):
+        """线程执行函数"""
+        try:
+            # 导入编译函数
+            from shaolu_ui import build_firmware
+            
+            # 编译回调
+            def progress_callback(line):
+                if self.should_cancel:
+                    return False
+                self.progress_updated.emit(line.strip())
+                return True
+            
+            # 执行编译
+            success = build_firmware(self.idf_path, skip_clean=False, progress_callback=progress_callback)
+            
+            if self.should_cancel:
+                self.compile_finished.emit(False, "编译已取消")
+                return
+            
+            if success:
+                self.compile_finished.emit(True, "编译成功")
+            else:
+                self.compile_finished.emit(False, "编译失败")
+                
+        except Exception as e:
+            self.compile_finished.emit(False, f"编译异常: {e}")
+    
+    def cancel(self):
+        """取消编译"""
+        self.should_cancel = True
 
 # 设置日志
 logger = logging.getLogger("shaolu.multi_ui")
@@ -420,10 +464,17 @@ class MultiDeviceUI(QMainWindow):
             log_callback=self.on_device_log
         )
         
+        # 设置默认NVS直写模式
+        self.device_manager.set_nvs_direct_mode(True)
+        
         # UI组件
         self.device_table: Optional[DeviceTableWidget] = None
         self.log_text: Optional[QTextEdit] = None
         self.status_bar_label: Optional[QLabel] = None
+        
+        # 编译相关
+        self.compile_thread: Optional[FirmwareCompileThread] = None
+        self.compile_progress_dialog: Optional[QProgressDialog] = None
         
         # 初始化UI
         self.setup_ui()
@@ -508,6 +559,15 @@ class MultiDeviceUI(QMainWindow):
         retry_all_btn.setStyleSheet("QPushButton { background-color: #e67e22; color: white; font-weight: bold; }")
         retry_all_btn.clicked.connect(self.retry_all_failed_devices)
         layout.addWidget(retry_all_btn)
+        
+        layout.addSpacing(20)
+        
+        # 通用固件编译按钮
+        compile_universal_btn = QPushButton("编译通用固件")
+        compile_universal_btn.setStyleSheet("QPushButton { background-color: #9b59b6; color: white; font-weight: bold; }")
+        compile_universal_btn.clicked.connect(self.compile_universal_firmware)
+        compile_universal_btn.setToolTip("编译一个不包含CLIENT_ID的通用固件，用于NVS直写模式")
+        layout.addWidget(compile_universal_btn)
         
         layout.addSpacing(20)
         
@@ -604,6 +664,37 @@ class MultiDeviceUI(QMainWindow):
         # 自动开始选项
         self.auto_start_checkbox = QCheckBox("检测到设备后自动开始")
         config_layout.addRow(self.auto_start_checkbox)
+        
+        # NVS直写模式选项
+        self.nvs_direct_write_checkbox = QCheckBox("启用NVS直写模式 (一次编译批量烧录)")
+        self.nvs_direct_write_checkbox.setChecked(True)  # 默认启用
+        self.nvs_direct_write_checkbox.setToolTip(
+            "启用后将跳过CLIENT_ID编译步骤，烧录完成后直接写入NVS分区\n"
+            "可以实现一次编译，批量烧录多个设备，大幅提升效率"
+        )
+        config_layout.addRow(self.nvs_direct_write_checkbox)
+        
+        # 预编译固件路径选择
+        nvs_mode_layout = QHBoxLayout()
+        self.firmware_path_edit = QLineEdit()
+        self.firmware_path_edit.setPlaceholderText("选择预编译的通用固件路径...")
+        nvs_mode_layout.addWidget(self.firmware_path_edit)
+        
+        browse_firmware_btn = QPushButton("浏览")
+        browse_firmware_btn.clicked.connect(self.browse_firmware_path)
+        browse_firmware_btn.setMaximumWidth(60)
+        nvs_mode_layout.addWidget(browse_firmware_btn)
+        
+        nvs_mode_widget = QWidget()
+        nvs_mode_widget.setLayout(nvs_mode_layout)
+        self.nvs_mode_widget = nvs_mode_widget  # 保存引用以便控制显示
+        config_layout.addRow("通用固件路径:", nvs_mode_widget)
+        
+        # 连接信号
+        self.nvs_direct_write_checkbox.toggled.connect(self.on_nvs_mode_changed)
+        
+        # 初始化固件路径组件的可见性
+        self.nvs_mode_widget.setVisible(self.nvs_direct_write_checkbox.isChecked())
         
         # 清理旧工作目录按钮
         cleanup_btn = QPushButton("清理旧工作目录")
@@ -1090,6 +1181,299 @@ class MultiDeviceUI(QMainWindow):
             logger.error(f"清理工作目录失败: {e}")
             QMessageBox.critical(self, "错误", f"清理工作目录失败: {e}")
     
+    @Slot(bool)
+    def on_nvs_mode_changed(self, enabled):
+        """NVS直写模式切换"""
+        try:
+            # 控制固件路径选择的显示
+            self.nvs_mode_widget.setVisible(enabled)
+            
+            # 更新设备管理器的模式
+            if hasattr(self, 'device_manager'):
+                self.device_manager.set_nvs_direct_mode(enabled)
+                self.log_message(f"NVS直写模式: {'启用' if enabled else '禁用'}")
+                
+                # 如果启用且有固件路径，则设置到设备管理器
+                if enabled and self.firmware_path_edit.text():
+                    self.device_manager.set_universal_firmware_path(self.firmware_path_edit.text())
+                    
+        except Exception as e:
+            logger.error(f"切换NVS模式失败: {e}")
+    
+    @Slot()
+    def browse_firmware_path(self):
+        """浏览固件文件"""
+        try:
+            from PySide6.QtWidgets import QFileDialog
+            
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "选择通用固件文件", "", "Bin files (*.bin);;All files (*)"
+            )
+            if file_path:
+                self.firmware_path_edit.setText(file_path)
+                if hasattr(self, 'device_manager') and self.nvs_direct_write_checkbox.isChecked():
+                    self.device_manager.set_universal_firmware_path(file_path)
+                    self.log_message(f"设置通用固件路径: {file_path}")
+                    
+        except Exception as e:
+            logger.error(f"浏览固件文件失败: {e}")
+            QMessageBox.critical(self, "错误", f"浏览固件文件失败: {e}")
+    
+    @Slot()
+    def compile_universal_firmware(self):
+        """编译通用固件"""
+        try:
+            from PySide6.QtWidgets import QMessageBox, QProgressDialog
+            
+            # 确认对话框
+            reply = QMessageBox.question(
+                self, "确认编译", 
+                "确定要编译通用固件吗？\n\n"
+                "这将创建一个不包含CLIENT_ID的固件，可用于NVS直写模式。\n"
+                "编译过程可能需要几分钟时间。",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            
+            if reply != QMessageBox.Yes:
+                return
+            
+            # 创建进度对话框
+            self.compile_progress_dialog = QProgressDialog("正在编译通用固件...", "取消", 0, 0, self)
+            self.compile_progress_dialog.setWindowModality(Qt.WindowModal)
+            self.compile_progress_dialog.setMinimumDuration(0)
+            self.compile_progress_dialog.show()
+            
+            # 创建编译线程
+            self.compile_thread = FirmwareCompileThread(self.idf_path, self)
+            
+            # 连接信号
+            self.compile_thread.progress_updated.connect(self.on_compile_progress)
+            self.compile_thread.compile_finished.connect(self.on_compile_finished)
+            self.compile_progress_dialog.canceled.connect(self.on_compile_canceled)
+            
+            # 启动编译线程
+            self.log_message("开始编译通用固件...")
+            self.compile_thread.start()
+            
+        except Exception as e:
+            logger.error(f"启动编译通用固件失败: {e}")
+            QMessageBox.critical(self, "错误", f"启动编译失败: {e}")
+    
+    @Slot(str)
+    def on_compile_progress(self, message):
+        """编译进度更新"""
+        self.log_message(message)
+        if hasattr(self, 'compile_progress_dialog'):
+            # 提取有意义的进度信息
+            if "[" in message and "]" in message:
+                # 提取编译进度信息，如 [1234/1961]
+                progress_info = message.split("]")[0] + "]"
+                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n{progress_info}\n\n当前：{message[:80]}...")
+            elif "Generating" in message or "Building" in message or "Linking" in message:
+                # 显示关键步骤
+                short_message = message[:60] + "..." if len(message) > 60 else message
+                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{short_message}")
+            elif len(message) > 100:
+                # 长消息只显示前面部分
+                short_message = message[:80] + "..."
+                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{short_message}")
+            else:
+                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{message}")
+            
+            # 保持对话框在前台
+            if not self.compile_progress_dialog.wasCanceled():
+                self.compile_progress_dialog.activateWindow()
+    
+    @Slot(bool, str)
+    def on_compile_finished(self, success, result_message):
+        """编译完成处理"""
+        try:
+            # 关闭进度对话框
+            if hasattr(self, 'compile_progress_dialog'):
+                self.compile_progress_dialog.close()
+                delattr(self, 'compile_progress_dialog')
+            
+            # 清理线程
+            if hasattr(self, 'compile_thread'):
+                self.compile_thread.deleteLater()
+                delattr(self, 'compile_thread')
+            
+            if success:
+                # 查找编译后的固件文件
+                firmware_path = self.find_compiled_firmware()
+                if firmware_path:
+                    # 尝试创建合并固件
+                    merged_firmware_path = self.create_merged_firmware(firmware_path)
+                    if merged_firmware_path:
+                        self.firmware_path_edit.setText(merged_firmware_path)
+                        self.device_manager.set_universal_firmware_path(merged_firmware_path)
+                        QMessageBox.information(
+                            self, "编译成功", 
+                            f"通用固件编译成功！\n\n"
+                            f"合并固件路径: {merged_firmware_path}\n\n"
+                            "已自动设置为通用固件路径。"
+                        )
+                        self.log_message(f"通用合并固件创建成功: {merged_firmware_path}")
+                    else:
+                        # 回退到原始固件
+                        self.firmware_path_edit.setText(firmware_path)
+                        self.device_manager.set_universal_firmware_path(firmware_path)
+                        QMessageBox.information(
+                            self, "编译成功", 
+                            f"通用固件编译成功！\n\n"
+                            f"固件路径: {firmware_path}\n\n"
+                            "已自动设置为通用固件路径。\n"
+                            "注意：将使用分区烧录模式。"
+                        )
+                        self.log_message(f"通用固件编译成功: {firmware_path}")
+                else:
+                    QMessageBox.warning(
+                        self, "编译成功", 
+                        "固件编译成功，但无法自动找到固件文件。\n请手动选择生成的固件文件。"
+                    )
+                    self.log_message("通用固件编译成功，但需要手动选择固件文件")
+            else:
+                QMessageBox.critical(self, "编译失败", f"通用固件编译失败：\n{result_message}")
+                self.log_message(f"通用固件编译失败: {result_message}")
+                
+        except Exception as e:
+            logger.error(f"处理编译结果失败: {e}")
+            QMessageBox.critical(self, "错误", f"处理编译结果失败: {e}")
+    
+    @Slot()
+    def on_compile_canceled(self):
+        """编译取消处理"""
+        try:
+            if hasattr(self, 'compile_thread'):
+                self.compile_thread.cancel()
+                self.log_message("用户取消了编译操作")
+        except Exception as e:
+            logger.error(f"取消编译失败: {e}")
+    
+    def find_compiled_firmware(self) -> Optional[str]:
+        """查找编译后的固件文件"""
+        try:
+            # 优先查找主固件文件（按优先级排序）
+            priority_patterns = [
+                "build/xiaozhi.bin",           # 项目主固件
+                "build/xiaozhi-esp32.bin",     # 备用名称
+                "build/firmware.bin",          # 通用名称
+                "build/app.bin"                # 应用固件
+            ]
+            
+            # 首先检查优先级文件
+            for path in priority_patterns:
+                if os.path.exists(path):
+                    return os.path.abspath(path)
+            
+            # 在build目录下搜索主固件文件
+            build_dir = "build"
+            if os.path.exists(build_dir):
+                # 排除的文件（不是主固件）
+                excluded_files = [
+                    'bootloader.bin', 
+                    'partition-table.bin',
+                    'ota_data_initial.bin',     # 排除OTA数据文件
+                    'srmodels.bin'              # 排除语音模型文件
+                ]
+                
+                # 优先查找根目录下的.bin文件
+                main_files = []
+                for file in os.listdir(build_dir):
+                    if (file.endswith('.bin') and 
+                        file not in excluded_files and
+                        os.path.isfile(os.path.join(build_dir, file))):
+                        main_files.append(os.path.join(build_dir, file))
+                
+                # 按文件大小排序，主固件通常较大
+                if main_files:
+                    main_files.sort(key=lambda x: os.path.getsize(x), reverse=True)
+                    return os.path.abspath(main_files[0])
+                
+                # 如果没找到，递归搜索子目录
+                for root, dirs, files in os.walk(build_dir):
+                    for file in files:
+                        if (file.endswith('.bin') and 
+                            file not in excluded_files and
+                            'bootloader' not in root and
+                            'partition' not in root):
+                            return os.path.abspath(os.path.join(root, file))
+            
+            return None
+        except Exception as e:
+            logger.error(f"查找编译固件失败: {e}")
+            return None
+    
+    def create_merged_firmware(self, main_firmware_path: str) -> Optional[str]:
+        """创建合并固件文件"""
+        try:
+            firmware_dir = os.path.dirname(main_firmware_path)
+            
+            # 查找所需的分区文件
+            bootloader_path = os.path.join(firmware_dir, "bootloader", "bootloader.bin")
+            partition_table_path = os.path.join(firmware_dir, "partition_table", "partition-table.bin")
+            ota_data_path = os.path.join(firmware_dir, "ota_data_initial.bin")
+            srmodels_path = os.path.join(firmware_dir, "srmodels", "srmodels.bin")
+            
+            # 检查必要文件是否存在
+            if not all(os.path.exists(p) for p in [bootloader_path, partition_table_path, ota_data_path]):
+                self.log_message("缺少必要的分区文件，无法创建合并固件")
+                return None
+            
+            # 使用esptool合并固件
+            try:
+                import esptool
+            except ImportError:
+                self.log_message("缺少esptool依赖，无法创建合并固件")
+                return None
+            
+            # 合并固件输出路径
+            merged_path = os.path.join(firmware_dir, "merged_firmware.bin")
+            
+            # 合并命令
+            merge_cmd = [
+                '--chip', 'esp32s3',
+                'merge_bin',
+                '-o', merged_path,
+                '--flash_mode', 'dio',
+                '--flash_freq', '80m',
+                '--flash_size', '16MB',
+                '0x0', bootloader_path,
+                '0x8000', partition_table_path,
+                '0xd000', ota_data_path
+            ]
+            
+            # 添加语音模型和主固件
+            if os.path.exists(srmodels_path):
+                merge_cmd.extend(['0x10000', srmodels_path])
+                merge_cmd.extend(['0x400000', main_firmware_path])
+            else:
+                merge_cmd.extend(['0x10000', main_firmware_path])
+            
+            self.log_message(f"创建合并固件: esptool.py {' '.join(merge_cmd)}")
+            
+            # 执行合并
+            try:
+                esptool.main(merge_cmd)
+                if os.path.exists(merged_path):
+                    self.log_message(f"合并固件创建成功: {merged_path}")
+                    return merged_path
+                else:
+                    self.log_message("合并固件创建失败：输出文件不存在")
+                    return None
+            except SystemExit as e:
+                if e.code == 0 and os.path.exists(merged_path):
+                    self.log_message(f"合并固件创建成功: {merged_path}")
+                    return merged_path
+                else:
+                    self.log_message(f"合并固件创建失败，退出代码: {e.code}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"创建合并固件失败: {e}")
+            self.log_message(f"创建合并固件异常: {e}")
+            return None
+    
     @Slot()
     def clear_log(self):
         """清空日志"""
@@ -1190,6 +1574,19 @@ class MultiDeviceUI(QMainWindow):
         """窗口关闭事件"""
         try:
             self.log_message("正在关闭应用程序...")
+            
+            # 取消正在进行的编译操作
+            if hasattr(self, 'compile_thread') and self.compile_thread.isRunning():
+                self.log_message("正在取消编译操作...")
+                self.compile_thread.cancel()
+                self.compile_thread.wait(3000)  # 等待最多3秒
+                if self.compile_thread.isRunning():
+                    self.compile_thread.terminate()
+                    self.compile_thread.wait(1000)
+            
+            # 清理编译相关资源
+            if hasattr(self, 'compile_progress_dialog'):
+                self.compile_progress_dialog.close()
             
             # 停止统计定时器
             if hasattr(self, 'stats_timer'):
