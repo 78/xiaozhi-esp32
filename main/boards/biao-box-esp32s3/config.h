@@ -4,50 +4,107 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
-// MAX98357A
-// #define MAX98357A_BCLK              GPIO_NUM_15
-// #define MAX98357A_LRCLK             GPIO_NUM_16
-// #define MAX98357A_DATA              GPIO_NUM_7
-// #define MAX98357A_SD_MODE           GPIO_NUM_NC
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-// lcd
-#define LCD_SCLK_PIN                GPIO_NUM_21
-#define LCD_MOSI_PIN                GPIO_NUM_47
-// #define LCD_MISO_PIN             GPIO_NUM_13
-#define LCD_DC_PIN                  GPIO_NUM_40
-#define LCD_CS_PIN                  GPIO_NUM_41
+// 如果使用 Duplex I2S 模式，请注释下面一行
+#define AUDIO_I2S_METHOD_SIMPLEX
 
-#define LCD_SPI_HOST                SPI3_HOST
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
 
-#define DISPLAY_WIDTH               240
-#define DISPLAY_HEIGHT              240
-#define DISPLAY_MIRROR_X            false
-#define DISPLAY_MIRROR_Y            false
-#define DISPLAY_SWAP_XY             false
+#define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_4
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_5
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_6
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
 
-#define DISPLAY_OFFSET_X            0
-#define DISPLAY_OFFSET_Y            0
+#else
 
-#define DISPLAY_BACKLIGHT_PIN       GPIO_NUM_42
-#define DISPLAY_BACKLIGHT_OUTPUT_INVERT true
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_4
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_5
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_6
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_7
+
+#endif
 
 
-//led
-#define CONTROL_LED_PIN             GPIO_NUM_35
+#define BUILTIN_LED_GPIO        GPIO_NUM_48
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
 
-// key
-#define MENU_KEY_PIN                GPIO_NUM_0
-#define VOLUME_UP_KEY_PIN           GPIO_NUM_38
-#define VOLUME_DOWN_KEY_PIN         GPIO_NUM_39
 
-//audio
-#define AUDIO_INPUT_SAMPLE_RATE     16000
-#define AUDIO_OUTPUT_SAMPLE_RATE    24000
-#define AUDIO_I2S_MIC_GPIO_WS       GPIO_NUM_4
-#define AUDIO_I2S_MIC_GPIO_SCK      GPIO_NUM_5
-#define AUDIO_I2S_MIC_GPIO_DIN      GPIO_NUM_6
-#define AUDIO_I2S_SPK_GPIO_DOUT     GPIO_NUM_7
-#define AUDIO_I2S_SPK_GPIO_BCLK     GPIO_NUM_15
-#define AUDIO_I2S_SPK_GPIO_LRCK     GPIO_NUM_16
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
+#define DISPLAY_MOSI_PIN      GPIO_NUM_47
+#define DISPLAY_CLK_PIN       GPIO_NUM_21
+#define DISPLAY_DC_PIN        GPIO_NUM_40
+#define DISPLAY_RST_PIN       GPIO_NUM_45
+#define DISPLAY_CS_PIN        GPIO_NUM_41
+
+
+#define CONFIG_LCD_ST7789_240X320
+
+#ifdef CONFIG_LCD_ST7789_240X320
+#define LCD_TYPE_ST7789_SERIAL
+#define DISPLAY_WIDTH   240
+#define DISPLAY_HEIGHT  320
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
+#define DISPLAY_INVERT_COLOR    true
+#define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_RGB
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+#define DISPLAY_SPI_MODE 0
+#endif
+
+
+
+
+
+// // lcd
+// #define LCD_SCLK_PIN                GPIO_NUM_21
+// #define LCD_MOSI_PIN                GPIO_NUM_47
+// // #define LCD_MISO_PIN             GPIO_NUM_13
+// #define LCD_DC_PIN                  GPIO_NUM_40
+// #define LCD_CS_PIN                  GPIO_NUM_41
+
+// #define LCD_SPI_HOST                SPI3_HOST
+
+// #define DISPLAY_WIDTH               240
+// #define DISPLAY_HEIGHT              240
+// #define DISPLAY_MIRROR_X            false
+// #define DISPLAY_MIRROR_Y            false
+// #define DISPLAY_SWAP_XY             false
+
+// #define DISPLAY_OFFSET_X            0
+// #define DISPLAY_OFFSET_Y            0
+
+// #define DISPLAY_BACKLIGHT_PIN       GPIO_NUM_42
+// #define DISPLAY_BACKLIGHT_OUTPUT_INVERT true
+
+
+// //led
+// #define CONTROL_LED_PIN             GPIO_NUM_35
+
+// // key
+// #define MENU_KEY_PIN                GPIO_NUM_0
+// #define VOLUME_UP_KEY_PIN           GPIO_NUM_38
+// #define VOLUME_DOWN_KEY_PIN         GPIO_NUM_39
+
+// //audio
+// #define AUDIO_I2S_METHOD_SIMPLEX
+
+// #define AUDIO_INPUT_SAMPLE_RATE     16000
+// #define AUDIO_OUTPUT_SAMPLE_RATE    24000
+// #define AUDIO_I2S_MIC_GPIO_WS       GPIO_NUM_4
+// #define AUDIO_I2S_MIC_GPIO_SCK      GPIO_NUM_5
+// #define AUDIO_I2S_MIC_GPIO_DIN      GPIO_NUM_6
+// #define AUDIO_I2S_SPK_GPIO_DOUT     GPIO_NUM_7
+// #define AUDIO_I2S_SPK_GPIO_BCLK     GPIO_NUM_15
+// #define AUDIO_I2S_SPK_GPIO_LRCK     GPIO_NUM_16
 
 #endif
