@@ -698,11 +698,8 @@ public:
             CustomLcdDisplay* display_instance = static_cast<CustomLcdDisplay*>(lv_timer_get_user_data(t));
             if (!display_instance) return;
             
-            // 如果处于浅睡眠状态，跳过UI更新避免锁冲突
-            if (display_instance->IsLightSleeping()) {
-                ESP_LOGD("ClockTimer", "浅睡眠模式中，跳过时钟UI更新");
-                return;
-            }
+            // 浅睡眠模式下仍然需要更新时钟显示，但可以适当减少更新频率
+            // 移除浅睡眠状态检查，确保时钟在浅睡眠模式下继续运行
             
             // 检查标签是否有效（不包括battery_lbl，因为它现在是成员变量）
             if (!hour_lbl || !minute_lbl || !second_lbl || 
@@ -1262,6 +1259,9 @@ private:
     // 添加浅睡眠状态标志
     bool is_light_sleeping_ = false;
     
+    // 超级省电模式状态标志
+    bool is_in_super_power_save_ = false;
+    
     // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
     static const char* VERSION_URL;
@@ -1333,7 +1333,59 @@ private:
     // 按钮初始化
     void InitializeButtons() {
         boot_btn.OnClick([this]() {
-            // 唤醒省电定时器
+            // 检查是否处于超级省电模式
+            if (is_in_super_power_save_) {
+                ESP_LOGI(TAG, "从超级省电模式唤醒设备");
+                
+                // 清除超级省电模式标志
+                is_in_super_power_save_ = false;
+                
+                // 重新启用省电定时器
+                power_save_timer_->SetEnabled(true);
+                power_save_timer_->WakeUp();
+                ESP_LOGI(TAG, "省电定时器已重新启用");
+                
+                // 恢复CPU频率到正常状态
+                esp_pm_config_t pm_config = {
+                    .max_freq_mhz = 240,     // 恢复到最大频率240MHz
+                    .min_freq_mhz = 40,      // 最低频率40MHz
+                    .light_sleep_enable = false,  // 禁用轻睡眠
+                };
+                esp_pm_configure(&pm_config);
+                ESP_LOGI(TAG, "CPU频率已恢复到240MHz");
+                
+                // 恢复屏幕亮度
+                auto backlight = GetBacklight();
+                if (backlight) {
+                    backlight->RestoreBrightness();
+                    ESP_LOGI(TAG, "屏幕亮度已恢复");
+                }
+                
+                // 恢复音频处理系统
+                auto& app_restore = Application::GetInstance();
+                app_restore.ResumeAudioProcessing();
+                ESP_LOGI(TAG, "音频处理系统已恢复");
+                
+                // 重新连接WiFi
+                auto& wifi_station = WifiStation::GetInstance();
+                if (!wifi_station.IsConnected()) {
+                    ESP_LOGI(TAG, "重新连接WiFi...");
+                    wifi_station.Start();
+                }
+                
+                // 恢复图片轮播任务
+                ResumeImageTask();
+                ESP_LOGI(TAG, "图片轮播任务已恢复");
+                
+                // 禁用WiFi省电模式
+                SetPowerSaveMode(false);
+                ESP_LOGI(TAG, "WiFi省电模式已禁用");
+                
+                ESP_LOGI(TAG, "从超级省电模式完全恢复到正常状态");
+                return; // 从超级省电模式唤醒时只做恢复操作，不执行其他功能
+            }
+            
+            // 正常模式下的按钮处理
             if (power_save_timer_) {
                 power_save_timer_->WakeUp();
                 ESP_LOGI(TAG, "用户交互，唤醒省电定时器");
@@ -1401,6 +1453,49 @@ private:
         ESP_LOGI(TAG, "电源管理器初始化完成");
     }
 
+    // 自定义的省电条件检查
+    bool CanEnterPowerSaveMode() {
+        // 1. 首先检查Application的基本条件
+        auto& app = Application::GetInstance();
+        if (!app.CanEnterSleepMode()) {
+            return false;
+        }
+        
+        // 2. 检查是否正在充电（充电时不进入节能模式）
+        int battery_level;
+        bool charging, discharging;
+        if (GetBatteryLevel(battery_level, charging, discharging) && charging) {
+            ESP_LOGD(TAG, "设备正在充电，不进入节能模式");
+            return false;
+        }
+        
+        // 3. 检查是否有下载UI可见（图片下载时不进入节能模式）
+        if (display_) {
+            CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display_);
+            if (customDisplay->download_progress_container_ && 
+                !lv_obj_has_flag(customDisplay->download_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                ESP_LOGD(TAG, "正在下载图片，不进入节能模式");
+                return false;
+            }
+            
+            // 4. 检查是否有预加载UI可见
+            if (customDisplay->preload_progress_container_ && 
+                !lv_obj_has_flag(customDisplay->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
+                ESP_LOGD(TAG, "正在预加载图片，不进入节能模式");
+                return false;
+            }
+            
+            // 5. 检查用户交互是否被禁用（通常表示系统忙碌）
+            if (customDisplay->user_interaction_disabled_) {
+                ESP_LOGD(TAG, "用户交互被禁用，系统忙碌，不进入节能模式");
+                return false;
+            }
+        }
+        
+        ESP_LOGD(TAG, "系统空闲，允许进入节能模式");
+        return true;
+    }
+
     // 初始化3级省电定时器
     void InitializePowerSaveTimer() {
         // 创建3级省电定时器：60秒后进入浅睡眠，180秒后进入深度睡眠
@@ -1408,6 +1503,12 @@ private:
         
         // 第二级：60秒后进入浅睡眠模式
         power_save_timer_->OnEnterSleepMode([this]() {
+            // 检查自定义的省电条件
+            if (!CanEnterPowerSaveMode()) {
+                ESP_LOGI(TAG, "系统忙碌，取消进入浅睡眠模式");
+                power_save_timer_->WakeUp();  // 重置定时器
+                return;
+            }
             ESP_LOGI(TAG, "60秒后进入浅睡眠模式");
             EnterLightSleepMode();
         });
@@ -1420,13 +1521,19 @@ private:
         
         // 第三级：180秒后进入深度睡眠模式
         power_save_timer_->OnShutdownRequest([this]() {
-            ESP_LOGI(TAG, "180秒后进入深度睡眠模式");
+            // 检查自定义的省电条件
+            if (!CanEnterPowerSaveMode()) {
+                ESP_LOGI(TAG, "系统忙碌，取消进入超级省电模式");
+                power_save_timer_->WakeUp();  // 重置定时器
+                return;
+            }
+            ESP_LOGI(TAG, "180秒后进入超级省电模式");
             EnterDeepSleepMode();
         });
         
         // 启用省电定时器
         power_save_timer_->SetEnabled(true);
-        ESP_LOGI(TAG, "3级省电定时器初始化完成 - 60秒浅睡眠, 180秒深度睡眠");
+        ESP_LOGI(TAG, "3级省电定时器初始化完成 - 60秒浅睡眠, 180秒超级省电");
     }
 
     // 进入浅睡眠模式 - 降低功耗但保持基本功能
@@ -1449,20 +1556,15 @@ private:
             ESP_LOGI(TAG, "屏幕亮度已降至10");
         }
         
-        // 2. 先确保图片任务释放所有锁，然后暂停任务
-        ESP_LOGI(TAG, "准备暂停图片轮播任务...");
-        if (image_task_handle_ != nullptr) {
-            // 给图片任务一些时间完成当前操作并释放锁
-            vTaskDelay(pdMS_TO_TICKS(200));  // 200ms缓冲时间
-            vTaskSuspend(image_task_handle_);
-            ESP_LOGI(TAG, "图片轮播任务已安全暂停");
-        }
+        // 2. 不暂停图片任务，保持时钟正常运行
+        // 图片任务在时钟页面时处于空闲状态，功耗影响很小
+        ESP_LOGI(TAG, "保持图片任务运行以确保时钟正常显示");
         
         // 3. 启用WiFi省电模式（保持连接但降低功耗）
         SetPowerSaveMode(true);
         ESP_LOGI(TAG, "WiFi省电模式已启用");
         
-        ESP_LOGI(TAG, "浅睡眠模式激活完成");
+        ESP_LOGI(TAG, "浅睡眠模式激活完成 - 时钟继续正常运行");
     }
     
     // 退出浅睡眠模式 - 恢复正常功能
@@ -1485,9 +1587,8 @@ private:
             ESP_LOGI(TAG, "屏幕亮度已恢复");
         }
         
-        // 2. 恢复图片轮播任务
-        ResumeImageTask();
-        ESP_LOGI(TAG, "图片轮播任务已恢复");
+        // 2. 图片任务已经在运行，无需恢复
+        ESP_LOGI(TAG, "图片任务保持运行状态");
         
         // 3. 禁用WiFi省电模式
         SetPowerSaveMode(false);
@@ -1496,13 +1597,22 @@ private:
         ESP_LOGI(TAG, "浅睡眠模式退出完成");
     }
 
-    // 进入深度睡眠模式 - 关闭所有功能，只保留按键唤醒
+    // 进入超级省电模式 - 关闭大部分功能，保持最低亮度显示和按键唤醒
     void EnterDeepSleepMode() {
-        ESP_LOGI(TAG, "进入深度睡眠模式 - 关闭所有功能");
+        ESP_LOGI(TAG, "进入超级省电模式 - 关闭大部分功能，保持1%%亮度显示");
+        
+        // 0. 首先停止省电定时器，防止重复调用
+        if (power_save_timer_) {
+            power_save_timer_->SetEnabled(false);
+            ESP_LOGI(TAG, "省电定时器已停止，防止重复进入超级省电模式");
+        }
+        
+        // 设置超级省电模式标志
+        is_in_super_power_save_ = true;
         
         // 1. 显示省电提示信息
         if (display_) {
-            display_->SetChatMessage("system", "进入深度睡眠模式\n按按键唤醒设备");
+            display_->SetChatMessage("system", "进入超级省电模式\n按按键唤醒设备");
             vTaskDelay(pdMS_TO_TICKS(3000));  // 显示3秒让用户看到
         }
         
@@ -1510,7 +1620,12 @@ private:
         SuspendImageTask();
         ESP_LOGI(TAG, "图片轮播任务已停止");
         
-        // 3. 关闭音频编解码器
+        // 3. 暂停整个音频处理系统，避免AFE缓冲区溢出
+        auto& app = Application::GetInstance();
+        app.PauseAudioProcessing();
+        ESP_LOGI(TAG, "音频处理系统已暂停");
+        
+        // 4. 关闭音频编解码器
         auto codec = GetAudioCodec();
         if (codec) {
             codec->EnableInput(false);
@@ -1518,24 +1633,34 @@ private:
             ESP_LOGI(TAG, "音频编解码器已关闭");
         }
         
-        // 4. 关闭WiFi以节省最大功耗
+        // 5. 安全关闭WiFi以节省最大功耗
         auto& wifi_station = WifiStation::GetInstance();
-        wifi_station.Stop();
-        ESP_LOGI(TAG, "WiFi已断开");
-        
-        // 5. 关闭LCD显示面板
-        if (panel) {
-            esp_lcd_panel_disp_on_off(panel, false);
-            ESP_LOGI(TAG, "LCD显示面板已关闭");
+        if (wifi_station.IsConnected()) {
+            wifi_station.Stop();
+            ESP_LOGI(TAG, "WiFi已断开");
+        } else {
+            ESP_LOGI(TAG, "WiFi已经处于断开状态");
         }
         
-        // 6. 设置按键为唤醒源
-        esp_sleep_enable_ext0_wakeup((gpio_num_t)BOOT_BUTTON_GPIO, 0);  // 低电平唤醒
-        ESP_LOGI(TAG, "按键唤醒已配置");
+        // 6. 设置屏幕亮度为1%（保持最低亮度显示）
+        auto backlight = GetBacklight();
+        if (backlight) {
+            backlight->SetBrightness(1);  // 设置为最低亮度1%
+            ESP_LOGI(TAG, "Screen brightness set to 1%%");
+        }
         
-        // 7. 进入深度睡眠，实现最低功耗
-        ESP_LOGI(TAG, "进入深度睡眠模式，按BOOT键唤醒");
-        esp_deep_sleep_start();
+        // 7. 降低CPU频率到最低以节省功耗
+        esp_pm_config_t pm_config = {
+            .max_freq_mhz = 40,      // 最低CPU频率40MHz
+            .min_freq_mhz = 40,      // 最低CPU频率40MHz
+            .light_sleep_enable = true,  // 启用轻睡眠
+        };
+        esp_pm_configure(&pm_config);
+        ESP_LOGI(TAG, "CPU frequency set to 40MHz with light sleep enabled");
+        
+        // 8. 设置超级省电标志，让系统知道当前处于最低功耗模式
+        // 在这个模式下，只有按键交互可以唤醒设备
+        ESP_LOGI(TAG, "Super power save mode activated - press BOOT button to wake up");
     }
     
     // 暂停图片任务以节省CPU
@@ -2184,6 +2309,30 @@ public:
                 level, charging ? "是" : "否", discharging ? "是" : "否");
         
         return true;
+    }
+
+    // 重写获取网络状态图标方法，安全处理WiFi关闭的情况
+    virtual const char* GetNetworkStateIcon() override {
+        // 在超级省电模式下，WiFi已关闭，直接返回WiFi关闭图标
+        // 避免调用任何WiFi相关的API，防止ESP_ERROR_CHECK失败
+        
+        // 检查WiFi驱动是否已初始化（更安全的方法）
+        wifi_mode_t mode;
+        esp_err_t err = esp_wifi_get_mode(&mode);
+        
+        if (err == ESP_ERR_WIFI_NOT_INIT) {
+            // WiFi未初始化（已在超级省电模式中关闭）
+            return FONT_AWESOME_WIFI_OFF;
+        }
+        
+        // WiFi已初始化，可以安全调用连接检查
+        auto& wifi_station = WifiStation::GetInstance();
+        if (!wifi_station.IsConnected()) {
+            return FONT_AWESOME_WIFI_OFF;  // WiFi未连接时显示关闭图标
+        }
+        
+        // WiFi已连接，调用父类方法获取详细状态
+        return WifiBoard::GetNetworkStateIcon();
     }
 
     // 设置省电模式
