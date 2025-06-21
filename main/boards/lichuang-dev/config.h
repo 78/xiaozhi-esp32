@@ -58,5 +58,7 @@
 
 #define XCLK_FREQ_HZ 24000000
 
+#define ML307_PIN_TX GPIO_NUM_11
+#define ML307_PIN_RX GPIO_NUM_10
 
 #endif // _BOARD_CONFIG_H_
