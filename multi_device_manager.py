@@ -784,6 +784,32 @@ class MultiDeviceManager:
             
             device.log_message(f"执行烧录命令: esptool.py {' '.join(cmd_args)}")
             
+            # 先执行擦除操作
+            device.log_message("正在擦除Flash...")
+            erase_cmd_args = [
+                '--chip', 'auto',
+                '--port', device.port,
+                '--baud', '921600',
+                'erase_flash'
+            ]
+            
+            device.log_message(f"执行擦除命令: esptool.py {' '.join(erase_cmd_args)}")
+            
+            try:
+                esptool.main(erase_cmd_args)
+                device.log_message("Flash擦除完成")
+            except SystemExit as e:
+                if e.code == 0:
+                    device.log_message("Flash擦除完成")
+                else:
+                    device.log_message(f"Flash擦除失败，退出代码: {e.code}", logging.ERROR)
+                    return False
+            except Exception as e:
+                device.log_message(f"Flash擦除异常: {e}", logging.ERROR)
+                return False
+            
+            device.log_message("Flash擦除完成，开始烧录通用固件...")
+            
             # 执行烧录
             try:
                 esptool.main(cmd_args)

@@ -304,9 +304,26 @@ def flash_firmware(port):
         # 使用您的ESP-IDF具体安装路径
         idf_path = "C:\\Users\\1\\esp\\v5.4.1\\esp-idf"
         
+        # 先执行擦除操作
+        erase_cmd = f"call {idf_path}\\export.bat && idf.py -p {port} erase_flash"
+        print(f"执行擦除命令: {erase_cmd}")
+        print("正在擦除Flash...")
+        
+        erase_process = subprocess.Popen(erase_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        
+        for line in iter(erase_process.stdout.readline, ''):
+            print(line, end='')
+            
+        erase_process.wait()
+        if erase_process.returncode != 0:
+            print("Flash擦除失败")
+            return False
+        
+        print("Flash擦除完成，开始烧录...")
+        
         # 执行export.bat激活环境并烧录
         activate_cmd = f"call {idf_path}\\export.bat && idf.py -p {port} flash"
-        print(f"执行命令: {activate_cmd}")
+        print(f"执行烧录命令: {activate_cmd}")
         
         process = subprocess.Popen(activate_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         

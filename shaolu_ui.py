@@ -664,9 +664,45 @@ def flash_firmware(port, idf_path=None, progress_callback=None, workspace_path=N
                 logger.info("请先成功编译固件")
                 return False
             
+            # 先执行擦除操作
+            erase_cmd = f"{activate_cmd}idf.py -p {port} erase_flash"
+            logger.info(f"执行擦除命令: {erase_cmd}")
+            
+            if progress_callback:
+                progress_callback("正在擦除Flash...")
+            
+            try:
+                erase_process = subprocess.Popen(erase_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True, encoding='utf-8', errors='replace')
+                
+                for line in iter(erase_process.stdout.readline, ''):
+                    if progress_callback:
+                        progress_callback(line)
+                    else:
+                        logger.debug(line.strip())
+                    
+                    if "error" in line.lower() or "fail" in line.lower():
+                        logger.error(line.strip())
+                
+                erase_process.wait(timeout=60)  # 擦除通常较快，60秒超时
+                if erase_process.returncode != 0:
+                    logger.error(f"Flash擦除失败，返回码: {erase_process.returncode}")
+                    return False
+                
+                logger.info("Flash擦除完成")
+                if progress_callback:
+                    progress_callback("Flash擦除完成，开始烧录...")
+                    
+            except subprocess.TimeoutExpired:
+                logger.error("擦除Flash超时")
+                erase_process.kill()
+                return False
+            except Exception as e:
+                logger.error(f"擦除Flash过程中发生错误: {e}")
+                return False
+            
             # 执行export.bat激活环境并烧录
             flash_cmd = f"{activate_cmd}idf.py -p {port} flash"
-            logger.info(f"执行命令: {flash_cmd}")
+            logger.info(f"执行烧录命令: {flash_cmd}")
             
             max_attempts = 3
             for attempt in range(max_attempts):
