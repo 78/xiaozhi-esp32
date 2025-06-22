@@ -51,7 +51,7 @@
 #define DISPLAY_SCL_PIN      GPIO_NUM_5
 #define DISPLAY_WIDTH       128
 #define DISPLAY_HEIGHT      128
-#define DISPLAY_MIRROR_X    true
+#define DISPLAY_MIRROR_X    false
 #define DISPLAY_MIRROR_Y    false
 #define DISPLAY_SWAP_XY     false
 #define DISPLAY_INVERT_COLOR    true
@@ -61,7 +61,7 @@
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 #define DISPLAY_SPI_MODE 0
 
-#define DISPLAY_MIRROR_X true
-#define DISPLAY_MIRROR_Y true
+// #define DISPLAY_MIRROR_X true
+// #define DISPLAY_MIRROR_Y true
 
 #endif // _BOARD_CONFIG_H_
