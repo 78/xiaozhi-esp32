@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "stark-board",
+            "sdkconfig_append": []
+        }
+    ]
+}
