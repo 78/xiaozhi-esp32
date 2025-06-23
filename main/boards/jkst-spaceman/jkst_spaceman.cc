@@ -140,6 +140,15 @@ private:
             }
             app.ToggleChatState();
         });
+
+#if CONFIG_USE_DEVICE_AEC
+        boot_button_.OnDoubleClick([this]()
+                                   {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+            } });
+#endif
     }
 
 
@@ -163,7 +172,51 @@ private:
         }
     }
 
+    // 扫描全部地址
+    void ScanI2C()
+    {
+        ESP_LOGI(TAG, "开始扫描I2C设备...");
 
+        if (i2c_bus_ == NULL)
+        {
+            ESP_LOGE(TAG, "I2C总线未初始化");
+            return;
+        }
+
+        // 扫描所有可能的I2C地址 (0x00-0x7F)
+        for (uint8_t addr = 0; addr < 0x80; addr++)
+        {
+            i2c_master_dev_handle_t dev_handle;
+            i2c_device_config_t dev_cfg = {
+                .device_address = addr,
+                .scl_speed_hz = 5000, // 降低到5KHz
+            };
+
+            ESP_LOGI(TAG, "尝试添加设备，地址: 0x%02X", addr);
+            esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev_handle);
+
+            if (ret != ESP_OK)
+            {
+                ESP_LOGD(TAG, "地址 0x%02X 添加设备失败: %s", addr, esp_err_to_name(ret));
+                continue;
+            }
+
+            ESP_LOGI(TAG, "设备添加成功，尝试通信...");
+            uint8_t dummy = addr;
+            ret = i2c_master_transmit(dev_handle, &dummy, 1, 1000 / portTICK_PERIOD_MS); // 1秒超时
+            if (ret == ESP_OK)
+            {
+                ESP_LOGI(TAG, "发现设备！地址: 0x%02X", addr);
+            }
+            else
+            {
+                ESP_LOGD(TAG, "地址 0x%02X 无响应: %s", addr, esp_err_to_name(ret));
+            }
+
+            i2c_master_bus_rm_device(dev_handle);
+        }
+        ESP_LOGI(TAG, "I2C扫描完成");
+    }
 
     void InitializeCamera() {
         camera_config_t config = {};
@@ -182,7 +235,7 @@ private:
         config.pin_vsync = CAMERA_PIN_VSYNC;
         config.pin_href = CAMERA_PIN_HREF;
         config.pin_sccb_sda = -1; // 这里写-1 表示使用已经初始化的I2C接口
-        config.pin_sccb_scl = 2;
+        config.pin_sccb_scl =  2;
         config.sccb_i2c_port = 1;
         config.pin_pwdn = 39;
         config.pin_reset = -1;
@@ -201,11 +254,14 @@ public:
     JKSTSpaceman() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         vTaskDelay(pdMS_TO_TICKS(100));
-        I2cScan(); // 调试时加上，量产时可注释
+        // I2cScan(); // 调试时加上，量产时可注释
+
+        ScanI2C(); // 扫描I2C设备
+
         InitializeSpi();
         // InitializeGc9a01Display();
         // InitializeTouch();
-        InitializeButtons();
+        // InitializeButtons();
         // InitializeCamera();
 
 #if CONFIG_IOT_PROTOCOL_XIAOZHI
