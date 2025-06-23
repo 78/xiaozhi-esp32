@@ -18,7 +18,7 @@ public:
 
 private:
     std::mutex mutex_;
-    std::list<std::function<void()>> main_tasks_;
+    std::list<std::function<void()>> background_tasks_;
     std::condition_variable condition_variable_;
     TaskHandle_t background_task_handle_ = nullptr;
     std::atomic<size_t> active_tasks_{0};

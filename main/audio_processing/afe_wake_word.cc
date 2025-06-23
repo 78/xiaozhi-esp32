@@ -35,6 +35,10 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
+    if (models == nullptr || models->num == -1) {
+        ESP_LOGE(TAG, "Failed to initialize wakenet model");
+        return;
+    }
     for (int i = 0; i < models->num; i++) {
         ESP_LOGI(TAG, "Model %d: %s", i, models->model_name[i]);
         if (strstr(models->model_name[i], ESP_WN_PREFIX) != NULL) {
@@ -155,18 +159,19 @@ void AfeWakeWord::EncodeWakeWordData() {
             auto encoder = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
             encoder->SetComplexity(0); // 0 is the fastest
 
+            int packets = 0;
             for (auto& pcm: this_->wake_word_pcm_) {
                 encoder->Encode(std::move(pcm), [this_](std::vector<uint8_t>&& opus) {
                     std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
                     this_->wake_word_opus_.emplace_back(std::move(opus));
                     this_->wake_word_cv_.notify_all();
                 });
+                packets++;
             }
             this_->wake_word_pcm_.clear();
 
             auto end_time = esp_timer_get_time();
-            ESP_LOGI(TAG, "Encode wake word opus %u packets in %lld ms",
-                this_->wake_word_opus_.size(), (end_time - start_time) / 1000);
+            ESP_LOGI(TAG, "Encode wake word opus %d packets in %ld ms", packets, (long)((end_time - start_time) / 1000));
 
             std::lock_guard<std::mutex> lock(this_->wake_word_mutex_);
             this_->wake_word_opus_.push_back(std::vector<uint8_t>());
