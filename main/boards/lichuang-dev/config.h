@@ -58,6 +58,10 @@
 
 #define XCLK_FREQ_HZ 24000000
 
+// 扩展接线说明,多功能扩展口(实战派底部左边第一个5P接口）,IO从左至右。
+// 设备    1    2    3    4    5 
+// 实战派  5V  3V3  GND  IO10  IO11
+// ml307  5V   EN   GND  TXD   RXD
 #define ML307_PIN_TX GPIO_NUM_11
 #define ML307_PIN_RX GPIO_NUM_10
 
