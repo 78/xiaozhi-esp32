@@ -414,7 +414,7 @@ class DeviceTableWidget(QTableWidget):
         menu.addAction(reset_action)
         
         remove_action = QAction("移除设备", self)
-        remove_action.triggered.connect(lambda: self.remove_device_action(device_id))
+        remove_action.triggered.connect(lambda: self.remove_single_device(device_id))
         menu.addAction(remove_action)
         
         # 设备信息
@@ -424,7 +424,7 @@ class DeviceTableWidget(QTableWidget):
         menu.addAction(info_action)
         
         # 显示菜单
-        menu.exec_(self.mapToGlobal(position))
+        menu.exec(self.mapToGlobal(position))
     
     def show_error_details(self, device_id: str):
         """显示错误详情"""
@@ -433,6 +433,11 @@ class DeviceTableWidget(QTableWidget):
     
     def remove_device_action(self, device_id: str):
         """移除设备操作"""
+        # 这个方法将在主窗口中实现
+        pass
+    
+    def remove_single_device(self, device_id: str):
+        """移除单个设备"""
         # 这个方法将在主窗口中实现
         pass
     
@@ -541,6 +546,13 @@ class MultiDeviceUI(QMainWindow):
         remove_btn = QPushButton("移除设备")
         remove_btn.clicked.connect(self.remove_selected_device)
         layout.addWidget(remove_btn)
+        
+        # 移除全部设备按钮
+        remove_all_btn = QPushButton("移除全部设备")
+        remove_all_btn.setStyleSheet("QPushButton { background-color: #e74c3c; color: white; font-weight: bold; }")
+        remove_all_btn.clicked.connect(self.remove_all_devices)
+        remove_all_btn.setToolTip("移除所有设备（危险操作）")
+        layout.addWidget(remove_all_btn)
         
         layout.addSpacing(20)
         
@@ -742,6 +754,7 @@ class MultiDeviceUI(QMainWindow):
             self.device_table.reset_device = self.reset_device
             self.device_table.show_error_details = self.show_error_details
             self.device_table.remove_device_action = self.remove_selected_device
+            self.device_table.remove_single_device = self.remove_single_device
             self.device_table.show_device_info = self.show_device_info
         
         # 连接UI更新信号到槽函数（确保在主线程中执行）
@@ -921,6 +934,110 @@ class MultiDeviceUI(QMainWindow):
             self.device_table.remove_device(device_id)
             self.log_message(f"移除设备: {device_id}")
     
+    def remove_single_device(self, device_id: str):
+        """移除单个设备（通过右键菜单调用）"""
+        try:
+            # 确认对话框
+            reply = QMessageBox.question(self, "确认", f"确定要移除设备 {device_id} 吗？",
+                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                self.device_manager.remove_device(device_id)
+                self.device_table.remove_device(device_id)
+                self.log_message(f"移除设备: {device_id}")
+        except Exception as e:
+            logger.error(f"移除设备 {device_id} 失败: {e}")
+            QMessageBox.critical(self, "错误", f"移除设备失败: {e}")
+    
+    @Slot()
+    def remove_all_devices(self):
+        """移除所有设备"""
+        try:
+            # 获取所有设备
+            all_devices = self.device_manager.get_all_devices()
+            
+            if not all_devices:
+                QMessageBox.information(self, "提示", "当前没有设备可以移除")
+                return
+            
+            # 统计各种状态的设备
+            active_devices = [d for d in all_devices if d.is_active()]
+            completed_devices = [d for d in all_devices if d.is_completed()]
+            failed_devices = [d for d in all_devices if d.is_failed()]
+            idle_devices = [d for d in all_devices if d.status.value == "idle"]
+            
+            # 构建详细的确认消息
+            confirm_message = f"确定要移除所有 {len(all_devices)} 个设备吗？\n\n"
+            confirm_message += f"设备状态统计：\n"
+            confirm_message += f"• 活动中设备: {len(active_devices)} 个\n"
+            confirm_message += f"• 已完成设备: {len(completed_devices)} 个\n"
+            confirm_message += f"• 失败设备: {len(failed_devices)} 个\n"
+            confirm_message += f"• 空闲设备: {len(idle_devices)} 个\n\n"
+            
+            if active_devices:
+                confirm_message += "⚠️ 警告：有设备正在处理中，将被强制停止！\n\n"
+            
+            confirm_message += "此操作不可撤销，请谨慎操作！"
+            
+            # 确认对话框
+            reply = QMessageBox.question(
+                self, "确认移除全部设备", confirm_message,
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                # 首先停止所有正在处理的设备
+                if active_devices:
+                    self.log_message(f"正在停止 {len(active_devices)} 个活动设备...")
+                    self.device_manager.stop_all_processing()
+                    
+                    # 等待一下让设备有时间停止
+                    QApplication.processEvents()
+                    import time
+                    time.sleep(0.5)
+                
+                # 记录开始移除
+                self.log_message(f"开始移除所有 {len(all_devices)} 个设备...")
+                
+                # 批量移除设备
+                removed_count = 0
+                failed_removals = []
+                
+                # 创建设备ID列表（避免在迭代过程中修改字典）
+                device_ids = [device.device_id for device in all_devices]
+                
+                for device_id in device_ids:
+                    try:
+                        # 从设备管理器移除
+                        if self.device_manager.remove_device(device_id):
+                            # 从UI表格移除
+                            self.device_table.remove_device(device_id)
+                            removed_count += 1
+                        else:
+                            failed_removals.append(device_id)
+                    except Exception as e:
+                        logger.error(f"移除设备 {device_id} 失败: {e}")
+                        failed_removals.append(device_id)
+                
+                # 报告结果
+                if removed_count == len(all_devices):
+                    self.log_message(f"成功移除所有 {removed_count} 个设备")
+                    QMessageBox.information(self, "移除完成", f"成功移除所有 {removed_count} 个设备")
+                else:
+                    error_message = f"移除完成：成功 {removed_count} 个，失败 {len(failed_removals)} 个"
+                    if failed_removals:
+                        error_message += f"\n失败的设备: {', '.join(failed_removals)}"
+                    
+                    self.log_message(error_message)
+                    QMessageBox.warning(self, "部分移除失败", error_message)
+                
+                # 立即更新统计信息
+                self.update_statistics()
+                
+        except Exception as e:
+            logger.error(f"移除全部设备失败: {e}")
+            QMessageBox.critical(self, "错误", f"移除全部设备失败: {e}")
+    
     @Slot()
     def start_all_devices(self):
         """开始处理所有设备"""
@@ -1059,7 +1176,7 @@ class MultiDeviceUI(QMainWindow):
             # 在按钮附近显示菜单
             button_rect = button.geometry()
             menu_pos = button.mapToGlobal(button_rect.bottomLeft())
-            menu.exec_(menu_pos)
+            menu.exec(menu_pos)
             
         except Exception as e:
             logger.error(f"显示重试菜单失败: {e}")
@@ -1576,7 +1693,7 @@ class MultiDeviceUI(QMainWindow):
             self.log_message("正在关闭应用程序...")
             
             # 取消正在进行的编译操作
-            if hasattr(self, 'compile_thread') and self.compile_thread.isRunning():
+            if hasattr(self, 'compile_thread') and self.compile_thread and self.compile_thread.isRunning():
                 self.log_message("正在取消编译操作...")
                 self.compile_thread.cancel()
                 self.compile_thread.wait(3000)  # 等待最多3秒
@@ -1589,7 +1706,7 @@ class MultiDeviceUI(QMainWindow):
                 self.compile_progress_dialog.close()
             
             # 停止统计定时器
-            if hasattr(self, 'stats_timer'):
+            if hasattr(self, 'stats_timer') and self.stats_timer:
                 self.stats_timer.stop()
             
             # 停止所有处理
