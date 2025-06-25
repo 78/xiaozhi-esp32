@@ -75,27 +75,17 @@
 // ======================================================================
 #define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
 #define AUDIO_CODEC_ES7210_ADDR  0x82
-#define AXP2101_I2C_ADDR         0x34
-#define AW9523B_I2C_ADDR         0x58 // Correct address based on schematic (AD1=0, AD0=0)
-//#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_42
-//#define DISPLAY_BACKLIGHT_OUTPUT_INVERT true
 // ======================================================================
 //                       AW9523B IO 扩展芯片定义
 // ======================================================================
 #define AW9523B_INTERRUPT_PIN    GPIO_NUM_NC // <<< 禁用中断
 
-// -- AW9523B 引脚功能分配 (根据您的最终原理图) --
+// -- AW9523B 引脚功能分配 --
 // P0 端口 (引脚号 0-7)
 #define AW9523B_PIN_PA_EN        0  // P0_0
 #define AW9523B_PIN_DVP_PWDN     2  // P0_2
 #define AW9523B_PIN_RGB_R        3  // P0_3 (Red)
 #define AW9523B_PIN_RGB_G        4  // P0_4 (Green)
 #define AW9523B_PIN_RGB_B        5  // P0_5 (Blue)
-// P0_7 is unused
-
-// P1 端口 (引脚号 8-15)
-//#define AW9523B_PIN_RTC_INT      8  // P1_0
-//#define AW9523B_PIN_PJ_SET       9  // P1_1 (耳机检测)
-// P1_2 to P1_7 are unused
 
 #endif // _BOARD_CONFIG_H_

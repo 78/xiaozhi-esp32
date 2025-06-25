@@ -4,6 +4,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "mcp_server.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
 #include "axp2101.h"
@@ -32,10 +33,25 @@ class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
         ESP_LOGI(TAG, "--- PMIC Minimal & Correct Configuration ---");
+         // --- 核心修改：配置按键开关机行为 ---
+        // REG 0x25: 配置N_OE引脚功能
+        // bit 7=1: 使能长按关机; bit 2=1: 使能内部上拉; bit 1-0=11: VBUS或按键都能开机
+        uint8_t target_noe_setup = (1 << 7) | (1 << 2) | 0b11; 
+        WriteReg(0x25, target_noe_setup);
+        vTaskDelay(pdMS_TO_TICKS(5)); // 短暂延时确保写入
+        if (ReadReg(0x25) != target_noe_setup) {
+            ESP_LOGE(TAG, "Failed to configure REG 0x25 for power button!");
+        }
 
-        // =================================================================
-        // Part 1: 保留你原始代码中所有安全且必要的配置
-        // =================================================================
+        // REG 0x26: 配置开关机时间
+        // 高4位是关机时间: 0010 = 2秒
+        // 低3位是开机时间: 001 = 128ms (点按)
+        uint8_t target_noe_time = (0b0010 << 4) | 0b001; 
+        WriteReg(0x26, target_noe_time);
+        vTaskDelay(pdMS_TO_TICKS(5)); // 短暂延时确保写入
+        if (ReadReg(0x26) != target_noe_time) {
+            ESP_LOGE(TAG, "Failed to configure REG 0x26 for power timing!");
+        }
         // 配置充电
         WriteReg(0x33, 0b11000100); // 建议使能充电 (bit 7=1), 如果不需要充电再设为 0b01000100
         
@@ -45,23 +61,15 @@ public:
         // 配置TS
         WriteReg(0x34, 0x00);
         
-        // =================================================================
-        // Part 2: 只设置和开启硬件上确实用到的 LDO
-        // =================================================================
         // 设置电压
         WriteReg(0x92, 0x1C); // ALDO1 -> 3.3V (给 AU_3V3)
         WriteReg(0x93, 0x17); // ALDO2 -> 2.8V (给 屏幕背光, 2.8V作为默认值)
 
-        // **关键修正：只开启 ALDO1 和 ALDO2**
         uint8_t ldo_onoff_ctrl0 = ReadReg(0x90); 
         ldo_onoff_ctrl0 |= (1 << 0) | (1 << 1); // 只使能 ALDO1 和 ALDO2
         ldo_onoff_ctrl0 &= ~(1 << 4);           // 明确地禁用 BLDO1，以防万一
         WriteReg(0x90, ldo_onoff_ctrl0);
 
-        // =================================================================
-        // Part 3: 不再触碰任何开关机相关的寄存器 (0x25, 0x26, 0x27)
-        // 让芯片使用它自己的、工作正常的出厂默认设置！
-        // =================================================================
         ESP_LOGI(TAG, "PMIC configuration complete, relying on factory defaults for power on/off.");
     }
     
@@ -94,9 +102,9 @@ public:
 // ======================================================================
 //                      AW9523B (纯IO扩展)
 // ======================================================================
-class Aw9523b : public I2cDevice {
-public:
+class Aw9523b : public I2cDevice {public:
     Aw9523b(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {}
+
     void Init() {
         ESP_LOGI(TAG, "Initializing AW9523B...");
         WriteReg(0x7F, 0x00); vTaskDelay(pdMS_TO_TICKS(10));
@@ -114,6 +122,68 @@ public:
         uint8_t data = ReadReg(reg);
         if (level) { data |= (1 << bit); } else { data &= ~(1 << bit); }
         WriteReg(reg, data);
+    }
+    /* void Init() {
+        ESP_LOGI(TAG, "Initializing AW9523B (Final Pin-Corrected Version)...");
+        // --- 基础初始化 ---
+        WriteReg(0x7F, 0x00); // 切换到寄存器 Bank 0
+        vTaskDelay(pdMS_TO_TICKS(10));
+        WriteReg(0x11, 0x01); // GCR: 设置为推挽输出模式
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        // --- 步骤 1: 解决开机爆闪 ---
+        // 在配置引脚模式之前，就将所有LED亮度寄存器预设为0。
+        WriteReg(0x27, 0); // P0_3 (R) 亮度寄存器
+        WriteReg(0x28, 0); // P0_4 (G) 亮度寄存器
+        WriteReg(0x29, 0); // P0_5 (B) 亮度寄存器
+
+        // --- 步骤 2: 精确配置每个引脚的模式 (0=LED, 1=GPIO) ---
+        // P0 口模式寄存器 (0x12)
+        uint8_t p0_mode_cfg = 0;         // 先假设所有P0口都是LED模式
+        p0_mode_cfg |= (1 << 0);         // P0_0 (PA_EN) 设为 GPIO
+        p0_mode_cfg |= (1 << 2);         // P0_2 (DVP_PWDN) 设为 GPIO
+        p0_mode_cfg |= (1 << 6);         // P0_6 (LCD_CS) 设为 GPIO
+        // P0_3, P0_4, P0_5 保持为0 (LED模式)
+        WriteReg(0x12, p0_mode_cfg);
+
+        // P1 口模式寄存器 (0x13)
+        uint8_t p1_mode_cfg = 0;         // 先假设所有P1口都是LED模式
+        p1_mode_cfg |= (1 << 1);         // P1_1 (PJ_SET) 设为 GPIO
+        WriteReg(0x13, p1_mode_cfg);
+
+        // --- 步骤 3: 为GPIO模式的引脚设置方向 (0=Output, 1=Input) ---
+        // P0 口方向寄存器 (0x04)
+        uint8_t p0_dir_cfg = 0xFF;       // 默认所有P0口为输入
+        p0_dir_cfg &= ~((1 << 0) | (1 << 2) | (1 << 6)); // 将 PA_EN, DVP_PWDN, LCD_CS 设为输出
+        WriteReg(0x04, p0_dir_cfg);
+
+        // P1 口方向寄存器 (0x05)
+        uint8_t p1_dir_cfg = 0xFF;       // 默认所有P1口为输入
+        p1_dir_cfg &= ~((1 << 1));       // 将 PJ_SET 设为输出
+        WriteReg(0x05, p1_dir_cfg);
+
+        // --- 步骤 4: 为GPIO输出引脚设置默认电平 (拉高) ---
+        // P0 口输出电平寄存器 (0x02)
+        uint8_t p0_level_cfg = ReadReg(0x02);
+        p0_level_cfg |= (1 << 0) | (1 << 2) | (1 << 6); // 将 PA_EN, DVP_PWDN, LCD_CS 拉高
+        WriteReg(0x02, p0_level_cfg);
+
+        // P1 口输出电平寄存器 (0x03)
+        uint8_t p1_level_cfg = ReadReg(0x03);
+        p1_level_cfg |= (1 << 1);        // 将 PJ_SET 拉高
+        WriteReg(0x03, p1_level_cfg);
+        
+        ESP_LOGI(TAG, "AW9523B initialization complete. All required GPIOs set to HIGH.");
+    } */
+    // --- 最终的RGB亮度控制函数 ---
+    void SetRgb(uint8_t r, uint8_t g, uint8_t b) {
+        // 根据AW9523B数据手册，各引脚的亮度寄存器地址如下：
+        // P0_3 (R) -> 0x27
+        // P0_4 (G) -> 0x28
+        // P0_5 (B) -> 0x29
+        WriteReg(0x27, r); // 软件 Red -> 硬件 Red (P0_3)
+        WriteReg(0x28, b); // 软件 Blue -> 硬件 Blue (P0_4) 
+        WriteReg(0x29, g); // 软件 Green -> 硬件 Green (P0_5)
     }
 };
 
@@ -198,6 +268,9 @@ private:
     PowerSaveTimer* power_save_timer_ = nullptr;
     Esp32Camera* camera_ = nullptr;
     QueueHandle_t gpio_evt_queue_;
+    bool led_on_;
+
+ 
 
     // 辅助函数: I2C扫描
 /*     void I2cScan() {
@@ -228,13 +301,40 @@ private:
         ESP_LOGI(TAG, "I2C master bus created.");
     }
 
-    void InitializePmic() { pmic_ = new Pmic(i2c_bus_, AXP2101_I2C_ADDR); }
+    void InitializePmic() { 
+        pmic_ = new Pmic(i2c_bus_, 0x34); 
+    }
 
     void InitializeIoExpander() {
-        aw9523b_ = new Aw9523b(i2c_bus_, AW9523B_I2C_ADDR);
+        aw9523b_ = new Aw9523b(i2c_bus_, 0x58);
         aw9523b_->Init();
     }
-    
+    void SetLedColor(uint8_t r, uint8_t g, uint8_t b) {
+        if (aw9523b_) { aw9523b_->SetRgb(r, g, b); }
+    }
+
+    void InitializeTools() {
+        auto& mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.light.get_power", "获取灯是否打开", PropertyList(), [this](const PropertyList& properties) -> ReturnValue { return led_on_; });
+        mcp_server.AddTool("self.light.turn_on", "打开灯", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            SetLedColor(255, 255, 255); led_on_ = true; return true;
+        });
+        mcp_server.AddTool("self.light.turn_off", "关闭灯", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            SetLedColor(0, 0, 0); led_on_ = false; return true;
+        });
+        mcp_server.AddTool("self.light.set_rgb", "设置RGB颜色", PropertyList({
+            Property("r", kPropertyTypeInteger, 0, 255),
+            Property("g", kPropertyTypeInteger, 0, 255),
+            Property("b", kPropertyTypeInteger, 0, 255)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int r = properties["r"].value<int>();
+            int g = properties["g"].value<int>();
+            int b = properties["b"].value<int>();
+            led_on_ = (r > 0 || g > 0 || b > 0);
+            SetLedColor(r, g, b);
+            return true;
+        });
+    }
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -259,10 +359,6 @@ private:
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
         esp_lcd_panel_reset(panel);
-        /* esp_lcd_panel_reset(panel); // 1. 软件复位
-        if (aw9523b_) {
-            aw9523b_->SetGpio(AW9523B_PIN_LCD_CS, false); // 2. 通过IO扩展芯片将CS拉低
-        } */
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
@@ -280,27 +376,55 @@ private:
                                     });
     }
 
-    void InitializeTouch() {
-        esp_lcd_touch_handle_t tp = nullptr;
-        esp_lcd_touch_config_t tp_cfg = { .x_max = DISPLAY_WIDTH, .y_max = DISPLAY_HEIGHT, .rst_gpio_num = GPIO_NUM_NC, .int_gpio_num = GPIO_NUM_NC, .levels = { .reset = 0, .interrupt = 0, }, .flags = { .swap_xy = DISPLAY_SWAP_XY, .mirror_x = DISPLAY_MIRROR_X, .mirror_y = DISPLAY_MIRROR_Y, }, };
+    void InitializeTouch()
+    {
+        esp_lcd_touch_handle_t tp;
+        esp_lcd_touch_config_t tp_cfg = {
+            .x_max = DISPLAY_WIDTH,
+            .y_max = DISPLAY_HEIGHT,
+            .rst_gpio_num = GPIO_NUM_NC, // Shared with LCD reset
+            .int_gpio_num = GPIO_NUM_NC, 
+            .levels = {
+                .reset = 0,
+                .interrupt = 0,
+            },
+            .flags = {
+                .swap_xy = 1,
+                .mirror_x = 1,
+                .mirror_y = 0,
+            },
+        };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
         tp_io_config.scl_speed_hz = 400000;
+
         esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);
-        esp_err_t ret = esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Touch controller initialization failed!");
-            return;
-        }
-        const lvgl_port_touch_cfg_t touch_cfg = { .disp = lv_display_get_default(), .handle = tp, };
+        esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp);
+        assert(tp);
+
+        /* Add touch input (for selected screen) */
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = lv_display_get_default(), 
+            .handle = tp,
+        };
+
         lvgl_port_add_touch(&touch_cfg);
     }
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(240, 60, 300);
-        power_save_timer_->OnEnterSleepMode([this]() { ESP_LOGI(TAG, "Entering sleep mode"); if (GetBacklight()) GetBacklight()->SetBrightness(0); });
-        power_save_timer_->OnExitSleepMode([this]() { ESP_LOGI(TAG, "Exiting sleep mode"); if (GetBacklight()) GetBacklight()->RestoreBrightness(); });
-        power_save_timer_->OnShutdownRequest([this]() { ESP_LOGI(TAG, "Shutdown requested"); if (pmic_) pmic_->PowerOff(); });
+        power_save_timer_->OnEnterSleepMode([this]() { 
+            ESP_LOGI(TAG, "Entering sleep mode"); 
+            if (GetBacklight()) GetBacklight()->SetBrightness(10); 
+        });
+        power_save_timer_->OnExitSleepMode([this]() { 
+            ESP_LOGI(TAG, "Exiting sleep mode"); 
+            if (GetBacklight()) GetBacklight()->RestoreBrightness(); 
+        });
+        power_save_timer_->OnShutdownRequest([this]() { 
+            ESP_LOGI(TAG, "Shutdown requested"); 
+            if (pmic_) pmic_->PowerOff(); 
+        });
         power_save_timer_->SetEnabled(true);
     }
     
@@ -355,52 +479,38 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+        thing_manager.AddThing(iot::CreateThing("lamp"));
     }
 
 public:
     LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ML307_RX_BUFFER_SIZE), boot_button_(BOOT_BUTTON_GPIO) {
-        // 关键修改：在初始化PMIC前，增加一个短暂的延时
-        // 目的是等待 DCDC1 输出的 3.3V 彻底稳定
-        vTaskDelay(pdMS_TO_TICKS(50)); // 等待50毫秒
-
         InitializeI2cBus();
-        
-        // 关键修改：再次增加一个延时，给I2C总线和PMIC自身稳定留出时间
-        vTaskDelay(pdMS_TO_TICKS(50)); // 再等待50毫秒
+        vTaskDelay(pdMS_TO_TICKS(100)); // 增加100毫秒的延时
+        /*  // --- 步骤 2: 延时一小会，等待所有I2C设备上电稳定 ---
+        vTaskDelay(pdMS_TO_TICKS(200));
 
-        // 关键修改：增加I2C设备扫描，用于调试
-        // 看看在电池冷启动时，到底能不能扫描到PMIC
-        ESP_LOGI(TAG, "================ I2C SCAN START ================");
-        esp_err_t ret = i2c_master_probe(i2c_bus_, AXP2101_I2C_ADDR, pdMS_TO_TICKS(100));
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, ">>> PMIC (AXP2101) found at address 0x%02X. Good!", AXP2101_I2C_ADDR);
-        } else {
-            ESP_LOGE(TAG, "!!! FAILED to find PMIC at 0x%02X. This is the ROOT CAUSE. Error: %s", AXP2101_I2C_ADDR, esp_err_to_name(ret));
-            // 如果找不到PMIC，后续操作无意义，可以直接死循环或重启
-            while(1) { vTaskDelay(1000); }
-        }
-        ESP_LOGI(TAG, "================ I2C SCAN END ================");
+        // --- 步骤 3: 执行I2C扫描，并打印结果 ---
+        I2cScan();
 
+        // --- 步骤 4: 继续执行正常的初始化流程 ---
+        // (注意：即使扫描不到设备，程序也会继续，
+        //  这样我们可以看到后续的初始化错误，进行对比)
+        ESP_LOGI(TAG, "Continuing with normal board initialization..."); */
 
-        InitializePmic(); // 只有在I2C扫描成功后，才执行PMIC初始化
-        
-        vTaskDelay(pdMS_TO_TICKS(100));
+        InitializePmic(); 
         InitializeIoExpander();
+        ESP_LOGI(TAG, "Restoring backlight brightness before display init...");
+        GetBacklight()->RestoreBrightness();
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
         InitializePowerSaveTimer();
-        GetBacklight()->RestoreBrightness(); 
+        InitializeTouch();
+        InitializeCamera();
+        InitializeTools();
+        InitializeIot();
+        SetLedColor(0, 0, 0); // 初始状态关闭灯
     }
-
-    virtual ~LichuangDevPlusBoard() {
-        if (display_) { delete display_; }
-        if (pmic_) { delete pmic_; }
-        if (aw9523b_) { delete aw9523b_; }
-        if (power_save_timer_) { delete power_save_timer_; }
-        //if (camera_) { delete camera_; }
-    }
-
     virtual AudioCodec* GetAudioCodec() override {
         static LichuangDevPlusAudioCodec audio_codec(i2c_bus_, aw9523b_);
         return &audio_codec;
