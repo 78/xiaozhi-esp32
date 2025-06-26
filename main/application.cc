@@ -448,6 +448,7 @@ void Application::Start() {
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
 
     /* Wait for the network to be ready */
+    audio_processor_->Initialize(codec);
     board.StartNetwork();
 
     // Update the status bar immediately to show the network state
@@ -602,7 +603,6 @@ void Application::Start() {
     bool protocol_started = protocol_->Start();
 
     audio_debugger_ = std::make_unique<AudioDebugger>();
-    audio_processor_->Initialize(codec);
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
