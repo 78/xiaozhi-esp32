@@ -47,4 +47,23 @@
 #define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_6
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+
+#define CAM_PIN_PWDN    GPIO_NUM_NC
+#define CAM_PIN_RESET   GPIO_NUM_NC
+#define CAM_PIN_VSYNC   GPIO_NUM_17
+#define CAM_PIN_HREF    GPIO_NUM_18
+#define CAM_PIN_PCLK    GPIO_NUM_41
+#define CAM_PIN_XCLK    GPIO_NUM_38
+#define CAM_PIN_SIOD    GPIO_NUM_NC
+#define CAM_PIN_SIOC    GPIO_NUM_NC
+#define CAM_PIN_D0      GPIO_NUM_45
+#define CAM_PIN_D1      GPIO_NUM_47
+#define CAM_PIN_D2      GPIO_NUM_48
+#define CAM_PIN_D3      GPIO_NUM_46
+#define CAM_PIN_D4      GPIO_NUM_42
+#define CAM_PIN_D5      GPIO_NUM_40
+#define CAM_PIN_D6      GPIO_NUM_39
+#define CAM_PIN_D7      GPIO_NUM_21
+
+
 #endif // _BOARD_CONFIG_H_

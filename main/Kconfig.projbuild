@@ -34,6 +34,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
         bool "面包板新版接线（WiFi）+ LCD"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+        bool "面包板新版接线（WiFi）+ LCD + Camera"
+        depends on IDF_TARGET_ESP32S3     
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
         depends on IDF_TARGET_ESP32S3
@@ -135,7 +138,7 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
-        depends on IDF_TARGET_ESP32S3
+        depends on IDF_TARGET_ESP32
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
@@ -151,6 +154,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32C6_LCD_1_69
+        bool "Waveshare ESP32-C6-LCD-1.69"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
@@ -256,6 +262,16 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3-1.28-BOX"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OTTO_ROBOT
+        bool "ottoRobot"
+        depends on IDF_TARGET_ESP32S3
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
+    config BOARD_TYPE_ELECTRON_BOT
+        bool "electronBot"
+        depends on IDF_TARGET_ESP32S3
+        select LV_USE_GIF
+        select LV_GIF_CACHE_DECODE_DATA
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -285,7 +301,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -353,9 +369,9 @@ config USE_WECHAT_MESSAGE_STYLE
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
     default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5
+    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
     help
-        支持 ESP32 C3 与 ESP32 C5
+        支持 ESP32 C3、ESP32 C5 与 ESP32 C6，增加ESP32支持（需要开启PSRAM）
 
 config USE_AFE_WAKE_WORD
     bool "Enable Wake Word Detection (AFE)"
@@ -384,6 +400,19 @@ config USE_SERVER_AEC
     depends on USE_AUDIO_PROCESSOR
     help
         启用服务器端 AEC，需要服务器支持
+
+config USE_AUDIO_DEBUGGER
+    bool "Enable Audio Debugger"
+    default n
+    help
+        启用音频调试功能，通过UDP发送音频数据
+
+config AUDIO_DEBUG_UDP_SERVER
+    string "Audio Debug UDP Server Address"
+    default "192.168.2.100:8000"
+    depends on USE_AUDIO_DEBUGGER
+    help
+        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
 
 choice IOT_PROTOCOL
     prompt "IoT Protocol"

@@ -126,7 +126,7 @@ bool Protocol::IsTimeout() const {
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_incoming_time_);
     bool timeout = duration.count() > kTimeoutSeconds;
     if (timeout) {
-        ESP_LOGE(TAG, "Channel timeout %lld seconds", duration.count());
+        ESP_LOGE(TAG, "Channel timeout %ld seconds", (long)duration.count());
     }
     return timeout;
 }
