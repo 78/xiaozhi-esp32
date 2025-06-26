@@ -33,50 +33,28 @@ class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
         ESP_LOGI(TAG, "--- PMIC Minimal & Correct Configuration ---");
-         // --- 核心修改：配置按键开关机行为 ---
-        // REG 0x25: 配置N_OE引脚功能
-        // bit 7=1: 使能长按关机; bit 2=1: 使能内部上拉; bit 1-0=11: VBUS或按键都能开机
-        uint8_t target_noe_setup = (1 << 7) | (1 << 2) | 0b11; 
-        WriteReg(0x25, target_noe_setup);
-        vTaskDelay(pdMS_TO_TICKS(5)); // 短暂延时确保写入
-        if (ReadReg(0x25) != target_noe_setup) {
-            ESP_LOGE(TAG, "Failed to configure REG 0x25 for power button!");
-        }
-
-        // REG 0x26: 配置开关机时间
-        // 高4位是关机时间: 0010 = 2秒
-        // 低3位是开机时间: 001 = 128ms (点按)
-        uint8_t target_noe_time = (0b0010 << 4) | 0b001; 
-        WriteReg(0x26, target_noe_time);
-        vTaskDelay(pdMS_TO_TICKS(5)); // 短暂延时确保写入
-        if (ReadReg(0x26) != target_noe_time) {
-            ESP_LOGE(TAG, "Failed to configure REG 0x26 for power timing!");
-        }
-        // 配置充电
-        WriteReg(0x33, 0b11000100); // 建议使能充电 (bit 7=1), 如果不需要充电再设为 0b01000100
         
-        // 配置VBUS
-        WriteReg(0x30, 0b01100001); 
-        
-        // 配置TS
-        WriteReg(0x34, 0x00);
-        
-        // 设置电压
-        WriteReg(0x92, 0x1C); // ALDO1 -> 3.3V (给 AU_3V3)
-        WriteReg(0x93, 0x17); // ALDO2 -> 2.8V (给 屏幕背光, 2.8V作为默认值)
-
-        uint8_t ldo_onoff_ctrl0 = ReadReg(0x90); 
-        ldo_onoff_ctrl0 |= (1 << 0) | (1 << 1); // 只使能 ALDO1 和 ALDO2
-        ldo_onoff_ctrl0 &= ~(1 << 4);           // 明确地禁用 BLDO1，以防万一
-        WriteReg(0x90, ldo_onoff_ctrl0);
-
-        ESP_LOGI(TAG, "PMIC configuration complete, relying on factory defaults for power on/off.");
-    }
+         WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
     
-    // PowerOff 函数依然保留，用于软件主动关机
-    void PowerOff() {
-        uint8_t val = ReadReg(0x32);
-        WriteReg(0x32, val | (1 << 7));
+        WriteReg(0x93, 0x1C); // 配置 aldo2 输出为 3.3V
+    
+        uint8_t value = ReadReg(0x90); // XPOWERS_AXP2101_LDO_ONOFF_CTRL0
+        value = value | 0x02; // set bit 1 (ALDO2)
+        WriteReg(0x90, value);  // and power channels now enabled
+    
+        WriteReg(0x64, 0x03); // CV charger voltage setting to 4.2V
+        
+        WriteReg(0x61, 0x05); // set Main battery precharge current to 125mA
+        WriteReg(0x62, 0x0A); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x15); // set Main battery term charge current to 125mA
+    
+        WriteReg(0x14, 0x00); // set minimum system voltage to 4.1V (default 4.7V), for poor USB cables
+        WriteReg(0x15, 0x00); // set input voltage limit to 3.88v, for poor USB cables
+        WriteReg(0x16, 0x05); // set input current limit to 2000mA
+    
+        WriteReg(0x24, 0x01); // set Vsys for PWROFF threshold to 3.2V (default - 2.6V and kill battery)
+        WriteReg(0x50, 0x14); // set TS pin to EXTERNAL input (not temperature)
     }
 
     // 背光控制函数 (使用修正后的版本)
@@ -313,6 +291,24 @@ private:
         if (aw9523b_) { aw9523b_->SetRgb(r, g, b); }
     }
 
+	void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(20); });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness(); });
+        power_save_timer_->OnShutdownRequest([this](){ 
+            pmic_->PowerOff(); });
+        power_save_timer_->SetEnabled(true);
+    }
+
     void InitializeTools() {
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.light.get_power", "获取灯是否打开", PropertyList(), [this](const PropertyList& properties) -> ReturnValue { return led_on_; });
@@ -410,23 +406,6 @@ private:
 
         lvgl_port_add_touch(&touch_cfg);
     }
-
-    void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(240, 60, 300);
-        power_save_timer_->OnEnterSleepMode([this]() { 
-            ESP_LOGI(TAG, "Entering sleep mode"); 
-            if (GetBacklight()) GetBacklight()->SetBrightness(10); 
-        });
-        power_save_timer_->OnExitSleepMode([this]() { 
-            ESP_LOGI(TAG, "Exiting sleep mode"); 
-            if (GetBacklight()) GetBacklight()->RestoreBrightness(); 
-        });
-        power_save_timer_->OnShutdownRequest([this]() { 
-            ESP_LOGI(TAG, "Shutdown requested"); 
-            if (pmic_) pmic_->PowerOff(); 
-        });
-        power_save_timer_->SetEnabled(true);
-    }
     
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -479,7 +458,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("lamp"));
+        //thing_manager.AddThing(iot::CreateThing("lamp"));
     }
 
 public:
@@ -507,9 +486,9 @@ public:
         InitializePowerSaveTimer();
         InitializeTouch();
         InitializeCamera();
-        InitializeTools();
-        InitializeIot();
-        SetLedColor(0, 0, 0); // 初始状态关闭灯
+        //InitializeTools();
+        //InitializeIot();
+        //SetLedColor(0, 0, 0); // 初始状态关闭灯
     }
     virtual AudioCodec* GetAudioCodec() override {
         static LichuangDevPlusAudioCodec audio_codec(i2c_bus_, aw9523b_);
