@@ -34,10 +34,11 @@ public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
         ESP_LOGI(TAG, "--- PMIC Minimal & Correct Configuration ---");
         
-         WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
-        WriteReg(0x27, 0x10);  // hold 4s to power off
-    
-        WriteReg(0x93, 0x1C); // 配置 aldo2 输出为 3.3V
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x21);  // hold 4s to power off
+
+        WriteReg(0x92, 0x1C); // 配置 aldo1 输出为 3.3V
+        WriteReg(0x93, 0x17); // 配置 aldo2 输出为 2.8V
     
         uint8_t value = ReadReg(0x90); // XPOWERS_AXP2101_LDO_ONOFF_CTRL0
         value = value | 0x02; // set bit 1 (ALDO2)
@@ -385,9 +386,9 @@ private:
                 .interrupt = 0,
             },
             .flags = {
-                .swap_xy = 1,
-                .mirror_x = 1,
-                .mirror_y = 0,
+                .swap_xy = DISPLAY_SWAP_XY,
+                .mirror_x = DISPLAY_MIRROR_X,
+                .mirror_y = DISPLAY_MIRROR_Y,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
@@ -437,19 +438,51 @@ private:
     void InitializeCamera() {
         if (aw9523b_) { aw9523b_->SetGpio(AW9523B_PIN_DVP_PWDN, false); }
         camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2; config.ledc_timer = LEDC_TIMER_2;
-        config.pin_d0 = CAMERA_PIN_D0; config.pin_d1 = CAMERA_PIN_D1; config.pin_d2 = CAMERA_PIN_D2; config.pin_d3 = CAMERA_PIN_D3;
-        config.pin_d4 = CAMERA_PIN_D4; config.pin_d5 = CAMERA_PIN_D5; config.pin_d6 = CAMERA_PIN_D6; config.pin_d7 = CAMERA_PIN_D7;
-        config.pin_xclk = CAMERA_PIN_XCLK; config.pin_pclk = CAMERA_PIN_PCLK;
-        config.pin_vsync = CAMERA_PIN_VSYNC; config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = -1; config.pin_sccb_scl = 1;
+        config.ledc_channel = LEDC_CHANNEL_2; 
+        config.ledc_timer = LEDC_TIMER_2;
+        config.pin_d0 = CAMERA_PIN_D0; 
+        config.pin_d1 = CAMERA_PIN_D1; 
+        config.pin_d2 = CAMERA_PIN_D2; 
+        config.pin_d3 = CAMERA_PIN_D3;
+        config.pin_d4 = CAMERA_PIN_D4; 
+        config.pin_d5 = CAMERA_PIN_D5; 
+        config.pin_d6 = CAMERA_PIN_D6; 
+        config.pin_d7 = CAMERA_PIN_D7;
+        config.pin_xclk = CAMERA_PIN_XCLK; 
+        config.pin_pclk = CAMERA_PIN_PCLK;
+        config.pin_vsync = CAMERA_PIN_VSYNC; 
+        config.pin_href = CAMERA_PIN_HREF;
+        config.pin_sccb_sda = -1; 
+        config.pin_sccb_scl = 1;
         config.sccb_i2c_port = I2C_MASTER_PORT;
-        config.pin_pwdn = CAMERA_PIN_PWDN; config.pin_reset = CAMERA_PIN_RESET;
-        config.xclk_freq_hz = XCLK_FREQ_HZ; config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_VGA; config.jpeg_quality = 12; config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM; config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        config.pin_pwdn = CAMERA_PIN_PWDN; 
+        config.pin_reset = CAMERA_PIN_RESET;
+        config.xclk_freq_hz = XCLK_FREQ_HZ; 
+        config.frame_size = FRAMESIZE_VGA; 
+        config.jpeg_quality = 12; 
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM; 
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
         camera_ = new Esp32Camera(config);
-        if (!camera_) { ESP_LOGE(TAG, "Camera initialization failed!"); }
+        if (!camera_) { 
+            ESP_LOGE(TAG, "Camera initialization failed!"); 
+            return; // 如果初始化失败，直接返回
+        }
+        
+        // 获取底层的 sensor_t 对象
+        sensor_t *s = esp_camera_sensor_get();
+        if (s) {
+            // 设置垂直翻转 (vflip)
+            // 参数1: 使能垂直翻转 (1=开启, 0=关闭)
+            s->set_vflip(s, 1); 
+            ESP_LOGI(TAG, "Camera vertical flip enabled.");
+
+            // 可以同时开启水平翻转
+            // s->set_hmirror(s, 1);
+            // ESP_LOGI(TAG, "Camera horizontal mirror enabled.");
+        } else {
+            ESP_LOGE(TAG, "Failed to get camera sensor handle!");
+        }
     }
     
     // 物联网初始化，添加对 AI 可见设备

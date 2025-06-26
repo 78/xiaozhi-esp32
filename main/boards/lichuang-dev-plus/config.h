@@ -81,7 +81,6 @@
 #define AW9523B_INTERRUPT_PIN    GPIO_NUM_NC // <<< 禁用中断
 
 // -- AW9523B 引脚功能分配 --
-// P0 端口 (引脚号 0-7)
 #define AW9523B_PIN_PA_EN        0  // P0_0
 #define AW9523B_PIN_DVP_PWDN     2  // P0_2
 #define AW9523B_PIN_RGB_R        3  // P0_3 (Red)
