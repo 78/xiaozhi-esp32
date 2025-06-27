@@ -6,207 +6,215 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-namespace afsk
-{
-    static const char *TAG = "AFSK_DEMOD";
 
-    void loop_provisioning(Application *app,
-                           WifiConfigurationAp *wifi_ap)
+namespace audio_wifi_config
+{
+    static const char *kLogTag = "AUDIO_WIFI_CONFIG";
+
+    void ReceiveWifiCredentialsFromAudio(Application *app,
+                                       WifiConfigurationAp *wifi_ap)
     {
-        const int input_fs = 16000;                                // 输入采样率
-        const float step = (float)(input_fs) / (float)SAMPLE_RATE; // 下采样步长
-        std::vector<int16_t> data;
-        PairGoertzel pair_goertzel(SAMPLE_RATE, MARK_FREQ, SPACE_FREQ, BITRATE, WINSIZE);
-        CascadeBuffer cascade_buffer;
+        const int kInputSampleRate = 16000;                                    // Input sampling rate
+        const float kDownsampleStep = static_cast<float>(kInputSampleRate) / static_cast<float>(kAudioSampleRate); // Downsampling step
+        std::vector<int16_t> audio_data;
+        AudioSignalProcessor signal_processor(kAudioSampleRate, kMarkFrequency, kSpaceFrequency, kBitRate, kWindowSize);
+        AudioDataBuffer data_buffer;
 
         while (true)
         {
-            app->ReadAudio(data, 16000, 480); // 16kHz, 480 samples 对应 30ms 数据
-            // 抽样下采样
+            app->ReadAudio(audio_data, 16000, 480); // 16kHz, 480 samples corresponds to 30ms data
+            
+            // Downsample the audio data
             std::vector<float> downsampled_data;
-            size_t last_idx = 0;
+            size_t last_index = 0;
 
-            if (step > 1.0f)
+            if (kDownsampleStep > 1.0f)
             {
-                downsampled_data.reserve(data.size() / static_cast<size_t>(step));
-                for (size_t i = 0; i < data.size(); ++i)
+                downsampled_data.reserve(audio_data.size() / static_cast<size_t>(kDownsampleStep));
+                for (size_t i = 0; i < audio_data.size(); ++i)
                 {
-                    size_t sample_idx = static_cast<size_t>(i / step);
-                    if ((sample_idx + 1) > last_idx)
+                    size_t sample_index = static_cast<size_t>(i / kDownsampleStep);
+                    if ((sample_index + 1) > last_index)
                     {
-                        downsampled_data.push_back(static_cast<float>(data[i]));
-                        last_idx = sample_idx + 1;
+                        downsampled_data.push_back(static_cast<float>(audio_data[i]));
+                        last_index = sample_index + 1;
                     }
                 }
             }
             else
             {
-                downsampled_data.reserve(data.size());
-                for (int16_t sample : data)
+                downsampled_data.reserve(audio_data.size());
+                for (int16_t sample : audio_data)
                 {
                     downsampled_data.push_back(static_cast<float>(sample));
                 }
             }
-            // 得到pair_goertzel的概率
-            auto probas = pair_goertzel.process(downsampled_data);
-            // 将概率数据传入级联缓冲区
-            if (cascade_buffer.extend_proba(probas, 0.5f))
+            
+            // Process audio samples to get probability data
+            auto probabilities = signal_processor.ProcessAudioSamples(downsampled_data);
+            
+            // Feed probability data to the data buffer
+            if (data_buffer.ProcessProbabilityData(probabilities, 0.5f))
             {
-                // 如果接收到完整数据，打印ASCII字符串
-                if (cascade_buffer.ascii.has_value())
+                // If complete data was received, extract WiFi credentials
+                if (data_buffer.decoded_text.has_value())
                 {
-                    ESP_LOGI(TAG, "Received ASCII: %s", cascade_buffer.ascii->c_str());
-                    // 根据\n 分割SSID和密码
-                    std::string ssid, password;
-                    size_t pos = cascade_buffer.ascii->find('\n');
-                    if (pos != std::string::npos)
+                    ESP_LOGI(kLogTag, "Received text data: %s", data_buffer.decoded_text->c_str());
+                    
+                    // Split SSID and password by newline character
+                    std::string wifi_ssid, wifi_password;
+                    size_t newline_position = data_buffer.decoded_text->find('\n');
+                    if (newline_position != std::string::npos)
                     {
-                        ssid = cascade_buffer.ascii->substr(0, pos);
-                        password = cascade_buffer.ascii->substr(pos + 1);
-                        ESP_LOGI(TAG, "SSID: %s, Password: %s", ssid.c_str(), password.c_str());
+                        wifi_ssid = data_buffer.decoded_text->substr(0, newline_position);
+                        wifi_password = data_buffer.decoded_text->substr(newline_position + 1);
+                        ESP_LOGI(kLogTag, "WiFi SSID: %s, Password: %s", wifi_ssid.c_str(), wifi_password.c_str());
                     }
                     else
                     {
-                        ESP_LOGE(TAG, "Invalid format, no \\n found in received data");
+                        ESP_LOGE(kLogTag, "Invalid data format, no newline character found");
                         continue;
                     }
-                    if (wifi_ap->ConnectToWifi(ssid, password))
-                    {                                  // 尝试连接到WiFi
-                        wifi_ap->Save(ssid, password); // 保存SSID和密码
-                        esp_restart();                 // 重启设备以应用新的WiFi配置
+                    
+                    if (wifi_ap->ConnectToWifi(wifi_ssid, wifi_password))
+                    {
+                        wifi_ap->Save(wifi_ssid, wifi_password);  // Save WiFi credentials
+                        esp_restart();                            // Restart device to apply new WiFi configuration
                     }
                     else
                     {
-                        ESP_LOGE(TAG, "Failed to connect to WiFi with received credentials");
+                        ESP_LOGE(kLogTag, "Failed to connect to WiFi with received credentials");
                     }
-                    cascade_buffer.ascii.reset(); // 清空已处理的ASCII数据
+                    data_buffer.decoded_text.reset();  // Clear processed data
                 }
             }
-            vTaskDelay(pdMS_TO_TICKS(1)); // 1ms
+            vTaskDelay(pdMS_TO_TICKS(1));  // 1ms delay
         }
     }
 
-    // 默认的开始和结束标识符
+    // Default start and end transmission identifiers
     // \x01\x02 = 00000001 00000010
-    const std::vector<uint8_t> DEFAULT_START_VECTOR = {
+    const std::vector<uint8_t> kDefaultStartTransmissionPattern = {
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0};
 
     // \x03\x04 = 00000011 00000100
-    const std::vector<uint8_t> DEFAULT_END_VECTOR = {
+    const std::vector<uint8_t> kDefaultEndTransmissionPattern = {
         0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0};
 
-    // TraceGoertzel 实现
-    TraceGoertzel::TraceGoertzel(float freq, size_t n)
-        : freq_(freq), n_(n)
+    // FrequencyDetector implementation
+    FrequencyDetector::FrequencyDetector(float frequency, size_t window_size)
+        : frequency_(frequency), window_size_(window_size)
     {
-        k_ = std::floor(freq_ * static_cast<float>(n_));
-        w_ = 2.0f * M_PI * freq_;
-        cw_ = std::cos(w_);
-        sw_ = std::sin(w_);
-        c_ = 2.0f * cw_;
+        frequency_bin_ = std::floor(frequency_ * static_cast<float>(window_size_));
+        angular_frequency_ = 2.0f * M_PI * frequency_;
+        cos_coefficient_ = std::cos(angular_frequency_);
+        sin_coefficient_ = std::sin(angular_frequency_);
+        filter_coefficient_ = 2.0f * cos_coefficient_;
 
-        // 初始化环形缓冲区
-        zs_.push_back(0.0f);
-        zs_.push_back(0.0f);
+        // Initialize state buffer
+        state_buffer_.push_back(0.0f);
+        state_buffer_.push_back(0.0f);
     }
 
-    void TraceGoertzel::reset()
+    void FrequencyDetector::Reset()
     {
-        zs_.clear();
-        zs_.push_back(0.0f);
-        zs_.push_back(0.0f);
+        state_buffer_.clear();
+        state_buffer_.push_back(0.0f);
+        state_buffer_.push_back(0.0f);
     }
 
-    void TraceGoertzel::update(float x)
+    void FrequencyDetector::ProcessSample(float sample)
     {
-        if (zs_.size() < 2)
+        if (state_buffer_.size() < 2)
         {
             return;
         }
 
-        float z2 = zs_.front(); // S[-2]
-        zs_.pop_front();
-        float z1 = zs_.front(); // S[-1]
-        zs_.pop_front();
+        float s_minus_2 = state_buffer_.front();  // S[-2]
+        state_buffer_.pop_front();
+        float s_minus_1 = state_buffer_.front();  // S[-1]
+        state_buffer_.pop_front();
 
-        float z0 = x + c_ * z1 - z2;
+        float s_current = sample + filter_coefficient_ * s_minus_1 - s_minus_2;
 
-        zs_.push_back(z1); // 将S[-1]放回
-        zs_.push_back(z0); // 添加新的S[0]
+        state_buffer_.push_back(s_minus_1);  // Put S[-1] back
+        state_buffer_.push_back(s_current);  // Add new S[0]
     }
 
-    float TraceGoertzel::amplitude() const
+    float FrequencyDetector::GetAmplitude() const
     {
-        if (zs_.size() < 2)
+        if (state_buffer_.size() < 2)
         {
             return 0.0f;
         }
 
-        float z1 = zs_[1];        // S[-1]
-        float z2 = zs_[0];        // S[-2]
-        float ip = cw_ * z1 - z2; // 实部
-        float qp = sw_ * z1;      // 虚部
+        float s_minus_1 = state_buffer_[1];                      // S[-1]
+        float s_minus_2 = state_buffer_[0];                      // S[-2]
+        float real_part = cos_coefficient_ * s_minus_1 - s_minus_2;  // Real part
+        float imaginary_part = sin_coefficient_ * s_minus_1;         // Imaginary part
 
-        return std::sqrt(ip * ip + qp * qp) / (static_cast<float>(n_) / 2.0f);
+        return std::sqrt(real_part * real_part + imaginary_part * imaginary_part) / 
+               (static_cast<float>(window_size_) / 2.0f);
     }
 
-    // PairGoertzel 实现
-    PairGoertzel::PairGoertzel(size_t f_sample, size_t mark_freq, size_t space_freq,
-                               size_t bitrate, size_t winsize)
-        : in_size_(winsize), out_count_(0)
+    // AudioSignalProcessor implementation
+    AudioSignalProcessor::AudioSignalProcessor(size_t sample_rate, size_t mark_frequency, size_t space_frequency,
+                                             size_t bit_rate, size_t window_size)
+        : input_buffer_size_(window_size), output_sample_count_(0)
     {
-
-        if (f_sample % bitrate != 0)
+        if (sample_rate % bit_rate != 0)
         {
-            // 在ESP32中我们可以继续执行，但记录错误
+            // On ESP32 we can continue execution, but log the error
+            ESP_LOGW(kLogTag, "Sample rate %zu is not divisible by bit rate %zu", sample_rate, bit_rate);
         }
 
-        float f1 = static_cast<float>(mark_freq) / static_cast<float>(f_sample);  // f1 归一化频率
-        float f0 = static_cast<float>(space_freq) / static_cast<float>(f_sample); // f0 归一化频率
+        float normalized_mark_freq = static_cast<float>(mark_frequency) / static_cast<float>(sample_rate);
+        float normalized_space_freq = static_cast<float>(space_frequency) / static_cast<float>(sample_rate);
 
-        mark_ = std::make_unique<TraceGoertzel>(f1, winsize);
-        space_ = std::make_unique<TraceGoertzel>(f0, winsize);
+        mark_detector_ = std::make_unique<FrequencyDetector>(normalized_mark_freq, window_size);
+        space_detector_ = std::make_unique<FrequencyDetector>(normalized_space_freq, window_size);
 
-        out_size_ = f_sample / bitrate; // 每个比特对应的采样点数
+        samples_per_bit_ = sample_rate / bit_rate;  // Number of samples per bit
     }
 
-    std::vector<float> PairGoertzel::process(const std::vector<float> &samples)
+    std::vector<float> AudioSignalProcessor::ProcessAudioSamples(const std::vector<float> &samples)
     {
         std::vector<float> result;
 
-        for (float x : samples)
+        for (float sample : samples)
         {
-            if (in_buffer_.size() < in_size_)
+            if (input_buffer_.size() < input_buffer_size_)
             {
-                in_buffer_.push_back(x); // 仅放入，不计算
+                input_buffer_.push_back(sample);  // Just add, don't process yet
             }
             else
             {
-                // 输入缓冲区满了，进行处理
-                in_buffer_.pop_front();  // 弹出最早的采样点
-                in_buffer_.push_back(x); // 添加新的采样点
-                out_count_++;
+                // Input buffer is full, process the data
+                input_buffer_.pop_front();   // Remove oldest sample
+                input_buffer_.push_back(sample);  // Add new sample
+                output_sample_count_++;
 
-                if (out_count_ >= out_size_)
+                if (output_sample_count_ >= samples_per_bit_)
                 {
-                    // 对窗口内的采样点进行Goertzel算法处理
-                    for (float sample : in_buffer_)
+                    // Process all samples in the window using Goertzel algorithm
+                    for (float window_sample : input_buffer_)
                     {
-                        mark_->update(sample);
-                        space_->update(sample);
+                        mark_detector_->ProcessSample(window_sample);
+                        space_detector_->ProcessSample(window_sample);
                     }
 
-                    float amp1 = mark_->amplitude();  // Mark的振幅
-                    float amp0 = space_->amplitude(); // Space的振幅
+                    float mark_amplitude = mark_detector_->GetAmplitude();   // Mark amplitude
+                    float space_amplitude = space_detector_->GetAmplitude(); // Space amplitude
 
-                    // 避免除以0
-                    float prob_mark = amp1 / (amp0 + amp1 + std::numeric_limits<float>::epsilon());
-                    result.push_back(prob_mark);
+                    // Avoid division by zero
+                    float mark_probability = mark_amplitude / 
+                                           (space_amplitude + mark_amplitude + std::numeric_limits<float>::epsilon());
+                    result.push_back(mark_probability);
 
-                    // 重置Goertzel窗口
-                    mark_->reset();
-                    space_->reset();
-                    out_count_ = 0; // 重置输出计数
+                    // Reset detector windows
+                    mark_detector_->Reset();
+                    space_detector_->Reset();
+                    output_sample_count_ = 0;  // Reset output counter
                 }
             }
         }
@@ -214,152 +222,151 @@ namespace afsk
         return result;
     }
 
-    // CascadeBuffer 实现
-    CascadeBuffer::CascadeBuffer()
-        : state_(ReceiveState::Inactive),
-          sot_(DEFAULT_START_VECTOR),
-          eot_(DEFAULT_END_VECTOR),
-          need_checksum_(true)
+    // AudioDataBuffer implementation
+    AudioDataBuffer::AudioDataBuffer()
+        : current_state_(DataReceptionState::kInactive),
+          start_of_transmission_(kDefaultStartTransmissionPattern),
+          end_of_transmission_(kDefaultEndTransmissionPattern),
+          enable_checksum_validation_(true)
     {
+        identifier_buffer_size_ = std::max(start_of_transmission_.size(), end_of_transmission_.size());
+        max_bit_buffer_size_ = 776;  // Preset bit buffer size, 776 bits = (32 + 1 + 63 + 1) * 8 = 776
 
-        ident_size_ = std::max(sot_.size(), eot_.size());
-        bit_size_ = 776; // 预设的位缓冲区大小，776位 (32 + 1 + 63 + 1) * 8 = 776
-
-        bits_.reserve(bit_size_);
+        bit_buffer_.reserve(max_bit_buffer_size_);
     }
 
-    CascadeBuffer::CascadeBuffer(size_t bytesize, const std::vector<uint8_t> &sot,
-                                 const std::vector<uint8_t> &eot, bool need_checksum)
-        : state_(ReceiveState::Inactive),
-          sot_(sot),
-          eot_(eot),
-          need_checksum_(need_checksum)
+    AudioDataBuffer::AudioDataBuffer(size_t max_byte_size, const std::vector<uint8_t> &start_identifier,
+                                   const std::vector<uint8_t> &end_identifier, bool enable_checksum)
+        : current_state_(DataReceptionState::kInactive),
+          start_of_transmission_(start_identifier),
+          end_of_transmission_(end_identifier),
+          enable_checksum_validation_(enable_checksum)
     {
+        identifier_buffer_size_ = std::max(start_of_transmission_.size(), end_of_transmission_.size());
+        max_bit_buffer_size_ = max_byte_size * 8;  // Bit buffer size in bytes
 
-        ident_size_ = std::max(sot_.size(), eot_.size());
-        bit_size_ = bytesize * 8; // 位缓冲区大小，以字节为单位
-
-        bits_.reserve(bit_size_);
+        bit_buffer_.reserve(max_bit_buffer_size_);
     }
 
-    uint8_t CascadeBuffer::check_sum(const std::string &ascii)
+    uint8_t AudioDataBuffer::CalculateChecksum(const std::string &text)
     {
-        uint8_t sum = 0;
-        for (char c : ascii)
+        uint8_t checksum = 0;
+        for (char character : text)
         {
-            sum += static_cast<uint8_t>(c);
+            checksum += static_cast<uint8_t>(character);
         }
-        return sum;
+        return checksum;
     }
 
-    void CascadeBuffer::clear()
+    void AudioDataBuffer::ClearBuffers()
     {
-        idents_.clear();
-        bits_.clear();
+        identifier_buffer_.clear();
+        bit_buffer_.clear();
     }
 
-    bool CascadeBuffer::extend_proba(const std::vector<float> &probs, float threshold)
+    bool AudioDataBuffer::ProcessProbabilityData(const std::vector<float> &probabilities, float threshold)
     {
-        for (float proba : probs)
+        for (float probability : probabilities)
         {
-            uint8_t bit = (proba > threshold) ? 1 : 0;
+            uint8_t bit = (probability > threshold) ? 1 : 0;
 
-            if (idents_.size() >= ident_size_)
+            if (identifier_buffer_.size() >= identifier_buffer_size_)
             {
-                idents_.pop_front(); // 保持缓冲区大小
+                identifier_buffer_.pop_front();  // Maintain buffer size
             }
-            idents_.push_back(bit);
+            identifier_buffer_.push_back(bit);
 
-            // 根据状态机处理接收到的比特
-            switch (state_)
+            // Process received bit based on state machine
+            switch (current_state_)
             {
-            case ReceiveState::Inactive:
-                if (idents_.size() >= sot_.size())
+            case DataReceptionState::kInactive:
+                if (identifier_buffer_.size() >= start_of_transmission_.size())
                 {
-                    state_ = ReceiveState::Waiting; // 进入等待接收状态
-                    ESP_LOGI(TAG, "Entering Waiting state");
+                    current_state_ = DataReceptionState::kWaiting;  // Enter waiting state
+                    ESP_LOGI(kLogTag, "Entering Waiting state");
                 }
                 break;
 
-            case ReceiveState::Waiting:
-                // 等待状态，可能是等待接收结束
-                if (idents_.size() >= sot_.size())
+            case DataReceptionState::kWaiting:
+                // Waiting state, possibly waiting for transmission end
+                if (identifier_buffer_.size() >= start_of_transmission_.size())
                 {
-                    std::vector<uint8_t> ident_snapshot(idents_.begin(), idents_.end());
-                    if (ident_snapshot == sot_)
+                    std::vector<uint8_t> identifier_snapshot(identifier_buffer_.begin(), identifier_buffer_.end());
+                    if (identifier_snapshot == start_of_transmission_)
                     {
-                        clear();                          // 清空缓冲区
-                        state_ = ReceiveState::Receiving; // 进入接收状态
-                        ESP_LOGI(TAG, "Entering Receiving state");
+                        ClearBuffers();                                // Clear buffers
+                        current_state_ = DataReceptionState::kReceiving;  // Enter receiving state
+                        ESP_LOGI(kLogTag, "Entering Receiving state");
                     }
                 }
                 break;
 
-            case ReceiveState::Receiving:
-                bits_.push_back(bit);
-                if (idents_.size() >= eot_.size())
+            case DataReceptionState::kReceiving:
+                bit_buffer_.push_back(bit);
+                if (identifier_buffer_.size() >= end_of_transmission_.size())
                 {
-                    std::vector<uint8_t> ident_snapshot(idents_.begin(), idents_.end());
-                    if (ident_snapshot == eot_)
+                    std::vector<uint8_t> identifier_snapshot(identifier_buffer_.begin(), identifier_buffer_.end());
+                    if (identifier_snapshot == end_of_transmission_)
                     {
-                        state_ = ReceiveState::Inactive; // 进入空闲状态
+                        current_state_ = DataReceptionState::kInactive;  // Enter inactive state
 
-                        // 将位转换为字节
-                        std::vector<uint8_t> bytes = bits_to_bytes(bits_);
+                        // Convert bits to bytes
+                        std::vector<uint8_t> bytes = ConvertBitsToBytes(bit_buffer_);
 
-                        uint8_t checksum = 0;
-                        size_t least_len = 0;
+                        uint8_t received_checksum = 0;
+                        size_t minimum_length = 0;
 
-                        if (need_checksum_)
+                        if (enable_checksum_validation_)
                         {
-                            // 如果需要校验和，最后一个字节是校验和
-                            least_len = 1 + sot_.size() / 8;
-                            if (bytes.size() >= least_len)
+                            // If checksum is required, last byte is checksum
+                            minimum_length = 1 + start_of_transmission_.size() / 8;
+                            if (bytes.size() >= minimum_length)
                             {
-                                checksum = bytes[bytes.size() - sot_.size() / 8 - 1];
+                                received_checksum = bytes[bytes.size() - start_of_transmission_.size() / 8 - 1];
                             }
                         }
                         else
                         {
-                            least_len = sot_.size() / 8;
+                            minimum_length = start_of_transmission_.size() / 8;
                         }
 
-                        if (bytes.size() < least_len)
+                        if (bytes.size() < minimum_length)
                         {
-                            clear();
-                            ESP_LOGW(TAG, "Data too short, clearing buffer");
-                            return false; // 数据太短，返回失败状态
+                            ClearBuffers();
+                            ESP_LOGW(kLogTag, "Data too short, clearing buffer");
+                            return false;  // Data too short, return failure
                         }
 
-                        // 提取ASCII字符串（去掉最后的标识符部分）
-                        std::vector<uint8_t> ascii_bytes(
-                            bytes.begin(), bytes.begin() + bytes.size() - least_len);
+                        // Extract text data (remove trailing identifier part)
+                        std::vector<uint8_t> text_bytes(
+                            bytes.begin(), bytes.begin() + bytes.size() - minimum_length);
 
-                        std::string result(ascii_bytes.begin(), ascii_bytes.end());
+                        std::string result(text_bytes.begin(), text_bytes.end());
 
-                        // 如果需要校验和验证
-                        if (need_checksum_)
+                        // Validate checksum if required
+                        if (enable_checksum_validation_)
                         {
-                            uint8_t calculated_checksum = check_sum(result);
-                            if (calculated_checksum != checksum)
+                            uint8_t calculated_checksum = CalculateChecksum(result);
+                            if (calculated_checksum != received_checksum)
                             {
-                                // 校验和不匹配
-                                ESP_LOGW(TAG, "Checksum mismatch: expected %d, got %d", checksum, calculated_checksum);
-                                clear();
+                                // Checksum mismatch
+                                ESP_LOGW(kLogTag, "Checksum mismatch: expected %d, got %d", 
+                                        received_checksum, calculated_checksum);
+                                ClearBuffers();
                                 return false;
                             }
                         }
 
-                        clear();
-                        ascii = result;
-                        return true; // 返回成功状态
+                        ClearBuffers();
+                        decoded_text = result;
+                        return true;  // Return success
                     }
-                    else if (bits_.size() >= bit_size_)
+                    else if (bit_buffer_.size() >= max_bit_buffer_size_)
                     {
-                        // 如非结束标识符且位缓冲区已满，则重置
-                        clear();
-                        ESP_LOGW(TAG, "Buffer overflow, clearing buffer");
-                        state_ = ReceiveState::Inactive; // 重置状态机
+                        // If not end identifier and bit buffer is full, reset
+                        ClearBuffers();
+                        ESP_LOGW(kLogTag, "Buffer overflow, clearing buffer");
+                        current_state_ = DataReceptionState::kInactive;  // Reset state machine
                     }
                 }
                 break;
@@ -369,22 +376,22 @@ namespace afsk
         return false;
     }
 
-    std::vector<uint8_t> CascadeBuffer::bits_to_bytes(const std::vector<uint8_t> &bits) const
+    std::vector<uint8_t> AudioDataBuffer::ConvertBitsToBytes(const std::vector<uint8_t> &bits) const
     {
         std::vector<uint8_t> bytes;
 
-        // 确保位数是8的倍数
-        size_t num_complete_bytes = bits.size() / 8;
-        bytes.reserve(num_complete_bytes);
+        // Ensure number of bits is a multiple of 8
+        size_t complete_bytes_count = bits.size() / 8;
+        bytes.reserve(complete_bytes_count);
 
-        for (size_t i = 0; i < num_complete_bytes; ++i)
+        for (size_t i = 0; i < complete_bytes_count; ++i)
         {
-            uint8_t byte = 0;
+            uint8_t byte_value = 0;
             for (size_t j = 0; j < 8; ++j)
             {
-                byte |= bits[i * 8 + j] << (7 - j);
+                byte_value |= bits[i * 8 + j] << (7 - j);
             }
-            bytes.push_back(byte);
+            bytes.push_back(byte_value);
         }
 
         return bytes;
