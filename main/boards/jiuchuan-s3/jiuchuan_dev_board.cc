@@ -131,11 +131,6 @@ private:
 
     }
 
-    void InitializeSpi() {
-
-    }
-    
-
     void InitializeButtons() {
         auto& powerCtrl = PowerController::Instance();
         powerCtrl.SetState(PowerController::PowerState::ACTIVE);  // 确保初始状态为ACTIVE
@@ -298,8 +293,6 @@ public:
         InitializeI2c();
         InitializePowerManager();
         InitializePowerSaveTimer();
-        InitializeSpi();
-
         InitializeButtons();
         InitializeGC9301isplay();
         InitializeIot();
@@ -307,10 +300,10 @@ public:
 
     }
 
-    // virtual Led* GetLed() override {
-    //     static SingleLed led(BUILTIN_LED_GPIO);
-    //     return &led;
-    // }
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
+    }
 
     virtual AudioCodec* GetAudioCodec() override {
 

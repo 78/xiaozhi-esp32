@@ -57,12 +57,12 @@ private:
         }
     }
 
-void ReadBatteryAdcData() {
-    static float battery_capacity_temp = 0;
-    adc_battery_estimation_get_capacity(adc_battery_estimation_handle, &battery_capacity_temp);
-    ESP_LOGI("PowerManager", "Battery level: %.1f%%", battery_capacity_temp);
-    battery_level_ = battery_capacity_temp;
-}
+    void ReadBatteryAdcData() {
+        float battery_capacity_temp = 0;
+        adc_battery_estimation_get_capacity(adc_battery_estimation_handle, &battery_capacity_temp);
+        ESP_LOGI("PowerManager", "Battery level: %.1f%%", battery_capacity_temp);
+        battery_level_ = battery_capacity_temp;
+    }
 
 public:
     PowerManager(gpio_num_t pin) : charging_pin_(pin) {
