@@ -80,6 +80,7 @@ public:
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode);
+    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     AecMode GetAecMode() const { return aec_mode_; }
     BackgroundTask* GetBackgroundTask() const { return background_task_; }
 
@@ -129,7 +130,6 @@ private:
     void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
-    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckNewVersion(Ota& ota);
