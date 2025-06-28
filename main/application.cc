@@ -410,15 +410,18 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
     opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
+    opus_encoder_->SetComplexity(0);
     if (aec_mode_ != kAecOff) {
         ESP_LOGI(TAG, "AEC mode: %d, setting opus encoder complexity to 0", aec_mode_);
         opus_encoder_->SetComplexity(0);
-    } else if (board.GetBoardType() == "ml307") {
-        ESP_LOGI(TAG, "ML307 board detected, setting opus encoder complexity to 5");
-        opus_encoder_->SetComplexity(5);
     } else {
-        ESP_LOGI(TAG, "WiFi board detected, setting opus encoder complexity to 0");
+#if CONFIG_USE_AUDIO_PROCESSOR
+        ESP_LOGI(TAG, "Audio processor detected, setting opus encoder complexity to 5");
+        opus_encoder_->SetComplexity(5);
+#else
+        ESP_LOGI(TAG, "Audio processor not detected, setting opus encoder complexity to 0");
         opus_encoder_->SetComplexity(0);
+#endif
     }
 
     if (codec->input_sample_rate() != 16000) {
@@ -826,7 +829,7 @@ void Application::OnAudioOutput() {
     SetDecodeSampleRate(packet.sample_rate, packet.frame_duration);
 
     busy_decoding_audio_ = true;
-    background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
+    if (!background_task_->Schedule([this, codec, packet = std::move(packet)]() mutable {
         busy_decoding_audio_ = false;
         if (aborted_) {
             return;
@@ -849,7 +852,9 @@ void Application::OnAudioOutput() {
         timestamp_queue_.push_back(packet.timestamp);
 #endif
         last_output_time_ = std::chrono::steady_clock::now();
-    });
+    })) {
+        busy_decoding_audio_ = false;
+    }
 }
 
 void Application::OnAudioInput() {

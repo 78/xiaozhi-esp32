@@ -46,13 +46,17 @@ void Ml307Board::WaitForNetworkReady() {
     auto& application = Application::GetInstance();
     auto display = Board::GetInstance().GetDisplay();
     display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
-    int result = modem_.WaitForNetworkReady();
-    if (result == -1) {
-        application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::P3_ERR_PIN);
-        return;
-    } else if (result == -2) {
-        application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::P3_ERR_REG);
-        return;
+
+    while (true) {
+        int result = modem_.WaitForNetworkReady(); 
+        if (result == -1) {
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::P3_ERR_PIN);
+        } else if (result == -2) {
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::P3_ERR_REG);
+        } else {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10000));
     }
 
     // Print the ML307 modem information
