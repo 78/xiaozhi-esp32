@@ -212,24 +212,6 @@ std::string Esp32Camera::Explain(const std::string& question) {
     auto http = Board::GetInstance().CreateHttp();
     // 构造multipart/form-data请求体
     std::string boundary = "----ESP32_CAMERA_BOUNDARY";
-    
-    // 构造question字段
-    std::string question_field;
-    question_field += "--" + boundary + "\r\n";
-    question_field += "Content-Disposition: form-data; name=\"question\"\r\n";
-    question_field += "\r\n";
-    question_field += question + "\r\n";
-    
-    // 构造文件字段头部
-    std::string file_header;
-    file_header += "--" + boundary + "\r\n";
-    file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
-    file_header += "Content-Type: image/jpeg\r\n";
-    file_header += "\r\n";
-    
-    // 构造尾部
-    std::string multipart_footer;
-    multipart_footer += "\r\n--" + boundary + "--\r\n";
 
     // 配置HTTP客户端，使用分块传输编码
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
@@ -255,12 +237,25 @@ std::string Esp32Camera::Explain(const std::string& question) {
         return "{\"success\": false, \"message\": \"Failed to connect to explain URL\"}";
     }
     
-    // 第一块：question字段
-    http->Write(question_field.c_str(), question_field.size());
-    
-    // 第二块：文件字段头部
-    http->Write(file_header.c_str(), file_header.size());
-    
+    {
+        // 第一块：question字段
+        std::string question_field;
+        question_field += "--" + boundary + "\r\n";
+        question_field += "Content-Disposition: form-data; name=\"question\"\r\n";
+        question_field += "\r\n";
+        question_field += question + "\r\n";
+        http->Write(question_field.c_str(), question_field.size());
+    }
+    {
+        // 第二块：文件字段头部
+        std::string file_header;
+        file_header += "--" + boundary + "\r\n";
+        file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
+        file_header += "Content-Type: image/jpeg\r\n";
+        file_header += "\r\n";
+        http->Write(file_header.c_str(), file_header.size());
+    }
+
     // 第三块：JPEG数据
     size_t total_sent = 0;
     while (true) {
@@ -281,9 +276,12 @@ std::string Esp32Camera::Explain(const std::string& question) {
     // 清理队列
     vQueueDelete(jpeg_queue);
 
-    // 第四块：multipart尾部
-    http->Write(multipart_footer.c_str(), multipart_footer.size());
-    
+    {
+        // 第四块：multipart尾部
+        std::string multipart_footer;
+        multipart_footer += "\r\n--" + boundary + "--\r\n";
+        http->Write(multipart_footer.c_str(), multipart_footer.size());
+    }
     // 结束块
     http->Write("", 0);
 

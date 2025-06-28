@@ -10,6 +10,7 @@
 #include "iot/thing_manager.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
+#include "audio_debugger.h"
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "afe_audio_processor.h"
@@ -44,6 +45,7 @@ static const char* const STATE_STRINGS[] = {
     "speaking",
     "upgrading",
     "activating",
+    "audio_testing",
     "fatal_error",
     "invalid_state"
 };
@@ -98,7 +100,7 @@ Application::~Application() {
     vEventGroupDelete(event_group_);
 }
 
-void Application::CheckNewVersion() {
+void Application::CheckNewVersion(Ota& ota) {
     const int MAX_RETRY = 10;
     int retry_count = 0;
     int retry_delay = 10; // 初始重试延迟为10秒
@@ -108,7 +110,7 @@ void Application::CheckNewVersion() {
         auto display = Board::GetInstance().GetDisplay();
         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
 
-        if (!ota_.CheckVersion()) {
+        if (!ota.CheckVersion()) {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
                 ESP_LOGE(TAG, "Too many retries, exit version check");
@@ -116,7 +118,7 @@ void Application::CheckNewVersion() {
             }
 
             char buffer[128];
-            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota_.GetCheckVersionUrl().c_str());
+            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, ota.GetCheckVersionUrl().c_str());
             Alert(Lang::Strings::ERROR, buffer, "sad", Lang::Sounds::P3_EXCLAMATION);
 
             ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
@@ -132,7 +134,7 @@ void Application::CheckNewVersion() {
         retry_count = 0;
         retry_delay = 10; // 重置重试延迟时间
 
-        if (ota_.HasNewVersion()) {
+        if (ota.HasNewVersion()) {
             Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
 
             vTaskDelay(pdMS_TO_TICKS(3000));
@@ -140,7 +142,7 @@ void Application::CheckNewVersion() {
             SetDeviceState(kDeviceStateUpgrading);
             
             display->SetIcon(FONT_AWESOME_DOWNLOAD);
-            std::string message = std::string(Lang::Strings::NEW_VERSION) + ota_.GetFirmwareVersion();
+            std::string message = std::string(Lang::Strings::NEW_VERSION) + ota.GetFirmwareVersion();
             display->SetChatMessage("system", message.c_str());
 
             auto& board = Board::GetInstance();
@@ -159,7 +161,7 @@ void Application::CheckNewVersion() {
             background_task_ = nullptr;
             vTaskDelay(pdMS_TO_TICKS(1000));
 
-            ota_.StartUpgrade([display](int progress, size_t speed) {
+            ota.StartUpgrade([display](int progress, size_t speed) {
                 char buffer[64];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
                 display->SetChatMessage("system", buffer);
@@ -174,8 +176,8 @@ void Application::CheckNewVersion() {
         }
 
         // No new version, mark the current version as valid
-        ota_.MarkCurrentVersionValid();
-        if (!ota_.HasActivationCode() && !ota_.HasActivationChallenge()) {
+        ota.MarkCurrentVersionValid();
+        if (!ota.HasActivationCode() && !ota.HasActivationChallenge()) {
             xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
             // Exit the loop if done checking new version
             break;
@@ -183,14 +185,14 @@ void Application::CheckNewVersion() {
 
         display->SetStatus(Lang::Strings::ACTIVATION);
         // Activation code is shown to the user and waiting for the user to input
-        if (ota_.HasActivationCode()) {
-            ShowActivationCode();
+        if (ota.HasActivationCode()) {
+            ShowActivationCode(ota.GetActivationCode(), ota.GetActivationMessage());
         }
 
         // This will block the loop until the activation is done or timeout
         for (int i = 0; i < 10; ++i) {
             ESP_LOGI(TAG, "Activating... %d/%d", i + 1, 10);
-            esp_err_t err = ota_.Activate();
+            esp_err_t err = ota.Activate();
             if (err == ESP_OK) {
                 xEventGroupSetBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT);
                 break;
@@ -206,10 +208,7 @@ void Application::CheckNewVersion() {
     }
 }
 
-void Application::ShowActivationCode() {
-    auto& message = ota_.GetActivationMessage();
-    auto& code = ota_.GetActivationCode();
-
+void Application::ShowActivationCode(const std::string& code, const std::string& message) {
     struct digit_sound {
         char digit;
         const std::string_view& sound;
@@ -289,9 +288,30 @@ void Application::PlaySound(const std::string_view& sound) {
     }
 }
 
+void Application::EnterAudioTestingMode() {
+    ESP_LOGI(TAG, "Entering audio testing mode");
+    ResetDecoder();
+    SetDeviceState(kDeviceStateAudioTesting);
+}
+
+void Application::ExitAudioTestingMode() {
+    ESP_LOGI(TAG, "Exiting audio testing mode");
+    SetDeviceState(kDeviceStateWifiConfiguring);
+    // Copy audio_testing_queue_ to audio_decode_queue_
+    std::lock_guard<std::mutex> lock(mutex_);
+    audio_decode_queue_ = std::move(audio_testing_queue_);
+    audio_decode_cv_.notify_all();
+}
+
 void Application::ToggleChatState() {
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
+        return;
+    } else if (device_state_ == kDeviceStateWifiConfiguring) {
+        EnterAudioTestingMode();
+        return;
+    } else if (device_state_ == kDeviceStateAudioTesting) {
+        ExitAudioTestingMode();
         return;
     }
 
@@ -326,6 +346,9 @@ void Application::StartListening() {
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
         return;
+    } else if (device_state_ == kDeviceStateWifiConfiguring) {
+        EnterAudioTestingMode();
+        return;
     }
 
     if (!protocol_) {
@@ -353,6 +376,11 @@ void Application::StartListening() {
 }
 
 void Application::StopListening() {
+    if (device_state_ == kDeviceStateAudioTesting) {
+        ExitAudioTestingMode();
+        return;
+    }
+
     const std::array<int, 3> valid_states = {
         kDeviceStateListening,
         kDeviceStateSpeaking,
@@ -423,7 +451,8 @@ void Application::Start() {
     display->UpdateStatusBar(true);
 
     // Check for new firmware version or get the MQTT broker address
-    CheckNewVersion();
+    Ota ota;
+    CheckNewVersion(ota);
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
@@ -433,9 +462,9 @@ void Application::Start() {
     McpServer::GetInstance().AddCommonTools();
 #endif
 
-    if (ota_.HasMqttConfig()) {
+    if (ota.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
-    } else if (ota_.HasWebsocketConfig()) {
+    } else if (ota.HasWebsocketConfig()) {
         protocol_ = std::make_unique<WebsocketProtocol>();
     } else {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
@@ -569,8 +598,16 @@ void Application::Start() {
     });
     bool protocol_started = protocol_->Start();
 
+    audio_debugger_ = std::make_unique<AudioDebugger>();
     audio_processor_->Initialize(codec);
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (audio_send_queue_.size() >= MAX_AUDIO_PACKETS_IN_QUEUE) {
+                ESP_LOGW(TAG, "Too many audio packets in queue, drop the newest packet");
+                return;
+            }
+        }
         background_task_->Schedule([this, data = std::move(data)]() mutable {
             opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
                 AudioStreamPacket packet;
@@ -663,8 +700,9 @@ void Application::Start() {
     xEventGroupWaitBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
     SetDeviceState(kDeviceStateIdle);
 
+    has_server_time_ = ota.HasServerTime();
     if (protocol_started) {
-        std::string message = std::string(Lang::Strings::VERSION) + ota_.GetCurrentVersion();
+        std::string message = std::string(Lang::Strings::VERSION) + ota.GetCurrentVersion();
         display->ShowNotification(message.c_str());
         display->SetChatMessage("system", "");
         // Play the success sound to indicate the device is ready
@@ -692,7 +730,7 @@ void Application::OnClockTimer() {
         SystemInfo::PrintHeapStats();
 
         // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
-        if (ota_.HasServerTime()) {
+        if (has_server_time_) {
             if (device_state_ == kDeviceStateIdle) {
                 Schedule([this]() {
                     // Set status to clock "HH:MM"
@@ -815,6 +853,28 @@ void Application::OnAudioOutput() {
 }
 
 void Application::OnAudioInput() {
+    if (device_state_ == kDeviceStateAudioTesting) {
+        if (audio_testing_queue_.size() >= AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS) {
+            ExitAudioTestingMode();
+            return;
+        }
+        std::vector<int16_t> data;
+        int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
+        if (ReadAudio(data, 16000, samples)) {
+            background_task_->Schedule([this, data = std::move(data)]() mutable {
+                opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
+                    AudioStreamPacket packet;
+                    packet.payload = std::move(opus);
+                    packet.frame_duration = OPUS_FRAME_DURATION_MS;
+                    packet.sample_rate = 16000;
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    audio_testing_queue_.push_back(std::move(packet));
+                });
+            });
+            return;
+        }
+    }
+
     if (wake_word_->IsDetectionRunning()) {
         std::vector<int16_t> data;
         int samples = wake_word_->GetFeedSize();
@@ -825,6 +885,7 @@ void Application::OnAudioInput() {
             }
         }
     }
+
     if (audio_processor_->IsRunning()) {
         std::vector<int16_t> data;
         int samples = audio_processor_->GetFeedSize();
@@ -877,6 +938,12 @@ bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
             return false;
         }
     }
+    
+    // 音频调试：发送原始音频数据
+    if (audio_debugger_) {
+        audio_debugger_->Feed(data);
+    }
+    
     return true;
 }
 

@@ -13,6 +13,7 @@
 #include "mcp_server.h"
 #include "movements.h"
 #include "sdkconfig.h"
+#include "settings.h"
 
 #define TAG "ElectronBotController"
 
@@ -52,11 +53,14 @@ private:
         ACTION_BODY_TURN_CENTER = 15,  // 回中心
 
         // 头部动作 16-20
-        ACTION_HEAD_UP = 16,         // 抬头
-        ACTION_HEAD_DOWN = 17,       // 低头
-        ACTION_HEAD_NOD_ONCE = 18,   // 点头一次
-        ACTION_HEAD_CENTER = 19,     // 回中心
-        ACTION_HEAD_NOD_REPEAT = 20  // 连续点头
+        ACTION_HEAD_UP = 16,          // 抬头
+        ACTION_HEAD_DOWN = 17,        // 低头
+        ACTION_HEAD_NOD_ONCE = 18,    // 点头一次
+        ACTION_HEAD_CENTER = 19,      // 回中心
+        ACTION_HEAD_NOD_REPEAT = 20,  // 连续点头
+
+        // 系统动作 21
+        ACTION_HOME = 21  // 复位到初始位置
     };
 
     static void ActionTask(void* arg) {
@@ -87,6 +91,9 @@ private:
                     int head_action = params.action_type - ACTION_HEAD_UP + 1;
                     controller->electron_bot_.HeadAction(head_action, params.steps, params.amount,
                                                          params.speed);
+                } else if (params.action_type == ACTION_HOME) {
+                    // 复位动作
+                    controller->electron_bot_.Home(true);
                 }
                 controller->is_action_in_progress_ = false;  // 动作执行完毕
             }
@@ -110,13 +117,27 @@ private:
         }
     }
 
+    void LoadTrimsFromNVS() {
+        Settings settings("electron_trims", false);
+
+        int right_pitch = settings.GetInt("right_pitch", 0);
+        int right_roll = settings.GetInt("right_roll", 0);
+        int left_pitch = settings.GetInt("left_pitch", 0);
+        int left_roll = settings.GetInt("left_roll", 0);
+        int body = settings.GetInt("body", 0);
+        int head = settings.GetInt("head", 0);
+        electron_bot_.SetTrims(right_pitch, right_roll, left_pitch, left_roll, body, head);
+    }
+
 public:
     ElectronBotController() {
         electron_bot_.Init(Right_Pitch_Pin, Right_Roll_Pin, Left_Pitch_Pin, Left_Roll_Pin, Body_Pin,
                            Head_Pin);
 
-        electron_bot_.Home(true);
+        LoadTrimsFromNVS();
         action_queue_ = xQueueCreate(10, sizeof(ElectronBotActionParams));
+
+        QueueAction(ACTION_HOME, 1, 1000, 0, 0);
 
         RegisterMcpTools();
         ESP_LOGI(TAG, "Electron Bot控制器已初始化并注册MCP工具");
@@ -231,13 +252,92 @@ public:
                                // 清空队列但保持任务常驻
                                xQueueReset(action_queue_);
                                is_action_in_progress_ = false;
-                               electron_bot_.Home(true);
+                               QueueAction(ACTION_HOME, 1, 1000, 0, 0);
                                return true;
                            });
 
         mcp_server.AddTool("self.electron.get_status", "获取机器人状态，返回 moving 或 idle",
                            PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
                                return is_action_in_progress_ ? "moving" : "idle";
+                           });
+
+        // 单个舵机校准工具
+        mcp_server.AddTool(
+            "self.electron.set_trim",
+            "校准单个舵机位置。设置指定舵机的微调参数以调整ElectronBot的初始姿态，设置将永久保存。"
+            "servo_type: 舵机类型(right_pitch:右臂旋转, right_roll:右臂推拉, left_pitch:左臂旋转, "
+            "left_roll:左臂推拉, body:身体, head:头部); "
+            "trim_value: 微调值(-30到30度)",
+            PropertyList({Property("servo_type", kPropertyTypeString, "right_pitch"),
+                          Property("trim_value", kPropertyTypeInteger, 0, -30, 30)}),
+            [this](const PropertyList& properties) -> ReturnValue {
+                std::string servo_type = properties["servo_type"].value<std::string>();
+                int trim_value = properties["trim_value"].value<int>();
+
+                ESP_LOGI(TAG, "设置舵机微调: %s = %d度", servo_type.c_str(), trim_value);
+
+                // 获取当前所有微调值
+                Settings settings("electron_trims", true);
+                int right_pitch = settings.GetInt("right_pitch", 0);
+                int right_roll = settings.GetInt("right_roll", 0);
+                int left_pitch = settings.GetInt("left_pitch", 0);
+                int left_roll = settings.GetInt("left_roll", 0);
+                int body = settings.GetInt("body", 0);
+                int head = settings.GetInt("head", 0);
+
+                // 更新指定舵机的微调值
+                if (servo_type == "right_pitch") {
+                    right_pitch = trim_value;
+                    settings.SetInt("right_pitch", right_pitch);
+                } else if (servo_type == "right_roll") {
+                    right_roll = trim_value;
+                    settings.SetInt("right_roll", right_roll);
+                } else if (servo_type == "left_pitch") {
+                    left_pitch = trim_value;
+                    settings.SetInt("left_pitch", left_pitch);
+                } else if (servo_type == "left_roll") {
+                    left_roll = trim_value;
+                    settings.SetInt("left_roll", left_roll);
+                } else if (servo_type == "body") {
+                    body = trim_value;
+                    settings.SetInt("body", body);
+                } else if (servo_type == "head") {
+                    head = trim_value;
+                    settings.SetInt("head", head);
+                } else {
+                    return "错误：无效的舵机类型，请使用: right_pitch, right_roll, left_pitch, "
+                           "left_roll, body, head";
+                }
+
+                electron_bot_.SetTrims(right_pitch, right_roll, left_pitch, left_roll, body, head);
+
+                QueueAction(ACTION_HOME, 1, 500, 0, 0);
+
+                return "舵机 " + servo_type + " 微调设置为 " + std::to_string(trim_value) +
+                       " 度，已永久保存";
+            });
+
+        mcp_server.AddTool("self.electron.get_trims", "获取当前的舵机微调设置", PropertyList(),
+                           [this](const PropertyList& properties) -> ReturnValue {
+                               Settings settings("electron_trims", false);
+
+                               int right_pitch = settings.GetInt("right_pitch", 0);
+                               int right_roll = settings.GetInt("right_roll", 0);
+                               int left_pitch = settings.GetInt("left_pitch", 0);
+                               int left_roll = settings.GetInt("left_roll", 0);
+                               int body = settings.GetInt("body", 0);
+                               int head = settings.GetInt("head", 0);
+
+                               std::string result =
+                                   "{\"right_pitch\":" + std::to_string(right_pitch) +
+                                   ",\"right_roll\":" + std::to_string(right_roll) +
+                                   ",\"left_pitch\":" + std::to_string(left_pitch) +
+                                   ",\"left_roll\":" + std::to_string(left_roll) +
+                                   ",\"body\":" + std::to_string(body) +
+                                   ",\"head\":" + std::to_string(head) + "}";
+
+                               ESP_LOGI(TAG, "获取微调设置: %s", result.c_str());
+                               return result;
                            });
 
         mcp_server.AddTool("self.battery.get_level", "获取机器人电池电量和充电状态", PropertyList(),

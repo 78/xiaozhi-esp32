@@ -27,7 +27,10 @@ void EspWakeWord::Initialize(AudioCodec* codec) {
     codec_ = codec;
 
     wakenet_model_ = esp_srmodel_init("model");
-
+    if (wakenet_model_ == nullptr || wakenet_model_->num == -1) {
+        ESP_LOGE(TAG, "Failed to initialize wakenet model");
+        return;
+    }
     if(wakenet_model_->num > 1) {
         ESP_LOGW(TAG, "More than one model found, using the first one");
     } else if (wakenet_model_->num == 0) {
