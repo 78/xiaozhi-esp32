@@ -72,3 +72,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  espressif/adc_battery_estimation: =*

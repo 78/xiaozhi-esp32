@@ -269,6 +269,8 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
         select LV_USE_GIF
         select LV_GIF_CACHE_DECODE_DATA
+    config BOARD_TYPE_JIUCHUAN
+        bool "九川智能"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
