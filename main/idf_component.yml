@@ -4,6 +4,7 @@ dependencies:
   espressif/esp_lcd_ili9341: ==1.2.0
   espressif/esp_lcd_gc9a01: ==2.0.1
   espressif/esp_lcd_st77916: ^1.0.1
+  espressif/esp_lcd_axs15231b: ^1.0.0
   espressif/esp_lcd_st7796:
     version: 1.3.2
     rules:
