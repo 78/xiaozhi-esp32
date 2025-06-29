@@ -83,8 +83,5 @@
 // -- AW9523B 引脚功能分配 --
 #define AW9523B_PIN_PA_EN        0  // P0_0
 #define AW9523B_PIN_DVP_PWDN     2  // P0_2
-#define AW9523B_PIN_RGB_R        3  // P0_3 (Red)
-#define AW9523B_PIN_RGB_G        4  // P0_4 (Green)
-#define AW9523B_PIN_RGB_B        5  // P0_5 (Blue)
 
 #endif // _BOARD_CONFIG_H_
