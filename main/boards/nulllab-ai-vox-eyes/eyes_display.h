@@ -1,109 +1,196 @@
 #pragma once
-#include <esp_log.h>
-#include <esp_lvgl_port.h>
+
 #include <libs/gif/lv_gif.h>
 
+#include <cstring>
+#include <string>
 #include "display/lcd_display.h"
+#include "font_awesome_symbols.h"
+#include "otto_emoji_gif.h"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-LV_IMG_DECLARE(staticstate);
-LV_IMG_DECLARE(sad);
-LV_IMG_DECLARE(happy);
-LV_IMG_DECLARE(scare);
-LV_IMG_DECLARE(buxue);
-LV_IMG_DECLARE(anger);
 
-// 全屏眼睛（没有状态栏）
-#define FULL_SCREEN_EYES (0)
+// 表情映射
+struct EmotionMap {
+    const char* name;
+    const lv_img_dsc_t* gif;
+};
 
+const EmotionMap emotion_maps[] = {
+    // 中性/平静类表情 -> staticstate
+    {"neutral", &staticstate},
+    {"relaxed", &staticstate},
+    {"sleepy", &staticstate},
+
+    // 积极/开心类表情 -> happy
+    {"happy", &happy},
+    {"laughing", &happy},
+    {"funny", &happy},
+    {"loving", &happy},
+    {"confident", &happy},
+    {"winking", &happy},
+    {"cool", &happy},
+    {"delicious", &happy},
+    {"kissy", &happy},
+    {"silly", &happy},
+
+    // 悲伤类表情 -> sad
+    {"sad", &sad},
+    {"crying", &sad},
+
+    // 愤怒类表情 -> anger
+    {"angry", &anger},
+
+    // 惊讶类表情 -> scare
+    {"surprised", &scare},
+    {"shocked", &scare},
+
+    // 思考/困惑类表情 -> buxue
+    {"thinking", &buxue},
+    {"confused", &buxue},
+    {"embarrassed", &buxue},
+
+    {nullptr, nullptr}  // 结束标记
+};
+
+/**
+ * 继承LcdDisplay，添加GIF表情支持
+ */
 class EyesDisplay : public SpiLcdDisplay {
-  private:
-    lv_obj_t *eyes_emotion_gif_ = nullptr;
-    lv_obj_t *eyes_message_label_ = nullptr;
-
-  public:
-    EyesDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, int offset_x,
-                int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+public:
+    /**
+     * @brief 构造函数，参数与SpiLcdDisplay相同
+     */
+    EyesDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                                       int width, int height, int offset_x, int offset_y, bool mirror_x,
+                                       bool mirror_y, bool swap_xy)
         : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                         {
                             .text_font = &font_puhui_16_4,
                             .icon_font = &font_awesome_16_4,
-                        }) {
-
-        // 启用暗色模式，匹配眼睛动画
-        // SetTheme("dark");
-
-        DisplayLockGuard lock(this);
-        auto screen = lv_screen_active();
-
-#if FULL_SCREEN_EYES
-        lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
-        eyes_emotion_gif_ = lv_gif_create(screen);
-#else
-        lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
-        eyes_emotion_gif_ = lv_gif_create(container_);
-#endif
-
-        // 动画眼睛
-        lv_obj_set_size(eyes_emotion_gif_, LV_HOR_RES, LV_HOR_RES);
-        lv_obj_set_style_bg_opa(eyes_emotion_gif_, LV_OPA_TRANSP, 0);
-        lv_gif_set_src(eyes_emotion_gif_, &staticstate);
-        lv_obj_center(eyes_emotion_gif_);
-
-        eyes_message_label_ = lv_label_create(screen);
-        lv_label_set_text(eyes_message_label_, "");
-        lv_obj_set_width(eyes_message_label_, LV_HOR_RES * 0.9);
-        lv_label_set_long_mode(eyes_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_style_text_align(eyes_message_label_, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(eyes_message_label_, lv_color_white(), 0);
-        lv_obj_align(eyes_message_label_, LV_ALIGN_BOTTOM_MID, 0, -10);
-
-        lv_obj_move_foreground(low_battery_popup_);
+                            .emoji_font = font_emoji_64_init(),
+                        }),
+          emotion_gif_(nullptr) {
+        SetupGifContainer();
     }
 
-    virtual void SetChatMessage(const char *role, const char *content) override {
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-        SpiLcdDisplay::SetChatMessage(role, content);
-#else
-        DisplayLockGuard lock(this);
-        if (chat_message_label_ != nullptr) {
-            std::string msg(content);
-            // 移除换行，避免多行文本，只允许单行滚动
-            std::replace(msg.begin(), msg.end(), '\n', ' ');
-            lv_label_set_text(eyes_message_label_, msg.c_str());
-        }
-#endif
-    }
-
-    virtual void SetEmotion(const char *emotion) override {
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-        SpiLcdDisplay::SetEmotion(emotion);
-#else
-        struct Emotion {
-            const lv_img_dsc_t *gif;
-            const char *text;
-        };
-
-        static const std::vector<Emotion> emotions = {
-            {&staticstate, "neutral"}, {&happy, "happy"},     {&happy, "laughing"}, {&happy, "funny"}, {&sad, "sad"},
-            {&anger, "angry"},         {&scare, "surprised"}, {&buxue, "confused"},
-        };
-
-        std::string_view emotion_view(emotion);
-        auto it = std::find_if(emotions.begin(), emotions.end(),
-                               [&emotion_view](const Emotion &e) { return e.text == emotion_view; });
-
-        DisplayLockGuard lock(this);
-        if (eyes_emotion_gif_ == nullptr)
+    // 重写表情设置方法
+    virtual void SetEmotion(const char* emotion) override {
+        if (!emotion || !emotion_gif_) {
             return;
-
-        if (it != emotions.end()) {
-            lv_gif_set_src(eyes_emotion_gif_, it->gif);
-        } else {
-            lv_gif_set_src(eyes_emotion_gif_, &staticstate);
         }
-#endif
+
+        DisplayLockGuard lock(this);
+
+        for (const auto& map : emotion_maps) {
+            if (map.name && strcmp(map.name, emotion) == 0) {
+                lv_gif_set_src(emotion_gif_, map.gif);
+                ESP_LOGI("EyesDisplay", "设置表情: %s", emotion);
+                return;
+            }
+        }
+
+        lv_gif_set_src(emotion_gif_, &staticstate);
+        ESP_LOGI("EyesDisplay", "未知表情'%s'，使用默认", emotion);
+    }
+
+    // 重写聊天消息设置方法
+    virtual void SetChatMessage(const char* role, const char* content) override {
+        DisplayLockGuard lock(this);
+        if (chat_message_label_ == nullptr) {
+            return;
+        }
+
+        if (content == nullptr || strlen(content) == 0) {
+            lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+
+        lv_label_set_text(chat_message_label_, content);
+        lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+
+        ESP_LOGI("EyesDisplay", "设置聊天消息 [%s]: %s", role, content);
+    }
+
+    // 添加SetIcon方法声明
+    virtual void SetIcon(const char* icon) override {
+        if (!icon) {
+            return;
+        }
+
+        DisplayLockGuard lock(this);
+
+        if (chat_message_label_ != nullptr) {
+            std::string icon_message = std::string(icon) + " ";
+
+            if (strcmp(icon, FONT_AWESOME_DOWNLOAD) == 0) {
+                icon_message += "正在升级...";
+            } else {
+                icon_message += "系统状态";
+            }
+
+            lv_label_set_text(chat_message_label_, icon_message.c_str());
+            lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+
+            ESP_LOGI("EyesDisplay", "设置图标: %s", icon);
+        }
+    }
+
+private:
+    lv_obj_t* emotion_gif_;  ///< GIF表情组件
+
+    void SetupGifContainer() {
+        DisplayLockGuard lock(this);
+
+        if (emotion_label_) {
+            lv_obj_del(emotion_label_);
+        }
+
+        if (chat_message_label_) {
+            lv_obj_del(chat_message_label_);
+        }
+        if (content_) {
+            lv_obj_del(content_);
+        }
+
+        content_ = lv_obj_create(container_);
+        lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_size(content_, LV_HOR_RES, LV_HOR_RES);
+        lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(content_, 0, 0);
+        lv_obj_set_flex_grow(content_, 1);
+        lv_obj_center(content_);
+
+        emotion_label_ = lv_label_create(content_);
+        lv_label_set_text(emotion_label_, "");
+        lv_obj_set_width(emotion_label_, 0);
+        lv_obj_set_style_border_width(emotion_label_, 0, 0);
+        lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+
+        emotion_gif_ = lv_gif_create(content_);
+        int gif_size = LV_HOR_RES;
+        lv_obj_set_size(emotion_gif_, gif_size, gif_size);
+        lv_obj_set_style_border_width(emotion_gif_, 0, 0);
+        lv_obj_set_style_bg_opa(emotion_gif_, LV_OPA_TRANSP, 0);
+        lv_obj_center(emotion_gif_);
+        lv_gif_set_src(emotion_gif_, &staticstate);
+
+        chat_message_label_ = lv_label_create(content_);
+        lv_label_set_text(chat_message_label_, "");
+        lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+        lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+        lv_obj_set_style_border_width(chat_message_label_, 0, 0);
+
+        lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_70, 0);
+        lv_obj_set_style_bg_color(chat_message_label_, lv_color_black(), 0);
+        lv_obj_set_style_pad_ver(chat_message_label_, 5, 0);
+
+        lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+        LcdDisplay::SetTheme("dark");
     }
 };
