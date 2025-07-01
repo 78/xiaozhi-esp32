@@ -25,6 +25,7 @@ dependencies:
   espressif/esp_lcd_touch_ft5x06: ~1.0.7
   espressif/esp_lcd_touch_gt911: ^1
   waveshare/esp_lcd_touch_cst9217: ^1.0.3
+  esp_lcd_touch_cst816s: "^1"
   lvgl/lvgl: ~9.2.2
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
@@ -72,3 +73,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  espressif/adc_battery_estimation: =*
