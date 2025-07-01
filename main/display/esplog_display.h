@@ -16,9 +16,9 @@ public:
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetChatMessage(const char* role, const char* content) override; 
     virtual void SetIcon(const char* icon) override;
-    virtual inline void SetPreviewImage(const lv_img_dsc_t* image){}
-    virtual inline void SetTheme(const std::string& theme_name){}
-    virtual inline void UpdateStatusBAR(bool update_all = false){}
+    virtual inline void SetPreviewImage(const lv_img_dsc_t* image) override {}
+    virtual inline void SetTheme(const std::string& theme_name) override {}
+    virtual inline void UpdateStatusBAR(bool update_all = false) override {}
 
 protected:
     virtual inline bool Lock(int timeout_ms = 0) override { return true; } 
