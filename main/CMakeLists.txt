@@ -195,6 +195,10 @@ elseif(CONFIG_BOARD_TYPE_JKST_S3_DEV)
     set(BOARD_TYPE "jkst-s3-dev")
 elseif(CONFIG_BOARD_TYPE_JKST_SPACEMAN)
     set(BOARD_TYPE "jkst-spaceman")
+elseif(CONFIG_BOARD_TYPE_JKST_CHAJIE)
+    set(BOARD_TYPE "jkst-chajie")
+elseif(CONFIG_BOARD_TYPE_JKST_SPACEMAN_S)
+    set(BOARD_TYPE "jkst-spaceman-s")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

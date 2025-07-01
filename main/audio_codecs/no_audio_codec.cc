@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "boards/jkst-chajie/audio_led_meter.h"
+
 #define TAG "NoAudioCodec"
 
 NoAudioCodec::~NoAudioCodec() {
@@ -354,6 +356,8 @@ int NoAudioCodec::Write(const int16_t* data, int samples) {
 
     size_t bytes_written;
     ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+    // ESP_LOGI(TAG, "Wrote %d samples", bytes_written / sizeof(int32_t));
+    audio_led_meter_update(data, static_cast<size_t>(samples));
     return bytes_written / sizeof(int32_t);
 }
 

@@ -266,8 +266,14 @@ choice BOARD_TYPE
     config BOARD_TYPE_JKST_S3_DEV
         bool "极客三体ESP32-S3开发板"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_JKST_CHAJIE
+        bool "极客三体ESP32-S3插接版"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_JKST_SPACEMAN
         bool "极客三体ESP32-S3太空人"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_JKST_SPACEMAN_S
+        bool "极客三体ESP32-S3太空人-单麦版"
         depends on IDF_TARGET_ESP32S3
 endchoice
 

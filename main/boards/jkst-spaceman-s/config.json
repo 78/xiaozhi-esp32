@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "jkst-spaceman-s",
+            "sdkconfig_append": []
+        }
+    ]
+}
