@@ -168,7 +168,7 @@ def register_device(mac_address):
             "Content-Type": "application/json"
         }
         data = {
-            "clientType": "esp32",
+            "clientType": "esp32s3",
             "deviceId": mac_address,
             "deviceName": f"ESP32设备-{mac_address.replace(':', '')[-4:]}",
             "deviceVersion": "1.0.0"

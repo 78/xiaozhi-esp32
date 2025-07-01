@@ -621,6 +621,7 @@ class MultiDeviceUI(QMainWindow):
         # 默认设备类型
         self.client_type_combo = QComboBox()
         self.client_type_combo.addItems(["esp32", "esp32s2", "esp32s3", "esp32c3"])
+        self.client_type_combo.setCurrentText("esp32s3")  # 设置默认选择为esp32s3
         config_layout.addRow("默认设备类型:", self.client_type_combo)
         
         # 默认设备版本

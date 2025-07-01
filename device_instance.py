@@ -136,7 +136,7 @@ class DeviceInstance:
         self.workspace_path: Optional[str] = None
         
         # 设备配置
-        self.client_type: str = "esp32"
+        self.client_type: str = "esp32s3"
         self.device_name: str = ""
         self.device_version: str = "1.0.0"
         
@@ -499,7 +499,7 @@ class DeviceInstance:
                 self.mac_address = info.get("mac_address")
                 self.client_id = info.get("client_id") 
                 self.bind_key = info.get("bind_key")
-                self.client_type = info.get("client_type", "esp32")
+                self.client_type = info.get("client_type", "esp32s3")
                 self.device_name = info.get("device_name", "")
                 self.device_version = info.get("device_version", "1.0.0")
                 

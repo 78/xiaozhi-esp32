@@ -394,7 +394,7 @@ def register_device(mac_address, client_type=None, device_name=None, device_vers
             
             # 设置默认值
             if not client_type:
-                client_type = "esp32"
+                client_type = "esp32s3"  # 修改默认值为esp32s3
             if not device_name:
                 device_name = f"小乔设备-{mac_address.replace(':', '')[-4:]}"
             if not device_version:
@@ -1300,6 +1300,7 @@ class ShaoluUI(QMainWindow):
         # 客户端类型
         self.client_type_combo = QComboBox()
         self.client_type_combo.addItems(["esp32", "esp32s2", "esp32s3", "esp32c3"])
+        self.client_type_combo.setCurrentText("esp32s3")  # 设置默认选择为esp32s3
         self.client_type_combo.currentTextChanged.connect(self.on_device_info_changed)
         layout.addRow("客户端类型:", self.client_type_combo)
         
