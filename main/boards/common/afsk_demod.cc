@@ -22,7 +22,19 @@ namespace audio_wifi_config
 
         while (true)
         {
-            app->ReadAudio(audio_data, 16000, 480); // 16kHz, 480 samples corresponds to 30ms data
+            // 检查Application状态，只有在WiFi配置模式下才处理音频
+            if (app->GetDeviceState() != kDeviceStateWifiConfiguring) {
+                // 不在WiFi配置状态，休眠100ms后再检查
+                vTaskDelay(pdMS_TO_TICKS(100));
+                continue;
+            }
+            
+            if (!app->ReadAudio(audio_data, 16000, 480)) { // 16kHz, 480 samples corresponds to 30ms data
+                // 读取音频失败，短暂延迟后重试
+                ESP_LOGI(kLogTag, "Failed to read audio data, retrying.");
+                vTaskDelay(pdMS_TO_TICKS(10));
+                continue;
+            }
             
             // Downsample the audio data
             std::vector<float> downsampled_data;
