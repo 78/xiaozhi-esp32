@@ -19,7 +19,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 
-
+#include "otto_emoji_display.h"
 
 #define LCD_TYPE_GC9A01_SERIAL
 
@@ -64,12 +64,12 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 };
 #endif
  
-#define TAG "JKSTSchajie"
+#define TAG "JKST_SPACEMANS"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class JKSTSchajie : public WifiBoard {
+class JKST_SPACEMANS : public WifiBoard {
 private:
  
     Button boot_button_;
@@ -132,21 +132,28 @@ private:
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-#endif
-                                    });
+//         display_ = new SpiLcdDisplay(panel_io, panel,
+//                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+//                                     {
+//                                         .text_font = &font_puhui_16_4,
+//                                         .icon_font = &font_awesome_16_4,
+// #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+//                                         .emoji_font = font_emoji_32_init(),
+// #else
+//                                         .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+// #endif
+//                                     });
+
+        display_ = new OttoEmojiDisplay(
+            panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+            {
+                .text_font = &font_puhui_16_4,
+                .icon_font = &font_awesome_16_4,
+                .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+            });
     }
 
-
- 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -174,9 +181,20 @@ private:
         // Open camera power
         // pca9557_->SetOutputState(2, 0);
 
+        // 手动拉低 PWDN
+        gpio_config_t io_conf = {};
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        io_conf.mode = GPIO_MODE_OUTPUT;
+        io_conf.pin_bit_mask = (1ULL << CAMERA_PIN_PWDN);
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        gpio_config(&io_conf);
+        gpio_set_level(CAMERA_PIN_PWDN, 0); // 拉低
+
         camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2; // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2;     // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        // config.ledc_channel = LEDC_CHANNEL_2; // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        // config.ledc_timer = LEDC_TIMER_2;     // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+
         config.pin_d0 = CAMERA_PIN_D0;
         config.pin_d1 = CAMERA_PIN_D1;
         config.pin_d2 = CAMERA_PIN_D2;
@@ -191,12 +209,12 @@ private:
         config.pin_href = CAMERA_PIN_HREF;
         config.pin_sccb_sda = CAMERA_PIN_SIOD; // 这里写-1 表示使用已经初始化的I2C接口
         config.pin_sccb_scl = CAMERA_PIN_SIOC;
-        config.sccb_i2c_port = 0; // 使用I2C0接口
+        config.sccb_i2c_port = 1; 
         config.pin_pwdn = CAMERA_PIN_PWDN;
         config.pin_reset = CAMERA_PIN_RESET;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
         config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_VGA;
+        config.frame_size = FRAMESIZE_QVGA;
         config.jpeg_quality = 12;
         config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_PSRAM;
@@ -206,7 +224,7 @@ private:
     }
 
 public:
-    JKSTSchajie() :
+    JKST_SPACEMANS() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
@@ -253,4 +271,4 @@ public:
     }
 };
 
-DECLARE_BOARD(JKSTSchajie);
+DECLARE_BOARD(JKST_SPACEMANS);

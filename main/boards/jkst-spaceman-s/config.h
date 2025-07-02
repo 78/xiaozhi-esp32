@@ -262,9 +262,9 @@
 #define LCD_TYPE_GC9A01_SERIAL
 #define DISPLAY_WIDTH   240
 #define DISPLAY_HEIGHT  240
-#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY false
+#define DISPLAY_SWAP_XY true
 #define DISPLAY_INVERT_COLOR    true
 #define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_BGR
 #define DISPLAY_OFFSET_X  0
@@ -298,24 +298,24 @@
 
 /* Camera pins */
 // GC0308摄像头
-#define CAMERA_PIN_PWDN -1 // 39
-#define CAMERA_PIN_RESET -1
-#define CAMERA_PIN_XCLK 13 //
-#define CAMERA_PIN_SIOD 1
-#define CAMERA_PIN_SIOC 2
+#define CAMERA_PIN_PWDN GPIO_NUM_39 // 39
+#define CAMERA_PIN_RESET GPIO_NUM_NC
+#define CAMERA_PIN_XCLK GPIO_NUM_13 //
+#define CAMERA_PIN_SIOD GPIO_NUM_1
+#define CAMERA_PIN_SIOC GPIO_NUM_2
 
-#define CAMERA_PIN_D7 14    //
-#define CAMERA_PIN_D6 12    //
-#define CAMERA_PIN_D5 11    //
-#define CAMERA_PIN_D4 46   //
-#define CAMERA_PIN_D3 8   //
-#define CAMERA_PIN_D2 17    //
-#define CAMERA_PIN_D1 18   //
-#define CAMERA_PIN_D0 3   //
-#define CAMERA_PIN_VSYNC 38 //
-#define CAMERA_PIN_HREF 48 //
-#define CAMERA_PIN_PCLK 9  //
+#define CAMERA_PIN_D7 GPIO_NUM_14    //
+#define CAMERA_PIN_D6 GPIO_NUM_12    //
+#define CAMERA_PIN_D5 GPIO_NUM_11    //
+#define CAMERA_PIN_D4 GPIO_NUM_46    //
+#define CAMERA_PIN_D3 GPIO_NUM_8   //
+#define CAMERA_PIN_D2 GPIO_NUM_17  //
+#define CAMERA_PIN_D1 GPIO_NUM_18  //
+#define CAMERA_PIN_D0 GPIO_NUM_3   //
+#define CAMERA_PIN_VSYNC GPIO_NUM_38 //
+#define CAMERA_PIN_HREF GPIO_NUM_48  //
+#define CAMERA_PIN_PCLK GPIO_NUM_9  //
 
-#define XCLK_FREQ_HZ 24000000
+#define XCLK_FREQ_HZ 20000000
 
 #endif // _BOARD_CONFIG_H_
