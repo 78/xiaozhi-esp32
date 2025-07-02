@@ -13,8 +13,8 @@
 #include "led/single_led.h"
 #include "power_save_timer.h"
 #include "wifi_board.h"
+#include "audio_codecs/no_audio_codec.h"
 
-#include "../nulllab-ai-vox/ai_vox_audio_codec.h"
 #include "../nulllab-ai-vox/config.h"
 #include "../nulllab-ai-vox/power_manager.h"
 #include "emoji.h"
@@ -179,9 +179,9 @@ class NulllabAIVox : public WifiBoard {
     }
 
     virtual AudioCodec *GetAudioCodec() override {
-        static AIVoxAudioCodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_SPK_GPIO_BCLK,
-                                           AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK,
-                                           AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN, AUDIO_INPUT_REFERENCE);
+        static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_SPK_GPIO_BCLK,
+                                               AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK,
+                                               AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
         return &audio_codec;
     }
 

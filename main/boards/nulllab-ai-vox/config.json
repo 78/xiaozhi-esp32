@@ -4,8 +4,7 @@
     {
       "name": "nulllab-ai-vox",
       "sdkconfig_append": [
-        "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\"",
-        "CONFIG_USE_DEVICE_AEC=y"
+        "CONFIG_CUSTOM_SSID_PREFIX=\"AI-VOX\""
       ]
     }
   ]
