@@ -1,13 +1,3 @@
-/*
- * @FileDesc: 
- * @Author: none
- * @Date: 2025-06-08 23:39:49
- * @LastEditTime: 2025-06-27 11:23:43
- * @LastEditors: Hangon66 2630612613@qq.com
- * @Version: 0.0.1
- * @Usage: 
- * @FilePath: \jiuchuan-xiaozhi-sound\main\boards\jiuchuan-s3\power_controller.h
- */
 #pragma once
 #include <mutex>
 #include <functional>

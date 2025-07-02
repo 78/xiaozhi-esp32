@@ -548,9 +548,9 @@ public:
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
+        GetBacklight()->RestoreBrightness();  // 对于不带摄像头的版本，InitializeCamera需要3s, 所以先恢复背光亮度
         InitializeCamera();
         InitializeIot();
-        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

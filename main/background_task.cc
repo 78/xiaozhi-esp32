@@ -18,12 +18,16 @@ BackgroundTask::~BackgroundTask() {
     }
 }
 
-void BackgroundTask::Schedule(std::function<void()> callback) {
+bool BackgroundTask::Schedule(std::function<void()> callback) {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (waiting_for_completion_ > 0) {
+        return false;
+    }
     if (active_tasks_ >= 30) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
         if (free_sram < 10000) {
-            ESP_LOGW(TAG, "active_tasks_ == %u, free_sram == %u", active_tasks_.load(), free_sram);
+            ESP_LOGW(TAG, "active_tasks_ == %d, free_sram == %u", active_tasks_, free_sram);
+            return false;
         }
     }
     active_tasks_++;
@@ -38,13 +42,16 @@ void BackgroundTask::Schedule(std::function<void()> callback) {
         }
     });
     condition_variable_.notify_all();
+    return true;
 }
 
 void BackgroundTask::WaitForCompletion() {
     std::unique_lock<std::mutex> lock(mutex_);
+    waiting_for_completion_++;
     condition_variable_.wait(lock, [this]() {
         return background_tasks_.empty() && active_tasks_ == 0;
     });
+    waiting_for_completion_--;
 }
 
 void BackgroundTask::BackgroundTaskLoop() {
