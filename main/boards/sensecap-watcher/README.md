@@ -1,24 +1,30 @@
-# 编译配置命令
+# 编译命令
 
-**配置编译目标为 ESP32S3：**
+## 一键编译
+
+```bash
+python scripts/release.py sensecap-watcher
+```
+
+## 手动配置编译
 
 ```bash
 idf.py set-target esp32s3
 ```
 
-**打开 menuconfig：**
+**配置**
 
 ```bash
 idf.py menuconfig
 ```
 
-**选择板子：**
+选择板子
 
 ```
 Xiaozhi Assistant -> Board Type -> SenseCAP Watcher
 ```
 
-watcher 中一些额外的配置项如下，需要menuconfig 选择， 或者拷贝放入sdkconfig.defaults中.
+watcher 中一些额外的配置项如下，需要在menuconfig 中选择.
 
 ```
 CONFIG_BOARD_TYPE_SENSECAP_WATCHER=y
@@ -29,12 +35,13 @@ CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 ```
 
-**编译烧入：**
+## 编译烧入
 
 ```bash
-idf.py build flash
+idf.py -DBOARD_NAME=sensecap-watcher build flash
 ```
-注意: 请特别小心处理闪存固件分区地址，以避免错误擦除 SenseCAP Watcher 的自身设备信息（EUI 等），否则设备可能无法正确连接到 SenseCraft 服务器！在刷写固件之前，请务必记录设备的相关必要信息，以确保有恢复的方法！
+
+注意: 如果当前设备出货之前是SenseCAP 固件(非小智版本),请特别小心处理闪存固件分区地址，以避免错误擦除 SenseCAP Watcher 的自身设备信息（EUI 等），否则设备即使恢复成SenseCAP固件也无法正确连接到 SenseCraft 服务器！所以在刷写固件之前，请务必记录设备的相关必要信息，以确保有恢复的方法！
 
 您可以使用以下命令备份生产信息
 
