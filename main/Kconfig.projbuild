@@ -409,6 +409,12 @@ config USE_AUDIO_DEBUGGER
     help
         启用音频调试功能，通过UDP发送音频数据
 
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        启用声波配网功能，使用音频信号传输 WiFi 配置数据
+
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
