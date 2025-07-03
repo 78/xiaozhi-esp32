@@ -20,6 +20,9 @@
 #include "touch.h"
 
 #include "driver/temperature_sensor.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #define TAG "EchoEar"
 
@@ -274,6 +277,9 @@ private:
     TouchPoint_t tp_;
 };
 static SemaphoreHandle_t touch_isr_mux = NULL;
+static bool touch_event_pending = false;
+static int64_t touch_event_time = 0;
+
 class EspS3Cat : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -362,19 +368,39 @@ private:
 
     static void lvgl_port_touch_isr_cb(void* arg)
     {
-        static int64_t touch_start_time = 0;
-        static int64_t touch_last_time = 0;
-        touch_start_time = esp_timer_get_time() / 1000;
-        if (touch_start_time - touch_last_time >= 300) {
-            auto& board = (EspS3Cat&)Board::GetInstance();
-            auto& app = Application::GetInstance();
+        int64_t current_time = esp_timer_get_time() / 1000;
+        static int64_t last_touch_time = 0;
+
+        if (current_time - last_touch_time >= 300) {
+            touch_event_pending = true;
+            touch_event_time = current_time;
+            last_touch_time = current_time;
+
+            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+            if (touch_isr_mux != NULL) {
+                xSemaphoreGiveFromISR(touch_isr_mux, &xHigherPriorityTaskWoken);
+                portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+            }
+        }
+    }
+
+    static void touch_event_task(void* arg) {
+        while (true) {
+            if (xSemaphoreTake(touch_isr_mux, portMAX_DELAY) == pdTRUE) {
+                if (touch_event_pending) {
+                    touch_event_pending = false;
+
+                    auto& board = (EspS3Cat&)Board::GetInstance();
+                    auto& app = Application::GetInstance();
+
                     if (app.GetDeviceState() == kDeviceStateStarting && 
                         !WifiStation::GetInstance().IsConnected()) {
                         board.ResetWifiConfiguration();
                     }
-            app.ToggleChatState();
-            touch_last_time = touch_start_time;
-        }   
+                    app.ToggleChatState();
+                }
+            }
+        }
     }
 
     void InitializeCharge() {
@@ -384,6 +410,14 @@ private:
 
     void InitializeCst816sTouchPad() {
         cst816s_ = new Cst816s(i2c_bus_, 0x15);
+
+        touch_isr_mux = xSemaphoreCreateBinary();
+        if (touch_isr_mux == NULL) {
+            ESP_LOGE(TAG, "Failed to create touch semaphore");
+            return;
+        }
+
+        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, NULL, 5, NULL, 1);
         
         const gpio_config_t int_gpio_config = {
             .pin_bit_mask = (1ULL << TP_PIN_NUM_INT),
