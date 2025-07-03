@@ -342,8 +342,8 @@ void Application::Start() {
     opus_encoder_->SetComplexity(0);
     
     // 启用实时模式相关优化
-    realtime_chat_enabled_ = true;
-    ESP_LOGI(TAG, "Force enabling realtime chat mode for better performance");
+    realtime_chat_enabled_ = false;
+    ESP_LOGI(TAG, "Using auto stop mode instead of realtime mode");
 
     if (codec->input_sample_rate() != 16000) {
         input_resampler_.Configure(codec->input_sample_rate(), 16000);
@@ -403,6 +403,10 @@ void Application::Start() {
         if (thing_manager.GetStatesJson(states, false)) {
             protocol_->SendIotStates(states);
         }
+        
+        // WebSocket握手成功后，自动进入listening状态并发送listen start消息
+        ESP_LOGI(TAG, "WebSocket握手成功，自动开始新对话");
+        SetListeningMode(realtime_chat_enabled_ ? kListeningModeRealtime : kListeningModeAutoStop);
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
@@ -817,14 +821,16 @@ void Application::SetDeviceState(DeviceState state) {
             // Update the IoT states before sending the start listening command
             UpdateIotStates();
 
+            // 每次进入listening状态都发送listen start给服务器
+            protocol_->SendStartListening(listening_mode_);
+            ESP_LOGI(TAG, "进入listening状态，发送listen start通知服务器开始监听");
+
             // Make sure the audio processor is running
 #if CONFIG_USE_AUDIO_PROCESSOR
             if (!audio_processor_.IsRunning()) {
 #else
             if (true) {
 #endif
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
                 if (listening_mode_ == kListeningModeAutoStop && previous_state == kDeviceStateSpeaking) {
                     // 性能优化：减少缓冲区等待时间从120ms到50ms
                     vTaskDelay(pdMS_TO_TICKS(50));

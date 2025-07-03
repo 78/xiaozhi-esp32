@@ -430,6 +430,23 @@ public:
         // 如果已经在睡眠状态，不启动定时器
         if (is_sleeping_) return;
         
+        // 检查充电状态或电源连接，充电/插电时不启动睡眠定时器
+        auto& board = Board::GetInstance();
+        int battery_level;
+        bool charging, discharging;
+        if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+            // 正在充电时不启动睡眠定时器
+            if (charging) {
+                ESP_LOGI(TAG, "设备正在充电，不启动睡眠定时器");
+                return;
+            }
+            // 电量很高时，很可能插着电源（不管充电芯片是否工作）
+            if (battery_level >= 95) {
+                ESP_LOGI(TAG, "设备电量很高(>=95)，很可能插着电源，不启动睡眠定时器");
+                return;
+            }
+        }
+        
         // 停止现有睡眠定时器
         if (sleep_timer_) {
             lv_timer_del(sleep_timer_);
@@ -442,6 +459,22 @@ public:
         sleep_timer_ = lv_timer_create([](lv_timer_t *t) {
             CustomLcdDisplay *display = (CustomLcdDisplay *)lv_timer_get_user_data(t);
             if (display) {
+                // 检查充电状态或电源连接，充电/插电时不进入睡眠模式
+                auto& board = Board::GetInstance();
+                int battery_level;
+                bool charging, discharging;
+                if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+                    // 正在充电时不进入睡眠模式
+                    if (charging) {
+                        ESP_LOGI(TAG, "设备正在充电，跳过睡眠模式");
+                        return;
+                    }
+                    // 电量很高时，很可能插着电源（不管充电芯片是否工作）
+                    if (battery_level >= 95) {
+                        ESP_LOGI(TAG, "设备电量很高(>=95)，很可能插着电源，跳过睡眠模式");
+                        return;
+                    }
+                }
                 display->EnterSleepMode();
             }
         }, 60000, this);  // 60000ms = 60秒 = 1分钟
@@ -1461,12 +1494,20 @@ private:
             return false;
         }
         
-        // 2. 检查是否正在充电（充电时不进入节能模式）
+        // 2. 检查是否正在充电或插着电源（充电/插电时不进入节能模式）
         int battery_level;
         bool charging, discharging;
-        if (GetBatteryLevel(battery_level, charging, discharging) && charging) {
-            ESP_LOGD(TAG, "设备正在充电，不进入节能模式");
-            return false;
+        if (GetBatteryLevel(battery_level, charging, discharging)) {
+            // 正在充电时不进入节能模式
+            if (charging) {
+                ESP_LOGD(TAG, "设备正在充电，不进入节能模式");
+                return false;
+            }
+            // 电量很高时，很可能插着电源（不管充电芯片是否工作）
+            if (battery_level >= 95) {
+                ESP_LOGD(TAG, "设备电量很高(>=95)，很可能插着电源，不进入节能模式");
+                return false;
+            }
         }
         
         // 3. 检查是否有下载UI可见（图片下载时不进入节能模式）

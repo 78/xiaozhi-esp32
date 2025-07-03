@@ -261,7 +261,10 @@ std::string AlarmManager::GetAlarmsStatus(){
     std::lock_guard<std::mutex> lock(mutex_);
     std::string status;
     for(auto& alarm : alarms_){
-        status += alarm.name + " at " + std::to_string(alarm.time) + "\n";
+        if(!status.empty()){
+            status += "; ";
+        }
+        status += alarm.name + " at " + std::to_string(alarm.time);
     }
     return status;
 }
