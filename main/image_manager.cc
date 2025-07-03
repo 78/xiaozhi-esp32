@@ -1587,8 +1587,25 @@ void ImageResourceManager::LoadImageData() {
     
     // 优化启动加载策略：快速启动，延迟加载
     if (has_valid_images_) {
-        // 根据缓存的URL数量确定要加载的图片数量
+        // 根据缓存的URL数量确定要加载的图片数量，如果缓存为空则扫描本地文件
         int actual_image_count = std::min((int)cached_dynamic_urls_.size(), MAX_IMAGE_FILES);
+        
+        // 如果缓存为空，扫描本地实际存在的文件数量
+        if (actual_image_count == 0) {
+            ESP_LOGI(TAG, "URL缓存为空，扫描本地图片文件数量...");
+            for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+                char filename[128];
+                snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
+                FILE* f = fopen(filename, "rb");
+                if (f != NULL) {
+                    fclose(f);
+                    actual_image_count++;
+                } else {
+                    break; // 文件不连续时停止计数
+                }
+            }
+            ESP_LOGI(TAG, "发现本地图片文件数量: %d", actual_image_count);
+        }
         
         // 预分配空间
         image_array_.resize(actual_image_count);
@@ -2255,8 +2272,32 @@ esp_err_t ImageResourceManager::CheckAllServerResources(const char* version_url,
                     }
                 }
             } else {
-                // 如果没有缓存，说明是首次下载，保持need_update_animations的状态
+                // 如果没有缓存，检查本地实际文件数量与服务器URL数量是否匹配
                 ESP_LOGI(TAG, "首次获取动画图片URL，URL数量: %zu", server_dynamic_urls.size());
+                
+                // 扫描本地实际存在的图片文件数量
+                int local_file_count = 0;
+                for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+                    char filename[128];
+                    snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
+                    FILE* f = fopen(filename, "rb");
+                    if (f != NULL) {
+                        fclose(f);
+                        local_file_count++;
+                    } else {
+                        break; // 文件不连续时停止计数
+                    }
+                }
+                
+                // 比较本地文件数量与服务器URL数量
+                if (local_file_count != (int)server_dynamic_urls.size()) {
+                    ESP_LOGI(TAG, "本地图片文件数量(%d)与服务器URL数量(%zu)不匹配，需要更新", 
+                            local_file_count, server_dynamic_urls.size());
+                    need_update_animations = true;
+                } else {
+                    ESP_LOGI(TAG, "本地图片文件数量与服务器URL数量匹配，无需更新");
+                }
+                
                 // 输出前3个URL作为调试信息
                 for (size_t i = 0; i < std::min(server_dynamic_urls.size(), (size_t)3); i++) {
                     ESP_LOGI(TAG, "动画图片URL[%zu]: %s", i, server_dynamic_urls[i].c_str());
