@@ -19,7 +19,7 @@
 #define IMAGE_BASE_PATH "/resources/images/"
 #define LOGO_FILE_PATH "/resources/images/logo.bin"
 #define LOGO_FILE_PATH_H "/resources/images/logo.h"
-#define MAX_IMAGE_FILES 9   // 修改：根据服务器返回有9个动态图片
+#define MAX_IMAGE_FILES 9   // 固定值：API必须返回9个动态图片，本地图片数量不足9个时会触发重新下载
 #define MAX_DOWNLOAD_RETRIES 3  // 设置合理的重试次数为3次
 
 // 添加调试开关，可以通过配置启用
@@ -248,32 +248,40 @@ bool ImageResourceManager::CheckImagesExist() {
         return false;
     }
     
-    // 如果没有缓存的URL，则检查是否有任何图片文件
-    if (cached_dynamic_urls_.empty()) {
-        // 检查是否有至少一个二进制图片文件
-        char filename[64];
-        snprintf(filename, sizeof(filename), "%soutput_0001.bin", IMAGE_BASE_PATH);
+    // 扫描本地实际存在的图片文件数量
+    int local_file_count = 0;
+    for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+        char filename[128];
+        snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
         
         FILE* f = fopen(filename, "r");
-        if (f == NULL) {
-            ESP_LOGW(TAG, "未找到任何动画图片文件");
-            return false;
+        if (f != NULL) {
+            fclose(f);
+            local_file_count++;
+        } else {
+            break; // 文件不连续时停止计数
         }
-        fclose(f);
-        return true;
     }
     
-    // 根据缓存的URL数量检查对应的二进制文件
-    for (size_t i = 0; i < cached_dynamic_urls_.size(); i++) {
-        char filename[64];
-        snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, (int)(i + 1));
-        
-        FILE* f = fopen(filename, "r");
-        if (f == NULL) {
-            ESP_LOGW(TAG, "未找到动画图片文件: %s", filename);
+    ESP_LOGI(TAG, "本地动画图片文件数量: %d，期望数量: %d", local_file_count, MAX_IMAGE_FILES);
+    
+    // 严格检查：必须有9个动态图片才认为有效
+    if (local_file_count < MAX_IMAGE_FILES) {
+        ESP_LOGW(TAG, "本地动画图片数量不足（%d < %d），需要重新下载", local_file_count, MAX_IMAGE_FILES);
+        return false;
+    }
+    
+    // 如果有缓存的URL，还要检查URL数量是否匹配
+    if (!cached_dynamic_urls_.empty()) {
+        if (cached_dynamic_urls_.size() != MAX_IMAGE_FILES) {
+            ESP_LOGW(TAG, "缓存的URL数量（%zu）与期望数量（%d）不匹配，需要重新下载", 
+                    cached_dynamic_urls_.size(), MAX_IMAGE_FILES);
             return false;
         }
-        fclose(f);
+        
+        ESP_LOGI(TAG, "本地图片文件和URL缓存数量都正确");
+    } else {
+        ESP_LOGI(TAG, "本地图片文件数量正确，但没有URL缓存");
     }
     
     return true;
@@ -1607,6 +1615,18 @@ void ImageResourceManager::LoadImageData() {
             ESP_LOGI(TAG, "发现本地图片文件数量: %d", actual_image_count);
         }
         
+        // 验证图片数量是否符合期望
+        if (actual_image_count < MAX_IMAGE_FILES) {
+            ESP_LOGW(TAG, "本地图片数量不足（%d < %d），标记为无效图片资源", actual_image_count, MAX_IMAGE_FILES);
+            has_valid_images_ = false;
+            
+            // 清空图片数组，等待重新下载
+            image_array_.clear();
+            image_data_pointers_.clear();
+            ESP_LOGI(TAG, "图片数量不足，已清空图片数组");
+            return;
+        }
+        
         // 预分配空间
         image_array_.resize(actual_image_count);
         image_data_pointers_.resize(actual_image_count, nullptr);
@@ -2240,6 +2260,14 @@ esp_err_t ImageResourceManager::CheckAllServerResources(const char* version_url,
         // 提取服务器返回的动态图片URL
         std::vector<std::string> server_dynamic_urls;
         int array_size = cJSON_GetArraySize(dyn_array);
+        
+        // 验证服务器返回的动态图片数量是否正确
+        if (array_size != MAX_IMAGE_FILES) {
+            ESP_LOGE(TAG, "服务器返回的动态图片数量错误：期望 %d 个，实际 %d 个", MAX_IMAGE_FILES, array_size);
+            cJSON_Delete(root);
+            return ESP_FAIL;
+        }
+        
         for (int i = 0; i < array_size; i++) {
             cJSON* url_item = cJSON_GetArrayItem(dyn_array, i);
             if (cJSON_IsString(url_item)) {
@@ -2250,10 +2278,36 @@ esp_err_t ImageResourceManager::CheckAllServerResources(const char* version_url,
         if (!server_dynamic_urls.empty()) {
             server_dynamic_urls_ = server_dynamic_urls;
             
+            // 检查本地实际文件数量
+            int local_file_count = 0;
+            for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
+                char filename[128];
+                snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
+                FILE* f = fopen(filename, "rb");
+                if (f != NULL) {
+                    fclose(f);
+                    local_file_count++;
+                } else {
+                    break; // 文件不连续时停止计数
+                }
+            }
+            
+            ESP_LOGI(TAG, "本地动画图片文件数量: %d，服务器URL数量: %zu", local_file_count, server_dynamic_urls.size());
+            
             // 只有在已有缓存的情况下才进行比较
             if (!cached_dynamic_urls_.empty()) {
+                // 检查本地文件数量是否足够
+                if (local_file_count < MAX_IMAGE_FILES) {
+                    ESP_LOGI(TAG, "本地动画图片数量不足（%d < %d），需要更新", local_file_count, MAX_IMAGE_FILES);
+                    need_update_animations = true;
+                } 
+                // 检查缓存URL数量是否正确
+                else if (cached_dynamic_urls_.size() != MAX_IMAGE_FILES) {
+                    ESP_LOGI(TAG, "缓存URL数量不正确（%zu != %d），需要更新", cached_dynamic_urls_.size(), MAX_IMAGE_FILES);
+                    need_update_animations = true;
+                }
                 // 对比URL数组是否一致
-                if (cached_dynamic_urls_.size() != server_dynamic_urls.size()) {
+                else if (cached_dynamic_urls_.size() != server_dynamic_urls.size()) {
                     ESP_LOGI(TAG, "动画图片URL数量不一致，需要更新");
                     need_update_animations = true;
                 } else {
@@ -2268,26 +2322,12 @@ esp_err_t ImageResourceManager::CheckAllServerResources(const char* version_url,
                     }
                     
                     if (urls_match && !need_update_animations) {
-                        ESP_LOGI(TAG, "动画图片URL一致，无需更新");
+                        ESP_LOGI(TAG, "动画图片URL和本地文件都正确，无需更新");
                     }
                 }
             } else {
                 // 如果没有缓存，检查本地实际文件数量与服务器URL数量是否匹配
                 ESP_LOGI(TAG, "首次获取动画图片URL，URL数量: %zu", server_dynamic_urls.size());
-                
-                // 扫描本地实际存在的图片文件数量
-                int local_file_count = 0;
-                for (int i = 1; i <= MAX_IMAGE_FILES; i++) {
-                    char filename[128];
-                    snprintf(filename, sizeof(filename), "%soutput_%04d.bin", IMAGE_BASE_PATH, i);
-                    FILE* f = fopen(filename, "rb");
-                    if (f != NULL) {
-                        fclose(f);
-                        local_file_count++;
-                    } else {
-                        break; // 文件不连续时停止计数
-                    }
-                }
                 
                 // 比较本地文件数量与服务器URL数量
                 if (local_file_count != (int)server_dynamic_urls.size()) {
