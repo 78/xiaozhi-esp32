@@ -20,6 +20,7 @@
 #include <wifi_station.h>
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
+#include "afsk_demod.h"
 
 static const char *TAG = "WifiBoard";
 
@@ -54,6 +55,10 @@ void WifiBoard::EnterWifiConfigMode() {
     
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+
+    #if USE_ACOUSTIC_WIFI_PROVISIONING
+    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap);
+    #endif
     
     // Wait forever until reset after configuration
     while (true) {
