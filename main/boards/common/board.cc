@@ -106,62 +106,57 @@ std::string Board::GetJson() {
             }
         }
     */
-    std::string json = "{";
-    json += "\"version\":2,";
-    json += "\"language\":\"" + std::string(Lang::CODE) + "\",";
-    json += "\"flash_size\":" + std::to_string(SystemInfo::GetFlashSize()) + ",";
-    json += "\"minimum_free_heap_size\":" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) + ",";
-    json += "\"mac_address\":\"" + SystemInfo::GetMacAddress() + "\",";
-    json += "\"uuid\":\"" + uuid_ + "\",";
-    json += "\"chip_model_name\":\"" + SystemInfo::GetChipModelName() + "\",";
-    json += "\"chip_info\":{";
+    std::string json = R"({"version":2,"language":")" + std::string(Lang::CODE) + R"(",)";
+    json += R"("flash_size":)" + std::to_string(SystemInfo::GetFlashSize()) + R"(,)";
+    json += R"("minimum_free_heap_size":")" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) + R"(",)";
+    json += R"("mac_address":")" + SystemInfo::GetMacAddress() + R"(",)";
+    json += R"("uuid":")" + uuid_ + R"(",)";
+    json += R"("chip_model_name":")" + SystemInfo::GetChipModelName() + R"(",)";
 
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
-    json += "\"model\":" + std::to_string(chip_info.model) + ",";
-    json += "\"cores\":" + std::to_string(chip_info.cores) + ",";
-    json += "\"revision\":" + std::to_string(chip_info.revision) + ",";
-    json += "\"features\":" + std::to_string(chip_info.features);
-    json += "},";
+    json += R"("chip_info":{)";
+    json += R"("model":)" + std::to_string(chip_info.model) + R"(,)";
+    json += R"("cores":)" + std::to_string(chip_info.cores) + R"(,)";
+    json += R"("revision":)" + std::to_string(chip_info.revision) + R"(,)";
+    json += R"("features":)" + std::to_string(chip_info.features) + R"(},)";
 
-    json += "\"application\":{";
     auto app_desc = esp_app_get_description();
-    json += "\"name\":\"" + std::string(app_desc->project_name) + "\",";
-    json += "\"version\":\"" + std::string(app_desc->version) + "\",";
-    json += "\"compile_time\":\"" + std::string(app_desc->date) + "T" + std::string(app_desc->time) + "Z\",";
-    json += "\"idf_version\":\"" + std::string(app_desc->idf_ver) + "\",";
-
+    json += R"("application":{)";
+    json += R"("name":")" + std::string(app_desc->project_name) + R"(",)";
+    json += R"("version":")" + std::string(app_desc->version) + R"(",)";
+    json += R"("compile_time":")" + std::string(app_desc->date) + R"(T)" + std::string(app_desc->time) + R"(Z",)";
+    json += R"("idf_version":")" + std::string(app_desc->idf_ver) + R"(",)";
     char sha256_str[65];
     for (int i = 0; i < 32; i++) {
         snprintf(sha256_str + i * 2, sizeof(sha256_str) - i * 2, "%02x", app_desc->app_elf_sha256[i]);
     }
-    json += "\"elf_sha256\":\"" + std::string(sha256_str) + "\"";
-    json += "},";
+    json += R"("elf_sha256":")" + std::string(sha256_str) + R"(")";
+    json += R"(},)";
 
-    json += "\"partition_table\": [";
+    json += R"("partition_table": [)";
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
     while (it) {
         const esp_partition_t *partition = esp_partition_get(it);
-        json += "{";
-        json += "\"label\":\"" + std::string(partition->label) + "\",";
-        json += "\"type\":" + std::to_string(partition->type) + ",";
-        json += "\"subtype\":" + std::to_string(partition->subtype) + ",";
-        json += "\"address\":" + std::to_string(partition->address) + ",";
-        json += "\"size\":" + std::to_string(partition->size);
-        json += "},";
+        json += R"({)";
+        json += R"("label":")" + std::string(partition->label) + R"(",)";
+        json += R"("type":)" + std::to_string(partition->type) + R"(,)";
+        json += R"("subtype":)" + std::to_string(partition->subtype) + R"(,)";
+        json += R"("address":)" + std::to_string(partition->address) + R"(,)";
+        json += R"("size":)" + std::to_string(partition->size) + R"(},)";;
         it = esp_partition_next(it);
     }
     json.pop_back(); // Remove the last comma
-    json += "],";
+    json += R"(],)";
 
-    json += "\"ota\":{";
+    json += R"("ota":{)";
     auto ota_partition = esp_ota_get_running_partition();
-    json += "\"label\":\"" + std::string(ota_partition->label) + "\"";
-    json += "},";
+    json += R"("label":")" + std::string(ota_partition->label) + R"(")";
+    json += R"(},)";
 
-    json += "\"board\":" + GetBoardJson();
+    json += R"("board":)" + GetBoardJson();
 
     // Close the JSON object
-    json += "}";
+    json += R"(})";
     return json;
 }
