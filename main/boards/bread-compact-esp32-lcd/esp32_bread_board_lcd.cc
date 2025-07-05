@@ -135,7 +135,7 @@ private:
 
 
  
-    void InitializeButtons() {
+    void InitializeButtons() {  
 
         // 配置 GPIO
         gpio_config_t io_conf = {

@@ -18,6 +18,8 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 
+#include "assets/lang_config.h"
+
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
 #endif
@@ -68,6 +70,8 @@ class CompactWifiBoardLCD : public WifiBoard {
 private:
  
     Button boot_button_;
+    Button up_button_;    // 上面的按钮
+    Button down_button_;    // 下面的按钮
     LcdDisplay* display_;
 
     void InitializeSpi() {
@@ -130,7 +134,7 @@ private:
                                         .text_font = &font_puhui_16_4,
                                         .icon_font = &font_awesome_16_4,
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
+                                        .emoji_font = font_emoji_32_init(),    // 这个可能是用32大小的表情
 #else
                                         .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
 #endif
@@ -138,14 +142,31 @@ private:
     }
 
 
- 
-    void InitializeButtons() {
+
+    void InitializeButtons() {    // 初始化按钮，这里是只定义了单击的回调函数
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
+        });
+
+        up_button_.OnClick([this]() {
+            ESP_LOGW(TAG, "单击了上按键");
+            // auto& app = Application::GetInstance();
+            // app.PlaySound(Lang::Sounds::P3_SUCCESS);    // 听个响
+
+            Display* display = Board::GetInstance().GetDisplay();
+            display->ShowRedOverlay();
+
+        });
+
+        down_button_.OnClick([this]() {
+            ESP_LOGW(TAG, "单击了下按键");
+
+            Display* display = Board::GetInstance().GetDisplay();
+            display->HideOverlay();
         });
     }
 
@@ -156,6 +177,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
+        thing_manager.AddThing(iot::CreateThing("GameScripts"));
 #elif CONFIG_IOT_PROTOCOL_MCP
         static LampController lamp(LAMP_GPIO);
 #endif
@@ -163,12 +185,14 @@ private:
 
 public:
     CompactWifiBoardLCD() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO),
+        up_button_(UP_BUTTON_GPIO),
+        down_button_(DOWN_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeIot();
-        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
+        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {    // 如果背光没有空置的话
             GetBacklight()->RestoreBrightness();
         }
         

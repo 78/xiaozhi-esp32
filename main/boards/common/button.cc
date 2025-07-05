@@ -41,7 +41,7 @@ Button::~Button() {
     }
 }
 
-void Button::OnPressDown(std::function<void()> callback) {
+void Button::OnPressDown(std::function<void()> callback) {    // 按键按下
     if (button_handle_ == nullptr) {
         return;
     }
@@ -54,7 +54,7 @@ void Button::OnPressDown(std::function<void()> callback) {
     }, this);
 }
 
-void Button::OnPressUp(std::function<void()> callback) {
+void Button::OnPressUp(std::function<void()> callback) {    // 这个是按钮抬起
     if (button_handle_ == nullptr) {
         return;
     }
@@ -67,7 +67,7 @@ void Button::OnPressUp(std::function<void()> callback) {
     }, this);
 }
 
-void Button::OnLongPress(std::function<void()> callback) {
+void Button::OnLongPress(std::function<void()> callback) {    // 长按的逻辑
     if (button_handle_ == nullptr) {
         return;
     }
@@ -80,7 +80,7 @@ void Button::OnLongPress(std::function<void()> callback) {
     }, this);
 }
 
-void Button::OnClick(std::function<void()> callback) {
+void Button::OnClick(std::function<void()> callback) {    // 传入一个回调函数，单击按钮时触发回调函数。
     if (button_handle_ == nullptr) {
         return;
     }
@@ -93,7 +93,7 @@ void Button::OnClick(std::function<void()> callback) {
     }, this);
 }
 
-void Button::OnDoubleClick(std::function<void()> callback) {
+void Button::OnDoubleClick(std::function<void()> callback) {    // 这个是双击的
     if (button_handle_ == nullptr) {
         return;
     }

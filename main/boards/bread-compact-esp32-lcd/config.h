@@ -30,9 +30,9 @@
 
 
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_5
-#define ASR_BUTTON_GPIO         GPIO_NUM_19
-#define BUILTIN_LED_GPIO        GPIO_NUM_2
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_5  
+#define ASR_BUTTON_GPIO         GPIO_NUM_19 
+#define BUILTIN_LED_GPIO        GPIO_NUM_2 
 
 
 #ifdef CONFIG_LCD_ST7789_240X240_7PIN

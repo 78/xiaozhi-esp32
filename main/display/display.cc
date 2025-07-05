@@ -14,12 +14,12 @@
 
 #define TAG "Display"
 
-Display::Display() {
+Display::Display() {    // 初始化定时器和电源管理锁，确保显示更新的行为可控且稳定
     // Notification timer
-    esp_timer_create_args_t notification_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
-            DisplayLockGuard lock(display);
+    esp_timer_create_args_t notification_timer_args = {    // 创建一个 软件定时器
+        .callback = [](void *arg) {                        // 回调函数里做了两件事
+            Display *display = static_cast<Display*>(arg); // 隐藏 notification_label_，显示 status_label_
+            DisplayLockGuard lock(display);                // 通常用于短暂通知显示，比如提示用户“已保存”、“已连接”等几秒后自动消失，恢复状态信息。
             lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
         },
@@ -30,7 +30,7 @@ Display::Display() {
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
 
-    // Create a power management lock
+    // 创建一个电源管理锁， 防止系统降低主频或进入省电状态
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
     if (ret == ESP_ERR_NOT_SUPPORTED) {
         ESP_LOGI(TAG, "Power management not supported");
@@ -40,12 +40,12 @@ Display::Display() {
 }
 
 Display::~Display() {
-    if (notification_timer_ != nullptr) {
+    if (notification_timer_ != nullptr) {    // 定时器资源释放
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
     }
 
-    if (network_label_ != nullptr) {
+    if (network_label_ != nullptr) {    // 释放UI对象
         lv_obj_del(network_label_);
         lv_obj_del(notification_label_);
         lv_obj_del(status_label_);
@@ -53,42 +53,56 @@ Display::~Display() {
         lv_obj_del(battery_label_);
         lv_obj_del(emotion_label_);
     }
-    if( low_battery_popup_ != nullptr ) {
+    if( low_battery_popup_ != nullptr ) {    // 电池弹窗释放
         lv_obj_del(low_battery_popup_);
     }
-    if (pm_lock_ != nullptr) {
+    if (pm_lock_ != nullptr) {    // 电源锁删除
         esp_pm_lock_delete(pm_lock_);
     }
 }
 
-void Display::SetStatus(const char* status) {
+void Display::SetStatus(const char* status) {    // 在屏幕上设置状态信息，并隐藏通知信息
+    // 将传入的 status 字符串显示到 status_label_ 标签上，同时：显示 status_label_，隐藏 notification_label_
     DisplayLockGuard lock(this);
     if (status_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(status_label_, status);
-    lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(status_label_, status);    // 使用 LVGL 的函数设置标签的显示文本。
+    lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);    // 清除隐藏标志，即让 status_label_ 可见
+    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);    // 添加隐藏标志，即隐藏 notification_label_
 }
 
+// 将 std::string 类型的通知文本转换为 const char*，并调用已有的重载版本
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
     ShowNotification(notification.c_str(), duration_ms);
 }
 
-void Display::ShowNotification(const char* notification, int duration_ms) {
+void Display::ShowNotification(const char* notification, int duration_ms) {    // 实现通知消息显示逻辑
+    /*
+    显示通知内容到 notification_label_ 标签。
+    隐藏 status_label_（与状态信息互斥）。
+    设置 定时器，在 duration_ms 毫秒后自动隐藏通知，恢复状态显示。
+    */
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(notification_label_, notification);
-    lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(notification_label_, notification);    // 设置通知文本内容
+    lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);    // 显示 notification_label_
+    lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);    // 隐藏 status_label_，让通知更突出
 
     esp_timer_stop(notification_timer_);
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::UpdateStatusBar(bool update_all) {
+void Display::UpdateStatusBar(bool update_all) {    // 刷新状态栏显示内容
+    /*
+    更新状态栏图标：
+    静音图标（音量状态）
+    电池图标（电量 + 是否充电）
+    低电量弹窗（低电提醒）
+    网络图标（周期性或强制刷新）
+    */
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
@@ -175,7 +189,7 @@ void Display::UpdateStatusBar(bool update_all) {
 }
 
 
-void Display::SetEmotion(const char* emotion) {
+void Display::SetEmotion(const char* emotion) {    // 根据传入的字符串名显示对应的表情图标，找不到 → 显示默认的 "neutral" 图标
     struct Emotion {
         const char* icon;
         const char* text;
@@ -223,7 +237,7 @@ void Display::SetEmotion(const char* emotion) {
     }
 }
 
-void Display::SetIcon(const char* icon) {
+void Display::SetIcon(const char* icon) {    // 直接将传入的图标字符串 icon 设置到 emotion_label_ 标签上显示
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
@@ -235,6 +249,7 @@ void Display::SetPreviewImage(const lv_img_dsc_t* image) {
     // Do nothing
 }
 
+// 设置聊天信息显示内容，将传入的 content 文本显示在 chat_message_label_ 标签上
 void Display::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
@@ -243,8 +258,40 @@ void Display::SetChatMessage(const char* role, const char* content) {
     lv_label_set_text(chat_message_label_, content);
 }
 
+// 设置当前主题名称并保存到配置中，实现主题切换持久化
 void Display::SetTheme(const std::string& theme_name) {
     current_theme_name_ = theme_name;
     Settings settings("display", true);
     settings.SetString("theme", theme_name);
+}
+
+
+void Display::ShowRedOverlay() {
+    DisplayLockGuard lock(this);
+    
+    if (overlay_ != nullptr) {
+        // 如果已经有遮罩了，先删掉，防止重复覆盖
+        lv_obj_del(overlay_);
+        overlay_ = nullptr;
+    }
+
+    // 创建全屏遮罩
+    overlay_ = lv_obj_create(lv_scr_act());
+    lv_obj_set_style_pad_all(overlay_, 0, 0);
+    lv_obj_set_style_border_width(overlay_, 0, 0);
+    lv_obj_align(overlay_, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_radius(overlay_, 0, 0);  // 取消圆角
+    lv_obj_set_size(overlay_, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL));
+    lv_obj_set_style_bg_color(overlay_, lv_color_hex(0xFF0000), 0);   // 红色
+    lv_obj_set_style_bg_opa(overlay_, LV_OPA_COVER, 0);               // 不透明
+    lv_obj_move_foreground(overlay_);                                // 置顶显示
+}
+
+void Display::HideOverlay() {
+    DisplayLockGuard lock(this);
+
+    if (overlay_ != nullptr) {
+        lv_obj_del(overlay_);
+        overlay_ = nullptr;
+    }
 }

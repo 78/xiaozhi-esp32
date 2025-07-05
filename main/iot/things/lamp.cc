@@ -19,7 +19,7 @@ private:
 #endif
     bool power_ = false;
 
-    void InitializeGpio() {
+    void  InitializeGpio() {
         gpio_config_t config = {
             .pin_bit_mask = (1ULL << gpio_num_),
             .mode = GPIO_MODE_OUTPUT,

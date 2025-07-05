@@ -30,7 +30,7 @@ Backlight::~Backlight() {
 }
 
 void Backlight::RestoreBrightness() {
-    // Load brightness from settings
+    // 从设置加载亮度
     Settings settings("display");  
     int saved_brightness = settings.GetInt("brightness", 75);
     

@@ -966,7 +966,7 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         
         // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-        // Iterate through all children of content (message containers or bubbles)
+        // 遍历所有内容的子项（消息容器或气泡）
         uint32_t child_count = lv_obj_get_child_cnt(content_);
         for (uint32_t i = 0; i < child_count; i++) {
             lv_obj_t* obj = lv_obj_get_child(content_, i);
