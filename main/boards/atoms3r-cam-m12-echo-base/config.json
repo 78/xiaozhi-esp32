@@ -5,7 +5,7 @@
             "name": "atoms3r-cam-m12-echo-base",
             "sdkconfig_append": [
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\""
             ]
         }
     ]

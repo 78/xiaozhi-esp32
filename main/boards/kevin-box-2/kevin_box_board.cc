@@ -1,4 +1,4 @@
-#include "ml307_board.h"
+#include "dual_network_board.h"
 #include "audio_codecs/box_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
@@ -10,6 +10,7 @@
 #include "axp2101.h"
 #include "assets/lang_config.h"
 
+#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
@@ -50,8 +51,8 @@ public:
     }
 };
 
-    
-class KevinBoxBoard : public Ml307Board {
+
+class KevinBoxBoard : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     i2c_master_bus_handle_t codec_i2c_bus_;
@@ -169,10 +170,28 @@ private:
     void InitializeButtons() {
         boot_button_.OnPressDown([this]() {
             power_save_timer_->WakeUp();
-            Application::GetInstance().StartListening();
+            auto& app = Application::GetInstance();
+            app.StartListening();
         });
         boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+            auto& app = Application::GetInstance();
+            app.StopListening();
+        });
+        boot_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+        });
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
         });
 
         volume_up_button_.OnClick([this]() {
@@ -218,7 +237,7 @@ private:
     }
 
 public:
-    KevinBoxBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    KevinBoxBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {

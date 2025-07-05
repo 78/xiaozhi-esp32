@@ -33,7 +33,7 @@ Serial flasher config -> Flash size -> 8 MB
 **修改分区表：**
 
 ```
-Partition Table -> Custom partition CSV file -> partitions_8M.csv
+Partition Table -> Custom partition CSV file -> partitions/v1/8m.csv
 ```
 
 **关闭片外 PSRAM：**

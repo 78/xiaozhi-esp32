@@ -82,6 +82,15 @@ private:
             }
             app.ToggleChatState();
         });
+
+#if CONFIG_USE_DEVICE_AEC
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+            }
+        });
+#endif
     }
 
     void InitializeIli9341Display() {
@@ -126,7 +135,11 @@ private:
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                        .emoji_font = font_emoji_32_init(),
+#else
                                         .emoji_font = font_emoji_64_init(),
+#endif
                                     });
     }
 

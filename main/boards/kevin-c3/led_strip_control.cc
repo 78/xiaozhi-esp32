@@ -1,5 +1,6 @@
 #include "led_strip_control.h"
 #include "settings.h"
+#include "mcp_server.h"
 #include <esp_log.h>
 
 #define TAG "LedStripControl"
@@ -22,102 +23,108 @@ StripColor LedStripControl::RGBToColor(int red, int green, int blue) {
 }
 
 LedStripControl::LedStripControl(CircularStrip* led_strip) 
-    : Thing("LedStripControl", "LED 灯带控制，一共有8个灯珠"), led_strip_(led_strip) {
+    : led_strip_(led_strip) {
     // 从设置中读取亮度等级
     Settings settings("led_strip");
     brightness_level_ = settings.GetInt("brightness", 4);  // 默认等级4
     led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 4);
 
-    // 定义设备的属性
-    properties_.AddNumberProperty("brightness", "对话时的亮度等级(0-8)", [this]() -> int {
-        return brightness_level_;
-    });
+    auto& mcp_server = McpServer::GetInstance();
+    mcp_server.AddTool("self.led_strip.get_brightness",
+        "Get the brightness of the led strip (0-8)",
+        PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            return brightness_level_;
+        });
 
-    // 定义设备可以被远程执行的指令
-    methods_.AddMethod("SetBrightness", "设置对话时的亮度等级", ParameterList({
-        Parameter("level", "亮度等级(0-8)", kValueTypeNumber, true)
-    }), [this](const ParameterList& parameters) {
-        int level = static_cast<int>(parameters["level"].number());
-        ESP_LOGI(TAG, "Set LedStrip brightness level to %d", level);
-        
-        if (level < 0) level = 0;
-        if (level > 8) level = 8;
-        
-        brightness_level_ = level;
-        led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 4);
-        
-        // 保存设置
-        Settings settings("led_strip", true);
-        settings.SetInt("brightness", brightness_level_);
-    });
+    mcp_server.AddTool("self.led_strip.set_brightness",
+        "Set the brightness of the led strip (0-8)",
+        PropertyList({
+            Property("level", kPropertyTypeInteger, 0, 8)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int level = properties["level"].value<int>();
+            ESP_LOGI(TAG, "Set LedStrip brightness level to %d", level);
+            brightness_level_ = level;
+            led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 4);
 
-    methods_.AddMethod("SetSingleColor", "设置单个灯颜色", ParameterList({
-        Parameter("index", "灯珠索引（0-7）", kValueTypeNumber, true),
-        Parameter("red", "红色（0-255）", kValueTypeNumber, true),
-        Parameter("green", "绿色（0-255）", kValueTypeNumber, true),
-        Parameter("blue", "蓝色（0-255）", kValueTypeNumber, true)
-    }), [this](const ParameterList& parameters) {
-        int index = parameters["index"].number();
-        StripColor color = RGBToColor(
-            parameters["red"].number(),
-            parameters["green"].number(),
-            parameters["blue"].number()
-        );
-        ESP_LOGI(TAG, "Set led strip single color %d to %d, %d, %d",
-            index, color.red, color.green, color.blue);
-        led_strip_->SetSingleColor(index, color);
-    });
+            // 保存设置
+            Settings settings("led_strip", true);
+            settings.SetInt("brightness", brightness_level_);
 
-    methods_.AddMethod("SetAllColor", "设置所有灯颜色", ParameterList({
-        Parameter("red", "红色（0-255）", kValueTypeNumber, true),
-        Parameter("green", "绿色（0-255）", kValueTypeNumber, true),
-        Parameter("blue", "蓝色（0-255）", kValueTypeNumber, true)
-    }), [this](const ParameterList& parameters) {
-        StripColor color = RGBToColor(
-            parameters["red"].number(),
-            parameters["green"].number(),
-            parameters["blue"].number()
-        );
-        ESP_LOGI(TAG, "Set led strip color to %d, %d, %d",
-            color.red, color.green, color.blue
-        );
-        led_strip_->SetAllColor(color);
-    });
+            return true;
+        });
 
-    methods_.AddMethod("Blink", "闪烁动画", ParameterList({
-        Parameter("red", "红色（0-255）", kValueTypeNumber, true),
-        Parameter("green", "绿色（0-255）", kValueTypeNumber, true),
-        Parameter("blue", "蓝色（0-255）", kValueTypeNumber, true),
-        Parameter("interval", "间隔(ms)", kValueTypeNumber, true)
-    }), [this](const ParameterList& parameters) {
-        int interval = parameters["interval"].number();
-        StripColor color = RGBToColor(
-            parameters["red"].number(),
-            parameters["green"].number(),
-            parameters["blue"].number()
-        );
-        ESP_LOGI(TAG, "Blink led strip with color %d, %d, %d, interval %dms",
-            color.red, color.green, color.blue, interval);
-        led_strip_->Blink(color, interval);
-    });
+    mcp_server.AddTool("self.led_strip.set_single_color", 
+        "Set the color of a single led.", 
+        PropertyList({
+            Property("index", kPropertyTypeInteger, 0, 7),
+            Property("red", kPropertyTypeInteger, 0, 255),
+            Property("green", kPropertyTypeInteger, 0, 255),
+            Property("blue", kPropertyTypeInteger, 0, 255)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int index = properties["index"].value<int>();
+            int red = properties["red"].value<int>();
+            int green = properties["green"].value<int>();
+            int blue = properties["blue"].value<int>();
+            ESP_LOGI(TAG, "Set led strip single color %d to %d, %d, %d",
+                index, red, green, blue);
+            led_strip_->SetSingleColor(index, RGBToColor(red, green, blue));
+            return true;
+        });
 
-    methods_.AddMethod("Scroll", "跑马灯动画", ParameterList({
-        Parameter("red", "红色（0-255）", kValueTypeNumber, true),
-        Parameter("green", "绿色（0-255）", kValueTypeNumber, true),
-        Parameter("blue", "蓝色（0-255）", kValueTypeNumber, true),
-        Parameter("length", "滚动条长度（1-7）", kValueTypeNumber, true),
-        Parameter("interval", "间隔(ms)", kValueTypeNumber, true)
-    }), [this](const ParameterList& parameters) {
-        int interval = parameters["interval"].number();
-        int length = parameters["length"].number();
-        StripColor low = RGBToColor(4, 4, 4);
-        StripColor high = RGBToColor(
-            parameters["red"].number(),
-            parameters["green"].number(),
-            parameters["blue"].number()
-        );
-        ESP_LOGI(TAG, "Scroll led strip with color %d, %d, %d, length %d, interval %dms",
-            high.red, high.green, high.blue, length, interval);
-        led_strip_->Scroll(low, high, length, interval);
-    });
+    mcp_server.AddTool("self.led_strip.set_all_color", 
+        "Set the color of all leds.", 
+        PropertyList({
+            Property("red", kPropertyTypeInteger, 0, 255),
+            Property("green", kPropertyTypeInteger, 0, 255),
+            Property("blue", kPropertyTypeInteger, 0, 255)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int red = properties["red"].value<int>();
+            int green = properties["green"].value<int>();
+            int blue = properties["blue"].value<int>();
+            ESP_LOGI(TAG, "Set led strip all color to %d, %d, %d",
+                red, green, blue);
+            led_strip_->SetAllColor(RGBToColor(red, green, blue));
+            return true;
+        });
+
+    mcp_server.AddTool("self.led_strip.blink", 
+        "Blink the led strip. (闪烁)", 
+        PropertyList({
+            Property("red", kPropertyTypeInteger, 0, 255),
+            Property("green", kPropertyTypeInteger, 0, 255),
+            Property("blue", kPropertyTypeInteger, 0, 255),
+            Property("interval", kPropertyTypeInteger, 0, 1000)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int red = properties["red"].value<int>();
+            int green = properties["green"].value<int>();
+            int blue = properties["blue"].value<int>();
+            int interval = properties["interval"].value<int>();
+            ESP_LOGI(TAG, "Blink led strip with color %d, %d, %d, interval %dms",
+                red, green, blue, interval);
+            led_strip_->Blink(RGBToColor(red, green, blue), interval);
+            return true;
+        });
+
+    mcp_server.AddTool("self.led_strip.scroll", 
+        "Scroll the led strip. (跑马灯)", 
+        PropertyList({
+            Property("red", kPropertyTypeInteger, 0, 255),
+            Property("green", kPropertyTypeInteger, 0, 255),
+            Property("blue", kPropertyTypeInteger, 0, 255),
+            Property("length", kPropertyTypeInteger, 1, 7),
+            Property("interval", kPropertyTypeInteger, 0, 1000)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int red = properties["red"].value<int>();
+            int green = properties["green"].value<int>();
+            int blue = properties["blue"].value<int>();
+            int interval = properties["interval"].value<int>();
+            int length = properties["length"].value<int>();
+            ESP_LOGI(TAG, "Scroll led strip with color %d, %d, %d, length %d, interval %dms",
+                red, green, blue, length, interval);
+            StripColor low = RGBToColor(4, 4, 4);
+            StripColor high = RGBToColor(red, green, blue);
+            led_strip_->Scroll(low, high, length, interval);
+            return true;
+        });
+
 }

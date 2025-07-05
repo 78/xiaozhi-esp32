@@ -1,12 +1,9 @@
 #ifndef LED_STRIP_CONTROL_H
 #define LED_STRIP_CONTROL_H
 
-#include "iot/thing.h"
 #include "led/circular_strip.h"
 
-using namespace iot;
-
-class LedStripControl : public Thing {
+class LedStripControl {
 private:
     CircularStrip* led_strip_;
     int brightness_level_;  // 亮度等级 (0-8)

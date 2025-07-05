@@ -190,7 +190,7 @@ void GpioLed::OnFadeEnd() {
                     ledc_channel_.channel, LEDC_FADE_NO_WAIT);
 }
 
-bool GpioLed::FadeCallback(const ledc_cb_param_t *param, void *user_arg) {
+bool IRAM_ATTR GpioLed::FadeCallback(const ledc_cb_param_t *param, void *user_arg) {
     if (param->event == LEDC_FADE_END_EVT) {
         auto led = static_cast<GpioLed*>(user_arg);
         led->OnFadeEnd();
@@ -220,6 +220,7 @@ void GpioLed::OnStateChanged() {
             TurnOn();
             break;
         case kDeviceStateListening:
+        case kDeviceStateAudioTesting:
             if (app.IsVoiceDetected()) {
                 SetBrightness(HIGH_BRIGHTNESS);
             } else {

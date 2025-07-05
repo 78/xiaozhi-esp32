@@ -8,7 +8,9 @@
 #include "config.h"
 #include "iot/thing_manager.h"
 #include "assets/lang_config.h"
+
 #include <esp_log.h>
+#include <button_adc.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
@@ -86,7 +88,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void changeVol(int val) {
+    void ChangeVol(int val) {
         auto codec = GetAudioCodec();
         auto volume = codec->output_volume() + val;
         if (volume > 100) {
@@ -109,7 +111,7 @@ private:
 
     void InitializeButtons() {
         /* Initialize ADC  esp-box lite的前三个按钮采用是的adc按钮，而非gpio */
-        button_adc_config_t adc_cfg;
+        button_adc_config_t adc_cfg = {};
         adc_cfg.adc_channel = ADC_CHANNEL_0; // ADC1 channel 0 is GPIO1
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)        
         const adc_oneshot_unit_init_cfg_t init_config1 = {
@@ -121,27 +123,28 @@ private:
         adc_cfg.button_index = BSP_ADC_BUTTON_PREV;
         adc_cfg.min = 2310; // middle is 2410mV
         adc_cfg.max = 2510;
-        adc_button_[0] = new Button(adc_cfg);
+        adc_button_[0] = new AdcButton(adc_cfg);
 
         adc_cfg.button_index = BSP_ADC_BUTTON_ENTER;
         adc_cfg.min = 1880; // middle is 1980mV
         adc_cfg.max = 2080;
-        adc_button_[1] = new Button(adc_cfg);
+        adc_button_[1] = new AdcButton(adc_cfg);
 
         adc_cfg.button_index = BSP_ADC_BUTTON_NEXT;
         adc_cfg.min = 720; // middle is 820mV
         adc_cfg.max = 920;
-        adc_button_[2] = new Button(adc_cfg);
+
+        adc_button_[2] = new AdcButton(adc_cfg);
 
         auto volume_up_button = adc_button_[BSP_ADC_BUTTON_NEXT];
-        volume_up_button->OnClick([this]() {changeVol(10);});
+        volume_up_button->OnClick([this]() {ChangeVol(10);});
         volume_up_button->OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         auto volume_down_button = adc_button_[BSP_ADC_BUTTON_PREV];
-        volume_down_button->OnClick([this]() {changeVol(-10);});
+        volume_down_button->OnClick([this]() {ChangeVol(-10);});
         volume_down_button->OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
@@ -185,17 +188,20 @@ private:
         
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, false);
+        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        esp_lcd_panel_invert_color(panel, true);
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                        .emoji_font = font_emoji_32_init(),
+#else
                                         .emoji_font = font_emoji_64_init(),
+#endif
                                     });
     }
 

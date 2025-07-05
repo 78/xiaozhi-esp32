@@ -16,6 +16,9 @@
 #include <driver/spi_common.h>
 #include <esp_lcd_nv3023.h>
 
+#include "../magiclick-2p5/power_manager.h"
+#include "power_save_timer.h"
+
 #define TAG "magiclick_2p4"
 
 LV_FONT_DECLARE(font_puhui_16_4);
@@ -64,6 +67,41 @@ private:
     Button right_button_;
     NV3023Display* display_;
 
+    PowerSaveTimer* power_save_timer_;
+    PowerManager* power_manager_;
+
+    esp_lcd_panel_io_handle_t panel_io = nullptr;
+    esp_lcd_panel_handle_t panel = nullptr;
+
+
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(GPIO_NUM_48);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
+    }
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(240, 60, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(1);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+         
+        power_save_timer_->SetEnabled(true);
+    }
+
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -82,7 +120,14 @@ private:
     }
 
     void InitializeButtons() {
+        main_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+        });
         main_button_.OnPressDown([this]() {
+            power_save_timer_->WakeUp();
             Application::GetInstance().StartListening();
         });
         main_button_.OnPressUp([this]() {
@@ -90,6 +135,7 @@ private:
         });
 
         left_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -104,11 +150,13 @@ private:
         });
 
         left_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
 
         right_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -119,6 +167,7 @@ private:
         });
 
         right_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
@@ -143,8 +192,8 @@ private:
     }
 
     void InitializeNv3023Display(){
-        esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
+        // esp_lcd_panel_io_handle_t panel_io = nullptr;
+        // esp_lcd_panel_handle_t panel = nullptr;
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
@@ -188,13 +237,16 @@ public:
         main_button_(MAIN_BUTTON_GPIO),
         left_button_(LEFT_BUTTON_GPIO), 
         right_button_(RIGHT_BUTTON_GPIO) {
+        InitializeLedPower();
+        InitializePowerManager();
+        InitializePowerSaveTimer();        
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeLedPower();
         InitializeSpi();
         InitializeNv3023Display();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
+        
     }
 
     virtual Led* GetLed() override {
@@ -216,6 +268,25 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+        level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 

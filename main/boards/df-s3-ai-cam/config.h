@@ -1,0 +1,63 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_38
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_39
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_42
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_45
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_46
+#define AUDIO_I2S_SPK_GPIO_GAIN GPIO_NUM_41
+
+#define BUILTIN_LED_GPIO        GPIO_NUM_3
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+#define RESET_NVS_BUTTON_GPIO     GPIO_NUM_NC
+#define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_NC
+
+/* DFRobot Camera pins */
+#define PWDN_GPIO_NUM       -1
+#define RESET_GPIO_NUM      -1
+#define XCLK_GPIO_NUM       5
+#define Y9_GPIO_NUM         4
+#define Y8_GPIO_NUM         6
+#define Y7_GPIO_NUM         7
+#define Y6_GPIO_NUM         14
+#define Y5_GPIO_NUM         17
+#define Y4_GPIO_NUM         21
+#define Y3_GPIO_NUM         18
+#define Y2_GPIO_NUM         16
+#define VSYNC_GPIO_NUM      1
+#define HREF_GPIO_NUM       2
+#define PCLK_GPIO_NUM       15
+#define SIOD_GPIO_NUM       8
+#define SIOC_GPIO_NUM       9
+
+/* Camera pins */
+#define CAMERA_PIN_PWDN     PWDN_GPIO_NUM
+#define CAMERA_PIN_RESET    RESET_GPIO_NUM
+#define CAMERA_PIN_XCLK     XCLK_GPIO_NUM
+#define CAMERA_PIN_SIOD     SIOD_GPIO_NUM
+#define CAMERA_PIN_SIOC     SIOC_GPIO_NUM
+
+#define CAMERA_PIN_D7       Y9_GPIO_NUM
+#define CAMERA_PIN_D6       Y8_GPIO_NUM
+#define CAMERA_PIN_D5       Y7_GPIO_NUM
+#define CAMERA_PIN_D4       Y6_GPIO_NUM
+#define CAMERA_PIN_D3       Y5_GPIO_NUM
+#define CAMERA_PIN_D2       Y4_GPIO_NUM
+#define CAMERA_PIN_D1       Y3_GPIO_NUM
+#define CAMERA_PIN_D0       Y2_GPIO_NUM
+#define CAMERA_PIN_VSYNC    VSYNC_GPIO_NUM
+#define CAMERA_PIN_HREF     HREF_GPIO_NUM
+#define CAMERA_PIN_PCLK     PCLK_GPIO_NUM
+
+#define XCLK_FREQ_HZ 20000000
+
+#endif  // _BOARD_CONFIG_H_

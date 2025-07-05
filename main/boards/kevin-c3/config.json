@@ -3,7 +3,11 @@
     "builds": [
         {
             "name": "kevin-c3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n",
+                "CONFIG_LWIP_IPV6=n",
+                "CONFIG_USE_ESP_WAKE_WORD=y"
+            ]
         }
     ]
 }

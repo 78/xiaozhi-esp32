@@ -41,7 +41,7 @@ class GpioLed : public Led {
     void StartContinuousBlink(int interval_ms);
     void StartFadeTask();
     void OnFadeEnd();
-    static bool FadeCallback(const ledc_cb_param_t *param, void *user_arg);
+    static bool IRAM_ATTR FadeCallback(const ledc_cb_param_t *param, void *user_arg);
 };
 
 #endif  // _GPIO_LED_H_

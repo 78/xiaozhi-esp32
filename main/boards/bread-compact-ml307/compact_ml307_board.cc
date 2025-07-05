@@ -1,10 +1,12 @@
-#include "ml307_board.h"
+#include "dual_network_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "mcp_server.h"
+#include "lamp_controller.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
@@ -13,13 +15,14 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <wifi_station.h>
 
 #define TAG "CompactMl307Board"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactMl307Board : public Ml307Board {
+class CompactMl307Board : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -96,8 +99,23 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+            app.ToggleChatState();
         });
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
+        });
+
         touch_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
         });
@@ -138,13 +156,17 @@ private:
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeIot() {
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
+#elif CONFIG_IOT_PROTOCOL_MCP
+        static LampController lamp(LAMP_GPIO);
+#endif
     }
 
 public:
-    CompactMl307Board() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    CompactMl307Board() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),

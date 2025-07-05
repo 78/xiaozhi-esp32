@@ -7,5 +7,5 @@
 ```
 Partition Table  --->
   Partition Table (Custom partition table CSV)  --->
-  (partitions_8M.csv) Custom partition CSV file
+  (partitions/v1/8m.csv) Custom partition CSV file
 ```

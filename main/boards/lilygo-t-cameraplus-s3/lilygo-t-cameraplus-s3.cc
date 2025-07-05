@@ -7,6 +7,10 @@
 #include "power_save_timer.h"
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
+#include "sy6970.h"
+#include "pin_config.h"
+#include "esp32_camera.h"
+#include "ir_filter_controller.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -52,16 +56,32 @@ private:
     TouchPoint_t tp_;
 };
 
+class Pmic : public Sy6970 {
+public:
+
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Sy6970(i2c_bus, addr) {
+        uint8_t chip_id = ReadReg(0x14);
+        ESP_LOGI(TAG, "Get sy6970 chip ID: 0x%02X", (chip_id & 0B00111000));
+
+        WriteReg(0x00, 0B00001000); // Disable ILIM pin
+        WriteReg(0x02, 0B11011101); // Enable ADC measurement function
+        WriteReg(0x07, 0B10001101); // Disable watchdog timer feeding function
+    }
+};
+
 class LilygoTCameraPlusS3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816x *cst816d_;
+    Pmic* pmic_;
     LcdDisplay *display_;
+    Button boot_button_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
+    Esp32Camera* camera_;
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
@@ -74,6 +94,9 @@ private:
             display->SetChatMessage("system", "");
             display->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            pmic_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -141,7 +164,7 @@ private:
 
     void InitCst816d() {
         ESP_LOGI(TAG, "Init CST816x");
-        cst816d_ = new Cst816x(i2c_bus_, 0x15);
+        cst816d_ = new Cst816x(i2c_bus_, CST816_ADDRESS);
         xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
     }
 
@@ -154,6 +177,11 @@ private:
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    }
+
+    void InitSy6970() {
+        ESP_LOGI(TAG, "Init Sy6970");
+        pmic_ = new Pmic(i2c_bus_, SY6970_ADDRESS);
     }
 
     void InitializeSt7789Display() {
@@ -194,7 +222,7 @@ private:
     }
 
     void InitializeButtons() {
-        key1_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -202,25 +230,72 @@ private:
             power_save_timer_->WakeUp();
             app.ToggleChatState();
         });
+        key1_button_.OnClick([this]() {
+            if (camera_) {
+                camera_->Capture();
+            }
+        });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
+    void InitializeCamera() {
+        camera_config_t config = {};
+        config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.pin_d0 = Y2_GPIO_NUM;
+        config.pin_d1 = Y3_GPIO_NUM;
+        config.pin_d2 = Y4_GPIO_NUM;
+        config.pin_d3 = Y5_GPIO_NUM;
+        config.pin_d4 = Y6_GPIO_NUM;
+        config.pin_d5 = Y7_GPIO_NUM;
+        config.pin_d6 = Y8_GPIO_NUM;
+        config.pin_d7 = Y9_GPIO_NUM;
+        config.pin_xclk = XCLK_GPIO_NUM;
+        config.pin_pclk = PCLK_GPIO_NUM;
+        config.pin_vsync = VSYNC_GPIO_NUM;
+        config.pin_href = HREF_GPIO_NUM;
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+        config.pin_sccb_sda = -1;   // 这里如果写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_scl = SIOC_GPIO_NUM;
+        config.sccb_i2c_port = 0;   //  这里如果写0 默认使用I2C0
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+        config.pin_sccb_sda = SIOD_GPIO_NUM;  
+        config.pin_sccb_scl = SIOC_GPIO_NUM;
+        config.sccb_i2c_port = 1; 
+#endif
+        config.pin_pwdn = PWDN_GPIO_NUM;
+        config.pin_reset = RESET_GPIO_NUM;
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_240X240;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
+        camera_ = new Esp32Camera(config);
+        camera_->SetVFlip(1);
+        camera_->SetHMirror(1);
     }
 
 public:
-    LilygoTCameraPlusS3Board() : key1_button_(KEY1_BUTTON_GPIO) {
+    LilygoTCameraPlusS3Board() : boot_button_(BOOT_BUTTON_GPIO), key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitI2c();
+        InitSy6970();
         InitCst816d();
         I2cDetect();
         InitSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeIot();
+        InitializeCamera();
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+        auto &thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+#elif CONFIG_IOT_PROTOCOL_MCP
+        static IrFilterController irFilter(AP1511B_GPIO);
+#endif
         GetBacklight()->RestoreBrightness();
     }
 
@@ -242,6 +317,20 @@ public:
         return display_;
     }
 
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        bool is_power_good = pmic_->IsPowerGood();
+        discharging = !charging && is_power_good;
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = pmic_->GetBatteryLevel();
+        return true;
+    }
+
     virtual void SetPowerSaveMode(bool enabled) override {
         if (!enabled) {
             power_save_timer_->WakeUp();
@@ -256,6 +345,10 @@ public:
 
     Cst816x *GetTouchpad() {
         return cst816d_;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 };
 

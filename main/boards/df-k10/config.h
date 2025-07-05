@@ -41,5 +41,36 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_NC
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+/* DFRobot K10 Camera pins */
+#define PWDN_GPIO_NUM       -1
+#define RESET_GPIO_NUM      -1
+#define XCLK_GPIO_NUM       7
+
+#define VSYNC_GPIO_NUM      4
+#define HREF_GPIO_NUM       5
+#define PCLK_GPIO_NUM       17
+#define SIOD_GPIO_NUM       20
+#define SIOC_GPIO_NUM       19
+
+/* Camera pins */
+#define CAMERA_PIN_PWDN     PWDN_GPIO_NUM
+#define CAMERA_PIN_RESET    RESET_GPIO_NUM
+#define CAMERA_PIN_XCLK     XCLK_GPIO_NUM
+#define CAMERA_PIN_SIOD     SIOD_GPIO_NUM
+#define CAMERA_PIN_SIOC     SIOC_GPIO_NUM
+
+#define CAMERA_PIN_D9       6
+#define CAMERA_PIN_D8       15
+#define CAMERA_PIN_D7       16
+#define CAMERA_PIN_D6       18
+#define CAMERA_PIN_D5       9
+#define CAMERA_PIN_D4       11
+#define CAMERA_PIN_D3       10
+#define CAMERA_PIN_D2       8
+#define CAMERA_PIN_VSYNC    VSYNC_GPIO_NUM
+#define CAMERA_PIN_HREF     HREF_GPIO_NUM
+#define CAMERA_PIN_PCLK     PCLK_GPIO_NUM
+
+#define XCLK_FREQ_HZ 20000000
 
 #endif // _BOARD_CONFIG_H_

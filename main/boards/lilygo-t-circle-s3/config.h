@@ -1,8 +1,6 @@
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
 
-// M5Stack CoreS3 Board configuration
-
 #include <driver/gpio.h>
 #include "pin_config.h"
 

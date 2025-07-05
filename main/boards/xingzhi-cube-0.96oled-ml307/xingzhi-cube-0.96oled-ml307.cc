@@ -1,14 +1,14 @@
-#include "ml307_board.h"
+#include "dual_network_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-#include "power_save_timer.h"
 #include "../xingzhi-cube-1.54tft-wifi/power_manager.h"
 
 #include <driver/rtc_io.h>
@@ -17,6 +17,7 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <wifi_station.h>
 
 #define TAG "XINGZHI_CUBE_0_96OLED_ML307"
 
@@ -24,7 +25,7 @@ LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 
-class XINGZHI_CUBE_0_96OLED_ML307 : public Ml307Board {
+class XINGZHI_CUBE_0_96OLED_ML307 : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
@@ -143,7 +144,20 @@ private:
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
             app.ToggleChatState();
+        });
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
         });
 
         volume_up_button_.OnClick([this]() {
@@ -188,7 +202,7 @@ private:
     }
 
 public:
-    XINGZHI_CUBE_0_96OLED_ML307() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    XINGZHI_CUBE_0_96OLED_ML307() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -231,7 +245,7 @@ public:
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
-        Ml307Board::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 

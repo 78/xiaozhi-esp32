@@ -7,7 +7,7 @@
                 "CONFIG_SPIRAM=n",
                 "CONFIG_USE_AFE=n",
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions_8M.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\""
             ]
         }
     ]

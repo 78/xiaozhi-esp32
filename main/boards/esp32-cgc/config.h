@@ -31,6 +31,9 @@
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define ASR_BUTTON_GPIO         GPIO_NUM_13
 
+// A MCP Test: Control a lamp
+#define LAMP_GPIO 				GPIO_NUM_12
+
 #define DISPLAY_SDA_PIN         GPIO_NUM_NC
 #define DISPLAY_SCL_PIN         GPIO_NUM_NC
 

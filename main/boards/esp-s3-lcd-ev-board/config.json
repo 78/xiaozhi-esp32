@@ -1,0 +1,17 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-s3-lcd-ev-board-1p4",
+            "sdkconfig_append": [
+                "CONFIG_ESP_S3_LCD_EV_Board_1p4=y"
+            ]
+        },
+        {
+            "name": "esp-s3-lcd-ev-board-1p5",
+            "sdkconfig_append": [
+                "CONFIG_ESP_S3_LCD_EV_Board_1p5=y"
+            ]
+        }
+    ]
+} 
