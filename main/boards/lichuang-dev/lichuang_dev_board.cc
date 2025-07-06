@@ -249,8 +249,7 @@ private:
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new Esp32Camera(config);
-        // image mirror
-        camera_->SetHMirror(true);
+
     }
 
 public:
