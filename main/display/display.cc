@@ -73,6 +73,7 @@ Display::~Display() {
         lv_obj_del(status_label_);
         lv_obj_del(mute_label_);
         lv_obj_del(battery_label_);  // 恢复电量UI显示
+        lv_obj_del(battery_percentage_label_);  // 电池百分比标签清理
         lv_obj_del(emotion_label_);
     }
     if( low_battery_popup_ != nullptr ) {

@@ -16,6 +16,7 @@ private:
     gpio_num_t charging_pin_ = GPIO_NUM_NC;
     std::vector<uint16_t> adc_values_;
     uint32_t battery_level_ = 0;
+    uint32_t last_reported_battery_level_ = 0;
     bool is_charging_ = false;
     bool is_low_battery_ = false;
     int ticks_ = 0;
@@ -28,9 +29,6 @@ private:
     void CheckBatteryStatus() {
         // 使用GPIO_NUM_5检测充电状态（CHSTA信号）
         int gpio_level = gpio_get_level(charging_pin_);
-        
-        // 添加详细调试日志
-        ESP_LOGI("PowerManager", "GPIO[5] (CHSTA) 充电状态检测: %d", gpio_level);
         
         // GPIO_NUM_5的CHSTA信号：低电平表示正在充电，高电平表示未充电
         bool new_charging_status = gpio_level == 0;  // 低电平表示充电中
@@ -75,17 +73,20 @@ private:
         }
         average_adc /= adc_values_.size();
 
-        // 定义电池电量区间
+        // 定义电池电量区间 - 非线性映射：前60%电量消耗慢，后40%电量消耗快
+        // 总ADC范围：460 (2430-1970)
+        // 前60%电量(100%-40%)占用70%的ADC范围 = 322
+        // 后40%电量(40%-0%)占用30%的ADC范围 = 138
         const struct {
             uint16_t adc;
             uint8_t level;
         } levels[] = {
-            {1970, 0},
-            {2062, 20},
-            {2154, 40},
-            {2246, 60},
-            {2338, 80},
-            {2430, 100}
+            {1970, 0},   // 0%电量基准点
+            {2039, 20},  // 20%电量，ADC差值69 (紧凑间隔，快速消耗)
+            {2108, 40},  // 40%电量，ADC差值69 (紧凑间隔，快速消耗)
+            {2189, 60},  // 60%电量，ADC差值81 (开始放宽间隔)
+            {2310, 80},  // 80%电量，ADC差值121 (宽松间隔，慢消耗)
+            {2430, 100}  // 100%电量，ADC差值120 (宽松间隔，慢消耗)
         };
 
         // 低于最低值时
@@ -117,7 +118,11 @@ private:
             }
         }
 
-        ESP_LOGI("PowerManager", "ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
+        // 只在电量值有显著变化时打印日志（变化超过5%）
+        if (abs((int)battery_level_ - (int)last_reported_battery_level_) >= 5) {
+            ESP_LOGI("PowerManager", "ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
+            last_reported_battery_level_ = battery_level_;
+        }
     }
 
 public:

@@ -225,10 +225,15 @@ void AlarmManager::CancelAlarm(std::string alarm_name) {
 
 #include "application.h"
 void AlarmManager::OnAlarm(){
-    ESP_LOGI(TAG, "=----ring----=");
+    ESP_LOGI(TAG, "=----闹钟触发----=");
     ring_flag = true;
-    auto display = Board::GetInstance().GetDisplay();
-    // 遍历闹钟
+    
+    // 闹钟触发后，CustomBoard 的监听器会自动检测并处理超级省电模式唤醒
+    
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    
+    // 找到当前触发的闹钟
     Alarm *alarm_first = nullptr;
     for(auto& alarm : alarms_){
         if(alarm.time <= time(NULL)){
@@ -236,25 +241,29 @@ void AlarmManager::OnAlarm(){
             break;
         }
     }
-    char message_buf_send[256];
-    sprintf(message_buf_send, "{\"type\":\"listen\",\"state\":\"detect\",\"text\":\"闹钟-#%s\",\"source\":\"text\"}", alarm_first->name.c_str());
-    now_alarm_name = message_buf_send;
-    display->SetStatus(alarm_first->name.c_str());  // 显示闹钟名字
-    // // 闹钟响了
+    
+    if (alarm_first) {
+        char message_buf_send[256];
+        sprintf(message_buf_send, "{\"type\":\"listen\",\"state\":\"detect\",\"text\":\"闹钟-#%s\",\"source\":\"text\"}", alarm_first->name.c_str());
+        now_alarm_name = message_buf_send;
+        display->SetStatus(alarm_first->name.c_str());  // 显示闹钟名字
+        
+        ESP_LOGI(TAG, "闹钟 '%s' 触发", alarm_first->name.c_str());
+    }
+    
+    // 清理过期闹钟并设置下一个闹钟
     time_t now = time(NULL);
-    // 处理一下相同时间的闹钟
     ClearOverdueAlarm(now);
 
     Alarm *current_alarm_ = GetProximateAlarm(now);
     if(current_alarm_ != nullptr){
         int new_timer_time = current_alarm_->time - now;
-        ESP_LOGI(TAG, "begin a alarm at %d", new_timer_time);
+        ESP_LOGI(TAG, "设置下一个闹钟在 %d 秒后", new_timer_time);
         esp_timer_start_once(timer_, new_timer_time * 1000000);
-    }else{
+    } else {
         running_flag = false; // 没有闹钟了
-        ESP_LOGI(TAG, "no alarm now");
+        ESP_LOGI(TAG, "没有更多闹钟了");
     }
-
 }
 
 std::string AlarmManager::GetAlarmsStatus(){

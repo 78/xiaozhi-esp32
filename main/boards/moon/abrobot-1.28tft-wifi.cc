@@ -60,7 +60,7 @@ LV_FONT_DECLARE(font_awesome_30_4);  // Font Awesome 30像素图标字体
 
 // 暗色主题颜色定义
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0)           // 深色背景色（黑色）
-#define DARK_TEXT_COLOR             lv_color_black()          // 白色文本颜色
+#define DARK_TEXT_COLOR             lv_color_black()          // 黑色文本颜色
 #define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0)           // 聊天背景色（黑色）
 #define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)    // 用户气泡颜色（深绿色）
 #define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)    // 助手气泡颜色（深灰色）
@@ -70,8 +70,8 @@ LV_FONT_DECLARE(font_awesome_30_4);  // Font Awesome 30像素图标字体
 #define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)    // 低电量提示颜色（红色）
 
 // 亮色主题颜色定义
-#define LIGHT_BACKGROUND_COLOR       lv_color_white()          // 亮色背景色（白色）
-#define LIGHT_TEXT_COLOR             lv_color_white()          // 黑色文本颜色
+#define LIGHT_BACKGROUND_COLOR       lv_color_hex(0)          // 深色背景色（黑色）
+#define LIGHT_TEXT_COLOR             lv_color_white()          // 白色文本颜色
 #define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)    // 聊天背景色（浅灰色）
 #define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)    // 用户气泡颜色（微信绿）
 #define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()          // 助手气泡颜色（白色）
@@ -139,7 +139,7 @@ public:
     // 睡眠管理相关
     lv_timer_t* sleep_timer_ = nullptr;  // 睡眠定时器
     bool is_sleeping_ = false;           // 睡眠状态标志
-    int normal_brightness_ = 100;        // 正常亮度值
+    int normal_brightness_ = 70;         // 正常亮度值
     
     // 浅睡眠状态管理
     bool is_light_sleeping_ = false;     // 浅睡眠状态标志
@@ -281,9 +281,11 @@ public:
     
     if (currentState == kDeviceStateStarting || 
         currentState == kDeviceStateWifiConfiguring ||
+        currentState == kDeviceStateActivating ||
+        currentState == kDeviceStateUpgrading ||
         download_ui_is_active_and_visible ||
         preload_ui_is_active_and_visible) { 
-        ESP_LOGI(TAG, "设备处于启动/配置状态或下载/预加载UI可见，暂不启用空闲定时器");
+        ESP_LOGI(TAG, "设备处于启动/配置/激活/升级状态或下载/预加载UI可见，暂不启用空闲定时器");
         return;
     }
         
@@ -708,12 +710,28 @@ public:
         lv_label_set_text(lunar_label, "农历癸卯年正月初一");  // 初始显示农历文本
         lv_obj_align(lunar_label, LV_ALIGN_BOTTOM_MID, 0, -36);  // 底部居中对齐，向上偏移36像素
         
-        // 创建电池标签 - 适配圆形屏幕，放在农历标签下方
-        battery_label_ = lv_label_create(tab2);
+        // 创建电池状态容器 - 适配圆形屏幕，放在农历标签下方
+        lv_obj_t* battery_container = lv_obj_create(tab2);
+        lv_obj_set_size(battery_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);  // 自适应内容大小
+        lv_obj_set_style_bg_opa(battery_container, LV_OPA_TRANSP, 0);  // 透明背景
+        lv_obj_set_style_border_opa(battery_container, LV_OPA_TRANSP, 0);  // 透明边框
+        lv_obj_set_style_pad_all(battery_container, 0, 0);  // 无内边距
+        lv_obj_set_flex_flow(battery_container, LV_FLEX_FLOW_ROW);  // 水平布局
+        lv_obj_set_flex_align(battery_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);  // 居中对齐
+        lv_obj_set_style_pad_column(battery_container, 4, 0);  // 图标和文字间距4像素
+        lv_obj_align_to(battery_container, lunar_label, LV_ALIGN_OUT_BOTTOM_MID, -30, 8);  // 农历标签下方，向左偏移10像素，向下偏移8像素
+        
+        // 创建电池图标标签
+        battery_label_ = lv_label_create(battery_container);
         lv_label_set_text(battery_label_, "");  // 初始化为空文本
         lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);  // 设置图标字体
         lv_obj_set_style_text_color(battery_label_, lv_color_white(), 0);  // 设置文本颜色为白色
-        lv_obj_align_to(battery_label_, lunar_label, LV_ALIGN_OUT_BOTTOM_MID, -8, 8);  // 农历标签下方，向下偏移8像素
+        
+        // 创建电池百分比标签
+        battery_percentage_label_ = lv_label_create(battery_container);
+        lv_label_set_text(battery_percentage_label_, "");  // 初始化为空文本
+        lv_obj_set_style_text_font(battery_percentage_label_, &font_puhui_20_4, 0);  // 设置普通字体
+        lv_obj_set_style_text_color(battery_percentage_label_, lv_color_white(), 0);  // 设置文本颜色为白色
         
         // 定时器更新时间 - 存储静态引用以在回调中使用
         static lv_obj_t* hour_lbl = hour_label;
@@ -831,6 +849,14 @@ public:
                     lv_label_set_text(display_instance->battery_label_, icon);  // 更新电池图标
                     ESP_LOGD("ClockTimer", "电池图标已更新: %s", icon);  // 改为DEBUG级别
                 }
+                
+                // 更新电池百分比UI - 添加百分比显示
+                if (display_instance->battery_percentage_label_) {
+                    char battery_text[8];
+                    snprintf(battery_text, sizeof(battery_text), "%d%%", battery_level);
+                    lv_label_set_text(display_instance->battery_percentage_label_, battery_text);  // 更新电池百分比
+                    ESP_LOGD("ClockTimer", "电池百分比已更新: %s", battery_text);  // 改为DEBUG级别
+                }
             }  // DisplayLockGuard 会自动释放锁
             
         }, 2000, this);  // 性能优化：每2000毫秒更新一次，减少CPU占用
@@ -852,7 +878,8 @@ public:
         
         // 创建tabview，填充整个屏幕
         lv_obj_t * screen = lv_screen_active();  // 获取当前活动屏幕
-        lv_obj_set_style_bg_color(screen, lv_color_black(), 0);  // 设置屏幕背景为黑色
+        lv_obj_set_style_bg_color(screen, current_theme.background, 0);  // 设置屏幕背景使用主题色
+        lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);  // 确保背景不透明，避免显示白色底层
         tabview_ = lv_tabview_create(lv_scr_act());  // 创建标签视图
         lv_obj_set_size(tabview_, lv_pct(100), lv_pct(100));  // 设置尺寸为100%占满屏幕
 
@@ -940,22 +967,22 @@ public:
         // 获取当前活动屏幕
         lv_obj_t* screen = lv_screen_active();
         
-        // 更新屏幕颜色 - 添加透明度设置
+        // 更新屏幕颜色 - 确保背景不透明
         lv_obj_set_style_bg_color(screen, current_theme.background, 0);  // 设置背景颜色
-        lv_obj_set_style_bg_opa(screen, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+        lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);  // 设置背景不透明，避免显示白色底层
         lv_obj_set_style_text_color(screen, current_theme.text, 0);      // 设置文本颜色
         
-        // 更新容器颜色 - 添加透明度设置
+        // 更新容器颜色 - 容器可以透明以显示背景图片
         if (container_ != nullptr) {
             lv_obj_set_style_bg_color(container_, current_theme.background, 0);  // 设置背景颜色
-            lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+            lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);  // 容器透明以显示背景图片
             lv_obj_set_style_border_color(container_, current_theme.border, 0);  // 设置边框颜色
         }
         
-        // 更新状态栏颜色 - 添加透明度设置
+        // 更新状态栏颜色 - 状态栏可以透明以显示背景图片
         if (status_bar_ != nullptr) {
             lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);  // 设置背景颜色
-            lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);  // 设置背景完全透明
+            lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);  // 状态栏透明以显示背景图片
             lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);      // 设置文本颜色
             
             // 更新状态栏元素
@@ -974,6 +1001,10 @@ public:
             // 电池标签颜色更新 - 现在在时钟页面(Tab2)中
             if (battery_label_ != nullptr) {
                 lv_obj_set_style_text_color(battery_label_, lv_color_white(), 0);  // 时钟页面使用白色
+            }
+            // 电池百分比标签颜色更新 - 时钟页面使用白色
+            if (battery_percentage_label_ != nullptr) {
+                lv_obj_set_style_text_color(battery_percentage_label_, lv_color_white(), 0);  // 时钟页面使用白色
             }
         }
         
@@ -1295,6 +1326,9 @@ private:
     // 超级省电模式状态标志
     bool is_in_super_power_save_ = false;
     
+    // 闹钟提前唤醒状态标志
+    bool is_alarm_pre_wake_active_ = false;
+    
     // 将URL定义为静态变量 - 现在只需要一个API URL
     static const char* API_URL;
     static const char* VERSION_URL;
@@ -1380,12 +1414,12 @@ private:
                 
                 // 恢复CPU频率到正常状态
                 esp_pm_config_t pm_config = {
-                    .max_freq_mhz = 240,     // 恢复到最大频率240MHz
+                    .max_freq_mhz = 160,     // 恢复到最大频率160MHz
                     .min_freq_mhz = 40,      // 最低频率40MHz
                     .light_sleep_enable = false,  // 禁用轻睡眠
                 };
                 esp_pm_configure(&pm_config);
-                ESP_LOGI(TAG, "CPU频率已恢复到240MHz");
+                ESP_LOGI(TAG, "CPU频率已恢复到160MHz");
                 
                 // 恢复屏幕亮度
                 auto backlight = GetBacklight();
@@ -1494,7 +1528,14 @@ private:
             return false;
         }
         
-        // 2. 检查是否正在充电或插着电源（充电/插电时不进入节能模式）
+        // 2. 检查设备是否处于激活或升级状态
+        DeviceState currentState = app.GetDeviceState();
+        if (currentState == kDeviceStateActivating || currentState == kDeviceStateUpgrading) {
+            ESP_LOGD(TAG, "设备处于激活/升级状态，不进入节能模式");
+            return false;
+        }
+        
+        // 3. 检查是否正在充电或插着电源（充电/插电时不进入节能模式）
         int battery_level;
         bool charging, discharging;
         if (GetBatteryLevel(battery_level, charging, discharging)) {
@@ -1510,7 +1551,7 @@ private:
             }
         }
         
-        // 3. 检查是否有下载UI可见（图片下载时不进入节能模式）
+        // 4. 检查是否有下载UI可见（图片下载时不进入节能模式）
         if (display_) {
             CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display_);
             if (customDisplay->download_progress_container_ && 
@@ -1519,19 +1560,38 @@ private:
                 return false;
             }
             
-            // 4. 检查是否有预加载UI可见
+            // 5. 检查是否有预加载UI可见
             if (customDisplay->preload_progress_container_ && 
                 !lv_obj_has_flag(customDisplay->preload_progress_container_, LV_OBJ_FLAG_HIDDEN)) {
                 ESP_LOGD(TAG, "正在预加载图片，不进入节能模式");
                 return false;
             }
             
-            // 5. 检查用户交互是否被禁用（通常表示系统忙碌）
+            // 6. 检查用户交互是否被禁用（通常表示系统忙碌）
             if (customDisplay->user_interaction_disabled_) {
                 ESP_LOGD(TAG, "用户交互被禁用，系统忙碌，不进入节能模式");
                 return false;
             }
         }
+        
+        // 7. 检查是否有活动闹钟即将在1分钟内响起
+#if CONFIG_USE_ALARM
+        if (app.alarm_m_ != nullptr) {
+            time_t now = time(NULL);
+            Alarm* next_alarm = app.alarm_m_->GetProximateAlarm(now);
+            if (next_alarm != nullptr) {
+                int seconds_to_alarm = (int)(next_alarm->time - now);
+                if (seconds_to_alarm > 0 && seconds_to_alarm <= 60) {
+                    ESP_LOGD(TAG, "闹钟 '%s' 将在 %d 秒内响起，不进入超级省电模式", 
+                             next_alarm->name.c_str(), seconds_to_alarm);
+                    return false;
+                }
+                ESP_LOGI(TAG, "有活动闹钟 '%s'，但距离响起还有 %d 秒，仍可进入超级省电模式（将保留闹钟功能）", 
+                         next_alarm->name.c_str(), seconds_to_alarm);
+                // 闹钟时间还早，可以进入超级省电模式，但会保留闹钟功能
+            }
+        }
+#endif
         
         ESP_LOGD(TAG, "系统空闲，允许进入节能模式");
         return true;
@@ -1540,7 +1600,7 @@ private:
     // 初始化3级省电定时器
     void InitializePowerSaveTimer() {
         // 创建3级省电定时器：60秒后进入浅睡眠，180秒后进入深度睡眠
-        power_save_timer_ = new PowerSaveTimer(240, 60, 180);
+        power_save_timer_ = new PowerSaveTimer(160, 60, 180);
         
         // 第二级：60秒后进入浅睡眠模式
         power_save_timer_->OnEnterSleepMode([this]() {
@@ -1575,6 +1635,95 @@ private:
         // 启用省电定时器
         power_save_timer_->SetEnabled(true);
         ESP_LOGI(TAG, "3级省电定时器初始化完成 - 60秒浅睡眠, 180秒超级省电");
+    }
+
+    // 初始化闹钟监听器
+    void InitializeAlarmMonitor() {
+#if CONFIG_USE_ALARM
+        ESP_LOGI(TAG, "初始化闹钟监听器");
+        
+        // 创建定时器每2秒检查一次闹钟状态
+        lv_timer_create([](lv_timer_t *t) {
+            CustomBoard* board = static_cast<CustomBoard*>(lv_timer_get_user_data(t));
+            if (!board) return;
+            
+            auto& app = Application::GetInstance();
+            if (app.alarm_m_ == nullptr) return;
+            
+            // 获取当前时间
+            time_t now = time(NULL);
+            
+            // 检查是否有闹钟正在响
+            if (app.alarm_m_->IsRing()) {
+                ESP_LOGI(TAG, "检测到闹钟触发");
+                
+                // 如果当前处于超级省电模式，立即唤醒
+                if (board->IsInSuperPowerSaveMode()) {
+                    ESP_LOGI(TAG, "闹钟触发：从超级省电模式唤醒设备");
+                    board->WakeFromSuperPowerSaveMode();
+                }
+                
+                // 清除提前唤醒标志（闹钟已触发）
+                board->is_alarm_pre_wake_active_ = false;
+                
+                // 清除闹钟标志（避免重复处理）
+                app.alarm_m_->ClearRing();
+            }
+            
+            // 检查是否有闹钟即将在1分钟内响起（仅在超级省电模式下检查）
+            if (board->IsInSuperPowerSaveMode() && !board->is_alarm_pre_wake_active_) {
+                Alarm* next_alarm = app.alarm_m_->GetProximateAlarm(now);
+                if (next_alarm != nullptr) {
+                    time_t alarm_time = next_alarm->time;
+                    // 计算闹钟剩余时间
+                    int seconds_to_alarm = (int)(alarm_time - now);
+                    
+                    // 如果闹钟在60秒内响起，提前唤醒设备
+                    if (seconds_to_alarm > 0 && seconds_to_alarm <= 60) {
+                        ESP_LOGI(TAG, "闹钟 '%s' 将在 %d 秒后触发，提前唤醒设备", 
+                                 next_alarm->name.c_str(), seconds_to_alarm);
+                        
+                        // 设置提前唤醒标志，避免重复唤醒
+                        board->is_alarm_pre_wake_active_ = true;
+                        
+                        // 从超级省电模式唤醒设备
+                        board->WakeFromSuperPowerSaveMode();
+                        
+                        // 显示提前唤醒提示
+                        auto display = board->GetDisplay();
+                        if (display) {
+                            char message[128];
+                            snprintf(message, sizeof(message), 
+                                    "闹钟 '%s' 即将响起\n设备提前唤醒准备中", 
+                                    next_alarm->name.c_str());
+                            display->SetChatMessage("system", message);
+                        }
+                    }
+                }
+            }
+            
+            // 如果设备已唤醒且不在超级省电模式，重置提前唤醒标志
+            if (!board->IsInSuperPowerSaveMode() && board->is_alarm_pre_wake_active_) {
+                // 检查是否还有即将响起的闹钟
+                Alarm* next_alarm = app.alarm_m_->GetProximateAlarm(now);
+                if (next_alarm == nullptr) {
+                    // 没有即将响起的闹钟，重置标志
+                    board->is_alarm_pre_wake_active_ = false;
+                } else {
+                    time_t alarm_time = next_alarm->time;
+                    int seconds_to_alarm = (int)(alarm_time - now);
+                    // 如果闹钟时间已过或还有很久，重置标志
+                    if (seconds_to_alarm <= 0 || seconds_to_alarm > 120) {
+                        board->is_alarm_pre_wake_active_ = false;
+                    }
+                }
+            }
+        }, 2000, this);  // 每2000毫秒检查一次
+        
+        ESP_LOGI(TAG, "闹钟监听器初始化完成");
+#else
+        ESP_LOGI(TAG, "闹钟功能未启用，跳过闹钟监听器初始化");
+#endif
     }
 
     // 进入浅睡眠模式 - 降低功耗但保持基本功能
@@ -1640,7 +1789,21 @@ private:
 
     // 进入超级省电模式 - 关闭大部分功能，保持最低亮度显示和按键唤醒
     void EnterDeepSleepMode() {
-        ESP_LOGI(TAG, "进入超级省电模式 - 关闭大部分功能，保持1%%亮度显示");
+        ESP_LOGI(TAG, "进入超级省电模式 - 检查闹钟状态");
+        
+        // 检查是否有活动闹钟
+        bool has_active_alarm = false;
+#if CONFIG_USE_ALARM
+        auto& app = Application::GetInstance();
+        if (app.alarm_m_ != nullptr) {
+            time_t now = time(NULL);
+            Alarm* next_alarm = app.alarm_m_->GetProximateAlarm(now);
+            if (next_alarm != nullptr) {
+                has_active_alarm = true;
+                ESP_LOGI(TAG, "检测到活动闹钟 '%s'，将保留闹钟功能", next_alarm->name.c_str());
+            }
+        }
+#endif
         
         // 0. 首先停止省电定时器，防止重复调用
         if (power_save_timer_) {
@@ -1653,7 +1816,11 @@ private:
         
         // 1. 显示省电提示信息
         if (display_) {
-            display_->SetChatMessage("system", "进入超级省电模式\n按按键唤醒设备");
+            if (has_active_alarm) {
+                display_->SetChatMessage("system", "进入超级省电模式\n闹钟功能保持活跃\n按键唤醒设备");
+            } else {
+                display_->SetChatMessage("system", "进入超级省电模式\n按键唤醒设备");
+            }
             vTaskDelay(pdMS_TO_TICKS(3000));  // 显示3秒让用户看到
         }
         
@@ -1661,47 +1828,55 @@ private:
         SuspendImageTask();
         ESP_LOGI(TAG, "图片轮播任务已停止");
         
-        // 3. 暂停整个音频处理系统，避免AFE缓冲区溢出
-        auto& app = Application::GetInstance();
-        app.PauseAudioProcessing();
-        ESP_LOGI(TAG, "音频处理系统已暂停");
-        
-        // 4. 关闭音频编解码器
-        auto codec = GetAudioCodec();
-        if (codec) {
-            codec->EnableInput(false);
-            codec->EnableOutput(false);
-            ESP_LOGI(TAG, "音频编解码器已关闭");
+        // 3. 根据是否有活动闹钟决定音频系统的处理方式
+        if (!has_active_alarm) {
+            // 如果没有活动闹钟，完全暂停音频系统
+            auto& app = Application::GetInstance();
+            app.PauseAudioProcessing();
+            auto codec = GetAudioCodec();
+            if (codec) {
+                codec->EnableInput(false);
+                codec->EnableOutput(false);
+            }
+            ESP_LOGI(TAG, "无活动闹钟，完全关闭音频系统");
+        } else {
+            // 有活动闹钟时，只暂停输入，保留输出用于闹钟播放
+            auto codec = GetAudioCodec();
+            if (codec) {
+                codec->EnableInput(false);  // 关闭输入
+                // 保留输出功能用于闹钟播放
+            }
+            ESP_LOGI(TAG, "有活动闹钟，保留音频输出功能");
         }
         
-        // 5. 安全关闭WiFi以节省最大功耗
+        // 4. 关闭WiFi（闹钟触发时会重新连接）
         auto& wifi_station = WifiStation::GetInstance();
         if (wifi_station.IsConnected()) {
             wifi_station.Stop();
-            ESP_LOGI(TAG, "WiFi已断开");
+            ESP_LOGI(TAG, "WiFi已断开（闹钟触发时将重新连接）");
         } else {
             ESP_LOGI(TAG, "WiFi已经处于断开状态");
         }
         
-        // 6. 设置屏幕亮度为1%（保持最低亮度显示）
+        // 5. 设置屏幕亮度为1%（保持最低亮度显示）
         auto backlight = GetBacklight();
         if (backlight) {
             backlight->SetBrightness(1);  // 设置为最低亮度1%
-            ESP_LOGI(TAG, "Screen brightness set to 1%%");
+            ESP_LOGI(TAG, "屏幕亮度设置为1%%");
         }
         
-        // 7. 降低CPU频率到最低以节省功耗
+        // 6. 降低CPU频率到最低以节省功耗
         esp_pm_config_t pm_config = {
             .max_freq_mhz = 40,      // 最低CPU频率40MHz
             .min_freq_mhz = 40,      // 最低CPU频率40MHz
-            .light_sleep_enable = true,  // 启用轻睡眠
+            .light_sleep_enable = false,  // 禁用轻睡眠，保持定时器工作
         };
         esp_pm_configure(&pm_config);
-        ESP_LOGI(TAG, "CPU frequency set to 40MHz with light sleep enabled");
+        ESP_LOGI(TAG, "CPU频率降至40MHz，轻睡眠已禁用以保持闹钟功能");
         
-        // 8. 设置超级省电标志，让系统知道当前处于最低功耗模式
-        // 在这个模式下，只有按键交互可以唤醒设备
-        ESP_LOGI(TAG, "Super power save mode activated - press BOOT button to wake up");
+        // 7. 设置超级省电标志，让系统知道当前处于最低功耗模式
+        ESP_LOGI(TAG, "超级省电模式激活完成 - 闹钟功能%s", 
+                 has_active_alarm ? "保持活跃" : "已关闭");
     }
     
     // 暂停图片任务以节省CPU
@@ -2275,6 +2450,74 @@ public:
     bool IsLightSleeping() const {
         return is_light_sleeping_;
     }
+    
+    // 检查是否处于超级省电模式
+    bool IsInSuperPowerSaveMode() const {
+        return is_in_super_power_save_;
+    }
+    
+    // 从超级省电模式唤醒（由闹钟触发）
+    void WakeFromSuperPowerSaveMode() {
+        if (!is_in_super_power_save_) {
+            return; // 不在超级省电模式，无需唤醒
+        }
+        
+        ESP_LOGI(TAG, "从超级省电模式唤醒");
+        
+        // 清除超级省电模式标志
+        is_in_super_power_save_ = false;
+        
+        // 恢复CPU频率
+        esp_pm_config_t pm_config = {
+            .max_freq_mhz = 160,
+            .min_freq_mhz = 40,
+            .light_sleep_enable = false,
+        };
+        esp_pm_configure(&pm_config);
+        ESP_LOGI(TAG, "CPU频率已恢复到160MHz");
+        
+        // 恢复屏幕亮度
+        auto backlight = GetBacklight();
+        if (backlight) {
+            backlight->RestoreBrightness();
+            ESP_LOGI(TAG, "屏幕亮度已恢复");
+        }
+        
+        // 恢复音频处理系统
+        auto& app = Application::GetInstance();
+        app.ResumeAudioProcessing();
+        
+        // 恢复音频编解码器
+        auto codec = GetAudioCodec();
+        if (codec) {
+            codec->EnableInput(true);
+            codec->EnableOutput(true);
+            ESP_LOGI(TAG, "音频系统已恢复");
+        }
+        
+        // 重新连接WiFi
+        auto& wifi_station = WifiStation::GetInstance();
+        if (!wifi_station.IsConnected()) {
+            ESP_LOGI(TAG, "重新连接WiFi...");
+            wifi_station.Start();
+        }
+        
+        // 恢复图片轮播任务
+        ResumeImageTask();
+        ESP_LOGI(TAG, "图片轮播任务已恢复");
+        
+        // 重新启用省电定时器
+        if (power_save_timer_) {
+            power_save_timer_->SetEnabled(true);
+            power_save_timer_->WakeUp();
+            ESP_LOGI(TAG, "省电定时器已重新启用");
+        }
+        
+        // 禁用WiFi省电模式
+        SetPowerSaveMode(false);
+        
+        ESP_LOGI(TAG, "从超级省电模式完全恢复 - 闹钟触发唤醒完成");
+    }
 
     // 构造函数
     CustomBoard() : boot_btn(BOOT_BUTTON_GPIO) {
@@ -2287,6 +2530,9 @@ public:
         InitializePowerManager();    // 初始化电源管理器
         InitializePowerSaveTimer();  // 初始化3级省电定时器
         GetBacklight()->RestoreBrightness();  // 恢复背光亮度
+        
+        // 初始化闹钟监听器
+        InitializeAlarmMonitor();
         
         // 显示初始化欢迎信息
         ShowWelcomeMessage();
