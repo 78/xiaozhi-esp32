@@ -316,11 +316,12 @@ void Application::ToggleChatState() {
         Schedule([this]() {
             AbortSpeaking(kAbortReasonNone);
         });
-    } else if (device_state_ == kDeviceStateListening) {
-        Schedule([this]() {
-            protocol_->CloseAudioChannel();
-        });
-    }
+    } 
+    // else if (device_state_ == kDeviceStateListening) {
+    //     Schedule([this]() {
+    //         protocol_->CloseAudioChannel();
+    //     });
+    // }
 }
 
 void Application::StartListening() {
