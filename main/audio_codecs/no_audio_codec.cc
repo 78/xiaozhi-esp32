@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cstring>
 
-#include "boards/jkst-chajie/audio_led_meter.h"
+#include "boards/jkst-spaceman-s/audio_led_meter.h"
 
 #define TAG "NoAudioCodec"
 

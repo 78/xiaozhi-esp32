@@ -5,7 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "config.h"
-#include "boards/jkst-chajie/audio_led_meter.h"
+#include "audio_led_meter.h"
 
 #define TAG "Ws2812Controller"
 
@@ -36,10 +36,17 @@ namespace iot
         uint8_t color_g_ = 255;
         uint8_t color_b_ = 0;
 
+        int breath_delay_ms_ = 40; // 默认40ms，呼吸频率减慢一半
+        int brightness_ = 100;     // 亮度百分比，0~100
+
+        // 亮度缩放工具
+        uint8_t scale(uint8_t c) const {
+            return (uint8_t)((int)c * brightness_ / 100);
+        }
+
         static void EffectTask(void *arg) {
             Ws2812Controller *self = static_cast<Ws2812Controller *>(arg);
             int dir = 1, brightness = 0;
-            // static int fake_level = 0, fake_dir = 1;
             static int rainbow_base = 0;
             static int marquee_pos = 0;
             ESP_LOGI(TAG, "WS2812灯效任务开始运行");
@@ -47,7 +54,10 @@ namespace iot
                 if (self->effect_type_ == EFFECT_BREATH) {
                     // 呼吸灯
                     for (int i = 0; i < WS2812_LED_NUM_USED; i++) {
-                        led_strip_set_pixel(self->led_strip_, i, self->color_r_ * brightness / 80, self->color_g_ * brightness / 80, self->color_b_ * brightness / 80);
+                        uint8_t r = self->scale(self->color_r_ * brightness / 80);
+                        uint8_t g = self->scale(self->color_g_ * brightness / 80);
+                        uint8_t b = self->scale(self->color_b_ * brightness / 80);
+                        led_strip_set_pixel(self->led_strip_, i, r, g, b);
                     }
                     for (int i = WS2812_LED_NUM_USED; i < WS2812_LED_NUM; i++) {
                         led_strip_set_pixel(self->led_strip_, i, 0, 0, 0);
@@ -56,7 +66,7 @@ namespace iot
                     brightness += dir * 5;
                     if (brightness >= 80) { brightness = 80; dir = -1; }
                     if (brightness <= 0)  { brightness = 0; dir = 1; }
-                    vTaskDelay(pdMS_TO_TICKS(20));
+                    vTaskDelay(pdMS_TO_TICKS(self->breath_delay_ms_));
                 } else if (self->effect_type_ == EFFECT_RAINBOW) {
                     // 彩虹灯效
                     for (int i = 0; i < WS2812_LED_NUM_USED; i++) {
@@ -71,7 +81,7 @@ namespace iot
                             pos -= 170;
                             r = 0; g = pos * 3; b = 255 - pos * 3;
                         }
-                        led_strip_set_pixel(self->led_strip_, i, r, g, b);
+                        led_strip_set_pixel(self->led_strip_, i, self->scale(r), self->scale(g), self->scale(b));
                     }
                     for (int i = WS2812_LED_NUM_USED; i < WS2812_LED_NUM; i++) {
                         led_strip_set_pixel(self->led_strip_, i, 0, 0, 0);
@@ -83,7 +93,7 @@ namespace iot
                     // 跑马灯
                     for (int i = 0; i < WS2812_LED_NUM_USED; i++) {
                         if (i == marquee_pos)
-                            led_strip_set_pixel(self->led_strip_, i, self->color_r_, self->color_g_, self->color_b_);
+                            led_strip_set_pixel(self->led_strip_, i, self->scale(self->color_r_), self->scale(self->color_g_), self->scale(self->color_b_));
                         else
                             led_strip_set_pixel(self->led_strip_, i, 0, 0, 0);
                     }
@@ -166,6 +176,34 @@ namespace iot
                 StartEffectTask();
             });
 
+            methods_.AddMethod(
+                "set_breath_delay", "设置呼吸灯速度，单位ms，越大越慢",
+                ParameterList({Parameter("delay", "延迟ms", kValueTypeNumber, false)}),
+                [this](const ParameterList &params)
+                {
+                    int val = params["delay"].number();
+                    if (val < 10)
+                        val = 10;
+                    if (val > 500)
+                        val = 500;
+                    breath_delay_ms_ = val;
+                    ESP_LOGI(TAG, "设置呼吸灯延迟为%dms", breath_delay_ms_);
+                });
+
+            // 设置亮度
+            methods_.AddMethod(
+                "set_brightness", "设置灯带亮度，0~100",
+                ParameterList({Parameter("value", "亮度百分比", kValueTypeNumber, false)}),
+                [this](const ParameterList &params) {
+                    int val = params["value"].number();
+                    if (val < 0) val = 0;
+                    if (val > 100) val = 100;
+                    brightness_ = val;
+                    audio_led_meter_set_brightness(val); // 同步到音量律动
+                    ESP_LOGI(TAG, "设置亮度为%d%%", brightness_);
+                }
+            );
+
             // 音量律动（假律动，真实律动用 audio_led_meter）
             methods_.AddMethod("volume", "音量律动效果", ParameterList(), [this](const ParameterList &) {
                 StopEffectTask();
@@ -176,6 +214,12 @@ namespace iot
                 led_strip_refresh(led_strip_);
                 audio_led_meter_enable(1);
             });
+            methods_.AddMethod(
+                "random_meter_colors", "随机更换音量律动的灯带配色", ParameterList(), [this](const ParameterList &) {
+                    audio_led_meter_init_colors(); // 重新随机一组颜色
+                    ESP_LOGI(TAG, "已随机更换音量律动的灯带配色");
+                }
+            );
 
             // 彩虹灯效
             methods_.AddMethod("rainbow", "彩虹灯效", ParameterList(), [this](const ParameterList &) {
@@ -220,7 +264,6 @@ namespace iot
                     g_color_b = color_b_;
                 }
             );
-
 
             // 关灯
             methods_.AddMethod("off", "关闭灯带", ParameterList(), [this](const ParameterList &) {
