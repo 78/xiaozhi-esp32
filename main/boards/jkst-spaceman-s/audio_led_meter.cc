@@ -139,3 +139,10 @@ void audio_led_meter_set_colors(const std::vector<std::tuple<uint8_t, uint8_t, u
         }
     }
 }
+void audio_led_meter_set_single_color(uint8_t r, uint8_t g, uint8_t b)
+{
+    for (auto &color : g_led_colors)
+    {
+        color = std::make_tuple(r, g, b);
+    }
+}

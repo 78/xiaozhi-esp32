@@ -19,3 +19,4 @@ void audio_led_meter_enable(int enable);
 void audio_led_meter_set_brightness(int percent);
 void audio_led_meter_set_colors(const std::vector<std::tuple<uint8_t, uint8_t, uint8_t>> &colors);
 void audio_led_meter_init_colors();
+void audio_led_meter_set_single_color(uint8_t r, uint8_t g, uint8_t b);

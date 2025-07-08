@@ -1,3 +1,4 @@
+
 #include <esp_log.h>
 #include "iot/thing.h"
 #include "driver/gpio.h"
@@ -220,6 +221,20 @@ namespace iot
                     ESP_LOGI(TAG, "已随机更换音量律动的灯带配色");
                 }
             );
+
+            methods_.AddMethod(
+                "set_meter_single_color", "设置音量律动为单色",
+                ParameterList({Parameter("r", "红", kValueTypeNumber, false),
+                               Parameter("g", "绿", kValueTypeNumber, false),
+                               Parameter("b", "蓝", kValueTypeNumber, false)}),
+                [this](const ParameterList &params)
+                {
+                    uint8_t r = params["r"].number();
+                    uint8_t g = params["g"].number();
+                    uint8_t b = params["b"].number();
+                    audio_led_meter_set_single_color(r, g, b);
+                    ESP_LOGI(TAG, "设置音量律动为单色: %d,%d,%d", r, g, b);
+                });
 
             // 彩虹灯效
             methods_.AddMethod("rainbow", "彩虹灯效", ParameterList(), [this](const ParameterList &) {
