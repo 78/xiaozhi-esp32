@@ -216,6 +216,12 @@ static const st77916_lcd_init_cmd_t vendor_specific_init_yysj[] = {
     {0x00, (uint8_t []){}, 0, 120},
 };
 float tsens_value;
+gpio_num_t AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_1;
+gpio_num_t AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_1;
+gpio_num_t QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_1;
+gpio_num_t TOUCH_PAD2 = TOUCH_PAD2_1;
+gpio_num_t UART1_TX = UART1_TX_1;   
+gpio_num_t UART1_RX = UART1_RX_1;   
 
 class Charge : public I2cDevice {
 public:
@@ -312,6 +318,41 @@ private:
         ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
         
     }
+    uint8_t DetectPcbVersion() {
+        esp_err_t ret = i2c_master_probe(i2c_bus_, 0x18, 100);  
+        uint8_t pcb_verison = 0;
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "PCB verison V1.0");
+            pcb_verison = 0;  
+        } else {
+            gpio_config_t gpio_conf = {
+                .pin_bit_mask = (1ULL << GPIO_NUM_48),
+                .mode = GPIO_MODE_OUTPUT,
+                .pull_up_en = GPIO_PULLUP_DISABLE,
+                .pull_down_en = GPIO_PULLDOWN_DISABLE,
+                .intr_type = GPIO_INTR_DISABLE
+            };
+            ESP_ERROR_CHECK(gpio_config(&gpio_conf));
+            ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_48, 1));
+            vTaskDelay(pdMS_TO_TICKS(100));
+            ret = i2c_master_probe(i2c_bus_, 0x18, 100);  
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "PCB verison V1.2");
+                pcb_verison = 1;  
+                AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
+                AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
+                QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
+                TOUCH_PAD2 = TOUCH_PAD2_2;
+                UART1_TX = UART1_TX_2;
+                UART1_RX = UART1_RX_2;
+            } else {
+                ESP_LOGE(TAG, "PCB version detection error");
+                
+            }
+        } 
+        return pcb_verison;
+    }
+
 
     static void touchpad_timer_callback(void* arg) {
         auto& board = (EspS3Cat&)Board::GetInstance();
@@ -440,7 +481,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(QSPI_LCD_HOST, &bus_config, SPI_DMA_CH_AUTO));
     }
 
-    void Initializest77916Display() {
+    void Initializest77916Display(uint8_t pcb_verison) {
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -458,6 +499,9 @@ private:
             .reset_gpio_num = QSPI_PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = QSPI_LCD_BIT_PER_PIXEL,
+            .flags = {
+                .reset_active_high = pcb_verison,
+            },
             .vendor_config = &vendor_config,
         };
         ESP_ERROR_CHECK(esp_lcd_new_panel_st77916(panel_io, &panel_config, &panel));
@@ -500,11 +544,12 @@ private:
 public:
     EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
+        uint8_t pcb_verison = DetectPcbVersion();
         InitializeCharge();
         InitializeCst816sTouchPad();
         
         InitializeSpi();
-        Initializest77916Display();
+        Initializest77916Display(pcb_verison);
         InitializeButtons();
     }
 
