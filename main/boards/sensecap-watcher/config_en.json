@@ -11,7 +11,9 @@
                 "CONFIG_IDF_EXPERIMENTAL_FEATURES=y",
                 "CONFIG_FREERTOS_HZ=1000",
                 "CONFIG_LANGUAGE_EN_US=y",
-                "CONFIG_SR_WN_WN9_JARVIS_TTS=y"
+                "CONFIG_SR_WN_WN9_JARVIS_TTS=y",
+                "CONFIG_SR_WN_WN9_SOPHIA_TTS=y",
+                "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=n"
             ]
         }
     ]
