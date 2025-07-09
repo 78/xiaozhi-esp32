@@ -555,6 +555,27 @@ void Application::Start() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+#if CONFIG_RECEIVE_CUSTOM_MESSAGE
+        } else if (strcmp(type->valuestring, "custom") == 0) {
+            auto payload = cJSON_GetObjectItem(root, "payload");
+            if (cJSON_IsObject(payload)) {
+                ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
+                auto message = cJSON_GetObjectItem(payload, "message");
+                if (cJSON_IsString(message)) {
+                    Schedule([this, display, message_str = std::string(message->valuestring)]() {
+                        display->SetChatMessage("system", message_str.c_str());
+                    });
+                } else if (cJSON_IsObject(message)) {
+                    Schedule([this, display, message_str = std::string(cJSON_PrintUnformatted(message))]() {
+                        display->SetChatMessage("system", message_str.c_str());
+                    });
+                } else {
+                    ESP_LOGW(TAG, "Invalid custom message format: missing message");
+                }
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
+#endif
 #if CONFIG_IOT_PROTOCOL_MCP
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -573,19 +594,6 @@ void Application::Start() {
                 }
             }
 #endif
-        } else if (strcmp(type->valuestring, "system") == 0) {
-            auto command = cJSON_GetObjectItem(root, "command");
-            if (cJSON_IsString(command)) {
-                ESP_LOGI(TAG, "System command: %s", command->valuestring);
-                if (strcmp(command->valuestring, "reboot") == 0) {
-                    // Do a reboot if user requests a OTA update
-                    Schedule([this]() {
-                        Reboot();
-                    });
-                } else {
-                    ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
-                }
-            }
         } else if (strcmp(type->valuestring, "alert") == 0) {
             auto status = cJSON_GetObjectItem(root, "status");
             auto message = cJSON_GetObjectItem(root, "message");

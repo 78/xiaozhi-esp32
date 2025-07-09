@@ -56,7 +56,7 @@ void WifiBoard::EnterWifiConfigMode() {
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
 
-    #if USE_ACOUSTIC_WIFI_PROVISIONING
+    #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap);
     #endif
     

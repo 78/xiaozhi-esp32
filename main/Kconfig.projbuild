@@ -425,6 +425,12 @@ config AUDIO_DEBUG_UDP_SERVER
     help
         UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
 
+config RECEIVE_CUSTOM_MESSAGE
+    bool "Enable Custom Message Reception"
+    default n
+    help
+        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+
 choice IOT_PROTOCOL
     prompt "IoT Protocol"
     default IOT_PROTOCOL_MCP
