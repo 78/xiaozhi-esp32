@@ -158,15 +158,17 @@ const char* WifiBoard::GetNetworkStateIcon() {
 std::string WifiBoard::GetBoardJson() {
     // Set the board type for OTA
     auto& wifi_station = WifiStation::GetInstance();
-    std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
-    board_json += "\"name\":\"" BOARD_NAME "\",";
+    std::string board_json = R"({)";
+    board_json += R"("type":")" + std::string(BOARD_TYPE) + R"(",)";
+    board_json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
     if (!wifi_config_mode_) {
-        board_json += "\"ssid\":\"" + wifi_station.GetSsid() + "\",";
-        board_json += "\"rssi\":" + std::to_string(wifi_station.GetRssi()) + ",";
-        board_json += "\"channel\":" + std::to_string(wifi_station.GetChannel()) + ",";
-        board_json += "\"ip\":\"" + wifi_station.GetIpAddress() + "\",";
+        board_json += R"("ssid":")" + wifi_station.GetSsid() + R"(",)";
+        board_json += R"("rssi":)" + std::to_string(wifi_station.GetRssi()) + R"(,)";
+        board_json += R"("channel":)" + std::to_string(wifi_station.GetChannel()) + R"(,)";
+        board_json += R"("ip":")" + wifi_station.GetIpAddress() + R"(",)";
     }
-    board_json += "\"mac\":\"" + SystemInfo::GetMacAddress() + "\"}";
+    board_json += R"("mac":")" + SystemInfo::GetMacAddress() + R"(")";
+    board_json += R"(})";
     return board_json;
 }
 
