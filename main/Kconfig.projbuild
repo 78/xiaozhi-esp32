@@ -160,6 +160,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5B
+        bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32P4_NANO
         bool "Waveshare ESP32-P4-NANO"
         depends on IDF_TARGET_ESP32P4
@@ -408,6 +411,12 @@ config USE_AUDIO_DEBUGGER
     default n
     help
         启用音频调试功能，通过UDP发送音频数据
+
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        启用声波配网功能，使用音频信号传输 WiFi 配置数据
 
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
