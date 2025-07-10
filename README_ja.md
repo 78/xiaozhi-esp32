@@ -134,6 +134,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 👉 [バックエンド操作ビデオチュートリアル（旧インターフェース）](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 
 ## 関連オープンソースプロジェクト
+- [mac8005/xiaozhi-mcp-hacs](https://github.com/mac8005/xiaozhi-mcp-hacs) — Home Assistant HACS integration (control HA devices via MCP)
 
 個人PCでサーバーをデプロイする場合は、以下のオープンソースプロジェクトを参照してください：
 
