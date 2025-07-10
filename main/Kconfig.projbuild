@@ -438,13 +438,13 @@ endchoice
 
 choice I2S_TYPE_TAIJIPI_S3
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
-    prompt "I2S Type"
-    default I2S_TYPE_STD
+    prompt "taiji-pi-S3 I2S Type"
+    default TAIJIPAI_I2S_TYPE_STD
     help
         I2S 类型选择
-    config I2S_TYPE_STD
+    config TAIJIPAI_I2S_TYPE_STD
         bool "I2S Type STD"
-    config I2S_TYPE_PDM
+    config TAIJIPAI_I2S_TYPE_PDM
         bool "I2S Type PDM"
 endchoice
 

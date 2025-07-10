@@ -23,7 +23,7 @@ LV_FONT_DECLARE(font_awesome_20_4);
 
 
 static const st77916_lcd_init_cmd_t lcd_init_cmds[] = {
-#ifdef CONFIG_I2S_TYPE_STD
+#ifdef CONFIG_TAIJIPAI_I2S_TYPE_STD
     {0xF0, (uint8_t[]){0x08}, 1, 0},
     {0xF2, (uint8_t[]){0x08}, 1, 0},
     {0x9B, (uint8_t[]){0x51}, 1, 0},
@@ -629,7 +629,7 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-#ifdef CONFIG_I2S_TYPE_STD
+#ifdef CONFIG_TAIJIPAI_I2S_TYPE_STD
         static NoAudioCodecSimplex audio_codec(
             AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,

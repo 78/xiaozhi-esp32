@@ -19,7 +19,7 @@ idf.py menuconfig
 ```
 Xiaozhi Assistant -> Board Type -> 太极小派esp32s3
 
-Xiaozhi Assistant -> I2S Type -> I2S Type PDM
+Xiaozhi Assistant -> taiji-pi-S3 I2S Type -> I2S Type PDM
 ```
 
 **修改PSRAM配置：**
