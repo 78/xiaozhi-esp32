@@ -73,6 +73,14 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+
+        // Print I2C bus info
+        if (i2c_master_probe(codec_i2c_bus_, 0x18, 1000) != ESP_OK) {
+            while (true) {
+                ESP_LOGE(TAG, "Failed to probe I2C bus, please check if you have installed the correct firmware");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
     }
 
     void InitializeSsd1306Display() {
@@ -177,15 +185,16 @@ private:
     }
 
 public:
-    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
-        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
-        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeSsd1306Display();
         InitializeButtons();
         InitializePowerSaveTimer();
         InitializeTools();
+
+        // 避免使用错误的固件，把 EFUSE 操作放在最后
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
     }
 
     virtual Led* GetLed() override {
