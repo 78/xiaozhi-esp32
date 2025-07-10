@@ -134,7 +134,7 @@
 👉 [后台操作视频教程（旧版界面）](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 
 ## 相关开源项目
-- [mac8005/xiaozhi-mcp-hacs](https://github.com/mac8005/xiaozhi-mcp-hacs) — Home Assistant HACS integration (control HA devices via MCP)
+- [mac8005/xiaozhi-mcp-hacs](https://github.com/mac8005/xiaozhi-mcp-hacs) — 家庭助理 HACS 整合 (透過 MCP 控制 HA 裝置)
 
 在个人电脑上部署服务器，可以参考以下第三方开源的项目：
 
