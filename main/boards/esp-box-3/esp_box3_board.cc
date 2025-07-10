@@ -7,6 +7,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
+#include "fonts/lv_font_shsans_hc_regular_20.h" // 新增：包含新字型的標頭檔
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -18,6 +19,7 @@
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(lv_font_shsans_hc_regular_20); // 新增：宣告新字型
 
 // Init ili9341 by custom cmd
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
@@ -133,7 +135,7 @@ private:
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
-                                        .text_font = &font_puhui_20_4,
+                                        .text_font = &lv_font_shsans_hc_regular_20, // 修改：使用新的繁體字型
                                         .icon_font = &font_awesome_20_4,
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
                                         .emoji_font = font_emoji_32_init(),
