@@ -1,9 +1,0 @@
-{
-    "target": "esp32p4",
-    "builds": [
-        {
-            "name": "guition-jc1060p470",
-            "sdkconfig_append": []
-        }
-    ]
-}

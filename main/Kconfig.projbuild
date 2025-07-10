@@ -275,12 +275,6 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
         select LV_USE_GIF
         select LV_GIF_CACHE_DECODE_DATA
-    config BOARD_TYPE_GUITION_JC1060P470
-        bool "Guition JC1060P470"
-        depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_GUITION_JC8012P4A1
-        bool "Guition JC8012P4A1"
-        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
 endchoice
@@ -440,6 +434,18 @@ choice IOT_PROTOCOL
         bool "MCP 2024-11-05"
     config IOT_PROTOCOL_XIAOZHI
         bool "Xiaozhi IoT 1.0 (Deprecated)"
+endchoice
+
+choice I2S_TYPE_TAIJIPI_S3
+    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    prompt "I2S Type"
+    default I2S_TYPE_STD
+    help
+        I2S 类型选择
+    config I2S_TYPE_STD
+        bool "I2S Type STD"
+    config I2S_TYPE_PDM
+        bool "I2S Type PDM"
 endchoice
 
 endmenu

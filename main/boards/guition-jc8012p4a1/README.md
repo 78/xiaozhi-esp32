@@ -1,1 +1,0 @@
-产品链接:https://www.displaysmodule.com/sale-53106483-800-1280-pixel-esp32-display-module-for-high-resolution-and-serial-port-baud-rate-2400-921600.html
