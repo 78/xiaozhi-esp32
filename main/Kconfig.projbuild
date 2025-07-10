@@ -436,4 +436,16 @@ choice IOT_PROTOCOL
         bool "Xiaozhi IoT 1.0 (Deprecated)"
 endchoice
 
+choice I2S_TYPE_TAIJIPI_S3
+    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    prompt "taiji-pi-S3 I2S Type"
+    default TAIJIPAI_I2S_TYPE_STD
+    help
+        I2S 类型选择
+    config TAIJIPAI_I2S_TYPE_STD
+        bool "I2S Type STD"
+    config TAIJIPAI_I2S_TYPE_PDM
+        bool "I2S Type PDM"
+endchoice
+
 endmenu
