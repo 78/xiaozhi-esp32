@@ -277,6 +277,9 @@ choice BOARD_TYPE
         select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
+    config BOARD_TYPE_VIEWE_SMARTRING
+        bool "太极优派VIEWE SmartRing 1.75"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
