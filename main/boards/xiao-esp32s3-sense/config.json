@@ -1,0 +1,15 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xiao-esp32s3-sense",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_IOT_PROTOCOL_MCP=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\"",
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y"
+            ]
+        }
+    ]
+}
