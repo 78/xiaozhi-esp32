@@ -30,7 +30,7 @@
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y true
 
-/* DFRobot Camera pins */
+/* XIAO ESP32S3 Sense Camera pins */
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM     10
