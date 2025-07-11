@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "labplus-mpython-v3",
+            "sdkconfig_append": []
+        }
+    ]
+}

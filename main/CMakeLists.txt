@@ -201,6 +201,10 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_CAM)
     set(BOARD_TYPE "bread-compact-wifi-s3cam")
 elseif(CONFIG_BOARD_TYPE_JIUCHUAN )
     set(BOARD_TYPE "jiuchuan-s3")
+elseif(CONFIG_BOARD_TYPE_LABPLUS_MPYTHON_V3)
+    set(BOARD_TYPE "labplus-mpython-v3") 
+elseif(CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2)
+    set(BOARD_TYPE "labplus-Ledong-v2") 
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
