@@ -160,6 +160,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5B
+        bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32P4_NANO
         bool "Waveshare ESP32-P4-NANO"
         depends on IDF_TARGET_ESP32P4
@@ -415,6 +418,12 @@ config USE_AUDIO_DEBUGGER
     help
         启用音频调试功能，通过UDP发送音频数据
 
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        启用声波配网功能，使用音频信号传输 WiFi 配置数据
+
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
@@ -431,6 +440,18 @@ choice IOT_PROTOCOL
         bool "MCP 2024-11-05"
     config IOT_PROTOCOL_XIAOZHI
         bool "Xiaozhi IoT 1.0 (Deprecated)"
+endchoice
+
+choice I2S_TYPE_TAIJIPI_S3
+    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    prompt "taiji-pi-S3 I2S Type"
+    default TAIJIPAI_I2S_TYPE_STD
+    help
+        I2S 类型选择
+    config TAIJIPAI_I2S_TYPE_STD
+        bool "I2S Type STD"
+    config TAIJIPAI_I2S_TYPE_PDM
+        bool "I2S Type PDM"
 endchoice
 
 endmenu

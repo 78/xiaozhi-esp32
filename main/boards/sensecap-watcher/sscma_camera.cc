@@ -186,7 +186,6 @@ void SscmaCamera::SetExplainUrl(const std::string& url, const std::string& token
 bool SscmaCamera::Capture() {
 
     SscmaData data;
-    size_t output_len = 0;
     int ret = 0;
     
     if (sscma_client_handle_ == nullptr) {

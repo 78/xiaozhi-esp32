@@ -2,9 +2,9 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "taiji-pi-s3",
+            "name": "waveshare-s3-touch-lcd-3.5b",
             "sdkconfig_append": [
-                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y"
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
             ]
         }
     ]
