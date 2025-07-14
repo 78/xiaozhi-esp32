@@ -1062,6 +1062,8 @@ public:
     lv_obj_t* preload_progress_container_ = nullptr;
     lv_obj_t* preload_progress_label_ = nullptr;
     lv_obj_t* preload_message_label_ = nullptr;
+    lv_obj_t* preload_progress_arc_ = nullptr;
+    lv_obj_t* preload_percentage_label_ = nullptr;
     
     // 用户交互禁用状态标志
     bool user_interaction_disabled_ = false;
@@ -1083,16 +1085,20 @@ public:
         }
         
         if (show) {
-            // 更新进度标签
-            if (preload_progress_label_) {
-                char progress_text[32];
-                snprintf(progress_text, sizeof(progress_text), "%d/%d", current, total);
-                lv_label_set_text(preload_progress_label_, progress_text);
+            // 更新圆形进度条 - 极简版本，只显示进度
+            if (preload_progress_arc_ && total > 0) {
+                int progress_value = (current * 100) / total;
+                if (progress_value > 100) progress_value = 100;
+                if (progress_value < 0) progress_value = 0;
+                lv_arc_set_value(preload_progress_arc_, progress_value);
+                
+                // 保持简约的蓝色，不做复杂的颜色变化
+                lv_obj_set_style_arc_color(preload_progress_arc_, lv_color_hex(0x007AFF), LV_PART_INDICATOR);
             }
             
-            // 更新消息
-            if (message && preload_message_label_ != nullptr) {
-                lv_label_set_text(preload_message_label_, message);
+            // 保持状态文字不变，简约显示
+            if (preload_message_label_ != nullptr) {
+                lv_label_set_text(preload_message_label_, "设备正在预热中...");
             }
             
             // 确保容器可见
@@ -1110,12 +1116,12 @@ public:
             }
         } else {
             // 隐藏容器
-            ESP_LOGI(TAG, "预加载完成，隐藏预加载UI容器");
+            ESP_LOGI(TAG, "预加载完成，隐藏新版预加载UI容器");
             if (preload_progress_container_) {
                 lv_obj_add_flag(preload_progress_container_, LV_OBJ_FLAG_HIDDEN);
-                ESP_LOGI(TAG, "预加载UI容器已隐藏");
+                ESP_LOGI(TAG, "新版预加载UI容器已隐藏");
             } else {
-                ESP_LOGI(TAG, "预加载UI容器为空，无需隐藏");
+                ESP_LOGI(TAG, "新版预加载UI容器为空，无需隐藏");
             }
             
             // 重新启用用户交互
@@ -1173,50 +1179,52 @@ private:
 
     // 创建预加载进度UI
     void CreatePreloadProgressUI() {
-        // 创建一个简单的文本容器
+        // 创建主容器 - 极简设计，只包含进度条和基本文字
         preload_progress_container_ = lv_obj_create(lv_scr_act());
-        lv_obj_set_size(preload_progress_container_, lv_pct(85), lv_pct(35));
+        lv_obj_set_size(preload_progress_container_, LV_HOR_RES, LV_VER_RES);
         lv_obj_center(preload_progress_container_);
         
-        // 设置文本容器样式
-        lv_obj_set_style_radius(preload_progress_container_, 12, 0); // 圆角矩形
-        lv_obj_set_style_bg_color(preload_progress_container_, lv_color_hex(0x1A1A1A), 0);
-        lv_obj_set_style_bg_opa(preload_progress_container_, LV_OPA_90, 0);  // 更高的不透明度
-        lv_obj_set_style_border_width(preload_progress_container_, 2, 0);
-        lv_obj_set_style_border_color(preload_progress_container_, lv_color_hex(0xFF9500), 0); // 橙色边框
+        // 设置透明背景，让背景图片可见
+        lv_obj_set_style_bg_opa(preload_progress_container_, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(preload_progress_container_, 0, 0);
+        lv_obj_set_style_pad_all(preload_progress_container_, 0, 0);
         
-        // 设置垂直布局
+        // 设置垂直布局，居中对齐
         lv_obj_set_flex_flow(preload_progress_container_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(preload_progress_container_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_all(preload_progress_container_, 18, 0);
-        lv_obj_set_style_pad_row(preload_progress_container_, 12, 0);
+        lv_obj_set_style_pad_row(preload_progress_container_, 20, 0);
 
-        // 标题标签
-        lv_obj_t* title_label = lv_label_create(preload_progress_container_);
-        lv_obj_set_style_text_font(title_label, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(title_label, lv_color_hex(0xFF9500), 0); // 橙色标题
-        lv_label_set_text(title_label, "预加载图片资源");
+        // 创建圆形进度条 - 稍大一些，更显眼
+        lv_obj_t* progress_arc = lv_arc_create(preload_progress_container_);
+        lv_obj_set_size(progress_arc, 80, 80);
+        lv_arc_set_rotation(progress_arc, 270); // 从顶部开始
+        lv_arc_set_bg_angles(progress_arc, 0, 360);
+        lv_arc_set_value(progress_arc, 0);
         
-        // 进度百分比标签
-        preload_progress_label_ = lv_label_create(preload_progress_container_);
-        lv_obj_set_style_text_font(preload_progress_label_, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(preload_progress_label_, lv_color_white(), 0);
-        lv_label_set_text(preload_progress_label_, "0/0");
+        // 设置进度条样式 - 现代简约风格
+        lv_obj_set_style_arc_width(progress_arc, 10, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(progress_arc, lv_color_hex(0x3A3A3C), LV_PART_MAIN); // 背景轨道
+        lv_obj_set_style_arc_width(progress_arc, 10, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(progress_arc, lv_color_hex(0x007AFF), LV_PART_INDICATOR); // 进度颜色
         
-        // 消息标签
+        // 隐藏把手，保持简约
+        lv_obj_set_style_bg_opa(progress_arc, LV_OPA_TRANSP, LV_PART_KNOB);
+        lv_obj_set_style_pad_all(progress_arc, 0, LV_PART_KNOB);
+        lv_obj_remove_flag(progress_arc, LV_OBJ_FLAG_CLICKABLE);
+        
+        // 保存进度条引用
+        preload_progress_arc_ = progress_arc;
+
+        // 只保留一个状态提示文字
         preload_message_label_ = lv_label_create(preload_progress_container_);
         lv_obj_set_style_text_font(preload_message_label_, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(preload_message_label_, lv_color_white(), 0);
-        lv_label_set_text(preload_message_label_, "准备预加载...");
+        lv_obj_set_style_text_color(preload_message_label_, lv_color_black(), 0);
+        lv_obj_set_style_text_align(preload_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(preload_message_label_, "设备正在预热中...");
         
-        // 添加提示文本
-        lv_obj_t* hint_label = lv_label_create(preload_progress_container_);
-        lv_obj_set_style_text_font(hint_label, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(hint_label, lv_color_hex(0xAAAAAA), 0); // 灰色提示
-        lv_obj_set_width(hint_label, lv_pct(90));
-        lv_obj_set_style_text_align(hint_label, LV_TEXT_ALIGN_CENTER, 0);
-        lv_label_set_long_mode(hint_label, LV_LABEL_LONG_WRAP);
-        lv_label_set_text(hint_label, "请勿操作设备");
+        // 清空其他不需要的UI元素引用
+        preload_progress_label_ = nullptr;
+        preload_percentage_label_ = nullptr;
         
         // 确保UI在最顶层
         lv_obj_move_foreground(preload_progress_container_);
