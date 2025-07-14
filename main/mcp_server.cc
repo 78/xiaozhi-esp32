@@ -13,6 +13,7 @@
 #include "application.h"
 #include "display.h"
 #include "board.h"
+#include "mcp_news_tools.h"
 
 #define TAG "MCP"
 
@@ -103,6 +104,9 @@ void McpServer::AddCommonTools() {
             });
     }
 
+    // Add news MCP tools
+    AddNewsMcpTools();
+    
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }
