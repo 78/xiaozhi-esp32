@@ -24,48 +24,49 @@ LV_FONT_DECLARE(font_awesome_30_4);
 
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = 
 {
-  {0x11, (uint8_t []){0x00}, 0, 80},   
-  {0xC4, (uint8_t []){0x80}, 1, 0},
-  {0x53, (uint8_t []){0x20}, 1, 1},
-  {0x63, (uint8_t []){0xFF}, 1, 1},
-  {0x51, (uint8_t []){0x00}, 1, 1},
-  {0x29, (uint8_t []){0x00}, 0, 10},
-  {0x51, (uint8_t []){0xFF}, 1, 0},
+    {0x11, (uint8_t []){0x00}, 0, 80},   
+    {0xC4, (uint8_t []){0x80}, 1, 0},
+    {0x53, (uint8_t []){0x20}, 1, 1},
+    {0x63, (uint8_t []){0xFF}, 1, 1},
+    {0x51, (uint8_t []){0x00}, 1, 1},
+    {0x29, (uint8_t []){0x00}, 0, 10},
+    {0x51, (uint8_t []){0xFF}, 1, 0},
 };
 
 class CustomLcdDisplay : public SpiLcdDisplay {
-  public:
-  static void my_draw_event_cb(lv_event_t *e) {
-    lv_area_t *area = (lv_area_t *)lv_event_get_param(e);   
-    uint16_t x1 = area->x1;
-    uint16_t x2 = area->x2; 
-    uint16_t y1 = area->y1;
-    uint16_t y2 = area->y2; 
-    // round the start of coordinate down to the nearest 2M number
-    area->x1 = (x1 >> 1) << 1;
-    area->y1 = (y1 >> 1) << 1;
-    // round the end of coordinate up to the nearest 2N+1 number
-    area->x2 = ((x2 >> 1) << 1) + 1;
-    area->y2 = ((y2 >> 1) << 1) + 1;
-  }
-  CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
-                  esp_lcd_panel_handle_t panel_handle,
-                  int width,
-                  int height,
-                  int offset_x,
-                  int offset_y,
-                  bool mirror_x,
-                  bool mirror_y,
-                  bool swap_xy)
-      : SpiLcdDisplay(io_handle, panel_handle,
-                  width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                  {
-                      .text_font = &font_puhui_30_4,
-                      .icon_font = &font_awesome_30_4,
-                      .emoji_font = font_emoji_64_init(),
-                  }) {
-      DisplayLockGuard lock(this);
-      lv_display_add_event_cb(display_, my_draw_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
+public:
+    static void MyDrawEventCb(lv_event_t *e) {
+        lv_area_t *area = (lv_area_t *)lv_event_get_param(e);   
+        uint16_t x1 = area->x1;
+        uint16_t x2 = area->x2; 
+        uint16_t y1 = area->y1;
+        uint16_t y2 = area->y2; 
+        // round the start of coordinate down to the nearest 2M number
+        area->x1 = (x1 >> 1) << 1;
+        area->y1 = (y1 >> 1) << 1;
+        // round the end of coordinate up to the nearest 2N+1 number
+        area->x2 = ((x2 >> 1) << 1) + 1;
+        area->y2 = ((y2 >> 1) << 1) + 1;
+    }
+
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
+                    esp_lcd_panel_handle_t panel_handle,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle,
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
+                    {
+                        .text_font = &font_puhui_30_4,
+                        .icon_font = &font_awesome_30_4,
+                        .emoji_font = font_emoji_64_init(),
+                    }) {
+        DisplayLockGuard lock(this);
+        lv_display_add_event_cb(display_, MyDrawEventCb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
 };
 
@@ -98,6 +99,7 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
+
     void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, I2C_ADDRESS, &io_expander);
         if(ret != ESP_OK)
@@ -107,17 +109,19 @@ private:
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_7 | IO_EXPANDER_PIN_NUM_6, 1);
         ESP_ERROR_CHECK(ret);
     }
+
     void InitializeSpi() {
-      spi_bus_config_t buscfg = {            
-          .data0_io_num = LCD_D0,             
-          .data1_io_num = LCD_D1, 
-          .sclk_io_num = LCD_PCLK,            
-          .data2_io_num = LCD_D2,             
-          .data3_io_num = LCD_D3,             
-          .max_transfer_sz = EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * sizeof(uint16_t),
-      };
-      ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        spi_bus_config_t buscfg = {            
+            .data0_io_num = LCD_D0,             
+            .data1_io_num = LCD_D1, 
+            .sclk_io_num = LCD_PCLK,            
+            .data2_io_num = LCD_D2,             
+            .data3_io_num = LCD_D3,             
+            .max_transfer_sz = EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * sizeof(uint16_t),
+        };
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
+
     void InitializeLcdDisplay() {
         const esp_lcd_panel_io_spi_config_t io_config = {
             .cs_gpio_num = LCD_CS,          
@@ -133,27 +137,27 @@ private:
                 .quad_mode = true,      
             },                          
         };
-       ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &io_handle));
-       sh8601_vendor_config_t vendor_config = {
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &io_handle));
+        sh8601_vendor_config_t vendor_config = {
             .init_cmds = lcd_init_cmds,             // Uncomment these line if use custom initialization commands
             .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(lcd_init_cmds[0]), // sizeof(axs15231b_lcd_init_cmd_t),
             .flags = 
             {
-              .use_qspi_interface = 1,
+                .use_qspi_interface = 1,
             },
-       };
-       const esp_lcd_panel_dev_config_t panel_config = {
+        };
+        const esp_lcd_panel_dev_config_t panel_config = {
             .reset_gpio_num = LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,     // Implemented by LCD command `36h`
             .bits_per_pixel = 16,                           // Implemented by LCD command `3Ah` (16/18)
             .vendor_config = &vendor_config,
-       };
-       ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(io_handle, &panel_config, &panel_handle));
-       esp_lcd_panel_set_gap(panel_handle,0x06,0x00);
-       ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
-       ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
-       display_ = new CustomLcdDisplay(io_handle, panel_handle,
-       EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        };
+        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(io_handle, &panel_config, &panel_handle));
+        esp_lcd_panel_set_gap(panel_handle,0x06,0x00);
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
+        display_ = new CustomLcdDisplay(io_handle, panel_handle,
+        EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() { //接入锂电池时,可长按PWR开机/关机
@@ -163,12 +167,15 @@ private:
                 ResetWifiConfiguration();
             }
         });
+
         boot_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
         });
+
         boot_button_.OnPressUp([this]() {
             Application::GetInstance().StopListening();
         });
+
         pwr_button_.OnLongPress([this]() {
             if(pwr_flag == 1)
             {
@@ -178,6 +185,7 @@ private:
                 ESP_ERROR_CHECK(ret);
             }
         });
+
         pwr_button_.OnPressUp([this]() {
             if(pwr_flag == 0)
             {
@@ -192,21 +200,23 @@ private:
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
     }
+
     void InitializeTouch() {
         i2c_device_config_t dev_cfg = 
         {
-          .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-          .device_address = I2C_Touch_ADDRESS,
-          .scl_speed_hz = 300000,
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = I2C_Touch_ADDRESS,
+            .scl_speed_hz = 300000,
         };
         ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &disp_touch_dev_handle));
 
         touch_indev = lv_indev_create();
         lv_indev_set_type(touch_indev, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_read_cb(touch_indev, touchInputReadCallback);
+        lv_indev_set_read_cb(touch_indev, TouchInputReadCallback);
         lv_indev_set_user_data(touch_indev, disp_touch_dev_handle);
     }
-    static void touchInputReadCallback(lv_indev_t * indev, lv_indev_data_t *indevData)
+
+    static void TouchInputReadCallback(lv_indev_t * indev, lv_indev_data_t *indevData)
     {
         i2c_master_dev_handle_t i2c_dev = (i2c_master_dev_handle_t)lv_indev_get_user_data(indev);
         uint8_t cmd = 0x02;
@@ -223,33 +233,35 @@ private:
             {tp_y = EXAMPLE_LCD_V_RES;}
             indevData->point.x = tp_x;
             indevData->point.y = tp_y;
-            ESP_LOGE("tp","(%ld,%ld)",indevData->point.x,indevData->point.y);
+            //ESP_LOGI("tp","(%ld,%ld)",indevData->point.x,indevData->point.y);
             indevData->state = LV_INDEV_STATE_PRESSED;
         }
         else
         {
-          indevData->state = LV_INDEV_STATE_RELEASED;
+            indevData->state = LV_INDEV_STATE_RELEASED;
         }
     }
+
     void InitializeTools()
     {
-      auto& mcp_server = McpServer::GetInstance();
-      mcp_server.AddTool("self.disp.setbacklight", "设置屏幕亮度", PropertyList({
-        Property("level", kPropertyTypeInteger, 0, 255)
-      }), [this](const PropertyList& properties) -> ReturnValue {
-        int level = properties["level"].value<int>();
-        ESP_LOGI("setbacklight","%d",level);
-        setDispbacklight(level);
-        return true;
-      });
+        auto& mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.disp.setbacklight", "设置屏幕亮度", PropertyList({
+            Property("level", kPropertyTypeInteger, 0, 255)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int level = properties["level"].value<int>();
+            ESP_LOGI("setbacklight","%d",level);
+            SetDispbacklight(level);
+            return true;
+        });
     }
-    void setDispbacklight(uint8_t backlight) {
-      uint32_t lcd_cmd = 0x51;
-      lcd_cmd &= 0xff;
-      lcd_cmd <<= 8;
-      lcd_cmd |= 0x02 << 24;
-      uint8_t param = backlight;
-      esp_lcd_panel_io_tx_param(io_handle, lcd_cmd, &param,1);
+
+    void SetDispbacklight(uint8_t backlight) {
+        uint32_t lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= 0x02 << 24;
+        uint8_t param = backlight;
+        esp_lcd_panel_io_tx_param(io_handle, lcd_cmd, &param,1);
     }
 
 public:
