@@ -70,11 +70,11 @@ private:
             uint16_t adc;
             uint8_t level;
         } levels[] = {
-            {2760, 0},
-            {2960, 20},
-            {3160, 40},
-            {3360, 60},
-            {3560, 80},
+            {3060, 0},
+            {3200, 20},
+            {3340, 40},
+            {3480, 60},
+            {3620, 80},
             {3765, 100}
         };
 
@@ -107,7 +107,7 @@ private:
             }
         }
 
-        ESP_LOGI("PowerManager", "------------------------ ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
+        ESP_LOGI("PowerManager", "ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
     }
 
 public:
