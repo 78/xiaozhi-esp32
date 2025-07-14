@@ -175,7 +175,7 @@ bool MqttProtocol::OpenAudioChannel() {
     message += "\"version\": 3,";
     message += "\"transport\":\"udp\",";
     message += "\"audio_params\":{";
-    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
+    message += "\"format\":\"opus\", \"sample_rate\":24000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
     ESP_LOGI(TAG, "📤 发送MQTT Hello消息: %s", message.c_str());
     if (!SendText(message)) {

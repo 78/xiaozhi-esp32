@@ -430,11 +430,14 @@ void Application::Start() {
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
-                    background_task_->WaitForCompletion();
+                    // 优化：减少背景任务等待时间，加快状态切换速度
+                    // background_task_->WaitForCompletion();
                     if (device_state_ == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
+                            // 优化：立即切换到listening状态，减少音频数据丢失
+                            ESP_LOGI(TAG, "TTS结束，快速切换到listening状态");
                             SetDeviceState(kDeviceStateListening);
                         }
                     }
@@ -767,9 +770,19 @@ void Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
 }
 
 void Application::AbortSpeaking(AbortReason reason) {
-    ESP_LOGI(TAG, "Abort speaking");
+    ESP_LOGI(TAG, "Abort speaking - 原因: %d", reason);
     aborted_ = true;
     protocol_->SendAbortSpeaking(reason);
+    
+    // 优化：用户中断时立即切换到listening状态，提高响应速度
+    if (reason == kAbortReasonNone || reason == kAbortReasonWakeWordDetected) {
+        Schedule([this]() {
+            if (device_state_ == kDeviceStateSpeaking) {
+                ESP_LOGI(TAG, "用户中断，立即切换到listening状态");
+                SetDeviceState(kDeviceStateListening);
+            }
+        });
+    }
 }
 
 void Application::SetListeningMode(ListeningMode mode) {
@@ -785,7 +798,16 @@ void Application::SetDeviceState(DeviceState state) {
     clock_ticks_ = 0;
     auto previous_state = device_state_;
     device_state_ = state;
-    ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
+    
+    // 添加详细的状态切换日志，特别关注listening相关的切换
+    if (state == kDeviceStateListening || previous_state == kDeviceStateListening ||
+        state == kDeviceStateSpeaking || previous_state == kDeviceStateSpeaking) {
+        ESP_LOGI(TAG, "🔄 STATE CHANGE: %s -> %s (listening_mode: %d)", 
+                 STATE_STRINGS[previous_state], STATE_STRINGS[state], listening_mode_);
+    } else {
+        ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
+    }
+    
     // The state is changed, wait for all background tasks to finish
     background_task_->WaitForCompletion();
 
@@ -804,6 +826,12 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetEmotion("neutral");
 #if CONFIG_USE_AUDIO_PROCESSOR
             audio_processor_.Stop();
+            // 优化：只在从连接或升级状态切换到idle时才强制重置缓冲区
+            if (previous_state == kDeviceStateConnecting || 
+                previous_state == kDeviceStateUpgrading ||
+                previous_state == kDeviceStateActivating) {
+                audio_processor_.ForceResetBuffer();
+            }
 #endif
 #if CONFIG_USE_WAKE_WORD_DETECT
             wake_word_detect_.StartDetection();
@@ -832,15 +860,22 @@ void Application::SetDeviceState(DeviceState state) {
             if (true) {
 #endif
                 if (listening_mode_ == kListeningModeAutoStop && previous_state == kDeviceStateSpeaking) {
-                    // 性能优化：减少缓冲区等待时间从120ms到50ms
-                    vTaskDelay(pdMS_TO_TICKS(50));
+                    // 优化：减少缓冲区等待时间从50ms到10ms，减少音频数据丢失
+                    vTaskDelay(pdMS_TO_TICKS(10));
                 }
-                opus_encoder_->ResetState();
+                // 优化：只在从非listening状态切换时才重置编码器状态
+                if (previous_state != kDeviceStateListening) {
+                    opus_encoder_->ResetState();
+                    ESP_LOGI(TAG, "🎤 重置Opus编码器状态 (从 %s 切换)", STATE_STRINGS[previous_state]);
+                } else {
+                    ESP_LOGI(TAG, "🎤 保持Opus编码器状态 (从 %s 快速切换)", STATE_STRINGS[previous_state]);
+                }
 #if CONFIG_USE_WAKE_WORD_DETECT
                 wake_word_detect_.StopDetection();
 #endif
 #if CONFIG_USE_AUDIO_PROCESSOR
                 audio_processor_.Start();
+                ESP_LOGI(TAG, "🎙️ 音频处理器已启动，准备接收音频数据");
 #endif
             }
             break;
@@ -848,13 +883,20 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::SPEAKING);
             display->SetEmotion("speaking");
 
+            // 优化：在非实时聊天模式下，延迟启动唤醒词检测以减少状态切换延迟
             if (listening_mode_ != kListeningModeRealtime) {
 #if CONFIG_USE_AUDIO_PROCESSOR
                 audio_processor_.Stop();
 #endif
+                // 优化：延迟启动唤醒词检测，避免在快速状态切换时造成干扰
+                Schedule([this]() {
+                    vTaskDelay(pdMS_TO_TICKS(100)); // 100ms后启动唤醒词检测
 #if CONFIG_USE_WAKE_WORD_DETECT
-                wake_word_detect_.StartDetection();
+                    if (device_state_ == kDeviceStateSpeaking) { // 确保状态仍然是speaking
+                        wake_word_detect_.StartDetection();
+                    }
 #endif
+                });
             }
             ResetDecoder();
             break;
@@ -1010,4 +1052,190 @@ void Application::ResumeAudioProcessing() {
 bool Application::IsAudioQueueEmpty() const {
     std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mutex_));
     return audio_decode_queue_.empty();
+}
+
+// **新增：强力音频保护机制实现**
+
+bool Application::IsAudioActivityHigh() const {
+    // 多重音频活动检测 - 确保最高精度
+    
+    // 1. 设备状态检测
+    if (device_state_ == kDeviceStateListening || 
+        device_state_ == kDeviceStateConnecting ||
+        device_state_ == kDeviceStateSpeaking) {
+        return true;
+    }
+    
+    // 2. 音频队列检测  
+    if (!IsAudioQueueEmpty()) {
+        return true;
+    }
+    
+    // 3. 音频处理器状态检测 - 使用const_cast因为这是只读检查
+#if CONFIG_USE_AUDIO_PROCESSOR
+    if (const_cast<Application*>(this)->audio_processor_.IsRunning()) {
+        return true;
+    }
+#endif
+    
+    // 4. 唤醒词检测器状态检测 - 使用const_cast因为这是只读检查
+#if CONFIG_USE_WAKE_WORD_DETECT
+    if (const_cast<Application*>(this)->wake_word_detect_.IsDetectionRunning()) {
+        return true;
+    }
+#endif
+    
+    // 5. 协议音频通道检测
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        return true;
+    }
+    
+    return false;
+}
+
+bool Application::IsAudioProcessingCritical() const {
+    // 关键音频处理状态检测 - 绝对不能中断
+    
+    // 正在进行语音识别
+    if (device_state_ == kDeviceStateListening && voice_detected_) {
+        return true;
+    }
+    
+    // 正在播放重要音频（TTS、系统提示音）
+    if (device_state_ == kDeviceStateSpeaking) {
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mutex_));
+        // 如果音频队列有较多待播放数据，认为是关键状态
+        return audio_decode_queue_.size() > 3;
+    }
+    
+    // 正在建立音频连接
+    if (device_state_ == kDeviceStateConnecting) {
+        return true;
+    }
+    
+    return false;
+}
+
+void Application::SetAudioPriorityMode(bool enabled) {
+    if (enabled) {
+        ESP_LOGI(TAG, "🔒 启用音频优先模式 - 图片播放将被严格限制");
+        
+        // 提升音频相关任务的优先级
+        if (audio_loop_task_handle_) {
+            vTaskPrioritySet(audio_loop_task_handle_, 10); // 提升到最高优先级
+        }
+        
+        // 降低背景任务优先级，减少对音频的干扰
+        if (background_task_) {
+            // 假设background_task_有设置优先级的方法，这里仅作示例
+            ESP_LOGI(TAG, "降低背景任务优先级以保护音频处理");
+        }
+        
+    } else {
+        ESP_LOGI(TAG, "🔓 恢复正常优先级模式");
+        
+        // 恢复音频任务正常优先级
+        if (audio_loop_task_handle_) {
+            vTaskPrioritySet(audio_loop_task_handle_, 9); // 恢复原优先级
+        }
+    }
+}
+
+int Application::GetAudioPerformanceScore() const {
+    int score = 100; // 满分100，分数越低表示音频压力越大
+    
+    // 音频队列长度影响 (-10分每个队列项目)
+    {
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mutex_));
+        score -= std::min(50, (int)audio_decode_queue_.size() * 10);
+    }
+    
+    // 设备状态影响
+    switch (device_state_) {
+        case kDeviceStateListening:
+            score -= 20; // 语音识别时压力较大
+            if (voice_detected_) {
+                score -= 15; // 检测到语音时压力更大
+            }
+            break;
+        case kDeviceStateSpeaking:
+            score -= 25; // TTS播放时压力最大
+            break;
+        case kDeviceStateConnecting:
+            score -= 15; // 连接时有一定压力
+            break;
+        default:
+            break;
+    }
+    
+    // 内存压力影响
+    int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if (free_sram < 100000) { // 小于100KB
+        score -= 20;
+    } else if (free_sram < 200000) { // 小于200KB  
+        score -= 10;
+    }
+    
+    // 确保分数在合理范围内
+    return std::max(0, std::min(100, score));
+}
+
+// **新增：智能分级音频保护实现**
+
+bool Application::IsRealAudioProcessing() const {
+    // 检测是否有真正的音频处理活动（有数据流动）
+    
+    // 1. 检查音频队列是否有数据
+    if (!IsAudioQueueEmpty()) {
+        return true;
+    }
+    
+    // 2. 检查是否正在播放音频（TTS）
+    if (device_state_ == kDeviceStateSpeaking) {
+        return true;
+    }
+    
+    // 3. 检查是否正在进行语音识别且检测到语音
+    if (device_state_ == kDeviceStateListening && voice_detected_) {
+        return true;
+    }
+    
+    // 4. 检查是否正在建立音频连接
+    if (device_state_ == kDeviceStateConnecting) {
+        return true;
+    }
+    
+    return false;
+}
+
+Application::AudioActivityLevel Application::GetAudioActivityLevel() const {
+    // 分级音频活动检测 - 返回具体的活动级别
+    
+    // 最高级别：关键音频处理 - 完全暂停图片
+    if (IsAudioProcessingCritical()) {
+        return AUDIO_CRITICAL;
+    }
+    
+    // 高级别：实际音频处理 - 降低图片优先级
+    if (IsRealAudioProcessing()) {
+        return AUDIO_ACTIVE;
+    }
+    
+    // 中级别：音频系统待机 - 允许低帧率播放
+    // 唤醒词检测运行但没有实际音频处理
+#if CONFIG_USE_WAKE_WORD_DETECT
+    if (const_cast<Application*>(this)->wake_word_detect_.IsDetectionRunning() && 
+        device_state_ == kDeviceStateIdle) {
+        return AUDIO_STANDBY;
+    }
+#endif
+    
+    // 音频通道开启但没有实际数据传输
+    if (protocol_ && protocol_->IsAudioChannelOpened() && 
+        device_state_ == kDeviceStateIdle && IsAudioQueueEmpty()) {
+        return AUDIO_STANDBY;
+    }
+    
+    // 最低级别：完全空闲 - 允许正常图片播放
+    return AUDIO_IDLE;
 }

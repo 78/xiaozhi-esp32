@@ -78,6 +78,15 @@ void AudioProcessor::Start() {
 
 void AudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
+    // 优化：添加渐进式缓冲区清理，避免在快速状态切换时丢失音频数据
+    // 不立即清空缓冲区，让正在处理的音频数据完成处理
+    // if (afe_data_ != nullptr) {
+    //     afe_iface_->reset_buffer(afe_data_);
+    // }
+}
+
+// 添加新方法：强制清空缓冲区（仅在必要时使用）
+void AudioProcessor::ForceResetBuffer() {
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
     }

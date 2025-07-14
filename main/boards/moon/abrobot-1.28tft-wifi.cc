@@ -2070,6 +2070,26 @@ private:
     static void ImageSlideshowTask(void* arg) {
         CustomBoard* board = static_cast<CustomBoard*>(arg);
         Display* display = board->GetDisplay();
+        auto& app = Application::GetInstance();
+        auto& image_manager = ImageResourceManager::GetInstance();
+        
+        ESP_LOGI(TAG, "🎬 图片播放任务启动 - 配置强力音频保护机制");
+        
+        // **智能分级音频保护配置**
+        const bool ENABLE_SMART_PROTECTION = true;   // 启用智能保护
+        const bool ENABLE_DYNAMIC_PRIORITY = true;   // 启用动态优先级调节
+        
+        // **性能优化设置**
+        if (ENABLE_DYNAMIC_PRIORITY) {
+            // 适度降低图片任务优先级，为音频任务让出资源
+            vTaskPrioritySet(NULL, 2); // 从1调整到2
+            ESP_LOGI(TAG, "💡 图片任务优先级已调整，音频任务享有更高优先权");
+        }
+        
+        // 启用适度的音频优先模式（不再过度严格）
+        app.SetAudioPriorityMode(false); // 关闭严格模式，使用智能保护
+        
+        ESP_LOGI(TAG, "🎯 智能音频保护已激活，图片播放将根据音频状态智能调节");
         
         if (!display) {
             ESP_LOGE(TAG, "无法获取显示设备");
@@ -2077,8 +2097,7 @@ private:
             return;
         }
         
-        // 获取Application实例
-        auto& app = Application::GetInstance();
+        // Application实例已在上面获取
         
         // 获取CustomLcdDisplay实例
         CustomLcdDisplay* customDisplay = static_cast<CustomLcdDisplay*>(display);
@@ -2125,9 +2144,6 @@ private:
             lv_obj_center(img_obj);
             lv_obj_move_foreground(img_obj);
         }
-        
-        // 获取图片资源管理器实例
-        auto& image_manager = ImageResourceManager::GetInstance();
         
         // 优化：减少初始化等待时间，加快图片显示
         vTaskDelay(pdMS_TO_TICKS(100));  // 从500ms减少到100ms
@@ -2198,6 +2214,10 @@ private:
         bool directionForward = true;  // 动画方向：true为正向，false为反向
         const uint8_t* currentImage = nullptr;
         
+        // 添加状态跟踪变量，避免重复日志输出
+        bool lastWasStaticMode = false;
+        const uint8_t* lastStaticImage = nullptr;
+        
         // 主循环
         TickType_t lastUpdateTime = xTaskGetTickCount();  // 记录上次更新时间
         const TickType_t cycleInterval = pdMS_TO_TICKS(150);  // 优化：从200ms调整到150ms，提高动画流畅度
@@ -2246,20 +2266,75 @@ private:
             DeviceState currentState = app.GetDeviceState();
             TickType_t currentTime = xTaskGetTickCount();
             
-            // **新增：音频活动检测 - 方案2实施**
-            bool isAudioActive = (currentState == kDeviceStateListening || 
-                                currentState == kDeviceStateConnecting ||
-                                !app.IsAudioQueueEmpty());
+            // **已移除旧的严格音频保护代码，采用新的智能分级保护**
+            
+            // **升级：智能分级音频保护机制 - 替代过度严格的保护**
+            
+            // 获取音频活动级别（0=空闲, 1=待机, 2=活跃, 3=关键）
+            auto audioLevel = app.GetAudioActivityLevel();
+            
+            // 根据音频级别确定图片播放策略
+            bool shouldPauseCompletely = false;
+            TickType_t dynamicCycleInterval = cycleInterval; // 默认120ms
+            
+            switch (audioLevel) {
+                case Application::AUDIO_IDLE:
+                    // 完全空闲：正常播放
+                    dynamicCycleInterval = cycleInterval; // 120ms
+                    shouldPauseCompletely = false;
+                    break;
+                    
+                case Application::AUDIO_STANDBY:
+                    // 待机状态：降低帧率播放
+                    dynamicCycleInterval = pdMS_TO_TICKS(200); // 降到200ms
+                    shouldPauseCompletely = false;
+                    break;
+                    
+                case Application::AUDIO_ACTIVE:
+                    // 活跃状态：大幅降低帧率
+                    dynamicCycleInterval = pdMS_TO_TICKS(300); // 300ms
+                    shouldPauseCompletely = false;
+                    break;
+                    
+                case Application::AUDIO_CRITICAL:
+                    // 关键状态：完全暂停
+                    shouldPauseCompletely = true;
+                    break;
+            }
             
             // 根据显示模式确定是否应该动画
             bool shouldAnimate = isAudioPlaying && g_image_display_mode == iot::MODE_ANIMATED;
             
-            // **新增：如果检测到音频活动，暂停动画更新以避免干扰ASR**
-            if (isAudioActive && shouldAnimate) {
-                // 暂停动画，但保持当前图片显示
-                vTaskDelay(pdMS_TO_TICKS(50));
+            // **智能保护：只在关键音频处理时才完全暂停**
+            if (shouldPauseCompletely && shouldAnimate) {
+                // 详细日志记录暂停原因（仅在必要时输出）
+                static TickType_t lastLogTime = 0;
+                TickType_t now = xTaskGetTickCount();
+                if (now - lastLogTime > pdMS_TO_TICKS(5000)) { // 5秒输出一次日志
+                    ESP_LOGI(TAG, "🔒 关键音频保护激活: 级别=%d, 完全暂停图片播放", audioLevel);
+                    lastLogTime = now;
+                }
+                
+                vTaskDelay(pdMS_TO_TICKS(100));
                 continue;
             }
+            
+            // **智能日志：记录当前保护策略**
+            {
+                static Application::AudioActivityLevel lastLoggedLevel = Application::AUDIO_IDLE;
+                static TickType_t lastLogTime = 0;
+                TickType_t now = xTaskGetTickCount();
+                
+                if ((audioLevel != lastLoggedLevel || now - lastLogTime > pdMS_TO_TICKS(10000)) && shouldAnimate) {
+                    const char* levelNames[] = {"空闲", "待机", "活跃", "关键"};
+                    ESP_LOGI(TAG, "🎬 图片播放策略: 音频级别=%d(%s), 帧间隔=%dms", 
+                            audioLevel, levelNames[audioLevel], (int)(dynamicCycleInterval * portTICK_PERIOD_MS));
+                    lastLoggedLevel = audioLevel;
+                    lastLogTime = now;
+                }
+            }
+            
+            // 原来的音频检测代码已被强力保护机制替代
             
             // 检查当前是否在时钟页面（tab2）
             bool isClockTabActive = false;
@@ -2352,8 +2427,8 @@ private:
                 }
             }
             
-            // 动画播放逻辑 - 实现双向循环（支持按需加载）
-            if (shouldAnimate && !pendingAnimationStart && !isAudioActive && (currentTime - lastUpdateTime >= cycleInterval)) {
+            // **升级动画播放逻辑 - 智能分级保护**
+            if (shouldAnimate && !pendingAnimationStart && !shouldPauseCompletely && (currentTime - lastUpdateTime >= dynamicCycleInterval)) {
                 // 根据方向更新索引
                 if (directionForward) {
                     currentIndex++;
@@ -2404,11 +2479,15 @@ private:
                      (!isAudioPlaying && currentIndex != 0)) {
                 
                 const uint8_t* staticImage = nullptr;
+                bool isStaticMode = false;
+                
                 if (g_image_display_mode == iot::MODE_STATIC && iot::g_static_image) {
                     staticImage = iot::g_static_image;
+                    isStaticMode = true;
                 } else if (!imageArray.empty()) {
                     currentIndex = 0;
                     staticImage = imageArray[currentIndex];
+                    isStaticMode = false;
                 }
                 
                 // **优化：预先准备数据，减少锁持有时间 - 方案3实施**
@@ -2420,7 +2499,13 @@ private:
                         lv_img_set_src(img_obj, &img_dsc);
                     }
                     
-                    ESP_LOGI(TAG, "显示%s图片", g_image_display_mode == iot::MODE_STATIC ? "logo" : "初始");
+                    // 只在状态变化时输出日志，避免刷屏
+                    if (isStaticMode != lastWasStaticMode || staticImage != lastStaticImage) {
+                        ESP_LOGI(TAG, "显示%s图片", isStaticMode ? "logo" : "初始");
+                        lastWasStaticMode = isStaticMode;
+                        lastStaticImage = staticImage;
+                    }
+                    
                     pendingAnimationStart = false;
                 }
             }

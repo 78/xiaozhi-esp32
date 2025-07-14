@@ -172,7 +172,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
     message += "\"version\": 1,";
     message += "\"transport\":\"websocket\",";
     message += "\"audio_params\":{";
-    message += "\"format\":\"opus\", \"sample_rate\":16000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
+    message += "\"format\":\"opus\", \"sample_rate\":24000, \"channels\":1, \"frame_duration\":" + std::to_string(OPUS_FRAME_DURATION_MS);
     message += "}}";
     ESP_LOGI(TAG, "📤 发送WebSocket Hello消息: %s", message.c_str());
     if (!SendText(message)) {

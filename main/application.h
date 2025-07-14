@@ -86,6 +86,23 @@ public:
     
     // 检查音频队列是否为空（用于判断开机提示音是否播放完成）
     bool IsAudioQueueEmpty() const;
+    
+    // **新增：强力音频保护机制**
+    bool IsAudioActivityHigh() const;
+    bool IsAudioProcessingCritical() const;
+    void SetAudioPriorityMode(bool enabled);
+    int GetAudioPerformanceScore() const;
+    
+    // **新增：智能分级音频保护**
+    enum AudioActivityLevel {
+        AUDIO_IDLE = 0,        // 完全空闲，允许正常图片播放
+        AUDIO_STANDBY = 1,     // 待机状态，允许低帧率播放  
+        AUDIO_ACTIVE = 2,      // 活跃状态，需要降低图片优先级
+        AUDIO_CRITICAL = 3     // 关键状态，完全暂停图片播放
+    };
+    
+    AudioActivityLevel GetAudioActivityLevel() const;
+    bool IsRealAudioProcessing() const;
 #if CONFIG_USE_ALARM
     //test
     AlarmManager* alarm_m_ = nullptr;

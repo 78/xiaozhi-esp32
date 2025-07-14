@@ -24,6 +24,8 @@ public:
     bool IsRunning();
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback);
     void OnVadStateChange(std::function<void(bool speaking)> callback);
+    // 添加强制重置缓冲区的方法声明
+    void ForceResetBuffer();
     size_t GetFeedSize();
 
 private:
