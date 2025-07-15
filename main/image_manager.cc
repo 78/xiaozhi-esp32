@@ -591,16 +591,9 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
     // 逐个下载文件
     int failed_count = 0;
     for (size_t i = 0; i < server_dynamic_urls_.size() && i < MAX_IMAGE_FILES; i++) {
-        if (progress_callback_) {
-            int overall_percent = static_cast<int>(i * 100 / server_dynamic_urls_.size());
-            char message[128];
-            const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
-            snprintf(message, sizeof(message), "准备下载二进制动画图片: %s (%zu/%zu)", 
-                    filename, i + 1, server_dynamic_urls_.size());
-            progress_callback_(overall_percent, 100, message);
-        }
+        // 移除这里的进度更新，因为DownloadFile内部会处理总体进度
         
-        esp_err_t download_result = DownloadFile(server_dynamic_urls_[i].c_str(), file_paths[i].c_str());
+        esp_err_t download_result = DownloadFile(server_dynamic_urls_[i].c_str(), file_paths[i].c_str(), (int)i, (int)server_dynamic_urls_.size());
         if (download_result != ESP_OK) {
             ESP_LOGE(TAG, "下载动画图片文件失败: %s", file_paths[i].c_str());
             failed_count++;
@@ -617,7 +610,9 @@ esp_err_t ImageResourceManager::DownloadImages(const char* api_url) {
                 char message[128];
                 const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
                 snprintf(message, sizeof(message), "文件 %s 下载失败，继续下载其他文件...", filename);
-                progress_callback_(0, 100, message);
+                // 计算当前总体进度（失败也算作已处理）
+                int current_total_progress = ((int)i + 1) * 100 / (int)server_dynamic_urls_.size();
+                progress_callback_(current_total_progress, 100, message);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
         } else {
@@ -788,7 +783,7 @@ esp_err_t ImageResourceManager::DownloadLogo(const char* api_url) {
     return ESP_OK;
 }
 
-esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepath) {
+esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepath, int file_index, int total_files) {
     int retry_count = 0;
     static int last_logged_percent = -1;
     
@@ -994,31 +989,44 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             
             // 优化进度更新频率
             if (content_length > 0) {
-                int percent = (float)total_read * 100 / content_length;
+                int file_percent = (float)total_read * 100 / content_length;
+                
+                // 计算总体进度：(已完成文件数 * 100 + 当前文件进度) / 总文件数
+                int total_percent = 0;
+                if (total_files > 1) {
+                    total_percent = (file_index * 100 + file_percent) / total_files;
+                } else {
+                    total_percent = file_percent;
+                }
                 
                 // 减少进度更新频率，提高下载速度
-                if (percent != last_logged_percent && percent % 5 == 0) {  // 每5%更新一次
-                    const char* filename = strrchr(filepath, '/') + 1;
+                if (total_percent != last_logged_percent && total_percent % 2 == 0) {  // 每2%更新一次，更频繁的总体进度更新
                     char message[128];
-                    if (retry_count > 0) {
-                        snprintf(message, sizeof(message), "重试下载 %s (%d/%d)", 
-                                filename, retry_count + 1, MAX_DOWNLOAD_RETRIES);
+                    if (total_files > 1) {
+                        // 多文件下载时显示总体进度
+                        snprintf(message, sizeof(message), "下载图片资源 (%d/%d)", file_index + 1, total_files);
                     } else {
-                        snprintf(message, sizeof(message), "正在下载 %s", filename);
+                        // 单文件下载时显示文件名
+                        const char* filename = strrchr(filepath, '/') + 1;
+                        if (retry_count > 0) {
+                            snprintf(message, sizeof(message), "重试下载 %s (%d/%d)", 
+                                    filename, retry_count + 1, MAX_DOWNLOAD_RETRIES);
+                        } else {
+                            snprintf(message, sizeof(message), "正在下载 %s", filename);
+                        }
                     }
                     
                     if (progress_callback_) {
-                        progress_callback_(percent, 100, message);
+                        progress_callback_(total_percent, 100, message);
                     }
                     
-                    // 减少日志频率
-                    if (percent % 25 == 0 || percent == 100) {  // 改为每25%记录一次
-                        ESP_LOGI(TAG, "下载进度: %d%%, 已下载: %zu/%zu字节, 速度: %.1fKB/s", 
-                                percent, total_read, content_length, 
-                                (float)total_read / 1024.0 / ((esp_timer_get_time() / 1000 - esp_timer_get_time() / 1000) / 1000.0 + 1));
+                    // 减少日志频率 - 使用文件进度记录日志
+                    if (file_percent % 25 == 0 || file_percent == 100) {  // 改为每25%记录一次
+                        ESP_LOGI(TAG, "下载进度: 文件%d/%d %d%%, 总体%d%%, 已下载: %zu/%zu字节", 
+                                file_index + 1, total_files, file_percent, total_percent, total_read, content_length);
                     }
                     
-                    last_logged_percent = percent;
+                    last_logged_percent = total_percent;
                 }
             }
             
@@ -1088,10 +1096,18 @@ esp_err_t ImageResourceManager::DownloadFile(const char* url, const char* filepa
             
             // 直接处理下载完成的文件
             if (progress_callback_) {
-                const char* filename = strrchr(filepath, '/') + 1;
                 char message[128];
-                snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
-                progress_callback_(100, 100, message);
+                // 计算文件完成时的总体进度
+                int total_percent = 0;
+                if (total_files > 1) {
+                    total_percent = ((file_index + 1) * 100) / total_files;  // 当前文件完成后的总体进度
+                    snprintf(message, sizeof(message), "下载图片资源 (%d/%d)", file_index + 1, total_files);
+                } else {
+                    total_percent = 100;
+                    const char* filename = strrchr(filepath, '/') + 1;
+                    snprintf(message, sizeof(message), "文件 %s 下载完成", filename);
+                }
+                progress_callback_(total_percent, 100, message);
             }
             
             last_logged_percent = -1;
@@ -2436,16 +2452,9 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
     // 逐个下载文件
     int failed_count = 0;
     for (size_t i = 0; i < urls.size() && i < MAX_IMAGE_FILES; i++) {
-        if (progress_callback_) {
-            int overall_percent = static_cast<int>(i * 100 / urls.size());
-            char message[128];
-            const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
-            snprintf(message, sizeof(message), "下载二进制动画图片: %s (%zu/%zu)", 
-                    filename, i + 1, urls.size());
-            progress_callback_(overall_percent, 100, message);
-        }
+        // 移除这里的进度更新，因为DownloadFile内部会处理总体进度
         
-        esp_err_t download_result = DownloadFile(urls[i].c_str(), file_paths[i].c_str());
+        esp_err_t download_result = DownloadFile(urls[i].c_str(), file_paths[i].c_str(), (int)i, (int)urls.size());
         if (download_result != ESP_OK) {
             ESP_LOGE(TAG, "下载动画图片文件失败: %s", file_paths[i].c_str());
             failed_count++;
@@ -2462,7 +2471,9 @@ esp_err_t ImageResourceManager::DownloadImagesWithUrls(const std::vector<std::st
                 char message[128];
                 const char* filename = strrchr(file_paths[i].c_str(), '/') + 1;
                 snprintf(message, sizeof(message), "文件 %s 下载失败，继续下载其他文件...", filename);
-                progress_callback_(0, 100, message);
+                // 计算当前总体进度（失败也算作已处理）
+                int current_total_progress = ((int)i + 1) * 100 / (int)urls.size();
+                progress_callback_(current_total_progress, 100, message);
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
         } else {

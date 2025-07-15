@@ -1033,23 +1033,13 @@ public:
     // 显示或隐藏下载进度条
     void ShowDownloadProgress(bool show, int progress = 0, const char* message = nullptr) {
         if (!show || !message) {
+            // 隐藏UI
+            UpdateDownloadProgressUI(false, 0, nullptr);
             return;
         }
 
-        // 使用DisplayLockGuard管理锁
-        DisplayLockGuard lock(this);
-        if (chat_message_label_ != nullptr) {
-            char full_message[256];
-            if (progress > 0 && progress < 100) {
-                snprintf(full_message, sizeof(full_message), 
-                        "正在下载图片资源...\n%s\n进度：%d%%", 
-                        message, progress);
-            } else {
-                snprintf(full_message, sizeof(full_message), "%s", message);
-            }
-            lv_label_set_text(chat_message_label_, full_message);
-            lv_obj_scroll_to_view_recursive(chat_message_label_, LV_ANIM_OFF);
-        }
+        // 显示新的圆形进度条UI
+        UpdateDownloadProgressUI(true, progress, message);
     }
     
 public:
@@ -1057,6 +1047,7 @@ public:
     lv_obj_t* download_progress_container_ = nullptr;
     lv_obj_t* download_progress_label_ = nullptr; // 百分比标签
     lv_obj_t* message_label_ = nullptr;          // 状态消息标签
+    lv_obj_t* download_progress_arc_ = nullptr;  // 圆形进度条
     
     // 添加预加载UI相关变量
     lv_obj_t* preload_progress_container_ = nullptr;
@@ -1134,44 +1125,60 @@ private:
     
     // 创建下载进度UI
     void CreateDownloadProgressUI() {
-        // 创建一个简单的文本容器
+        // 创建主容器 - 白色背景
         download_progress_container_ = lv_obj_create(lv_scr_act());
-        lv_obj_set_size(download_progress_container_, lv_pct(80), lv_pct(30));
+        lv_obj_set_size(download_progress_container_, LV_HOR_RES, LV_VER_RES);
         lv_obj_center(download_progress_container_);
         
-        // 设置文本容器样式
-        lv_obj_set_style_radius(download_progress_container_, 10, 0); // 圆角矩形
-        lv_obj_set_style_bg_color(download_progress_container_, lv_color_black(), 0);
-        lv_obj_set_style_bg_opa(download_progress_container_, LV_OPA_80, 0);  // 使用正确的不透明度常量
-        lv_obj_set_style_border_width(download_progress_container_, 2, 0);
-        lv_obj_set_style_border_color(download_progress_container_, lv_color_hex(0x00AAFF), 0);
-        
-        // 设置垂直布局
-        lv_obj_set_flex_flow(download_progress_container_, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(download_progress_container_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_all(download_progress_container_, 15, 0);
-        lv_obj_set_style_pad_row(download_progress_container_, 10, 0);
+        // 设置白色不透明背景
+        lv_obj_set_style_bg_color(download_progress_container_, lv_color_white(), 0);
+        lv_obj_set_style_bg_opa(download_progress_container_, LV_OPA_COVER, 0);  // 完全不透明
+        lv_obj_set_style_border_width(download_progress_container_, 0, 0);
+        lv_obj_set_style_pad_all(download_progress_container_, 0, 0);
 
-        // 标题标签
-        lv_obj_t* title_label = lv_label_create(download_progress_container_);
-        lv_obj_set_style_text_font(title_label, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(title_label, lv_color_white(), 0);
-        lv_label_set_text(title_label, "下载图片资源");
+        // 创建圆形进度条 - 放在屏幕正中心
+        lv_obj_t* progress_arc = lv_arc_create(download_progress_container_);
+        lv_obj_set_size(progress_arc, 120, 120);
+        lv_arc_set_rotation(progress_arc, 270); // 从顶部开始
+        lv_arc_set_bg_angles(progress_arc, 0, 360);
+        lv_arc_set_value(progress_arc, 0);
         
-        // 进度百分比标签
+        // 将进度条居中在屏幕中心
+        lv_obj_align(progress_arc, LV_ALIGN_CENTER, 0, 0);
+        
+        // 设置进度条样式
+        lv_obj_set_style_arc_width(progress_arc, 12, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(progress_arc, lv_color_hex(0x2A2A2A), LV_PART_MAIN); // 深灰色背景轨道
+        lv_obj_set_style_arc_width(progress_arc, 12, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(progress_arc, lv_color_hex(0x00D4FF), LV_PART_INDICATOR); // 亮蓝色进度
+        
+        // 隐藏把手，保持简约
+        lv_obj_set_style_bg_opa(progress_arc, LV_OPA_TRANSP, LV_PART_KNOB);
+        lv_obj_set_style_pad_all(progress_arc, 0, LV_PART_KNOB);
+        lv_obj_remove_flag(progress_arc, LV_OBJ_FLAG_CLICKABLE);
+        
+        // 保存进度条引用
+        download_progress_arc_ = progress_arc;
+
+        // 在进度条中心显示百分比
         download_progress_label_ = lv_label_create(download_progress_container_);
         lv_obj_set_style_text_font(download_progress_label_, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(download_progress_label_, lv_color_hex(0x00AAFF), 0);
+        lv_obj_set_style_text_color(download_progress_label_, lv_color_black(), 0);  // 黑色字体配白色背景
+        lv_obj_set_style_text_align(download_progress_label_, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_text(download_progress_label_, "0%");
-        
-        // 消息标签
+        // 将百分比标签定位到进度条中心
+        lv_obj_align_to(download_progress_label_, progress_arc, LV_ALIGN_CENTER, 0, 0);
+
+        // 状态文字 - 放在进度条下方
         message_label_ = lv_label_create(download_progress_container_);
         lv_obj_set_style_text_font(message_label_, &font_puhui_20_4, 0);
-        lv_obj_set_style_text_color(message_label_, lv_color_white(), 0);
-        lv_obj_set_width(message_label_, lv_pct(90));
+        lv_obj_set_style_text_color(message_label_, lv_color_black(), 0);  // 黑色字体配白色背景
         lv_obj_set_style_text_align(message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(message_label_, lv_pct(80));
         lv_label_set_long_mode(message_label_, LV_LABEL_LONG_WRAP);
-        lv_label_set_text(message_label_, "准备下载...");
+        lv_label_set_text(message_label_, "正在准备下载资源...");
+        // 将状态文字放在进度条下方
+        lv_obj_align_to(message_label_, progress_arc, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
         
         // 确保UI在最顶层
         lv_obj_move_foreground(download_progress_container_);
@@ -1270,16 +1277,50 @@ private:
             if (progress < 0) progress = 0;
             if (progress > 100) progress = 100;
             
-            // 更新进度标签
+            // 更新圆形进度条
+            if (download_progress_arc_) {
+                lv_arc_set_value(download_progress_arc_, progress);
+                
+                // 根据进度调整颜色 - 增加视觉反馈
+                if (progress < 30) {
+                    // 开始阶段 - 亮蓝色
+                    lv_obj_set_style_arc_color(download_progress_arc_, lv_color_hex(0x00D4FF), LV_PART_INDICATOR);
+                } else if (progress < 70) {
+                    // 中间阶段 - 青色
+                    lv_obj_set_style_arc_color(download_progress_arc_, lv_color_hex(0x00FFB3), LV_PART_INDICATOR);
+                } else {
+                    // 接近完成 - 绿色
+                    lv_obj_set_style_arc_color(download_progress_arc_, lv_color_hex(0x00FF7F), LV_PART_INDICATOR);
+                }
+            }
+            
+            // 更新中心百分比显示
             if (download_progress_label_) {
-                char percent_text[16];
-                snprintf(percent_text, sizeof(percent_text), "进度: %d%%", progress);
+                char percent_text[8];
+                snprintf(percent_text, sizeof(percent_text), "%d%%", progress);
                 lv_label_set_text(download_progress_label_, percent_text);
             }
             
-            // 更新消息
+            // 精简消息显示
             if (message && message_label_ != nullptr) {
-                lv_label_set_text(message_label_, message);
+                // 简化消息内容，只显示关键信息
+                if (strstr(message, "下载") != nullptr) {
+                    if (progress == 100) {
+                        lv_label_set_text(message_label_, "下载完成");
+                    } else {
+                        lv_label_set_text(message_label_, "正在下载资源");
+                    }
+                } else if (strstr(message, "删除") != nullptr) {
+                    lv_label_set_text(message_label_, "正在清理旧文件");
+                } else if (strstr(message, "准备") != nullptr) {
+                    lv_label_set_text(message_label_, "正在准备下载");
+                } else {
+                    // 保持原始消息，但限制长度
+                    char simplified_msg[64];
+                    strncpy(simplified_msg, message, sizeof(simplified_msg) - 1);
+                    simplified_msg[sizeof(simplified_msg) - 1] = '\0';
+                    lv_label_set_text(message_label_, simplified_msg);
+                }
             }
             
             // 确保容器可见

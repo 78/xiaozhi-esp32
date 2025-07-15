@@ -99,7 +99,7 @@ private:
     esp_err_t DownloadLogo(const char* api_url); // 下载logo
     esp_err_t DownloadImagesWithUrls(const std::vector<std::string>& urls); // 使用URL列表下载动画图片
     esp_err_t DownloadLogoWithUrl(const std::string& url); // 使用URL下载logo
-    esp_err_t DownloadFile(const char* url, const char* filepath);
+    esp_err_t DownloadFile(const char* url, const char* filepath, int file_index = 0, int total_files = 1);
     bool SaveDynamicUrls(const std::vector<std::string>& urls); // 保存动态图片URL列表
     bool SaveStaticUrl(const std::string& url); // 保存静态图片URL
     void LoadImageData();
