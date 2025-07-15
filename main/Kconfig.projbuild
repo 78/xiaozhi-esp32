@@ -284,7 +284,7 @@ choice BOARD_TYPE
         bool "labplus mpython_v3 board"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LABPLUS_LEDONG_V2
-        bool "labplus Ledong_v2 board"
+        bool "labplus ledong_v2 board"
         depends on IDF_TARGET_ESP32S3
     depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SURFER_C3_1_14TFT

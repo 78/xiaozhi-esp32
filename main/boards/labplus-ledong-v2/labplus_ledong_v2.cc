@@ -14,14 +14,14 @@
 #include <driver/spi_common.h>
 #include <wifi_station.h>
 
-#define TAG "labplus_Ledong_v2"
+#define TAG "labplus_ledong_v2"
 
 #define BOARD_STM8_ADDR 17
 #define BOARD_STM8_CMD 4
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
-class labplus_Ledong_v2 : public WifiBoard {
+class labplus_ledong_v2 : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
@@ -139,7 +139,7 @@ private:
     }
 
 public:
-    labplus_Ledong_v2() : boot_button_(BOOT_BUTTON_GPIO) {
+    labplus_ledong_v2() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeJd9853Display();
@@ -180,4 +180,4 @@ public:
     }
 };
 
-DECLARE_BOARD(labplus_Ledong_v2);
+DECLARE_BOARD(labplus_ledong_v2);
