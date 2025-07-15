@@ -170,6 +170,34 @@ private:
                                     });
     }
 
+    void I2cScan()
+    {
+        printf("I2C scan result (bus %d):\r\n", 1);
+        printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
+        for (int i = 0; i < 128; i += 16)
+        {
+            printf("%02x: ", i);
+            for (int j = 0; j < 16; j++)
+            {
+                uint8_t address = i + j;
+                esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(100));
+                if (ret == ESP_OK)
+                {
+                    printf("%02x ", address);
+                }
+                else if (ret == ESP_ERR_TIMEOUT)
+                {
+                    printf("UU ");
+                }
+                else
+                {
+                    printf("-- ");
+                }
+            }
+            printf("\r\n");
+        }
+    }
+    
     void InitializeTouch()
     {
         esp_lcd_touch_handle_t tp;
@@ -243,6 +271,8 @@ private:
 public:
     LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        I2cScan(); // 调试时加上，量产时可注释
         InitializeSpi();
         InitializeSt7789Display();
         InitializeTouch();

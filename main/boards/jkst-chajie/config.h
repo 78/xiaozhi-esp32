@@ -291,8 +291,14 @@
 #define LAMP_GPIO GPIO_NUM_NC
 
 // WS2812灯珠配置
-#define WS2812_GPIO GPIO_NUM_11 // WS2812灯珠数据线GPIO
+#define WS2812_GPIO GPIO_NUM_NC // WS2812灯珠数据线GPIO
 #define WS2812_LED_NUM 12     // 总灯珠数
 #define WS2812_LED_NUM_USED 12 // 实际用的灯珠数
+
+
+#define SWITCH_GPIO GPIO_NUM_10 // 控制风扇电机开关针脚
+
+// 控制灯开关针脚
+#define LAMP_GPIO GPIO_NUM_11 // 控制灯开关针脚
 
 #endif // _BOARD_CONFIG_H_

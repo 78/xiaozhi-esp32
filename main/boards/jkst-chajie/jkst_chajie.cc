@@ -160,6 +160,7 @@ private:
         thing_manager.AddThing(iot::CreateThing("Screen"));
         // thing_manager.AddThing(iot::CreateThing("Ws2812Controller"));
         thing_manager.AddThing(iot::CreateThing("SwitchController"));
+        thing_manager.AddThing(iot::CreateThing("LampControllerG"));
 #elif CONFIG_IOT_PROTOCOL_MCP
         static LampController lamp(LAMP_GPIO);
 #endif
