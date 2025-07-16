@@ -27,6 +27,9 @@ public:
     // 添加强制重置缓冲区的方法声明
     void ForceResetBuffer();
     size_t GetFeedSize();
+    // 优化：添加音频质量监控方法
+    void SetVoiceActivityThreshold(float threshold);
+    float GetCurrentNoiseLevel() const;
 
 private:
     EventGroupHandle_t event_group_ = nullptr;

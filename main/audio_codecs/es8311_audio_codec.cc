@@ -13,6 +13,8 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     pa_pin_ = pa_pin;
+    // 优化：初始化输入增益为优化值
+    input_gain_db_ = 48.0f;
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
@@ -148,7 +150,9 @@ void Es8311AudioCodec::EnableInput(bool enable) {
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 40.0));
+        // 优化：提高输入增益从40.0到48.0dB，改善语音识别率
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, input_gain_db_));
+        ESP_LOGI(TAG, "ES8311 input gain optimized to %.1fdB for better voice recognition", input_gain_db_);
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
@@ -194,4 +198,21 @@ int Es8311AudioCodec::Write(const int16_t* data, int samples) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }
     return samples;
+}
+
+// 优化：实现动态输入增益调整功能
+void Es8311AudioCodec::SetInputGain(float gain_db) {
+    input_gain_db_ = gain_db;
+    // 限制增益范围在安全区间内
+    if (input_gain_db_ < 0.0f) input_gain_db_ = 0.0f;
+    if (input_gain_db_ > 60.0f) input_gain_db_ = 60.0f;
+    
+    if (input_enabled_ && input_dev_) {
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, input_gain_db_));
+        ESP_LOGI(TAG, "ES8311 input gain adjusted to %.1fdB", input_gain_db_);
+    }
+}
+
+float Es8311AudioCodec::GetInputGain() const {
+    return input_gain_db_;
 }

@@ -19,6 +19,9 @@ public:
     virtual void SetOutputVolume(int volume);
     virtual void EnableInput(bool enable);
     virtual void EnableOutput(bool enable);
+    // 优化：添加动态输入增益调整方法
+    virtual void SetInputGain(float gain_db) {}
+    virtual float GetInputGain() const { return 48.0f; }  // 默认优化后的增益值
 
     void Start();
     void OutputData(std::vector<int16_t>& data);

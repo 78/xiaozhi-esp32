@@ -18,6 +18,8 @@ private:
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
+    // 优化：添加输入增益存储变量
+    float input_gain_db_ = 48.0f;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 
@@ -33,6 +35,9 @@ public:
     virtual void SetOutputVolume(int volume) override;
     virtual void EnableInput(bool enable) override;
     virtual void EnableOutput(bool enable) override;
+    // 优化：实现动态输入增益调整功能
+    virtual void SetInputGain(float gain_db) override;
+    virtual float GetInputGain() const override;
 };
 
 #endif // _ES8311_AUDIO_CODEC_H

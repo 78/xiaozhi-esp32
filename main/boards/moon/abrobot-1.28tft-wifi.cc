@@ -2671,6 +2671,9 @@ public:
         // 显示初始化欢迎信息
         ShowWelcomeMessage();
         
+        // 优化：启动音频设置优化
+        OptimizeAudioSettings();
+        
         // 启动图片循环显示任务
         StartImageSlideshow();
     }
@@ -2703,6 +2706,19 @@ public:
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);  // 创建ES8311音频编解码器对象
         return &audio_codec;
+    }
+
+    // 优化：添加音频质量优化方法
+    void OptimizeAudioSettings() {
+        auto codec = GetAudioCodec();
+        if (codec) {
+            // 根据环境自适应调整增益，使用整数存储，转换为浮点数
+            Settings settings("audio", false);
+            int gain_int = settings.GetInt("input_gain", 48);  // 默认48dB
+            float custom_gain = static_cast<float>(gain_int);
+            codec->SetInputGain(custom_gain);
+            ESP_LOGI(TAG, "音频设置已优化：输入增益 %.1fdB", custom_gain);
+        }
     }
 
     // 获取显示器对象
