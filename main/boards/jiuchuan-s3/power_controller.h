@@ -2,16 +2,19 @@
 #include <mutex>
 #include <functional>
 #include <driver/gpio.h>
+#include <driver/rtc_io.h>
 #include <esp_log.h>
-
-class PowerController {
-public:
-    enum class PowerState {
+#include "config.h"
+enum class PowerState {
         ACTIVE,
         LIGHT_SLEEP, 
         DEEP_SLEEP,
         SHUTDOWN
     };
+    
+class PowerController {
+public:
+    
 
     static PowerController& Instance() {
         static PowerController instance;
@@ -42,7 +45,11 @@ public:
     }
 
 private:
-    PowerController() = default;
+    PowerController(){
+        rtc_gpio_init(PWR_EN_GPIO);
+        rtc_gpio_set_direction(PWR_EN_GPIO, RTC_GPIO_MODE_OUTPUT_ONLY);
+        rtc_gpio_set_level(PWR_EN_GPIO, 1);
+    }
     ~PowerController() = default;
 
     PowerState currentState_ = PowerState::ACTIVE;
