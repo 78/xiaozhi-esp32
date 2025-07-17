@@ -560,8 +560,7 @@ void Application::Start() {
             auto payload = cJSON_GetObjectItem(root, "payload");
             ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
             if (cJSON_IsObject(payload)) {
-                Schedule([this, display, payload]() {
-                    auto payload_str = std::string(cJSON_PrintUnformatted(payload));
+                Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
                     display->SetChatMessage("system", payload_str.c_str());
                 });
             } else {
