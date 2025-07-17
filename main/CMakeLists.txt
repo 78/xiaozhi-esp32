@@ -23,6 +23,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "background_task.cc"
+            "device_state_event.cc"
             "main.cc"
             )
 

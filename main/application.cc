@@ -990,6 +990,9 @@ void Application::SetDeviceState(DeviceState state) {
     // The state is changed, wait for all background tasks to finish
     background_task_->WaitForCompletion();
 
+    // Send the state change event
+    DeviceStateEventManager::GetInstance().PostStateChangeEvent(previous_state, state);
+
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
     auto led = board.GetLed();
