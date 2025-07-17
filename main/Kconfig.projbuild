@@ -46,6 +46,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
         bool "面包板（WiFi+ LCD） ESP32 DevKit"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_XMINI_C3_V3
+        bool "虾哥 Mini C3 V3"
+        depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_XMINI_C3_4G
+        bool "虾哥 Mini C3 4G"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3
         bool "虾哥 Mini C3"
         depends on IDF_TARGET_ESP32C3

@@ -9,12 +9,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_http.h>
-#include <esp_mqtt.h>
-#include <esp_udp.h>
-#include <tcp_transport.h>
-#include <tls_transport.h>
-#include <web_socket.h>
+#include <esp_network.h>
 #include <esp_log.h>
 
 #include <wifi_station.h>
@@ -114,27 +109,9 @@ void WifiBoard::StartNetwork() {
     }
 }
 
-Http* WifiBoard::CreateHttp() {
-    return new EspHttp();
-}
-
-WebSocket* WifiBoard::CreateWebSocket() {
-    Settings settings("websocket", false);
-    std::string url = settings.GetString("url");
-    if (url.find("wss://") == 0) {
-        return new WebSocket(new TlsTransport());
-    } else {
-        return new WebSocket(new TcpTransport());
-    }
-    return nullptr;
-}
-
-Mqtt* WifiBoard::CreateMqtt() {
-    return new EspMqtt();
-}
-
-Udp* WifiBoard::CreateUdp() {
-    return new EspUdp();
+NetworkInterface* WifiBoard::GetNetwork() {
+    static EspNetwork network;
+    return &network;
 }
 
 const char* WifiBoard::GetNetworkStateIcon() {

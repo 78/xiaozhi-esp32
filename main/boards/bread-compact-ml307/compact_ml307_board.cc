@@ -166,7 +166,7 @@ private:
     }
 
 public:
-    CompactMl307Board() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    CompactMl307Board() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),

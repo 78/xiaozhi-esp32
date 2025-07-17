@@ -29,7 +29,7 @@ bool WebsocketProtocol::Start() {
 }
 
 bool WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
-    if (websocket_ == nullptr) {
+    if (websocket_ == nullptr || !websocket_->IsConnected()) {
         return false;
     }
 
@@ -61,7 +61,7 @@ bool WebsocketProtocol::SendAudio(const AudioStreamPacket& packet) {
 }
 
 bool WebsocketProtocol::SendText(const std::string& text) {
-    if (websocket_ == nullptr) {
+    if (websocket_ == nullptr || !websocket_->IsConnected()) {
         return false;
     }
 
@@ -100,8 +100,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     error_occurred_ = false;
 
-    websocket_ = Board::GetInstance().CreateWebSocket();
-    
+    auto network = Board::GetInstance().GetNetwork();
+    websocket_ = network->CreateWebSocket(1);
+
     if (!token.empty()) {
         // If token not has a space, add "Bearer " prefix
         if (token.find(" ") == std::string::npos) {

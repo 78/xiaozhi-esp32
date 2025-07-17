@@ -4,6 +4,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "audio_codecs/es8311_audio_codec.cc"
             "audio_codecs/es8374_audio_codec.cc"
             "audio_codecs/es8388_audio_codec.cc"
+            "audio_codecs/dummy_audio_codec.cc"
             "audio_processing/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -91,6 +92,10 @@ elseif(CONFIG_BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-cam-m12-echo-base")
 elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
     set(BOARD_TYPE "atommatrix-echo-base")
+elseif(CONFIG_BOARD_TYPE_XMINI_C3_V3)
+    set(BOARD_TYPE "xmini-c3-v3")
+elseif(CONFIG_BOARD_TYPE_XMINI_C3_4G)
+    set(BOARD_TYPE "xmini-c3-4g")
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
