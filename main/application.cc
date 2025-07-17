@@ -554,6 +554,18 @@ void Application::Start() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+#if CONFIG_RECEIVE_CUSTOM_MESSAGE
+        } else if (strcmp(type->valuestring, "custom") == 0) {
+            auto payload = cJSON_GetObjectItem(root, "payload");
+            ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
+            if (cJSON_IsObject(payload)) {
+                Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
+                    display->SetChatMessage("system", payload_str.c_str());
+                });
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
+#endif
 #if CONFIG_IOT_PROTOCOL_MCP
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
