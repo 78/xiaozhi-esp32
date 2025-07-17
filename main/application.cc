@@ -22,6 +22,8 @@
 #include "afe_wake_word.h"
 #elif CONFIG_USE_ESP_WAKE_WORD
 #include "esp_wake_word.h"
+#elif CONFIG_USE_CUSTOM_WAKE_WORD
+#include "custom_wake_word.h"
 #else
 #include "no_wake_word.h"
 #endif
@@ -72,6 +74,8 @@ Application::Application() {
     wake_word_ = std::make_unique<AfeWakeWord>();
 #elif CONFIG_USE_ESP_WAKE_WORD
     wake_word_ = std::make_unique<EspWakeWord>();
+#elif CONFIG_USE_CUSTOM_WAKE_WORD
+    wake_word_ = std::make_unique<CustomWakeWord>();
 #else
     wake_word_ = std::make_unique<NoWakeWord>();
 #endif
@@ -674,7 +678,7 @@ void Application::Start() {
                 }
 
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_USE_AFE_WAKE_WORD
+#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
                 AudioStreamPacket packet;
                 // Encode and send the wake word data to the server
                 while (wake_word_->GetWakeWordOpus(packet.payload)) {
