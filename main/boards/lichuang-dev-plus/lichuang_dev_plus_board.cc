@@ -110,8 +110,7 @@ public:
     /**
      * @brief 设置背光亮度，采用简化的单行公式实现。
      * 
-     * 这个实现借鉴了M5Stack CoreS3的逻辑，将0-255的亮度值
-     * 映射到硬件寄存器的一个有效范围（约20-27），并直接写入。
+     * 将0-255的亮度值映射到硬件寄存器的一个有效范围（约20-27），并直接写入。
      * 这样就不再需要复杂的浮点数电压计算。
      */
     void SetBrightnessImpl(uint8_t brightness) override {
@@ -128,16 +127,8 @@ public:
         
         // 只要亮度不为0，就确保ALDO2电源是开启的。
         pmic_->EnableBacklight(true);
-
-        // 这就是你的新“魔法公式”！
-        // 将输入的亮度(0-255)映射到寄存器值(20-27)
-        uint8_t reg_val = (brightness >> 5) + 20;
-        
-        // 直接将计算出的值写入ALDO2的电压控制寄存器 (0x93)
-        // 注意：这里我们不再调用Pmic类中那个复杂的SetBacklightVoltage函数
-        // 而是直接调用更底层的WriteReg，或者在Pmic类中增加一个简单的写接口。
-        // 为了清晰，我们假设Pmic类有一个公共的WriteReg方法。
-        pmic_->SetBacklightRegValue(reg_val);
+        uint8_t reg_val = (brightness >> 5) + 20; // 计算寄存器值，范围从20到27
+        pmic_->SetBacklightRegValue(reg_val); //计算出的值写入ALDO2的电压控制寄存器 (0x93)
 
         ESP_LOGD(BL_TAG, "Set brightness to %u -> reg_val 0x%02X", brightness, reg_val);
     }
