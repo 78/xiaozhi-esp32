@@ -44,9 +44,14 @@
 
 
 // 使用GC9A01系列
+
+#if 0
 #define CONFIG_LCD_GC9A01_240X240
 #define LCD_TYPE_GC9A01_SERIAL
-
+#else 
+#define CONFIG_LCD_GC9A01_240X240
+#define LCD_TYPE_GC9A01_SERIAL
+#endif
 
 #ifdef CONFIG_LCD_ST7789_240X320
 #define LCD_TYPE_ST7789_SERIAL
@@ -262,9 +267,17 @@
 #define LCD_TYPE_GC9A01_SERIAL
 #define DISPLAY_WIDTH   240
 #define DISPLAY_HEIGHT  240
-#define DISPLAY_MIRROR_X false
+
+//旋转版本
+// #define DISPLAY_MIRROR_X false
+// #define DISPLAY_MIRROR_Y false
+// #define DISPLAY_SWAP_XY true
+
+// 默认屏幕方向
+#define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY true
+#define DISPLAY_SWAP_XY false
+
 #define DISPLAY_INVERT_COLOR    true
 #define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_BGR
 #define DISPLAY_OFFSET_X  0
