@@ -323,6 +323,18 @@ private:
 
     void InitializeCamera() {
         if (aw9523b_) { aw9523b_->SetGpio(AW9523B_PIN_DVP_PWDN, false); }
+        // --- Start I2C Bus Scan (for debugging) ---
+        ESP_LOGI(TAG, "Scanning I2C bus for devices...");
+        for (uint8_t i = 1; i < 127; i++) {
+            esp_err_t ret = i2c_master_probe(i2c_bus_, i, 100 / portTICK_PERIOD_MS);
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "I2C device found at address 0x%02x", i);
+            } else if (ret != ESP_ERR_TIMEOUT) { // Log other errors, but not timeouts (expected for empty addresses)
+                ESP_LOGE(TAG, "I2C probe error at address 0x%02x: 0x%x", i, ret);
+            }
+        }
+        ESP_LOGI(TAG, "I2C bus scan complete.");
+        // --- End I2C Bus Scan ---
         camera_config_t config = {};
         config.ledc_channel = LEDC_CHANNEL_2; 
         config.ledc_timer = LEDC_TIMER_2;
