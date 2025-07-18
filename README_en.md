@@ -134,6 +134,7 @@ If you already have a XiaoZhi AI chatbot device and have connected to the offici
 👉 [Backend Operation Video Tutorial (Old Interface)](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 
 ## Related Open Source Projects
+- [mac8005/xiaozhi-mcp-hacs](https://github.com/mac8005/xiaozhi-mcp-hacs) — Home Assistant HACS integration (control HA devices via MCP)
 
 For server deployment on personal computers, refer to the following open-source projects:
 
