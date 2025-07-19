@@ -4,7 +4,6 @@
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
@@ -157,12 +156,6 @@ private:
         camera_->SetHMirror(false);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-    }
-
     virtual Camera* GetCamera() override {
         return camera_;
     }
@@ -174,7 +167,6 @@ public:
         I2cDetect();
         CheckEchoBaseConnection();
         InitializePi4ioe();
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

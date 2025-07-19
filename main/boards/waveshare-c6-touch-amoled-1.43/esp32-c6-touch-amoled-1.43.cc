@@ -2,7 +2,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "codecs/box_audio_codec.h"
 
 #include <esp_log.h>
@@ -194,13 +193,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
     void InitializeTouch() {
         i2c_device_config_t dev_cfg = 
         {
@@ -273,8 +265,6 @@ public:
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeTools();
-        //InitializeTouch();
-        //InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

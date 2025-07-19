@@ -6,8 +6,7 @@
             "sdkconfig_append": [
                 "CONFIG_ESP_PHY_MAX_WIFI_TX_POWER=10",
                 "CONFIG_ESP_PHY_MAX_TX_POWER=10",
-                "CONFIG_SPIRAM_MODE_OCT=y",
-                "CONFIG_IOT_PROTOCOL_MCP=y"
+                "CONFIG_SPIRAM_MODE_OCT=y"
             ]
         }
     ]

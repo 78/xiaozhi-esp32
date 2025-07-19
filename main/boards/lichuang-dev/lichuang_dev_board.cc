@@ -5,7 +5,6 @@
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "esp32_camera.h"
 
 #include <esp_log.h>
@@ -249,11 +248,6 @@ public:
         InitializeButtons();
         InitializeCamera();
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-#endif
         GetBacklight()->RestoreBrightness();
     }
 

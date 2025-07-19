@@ -160,9 +160,6 @@ private:
         Settings settings("vendor");
         press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-#error "XiaoZhi 协议不支持"
-#elif CONFIG_IOT_PROTOCOL_MCP
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.set_press_to_talk",
             "Switch between press to talk mode (长按说话) and click to talk mode (单击说话).\n"
@@ -181,7 +178,6 @@ private:
                 }
                 throw std::runtime_error("Invalid mode: " + mode);
             });
-#endif
     }
 
 public:

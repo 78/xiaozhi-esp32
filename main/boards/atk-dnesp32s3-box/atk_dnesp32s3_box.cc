@@ -6,7 +6,6 @@
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "i2c_device.h"
 
 #include <wifi_station.h>
@@ -266,13 +265,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
@@ -280,7 +272,6 @@ public:
         xl9555_in_->SetOutputState(5, 1);
         xl9555_in_->SetOutputState(7, 1);
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

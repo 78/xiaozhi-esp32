@@ -4,7 +4,6 @@
 #include "application.h"
 #include "button.h"
 #include "led/circular_strip.h"
-#include "iot/thing_manager.h"
 #include "config.h"
 #include "assets/lang_config.h"
 #include "font_awesome_symbols.h"
@@ -281,13 +280,6 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     magiclick_2p5() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0),
         main_button_(MAIN_BUTTON_GPIO),
@@ -301,7 +293,6 @@ public:
         InitializeButtons();
         InitializeSpi();
         InitializeGc9107Display();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

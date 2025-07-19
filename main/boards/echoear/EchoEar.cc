@@ -4,7 +4,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "backlight.h"
 
 #include <wifi_station.h>

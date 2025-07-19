@@ -7,7 +7,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <esp_log.h>
@@ -126,13 +125,6 @@ private:
 
         camera_ = new Esp32Camera(config);
     }
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-    }
 
 public:
     KEVIN_SP_V3Board() :  boot_button_(BOOT_BUTTON_GPIO) {
@@ -141,7 +133,6 @@ public:
         InitializeButtons();
         InitializeSt7789Display();  
         InitializeCamera();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
     

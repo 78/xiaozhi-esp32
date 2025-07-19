@@ -70,8 +70,6 @@ public:
     virtual void SendStartListening(ListeningMode mode);
     virtual void SendStopListening();
     virtual void SendAbortSpeaking(AbortReason reason);
-    virtual void SendIotDescriptors(const std::string& descriptors);
-    virtual void SendIotStates(const std::string& states);
     virtual void SendMcpMessage(const std::string& message);
 
 protected:

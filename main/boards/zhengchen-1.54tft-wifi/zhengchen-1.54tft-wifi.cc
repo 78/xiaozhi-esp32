@@ -6,7 +6,6 @@
 #include "button.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "power_manager.h"
@@ -179,13 +178,7 @@ private:
         display_->SetupHighTempWarningPopup();
     }
 
-    void InitializeIot() {
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-#endif
+    void InitializeTools() {
     }
 
 public:
@@ -198,7 +191,7 @@ ZHENGCHEN_1_54TFT_WIFI() :
         InitializeSpi();
         InitializeButtons();
         InitializeSt7789Display();  
-        InitializeIot();
+        InitializeTools();
         GetBacklight()->RestoreBrightness();
     }
 

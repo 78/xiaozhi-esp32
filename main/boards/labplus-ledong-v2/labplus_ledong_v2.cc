@@ -5,7 +5,6 @@
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <esp_log.h>
@@ -131,20 +130,12 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     labplus_ledong_v2() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeJd9853Display();
         InitializeButtons();
-        InitializeIot();
         GetBacklight()->SetBrightness(100);
     }
 

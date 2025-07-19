@@ -4,7 +4,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
@@ -176,12 +175,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-    }
-
 public:
     KevinBoxBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN),
         boot_button_(BOOT_BUTTON_GPIO),
@@ -194,7 +187,6 @@ public:
         Enable4GModule();
 
         InitializeButtons();
-        InitializeIot();
     }
     
     virtual Led* GetLed() override {

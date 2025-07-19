@@ -5,8 +5,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
-
 
 #include <esp_log.h>
 #include "i2c_device.h"
@@ -332,18 +330,6 @@ private:
     }
 
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        
-        thing_manager.AddThing(iot::CreateThing("BoardControl"));
-#if PMIC_ENABLE  
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-#endif
-    }
-
 public:
     CustomBoard() :
         boot_button_(BOOT_BUTTON_GPIO) {
@@ -362,7 +348,6 @@ public:
 #endif
         InitializeButtons();
         InitializeCamera();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

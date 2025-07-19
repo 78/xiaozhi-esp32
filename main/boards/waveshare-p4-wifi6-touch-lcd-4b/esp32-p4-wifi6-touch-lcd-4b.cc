@@ -5,7 +5,6 @@
 // #include "display/no_display.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
@@ -163,18 +162,10 @@ private:
             app.ToggleChatState(); });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     WaveshareEsp32p44b() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
-        InitializeIot();
         InitializeLCD();
         InitializeTouch();
         InitializeButtons();

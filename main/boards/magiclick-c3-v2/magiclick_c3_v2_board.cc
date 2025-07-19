@@ -4,7 +4,6 @@
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "config.h"
 #include "power_save_timer.h"
 #include "font_awesome_symbols.h"
@@ -215,13 +214,6 @@ private:
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     magiclick_c3_v2() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
@@ -229,7 +221,6 @@ public:
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeGc9107Display();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
 
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用

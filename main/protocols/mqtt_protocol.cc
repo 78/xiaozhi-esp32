@@ -263,9 +263,7 @@ std::string MqttProtocol::GetHelloMessage() {
 #if CONFIG_USE_SERVER_AEC
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
-#if CONFIG_IOT_PROTOCOL_MCP
     cJSON_AddBoolToObject(features, "mcp", true);
-#endif
     cJSON_AddItemToObject(root, "features", features);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");

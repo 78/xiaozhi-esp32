@@ -60,7 +60,7 @@ private:
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
+    void InitializeTools() {
         led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 8);
         new LedStripControl(led_strip_);
     }
@@ -69,7 +69,7 @@ public:
     KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
         
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
