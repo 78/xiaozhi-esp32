@@ -27,9 +27,8 @@ public:
     void Initialize(AudioCodec* codec);
     void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
-    void StartDetection();
-    void StopDetection();
-    bool IsDetectionRunning();
+    void Start();
+    void Stop();
     size_t GetFeedSize();
     void EncodeWakeWordData();
     bool GetWakeWordOpus(std::vector<uint8_t>& opus);

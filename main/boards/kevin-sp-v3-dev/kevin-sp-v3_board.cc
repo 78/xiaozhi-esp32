@@ -1,7 +1,7 @@
 #include "wifi_board.h"
 #include "ml307_board.h"
 
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"

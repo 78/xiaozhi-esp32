@@ -1,5 +1,5 @@
 #include "ml307_board.h"
-#include "es8388_audio_codec.h"
+#include "codecs/es8388_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"

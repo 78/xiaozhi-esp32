@@ -50,22 +50,18 @@ void EspWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
     wake_word_detected_callback_ = callback;
 }
 
-void EspWakeWord::StartDetection() {
+void EspWakeWord::Start() {
     xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
 }
 
-void EspWakeWord::StopDetection() {
+void EspWakeWord::Stop() {
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
-}
-
-bool EspWakeWord::IsDetectionRunning() {
-    return xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT;
 }
 
 void EspWakeWord::Feed(const std::vector<int16_t>& data) {
     int res = wakenet_iface_->detect(wakenet_data_, (int16_t *)data.data());
     if (res > 0) {
-        StopDetection();
+        Stop();
         last_detected_wake_word_ = wakenet_iface_->get_word_name(wakenet_data_, res);
 
         if (wake_word_detected_callback_) {

@@ -40,7 +40,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto client_id = settings.GetString("client_id");
     auto username = settings.GetString("username");
     auto password = settings.GetString("password");
-    int keepalive_interval = settings.GetInt("keepalive", 120);
+    int keepalive_interval = settings.GetInt("keepalive", 240);
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint.empty()) {
@@ -121,25 +121,25 @@ bool MqttProtocol::SendText(const std::string& text) {
     return true;
 }
 
-bool MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
+bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     std::lock_guard<std::mutex> lock(channel_mutex_);
     if (udp_ == nullptr) {
         return false;
     }
 
     std::string nonce(aes_nonce_);
-    *(uint16_t*)&nonce[2] = htons(packet.payload.size());
-    *(uint32_t*)&nonce[8] = htonl(packet.timestamp);
+    *(uint16_t*)&nonce[2] = htons(packet->payload.size());
+    *(uint32_t*)&nonce[8] = htonl(packet->timestamp);
     *(uint32_t*)&nonce[12] = htonl(++local_sequence_);
 
     std::string encrypted;
-    encrypted.resize(aes_nonce_.size() + packet.payload.size());
+    encrypted.resize(aes_nonce_.size() + packet->payload.size());
     memcpy(encrypted.data(), nonce.data(), nonce.size());
 
     size_t nc_off = 0;
     uint8_t stream_block[16] = {0};
-    if (mbedtls_aes_crypt_ctr(&aes_ctx_, packet.payload.size(), &nc_off, (uint8_t*)nonce.c_str(), stream_block,
-        (uint8_t*)packet.payload.data(), (uint8_t*)&encrypted[nonce.size()]) != 0) {
+    if (mbedtls_aes_crypt_ctr(&aes_ctx_, packet->payload.size(), &nc_off, (uint8_t*)nonce.c_str(), stream_block,
+        (uint8_t*)packet->payload.data(), (uint8_t*)&encrypted[nonce.size()]) != 0) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
         return false;
     }
@@ -228,12 +228,12 @@ bool MqttProtocol::OpenAudioChannel() {
         uint8_t stream_block[16] = {0};
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
-        AudioStreamPacket packet;
-        packet.sample_rate = server_sample_rate_;
-        packet.frame_duration = server_frame_duration_;
-        packet.timestamp = timestamp;
-        packet.payload.resize(decrypted_size);
-        int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet.payload.data());
+        auto packet = std::make_unique<AudioStreamPacket>();
+        packet->sample_rate = server_sample_rate_;
+        packet->frame_duration = server_frame_duration_;
+        packet->timestamp = timestamp;
+        packet->payload.resize(decrypted_size);
+        int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet->payload.data());
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to decrypt audio data, ret: %d", ret);
             return;

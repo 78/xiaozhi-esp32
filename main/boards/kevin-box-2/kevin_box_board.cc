@@ -1,5 +1,5 @@
 #include "dual_network_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"

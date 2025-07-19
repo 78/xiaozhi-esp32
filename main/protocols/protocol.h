@@ -55,7 +55,7 @@ public:
         return session_id_;
     }
 
-    void OnIncomingAudio(std::function<void(AudioStreamPacket&& packet)> callback);
+    void OnIncomingAudio(std::function<void(std::unique_ptr<AudioStreamPacket> packet)> callback);
     void OnIncomingJson(std::function<void(const cJSON* root)> callback);
     void OnAudioChannelOpened(std::function<void()> callback);
     void OnAudioChannelClosed(std::function<void()> callback);
@@ -65,7 +65,7 @@ public:
     virtual bool OpenAudioChannel() = 0;
     virtual void CloseAudioChannel() = 0;
     virtual bool IsAudioChannelOpened() const = 0;
-    virtual bool SendAudio(const AudioStreamPacket& packet) = 0;
+    virtual bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) = 0;
     virtual void SendWakeWordDetected(const std::string& wake_word);
     virtual void SendStartListening(ListeningMode mode);
     virtual void SendStopListening();
@@ -76,7 +76,7 @@ public:
 
 protected:
     std::function<void(const cJSON* root)> on_incoming_json_;
-    std::function<void(AudioStreamPacket&& packet)> on_incoming_audio_;
+    std::function<void(std::unique_ptr<AudioStreamPacket> packet)> on_incoming_audio_;
     std::function<void()> on_audio_channel_opened_;
     std::function<void()> on_audio_channel_closed_;
     std::function<void(const std::string& message)> on_network_error_;

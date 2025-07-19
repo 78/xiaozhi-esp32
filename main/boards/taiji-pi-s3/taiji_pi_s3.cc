@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "i2c_device.h"

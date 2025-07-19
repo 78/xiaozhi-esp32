@@ -1,5 +1,5 @@
 #include "dual_network_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "../zhengchen-1.54tft-wifi/zhengchen_lcd_display.h"
 #include "system_reset.h"
 #include "application.h"

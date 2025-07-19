@@ -3,7 +3,7 @@
 #include "button.h"
 #include "config.h"
 #include "iot/thing_manager.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>

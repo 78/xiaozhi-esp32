@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "es8388_audio_codec.h"
+#include "codecs/es8388_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
