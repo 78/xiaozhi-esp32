@@ -13,10 +13,7 @@ public:
     WifiBoard();
     virtual std::string GetBoardType() override;
     virtual void StartNetwork() override;
-    virtual Http* CreateHttp() override;
-    virtual WebSocket* CreateWebSocket() override;
-    virtual Mqtt* CreateMqtt() override;
-    virtual Udp* CreateUdp() override;
+    virtual NetworkInterface* GetNetwork() override;
     virtual const char* GetNetworkStateIcon() override;
     virtual void SetPowerSaveMode(bool enabled) override;
     virtual void ResetWifiConfiguration();

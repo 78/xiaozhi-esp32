@@ -1,5 +1,6 @@
 #include "gpio_led.h"
 #include "application.h"
+#include "device_state.h"
 #include <esp_log.h>
 
 #define TAG "GpioLed"

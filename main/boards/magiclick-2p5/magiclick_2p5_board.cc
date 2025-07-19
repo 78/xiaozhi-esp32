@@ -289,7 +289,7 @@ private:
     }
 
 public:
-    magiclick_2p5() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096, 0),
+    magiclick_2p5() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0),
         main_button_(MAIN_BUTTON_GPIO),
         left_button_(LEFT_BUTTON_GPIO), 
         right_button_(RIGHT_BUTTON_GPIO) {

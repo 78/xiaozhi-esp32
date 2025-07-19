@@ -2,7 +2,6 @@
 #include "board.h"
 #include "display.h"
 #include "system_info.h"
-#include "ml307_ssl_transport.h"
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
@@ -22,6 +21,8 @@
 #include "afe_wake_word.h"
 #elif CONFIG_USE_ESP_WAKE_WORD
 #include "esp_wake_word.h"
+#elif CONFIG_USE_CUSTOM_WAKE_WORD
+#include "custom_wake_word.h"
 #else
 #include "no_wake_word.h"
 #endif
@@ -72,6 +73,8 @@ Application::Application() {
     wake_word_ = std::make_unique<AfeWakeWord>();
 #elif CONFIG_USE_ESP_WAKE_WORD
     wake_word_ = std::make_unique<EspWakeWord>();
+#elif CONFIG_USE_CUSTOM_WAKE_WORD
+    wake_word_ = std::make_unique<CustomWakeWord>();
 #else
     wake_word_ = std::make_unique<NoWakeWord>();
 #endif
@@ -555,6 +558,18 @@ void Application::Start() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+#if CONFIG_RECEIVE_CUSTOM_MESSAGE
+        } else if (strcmp(type->valuestring, "custom") == 0) {
+            auto payload = cJSON_GetObjectItem(root, "payload");
+            ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
+            if (cJSON_IsObject(payload)) {
+                Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
+                    display->SetChatMessage("system", payload_str.c_str());
+                });
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
+#endif
 #if CONFIG_IOT_PROTOCOL_MCP
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -674,7 +689,7 @@ void Application::Start() {
                 }
 
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_USE_AFE_WAKE_WORD
+#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
                 AudioStreamPacket packet;
                 // Encode and send the wake word data to the server
                 while (wake_word_->GetWakeWordOpus(packet.payload)) {
@@ -974,6 +989,9 @@ void Application::SetDeviceState(DeviceState state) {
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
     background_task_->WaitForCompletion();
+
+    // Send the state change event
+    DeviceStateEventManager::GetInstance().PostStateChangeEvent(previous_state, state);
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();

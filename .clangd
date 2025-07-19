@@ -1,0 +1,2 @@
+CompileFlags:
+    Remove: [-f*, -m*]

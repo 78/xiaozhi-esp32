@@ -237,7 +237,7 @@ private:
     }
 
 public:
-    KevinBoxBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    KevinBoxBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {

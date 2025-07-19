@@ -22,7 +22,7 @@ private:
     // ML307的引脚配置
     gpio_num_t ml307_tx_pin_;
     gpio_num_t ml307_rx_pin_;
-    size_t ml307_rx_buffer_size_;
+    gpio_num_t ml307_dtr_pin_;
     
     // 从Settings加载网络类型
     NetworkType LoadNetworkTypeFromSettings(int32_t default_net_type);
@@ -34,7 +34,7 @@ private:
     void InitializeCurrentBoard();
  
 public:
-    DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, size_t ml307_rx_buffer_size = 4096, int32_t default_net_type = 1);
+    DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, gpio_num_t ml307_dtr_pin = GPIO_NUM_NC, int32_t default_net_type = 1);
     virtual ~DualNetworkBoard() = default;
  
     // 切换网络类型
@@ -49,10 +49,7 @@ public:
     // 重写Board接口
     virtual std::string GetBoardType() override;
     virtual void StartNetwork() override;
-    virtual Http* CreateHttp() override;
-    virtual WebSocket* CreateWebSocket() override;
-    virtual Mqtt* CreateMqtt() override;
-    virtual Udp* CreateUdp() override;
+    virtual NetworkInterface* GetNetwork() override;
     virtual const char* GetNetworkStateIcon() override;
     virtual void SetPowerSaveMode(bool enabled) override;
     virtual std::string GetBoardJson() override;

@@ -4,8 +4,6 @@
 #include "settings.h"
 
 #include <esp_log.h>
-#include <ml307_mqtt.h>
-#include <ml307_udp.h>
 #include <cstring>
 #include <arpa/inet.h>
 #include "assets/lang_config.h"
@@ -53,7 +51,8 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         return false;
     }
 
-    mqtt_ = Board::GetInstance().CreateMqtt();
+    auto network = Board::GetInstance().GetNetwork();
+    mqtt_ = network->CreateMqtt(0);
     mqtt_->SetKeepAlive(keepalive_interval);
 
     mqtt_->OnDisconnected([this]() {
@@ -197,7 +196,9 @@ bool MqttProtocol::OpenAudioChannel() {
     if (udp_ != nullptr) {
         delete udp_;
     }
-    udp_ = Board::GetInstance().CreateUdp();
+
+    auto network = Board::GetInstance().GetNetwork();
+    udp_ = network->CreateUdp(2);
     udp_->OnMessage([this](const std::string& data) {
         /*
          * UDP Encrypted OPUS Packet Format:
