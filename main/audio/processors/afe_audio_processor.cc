@@ -10,8 +10,14 @@ AfeAudioProcessor::AfeAudioProcessor()
     event_group_ = xEventGroupCreate();
 }
 
-void AfeAudioProcessor::Initialize(AudioCodec* codec) {
+void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
     codec_ = codec;
+    frame_duration_ms_ = frame_duration_ms;
+    frame_samples_ = frame_duration_ms_ * codec_->input_sample_rate() / 1000;
+
+    // Pre-allocate output buffer capacity
+    output_buffer_.reserve(frame_samples_);
+
     int ref_num = codec_->input_reference() ? 1 : 0;
 
     std::string input_format;
@@ -79,7 +85,7 @@ size_t AfeAudioProcessor::GetFeedSize() {
     return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
-void AfeAudioProcessor::Feed(const std::vector<int16_t>& data) {
+void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
     if (afe_data_ == nullptr) {
         return;
     }
@@ -141,7 +147,24 @@ void AfeAudioProcessor::AudioProcessorTask() {
         }
 
         if (output_callback_) {
-            output_callback_(std::vector<int16_t>(res->data, res->data + res->data_size / sizeof(int16_t)));
+            size_t samples = res->data_size / sizeof(int16_t);
+            
+            // Add data to buffer
+            output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
+            
+            // Output complete frames when buffer has enough data
+            while (output_buffer_.size() >= frame_samples_) {
+                if (output_buffer_.size() == frame_samples_) {
+                    // If buffer size equals frame size, move the entire buffer
+                    output_callback_(std::move(output_buffer_));
+                    output_buffer_.clear();
+                    output_buffer_.reserve(frame_samples_);
+                } else {
+                    // If buffer size exceeds frame size, copy one frame and remove it
+                    output_callback_(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
+                    output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
+                }
+            }
         }
     }
 }

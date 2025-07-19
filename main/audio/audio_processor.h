@@ -11,8 +11,8 @@ class AudioProcessor {
 public:
     virtual ~AudioProcessor() = default;
     
-    virtual void Initialize(AudioCodec* codec) = 0;
-    virtual void Feed(const std::vector<int16_t>& data) = 0;
+    virtual void Initialize(AudioCodec* codec, int frame_duration_ms) = 0;
+    virtual void Feed(std::vector<int16_t>&& data) = 0;
     virtual void Start() = 0;
     virtual void Stop() = 0;
     virtual bool IsRunning() = 0;

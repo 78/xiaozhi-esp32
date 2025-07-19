@@ -43,7 +43,6 @@ void AudioService::Initialize(AudioCodec* codec) {
         reference_resampler_.Configure(codec->input_sample_rate(), 16000);
     }
 
-    audio_debugger_ = std::make_unique<AudioDebugger>();
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_ = std::make_unique<AfeAudioProcessor>();
 #else
@@ -118,7 +117,7 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioOutputTask();
         vTaskDelete(NULL);
-    }, "audio_output", 2048, this, 3, &audio_output_task_handle_);
+    }, "audio_output", 4096, this, 3, &audio_output_task_handle_);
 
     /* Start the opus codec task */
     xTaskCreate([](void* arg) {
@@ -185,12 +184,15 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     /* Update the last input time */
     last_input_time_ = std::chrono::steady_clock::now();
     debug_statistics_.input_count++;
-    
+
+#if CONFIG_USE_AUDIO_DEBUGGER
     // 音频调试：发送原始音频数据
-    if (audio_debugger_) {
-        audio_debugger_->Feed(data);
+    if (audio_debugger_ == nullptr) {
+        audio_debugger_ = std::make_unique<AudioDebugger>();
     }
-    
+    audio_debugger_->Feed(data);
+#endif
+
     return true;
 }
 
@@ -250,7 +252,7 @@ void AudioService::AudioInputTask() {
             int samples = audio_processor_->GetFeedSize();
             if (samples > 0) {
                 if (ReadAudioData(data, 16000, samples)) {
-                    audio_processor_->Feed(data);
+                    audio_processor_->Feed(std::move(data));
                     continue;
                 }
             }
@@ -285,6 +287,12 @@ void AudioService::AudioOutputTask() {
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
         debug_statistics_.playback_count++;
+
+        /* Record the timestamp */
+        if (task->timestamp > 0) {
+            lock.lock();
+            timestamp_queue_.push_back(task->timestamp);
+        }
     }
 
     ESP_LOGW(TAG, "Audio output task stopped");
@@ -311,6 +319,7 @@ void AudioService::OpusCodecTask() {
 
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
+            task->timestamp = packet->timestamp;
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
@@ -338,25 +347,28 @@ void AudioService::OpusCodecTask() {
             audio_encode_queue_.pop_front();
             audio_queue_cv_.notify_all();
             lock.unlock();
-            opus_encoder_->Encode(std::move(task->pcm), [this, &task](std::vector<uint8_t>&& opus) {
-                auto packet = std::make_unique<AudioStreamPacket>();
-                packet->payload = std::move(opus);
-                packet->frame_duration = OPUS_FRAME_DURATION_MS;
-                packet->sample_rate = 16000;
 
-                if (task->type == kAudioTaskTypeEncodeToSendQueue) {
-                    {
-                        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-                        audio_send_queue_.push_back(std::move(packet));
-                    }
-                    if (callbacks_.on_send_queue_available) {
-                        callbacks_.on_send_queue_available();
-                    }
-                } else if (task->type == kAudioTaskTypeEncodeToTestingQueue) {
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->frame_duration = OPUS_FRAME_DURATION_MS;
+            packet->sample_rate = 16000;
+            packet->timestamp = task->timestamp;
+            if (!opus_encoder_->Encode(std::move(task->pcm), packet->payload)) {
+                ESP_LOGE(TAG, "Failed to encode audio");
+                continue;
+            }
+
+            if (task->type == kAudioTaskTypeEncodeToSendQueue) {
+                {
                     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-                    audio_testing_queue_.push_back(std::move(packet));
+                    audio_send_queue_.push_back(std::move(packet));
                 }
-            });
+                if (callbacks_.on_send_queue_available) {
+                    callbacks_.on_send_queue_available();
+                }
+            } else if (task->type == kAudioTaskTypeEncodeToTestingQueue) {
+                std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+                audio_testing_queue_.push_back(std::move(packet));
+            }
             debug_statistics_.encode_count++;
             lock.lock();
         }
@@ -387,6 +399,17 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
     
     /* Push the task to the encode queue */
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+
+    /* If the task is to send queue, we need to set the timestamp */
+    if (type == kAudioTaskTypeEncodeToSendQueue && !timestamp_queue_.empty()) {
+        if (timestamp_queue_.size() <= MAX_TIMESTAMPS_IN_QUEUE) {
+            task->timestamp = timestamp_queue_.front();
+        } else {
+            ESP_LOGW(TAG, "Timestamp queue is full, dropping timestamp");
+        }
+        timestamp_queue_.pop_front();
+    }
+
     audio_queue_cv_.wait(lock, [this]() { return audio_encode_queue_.size() < MAX_ENCODE_TASKS_IN_QUEUE; });
     audio_encode_queue_.push_back(std::move(task));
     audio_queue_cv_.notify_all();
@@ -458,7 +481,7 @@ void AudioService::EnableVoiceProcessing(bool enable) {
     ESP_LOGD(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!audio_processor_initialized_) {
-            audio_processor_->Initialize(codec_);
+            audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS);
             audio_processor_initialized_ = true;
         }
 
@@ -522,6 +545,7 @@ bool AudioService::IsIdle() {
 void AudioService::ResetDecoder() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
     opus_decoder_->ResetState();
+    timestamp_queue_.clear();
     audio_decode_queue_.clear();
     audio_playback_queue_.clear();
     audio_testing_queue_.clear();

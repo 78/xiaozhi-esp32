@@ -3,16 +3,32 @@
 
 #define TAG "NoAudioProcessor"
 
-void NoAudioProcessor::Initialize(AudioCodec* codec) {
-    codec_ = codec;
+void NoAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) :
+    codec_(codec),
+    frame_duration_ms_(frame_duration_ms) {
+    frame_samples_ = frame_duration_ms_ * codec_->input_sample_rate() / 1000;
 }
 
-void NoAudioProcessor::Feed(const std::vector<int16_t>& data) {
+void NoAudioProcessor::Feed(std::vector<int16_t>&& data) {
     if (!is_running_ || !output_callback_) {
         return;
     }
-    // 直接将输入数据传递给输出回调
-    output_callback_(std::vector<int16_t>(data));
+
+    if (data.size() != frame_samples_) {
+        ESP_LOGE(TAG, "Feed data size is not equal to frame size, feed size: %u, frame size: %u", data.size(), frame_samples_);
+        return;
+    }
+
+    if (codec_->input_channels() == 2) {
+        // If input channels is 2, we need to fetch the left channel data
+        auto mono_data = std::vector<int16_t>(data.size() / 2);
+        for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+            mono_data[i] = data[j];
+        }
+        output_callback_(std::move(mono_data));
+    } else {
+        output_callback_(std::move(data));
+    }
 }
 
 void NoAudioProcessor::Start() {
@@ -39,8 +55,7 @@ size_t NoAudioProcessor::GetFeedSize() {
     if (!codec_) {
         return 0;
     }
-    // 返回一个固定的帧大小，比如 30ms 的数据
-    return 30 * codec_->input_sample_rate() / 1000;
+    return frame_samples_;
 }
 
 void NoAudioProcessor::EnableDeviceAec(bool enable) {

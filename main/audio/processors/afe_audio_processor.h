@@ -18,8 +18,8 @@ public:
     AfeAudioProcessor();
     ~AfeAudioProcessor();
 
-    void Initialize(AudioCodec* codec) override;
-    void Feed(const std::vector<int16_t>& data) override;
+    void Initialize(AudioCodec* codec, int frame_duration_ms) override;
+    void Feed(std::vector<int16_t>&& data) override;
     void Start() override;
     void Stop() override;
     bool IsRunning() override;
@@ -35,7 +35,10 @@ private:
     std::function<void(std::vector<int16_t>&& data)> output_callback_;
     std::function<void(bool speaking)> vad_state_change_callback_;
     AudioCodec* codec_ = nullptr;
+    int frame_duration_ms_ = 0;
+    int frame_samples_ = 0;
     bool is_speaking_ = false;
+    std::vector<int16_t> output_buffer_;
 
     void AudioProcessorTask();
 };
