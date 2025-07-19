@@ -66,12 +66,6 @@ void Ml307Board::StartNetwork() {
     ESP_LOGI(TAG, "ML307 Revision: %s", module_revision.c_str());
     ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
     ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
-
-    // Close all previous connections
-    modem_->ResetConnections();
-
-    // Enable sleep mode
-    modem_->SetSleepMode(true, 30);
 }
 
 NetworkInterface* Ml307Board::GetNetwork() {

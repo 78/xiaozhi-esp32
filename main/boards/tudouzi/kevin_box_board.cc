@@ -1,10 +1,9 @@
 #include "ml307_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
@@ -224,13 +223,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
     KevinBoxBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN),
         boot_button_(BOOT_BUTTON_GPIO),
@@ -245,7 +237,6 @@ public:
 
         InitializeButtons();
         InitializePowerSaveTimer();
-        InitializeIot();
     }
 
     virtual Led* GetLed() override {

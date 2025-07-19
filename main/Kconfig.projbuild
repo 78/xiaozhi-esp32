@@ -472,17 +472,6 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
 
-choice IOT_PROTOCOL
-    prompt "IoT Protocol"
-    default IOT_PROTOCOL_MCP
-    help
-        IoT 协议，用于获取设备状态与发送控制指令
-    config IOT_PROTOCOL_MCP
-        bool "MCP 2024-11-05"
-    config IOT_PROTOCOL_XIAOZHI
-        bool "Xiaozhi IoT 1.0 (Deprecated)"
-endchoice
-
 choice I2S_TYPE_TAIJIPI_S3
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     prompt "taiji-pi-S3 I2S Type"

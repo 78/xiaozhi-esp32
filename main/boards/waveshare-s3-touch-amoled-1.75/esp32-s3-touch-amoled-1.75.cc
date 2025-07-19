@@ -3,7 +3,7 @@
 #include "esp_lcd_sh8601.h"
 #include "font_awesome_symbols.h"
 
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"

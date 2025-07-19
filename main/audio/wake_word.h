@@ -14,9 +14,8 @@ public:
     virtual void Initialize(AudioCodec* codec) = 0;
     virtual void Feed(const std::vector<int16_t>& data) = 0;
     virtual void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) = 0;
-    virtual void StartDetection() = 0;
-    virtual void StopDetection() = 0;
-    virtual bool IsDetectionRunning() = 0;
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
     virtual size_t GetFeedSize() = 0;
     virtual void EncodeWakeWordData() = 0;
     virtual bool GetWakeWordOpus(std::vector<uint8_t>& opus) = 0;

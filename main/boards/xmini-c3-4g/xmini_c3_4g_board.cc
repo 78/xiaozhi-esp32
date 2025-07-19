@@ -1,5 +1,5 @@
 #include "ml307_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
@@ -7,9 +7,9 @@
 #include "mcp_server.h"
 #include "settings.h"
 #include "config.h"
-#include "power_save_timer.h"
+#include "sleep_timer.h"
 #include "font_awesome_symbols.h"
-#include "power_manager.h"
+#include "adc_battery_monitor.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -32,44 +32,42 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
-    PowerSaveTimer* power_save_timer_ = nullptr;
-    PowerManager* power_manager_ = nullptr;
+    SleepTimer* sleep_timer_ = nullptr;
+    AdcBatteryMonitor* adc_battery_monitor_ = nullptr;
 
-    void InitializePowerManager() {
-        power_manager_ = new PowerManager(GPIO_NUM_12);
-        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+    void InitializeBatteryMonitor() {
+        adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_4, 100000, 100000, GPIO_NUM_12);
+        adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
-                power_save_timer_->SetEnabled(false);
+                sleep_timer_->SetEnabled(false);
             } else {
-                power_save_timer_->SetEnabled(true);
+                sleep_timer_->SetEnabled(true);
             }
         });
     }
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        power_save_timer_ = new PowerSaveTimer(160, 600);
+        sleep_timer_ = new SleepTimer(600);
 #else
-        power_save_timer_ = new PowerSaveTimer(160, 60);
+        sleep_timer_ = new SleepTimer(30);
 #endif
-        power_save_timer_->OnEnterSleepMode([this]() {
+        sleep_timer_->OnEnterLightSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            // Show the standby screen
+            GetDisplay()->ShowStandbyScreen(true);
+            // Enable sleep mode, and sleep in 1 second after DTR is set to high
+            modem_->SetSleepMode(true, 1);
+            // Set the DTR pin to high to make the modem enter sleep mode
+            modem_->GetAtUart()->SetDtrPin(true);
         });
-        power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+        sleep_timer_->OnExitLightSleepMode([this]() {
+            // Set the DTR pin to low to make the modem wake up
+            modem_->GetAtUart()->SetDtrPin(false);
+            // Hide the standby screen
+            GetDisplay()->ShowStandbyScreen(false);
         });
-        power_save_timer_->SetEnabled(true);
+        sleep_timer_->SetEnabled(true);
     }
 
     void InitializeCodecI2c() {
@@ -152,9 +150,6 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            if (power_save_timer_) {
-                power_save_timer_->WakeUp();
-            }
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
             }
@@ -170,9 +165,6 @@ private:
         Settings settings("vendor");
         press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-#error "XiaoZhi 协议不支持"
-#elif CONFIG_IOT_PROTOCOL_MCP
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.set_press_to_talk",
             "Switch between press to talk mode (长按说话) and click to talk mode (单击说话).\n"
@@ -191,14 +183,13 @@ private:
                 }
                 throw std::runtime_error("Invalid mode: " + mode);
             });
-#endif
     }
 
 public:
     XminiC3Board() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, ML307_DTR_PIN),
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO, false, 0, 0, true) {
 
-        InitializePowerManager();
+        InitializeBatteryMonitor();
         InitializePowerSaveTimer();
         InitializeCodecI2c();
         InitializeSsd1306Display();
@@ -223,14 +214,9 @@ public:
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
-        charging = power_manager_->IsCharging();
-        discharging = power_manager_->IsDischarging();
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
-        }
-        level = power_manager_->GetBatteryLevel();
+        charging = adc_battery_monitor_->IsCharging();
+        discharging = adc_battery_monitor_->IsDischarging();
+        level = adc_battery_monitor_->GetBatteryLevel();
         return true;
     }
 
@@ -248,7 +234,7 @@ public:
 
     virtual void SetPowerSaveMode(bool enabled) override {
         if (!enabled) {
-            power_save_timer_->WakeUp();
+            sleep_timer_->WakeUp();
         }
         Ml307Board::SetPowerSaveMode(enabled);
     }

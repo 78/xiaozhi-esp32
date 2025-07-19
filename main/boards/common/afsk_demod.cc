@@ -29,7 +29,7 @@ namespace audio_wifi_config
                 continue;
             }
             
-            if (!app->ReadAudio(audio_data, 16000, 480)) { // 16kHz, 480 samples corresponds to 30ms data
+            if (!app->GetAudioService().ReadAudioData(audio_data, 16000, 480)) { // 16kHz, 480 samples corresponds to 30ms data
                 // 读取音频失败，短暂延迟后重试
                 ESP_LOGI(kLogTag, "Failed to read audio data, retrying.");
                 vTaskDelay(pdMS_TO_TICKS(10));
