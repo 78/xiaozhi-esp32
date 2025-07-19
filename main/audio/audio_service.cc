@@ -288,11 +288,13 @@ void AudioService::AudioOutputTask() {
         last_output_time_ = std::chrono::steady_clock::now();
         debug_statistics_.playback_count++;
 
-        /* Record the timestamp */
+#if CONFIG_USE_SERVER_AEC
+        /* Record the timestamp for server AEC */
         if (task->timestamp > 0) {
             lock.lock();
             timestamp_queue_.push_back(task->timestamp);
         }
+#endif
     }
 
     ESP_LOGW(TAG, "Audio output task stopped");
@@ -405,7 +407,7 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
         if (timestamp_queue_.size() <= MAX_TIMESTAMPS_IN_QUEUE) {
             task->timestamp = timestamp_queue_.front();
         } else {
-            ESP_LOGW(TAG, "Timestamp queue is full, dropping timestamp");
+            ESP_LOGW(TAG, "Timestamp queue (%u) is full, dropping timestamp", timestamp_queue_.size());
         }
         timestamp_queue_.pop_front();
     }

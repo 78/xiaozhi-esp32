@@ -3,10 +3,9 @@
 
 #define TAG "NoAudioProcessor"
 
-void NoAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) :
-    codec_(codec),
-    frame_duration_ms_(frame_duration_ms) {
-    frame_samples_ = frame_duration_ms_ * codec_->input_sample_rate() / 1000;
+void NoAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
+    codec_ = codec;
+    frame_samples_ = frame_duration_ms * 16000 / 1000;
 }
 
 void NoAudioProcessor::Feed(std::vector<int16_t>&& data) {

@@ -36,7 +36,9 @@ static const char* const STATE_STRINGS[] = {
 Application::Application() {
     event_group_ = xEventGroupCreate();
 
-#if CONFIG_USE_DEVICE_AEC
+#if CONFIG_USE_DEVICE_AEC && CONFIG_USE_SERVER_AEC
+#error "CONFIG_USE_DEVICE_AEC and CONFIG_USE_SERVER_AEC cannot be enabled at the same time"
+#elif CONFIG_USE_DEVICE_AEC
     aec_mode_ = kAecOnDeviceSide;
 #elif CONFIG_USE_SERVER_AEC
     aec_mode_ = kAecOnServerSide;

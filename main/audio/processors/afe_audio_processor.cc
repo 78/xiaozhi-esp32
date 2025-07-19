@@ -12,8 +12,7 @@ AfeAudioProcessor::AfeAudioProcessor()
 
 void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
     codec_ = codec;
-    frame_duration_ms_ = frame_duration_ms;
-    frame_samples_ = frame_duration_ms_ * codec_->input_sample_rate() / 1000;
+    frame_samples_ = frame_duration_ms * 16000 / 1000;
 
     // Pre-allocate output buffer capacity
     output_buffer_.reserve(frame_samples_);

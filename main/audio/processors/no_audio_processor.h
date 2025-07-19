@@ -24,7 +24,6 @@ public:
 
 private:
     AudioCodec* codec_ = nullptr;
-    int frame_duration_ms_ = 0;
     int frame_samples_ = 0;
     std::function<void(std::vector<int16_t>&& data)> output_callback_;
     std::function<void(bool speaking)> vad_state_change_callback_;
