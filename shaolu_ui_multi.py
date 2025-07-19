@@ -25,6 +25,14 @@ from multi_device_manager import MultiDeviceManager
 from device_instance import DeviceInstance, DeviceStatus
 from workspace_manager import WorkspaceManager
 
+# 导入用户管理模块
+from database import init_database_manager, get_db_manager
+from auth import get_auth_manager
+from user_manager import get_user_manager
+from flash_logger import get_flash_logger
+from login_dialog import LoginDialog
+from user_management_dialog import UserManagementDialog
+
 # 移除了编译线程类，因为不再需要编译功能
 
 # 设置日志
@@ -603,51 +611,88 @@ class MultiDeviceUI(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        
+
+        # 用户认证信息（先初始化为None，稍后设置）
+        self.current_user = None
+        self.session_token = None
+        self.auth_manager = None
+        self.user_manager = None
+        self.flash_logger = None
+
         # 设备配置
         self.default_client_type = "esp32"
         self.default_device_version = "1.0.0"
         self.idf_path = "C:\\Users\\1\\esp\\v5.4.1\\esp-idf"  # 恢复使用v5.4.1，Python环境问题已解决
-        
+
         # 初始化设备管理器（传递idf_path参数）
         self.device_manager = MultiDeviceManager(idf_path=self.idf_path)
         self.device_manager.set_callbacks(
-            device_status_callback=self.on_device_status_changed,
+            device_status_callback=self.on_device_status_changed_with_logging,
             progress_callback=self.on_device_progress_changed,
             log_callback=self.on_device_log
         )
-        
+
         # 设置默认NVS直写模式
         self.device_manager.set_nvs_direct_mode(True)
-        
+
         # UI组件
         self.device_table: Optional[DeviceTableWidget] = None
         self.log_text: Optional[QTextEdit] = None
         self.status_bar_label: Optional[QLabel] = None
-        
+        self.user_info_label: Optional[QLabel] = None
+
         # 移除了编译相关变量
-        
+
         # 初始化UI
         self.setup_ui()
         self.setup_connections()
-        
+
+        # 初始化用户管理器（在UI设置之后）
+        self.auth_manager = get_auth_manager()
+
+        # 清理无效会话
+        try:
+            cleaned_sessions = self.auth_manager.cleanup_inactive_sessions(heartbeat_timeout=300)
+            if cleaned_sessions > 0:
+                logger.info(f"启动时清理了 {cleaned_sessions} 个无效会话")
+        except Exception as e:
+            logger.error(f"清理无效会话失败: {e}")
+
+        self.user_manager = get_user_manager()
+        self.flash_logger = get_flash_logger()
+
+        # 连接菜单动作（在用户管理器初始化后）
+        self.connect_menu_actions()
+
         # 创建统计更新定时器
         self.stats_timer = QTimer()
         self.stats_timer.timeout.connect(self.update_statistics)
         self.stats_timer.start(2000)  # 每2秒更新一次统计信息
-        
+
+        # 创建会话检查定时器（主要检查用户状态变化）
+        self.session_timer = QTimer()
+        self.session_timer.timeout.connect(self.check_session)
+        self.session_timer.start(300000)  # 每5分钟检查一次会话状态
+
         logger.info("多设备管理界面初始化完成")
     
     def setup_ui(self):
         """设置用户界面"""
         self.setWindowTitle("小乔智能设备 - 多设备自动烧录工具")
         self.setMinimumSize(1200, 800)
-        
+
+        # 创建菜单栏
+        self.create_menu_bar()
+
         # 主窗口部件
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
-        
+
+        # 用户信息栏
+        user_info_layout = self.create_user_info_bar()
+        main_layout.addLayout(user_info_layout)
+
         # 工具栏区域
         toolbar_layout = self.create_toolbar()
         main_layout.addLayout(toolbar_layout)
@@ -673,7 +718,77 @@ class MultiDeviceUI(QMainWindow):
         
         # 应用样式
         self.setStyleSheet(self.get_stylesheet())
-    
+
+    def create_menu_bar(self):
+        """创建菜单栏"""
+        menubar = self.menuBar()
+
+        # 用户菜单
+        user_menu = menubar.addMenu("用户")
+
+        # 用户管理（仅管理员可见）
+        self.user_management_action = QAction("用户管理", self)
+        # 延迟连接，在用户管理器初始化后连接
+        user_menu.addAction(self.user_management_action)
+
+        user_menu.addSeparator()
+
+        # 修改密码
+        self.change_password_action = QAction("修改密码", self)
+        # 延迟连接，在用户管理器初始化后连接
+        user_menu.addAction(self.change_password_action)
+
+        # 登出
+        self.logout_action = QAction("登出", self)
+        # 延迟连接，在用户管理器初始化后连接
+        user_menu.addAction(self.logout_action)
+
+        # 帮助菜单
+        help_menu = menubar.addMenu("帮助")
+
+        self.about_action = QAction("关于", self)
+        # 延迟连接，在用户管理器初始化后连接
+        help_menu.addAction(self.about_action)
+
+    def connect_menu_actions(self):
+        """连接菜单动作（在用户管理器初始化后调用）"""
+        if hasattr(self, 'user_management_action'):
+            self.user_management_action.triggered.connect(self.show_user_management)
+        if hasattr(self, 'change_password_action'):
+            self.change_password_action.triggered.connect(self.change_current_user_password)
+        if hasattr(self, 'logout_action'):
+            self.logout_action.triggered.connect(self.logout)
+        if hasattr(self, 'about_action'):
+            self.about_action.triggered.connect(self.show_about)
+
+    def create_user_info_bar(self) -> QHBoxLayout:
+        """创建用户信息栏"""
+        layout = QHBoxLayout()
+
+        # 用户信息标签
+        self.user_info_label = QLabel("未登录")
+        self.user_info_label.setStyleSheet("""
+            QLabel {
+                background-color: #e3f2fd;
+                border: 1px solid #2196f3;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-weight: bold;
+                color: #1976d2;
+            }
+        """)
+
+        layout.addWidget(QLabel("当前用户:"))
+        layout.addWidget(self.user_info_label)
+        layout.addStretch()
+
+        # 在线状态指示器
+        self.online_indicator = QLabel("🟢 在线")
+        self.online_indicator.setStyleSheet("color: #27ae60; font-weight: bold;")
+        layout.addWidget(self.online_indicator)
+
+        return layout
+
     def create_toolbar(self) -> QHBoxLayout:
         """创建工具栏"""
         layout = QHBoxLayout()
@@ -947,7 +1062,7 @@ class MultiDeviceUI(QMainWindow):
         if self.device_table:
             self.device_table.device_selected.connect(self.on_device_selected)
             # 覆盖表格的操作方法
-            self.device_table.start_device = self.start_device
+            self.device_table.start_device = self.start_device_with_logging
             self.device_table.stop_device = self.stop_device
             self.device_table.retry_device_smart = self.retry_device_smart
             self.device_table.show_retry_menu = self.show_retry_menu
@@ -1795,9 +1910,21 @@ class MultiDeviceUI(QMainWindow):
         try:
             self.log_message("正在关闭应用程序...")
 
+            # 清理当前用户会话
+            if hasattr(self, 'session_token') and self.session_token:
+                try:
+                    self.auth_manager.logout_session(self.session_token)
+                    logger.info("用户会话已清理")
+                except Exception as e:
+                    logger.error(f"清理用户会话失败: {e}")
+
             # 停止统计定时器
             if hasattr(self, 'stats_timer') and self.stats_timer:
                 self.stats_timer.stop()
+
+            # 停止会话检查定时器
+            if hasattr(self, 'session_timer') and self.session_timer:
+                self.session_timer.stop()
 
             # 停止所有处理
             self.device_manager.stop_all_processing()
@@ -1813,6 +1940,167 @@ class MultiDeviceUI(QMainWindow):
         except Exception as e:
             logger.error(f"关闭应用程序时发生错误: {e}")
             event.accept()
+
+    # 用户认证相关方法
+    def set_current_user(self, user_info: Dict[str, Any]):
+        """设置当前登录用户"""
+        self.current_user = user_info
+        self.session_token = user_info.get('session_token')
+
+        # 更新用户信息显示
+        username = user_info.get('username', '')
+        real_name = user_info.get('real_name', '')
+        display_name = f"{real_name} ({username})" if real_name else username
+        self.user_info_label.setText(display_name)
+
+        # 根据用户权限设置菜单可见性
+        # 这里可以根据需要添加权限判断逻辑
+        # 目前所有登录用户都可以访问用户管理
+
+        logger.info(f"用户 {username} 登录成功")
+
+    def check_session(self):
+        """检查会话有效性"""
+        if not self.session_token:
+            return
+
+        try:
+            user_info = self.auth_manager.verify_session(self.session_token)
+            if not user_info:
+                # 会话无效（用户被禁用或会话被管理员强制下线），强制登出
+                self.force_logout("会话已失效，请重新登录")
+        except Exception as e:
+            logger.error(f"检查会话失败: {e}")
+
+    def force_logout(self, message: str = ""):
+        """强制登出"""
+        if message:
+            QMessageBox.warning(self, "会话失效", message)
+
+        # 清理会话信息
+        if self.session_token:
+            self.auth_manager.logout_session(self.session_token)
+
+        self.current_user = None
+        self.session_token = None
+
+        # 关闭主窗口
+        self.close()
+
+        # 重新显示登录对话框
+        login_dialog = LoginDialog()
+        if login_dialog.exec() == QDialog.Accepted:
+            user_info = login_dialog.get_user_info()
+            if user_info:
+                self.set_current_user(user_info)
+                self.show()
+            else:
+                QApplication.quit()
+        else:
+            QApplication.quit()
+
+    def show_user_management(self):
+        """显示用户管理对话框"""
+        if not self.current_user:
+            return
+
+        try:
+            dialog = UserManagementDialog(self.current_user, self)
+            dialog.exec()
+        except Exception as e:
+            logger.error(f"显示用户管理对话框失败: {e}")
+            QMessageBox.critical(self, "错误", f"显示用户管理对话框失败: {e}")
+
+    def change_current_user_password(self):
+        """修改当前用户密码"""
+        if not self.current_user:
+            return
+
+        password, ok = QInputDialog.getText(self, "修改密码", "请输入新密码:", QLineEdit.Password)
+        if ok and password:
+            if len(password) < 6:
+                QMessageBox.warning(self, "警告", "密码长度至少6位")
+                return
+
+            user_id = self.current_user.get('user_id')
+            if self.user_manager.change_password(user_id, password):
+                QMessageBox.information(self, "成功", "密码修改成功，请重新登录")
+                self.force_logout()
+            else:
+                QMessageBox.critical(self, "错误", "密码修改失败")
+
+    def logout(self):
+        """用户登出"""
+        reply = QMessageBox.question(self, "确认", "确定要登出吗？",
+                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.force_logout()
+
+    def show_about(self):
+        """显示关于对话框"""
+        about_text = """
+小乔智能设备烧录工具 v1.0.0
+
+功能特性:
+• 多设备并发烧录
+• 用户权限管理
+• 烧录记录追踪
+• 实时状态监控
+• 统计分析报表
+
+技术支持: support@xiaozhi.com
+        """
+        QMessageBox.about(self, "关于", about_text.strip())
+
+    # 重写设备处理方法以集成烧录记录
+    def start_device_with_logging(self, device_id: str):
+        """开始处理设备（集成烧录记录）"""
+        if not self.current_user:
+            QMessageBox.warning(self, "警告", "用户未登录")
+            return
+
+        try:
+            device = self.device_manager.get_device(device_id)
+            if not device:
+                return
+
+            # 创建烧录记录
+            user_id = self.current_user.get('user_id')
+            record_id = self.flash_logger.start_flash_record(
+                user_id=user_id,
+                device_id=device_id,
+                device_mac=device.mac_address or "",
+                device_type=device.client_type,
+                device_version=device.device_version
+            )
+
+            # 将记录ID保存到设备实例中
+            device.flash_record_id = record_id
+
+            # 开始设备处理
+            self.device_manager.start_device_processing(device_id)
+
+        except Exception as e:
+            logger.error(f"开始设备处理失败: {e}")
+            QMessageBox.critical(self, "错误", f"开始设备处理失败: {e}")
+
+    def on_device_status_changed_with_logging(self, device: DeviceInstance, old_status: DeviceStatus, new_status: DeviceStatus):
+        """设备状态变化回调（集成烧录记录）"""
+        # 原有的UI更新逻辑
+        self.device_status_update_signal.emit(device)
+        logger.debug(f"设备 {device.device_id} 状态: {old_status.value} -> {new_status.value}")
+
+        # 更新烧录记录
+        if hasattr(device, 'flash_record_id') and device.flash_record_id:
+            if new_status in [DeviceStatus.COMPLETED, DeviceStatus.FAILED]:
+                success = new_status == DeviceStatus.COMPLETED
+                error_message = device.error_message if not success else ""
+
+                self.flash_logger.finish_flash_record(
+                    record_id=device.flash_record_id,
+                    success=success,
+                    error_message=error_message
+                )
 
 class StatisticsDialog(QDialog):
     """详细统计信息对话框"""
@@ -2341,20 +2629,45 @@ class DeviceInfoDialog(QDialog):
             logger.error(f"加载设备信息失败: {e}")
             QMessageBox.critical(self, "错误", f"加载设备信息失败: {e}")
 
+
+
+# 类定义结束
+
 def run_multi_device_ui():
     """运行多设备管理界面"""
     if not HAS_PYSIDE6:
         print("错误: 需要安装PySide6库")
         return 1
-    
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    
-    # 创建并显示主窗口
-    window = MultiDeviceUI()
-    window.showMaximized()  # 默认全屏启动
-    
-    return app.exec()
+
+    try:
+        # 初始化数据库管理器
+        init_database_manager()
+
+        # 显示登录对话框
+        login_dialog = LoginDialog()
+        if login_dialog.exec() != QDialog.Accepted:
+            return 0  # 用户取消登录
+
+        # 获取登录用户信息
+        user_info = login_dialog.get_user_info()
+        if not user_info:
+            QMessageBox.critical(None, "错误", "登录失败，无法获取用户信息")
+            return 1
+
+        # 创建并显示主窗口
+        window = MultiDeviceUI()
+        window.set_current_user(user_info)
+        window.showMaximized()  # 默认全屏启动
+
+        return app.exec()
+
+    except Exception as e:
+        logger.error(f"应用启动失败: {e}")
+        QMessageBox.critical(None, "错误", f"应用启动失败: {e}")
+        return 1
 
 if __name__ == "__main__":
     # 需要额外导入QInputDialog

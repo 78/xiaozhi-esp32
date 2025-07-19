@@ -1,0 +1,16 @@
+# 现有依赖
+PySide6>=6.5.0
+requests>=2.28.0
+pyserial>=3.5
+
+# 新增用户管理系统依赖
+PyMySQL>=1.0.2
+bcrypt>=4.0.1
+configparser>=5.3.0
+
+# 可选：更好的MySQL连接器
+# mysql-connector-python>=8.0.33
+
+# 开发和测试依赖（可选）
+# pytest>=7.0.0
+# pytest-qt>=4.2.0
