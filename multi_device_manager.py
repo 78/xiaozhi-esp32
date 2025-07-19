@@ -287,6 +287,9 @@ class MultiDeviceManager:
         # NVS直写模式相关
         self.nvs_direct_mode = False
         self.universal_firmware_path = None
+
+        # 烧录选项
+        self.erase_before_flash = False
         
         logger.info(f"多设备管理器初始化完成，使用队列处理机制")
     
@@ -376,6 +379,56 @@ class MultiDeviceManager:
         with self._lock:
             self.nvs_direct_mode = enabled
             logger.info(f"NVS直写模式: {'启用' if enabled else '禁用'}")
+
+    def set_erase_before_flash(self, enabled: bool):
+        """设置烧录前是否擦除内存"""
+        with self._lock:
+            self.erase_before_flash = enabled
+            logger.info(f"烧录前擦除: {'启用' if enabled else '禁用'}")
+
+    def get_device_mac_only(self, device_id: str) -> bool:
+        """单独获取设备的MAC地址"""
+        with self._lock:
+            device = self.devices.get(device_id)
+            if not device:
+                logger.error(f"设备 {device_id} 不存在")
+                return False
+
+            # 检查设备是否正在处理中
+            if device.is_active():
+                logger.warning(f"设备 {device_id} 正在处理中，无法单独获取MAC地址")
+                return False
+
+            # 检查端口是否可用
+            if not device.port:
+                logger.error(f"设备 {device_id} 端口信息不完整")
+                return False
+
+            logger.info(f"开始获取设备 {device_id} 的MAC地址...")
+
+            # 更新设备状态
+            device.update_status(DeviceStatus.MAC_GETTING, 50, "正在获取MAC地址...")
+
+            try:
+                # 获取MAC地址
+                mac_address = self._get_device_mac_safe(device)
+
+                if mac_address:
+                    device.set_mac_address(mac_address)
+                    device.update_status(DeviceStatus.IDLE, 100, "MAC地址获取成功")
+                    logger.info(f"设备 {device_id} MAC地址获取成功: {mac_address}")
+                    return True
+                else:
+                    device.set_error("获取MAC地址失败")
+                    device.update_status(DeviceStatus.FAILED, 0, "MAC地址获取失败")
+                    logger.error(f"设备 {device_id} MAC地址获取失败")
+                    return False
+
+            except Exception as e:
+                device.set_error(f"获取MAC地址异常: {e}")
+                device.update_status(DeviceStatus.FAILED, 0, "MAC地址获取异常")
+                logger.error(f"设备 {device_id} MAC地址获取异常: {e}")
+                return False
     
     def set_universal_firmware_path(self, path: str):
         """设置通用固件路径"""
@@ -783,32 +836,35 @@ class MultiDeviceManager:
                     ]
             
             device.log_message(f"执行烧录命令: esptool.py {' '.join(cmd_args)}")
-            
-            # 先执行擦除操作
-            device.log_message("正在擦除Flash...")
-            erase_cmd_args = [
-                '--chip', 'auto',
-                '--port', device.port,
-                '--baud', '921600',
-                'erase_flash'
-            ]
-            
-            device.log_message(f"执行擦除命令: esptool.py {' '.join(erase_cmd_args)}")
-            
-            try:
-                esptool.main(erase_cmd_args)
-                device.log_message("Flash擦除完成")
-            except SystemExit as e:
-                if e.code == 0:
+
+            # 根据选项决定是否执行擦除操作
+            if self.erase_before_flash:
+                device.log_message("正在擦除Flash...")
+                erase_cmd_args = [
+                    '--chip', 'auto',
+                    '--port', device.port,
+                    '--baud', '921600',
+                    'erase_flash'
+                ]
+
+                device.log_message(f"执行擦除命令: esptool.py {' '.join(erase_cmd_args)}")
+
+                try:
+                    esptool.main(erase_cmd_args)
                     device.log_message("Flash擦除完成")
-                else:
-                    device.log_message(f"Flash擦除失败，退出代码: {e.code}", logging.ERROR)
+                except SystemExit as e:
+                    if e.code == 0:
+                        device.log_message("Flash擦除完成")
+                    else:
+                        device.log_message(f"Flash擦除失败，退出代码: {e.code}", logging.ERROR)
+                        return False
+                except Exception as e:
+                    device.log_message(f"Flash擦除异常: {e}", logging.ERROR)
                     return False
-            except Exception as e:
-                device.log_message(f"Flash擦除异常: {e}", logging.ERROR)
-                return False
-            
-            device.log_message("Flash擦除完成，开始烧录通用固件...")
+
+                device.log_message("Flash擦除完成，开始烧录通用固件...")
+            else:
+                device.log_message("跳过Flash擦除，直接开始烧录通用固件...")
             
             # 执行烧录
             try:

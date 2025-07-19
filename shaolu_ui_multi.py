@@ -11,8 +11,8 @@ try:
                                 QPushButton, QLabel, QTableWidget, QTableWidgetItem, QHeaderView,
                                 QProgressBar, QTextEdit, QComboBox, QLineEdit, QGroupBox, QFormLayout,
                                 QSplitter, QFrame, QMessageBox, QTabWidget, QCheckBox, QSpinBox,
-                                QAbstractItemView, QMenu, QInputDialog, QDialog, QProgressDialog)
-    from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer
+                                QAbstractItemView, QMenu, QInputDialog, QDialog)
+    from PySide6.QtCore import Qt, Signal, Slot, QTimer
     from PySide6.QtGui import QFont, QIcon, QColor, QAction
     HAS_PYSIDE6 = True
 except ImportError:
@@ -25,49 +25,7 @@ from multi_device_manager import MultiDeviceManager
 from device_instance import DeviceInstance, DeviceStatus
 from workspace_manager import WorkspaceManager
 
-class FirmwareCompileThread(QThread):
-    """固件编译线程"""
-    
-    # 信号定义
-    progress_updated = Signal(str)  # 进度消息
-    compile_finished = Signal(bool, str)  # 编译完成(成功, 固件路径或错误信息)
-    
-    def __init__(self, idf_path, parent=None):
-        super().__init__(parent)
-        self.idf_path = idf_path
-        self.should_cancel = False
-    
-    def run(self):
-        """线程执行函数"""
-        try:
-            # 导入编译函数
-            from shaolu_ui import build_firmware
-            
-            # 编译回调
-            def progress_callback(line):
-                if self.should_cancel:
-                    return False
-                self.progress_updated.emit(line.strip())
-                return True
-            
-            # 执行编译
-            success = build_firmware(self.idf_path, skip_clean=False, progress_callback=progress_callback)
-            
-            if self.should_cancel:
-                self.compile_finished.emit(False, "编译已取消")
-                return
-            
-            if success:
-                self.compile_finished.emit(True, "编译成功")
-            else:
-                self.compile_finished.emit(False, "编译失败")
-                
-        except Exception as e:
-            self.compile_finished.emit(False, f"编译异常: {e}")
-    
-    def cancel(self):
-        """取消编译"""
-        self.should_cancel = True
+# 移除了编译线程类，因为不再需要编译功能
 
 # 设置日志
 logger = logging.getLogger("shaolu.multi_ui")
@@ -85,23 +43,28 @@ class DeviceTableWidget(QTableWidget):
     def setup_table(self):
         """设置表格结构"""
         # 列定义
-        columns = ["设备ID", "端口", "MAC地址", "状态", "进度", "处理时间", "操作"]
+        columns = ["设备ID", "端口", "MAC地址", "获取MAC", "状态", "进度", "处理时间", "操作"]
         self.setColumnCount(len(columns))
         self.setHorizontalHeaderLabels(columns)
-        
+
         # 设置列宽
         self.setColumnWidth(0, 120)  # 设备ID
         self.setColumnWidth(1, 80)   # 端口
-        self.setColumnWidth(2, 130)  # MAC地址
-        self.setColumnWidth(3, 100)  # 状态
-        self.setColumnWidth(4, 120)  # 进度
-        self.setColumnWidth(5, 150)  # 处理时间
-        self.setColumnWidth(6, 120)  # 操作
-        
+        self.setColumnWidth(2, 150)  # MAC地址 - 调宽一些
+        self.setColumnWidth(3, 140)  # 获取MAC按钮 - 调宽一些
+        self.setColumnWidth(4, 100)  # 状态
+        self.setColumnWidth(5, 120)  # 进度
+        self.setColumnWidth(6, 150)  # 处理时间
+        self.setColumnWidth(7, 140)  # 操作
+
         # 表格属性
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setAlternatingRowColors(True)
         self.verticalHeader().setVisible(False)
+
+        # 设置行高，确保按钮有足够的显示空间
+        self.verticalHeader().setDefaultSectionSize(80)  # 设置默认行高为80像素 - 调高一些
+        self.verticalHeader().setMinimumSectionSize(75)   # 设置最小行高为75像素 - 调高一些
         
         # 连接选择事件
         self.selectionModel().selectionChanged.connect(self.on_selection_changed)
@@ -125,33 +88,40 @@ class DeviceTableWidget(QTableWidget):
         
         # 设备ID
         self.setItem(row, 0, QTableWidgetItem(device_id))
-        
+
         # 端口
         self.setItem(row, 1, QTableWidgetItem(device.port or "未知"))
-        
+
+        # MAC地址
+        self.setItem(row, 2, QTableWidgetItem(device.mac_address or "未获取"))
+
+        # 获取MAC按钮
+        get_mac_widget = self.create_get_mac_widget(device_id)
+        self.setCellWidget(row, 3, get_mac_widget)
+
         # 状态
         status_item = QTableWidgetItem(self.get_status_text(device.status))
         status_item.setData(Qt.UserRole, device_id)
-        self.setItem(row, 3, status_item)
-        
+        self.setItem(row, 4, status_item)
+
         # 进度条
         progress_bar = QProgressBar()
         progress_bar.setMinimum(0)
         progress_bar.setMaximum(100)
         progress_bar.setValue(device.progress)
         progress_bar.setFormat(f"{device.progress}% - {device.progress_message}")
-        self.setCellWidget(row, 4, progress_bar)
-        
-        # MAC地址
-        self.setItem(row, 2, QTableWidgetItem(device.mac_address or "未获取"))
-        
+        self.setCellWidget(row, 5, progress_bar)
+
         # 处理时间
         processing_time_summary = device.get_processing_time_summary() if hasattr(device, 'get_processing_time_summary') else "未开始"
-        self.setItem(row, 5, QTableWidgetItem(processing_time_summary))
-        
+        self.setItem(row, 6, QTableWidgetItem(processing_time_summary))
+
         # 操作按钮
         action_widget = self.create_action_widget(device_id)
-        self.setCellWidget(row, 6, action_widget)
+        self.setCellWidget(row, 7, action_widget)
+
+        # 设置此行的高度，确保按钮显示完整
+        self.setRowHeight(row, 40)
         
         logger.debug(f"设备已添加到表格: {device_id}")
     
@@ -168,20 +138,25 @@ class DeviceTableWidget(QTableWidget):
         if row < 0:
             return
         
+        # 更新MAC地址
+        mac_item = self.item(row, 2)
+        if mac_item:
+            mac_item.setText(device.mac_address or "未获取")
+
         # 更新状态
-        status_item = self.item(row, 3)
+        status_item = self.item(row, 4)
         if status_item:
             status_item.setText(self.get_status_text(device.status))
             # 设置状态颜色
             color = self.get_status_color(device.status)
             status_item.setBackground(color)
-            
+
             # 如果是失败状态，添加特殊样式
             if device.status == DeviceStatus.FAILED:
                 if hasattr(device, 'failed_phase'):
                     phase_names = {
                         "mac_acquisition": "MAC获取失败",
-                        "device_registration": "注册失败", 
+                        "device_registration": "注册失败",
                         "config_update": "配置失败",
                         "firmware_build": "编译失败",
                         "firmware_flash": "烧录失败"
@@ -191,27 +166,22 @@ class DeviceTableWidget(QTableWidget):
                     status_item.setToolTip(f"失败阶段: {device.failed_phase}\n错误: {device.error_message}")
                 else:
                     status_item.setToolTip(f"错误: {device.error_message}")
-        
+
         # 更新进度
-        progress_bar = self.cellWidget(row, 4)
+        progress_bar = self.cellWidget(row, 5)
         if isinstance(progress_bar, QProgressBar):
             progress_bar.setValue(device.progress)
             progress_bar.setFormat(f"{device.progress}% - {device.progress_message}")
-        
-        # 更新MAC地址
-        mac_item = self.item(row, 2)
-        if mac_item:
-            mac_item.setText(device.mac_address or "未获取")
-        
+
         # 更新处理时间
         processing_time_summary = device.get_processing_time_summary() if hasattr(device, 'get_processing_time_summary') else "未开始"
-        processing_time_item = self.item(row, 5)
+        processing_time_item = self.item(row, 6)
         if processing_time_item:
             processing_time_item.setText(processing_time_summary)
-        
+
         # 更新操作按钮（根据新状态重新创建）
         action_widget = self.create_action_widget(device_id)
-        self.setCellWidget(row, 6, action_widget)
+        self.setCellWidget(row, 7, action_widget)
     
     def remove_device(self, device_id: str):
         """从表格移除设备"""
@@ -265,6 +235,167 @@ class DeviceTableWidget(QTableWidget):
         }
         return color_map.get(status, QColor(255, 255, 255))
     
+    def get_button_style(self, button_type: str) -> str:
+        """获取按钮样式"""
+        styles = {
+            "start": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #2196F3, stop: 1 #1976D2);
+                    border: 2px solid #2196F3;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #1976D2, stop: 1 #1565C0);
+                    border-color: #1976D2;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #1565C0, stop: 1 #0D47A1);
+                    border-color: #1565C0;
+                }
+            """,
+            "stop": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #f44336, stop: 1 #d32f2f);
+                    border: 2px solid #f44336;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #d32f2f, stop: 1 #c62828);
+                    border-color: #d32f2f;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #c62828, stop: 1 #b71c1c);
+                    border-color: #c62828;
+                }
+            """,
+            "retry": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #FF9800, stop: 1 #F57C00);
+                    border: 2px solid #FF9800;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #F57C00, stop: 1 #EF6C00);
+                    border-color: #F57C00;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #EF6C00, stop: 1 #E65100);
+                    border-color: #EF6C00;
+                }
+            """,
+            "reset": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #9E9E9E, stop: 1 #757575);
+                    border: 2px solid #9E9E9E;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #757575, stop: 1 #616161);
+                    border-color: #757575;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #616161, stop: 1 #424242);
+                    border-color: #616161;
+                }
+            """,
+            "more": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #607D8B, stop: 1 #455A64);
+                    border: 2px solid #607D8B;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    padding: 8px 8px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #455A64, stop: 1 #37474F);
+                    border-color: #455A64;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #37474F, stop: 1 #263238);
+                    border-color: #37474F;
+                }
+            """,
+            "get_mac": """
+                QPushButton {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #2196F3, stop: 1 #1976D2);
+                    border: 2px solid #2196F3;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #1976D2, stop: 1 #1565C0);
+                    border-color: #1976D2;
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                              stop: 0 #1565C0, stop: 1 #0D47A1);
+                    border-color: #1565C0;
+                }
+            """
+        }
+        return styles.get(button_type, "")
+
+    def create_get_mac_widget(self, device_id: str) -> QWidget:
+        """创建获取MAC按钮组件"""
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
+
+        # 创建获取MAC按钮
+        get_mac_btn = QPushButton("📱 获取MAC")
+        get_mac_btn.setMinimumWidth(90)  # 设置最小宽度
+        get_mac_btn.setMaximumWidth(110)  # 增加最大宽度
+        get_mac_btn.setMinimumHeight(38)  # 增加按钮高度
+        get_mac_btn.setToolTip("单独获取此设备的MAC地址")
+        get_mac_btn.setStyleSheet(self.get_button_style("get_mac"))
+        get_mac_btn.clicked.connect(lambda: self.get_device_mac(device_id))
+
+        # 将按钮添加到布局中，居中显示
+        layout.addStretch()  # 左侧弹性空间
+        layout.addWidget(get_mac_btn)
+        layout.addStretch()  # 右侧弹性空间
+
+        return widget
+
     def create_action_widget(self, device_id: str) -> QWidget:
         """创建操作按钮组件"""
         widget = QWidget()
@@ -278,8 +409,11 @@ class DeviceTableWidget(QTableWidget):
         
         if device.status.value in ["idle", "completed"]:
             # 空闲或完成状态：显示开始按钮
-            start_btn = QPushButton("开始")
-            start_btn.setMaximumWidth(40)
+            start_btn = QPushButton("▶️ 开始")
+            start_btn.setMinimumWidth(70)   # 设置最小宽度
+            start_btn.setMaximumWidth(90)   # 增加最大宽度
+            start_btn.setMinimumHeight(38)  # 增加按钮高度
+            start_btn.setStyleSheet(self.get_button_style("start"))
             start_btn.clicked.connect(lambda: self.start_device(device_id))
             layout.addWidget(start_btn)
             
@@ -289,30 +423,39 @@ class DeviceTableWidget(QTableWidget):
             if retry_options:
                 # 智能重试按钮（显示最合适的重试选项）
                 main_retry_option = retry_options[0]  # 第一个是最合适的
-                retry_btn = QPushButton(main_retry_option["label"])
-                retry_btn.setMaximumWidth(80)
-                retry_btn.setStyleSheet("QPushButton { background-color: #e67e22; color: white; }")
+                retry_btn = QPushButton(f"🔄 {main_retry_option['label']}")
+                retry_btn.setMinimumWidth(100)  # 设置最小宽度
+                retry_btn.setMaximumWidth(130)  # 增加最大宽度
+                retry_btn.setMinimumHeight(38)  # 增加按钮高度
+                retry_btn.setStyleSheet(self.get_button_style("retry"))
                 retry_btn.clicked.connect(lambda: self.retry_device_smart(device_id, main_retry_option))
                 layout.addWidget(retry_btn)
-                
+
                 # 更多选项按钮
                 if len(retry_options) > 1:
                     more_btn = QPushButton("⋮")
-                    more_btn.setMaximumWidth(25)
+                    more_btn.setMaximumWidth(30)
+                    more_btn.setMinimumHeight(38)
+                    more_btn.setStyleSheet(self.get_button_style("more"))
                     more_btn.clicked.connect(lambda: self.show_retry_menu(device_id, more_btn))
                     layout.addWidget(more_btn)
             else:
                 # 没有重试选项时显示重置按钮
-                reset_btn = QPushButton("重置")
-                reset_btn.setMaximumWidth(40)
+                reset_btn = QPushButton("🔄 重置")
+                reset_btn.setMinimumWidth(70)   # 设置最小宽度
+                reset_btn.setMaximumWidth(90)   # 增加最大宽度
+                reset_btn.setMinimumHeight(38)  # 增加按钮高度
+                reset_btn.setStyleSheet(self.get_button_style("reset"))
                 reset_btn.clicked.connect(lambda: self.reset_device(device_id))
                 layout.addWidget(reset_btn)
                 
         elif device.is_active():
             # 活动状态：显示停止按钮
-            stop_btn = QPushButton("停止")
-            stop_btn.setMaximumWidth(40)
-            stop_btn.setStyleSheet("QPushButton { background-color: #e74c3c; color: white; }")
+            stop_btn = QPushButton("⏹️ 停止")
+            stop_btn.setMinimumWidth(70)   # 设置最小宽度
+            stop_btn.setMaximumWidth(90)   # 增加最大宽度
+            stop_btn.setMinimumHeight(38)  # 增加按钮高度
+            stop_btn.setStyleSheet(self.get_button_style("stop"))
             stop_btn.clicked.connect(lambda: self.stop_device(device_id))
             layout.addWidget(stop_btn)
             
@@ -446,6 +589,11 @@ class DeviceTableWidget(QTableWidget):
         # 这个方法将在主窗口中实现
         pass
 
+    def get_device_mac(self, device_id: str):
+        """获取设备MAC地址"""
+        # 这个方法将在主窗口中实现
+        pass
+
 class MultiDeviceUI(QMainWindow):
     """多设备管理主界面"""
     
@@ -477,9 +625,7 @@ class MultiDeviceUI(QMainWindow):
         self.log_text: Optional[QTextEdit] = None
         self.status_bar_label: Optional[QLabel] = None
         
-        # 编译相关
-        self.compile_thread: Optional[FirmwareCompileThread] = None
-        self.compile_progress_dialog: Optional[QProgressDialog] = None
+        # 移除了编译相关变量
         
         # 初始化UI
         self.setup_ui()
@@ -531,73 +677,82 @@ class MultiDeviceUI(QMainWindow):
     def create_toolbar(self) -> QHBoxLayout:
         """创建工具栏"""
         layout = QHBoxLayout()
-        
+
+        # 设备管理组
+        device_group = QGroupBox("设备管理")
+        device_group.setMaximumHeight(80)
+        device_layout = QHBoxLayout(device_group)
+        device_layout.setContentsMargins(8, 8, 8, 8)
+
         # 自动检测设备按钮
-        detect_btn = QPushButton("自动检测设备")
+        detect_btn = QPushButton("🔍 自动检测")
+        detect_btn.setToolTip("自动检测连接的ESP32设备")
         detect_btn.clicked.connect(self.auto_detect_devices)
-        layout.addWidget(detect_btn)
-        
+        device_layout.addWidget(detect_btn)
+
         # 添加设备按钮
-        add_btn = QPushButton("手动添加设备")
+        add_btn = QPushButton("➕ 手动添加")
+        add_btn.setToolTip("手动添加设备端口")
         add_btn.clicked.connect(self.add_device_manually)
-        layout.addWidget(add_btn)
-        
+        device_layout.addWidget(add_btn)
+
         # 移除设备按钮
-        remove_btn = QPushButton("移除设备")
+        remove_btn = QPushButton("➖ 移除选中")
+        remove_btn.setToolTip("移除当前选中的设备")
         remove_btn.clicked.connect(self.remove_selected_device)
-        layout.addWidget(remove_btn)
-        
+        device_layout.addWidget(remove_btn)
+
         # 移除全部设备按钮
-        remove_all_btn = QPushButton("移除全部设备")
+        remove_all_btn = QPushButton("🗑️ 清空全部")
         remove_all_btn.setStyleSheet("QPushButton { background-color: #e74c3c; color: white; font-weight: bold; }")
         remove_all_btn.clicked.connect(self.remove_all_devices)
         remove_all_btn.setToolTip("移除所有设备（危险操作）")
-        layout.addWidget(remove_all_btn)
-        
-        layout.addSpacing(20)
-        
+        device_layout.addWidget(remove_all_btn)
+
+        layout.addWidget(device_group)
+
+        # 批量操作组
+        batch_group = QGroupBox("批量操作")
+        batch_group.setMaximumHeight(80)
+        batch_layout = QHBoxLayout(batch_group)
+        batch_layout.setContentsMargins(8, 8, 8, 8)
+
         # 批量操作按钮
-        start_all_btn = QPushButton("开始全部")
-        start_all_btn.setStyleSheet("QPushButton { background-color: #e74c3c; color: white; font-weight: bold; }")
+        start_all_btn = QPushButton("▶️ 开始全部")
+        start_all_btn.setStyleSheet("QPushButton { background-color: #27ae60; color: white; font-weight: bold; }")
+        start_all_btn.setToolTip("开始处理所有设备")
         start_all_btn.clicked.connect(self.start_all_devices)
-        layout.addWidget(start_all_btn)
-        
-        stop_all_btn = QPushButton("停止全部")
+        batch_layout.addWidget(start_all_btn)
+
+        stop_all_btn = QPushButton("⏹️ 停止全部")
+        stop_all_btn.setStyleSheet("QPushButton { background-color: #e74c3c; color: white; font-weight: bold; }")
+        stop_all_btn.setToolTip("停止所有设备处理")
         stop_all_btn.clicked.connect(self.stop_all_devices)
-        layout.addWidget(stop_all_btn)
-        
+        batch_layout.addWidget(stop_all_btn)
+
         # 批量重试按钮
-        retry_all_btn = QPushButton("重试全部失败")
-        retry_all_btn.setStyleSheet("QPushButton { background-color: #e67e22; color: white; font-weight: bold; }")
+        retry_all_btn = QPushButton("🔄 重试失败")
+        retry_all_btn.setStyleSheet("QPushButton { background-color: #f39c12; color: white; font-weight: bold; }")
+        retry_all_btn.setToolTip("重试所有失败的设备")
         retry_all_btn.clicked.connect(self.retry_all_failed_devices)
-        layout.addWidget(retry_all_btn)
-        
-        layout.addSpacing(20)
-        
-        # 通用固件编译按钮
-        compile_universal_btn = QPushButton("编译通用固件")
-        compile_universal_btn.setStyleSheet("QPushButton { background-color: #9b59b6; color: white; font-weight: bold; }")
-        compile_universal_btn.clicked.connect(self.compile_universal_firmware)
-        compile_universal_btn.setToolTip("编译一个不包含CLIENT_ID的通用固件，用于NVS直写模式")
-        layout.addWidget(compile_universal_btn)
-        
-        layout.addSpacing(20)
-        
-        # ESP-IDF路径选择
-        layout.addWidget(QLabel("ESP-IDF路径:"))
-        self.idf_path_combo = QComboBox()
-        self.idf_path_combo.setEditable(True)
-        self.idf_path_combo.addItem("C:\\Users\\1\\esp\\v5.4.1\\esp-idf")
-        self.idf_path_combo.addItem("C:\\Users\\1\\esp\\v5.3.2\\esp-idf")
-        self.idf_path_combo.currentTextChanged.connect(self.on_idf_path_changed)
-        layout.addWidget(self.idf_path_combo)
-        
+        batch_layout.addWidget(retry_all_btn)
+
+        layout.addWidget(batch_group)
+
         layout.addStretch()
-        
+
         # 统计信息
+        stats_group = QGroupBox("统计信息")
+        stats_group.setMaximumHeight(80)
+        stats_layout = QVBoxLayout(stats_group)
+        stats_layout.setContentsMargins(8, 8, 8, 8)
+
         self.stats_label = QLabel("总计: 0 | 活动: 0 | 完成: 0 | 失败: 0")
-        layout.addWidget(self.stats_label)
-        
+        self.stats_label.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        stats_layout.addWidget(self.stats_label)
+
+        layout.addWidget(stats_group)
+
         return layout
     
     def create_top_area(self) -> QWidget:
@@ -615,106 +770,150 @@ class MultiDeviceUI(QMainWindow):
         layout.addWidget(device_group, 3)
         
         # 右侧：配置区域
-        config_group = QGroupBox("设备配置")
-        config_layout = QFormLayout(config_group)
-        
+        config_widget = QWidget()
+        config_main_layout = QVBoxLayout(config_widget)
+        config_main_layout.setSpacing(10)
+
+        # 基本配置组
+        basic_config_group = QGroupBox("📋 基本配置")
+        basic_config_layout = QFormLayout(basic_config_group)
+
         # 默认设备类型
         self.client_type_combo = QComboBox()
-        self.client_type_combo.addItems(["esp32", "esp32s2", "esp32s3", "esp32c3"])
+        self.client_type_combo.addItems(["esp32s3", "esp32s3-oled0.96", "esp32s3-jc", "esp32", "esp32s2", "esp32c3"])
         self.client_type_combo.setCurrentText("esp32s3")  # 设置默认选择为esp32s3
-        config_layout.addRow("默认设备类型:", self.client_type_combo)
-        
+        self.client_type_combo.setToolTip("选择默认的设备类型，新添加的设备将使用此类型")
+        basic_config_layout.addRow("🔧 默认设备类型:", self.client_type_combo)
+
         # 默认设备版本
         self.device_version_edit = QLineEdit("1.0.0")
-        config_layout.addRow("默认设备版本:", self.device_version_edit)
+        self.device_version_edit.setToolTip("设置默认的设备版本号")
+        basic_config_layout.addRow("📦 默认设备版本:", self.device_version_edit)
+
+        config_main_layout.addWidget(basic_config_group)
         
         # 队列状态显示区域
-        queue_status_group = QGroupBox("队列状态")
+        queue_status_group = QGroupBox("⚡ 队列状态")
         queue_status_layout = QVBoxLayout(queue_status_group)
-        
+
         # 当前处理设备
         self.current_device_label = QLabel("当前处理: 无")
+        self.current_device_label.setStyleSheet("font-weight: bold; color: #27ae60;")
         queue_status_layout.addWidget(self.current_device_label)
-        
+
         # 队列长度
         self.queue_size_label = QLabel("队列长度: 0")
+        self.queue_size_label.setStyleSheet("color: #3498db;")
         queue_status_layout.addWidget(self.queue_size_label)
-        
+
         # 队列状态
         self.queue_status_label = QLabel("队列状态: 停止")
+        self.queue_status_label.setStyleSheet("color: #e74c3c;")
         queue_status_layout.addWidget(self.queue_status_label)
-        
-        config_layout.addRow(queue_status_group)
+
+        config_main_layout.addWidget(queue_status_group)
         
         # 性能统计面板
-        stats_group = QGroupBox("性能统计")
+        stats_group = QGroupBox("📊 性能统计")
         stats_layout = QVBoxLayout(stats_group)
-        
+
         # 成功率
         self.success_rate_label = QLabel("成功率: 0%")
+        self.success_rate_label.setStyleSheet("font-weight: bold; color: #27ae60;")
         stats_layout.addWidget(self.success_rate_label)
-        
+
         # 平均时间
         self.avg_time_label = QLabel("平均时间: 未知")
+        self.avg_time_label.setStyleSheet("color: #3498db;")
         stats_layout.addWidget(self.avg_time_label)
-        
+
         # 处理数量
         self.processed_count_label = QLabel("已处理: 0")
+        self.processed_count_label.setStyleSheet("color: #9b59b6;")
         stats_layout.addWidget(self.processed_count_label)
-        
+
+        # 统计按钮布局
+        stats_btn_layout = QHBoxLayout()
+
         # 详细统计按钮
-        self.detail_stats_btn = QPushButton("查看详细统计")
+        self.detail_stats_btn = QPushButton("📈 详细统计")
         self.detail_stats_btn.clicked.connect(self.show_detailed_statistics)
-        stats_layout.addWidget(self.detail_stats_btn)
-        
+        stats_btn_layout.addWidget(self.detail_stats_btn)
+
         # 清空统计按钮
-        self.clear_stats_btn = QPushButton("清空统计")
+        self.clear_stats_btn = QPushButton("🗑️ 清空统计")
         self.clear_stats_btn.clicked.connect(self.clear_statistics)
-        stats_layout.addWidget(self.clear_stats_btn)
+        stats_btn_layout.addWidget(self.clear_stats_btn)
+
+        stats_layout.addLayout(stats_btn_layout)
+
+        config_main_layout.addWidget(stats_group)
         
-        config_layout.addRow(stats_group)
-        
+        # 烧录选项组
+        flash_options_group = QGroupBox("🔥 烧录选项")
+        flash_options_layout = QVBoxLayout(flash_options_group)
+
         # 自动开始选项
-        self.auto_start_checkbox = QCheckBox("检测到设备后自动开始")
-        config_layout.addRow(self.auto_start_checkbox)
-        
+        self.auto_start_checkbox = QCheckBox("🚀 检测到设备后自动开始")
+        self.auto_start_checkbox.setToolTip("启用后，检测到新设备时会自动开始处理")
+        flash_options_layout.addWidget(self.auto_start_checkbox)
+
         # NVS直写模式选项
-        self.nvs_direct_write_checkbox = QCheckBox("启用NVS直写模式 (一次编译批量烧录)")
+        self.nvs_direct_write_checkbox = QCheckBox("⚡ 启用NVS直写模式 (使用预编译固件)")
         self.nvs_direct_write_checkbox.setChecked(True)  # 默认启用
         self.nvs_direct_write_checkbox.setToolTip(
-            "启用后将跳过CLIENT_ID编译步骤，烧录完成后直接写入NVS分区\n"
-            "可以实现一次编译，批量烧录多个设备，大幅提升效率"
+            "启用后将使用预编译的通用固件，烧录完成后直接写入NVS分区\n"
+            "可以实现批量烧录多个设备，大幅提升效率"
         )
-        config_layout.addRow(self.nvs_direct_write_checkbox)
-        
+        flash_options_layout.addWidget(self.nvs_direct_write_checkbox)
+
+        # 烧录前擦除选项
+        self.erase_before_flash_checkbox = QCheckBox("🗑️ 烧录前擦除内存")
+        self.erase_before_flash_checkbox.setChecked(False)  # 默认不擦除
+        self.erase_before_flash_checkbox.setToolTip(
+            "勾选后在烧录通用固件前会先擦除设备内存\n"
+            "建议在首次烧录或遇到问题时启用"
+        )
+        flash_options_layout.addWidget(self.erase_before_flash_checkbox)
+
         # 预编译固件路径选择
-        nvs_mode_layout = QHBoxLayout()
+        firmware_path_group = QGroupBox("📁 通用固件路径")
+        firmware_path_layout = QHBoxLayout(firmware_path_group)
+
         self.firmware_path_edit = QLineEdit()
         self.firmware_path_edit.setPlaceholderText("选择预编译的通用固件路径...")
-        nvs_mode_layout.addWidget(self.firmware_path_edit)
-        
-        browse_firmware_btn = QPushButton("浏览")
+        firmware_path_layout.addWidget(self.firmware_path_edit)
+
+        browse_firmware_btn = QPushButton("📂 浏览")
         browse_firmware_btn.clicked.connect(self.browse_firmware_path)
-        browse_firmware_btn.setMaximumWidth(60)
-        nvs_mode_layout.addWidget(browse_firmware_btn)
-        
-        nvs_mode_widget = QWidget()
-        nvs_mode_widget.setLayout(nvs_mode_layout)
-        self.nvs_mode_widget = nvs_mode_widget  # 保存引用以便控制显示
-        config_layout.addRow("通用固件路径:", nvs_mode_widget)
-        
+        browse_firmware_btn.setMaximumWidth(80)
+        firmware_path_layout.addWidget(browse_firmware_btn)
+
+        self.nvs_mode_widget = firmware_path_group  # 保存引用以便控制显示
+        flash_options_layout.addWidget(firmware_path_group)
+
+        config_main_layout.addWidget(flash_options_group)
+
+        # 工具组
+        tools_group = QGroupBox("🛠️ 工具")
+        tools_layout = QVBoxLayout(tools_group)
+
+        # 清理旧工作目录按钮
+        cleanup_btn = QPushButton("🧹 清理旧工作目录")
+        cleanup_btn.setToolTip("清理超过24小时的旧工作目录")
+        cleanup_btn.clicked.connect(self.cleanup_old_workspaces)
+        tools_layout.addWidget(cleanup_btn)
+
+        config_main_layout.addWidget(tools_group)
+
         # 连接信号
         self.nvs_direct_write_checkbox.toggled.connect(self.on_nvs_mode_changed)
-        
+        self.erase_before_flash_checkbox.toggled.connect(self.on_erase_option_changed)
+
         # 初始化固件路径组件的可见性
         self.nvs_mode_widget.setVisible(self.nvs_direct_write_checkbox.isChecked())
-        
-        # 清理旧工作目录按钮
-        cleanup_btn = QPushButton("清理旧工作目录")
-        cleanup_btn.clicked.connect(self.cleanup_old_workspaces)
-        config_layout.addRow(cleanup_btn)
-        
-        layout.addWidget(config_group, 1)
+
+        layout.addWidget(config_widget, 1)
         
         return widget
     
@@ -757,6 +956,7 @@ class MultiDeviceUI(QMainWindow):
             self.device_table.remove_device_action = self.remove_selected_device
             self.device_table.remove_single_device = self.remove_single_device
             self.device_table.show_device_info = self.show_device_info
+            self.device_table.get_device_mac = self.get_device_mac
         
         # 连接UI更新信号到槽函数（确保在主线程中执行）
         self.device_status_update_signal.connect(self.update_device_ui)
@@ -766,80 +966,158 @@ class MultiDeviceUI(QMainWindow):
         """获取样式表"""
         return """
         QMainWindow {
-            background-color: #f5f5f5;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #f8f9fa, stop: 1 #e9ecef);
         }
-        
+
         QGroupBox {
             font-weight: bold;
-            border: 2px solid #cccccc;
-            border-radius: 8px;
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
             margin-top: 1ex;
-            padding-top: 10px;
-            background-color: white;
+            padding-top: 15px;
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #ffffff, stop: 1 #f8f9fa);
         }
-        
+
         QGroupBox::title {
             subcontrol-origin: margin;
-            left: 10px;
-            padding: 0 8px 0 8px;
-            color: #2c3e50;
+            left: 15px;
+            padding: 0 10px 0 10px;
+            color: #495057;
             font-size: 14px;
-        }
-        
-        QPushButton {
-            background-color: #3498db;
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            text-align: center;
-            font-size: 12px;
-            margin: 2px 1px;
-            border-radius: 6px;
             font-weight: bold;
         }
-        
-        QPushButton:hover {
-            background-color: #2980b9;
-        }
-        
-        QPushButton:pressed {
-            background-color: #21618c;
-        }
-        
-        QPushButton:disabled {
-            background-color: #bdc3c7;
-            color: #7f8c8d;
-        }
-        
-        QTableWidget {
-            gridline-color: #e0e0e0;
-            background-color: white;
-            alternate-background-color: #f9f9f9;
-        }
-        
-        QTableWidget::item {
-            padding: 8px;
-        }
-        
-        QTableWidget::item:selected {
-            background-color: #3498db;
+
+        QPushButton {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #4dabf7, stop: 1 #339af0);
+            border: none;
             color: white;
+            padding: 10px 18px;
+            text-align: center;
+            font-size: 12px;
+            margin: 3px 2px;
+            border-radius: 8px;
+            font-weight: bold;
+            min-width: 80px;
         }
-        
+
+        QPushButton:hover {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #339af0, stop: 1 #228be6);
+        }
+
+        QPushButton:pressed {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #228be6, stop: 1 #1c7ed6);
+        }
+
+        QPushButton:disabled {
+            background: #adb5bd;
+            color: #6c757d;
+        }
+
+        QTableWidget {
+            gridline-color: #dee2e6;
+            background-color: white;
+            alternate-background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            selection-background-color: #e3f2fd;
+        }
+
+        QTableWidget::item {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        QTableWidget::item:selected {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #e3f2fd, stop: 1 #bbdefb);
+            color: #1565c0;
+        }
+
+        QTableWidget QHeaderView::section {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #f1f3f4, stop: 1 #e8eaed);
+            padding: 8px;
+            border: none;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: bold;
+            color: #495057;
+        }
+
         QComboBox, QLineEdit, QSpinBox {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            padding: 6px;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            padding: 8px 12px;
             font-size: 12px;
             background-color: white;
+            selection-background-color: #e3f2fd;
         }
-        
+
+        QComboBox:focus, QLineEdit:focus, QSpinBox:focus {
+            border-color: #4dabf7;
+            outline: none;
+        }
+
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #6c757d;
+        }
+
         QTextEdit {
-            border: 2px solid #bdc3c7;
-            border-radius: 6px;
-            padding: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             background-color: #f8f9fa;
+            selection-background-color: #e3f2fd;
+        }
+
+        QCheckBox {
+            spacing: 8px;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid #ced4da;
+            background-color: white;
+        }
+
+        QCheckBox::indicator:checked {
+            background-color: #4dabf7;
+            border-color: #339af0;
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOSIgdmlld0JveD0iMCAwIDEyIDkiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDQuNUw0LjUgOEwxMSAxIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K);
+        }
+
+        QProgressBar {
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            text-align: center;
+            background-color: #e9ecef;
+        }
+
+        QProgressBar::chunk {
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #51cf66, stop: 1 #40c057);
+            border-radius: 6px;
+        }
+
+        QLabel {
+            color: #495057;
         }
         """
     
@@ -1165,7 +1443,7 @@ class MultiDeviceUI(QMainWindow):
             
             for option in retry_options:
                 action = QAction(option["label"], self)
-                action.triggered.connect(lambda checked, opt=option: self.retry_device_smart(device_id, opt))
+                action.triggered.connect(lambda _, opt=option: self.retry_device_smart(device_id, opt))
                 menu.addAction(action)
             
             # 添加分隔符和错误详情选项
@@ -1222,13 +1500,70 @@ class MultiDeviceUI(QMainWindow):
             if not device:
                 QMessageBox.warning(self, "警告", f"设备 {device_id} 不存在")
                 return
-            
+
             dialog = DeviceInfoDialog(device, self)
             dialog.exec()
-            
+
         except Exception as e:
             logger.error(f"显示设备信息失败: {e}")
             QMessageBox.critical(self, "错误", f"显示设备信息失败: {e}")
+
+    def get_device_mac(self, device_id: str):
+        """获取单个设备的MAC地址"""
+        try:
+            device = self.device_manager.get_device(device_id)
+            if not device:
+                QMessageBox.warning(self, "警告", f"设备 {device_id} 不存在")
+                return
+
+            # 检查设备是否正在处理中
+            if device.is_active():
+                QMessageBox.information(self, "提示", f"设备 {device_id} 正在处理中，无法单独获取MAC地址")
+                return
+
+            # 检查端口是否可用
+            if not device.port:
+                QMessageBox.warning(self, "警告", f"设备 {device_id} 端口信息不完整")
+                return
+
+            # 确认对话框
+            reply = QMessageBox.question(
+                self, "确认获取MAC",
+                f"确定要获取设备 {device_id} (端口: {device.port}) 的MAC地址吗？",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+            )
+
+            if reply != QMessageBox.Yes:
+                return
+
+            # 开始获取MAC地址
+            self.log_message(f"开始获取设备 {device_id} 的MAC地址...")
+
+            # 调用设备管理器的MAC获取方法
+            success = self.device_manager.get_device_mac_only(device_id)
+
+            if success:
+                # 更新设备表格显示
+                if self.device_table:
+                    self.device_table.update_device(device)
+
+                QMessageBox.information(
+                    self, "获取成功",
+                    f"设备 {device_id} 的MAC地址获取成功！\n\n"
+                    f"MAC地址: {device.mac_address}"
+                )
+                self.log_message(f"设备 {device_id} MAC地址获取成功: {device.mac_address}")
+            else:
+                QMessageBox.critical(
+                    self, "获取失败",
+                    f"设备 {device_id} 的MAC地址获取失败！\n\n"
+                    f"错误信息: {device.error_message or '未知错误'}"
+                )
+                self.log_message(f"设备 {device_id} MAC地址获取失败: {device.error_message}")
+
+        except Exception as e:
+            logger.error(f"获取设备MAC地址失败: {e}")
+            QMessageBox.critical(self, "错误", f"获取设备MAC地址失败: {e}")
     
     # 回调方法（在后台线程中调用，发送信号到主线程）
     def on_device_status_changed(self, device: DeviceInstance, old_status: DeviceStatus, new_status: DeviceStatus):
@@ -1241,12 +1576,12 @@ class MultiDeviceUI(QMainWindow):
         """设备进度变化回调"""
         # 发送信号到主线程进行UI更新
         self.device_status_update_signal.emit(device)
-    
+
     def on_device_log(self, device: DeviceInstance, message: str, level: int):
         """设备日志回调"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         formatted_message = f"[{timestamp}] {message}"
-        
+
         # 发送信号到主线程进行UI更新
         self.device_log_signal.emit(formatted_message)
     
@@ -1305,18 +1640,30 @@ class MultiDeviceUI(QMainWindow):
         try:
             # 控制固件路径选择的显示
             self.nvs_mode_widget.setVisible(enabled)
-            
+
             # 更新设备管理器的模式
             if hasattr(self, 'device_manager'):
                 self.device_manager.set_nvs_direct_mode(enabled)
                 self.log_message(f"NVS直写模式: {'启用' if enabled else '禁用'}")
-                
+
                 # 如果启用且有固件路径，则设置到设备管理器
                 if enabled and self.firmware_path_edit.text():
                     self.device_manager.set_universal_firmware_path(self.firmware_path_edit.text())
-                    
+
         except Exception as e:
             logger.error(f"切换NVS模式失败: {e}")
+
+    @Slot(bool)
+    def on_erase_option_changed(self, enabled):
+        """擦除选项切换"""
+        try:
+            # 更新设备管理器的擦除选项
+            if hasattr(self, 'device_manager'):
+                self.device_manager.set_erase_before_flash(enabled)
+                self.log_message(f"烧录前擦除: {'启用' if enabled else '禁用'}")
+
+        except Exception as e:
+            logger.error(f"切换擦除选项失败: {e}")
     
     @Slot()
     def browse_firmware_path(self):
@@ -1337,260 +1684,15 @@ class MultiDeviceUI(QMainWindow):
             logger.error(f"浏览固件文件失败: {e}")
             QMessageBox.critical(self, "错误", f"浏览固件文件失败: {e}")
     
-    @Slot()
-    def compile_universal_firmware(self):
-        """编译通用固件"""
-        try:
-            from PySide6.QtWidgets import QMessageBox, QProgressDialog
-            
-            # 确认对话框
-            reply = QMessageBox.question(
-                self, "确认编译", 
-                "确定要编译通用固件吗？\n\n"
-                "这将创建一个不包含CLIENT_ID的固件，可用于NVS直写模式。\n"
-                "编译过程可能需要几分钟时间。",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            
-            if reply != QMessageBox.Yes:
-                return
-            
-            # 创建进度对话框
-            self.compile_progress_dialog = QProgressDialog("正在编译通用固件...", "取消", 0, 0, self)
-            self.compile_progress_dialog.setWindowModality(Qt.WindowModal)
-            self.compile_progress_dialog.setMinimumDuration(0)
-            self.compile_progress_dialog.show()
-            
-            # 创建编译线程
-            self.compile_thread = FirmwareCompileThread(self.idf_path, self)
-            
-            # 连接信号
-            self.compile_thread.progress_updated.connect(self.on_compile_progress)
-            self.compile_thread.compile_finished.connect(self.on_compile_finished)
-            self.compile_progress_dialog.canceled.connect(self.on_compile_canceled)
-            
-            # 启动编译线程
-            self.log_message("开始编译通用固件...")
-            self.compile_thread.start()
-            
-        except Exception as e:
-            logger.error(f"启动编译通用固件失败: {e}")
-            QMessageBox.critical(self, "错误", f"启动编译失败: {e}")
+    # 移除了编译通用固件方法
     
-    @Slot(str)
-    def on_compile_progress(self, message):
-        """编译进度更新"""
-        self.log_message(message)
-        if hasattr(self, 'compile_progress_dialog'):
-            # 提取有意义的进度信息
-            if "[" in message and "]" in message:
-                # 提取编译进度信息，如 [1234/1961]
-                progress_info = message.split("]")[0] + "]"
-                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n{progress_info}\n\n当前：{message[:80]}...")
-            elif "Generating" in message or "Building" in message or "Linking" in message:
-                # 显示关键步骤
-                short_message = message[:60] + "..." if len(message) > 60 else message
-                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{short_message}")
-            elif len(message) > 100:
-                # 长消息只显示前面部分
-                short_message = message[:80] + "..."
-                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{short_message}")
-            else:
-                self.compile_progress_dialog.setLabelText(f"正在编译通用固件...\n\n{message}")
-            
-            # 保持对话框在前台
-            if not self.compile_progress_dialog.wasCanceled():
-                self.compile_progress_dialog.activateWindow()
+    # 移除了编译进度更新方法
     
-    @Slot(bool, str)
-    def on_compile_finished(self, success, result_message):
-        """编译完成处理"""
-        try:
-            # 关闭进度对话框
-            if hasattr(self, 'compile_progress_dialog'):
-                self.compile_progress_dialog.close()
-                delattr(self, 'compile_progress_dialog')
-            
-            # 清理线程
-            if hasattr(self, 'compile_thread'):
-                self.compile_thread.deleteLater()
-                delattr(self, 'compile_thread')
-            
-            if success:
-                # 查找编译后的固件文件
-                firmware_path = self.find_compiled_firmware()
-                if firmware_path:
-                    # 尝试创建合并固件
-                    merged_firmware_path = self.create_merged_firmware(firmware_path)
-                    if merged_firmware_path:
-                        self.firmware_path_edit.setText(merged_firmware_path)
-                        self.device_manager.set_universal_firmware_path(merged_firmware_path)
-                        QMessageBox.information(
-                            self, "编译成功", 
-                            f"通用固件编译成功！\n\n"
-                            f"合并固件路径: {merged_firmware_path}\n\n"
-                            "已自动设置为通用固件路径。"
-                        )
-                        self.log_message(f"通用合并固件创建成功: {merged_firmware_path}")
-                    else:
-                        # 回退到原始固件
-                        self.firmware_path_edit.setText(firmware_path)
-                        self.device_manager.set_universal_firmware_path(firmware_path)
-                        QMessageBox.information(
-                            self, "编译成功", 
-                            f"通用固件编译成功！\n\n"
-                            f"固件路径: {firmware_path}\n\n"
-                            "已自动设置为通用固件路径。\n"
-                            "注意：将使用分区烧录模式。"
-                        )
-                        self.log_message(f"通用固件编译成功: {firmware_path}")
-                else:
-                    QMessageBox.warning(
-                        self, "编译成功", 
-                        "固件编译成功，但无法自动找到固件文件。\n请手动选择生成的固件文件。"
-                    )
-                    self.log_message("通用固件编译成功，但需要手动选择固件文件")
-            else:
-                QMessageBox.critical(self, "编译失败", f"通用固件编译失败：\n{result_message}")
-                self.log_message(f"通用固件编译失败: {result_message}")
-                
-        except Exception as e:
-            logger.error(f"处理编译结果失败: {e}")
-            QMessageBox.critical(self, "错误", f"处理编译结果失败: {e}")
+    # 移除了编译完成和取消处理方法
     
-    @Slot()
-    def on_compile_canceled(self):
-        """编译取消处理"""
-        try:
-            if hasattr(self, 'compile_thread'):
-                self.compile_thread.cancel()
-                self.log_message("用户取消了编译操作")
-        except Exception as e:
-            logger.error(f"取消编译失败: {e}")
+    # 移除了查找编译固件方法
     
-    def find_compiled_firmware(self) -> Optional[str]:
-        """查找编译后的固件文件"""
-        try:
-            # 优先查找主固件文件（按优先级排序）
-            priority_patterns = [
-                "build/xiaozhi.bin",           # 项目主固件
-                "build/xiaozhi-esp32.bin",     # 备用名称
-                "build/firmware.bin",          # 通用名称
-                "build/app.bin"                # 应用固件
-            ]
-            
-            # 首先检查优先级文件
-            for path in priority_patterns:
-                if os.path.exists(path):
-                    return os.path.abspath(path)
-            
-            # 在build目录下搜索主固件文件
-            build_dir = "build"
-            if os.path.exists(build_dir):
-                # 排除的文件（不是主固件）
-                excluded_files = [
-                    'bootloader.bin', 
-                    'partition-table.bin',
-                    'ota_data_initial.bin',     # 排除OTA数据文件
-                    'srmodels.bin'              # 排除语音模型文件
-                ]
-                
-                # 优先查找根目录下的.bin文件
-                main_files = []
-                for file in os.listdir(build_dir):
-                    if (file.endswith('.bin') and 
-                        file not in excluded_files and
-                        os.path.isfile(os.path.join(build_dir, file))):
-                        main_files.append(os.path.join(build_dir, file))
-                
-                # 按文件大小排序，主固件通常较大
-                if main_files:
-                    main_files.sort(key=lambda x: os.path.getsize(x), reverse=True)
-                    return os.path.abspath(main_files[0])
-                
-                # 如果没找到，递归搜索子目录
-                for root, dirs, files in os.walk(build_dir):
-                    for file in files:
-                        if (file.endswith('.bin') and 
-                            file not in excluded_files and
-                            'bootloader' not in root and
-                            'partition' not in root):
-                            return os.path.abspath(os.path.join(root, file))
-            
-            return None
-        except Exception as e:
-            logger.error(f"查找编译固件失败: {e}")
-            return None
-    
-    def create_merged_firmware(self, main_firmware_path: str) -> Optional[str]:
-        """创建合并固件文件"""
-        try:
-            firmware_dir = os.path.dirname(main_firmware_path)
-            
-            # 查找所需的分区文件
-            bootloader_path = os.path.join(firmware_dir, "bootloader", "bootloader.bin")
-            partition_table_path = os.path.join(firmware_dir, "partition_table", "partition-table.bin")
-            ota_data_path = os.path.join(firmware_dir, "ota_data_initial.bin")
-            srmodels_path = os.path.join(firmware_dir, "srmodels", "srmodels.bin")
-            
-            # 检查必要文件是否存在
-            if not all(os.path.exists(p) for p in [bootloader_path, partition_table_path, ota_data_path]):
-                self.log_message("缺少必要的分区文件，无法创建合并固件")
-                return None
-            
-            # 使用esptool合并固件
-            try:
-                import esptool
-            except ImportError:
-                self.log_message("缺少esptool依赖，无法创建合并固件")
-                return None
-            
-            # 合并固件输出路径
-            merged_path = os.path.join(firmware_dir, "merged_firmware.bin")
-            
-            # 合并命令
-            merge_cmd = [
-                '--chip', 'esp32s3',
-                'merge_bin',
-                '-o', merged_path,
-                '--flash_mode', 'dio',
-                '--flash_freq', '80m',
-                '--flash_size', '16MB',
-                '0x0', bootloader_path,
-                '0x8000', partition_table_path,
-                '0xd000', ota_data_path
-            ]
-            
-            # 添加语音模型和主固件
-            if os.path.exists(srmodels_path):
-                merge_cmd.extend(['0x10000', srmodels_path])
-                merge_cmd.extend(['0x400000', main_firmware_path])
-            else:
-                merge_cmd.extend(['0x10000', main_firmware_path])
-            
-            self.log_message(f"创建合并固件: esptool.py {' '.join(merge_cmd)}")
-            
-            # 执行合并
-            try:
-                esptool.main(merge_cmd)
-                if os.path.exists(merged_path):
-                    self.log_message(f"合并固件创建成功: {merged_path}")
-                    return merged_path
-                else:
-                    self.log_message("合并固件创建失败：输出文件不存在")
-                    return None
-            except SystemExit as e:
-                if e.code == 0 and os.path.exists(merged_path):
-                    self.log_message(f"合并固件创建成功: {merged_path}")
-                    return merged_path
-                else:
-                    self.log_message(f"合并固件创建失败，退出代码: {e.code}")
-                    return None
-                    
-        except Exception as e:
-            logger.error(f"创建合并固件失败: {e}")
-            self.log_message(f"创建合并固件异常: {e}")
-            return None
+    # 移除了创建合并固件方法
     
     @Slot()
     def clear_log(self):
@@ -1692,35 +1794,22 @@ class MultiDeviceUI(QMainWindow):
         """窗口关闭事件"""
         try:
             self.log_message("正在关闭应用程序...")
-            
-            # 取消正在进行的编译操作
-            if hasattr(self, 'compile_thread') and self.compile_thread and self.compile_thread.isRunning():
-                self.log_message("正在取消编译操作...")
-                self.compile_thread.cancel()
-                self.compile_thread.wait(3000)  # 等待最多3秒
-                if self.compile_thread.isRunning():
-                    self.compile_thread.terminate()
-                    self.compile_thread.wait(1000)
-            
-            # 清理编译相关资源
-            if hasattr(self, 'compile_progress_dialog'):
-                self.compile_progress_dialog.close()
-            
+
             # 停止统计定时器
             if hasattr(self, 'stats_timer') and self.stats_timer:
                 self.stats_timer.stop()
-            
+
             # 停止所有处理
             self.device_manager.stop_all_processing()
-            
+
             # 等待完成
             self.device_manager.wait_for_completion(timeout=5)
-            
+
             # 清理资源
             self.device_manager.cleanup()
-            
+
             event.accept()
-            
+
         except Exception as e:
             logger.error(f"关闭应用程序时发生错误: {e}")
             event.accept()
@@ -2034,7 +2123,7 @@ class ErrorDetailsDialog(QDialog):
             retry_options = self.error_details.get("retry_options", [])
             for option in retry_options:
                 btn = QPushButton(option["label"])
-                btn.clicked.connect(lambda checked, opt=option: self.perform_retry(opt))
+                btn.clicked.connect(lambda _, opt=option: self.perform_retry(opt))
                 if option["action"] == "retry_current":
                     btn.setStyleSheet("QPushButton { background-color: #e67e22; color: white; font-weight: bold; }")
                 elif option["action"] == "retry_full":
@@ -2263,7 +2352,7 @@ def run_multi_device_ui():
     
     # 创建并显示主窗口
     window = MultiDeviceUI()
-    window.show()
+    window.showMaximized()  # 默认全屏启动
     
     return app.exec()
 
