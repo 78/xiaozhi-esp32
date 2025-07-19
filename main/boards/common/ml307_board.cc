@@ -24,7 +24,7 @@ void Ml307Board::StartNetwork() {
     display->SetStatus(Lang::Strings::DETECTING_MODULE);
 
     while (true) {
-        modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, 460800);
+        modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, 921600);
         if (modem_ != nullptr) {
             break;
         }

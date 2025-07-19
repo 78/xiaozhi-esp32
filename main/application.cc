@@ -115,18 +115,28 @@ void Application::CheckNewVersion(Ota& ota) {
             audio_service_.Stop();
             vTaskDelay(pdMS_TO_TICKS(1000));
 
-            ota.StartUpgrade([display](int progress, size_t speed) {
+            bool upgrade_success = ota.StartUpgrade([display](int progress, size_t speed) {
                 char buffer[64];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
                 display->SetChatMessage("system", buffer);
             });
 
-            // If upgrade success, the device will reboot and never reach here
-            display->SetStatus(Lang::Strings::UPGRADE_FAILED);
-            ESP_LOGI(TAG, "Firmware upgrade failed...");
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            Reboot();
-            return;
+            if (!upgrade_success) {
+                // Upgrade failed, restart audio service and continue running
+                ESP_LOGE(TAG, "Firmware upgrade failed, restarting audio service and continuing operation...");
+                audio_service_.Start(); // Restart audio service
+                board.SetPowerSaveMode(true); // Restore power save mode
+                Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "sad", Lang::Sounds::P3_EXCLAMATION);
+                vTaskDelay(pdMS_TO_TICKS(3000));
+                // Continue to normal operation (don't break, just fall through)
+            } else {
+                // Upgrade success, reboot immediately
+                ESP_LOGI(TAG, "Firmware upgrade successful, rebooting...");
+                display->SetChatMessage("system", "Upgrade successful, rebooting...");
+                vTaskDelay(pdMS_TO_TICKS(1000)); // Brief pause to show message
+                Reboot();
+                return; // This line will never be reached after reboot
+            }
         }
 
         // No new version, mark the current version as valid
