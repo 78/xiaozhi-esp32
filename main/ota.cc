@@ -49,7 +49,7 @@ std::string Ota::GetCheckVersionUrl() {
     return url;
 }
 
-Http* Ota::SetupHttp() {
+std::unique_ptr<Http> Ota::SetupHttp() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
@@ -85,7 +85,7 @@ bool Ota::CheckVersion() {
         return false;
     }
 
-    auto http = std::unique_ptr<Http>(SetupHttp());
+    auto http = SetupHttp();
 
     std::string data = board.GetJson();
     std::string method = data.length() > 0 ? "POST" : "GET";
@@ -274,7 +274,7 @@ bool Ota::Upgrade(const std::string& firmware_url) {
     std::string image_header;
 
     auto network = Board::GetInstance().GetNetwork();
-    auto http = std::unique_ptr<Http>(network->CreateHttp(0));
+    auto http = network->CreateHttp(0);
     if (!http->Open("GET", firmware_url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         return false;
@@ -452,7 +452,7 @@ esp_err_t Ota::Activate() {
         url += "activate";
     }
 
-    auto http = std::unique_ptr<Http>(SetupHttp());
+    auto http = SetupHttp();
 
     std::string data = GetActivationPayload();
     http->SetContent(std::move(data));

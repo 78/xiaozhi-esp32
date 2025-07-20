@@ -17,9 +17,6 @@ WebsocketProtocol::WebsocketProtocol() {
 }
 
 WebsocketProtocol::~WebsocketProtocol() {
-    if (websocket_ != nullptr) {
-        delete websocket_;
-    }
     vEventGroupDelete(event_group_handle_);
 }
 
@@ -79,17 +76,10 @@ bool WebsocketProtocol::IsAudioChannelOpened() const {
 }
 
 void WebsocketProtocol::CloseAudioChannel() {
-    if (websocket_ != nullptr) {
-        delete websocket_;
-        websocket_ = nullptr;
-    }
+    websocket_.reset();
 }
 
 bool WebsocketProtocol::OpenAudioChannel() {
-    if (websocket_ != nullptr) {
-        delete websocket_;
-    }
-
     Settings settings("websocket", false);
     std::string url = settings.GetString("url");
     std::string token = settings.GetString("token");
@@ -102,6 +92,10 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     auto network = Board::GetInstance().GetNetwork();
     websocket_ = network->CreateWebSocket(1);
+    if (websocket_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to create websocket");
+        return false;
+    }
 
     if (!token.empty()) {
         // If token not has a space, add "Bearer " prefix

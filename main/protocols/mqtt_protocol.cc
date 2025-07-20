@@ -16,12 +16,6 @@ MqttProtocol::MqttProtocol() {
 
 MqttProtocol::~MqttProtocol() {
     ESP_LOGI(TAG, "MqttProtocol deinit");
-    if (udp_ != nullptr) {
-        delete udp_;
-    }
-    if (mqtt_ != nullptr) {
-        delete mqtt_;
-    }
     vEventGroupDelete(event_group_handle_);
 }
 
@@ -32,7 +26,7 @@ bool MqttProtocol::Start() {
 bool MqttProtocol::StartMqttClient(bool report_error) {
     if (mqtt_ != nullptr) {
         ESP_LOGW(TAG, "Mqtt client already started");
-        delete mqtt_;
+        mqtt_.reset();
     }
 
     Settings settings("mqtt", false);
@@ -150,10 +144,7 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
 void MqttProtocol::CloseAudioChannel() {
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
-        if (udp_ != nullptr) {
-            delete udp_;
-            udp_ = nullptr;
-        }
+        udp_.reset();
     }
 
     std::string message = "{";
@@ -193,10 +184,6 @@ bool MqttProtocol::OpenAudioChannel() {
     }
 
     std::lock_guard<std::mutex> lock(channel_mutex_);
-    if (udp_ != nullptr) {
-        delete udp_;
-    }
-
     auto network = Board::GetInstance().GetNetwork();
     udp_ = network->CreateUdp(2);
     udp_->OnMessage([this](const std::string& data) {

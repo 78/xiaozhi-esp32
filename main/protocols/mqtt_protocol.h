@@ -37,8 +37,8 @@ private:
     std::string publish_topic_;
 
     std::mutex channel_mutex_;
-    Mqtt* mqtt_ = nullptr;
-    Udp* udp_ = nullptr;
+    std::unique_ptr<Mqtt> mqtt_;
+    std::unique_ptr<Udp> udp_;
     mbedtls_aes_context aes_ctx_;
     std::string aes_nonce_;
     std::string udp_server_;
