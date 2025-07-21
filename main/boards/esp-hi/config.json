@@ -28,7 +28,6 @@
                 "CONFIG_MMAP_FILE_NAME_LENGTH=25",
                 "CONFIG_ESP_CONSOLE_NONE=y",
                 "CONFIG_USE_ESP_WAKE_WORD=y",
-                "CONFIG_IOT_PROTOCOL_MCP=y",
                 "CONFIG_COMPILER_OPTIMIZATION_SIZE=y"
             ]
         }
