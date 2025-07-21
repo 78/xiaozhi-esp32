@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "es8388_audio_codec.h"
+#include "codecs/es8388_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "esp32_camera.h"
 
@@ -144,13 +143,6 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
     // 初始化摄像头：ov2640；
     // 根据正点原子官方示例参数
     void InitializeCamera() {
@@ -214,7 +206,6 @@ public:
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeIot();
         InitializeCamera();
     }
 

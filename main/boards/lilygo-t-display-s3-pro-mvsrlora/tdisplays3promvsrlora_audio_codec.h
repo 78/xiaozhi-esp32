@@ -1,7 +1,7 @@
 #ifndef _TDISPLAYS3PROMVSRLORA_AUDIO_CODEC_H
 #define _TDISPLAYS3PROMVSRLORA_AUDIO_CODEC_H
 
-#include "audio_codecs/audio_codec.h"
+#include "audio_codec.h"
 
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>

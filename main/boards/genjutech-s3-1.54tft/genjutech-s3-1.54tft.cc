@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <esp_log.h>
@@ -219,14 +218,6 @@ private:
                             });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
     GenJuTech_s3_1_54TFT() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -238,8 +229,7 @@ public:
         InitializeCodecI2c();
         InitializeSpi();
         InitializeButtons();
-        InitializeSt7789Display();  
-        InitializeIot();
+        InitializeSt7789Display();
         GetBacklight()->RestoreBrightness();
     }
     
