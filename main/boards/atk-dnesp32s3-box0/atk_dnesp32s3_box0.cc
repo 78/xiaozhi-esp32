@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "power_manager.h"
@@ -336,14 +335,6 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
     atk_dnesp32s3_box0() :
         right_button_(R_BUTTON_GPIO, false),
@@ -356,7 +347,6 @@ public:
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

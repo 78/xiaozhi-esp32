@@ -6,7 +6,6 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -231,11 +230,6 @@ public:
         InitSpi();
         InitGc9d01nDisplay();
         InitializeButtons();
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-#endif       
         GetBacklight()->RestoreBrightness();
     }
 
