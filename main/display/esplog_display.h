@@ -18,7 +18,7 @@ public:
     virtual void SetIcon(const char* icon) override;
     virtual inline void SetPreviewImage(const lv_img_dsc_t* image) override {}
     virtual inline void SetTheme(const std::string& theme_name) override {}
-    virtual inline void UpdateStatusBAR(bool update_all = false) override {}
+    virtual inline void UpdateStatusBar(bool update_all = false) override {}
 
 protected:
     virtual inline bool Lock(int timeout_ms = 0) override { return true; } 

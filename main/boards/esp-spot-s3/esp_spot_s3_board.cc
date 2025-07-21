@@ -1,9 +1,8 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "sdkconfig.h"
 
 #include <wifi_station.h>
@@ -162,13 +161,6 @@ private:
         gpio_config(&io_conf_2);
     }
 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
-
     void BlinkGreenFor5s() {
         auto* led = static_cast<CircularStrip*>(GetLed());
         if (!led) {
@@ -201,7 +193,6 @@ public:
         InitializeADC();
         InitializeI2c();
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual Led* GetLed() override {

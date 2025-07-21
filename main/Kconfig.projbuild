@@ -46,6 +46,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
         bool "面包板（WiFi+ LCD） ESP32 DevKit"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_XMINI_C3_V3
+        bool "虾哥 Mini C3 V3"
+        depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_XMINI_C3_4G
+        bool "虾哥 Mini C3 4G"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3
         bool "虾哥 Mini C3"
         depends on IDF_TARGET_ESP32C3
@@ -156,6 +162,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32C6_LCD_1_69
         bool "Waveshare ESP32-C6-LCD-1.69"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_ESP32C6_Touch_AMOLED_1_43
+        bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
@@ -277,6 +286,16 @@ choice BOARD_TYPE
         select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
+    config BOARD_TYPE_LABPLUS_MPYTHON_V3
+        bool "labplus mpython_v3 board"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LABPLUS_LEDONG_V2
+        bool "labplus ledong_v2 board"
+        depends on IDF_TARGET_ESP32S3
+    depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_SURFER_C3_1_14TFT
+        bool "Surfer-C3-1-14TFT"
+        depends on IDF_TARGET_ESP32C3
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
@@ -385,6 +404,28 @@ config USE_AFE_WAKE_WORD
     help
         需要 ESP32 S3 与 PSRAM 支持
 
+config USE_CUSTOM_WAKE_WORD
+    bool "Enable Custom Wake Word Detection"
+    default n
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
+    help
+        需要 ESP32 S3 与 PSRAM 支持
+        
+config CUSTOM_WAKE_WORD
+    string "Custom Wake Word"
+    default "ni hao xiao zhi"
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        自定义唤醒词，用汉语拼音表示
+
+config CUSTOM_WAKE_WORD_DISPLAY
+    string "Custom Wake Word Display"
+    default "你好小智"
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        自定义唤醒词对应问候语 
+               
+        
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
@@ -425,15 +466,22 @@ config AUDIO_DEBUG_UDP_SERVER
     help
         UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
 
-choice IOT_PROTOCOL
-    prompt "IoT Protocol"
-    default IOT_PROTOCOL_MCP
+config RECEIVE_CUSTOM_MESSAGE
+    bool "Enable Custom Message Reception"
+    default n
     help
-        IoT 协议，用于获取设备状态与发送控制指令
-    config IOT_PROTOCOL_MCP
-        bool "MCP 2024-11-05"
-    config IOT_PROTOCOL_XIAOZHI
-        bool "Xiaozhi IoT 1.0 (Deprecated)"
+        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+
+choice I2S_TYPE_TAIJIPI_S3
+    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    prompt "taiji-pi-S3 I2S Type"
+    default TAIJIPAI_I2S_TYPE_STD
+    help
+        I2S 类型选择
+    config TAIJIPAI_I2S_TYPE_STD
+        bool "I2S Type STD"
+    config TAIJIPAI_I2S_TYPE_PDM
+        bool "I2S Type PDM"
 endchoice
 
 endmenu
