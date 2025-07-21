@@ -1,10 +1,9 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "i2c_device.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -604,12 +603,6 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
     void InitializeMute() {
         gpio_reset_pin(AUDIO_MUTE_PIN);
         /* Set the GPIO as a push/pull output */
@@ -623,7 +616,6 @@ public:
         InitializeCst816sTouchPad();
         InitializeSpi();
         Initializest77916Display();
-        InitializeIot();
         InitializeMute();
         GetBacklight()->RestoreBrightness();
     }

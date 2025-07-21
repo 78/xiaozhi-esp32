@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "../xingzhi-cube-1.54tft-wifi/power_manager.h"
@@ -190,13 +189,6 @@ private:
         });
     }
 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
     void Initializegpio21_45() {
         rtc_gpio_init(GPIO_NUM_21);
         rtc_gpio_set_direction(GPIO_NUM_21, RTC_GPIO_MODE_OUTPUT_ONLY);
@@ -223,8 +215,7 @@ public:
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeButtons();
-        InitializeNv3023Display();  
-        InitializeIot();
+        InitializeNv3023Display();
         GetBacklight()->RestoreBrightness();
     }
 

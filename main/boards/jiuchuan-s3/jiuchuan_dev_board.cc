@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -132,14 +131,9 @@ private:
     }
 
     void InitializeButtons() {
-        auto& powerCtrl = PowerController::Instance();
-        powerCtrl.SetState(PowerController::PowerState::ACTIVE);  // 确保初始状态为ACTIVE
-        
         // 配置GPIO
         ESP_LOGI(TAG, "Configuring power button GPIO");
         GpioManager::Config(GPIO_NUM_3, GpioManager::GpioMode::INPUT_PULLDOWN);
-        GpioManager::Config(PWR_EN_GPIO, GpioManager::GpioMode::OUTPUT);
-        GpioManager::SetLevel(PWR_EN_GPIO, 1);  // 确保电源使能
 
         boot_button_.OnClick([this]() {
             ESP_LOGI(TAG, "Boot button clicked");
@@ -150,7 +144,7 @@ private:
         ESP_LOGI(TAG, "Power button initial state: %d", GpioManager::GetLevel(PWR_BUTTON_GPIO));
         
         // 高电平有效长按关机逻辑
-        pwr_button_.OnLongPress([&powerCtrl]() {
+        pwr_button_.OnLongPress([this]() {
             ESP_LOGI(TAG, "Power button long press detected (high-active)");
             
             // 高电平有效防抖确认
@@ -164,26 +158,20 @@ private:
                 }
                 vTaskDelay(100 / portTICK_PERIOD_MS);
             }
-            ESP_LOGI(TAG, "Confirmed power button pressed (level=1)");
             
             ESP_LOGI(TAG, "Confirmed power button pressed - initiating shutdown");
-            powerCtrl.SetState(PowerController::PowerState::SHUTDOWN);
-            
-            // 确保状态变更
-            if (powerCtrl.GetState() != PowerController::PowerState::SHUTDOWN) {
-                ESP_LOGE(TAG, "Failed to set shutdown state!");
-            }
+            power_manager_->SetPowerState(PowerState::SHUTDOWN);
         });
 
-        wifi_button.OnClick([this, &powerCtrl]() {
+        wifi_button.OnClick([this]() {
             ESP_LOGI(TAG, "Wifi button clicked");
             power_save_timer_->WakeUp();
             
-            if (powerCtrl.GetState() == PowerController::PowerState::ACTIVE) {
-                ESP_LOGI(TAG, "Resetting WiFi configuration");
-                GpioManager::SetLevel(PWR_EN_GPIO, 1);
-                ResetWifiConfiguration();
-            }
+
+            ESP_LOGI(TAG, "Resetting WiFi configuration");
+            GpioManager::SetLevel(PWR_EN_GPIO, 1);
+            ResetWifiConfiguration();
+
         });
 
         cmd_button.OnClick([this]() {
@@ -191,40 +179,6 @@ private:
             power_save_timer_->WakeUp();
             Application::GetInstance().ToggleChatState();
         });
-
-        // 配置电源状态变更回调（优化版）
-        powerCtrl.OnStateChange([this](PowerController::PowerState newState) {
-            switch(newState) {
-                case PowerController::PowerState::SHUTDOWN: {
-                    ESP_LOGI(TAG, "Entering shutdown sequence");
-                    
-                    // 统一唤醒触发条件
-                    #ifndef __USER_GPIO_PWRDOWN__
-                    ESP_LOGD(TAG, "Configuring high-level wakeup on GPIO%d", PWR_BUTTON_GPIO);
-                    ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup(PWR_BUTTON_GPIO, 1)); // 高电平唤醒
-                    #else
-                    ESP_LOGD(TAG, "Powering down via GPIO control");
-                    GpioManager::SetLevel(PWR_EN_GPIO, 0);
-                    #endif
-                    
-                    // 确保所有外设已关闭
-                    vTaskDelay(200 / portTICK_PERIOD_MS);
-                    ESP_LOGI(TAG, "Initiating deep sleep");
-                    
-                    // 最后状态确认(通过单例访问)
-                    if (PowerController::Instance().GetState() != PowerController::PowerState::SHUTDOWN) {
-                        ESP_LOGE(TAG, "State inconsistency! Forcing shutdown");
-                    }
-                    esp_deep_sleep_start();
-                    break;
-                }
-                    
-                default:
-                    ESP_LOGD(TAG, "State changed to %d", static_cast<int>(newState));
-                    break;
-            }
-        });
-
     }
 
     void InitializeGC9301isplay() {
@@ -277,25 +231,18 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
 public:
     JiuchuanDevBoard() :
-    boot_button_(BOOT_BUTTON_GPIO),
-    pwr_button_(PWR_BUTTON_GPIO,true),
-    wifi_button(WIFI_BUTTON_GPIO),
-    cmd_button(CMD_BUTTON_GPIO) { 
+        boot_button_(BOOT_BUTTON_GPIO),
+        pwr_button_(PWR_BUTTON_GPIO,true),
+        wifi_button(WIFI_BUTTON_GPIO),
+        cmd_button(CMD_BUTTON_GPIO) {
+
         InitializeI2c();
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeButtons();
         InitializeGC9301isplay();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
 
     }
