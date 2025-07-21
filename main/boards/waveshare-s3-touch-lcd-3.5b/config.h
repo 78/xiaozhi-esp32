@@ -1,0 +1,78 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+#include <driver/spi_master.h>
+#include "lvgl.h"
+
+#define AUDIO_INPUT_SAMPLE_RATE 24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_44
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_15
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_13
+#define AUDIO_I2S_GPIO_DIN GPIO_NUM_14
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_16
+
+#define AUDIO_CODEC_PA_PIN      GPIO_NUM_NC
+#define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_8
+#define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_7
+#define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR
+
+#define BUILTIN_LED_GPIO        GPIO_NUM_NC
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+
+#define DISPLAY_SPI_MODE        0
+#define DISPLAY_CS_PIN          GPIO_NUM_12
+#define DISPLAY_CLK_PIN         GPIO_NUM_5
+#define DISPLAY_DATA0_PIN       GPIO_NUM_1
+#define DISPLAY_DATA1_PIN       GPIO_NUM_2
+#define DISPLAY_DATA2_PIN       GPIO_NUM_3
+#define DISPLAY_DATA3_PIN       GPIO_NUM_4
+
+#define DISPLAY_RST_PIN         GPIO_NUM_NC
+
+
+
+#define DISPLAY_WIDTH           480
+#define DISPLAY_HEIGHT          320
+#define DISPLAY_TRANS_SIZE      (DISPLAY_WIDTH * 10)
+
+#define DISPLAY_MIRROR_X        false
+#define DISPLAY_MIRROR_Y        false
+#define DISPLAY_SWAP_XY         false
+#define DISPLAY_RGB_ORDER       LCD_RGB_ELEMENT_ORDER_RGB
+#define DISPLAY_INVERT_COLOR    false
+
+#define DISPLAY_OFFSET_X        0
+#define DISPLAY_OFFSET_Y        0
+
+#define LV_DISPLAY_ROTATION LV_DISPLAY_ROTATION_90
+
+#define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_6
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+#define PMIC_ENABLE 0
+#define TOUCH_ENABLE 1
+
+#define CAM_PIN_PWDN    GPIO_NUM_NC
+#define CAM_PIN_RESET   GPIO_NUM_NC
+#define CAM_PIN_VSYNC   GPIO_NUM_17
+#define CAM_PIN_HREF    GPIO_NUM_18
+#define CAM_PIN_PCLK    GPIO_NUM_41
+#define CAM_PIN_XCLK    GPIO_NUM_38
+#define CAM_PIN_SIOD    GPIO_NUM_NC
+#define CAM_PIN_SIOC    GPIO_NUM_NC
+#define CAM_PIN_D0      GPIO_NUM_45
+#define CAM_PIN_D1      GPIO_NUM_47
+#define CAM_PIN_D2      GPIO_NUM_48
+#define CAM_PIN_D3      GPIO_NUM_46
+#define CAM_PIN_D4      GPIO_NUM_42
+#define CAM_PIN_D5      GPIO_NUM_40
+#define CAM_PIN_D6      GPIO_NUM_39
+#define CAM_PIN_D7      GPIO_NUM_21
+
+
+#endif // _BOARD_CONFIG_H_

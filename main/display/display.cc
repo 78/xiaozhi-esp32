@@ -69,6 +69,8 @@ void Display::SetStatus(const char* status) {
     lv_label_set_text(status_label_, status);
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+
+    last_status_update_time_ = std::chrono::system_clock::now();
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
@@ -89,9 +91,11 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
 }
 
 void Display::UpdateStatusBar(bool update_all) {
+    auto& app = Application::GetInstance();
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
+    // Update mute icon
     {
         DisplayLockGuard lock(this);
         if (mute_label_ == nullptr) {
@@ -105,6 +109,23 @@ void Display::UpdateStatusBar(bool update_all) {
         } else if (codec->output_volume() > 0 && muted_) {
             muted_ = false;
             lv_label_set_text(mute_label_, "");
+        }
+    }
+
+    // Update time
+    if (app.GetDeviceState() == kDeviceStateIdle) {
+        if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
+            // Set status to clock "HH:MM"
+            time_t now = time(NULL);
+            struct tm* tm = localtime(&now);
+            // Check if the we have already set the time
+            if (tm->tm_year >= 2025 - 1900) {
+                char time_str[16];
+                strftime(time_str, sizeof(time_str), "%H:%M  ", tm);
+                SetStatus(time_str);
+            } else {
+                ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
+            }
         }
     }
 
@@ -137,7 +158,6 @@ void Display::UpdateStatusBar(bool update_all) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
                     lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    auto& app = Application::GetInstance();
                     app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
                 }
             } else {
@@ -247,4 +267,14 @@ void Display::SetTheme(const std::string& theme_name) {
     current_theme_name_ = theme_name;
     Settings settings("display", true);
     settings.SetString("theme", theme_name);
+}
+
+void Display::ShowStandbyScreen(bool show) {
+    if (show) {
+        SetChatMessage("system", "");
+        SetEmotion("sleepy");
+    } else {
+        SetChatMessage("system", "");
+        SetEmotion("neutral");
+    }
 }
