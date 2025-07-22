@@ -30,14 +30,14 @@ AfeWakeWord::~AfeWakeWord() {
     vEventGroupDelete(event_group_);
 }
 
-void AfeWakeWord::Initialize(AudioCodec* codec) {
+bool AfeWakeWord::Initialize(AudioCodec* codec) {
     codec_ = codec;
     int ref_num = codec_->input_reference() ? 1 : 0;
 
     srmodel_list_t *models = esp_srmodel_init("model");
     if (models == nullptr || models->num == -1) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
-        return;
+        return false;
     }
     for (int i = 0; i < models->num; i++) {
         ESP_LOGI(TAG, "Model %d: %s", i, models->model_name[i]);
@@ -75,6 +75,8 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
     }, "audio_detection", 4096, this, 3, nullptr);
+
+    return true;
 }
 
 void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
