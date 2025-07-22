@@ -2335,13 +2335,13 @@ private:
                     
                 case Application::AUDIO_STANDBY:
                     // 待机状态：降低帧率播放
-                    dynamicCycleInterval = pdMS_TO_TICKS(200); // 降到200ms
+                    dynamicCycleInterval = pdMS_TO_TICKS(150); // 降到200ms
                     shouldPauseCompletely = false;
                     break;
                     
                 case Application::AUDIO_ACTIVE:
                     // 活跃状态：大幅降低帧率
-                    dynamicCycleInterval = pdMS_TO_TICKS(300); // 300ms
+                    dynamicCycleInterval = pdMS_TO_TICKS(200); // 300ms
                     shouldPauseCompletely = false;
                     break;
                     
