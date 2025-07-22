@@ -5,6 +5,7 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/codecs/es8311_audio_codec.cc"
             "audio/codecs/es8374_audio_codec.cc"
             "audio/codecs/es8388_audio_codec.cc"
+            "audio/codecs/es8389_audio_codec.cc"
             "audio/codecs/dummy_audio_codec.cc"
             "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
@@ -151,6 +152,10 @@ elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
     set(BOARD_TYPE "atk-dnesp32s3-box0")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_WIFI)
+    set(BOARD_TYPE "atk-dnesp32s3-box2-wifi")
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_4G)
+    set(BOARD_TYPE "atk-dnesp32s3-box2-4g")   
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
     set(BOARD_TYPE "atk-dnesp32s3m-wifi")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
