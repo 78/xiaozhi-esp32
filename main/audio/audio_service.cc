@@ -468,7 +468,10 @@ void AudioService::EnableWakeWordDetection(bool enable) {
     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!wake_word_initialized_) {
-            wake_word_->Initialize(codec_);
+            if (!wake_word_->Initialize(codec_)) {
+                ESP_LOGE(TAG, "Failed to initialize wake word");
+                return;
+            }
             wake_word_initialized_ = true;
         }
         wake_word_->Start();

@@ -11,7 +11,7 @@ class WakeWord {
 public:
     virtual ~WakeWord() = default;
     
-    virtual void Initialize(AudioCodec* codec) = 0;
+    virtual bool Initialize(AudioCodec* codec) = 0;
     virtual void Feed(const std::vector<int16_t>& data) = 0;
     virtual void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) = 0;
     virtual void Start() = 0;

@@ -28,7 +28,7 @@ public:
     CustomWakeWord();
     ~CustomWakeWord();
 
-    void Initialize(AudioCodec* codec);
+    bool Initialize(AudioCodec* codec);
     void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
     void Start();
@@ -42,6 +42,11 @@ private:
     esp_afe_sr_iface_t* afe_iface_ = nullptr;
     esp_afe_sr_data_t* afe_data_ = nullptr;
     srmodel_list_t *models = nullptr;
+    
+    // multinet 相关成员变量
+    esp_mn_iface_t* multinet_ = nullptr;
+    model_iface_data_t* multinet_model_data_ = nullptr;
+    char* mn_name_ = nullptr;
  
     char* wakenet_model_ = NULL;
     std::vector<std::string> wake_words_;
