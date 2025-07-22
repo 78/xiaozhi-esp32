@@ -20,7 +20,7 @@
 #include <driver/spi_master.h>
 #include "settings.h"
 
-#include <esp_lcd_touch_cst9217.h>
+#include <esp_lcd_touch_ft5x06.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
@@ -46,14 +46,15 @@ public:
 
         // Set ALDO1 to 3.3V
         WriteReg(0x92, (3300 - 500) / 100);
+        WriteReg(0x93, (3300 - 500) / 100);
 
         // Enable ALDO1(MIC)
-        WriteReg(0x90, 0x01);
+        WriteReg(0x90, 0x03);
 
         WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
 
         WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
-        WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x62, 0x0A); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
         WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
     }
 };
@@ -64,21 +65,17 @@ public:
 
 static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     // set display to qspi mode
-    {0xFE, (uint8_t[]){0x20}, 1, 0},
-    {0x19, (uint8_t[]){0x10}, 1, 0},
-    {0x1C, (uint8_t[]){0xA0}, 1, 0},
-
-    {0xFE, (uint8_t[]){0x00}, 1, 0},
-    {0xC4, (uint8_t[]){0x80}, 1, 0},
-    {0x3A, (uint8_t[]){0x55}, 1, 0},
-    {0x35, (uint8_t[]){0x00}, 1, 0},
-    {0x53, (uint8_t[]){0x20}, 1, 0},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
-    {0x63, (uint8_t[]){0xFF}, 1, 0},
-    {0x2A, (uint8_t[]){0x00, 0x06, 0x01, 0xD7}, 4, 0},
-    {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xD1}, 4, 600},
-    {0x11, NULL, 0, 600},
-    {0x29, NULL, 0, 0},
+    {0x11, (uint8_t []){0x00}, 0, 120},
+    {0xC4, (uint8_t []){0x80}, 1, 0},
+    {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
+    {0x35, (uint8_t []){0x00}, 1, 0},
+    {0x53, (uint8_t []){0x20}, 1, 10},
+    {0x63, (uint8_t []){0xFF}, 1, 10},
+    {0x51, (uint8_t []){0x00}, 1, 10},
+    {0x2A, (uint8_t []){0x00,0x16,0x01,0xAF}, 4, 0},
+    {0x2B, (uint8_t []){0x00,0x00,0x01,0xF5}, 4, 0},
+    {0x29, (uint8_t []){0x00}, 0, 10},
+    {0x51, (uint8_t []){0xFF}, 1, 0},
 };
 
 // 在waveshare_amoled_2_06类之前添加新的显示类
@@ -251,7 +248,7 @@ private:
         panel_config.bits_per_pixel = 16;
         panel_config.vendor_config = (void* )&vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
-        esp_lcd_panel_set_gap(panel, 0x06, 0);
+        esp_lcd_panel_set_gap(panel, 0x16, 0);
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
@@ -268,24 +265,24 @@ private:
         esp_lcd_touch_config_t tp_cfg = {
             .x_max = DISPLAY_WIDTH - 1,
             .y_max = DISPLAY_HEIGHT - 1,
-            .rst_gpio_num = GPIO_NUM_40,
-            .int_gpio_num = GPIO_NUM_NC,
+            .rst_gpio_num = GPIO_NUM_9,
+            .int_gpio_num = GPIO_NUM_38,
             .levels = {
                 .reset = 0,
                 .interrupt = 0,
             },
             .flags = {
                 .swap_xy = 0,
-                .mirror_x = 1,
-                .mirror_y = 1,
+                .mirror_x = 0,
+                .mirror_y = 0,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_CST9217_CONFIG();
+        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
         tp_io_config.scl_speed_hz = 400*  1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
-        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst9217(tp_io_handle, &tp_cfg, &tp));
+        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
         const lvgl_port_touch_cfg_t touch_cfg = {
             .disp = lv_display_get_default(),
             .handle = tp,
