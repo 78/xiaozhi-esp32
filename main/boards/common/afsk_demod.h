@@ -19,7 +19,8 @@ const size_t kWindowSize = 64;
 namespace audio_wifi_config
 {
     // Main function to receive WiFi credentials through audio signal
-    void ReceiveWifiCredentialsFromAudio(Application *app, WifiConfigurationAp *wifi_ap);
+    void ReceiveWifiCredentialsFromAudio(Application *app, WifiConfigurationAp *wifi_ap, Display *display, 
+                                         size_t input_channels = 1);
 
     /**
      * Goertzel algorithm implementation for single frequency detection
