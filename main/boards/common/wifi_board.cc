@@ -53,7 +53,12 @@ void WifiBoard::EnterWifiConfigMode() {
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
-    auto channel = GetAudioCodec()->input_channels();
+    auto codec = Board::GetInstance().GetAudioCodec();
+    int channel = 1;
+    if (codec) {
+        channel = codec->input_channels();
+    }
+    ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
     audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
     #endif
     
