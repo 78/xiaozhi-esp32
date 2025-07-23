@@ -4,8 +4,8 @@
 #include <driver/gpio.h>
 #include "pin_config.h"
 
-#define AUDIO_INPUT_REFERENCE true
-#define AUDIO_INPUT_SAMPLE_RATE 24000
+#define AUDIO_INPUT_REFERENCE false
+#define AUDIO_INPUT_SAMPLE_RATE 16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 #ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
