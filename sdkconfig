@@ -375,7 +375,7 @@ CONFIG_IDF_TOOLCHAIN_GCC=y
 CONFIG_IDF_TARGET_ARCH_XTENSA=y
 CONFIG_IDF_TARGET_ARCH="xtensa"
 CONFIG_IDF_TARGET="esp32s3"
-CONFIG_IDF_INIT_VERSION="$IDF_INIT_VERSION"
+CONFIG_IDF_INIT_VERSION="5.4.1"
 CONFIG_IDF_TARGET_ESP32S3=y
 CONFIG_IDF_FIRMWARE_CHIP_ID=0x0009
 
@@ -563,9 +563,9 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Xiaozhi Assistant
 #
-CONFIG_OTA_VERSION_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/version"
-CONFIG_IMAGE_API_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
-CONFIG_IMAGE_VERSION_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
+CONFIG_OTA_VERSION_URL="http://192.168.3.118:8081/app-api/xiaoqiao/system/version"
+CONFIG_IMAGE_API_URL="http://192.168.3.118:8081/app-api/xiaoqiao/system/skin"
+CONFIG_IMAGE_VERSION_URL="http://192.168.3.118:8081/app-api/xiaoqiao/system/skin"
 CONFIG_LANGUAGE_ZH_CN=y
 # CONFIG_LANGUAGE_ZH_TW is not set
 # CONFIG_LANGUAGE_EN_US is not set

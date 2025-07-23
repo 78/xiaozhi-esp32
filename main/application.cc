@@ -270,6 +270,10 @@ void Application::ToggleChatState() {
                 return;
             }
 
+            // 添加按键唤醒消息，让服务器知道这是一次新对话开始
+            ESP_LOGI(TAG, "按键唤醒，发送唤醒消息给服务器");
+            protocol_->SendWakeWordDetected("button");
+
             SetListeningMode(realtime_chat_enabled_ ? kListeningModeRealtime : kListeningModeAutoStop);
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
@@ -296,11 +300,16 @@ void Application::StartListening() {
     
     if (device_state_ == kDeviceStateIdle) {
         Schedule([this]() {
-            if (!protocol_->IsAudioChannelOpened()) {
+            bool was_channel_closed = !protocol_->IsAudioChannelOpened();
+            if (was_channel_closed) {
                 SetDeviceState(kDeviceStateConnecting);
                 if (!protocol_->OpenAudioChannel()) {
                     return;
                 }
+                
+                // 如果是首次打开音频通道，发送按键唤醒消息
+                ESP_LOGI(TAG, "按住说话首次连接，发送唤醒消息给服务器");
+                protocol_->SendWakeWordDetected("button");
             }
 
             SetListeningMode(kListeningModeManualStop);
