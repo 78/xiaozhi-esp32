@@ -14,7 +14,9 @@ namespace audio_wifi_config
 
     void ReceiveWifiCredentialsFromAudio(Application *app,
                                         WifiConfigurationAp *wifi_ap,
-                                        Display *display)
+                                        Display *display,
+                                        size_t input_channels
+                                    )
     {
         const int kInputSampleRate = 16000;                                    // Input sampling rate
         const float kDownsampleStep = static_cast<float>(kInputSampleRate) / static_cast<float>(kAudioSampleRate); // Downsampling step
@@ -36,6 +38,14 @@ namespace audio_wifi_config
                 ESP_LOGI(kLogTag, "Failed to read audio data, retrying.");
                 vTaskDelay(pdMS_TO_TICKS(10));
                 continue;
+            }
+
+            if (input_channels == 2) { // 如果是双声道输入，转换为单声道
+                auto mono_data = std::vector<int16_t>(audio_data.size() / 2);
+                for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+                    mono_data[i] = audio_data[j];
+                }
+                audio_data = std::move(mono_data);
             }
             
             // Downsample the audio data

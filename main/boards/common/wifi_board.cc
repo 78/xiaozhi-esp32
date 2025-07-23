@@ -53,7 +53,8 @@ void WifiBoard::EnterWifiConfigMode() {
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
-    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display);
+    auto channel = GetAudioCodec()->input_channels();
+    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
     #endif
     
     // Wait forever until reset after configuration
