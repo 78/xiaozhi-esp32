@@ -2,6 +2,7 @@
 #include <cstring>
 #include <algorithm>
 #include "esp_log.h"
+#include "display.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -12,7 +13,8 @@ namespace audio_wifi_config
     static const char *kLogTag = "AUDIO_WIFI_CONFIG";
 
     void ReceiveWifiCredentialsFromAudio(Application *app,
-                                       WifiConfigurationAp *wifi_ap)
+                                        WifiConfigurationAp *wifi_ap,
+                                        Display *display)
     {
         const int kInputSampleRate = 16000;                                    // Input sampling rate
         const float kDownsampleStep = static_cast<float>(kInputSampleRate) / static_cast<float>(kAudioSampleRate); // Downsampling step
@@ -72,6 +74,7 @@ namespace audio_wifi_config
                 if (data_buffer.decoded_text.has_value())
                 {
                     ESP_LOGI(kLogTag, "Received text data: %s", data_buffer.decoded_text->c_str());
+                    display->SetChatMessage("system", data_buffer.decoded_text->c_str());
                     
                     // Split SSID and password by newline character
                     std::string wifi_ssid, wifi_password;

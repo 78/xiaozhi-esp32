@@ -52,7 +52,8 @@ void WifiBoard::EnterWifiConfigMode() {
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
-    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap);
+    auto display = Board::GetInstance().GetDisplay();
+    audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display);
     #endif
     
     // Wait forever until reset after configuration
