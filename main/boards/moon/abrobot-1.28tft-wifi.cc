@@ -544,7 +544,7 @@ public:
         lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(container_, LV_OPA_0, 0);  // 完全透明背景
         lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
-        lv_obj_set_pos(container_, -13, -13);
+        lv_obj_set_pos(container_, -7, -7);
         lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_all(container_, 0, 0);
         lv_obj_set_style_border_width(container_, 0, 0);
@@ -554,7 +554,9 @@ public:
 
         /* 状态栏 */
         status_bar_ = lv_obj_create(container_);
-        lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+        // 圆形屏幕优化：调整状态栏宽度，留出更多边距
+        lv_obj_set_size(status_bar_, LV_HOR_RES - 40, fonts_.text_font->line_height);  // 宽度减少40像素
+        lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);  // 顶部居中对齐
         lv_obj_set_style_radius(status_bar_, 0, 0);
         lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(status_bar_, LV_OPA_0, 0);  // 透明背景
@@ -594,16 +596,17 @@ public:
         lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);  // 设置水平布局
         lv_obj_set_style_pad_all(status_bar_, 0, 0);  // 设置内边距为0
         lv_obj_set_style_border_width(status_bar_, 0, 0);  // 设置边框宽度为0
-        lv_obj_set_style_pad_column(status_bar_, 0, 0);  // 设置列间距为0
-        lv_obj_set_style_pad_left(status_bar_, 2, 0);  // 设置左内边距为2
-        lv_obj_set_style_pad_right(status_bar_, 2, 0);  // 设置右内边距为2
-#if 0
-        // 网络状态标签（当前被注释）
+        lv_obj_set_style_pad_column(status_bar_, 2, 0);  // 设置列间距为8像素，确保图标之间有清晰分隔
+        // 圆形屏幕优化：增加左右内边距，确保WiFi图标在安全区域内
+        lv_obj_set_style_pad_left(status_bar_, 65, 0);  // WiFi图标向右移动5像素（从40改为45）
+        lv_obj_set_style_pad_right(status_bar_, 10, 0);  // 从2增加到15像素，确保右侧元素不被裁剪
+
+        // WiFi信号强度标签 - 显示在状态栏最左边
         network_label_ = lv_label_create(status_bar_);
         lv_label_set_text(network_label_, "");
         lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
         lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
-#endif
+        lv_obj_set_style_pad_right(network_label_, 1, 0);  // 添加右边距，与其他元素保持间距
         // 通知标签
         notification_label_ = lv_label_create(status_bar_);
         lv_obj_set_flex_grow(notification_label_, 1);  // 设置弹性增长系数为1
@@ -616,7 +619,7 @@ public:
         status_label_ = lv_label_create(status_bar_);
         lv_obj_set_flex_grow(status_label_, 1);  // 设置弹性增长系数为1
         lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);  // 设置循环滚动模式
-        lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);  // 设置文本居中对齐
+        lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_LEFT, 0);  // 设置文本左对齐
         lv_obj_set_style_text_color(status_label_, current_theme.text, 0);  // 设置文本颜色
         lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);  // 设置初始化文本
         
@@ -1251,6 +1254,14 @@ private:
     void EnableUserInteraction() {
         user_interaction_disabled_ = false;
         ESP_LOGI(TAG, "用户交互已启用");
+        
+        // 检查是否需要播放联网成功提示音
+        auto& wifi_station = WifiStation::GetInstance();
+        auto& app = Application::GetInstance();
+        if (wifi_station.IsConnected() && app.GetDeviceState() == kDeviceStateIdle) {
+            ESP_LOGI(TAG, "设备预热完成，播放联网成功提示音");
+            app.PlaySound(Lang::Sounds::P3_SUCCESS);
+        }
         
         // 重新启用空闲定时器
         ESP_LOGI(TAG, "调用 SetIdle(true) 重新启用空闲定时器");
