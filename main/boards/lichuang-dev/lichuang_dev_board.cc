@@ -253,7 +253,7 @@ private:
 
 public:
     LichuangDevBoard() : 
-        DualNetworkBoard(ML307_PIN_TX, ML307_PIN_RX, 4096,0),
+        DualNetworkBoard(ML307_PIN_TX, ML307_PIN_RX, GPIO_NUM_NC,0),
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
