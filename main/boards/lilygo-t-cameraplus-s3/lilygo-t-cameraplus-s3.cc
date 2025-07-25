@@ -6,7 +6,6 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "sy6970.h"
 #include "pin_config.h"
 #include "esp32_camera.h"
@@ -277,6 +276,10 @@ private:
         camera_->SetHMirror(1);
     }
 
+    void InitializeTools() {
+        static IrFilterController irFilter(AP1511B_GPIO);
+    }
+
 public:
     LilygoTCameraPlusS3Board() : boot_button_(BOOT_BUTTON_GPIO), key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
@@ -288,14 +291,7 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeCamera();
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-#elif CONFIG_IOT_PROTOCOL_MCP
-        static IrFilterController irFilter(AP1511B_GPIO);
-#endif
+        InitializeTools();
         GetBacklight()->RestoreBrightness();
     }
 
