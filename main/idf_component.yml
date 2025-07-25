@@ -14,8 +14,8 @@ dependencies:
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
   78/esp-wifi-connect: ~2.4.3
-  78/esp-opus-encoder: ~2.3.3
-  78/esp-ml307: ~2.2.1
+  78/esp-opus-encoder: ~2.4.0
+  78/esp-ml307: ~3.2.0
   78/xiaozhi-fonts: ~1.3.2
   espressif/led_strip: ^2.5.5
   espressif/esp_codec_dev: ~1.3.2
@@ -30,7 +30,7 @@ dependencies:
   lvgl/lvgl: ~9.2.2
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
-  espressif2022/image_player: ^1.1.0
+  espressif2022/image_player: ==1.1.0~1
   espressif/adc_mic: ^0.2.0
   espressif/esp_mmap_assets: '>=1.2'
   txp666/otto-emoji-gif-component: ~1.0.2
@@ -67,8 +67,8 @@ dependencies:
     version: '*'
     rules:
     - if: target in [esp32p4]
-  lijunru-hub/servo_dog_ctrl:
-    version: ^0.1.6
+  espfriends/servo_dog_ctrl:
+    version: ^0.1.8
     rules:
     - if: target in [esp32c3]
 
