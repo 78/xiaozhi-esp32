@@ -24,7 +24,7 @@ public:
     EspWakeWord();
     ~EspWakeWord();
 
-    void Initialize(AudioCodec* codec);
+    bool Initialize(AudioCodec* codec);
     void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
     void Start();

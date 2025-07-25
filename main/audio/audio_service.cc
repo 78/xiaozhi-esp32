@@ -97,34 +97,42 @@ void AudioService::Start() {
 
     esp_timer_start_periodic(audio_power_timer_, 1000000);
 
-    /* Start the audio input task */
 #if CONFIG_USE_AUDIO_PROCESSOR
+    /* Start the audio input task */
     xTaskCreatePinnedToCore([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
     }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_, 1);
-#else
-    xTaskCreate([](void* arg) {
-        AudioService* audio_service = (AudioService*)arg;
-        audio_service->AudioInputTask();
-        vTaskDelete(NULL);
-    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_);
-#endif
 
     /* Start the audio output task */
     xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioOutputTask();
         vTaskDelete(NULL);
-    }, "audio_output", 4096, this, 3, &audio_output_task_handle_);
+    }, "audio_output", 2048 * 2, this, 3, &audio_output_task_handle_);
+#else
+    /* Start the audio input task */
+    xTaskCreate([](void* arg) {
+        AudioService* audio_service = (AudioService*)arg;
+        audio_service->AudioInputTask();
+        vTaskDelete(NULL);
+    }, "audio_input", 2048 * 2, this, 8, &audio_input_task_handle_);
+
+    /* Start the audio output task */
+    xTaskCreate([](void* arg) {
+        AudioService* audio_service = (AudioService*)arg;
+        audio_service->AudioOutputTask();
+        vTaskDelete(NULL);
+    }, "audio_output", 2048, this, 3, &audio_output_task_handle_);
+#endif
 
     /* Start the opus codec task */
     xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->OpusCodecTask();
         vTaskDelete(NULL);
-    }, "opus_codec", 4096 * 7, this, 2, &opus_codec_task_handle_);
+    }, "opus_codec", 2048 * 13, this, 2, &opus_codec_task_handle_);
 }
 
 void AudioService::Stop() {
@@ -468,7 +476,10 @@ void AudioService::EnableWakeWordDetection(bool enable) {
     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!wake_word_initialized_) {
-            wake_word_->Initialize(codec_);
+            if (!wake_word_->Initialize(codec_)) {
+                ESP_LOGE(TAG, "Failed to initialize wake word");
+                return;
+            }
             wake_word_initialized_ = true;
         }
         wake_word_->Start();

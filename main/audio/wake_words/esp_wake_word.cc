@@ -23,19 +23,19 @@ EspWakeWord::~EspWakeWord() {
     vEventGroupDelete(event_group_);
 }
 
-void EspWakeWord::Initialize(AudioCodec* codec) {
+bool EspWakeWord::Initialize(AudioCodec* codec) {
     codec_ = codec;
 
     wakenet_model_ = esp_srmodel_init("model");
     if (wakenet_model_ == nullptr || wakenet_model_->num == -1) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
-        return;
+        return false;
     }
     if(wakenet_model_->num > 1) {
         ESP_LOGW(TAG, "More than one model found, using the first one");
     } else if (wakenet_model_->num == 0) {
         ESP_LOGE(TAG, "No model found");
-        return;
+        return false;
     }
     char *model_name = wakenet_model_->model_name[0];
     wakenet_iface_ = (esp_wn_iface_t*)esp_wn_handle_from_name(model_name);
@@ -44,6 +44,8 @@ void EspWakeWord::Initialize(AudioCodec* codec) {
     int frequency = wakenet_iface_->get_samp_rate(wakenet_data_);
     int audio_chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
     ESP_LOGI(TAG, "Wake word(%s),freq: %d, chunksize: %d", model_name, frequency, audio_chunksize);
+
+    return true;
 }
 
 void EspWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
