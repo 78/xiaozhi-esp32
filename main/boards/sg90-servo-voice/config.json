@@ -1,0 +1,10 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "sg90-servo-voice",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}
