@@ -22,13 +22,37 @@
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
-#define TAG "JiuchuanDevBoard"
+#define BOARD_TAG "JiuchuanDevBoard"
 #define __USER_GPIO_PWRDOWN__
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
+// 自定义LCD显示器类
+class CustomLcdDisplay : public SpiLcdDisplay {
+public:
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
+                    esp_lcd_panel_handle_t panel_handle,
+                    int width,
+                    int height,
+                    int offset_x,
+                    int offset_y,
+                    bool mirror_x,
+                    bool mirror_y,
+                    bool swap_xy,
+                    DisplayFonts fonts)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts) {
+
+        DisplayLockGuard lock(this);
+        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.167, 0);
+        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.167, 0);
+    }
+};
+
 class JiuchuanDevBoard : public WifiBoard {
+private:
+    int current_volume = 50;
+    const int VOLUME_STEP = 5;
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -80,8 +104,8 @@ private:
             }
         }
         #endif
-        //一分钟进入浅睡眠，5分钟进入深睡眠关机
-        power_save_timer_ = new PowerSaveTimer(-1, (60*10), (60*30));
+
+       power_save_timer_ = new PowerSaveTimer(-1, (60*5), -1); // 取消深睡眠关机
         // power_save_timer_ = new PowerSaveTimer(-1, 6, 10);//test
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
@@ -130,8 +154,15 @@ private:
 
     }
 
-    void InitializeButtons() {
-        // 配置GPIO
+     void InitializeButtons() {
+        static bool pwrbutton_unreleased = false;
+        static int power_button_click_count = 0;
+        static int64_t last_power_button_press_time = 0;
+
+        if (gpio_get_level(GPIO_NUM_3) == 1) {
+            pwrbutton_unreleased = true;
+        }
+        
         ESP_LOGI(TAG, "Configuring power button GPIO");
         GpioManager::Config(GPIO_NUM_3, GpioManager::GpioMode::INPUT_PULLDOWN);
 
@@ -140,45 +171,108 @@ private:
             power_save_timer_->WakeUp();
         });
 
-        // 检查电源按钮初始状态
-        ESP_LOGI(TAG, "Power button initial state: %d", GpioManager::GetLevel(PWR_BUTTON_GPIO));
-        
-        // 高电平有效长按关机逻辑
-        pwr_button_.OnLongPress([this]() {
-            ESP_LOGI(TAG, "Power button long press detected (high-active)");
+        pwr_button_.OnPressUp([this]() {
+            ESP_LOGI(TAG, "电源按钮按下");
+            pwrbutton_unreleased = false;
+            int64_t current_time = esp_timer_get_time();
+            if (current_time - last_power_button_press_time < 400000) { // 400ms内算连续点击
+                power_button_click_count++;
+                
+                if (power_button_click_count >= 3) {
+                    ESP_LOGI(TAG, "三击重置WiFi");
+                    rtc_gpio_set_level(PWR_EN_GPIO, 1);
+                    rtc_gpio_hold_en(PWR_EN_GPIO);
+                    ResetWifiConfiguration();
+                    power_button_click_count = 0;
+                    return;
+                }
+            } else {
+                power_button_click_count = 1;
+            }
             
-            // 高电平有效防抖确认
+            last_power_button_press_time = current_time;
+            auto &app = Application::GetInstance();
+            auto current_state = app.GetDeviceState();
+            
+            if (current_state == kDeviceStateIdle) {
+                ESP_LOGI(TAG, "从待命状态切换到聆听状态");
+                app.ToggleChatState();
+            } else if (current_state == kDeviceStateListening) {
+                ESP_LOGI(TAG, "从聆听状态切换到待命状态");
+                app.ToggleChatState();
+            } else if (current_state == kDeviceStateSpeaking) {
+                ESP_LOGI(TAG, "从说话状态切换到待命状态");
+                app.ToggleChatState();
+            } else {
+                ESP_LOGI(TAG, "唤醒设备");
+                power_save_timer_->WakeUp();
+            }
+        });
+
+        pwr_button_.OnLongPress([this]() {
+            ESP_LOGI(TAG, "电源键长按");
+            if (pwrbutton_unreleased){
+                ESP_LOGI(TAG, "开机后电源键未松开,取消关机");
+                return;
+            }
+            
             for (int i = 0; i < 5; i++) {
                 int level = GpioManager::GetLevel(PWR_BUTTON_GPIO);
                 ESP_LOGD(TAG, "Debounce check %d: GPIO%d level=%d", i+1, PWR_BUTTON_GPIO, level);
                 
                 if (level == 0) {
-                    ESP_LOGW(TAG, "Power button inactive during confirmation - abort shutdown");
+                    ESP_LOGW(TAG, "取消关机");
                     return;
                 }
                 vTaskDelay(100 / portTICK_PERIOD_MS);
             }
             
-            ESP_LOGI(TAG, "Confirmed power button pressed - initiating shutdown");
+            ESP_LOGI(TAG, "Confirmed power button pressed (level=1)");
             power_manager_->SetPowerState(PowerState::SHUTDOWN);
         });
 
-        wifi_button.OnClick([this]() {
-            ESP_LOGI(TAG, "Wifi button clicked");
+        wifi_button.OnPressDown([this]() {
+            ESP_LOGI(TAG, "音量增加按键");
+            
+            current_volume = (current_volume + VOLUME_STEP > 80) ? 80 : current_volume + VOLUME_STEP;
+            auto codec = GetAudioCodec();
+            codec->SetOutputVolume(current_volume);
+            ESP_LOGI(TAG, "当前音量: %d", current_volume);
+            // SaveVolumeToNVS(current_volume); // Function not defined, temporarily commented out
             power_save_timer_->WakeUp();
             
-
-            ESP_LOGI(TAG, "Resetting WiFi configuration");
-            GpioManager::SetLevel(PWR_EN_GPIO, 1);
-            ResetWifiConfiguration();
-
+            auto display = GetDisplay();
+            if (display) {
+                int display_volume = MapVolumeForDisplay(current_volume);
+                char volume_text[20];
+                snprintf(volume_text, sizeof(volume_text), "音量: %d%%", display_volume);
+                display->ShowNotification(volume_text);
+            }
         });
 
-        cmd_button.OnClick([this]() {
-            ESP_LOGI(TAG, "Command button clicked");
+        cmd_button.OnPressDown([this]() {
+            ESP_LOGI(TAG, "音量减少键");
+            
+            current_volume = (current_volume - VOLUME_STEP < 0) ? 0 : current_volume - VOLUME_STEP;
+            auto codec = GetAudioCodec();
+            codec->SetOutputVolume(current_volume);
+            ESP_LOGI(TAG, "当前音量: %d", current_volume);
+            // SaveVolumeToNVS(current_volume); // Function not defined, temporarily commented out
             power_save_timer_->WakeUp();
-            Application::GetInstance().ToggleChatState();
+            
+            auto display = GetDisplay();
+            if (display) {
+                int display_volume = MapVolumeForDisplay(current_volume);
+                char volume_text[20];
+                snprintf(volume_text, sizeof(volume_text), "音量: %d%%", display_volume);
+                display->ShowNotification(volume_text);
+            }
         });
+    }
+
+
+    int MapVolumeForDisplay(int volume) {
+        return volume; // 简单映射，直接返回原始值
     }
 
     void InitializeGC9301isplay() {
@@ -218,7 +312,7 @@ private:
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel,
+        display_ = new CustomLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
