@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>小智声波配网</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f5f5f5;
+      padding: 2rem;
+      text-align: center;
+    }
+    input, button {
+      padding: 0.8rem;
+      font-size: 1.1rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      max-width: 300px;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    audio {
+      margin-top: 1rem;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h2>📶 小智声波配网</h2>
+  <input id="ssid" placeholder="请输入WiFi名称" value="" />
+  <input id="pwd" placeholder="请输入WiFi密码" value="" />
+  <label>
+    <input type="checkbox" id="loopCheck" checked />
+    自动循环播放声波
+  </label>
+  <button onclick="generate()">🎵 生成并播放声波</button>
+  <button onclick="stopPlay()">⏹️ 停止播放</button>
+  <audio id="player" controls></audio>
+
+  <script>
+    const MARK = 1800;
+    const SPACE = 1500;
+    const SAMPLE_RATE = 44100;
+    const BIT_RATE = 100;
+    const START_BYTES = [0x01, 0x02];
+    const END_BYTES = [0x03, 0x04];
+    let loopTimer = null;
+
+    function checksum(data) {
+      return data.reduce((sum, b) => (sum + b) & 0xFF, 0);
+    }
+
+    function toBits(byte) {
+      const bits = [];
+      for (let i = 7; i >= 0; i--) bits.push((byte >> i) & 1);
+      return bits;
+    }
+
+    function afskModulate(bits) {
+      const samplesPerBit = SAMPLE_RATE / BIT_RATE;
+      const totalSamples = Math.floor(bits.length * samplesPerBit);
+      const buffer = new Float32Array(totalSamples);
+      for (let i = 0; i < bits.length; i++) {
+        const freq = bits[i] ? MARK : SPACE;
+        for (let j = 0; j < samplesPerBit; j++) {
+          const t = (i * samplesPerBit + j) / SAMPLE_RATE;
+          buffer[i * samplesPerBit + j] = Math.sin(2 * Math.PI * freq * t);
+        }
+      }
+      return buffer;
+    }
+
+    function floatTo16BitPCM(floatSamples) {
+      const buffer = new Uint8Array(floatSamples.length * 2);
+      for (let i = 0; i < floatSamples.length; i++) {
+        const s = Math.max(-1, Math.min(1, floatSamples[i]));
+        const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        buffer[i * 2] = val & 0xFF;
+        buffer[i * 2 + 1] = (val >> 8) & 0xFF;
+      }
+      return buffer;
+    }
+
+    function buildWav(pcm) {
+      const wavHeader = new Uint8Array(44);
+      const dataLen = pcm.length;
+      const fileLen = 36 + dataLen;
+
+      const writeStr = (offset, str) => {
+        for (let i = 0; i < str.length; i++) wavHeader[offset + i] = str.charCodeAt(i);
+      };
+      const write32 = (offset, value) => {
+        wavHeader[offset] = value & 0xFF;
+        wavHeader[offset + 1] = (value >> 8) & 0xFF;
+        wavHeader[offset + 2] = (value >> 16) & 0xFF;
+        wavHeader[offset + 3] = (value >> 24) & 0xFF;
+      };
+      const write16 = (offset, value) => {
+        wavHeader[offset] = value & 0xFF;
+        wavHeader[offset + 1] = (value >> 8) & 0xFF;
+      };
+
+      writeStr(0, 'RIFF');
+      write32(4, fileLen);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      write32(16, 16);
+      write16(20, 1);
+      write16(22, 1);
+      write32(24, SAMPLE_RATE);
+      write32(28, SAMPLE_RATE * 2);
+      write16(32, 2);
+      write16(34, 16);
+      writeStr(36, 'data');
+      write32(40, dataLen);
+
+      return new Blob([wavHeader, pcm], { type: 'audio/wav' });
+    }
+
+    function generate() {
+      stopPlay(); // 防止重复播放
+
+      const ssid = document.getElementById('ssid').value.trim();
+      const pwd = document.getElementById('pwd').value.trim();
+      const dataStr = ssid + '\n' + pwd;
+      const textBytes = Array.from(new TextEncoder().encode(dataStr));
+      const fullBytes = [...START_BYTES, ...textBytes, checksum(textBytes), ...END_BYTES];
+
+      let bits = [];
+      fullBytes.forEach(b => bits = bits.concat(toBits(b)));
+
+      const floatBuf = afskModulate(bits);
+      const pcmBuf = floatTo16BitPCM(floatBuf);
+      const wavBlob = buildWav(pcmBuf);
+
+      const audio = document.getElementById('player');
+      audio.src = URL.createObjectURL(wavBlob);
+      audio.load();
+      audio.play();
+
+      if (document.getElementById('loopCheck').checked) {
+        loopTimer = setInterval(() => {
+          audio.currentTime = 0;
+          audio.play();
+        }, (audio.duration * 1000 + 500) || 2000);
+      }
+    }
+
+    function stopPlay() {
+      const audio = document.getElementById('player');
+      audio.pause();
+      if (loopTimer) {
+        clearInterval(loopTimer);
+        loopTimer = null;
+      }
+    }
+  </script>
+</body>
+</html>
