@@ -1,20 +1,14 @@
 #ifndef ESP_WAKE_WORD_H
 #define ESP_WAKE_WORD_H
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/event_groups.h>
-
 #include <esp_wn_iface.h>
 #include <esp_wn_models.h>
 #include <model_path.h>
 
-#include <list>
 #include <string>
 #include <vector>
 #include <functional>
-#include <mutex>
-#include <condition_variable>
+#include <atomic>
 
 #include "audio_codec.h"
 #include "wake_word.h"
@@ -38,8 +32,8 @@ private:
     esp_wn_iface_t *wakenet_iface_ = nullptr;
     model_iface_data_t *wakenet_data_ = nullptr;
     srmodel_list_t *wakenet_model_ = nullptr;
-    EventGroupHandle_t event_group_;
     AudioCodec* codec_ = nullptr;
+    std::atomic<bool> running_ = false;
 
     std::function<void(const std::string& wake_word)> wake_word_detected_callback_;
     std::string last_detected_wake_word_;
