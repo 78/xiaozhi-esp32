@@ -1,17 +1,10 @@
 #include "esp_wake_word.h"
-#include "application.h"
-
 #include <esp_log.h>
-#include <model_path.h>
-#include <arpa/inet.h>
-#include <sstream>
 
-#define DETECTION_RUNNING_EVENT 1
 
 #define TAG "EspWakeWord"
 
 EspWakeWord::EspWakeWord() {
-    event_group_ = xEventGroupCreate();
 }
 
 EspWakeWord::~EspWakeWord() {
@@ -19,8 +12,6 @@ EspWakeWord::~EspWakeWord() {
         wakenet_iface_->destroy(wakenet_data_);
         esp_srmodel_deinit(wakenet_model_);
     }
-
-    vEventGroupDelete(event_group_);
 }
 
 bool EspWakeWord::Initialize(AudioCodec* codec) {
@@ -53,18 +44,22 @@ void EspWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
 }
 
 void EspWakeWord::Start() {
-    xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
+    running_ = true;
 }
 
 void EspWakeWord::Stop() {
-    xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
+    running_ = false;
 }
 
 void EspWakeWord::Feed(const std::vector<int16_t>& data) {
+    if (wakenet_data_ == nullptr || !running_) {
+        return;
+    }
+
     int res = wakenet_iface_->detect(wakenet_data_, (int16_t *)data.data());
     if (res > 0) {
-        Stop();
         last_detected_wake_word_ = wakenet_iface_->get_word_name(wakenet_data_, res);
+        running_ = false;
 
         if (wake_word_detected_callback_) {
             wake_word_detected_callback_(last_detected_wake_word_);
