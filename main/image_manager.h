@@ -39,14 +39,7 @@ public:
     // 初始化资源管理器
     esp_err_t Initialize();
     
-    // 检查并更新图片资源
-    esp_err_t CheckAndUpdateResources(const char* api_url, const char* version_url);
-    
-    // 检查并更新logo图片（独立版本管理）
-    esp_err_t CheckAndUpdateLogo(const char* api_url, const char* logo_version_url);
-    
-    // 一次性检查并更新所有资源（动画图片+logo）
-    esp_err_t CheckAndUpdateAllResources(const char* api_url, const char* version_url);
+    // 图片资源网络功能已移除 - 仅支持本地图片加载
     
     // 获取图片数组（用于动画）
     const std::vector<const uint8_t*>& GetImageArray() const;
@@ -85,30 +78,14 @@ private:
     ImageResourceManager(const ImageResourceManager&) = delete;
     ImageResourceManager& operator=(const ImageResourceManager&) = delete;
     
-    // 内部方法
+    // 内部方法 - 仅保留本地文件系统相关功能
     esp_err_t MountResourcesPartition();
-    std::string ReadLocalDynamicUrls(); // 重命名：读取本地动态图片URL
-    std::string ReadLocalStaticUrl(); // 重命名：读取本地静态图片URL
     bool CheckImagesExist();
     bool CheckLogoExists(); // 检查logo是否存在
     void CreateDirectoryIfNotExists(const char* path);
-    esp_err_t CheckServerVersion(const char* version_url);
-    esp_err_t CheckServerLogoVersion(const char* logo_version_url); // 检查服务器logo版本
-    esp_err_t CheckAllServerResources(const char* version_url, bool& need_update_animations, bool& need_update_logo); // 一次性检查所有资源
-    esp_err_t DownloadImages(const char* api_url);
-    esp_err_t DownloadLogo(const char* api_url); // 下载logo
-    esp_err_t DownloadImagesWithUrls(const std::vector<std::string>& urls); // 使用URL列表下载动画图片
-    esp_err_t DownloadLogoWithUrl(const std::string& url); // 使用URL下载logo
-    esp_err_t DownloadFile(const char* url, const char* filepath, int file_index = 0, int total_files = 1);
-    bool SaveDynamicUrls(const std::vector<std::string>& urls); // 保存动态图片URL列表
-    bool SaveStaticUrl(const std::string& url); // 保存静态图片URL
     void LoadImageData();
     bool LoadImageFile(int image_index);
     bool LoadLogoFile(); // 加载logo文件
-    void EnterDownloadMode(); // 进入下载模式，优化系统资源
-    void ExitDownloadMode();  // 退出下载模式，恢复正常状态
-    bool DeleteExistingAnimationFiles(); // 删除现有动画图片文件（带进度显示）
-    bool DeleteExistingLogoFile(); // 删除现有logo文件（带进度显示）
     bool ConvertHFileToBinary(const char* h_filepath, const char* bin_filepath); // 转换.h文件为二进制格式
     bool LoadBinaryImageFile(int image_index); // 从二进制文件加载图片数据
     bool LoadRawImageFile(int image_index, size_t file_size); // 从原始RGB数据文件加载图片

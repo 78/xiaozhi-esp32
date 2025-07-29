@@ -7,6 +7,7 @@
 #include <web_socket.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
+#include <string>
 
 #define WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT (1 << 0)
 
@@ -26,6 +27,10 @@ private:
 
     void ParseServerHello(const cJSON* root);
     bool SendText(const std::string& text) override;
+
+    // 生成随机值的辅助方法
+    std::string GenerateRandomUUID();
+    std::string GenerateRandomMacAddress();
 };
 
 #endif

@@ -11,11 +11,13 @@
 #include <esp_app_format.h>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <esp_random.h>
 
 #include <cstring>
 #include <vector>
 #include <sstream>
 #include <algorithm>
+#include <iomanip>
 
 #define TAG "Ota"
 
@@ -56,12 +58,25 @@ bool Ota::CheckVersion() {
         http->SetHeader(header.first, header.second);
     }
 
+    // 生成随机值
+    std::string random_client_id = GenerateRandomUUID();
+    std::string random_device_id = GenerateRandomMacAddress();
+
+    http->SetHeader("Authorization", "Bearer oaibro-hugh-test");
     http->SetHeader("Ota-Version", "2");
-    http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    http->SetHeader("Client-Id", board.GetUuid());
+    http->SetHeader("Device-Id", random_device_id.c_str());
+    http->SetHeader("Client-Id", random_client_id.c_str());
+    http->SetHeader("X-Client-Id", "3095dd17-a431-4a49-90e5-2207a31d327e");
     http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
+
+    // 添加调试日志显示请求头
+    ESP_LOGI(TAG, "OTA请求头设置:");
+    ESP_LOGI(TAG, "  Authorization: Bearer oaibro-hugh-test");
+    ESP_LOGI(TAG, "  Device-Id: %s", random_device_id.c_str());
+    ESP_LOGI(TAG, "  Client-Id: %s", random_client_id.c_str());
+    ESP_LOGI(TAG, "  X-Client-Id: 3095dd17-a431-4a49-90e5-2207a31d327e");
 
     std::string post_data = board.GetJson();
     std::string method = post_data.length() > 0 ? "POST" : "GET";
@@ -363,4 +378,35 @@ bool Ota::IsNewVersionAvailable(const std::string& currentVersion, const std::st
     }
     
     return newer.size() > current.size();
+}
+
+std::string Ota::GenerateRandomUUID() {
+    // 生成随机UUID格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    // 生成32个随机十六进制字符，按UUID格式分组
+    for (int i = 0; i < 32; i++) {
+        if (i == 8 || i == 12 || i == 16 || i == 20) {
+            ss << "-";
+        }
+        ss << std::setw(1) << (esp_random() & 0xF);
+    }
+
+    return ss.str();
+}
+
+std::string Ota::GenerateRandomMacAddress() {
+    // 生成随机MAC地址格式：xx:xx:xx:xx:xx:xx
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) {
+            ss << ":";
+        }
+        ss << std::setw(2) << (esp_random() & 0xFF);
+    }
+
+    return ss.str();
 }

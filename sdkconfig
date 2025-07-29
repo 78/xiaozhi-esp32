@@ -563,9 +563,9 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Xiaozhi Assistant
 #
-CONFIG_OTA_VERSION_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/version"
-CONFIG_IMAGE_API_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
-CONFIG_IMAGE_VERSION_URL="https://xiaoqiao-v2api.xmduzhong.com/app-api/xiaoqiao/system/skin"
+CONFIG_OTA_VERSION_URL="http://192.168.3.118:8091/app-api/xiaoqiao/system/version"
+CONFIG_IMAGE_API_URL="http://192.168.3.118:8091/app-api/xiaoqiao/system/skin"
+CONFIG_IMAGE_VERSION_URL="http://192.168.3.118:8091/app-api/xiaoqiao/system/skin"
 CONFIG_LANGUAGE_ZH_CN=y
 # CONFIG_LANGUAGE_ZH_TW is not set
 # CONFIG_LANGUAGE_EN_US is not set
@@ -2342,6 +2342,7 @@ CONFIG_CODEC_ES8374_SUPPORT=y
 CONFIG_CODEC_ES8388_SUPPORT=y
 CONFIG_CODEC_TAS5805M_SUPPORT=y
 # CONFIG_CODEC_ZL38063_SUPPORT is not set
+# CONFIG_CODEC_CJC8910_SUPPORT is not set
 # end of Audio Codec Device Configuration
 
 #

@@ -23,6 +23,34 @@
 
 static const char *TAG = "WifiBoard";
 
+// ============================================================================
+// 硬编码WiFi配置 - 请根据您的实际网络环境修改以下值
+// ============================================================================
+//
+// 使用说明：
+// 1. 将 "YOUR_WIFI_SSID" 替换为您的WiFi网络名称
+// 2. 将 "YOUR_WIFI_PASSWORD" 替换为您的WiFi密码
+// 3. 如果您的WiFi网络没有密码，请将密码设置为空字符串 ""
+// 4. 重新编译并烧录固件
+//
+// 示例：
+// static const char* HARDCODED_WIFI_SSID = "MyHomeWiFi";
+// static const char* HARDCODED_WIFI_PASSWORD = "MyPassword123";
+//
+// 注意：
+// - SSID和密码区分大小写
+// - 确保WiFi网络在设备启动时可用
+// - 如果连接失败，设备将进入WiFi配置模式作为后备方案
+// ============================================================================
+
+static const char* HARDCODED_WIFI_SSID = "dzkjtestwifi";
+static const char* HARDCODED_WIFI_PASSWORD = "66666666";
+
+// 配置选项：是否在硬编码WiFi连接失败时启用配置模式后备方案
+// true: 连接失败时进入WiFi配置模式（推荐用于开发和调试）
+// false: 连接失败时不进入配置模式，设备将无法联网
+static const bool ENABLE_WIFI_CONFIG_FALLBACK = true;
+
 WifiBoard::WifiBoard() {
     Settings settings("wifi", true);
     wifi_config_mode_ = settings.GetInt("force_ap") == 1;
@@ -34,6 +62,73 @@ WifiBoard::WifiBoard() {
 
 std::string WifiBoard::GetBoardType() {
     return "wifi";
+}
+
+void WifiBoard::SetupHardcodedWifi() {
+    ESP_LOGI(TAG, "设置硬编码WiFi凭据");
+    ESP_LOGI(TAG, "目标WiFi网络: %s", HARDCODED_WIFI_SSID);
+    ESP_LOGI(TAG, "密码长度: %d字符", strlen(HARDCODED_WIFI_PASSWORD));
+
+    // 验证WiFi凭据是否已设置
+    if (strcmp(HARDCODED_WIFI_SSID, "YOUR_WIFI_SSID") == 0) {
+        ESP_LOGW(TAG, "警告：WiFi SSID尚未配置，请修改代码中的HARDCODED_WIFI_SSID");
+    }
+    if (strcmp(HARDCODED_WIFI_PASSWORD, "YOUR_WIFI_PASSWORD") == 0) {
+        ESP_LOGW(TAG, "警告：WiFi密码尚未配置，请修改代码中的HARDCODED_WIFI_PASSWORD");
+    }
+
+    // 清除现有的WiFi配置
+    auto& ssid_manager = SsidManager::GetInstance();
+    ssid_manager.Clear();
+    ESP_LOGI(TAG, "已清除现有WiFi配置");
+
+    // 添加硬编码的WiFi凭据
+    ssid_manager.AddSsid(HARDCODED_WIFI_SSID, HARDCODED_WIFI_PASSWORD);
+
+    ESP_LOGI(TAG, "硬编码WiFi凭据设置完成");
+}
+
+bool WifiBoard::ConnectToHardcodedWifi() {
+    ESP_LOGI(TAG, "开始连接到硬编码WiFi网络: %s", HARDCODED_WIFI_SSID);
+
+    auto& wifi_station = WifiStation::GetInstance();
+
+    // 设置回调函数
+    wifi_station.OnScanBegin([this]() {
+        auto display = Board::GetInstance().GetDisplay();
+        display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
+        ESP_LOGI(TAG, "开始扫描WiFi网络");
+    });
+
+    wifi_station.OnConnect([this](const std::string& ssid) {
+        auto display = Board::GetInstance().GetDisplay();
+        std::string notification = Lang::Strings::CONNECT_TO;
+        notification += ssid;
+        notification += "...";
+        display->ShowNotification(notification.c_str(), 30000);
+        ESP_LOGI(TAG, "正在连接到WiFi: %s", ssid.c_str());
+    });
+
+    wifi_station.OnConnected([this](const std::string& ssid) {
+        auto display = Board::GetInstance().GetDisplay();
+        std::string notification = Lang::Strings::CONNECTED_TO;
+        notification += ssid;
+        display->ShowNotification(notification.c_str(), 30000);
+        ESP_LOGI(TAG, "成功连接到WiFi: %s", ssid.c_str());
+    });
+
+    // 启动WiFi连接
+    wifi_station.Start();
+
+    // 等待连接，超时时间为60秒
+    if (wifi_station.WaitForConnected(60 * 1000)) {
+        ESP_LOGI(TAG, "硬编码WiFi连接成功");
+        return true;
+    } else {
+        ESP_LOGE(TAG, "硬编码WiFi连接失败");
+        wifi_station.Stop();
+        return false;
+    }
 }
 
 void WifiBoard::EnterWifiConfigMode() {
@@ -65,47 +160,40 @@ void WifiBoard::EnterWifiConfigMode() {
 }
 
 void WifiBoard::StartNetwork() {
-    // User can press BOOT button while starting to enter WiFi configuration mode
+    ESP_LOGI(TAG, "启动网络连接（使用硬编码WiFi凭据）");
+
+    // 如果用户强制进入WiFi配置模式，仍然允许
     if (wifi_config_mode_) {
+        ESP_LOGW(TAG, "强制进入WiFi配置模式");
         EnterWifiConfigMode();
         return;
     }
 
-    // If no WiFi SSID is configured, enter WiFi configuration mode
-    auto& ssid_manager = SsidManager::GetInstance();
-    auto ssid_list = ssid_manager.GetSsidList();
-    if (ssid_list.empty()) {
-        wifi_config_mode_ = true;
-        EnterWifiConfigMode();
+    // 设置硬编码的WiFi凭据
+    SetupHardcodedWifi();
+
+    // 尝试连接到硬编码的WiFi网络
+    if (ConnectToHardcodedWifi()) {
+        ESP_LOGI(TAG, "硬编码WiFi网络连接成功");
         return;
     }
 
-    auto& wifi_station = WifiStation::GetInstance();
-    wifi_station.OnScanBegin([this]() {
-        auto display = Board::GetInstance().GetDisplay();
-        display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
-    });
-    wifi_station.OnConnect([this](const std::string& ssid) {
-        auto display = Board::GetInstance().GetDisplay();
-        std::string notification = Lang::Strings::CONNECT_TO;
-        notification += ssid;
-        notification += "...";
-        display->ShowNotification(notification.c_str(), 30000);
-    });
-    wifi_station.OnConnected([this](const std::string& ssid) {
-        auto display = Board::GetInstance().GetDisplay();
-        std::string notification = Lang::Strings::CONNECTED_TO;
-        notification += ssid;
-        display->ShowNotification(notification.c_str(), 30000);
-    });
-    wifi_station.Start();
+    // 如果硬编码WiFi连接失败，根据配置决定处理方式
+    ESP_LOGE(TAG, "硬编码WiFi网络连接失败");
 
-    // Try to connect to WiFi, if failed, launch the WiFi configuration AP
-    if (!wifi_station.WaitForConnected(60 * 1000)) {
-        wifi_station.Stop();
+    if (ENABLE_WIFI_CONFIG_FALLBACK) {
+        // 进入WiFi配置模式作为后备方案
+        ESP_LOGW(TAG, "硬编码WiFi连接失败，进入WiFi配置模式作为后备方案");
         wifi_config_mode_ = true;
         EnterWifiConfigMode();
-        return;
+    } else {
+        // 不使用后备方案，显示错误信息
+        auto display = Board::GetInstance().GetDisplay();
+        display->ShowNotification("WiFi连接失败，请检查网络设置", 10000);
+        ESP_LOGE(TAG, "无法连接到硬编码WiFi网络，设备将无法正常工作");
+
+        // 可选：您可以在这里添加其他错误处理逻辑
+        // 例如：重启设备、进入低功耗模式等
     }
 }
 

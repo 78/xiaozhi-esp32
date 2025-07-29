@@ -8,6 +8,9 @@
 #include <cJSON.h>
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include <esp_random.h>
+#include <iomanip>
+#include <sstream>
 #include "assets/lang_config.h"
 
 #define TAG "WS"
@@ -101,41 +104,40 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     error_occurred_ = false;
     
-    // 从OTA获取websocket配置
+    // 从OTA获取websocket配置（仅获取URL，token使用固定值）
     auto& application = Application::GetInstance();
     auto& ota = application.GetOta();
-    
+
     std::string url;
-    std::string token;
-    
+
     if (ota.HasWebsocketConfig()) {
         url = ota.GetWebsocketUrl();
-        token = "Bearer " + ota.GetWebsocketToken();
-        ESP_LOGI(TAG, "Using websocket config from OTA: %s", url.c_str());
+        ESP_LOGI(TAG, "Using websocket URL from OTA: %s", url.c_str());
     } else {
         // 如果OTA中没有配置，则报错，因为现在必须从OTA获取配置
         ESP_LOGE(TAG, "No websocket config found in OTA response");
         SetError(Lang::Strings::SERVER_ERROR);
         return false;
     }
-    
+
     websocket_ = Board::GetInstance().CreateWebSocket();
-    websocket_->SetHeader("Authorization", token.c_str());
-    websocket_->SetHeader("Protocol-Version", "1");
-    websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    
-    // 尝试获取存储的Client-Id
-    std::string client_id = SystemInfo::GetClientId();
-    
-    // 只使用NVS中存储的Client-Id，如果没有则报错
-    if (client_id.empty()) {
-        ESP_LOGE(TAG, "No Client-Id found in NVS, WebSocket connection cannot be established");
-        SetError(Lang::Strings::SERVER_ERROR);
-        return false;
-    }
-    
-    ESP_LOGI(TAG, "Using Client-Id for WebSocket connection: %s", client_id.c_str());
-    websocket_->SetHeader("Client-Id", client_id.c_str());
+
+    // 生成随机值
+    std::string random_client_id = GenerateRandomUUID();
+    std::string random_device_id = GenerateRandomMacAddress();
+
+    // 设置请求头（使用固定的Authorization）
+    websocket_->SetHeader("Authorization", "Bearer oaibro-hugh-test");
+    websocket_->SetHeader("Protocol-Version", "test");
+    websocket_->SetHeader("Device-Id", random_device_id.c_str());
+    websocket_->SetHeader("Client-Id", random_client_id.c_str());
+    websocket_->SetHeader("X-Client-Id", "3095dd17-a431-4a49-90e5-2207a31d327e");
+
+    ESP_LOGI(TAG, "WebSocket请求头设置:");
+    ESP_LOGI(TAG, "  Authorization: Bearer oaibro-hugh-test");
+    ESP_LOGI(TAG, "  Device-Id: %s", random_device_id.c_str());
+    ESP_LOGI(TAG, "  Client-Id: %s", random_client_id.c_str());
+    ESP_LOGI(TAG, "  X-Client-Id: 3095dd17-a431-4a49-90e5-2207a31d327e");
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
@@ -254,4 +256,35 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
     }
 
     xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT);
+}
+
+std::string WebsocketProtocol::GenerateRandomUUID() {
+    // 生成随机UUID格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    // 生成32个随机十六进制字符，按UUID格式分组
+    for (int i = 0; i < 32; i++) {
+        if (i == 8 || i == 12 || i == 16 || i == 20) {
+            ss << "-";
+        }
+        ss << std::setw(1) << (esp_random() & 0xF);
+    }
+
+    return ss.str();
+}
+
+std::string WebsocketProtocol::GenerateRandomMacAddress() {
+    // 生成随机MAC地址格式：xx:xx:xx:xx:xx:xx
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    for (int i = 0; i < 6; i++) {
+        if (i > 0) {
+            ss << ":";
+        }
+        ss << std::setw(2) << (esp_random() & 0xFF);
+    }
+
+    return ss.str();
 }

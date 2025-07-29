@@ -71,11 +71,8 @@ void Application::CheckNewVersion() {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
                 ESP_LOGE(TAG, "Too many retries, exit version check");
-                // 即使OTA检查失败，也标记为完成，让图片资源检查可以继续
+                // 即使OTA检查失败，也标记为完成（图片资源功能已禁用）
                 ota_check_completed_ = true;
-                if (image_resource_callback_) {
-                    Schedule(image_resource_callback_);
-                }
                 return;
             }
             ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", 60, retry_count, MAX_RETRY);
@@ -158,12 +155,9 @@ void Application::CheckNewVersion() {
         ResetDecoder();
         // 联网成功提示音已移至预热完成后播放
         
-        // OTA检查完成，标记为完成状态
-        ESP_LOGI(TAG, "OTA check completed, triggering image resource check");
+        // OTA检查完成，标记为完成状态（图片资源功能已禁用）
+        ESP_LOGI(TAG, "OTA check completed");
         ota_check_completed_ = true;
-        if (image_resource_callback_) {
-            Schedule(image_resource_callback_);
-        }
         
         // Exit the loop if upgrade or idle
         break;
@@ -1000,13 +994,7 @@ bool Application::CanEnterSleepMode() {
     return true;
 }
 
-void Application::SetImageResourceCallback(std::function<void()> callback) {
-    image_resource_callback_ = callback;
-    // 如果OTA检查已经完成，立即执行回调
-    if (ota_check_completed_) {
-        Schedule(callback);
-    }
-}
+// SetImageResourceCallback 方法已移除 - 图片资源功能已禁用
 
 void Application::PauseAudioProcessing() {
     ESP_LOGI(TAG, "暂停音频处理模块...");

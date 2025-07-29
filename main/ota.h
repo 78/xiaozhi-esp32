@@ -48,6 +48,10 @@ private:
     std::function<void(int progress, size_t speed)> upgrade_callback_;
     std::vector<int> ParseVersion(const std::string& version);
     bool IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion);
+
+    // 生成随机值的辅助方法
+    std::string GenerateRandomUUID();
+    std::string GenerateRandomMacAddress();
 };
 
 #endif // _OTA_H

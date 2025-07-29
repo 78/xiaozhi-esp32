@@ -11,6 +11,10 @@ protected:
     void EnterWifiConfigMode();
     virtual std::string GetBoardJson() override;
 
+    // 硬编码WiFi凭据方法
+    void SetupHardcodedWifi();
+    bool ConnectToHardcodedWifi();
+
 public:
     virtual std::string GetBoardType() override;
     virtual void StartNetwork() override;

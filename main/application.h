@@ -76,8 +76,7 @@ public:
     Protocol& GetProtocol() { return *protocol_; }
     Ota& GetOta() { return ota_; }
     
-    // 图片资源管理相关方法
-    void SetImageResourceCallback(std::function<void()> callback);
+    // 图片资源管理功能已移除 - 网络功能已禁用
     bool IsOtaCheckCompleted() const { return ota_check_completed_; }
     
     // 图片下载模式控制方法
@@ -137,9 +136,8 @@ private:
     TaskHandle_t main_loop_task_handle_ = nullptr;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
     
-    // 图片资源管理相关变量
+    // 图片资源管理功能已移除 - 网络功能已禁用
     bool ota_check_completed_ = false;
-    std::function<void()> image_resource_callback_;
 
     // Audio encode / decode
     TaskHandle_t audio_loop_task_handle_ = nullptr;
