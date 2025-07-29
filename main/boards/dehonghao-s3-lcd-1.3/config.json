@@ -1,0 +1,19 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "dehonghao-s3-lcd-1.3",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\"",
+                "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y",
+                "CONFIG_ESP32S3_SPIRAM_SUPPORT=y",
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_SPIRAM_TYPE_AUTO=y",
+                "CONFIG_SPIRAM_SIZE=-1=y",
+                "CONFIG_SPIRAM_SPEED_80M=y",
+                "CONFIG_SPIRAM=y"
+            ]
+        }
+    ]
+} 
