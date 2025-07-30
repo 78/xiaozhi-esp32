@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "fogseek-esp32s3-audio",
+            "sdkconfig_append": []
+        }
+    ]
+}
