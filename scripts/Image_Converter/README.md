@@ -20,14 +20,26 @@
 
 ### 使用方法
 
-安装Pillow
-
+创建虚拟环境
 ```bash
-pip install Pillow # 处理图像需要
+# 创建 venv
+python -m venv venv
+# 激活环境
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate      # Windows
+```
+
+安装依赖
+```bash
+pip install -r requirements.txt
 ```
 
 运行转换工具
 
 ```bash
+# 激活环境
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate      # Windows
+# 运行
 python lvgl_tools_gui.py
 ```

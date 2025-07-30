@@ -140,10 +140,17 @@ void Tcamerapluss3AudioCodec::EnableOutput(bool enable) {
     AudioCodec::EnableOutput(enable);
 }
 
-int Tcamerapluss3AudioCodec::Read(int16_t *dest, int samples){
-    if (input_enabled_){
+int Tcamerapluss3AudioCodec::Read(int16_t *dest, int samples) {
+    if (input_enabled_) {
         size_t bytes_read;
         i2s_channel_read(rx_handle_, dest, samples * sizeof(int16_t), &bytes_read, portMAX_DELAY);
+        
+        // 麦克风接收音量放大20倍（限制在 int16_t 范围内防止溢出）
+        int16_t *ptr = dest;
+        for (int i = 0; i < samples; i++) {
+            int32_t amplified = *ptr * 20;
+            *ptr++ = (amplified > 32767) ? 32767 : (amplified < -32768) ? -32768 : amplified;
+        }
     }
     return samples;
 }

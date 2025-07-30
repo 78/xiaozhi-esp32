@@ -4,8 +4,7 @@
         {
             "name": "df-k10",
             "sdkconfig_append": [
-                "CONFIG_SPIRAM_MODE_OCT=y",
-                "CONFIG_IOT_PROTOCOL_MCP=y"
+                "CONFIG_SPIRAM_MODE_OCT=y"
             ]
         }
     ]
