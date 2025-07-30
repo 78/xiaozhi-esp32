@@ -48,7 +48,7 @@ private:
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        sleep_timer_ = new SleepTimer(600);
+        sleep_timer_ = new SleepTimer(300);
 #else
         sleep_timer_ = new SleepTimer(30);
 #endif
