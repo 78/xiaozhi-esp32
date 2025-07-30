@@ -63,6 +63,10 @@ dependencies:
     version: ^1.0.1
     rules:
     - if: target in [esp32p4]
+  espressif/esp_hosted:
+    version: '2.0.17'
+    rules:
+    - if: target in [esp32h2, esp32p4]
   espressif/esp_wifi_remote:
     version: '*'
     rules:
