@@ -1,13 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codec.h"
-#include "es8311_audio_codec.h"
-#include "no_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "i2c_device.h"
 
 #include <wifi_station.h>
@@ -24,6 +22,68 @@
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
+
+
+class ATK_NoAudioCodecDuplex : public NoAudioCodec {
+public:
+    ATK_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+        duplex_ = true;
+        input_sample_rate_ = input_sample_rate;
+        output_sample_rate_ = output_sample_rate;
+    
+        i2s_chan_config_t chan_cfg = {
+            .id = I2S_NUM_0,
+            .role = I2S_ROLE_MASTER,
+            .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
+            .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
+            .auto_clear_after_cb = true,
+            .auto_clear_before_cb = false,
+            .intr_priority = 0,
+        };
+        ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
+    
+        i2s_std_config_t std_cfg = {
+            .clk_cfg = {
+                .sample_rate_hz = (uint32_t)output_sample_rate_,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+                #ifdef   I2S_HW_VERSION_2
+                    .ext_clk_freq_hz = 0,
+                #endif
+            },
+            .slot_cfg = {
+                .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                .slot_mode = I2S_SLOT_MODE_STEREO,
+                .slot_mask = I2S_STD_SLOT_BOTH,
+                .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .ws_pol = false,
+                .bit_shift = true,
+                #ifdef   I2S_HW_VERSION_2
+                    .left_align = true,
+                    .big_endian = false,
+                    .bit_order_lsb = false
+                #endif
+            },
+            .gpio_cfg = {
+                .mclk = I2S_GPIO_UNUSED,
+                .bclk = bclk,
+                .ws = ws,
+                .dout = dout,
+                .din = din,
+                .invert_flags = {
+                    .mclk_inv = false,
+                    .bclk_inv = false,
+                    .ws_inv = false
+                }
+            }
+        };
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+        ESP_LOGI(TAG, "Duplex channels created");
+    }
+};
+
 
 class XL9555_IN : public I2cDevice {
 public:
@@ -205,13 +265,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
@@ -219,7 +272,6 @@ public:
         xl9555_in_->SetOutputState(5, 1);
         xl9555_in_->SetOutputState(7, 1);
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

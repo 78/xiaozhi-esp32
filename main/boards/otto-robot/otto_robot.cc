@@ -7,11 +7,10 @@
 #include <wifi_station.h>
 
 #include "application.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
-#include "iot/thing_manager.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "mcp_server.h"

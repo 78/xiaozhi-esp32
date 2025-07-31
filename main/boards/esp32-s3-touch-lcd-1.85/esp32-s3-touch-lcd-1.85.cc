@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include "i2c_device.h"
@@ -425,14 +424,6 @@ private:
         }, this);
     }
 
-
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     CustomBoard() {   
         InitializeI2c();
@@ -440,7 +431,6 @@ public:
         InitializeSpi();
         Initializest77916Display();
         InitializeButtons();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

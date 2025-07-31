@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
@@ -9,7 +9,7 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "font_awesome_symbols.h"
-#include "power_manager.h"
+#include "adc_battery_monitor.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -23,6 +23,7 @@
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
+
 class XminiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
@@ -32,11 +33,11 @@ private:
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
     PowerSaveTimer* power_save_timer_ = nullptr;
-    PowerManager* power_manager_ = nullptr;
+    AdcBatteryMonitor* adc_battery_monitor_ = nullptr;
 
     void InitializePowerManager() {
-        power_manager_ = new PowerManager(GPIO_NUM_12);
-        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+        adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_3, 100000, 100000, GPIO_NUM_12);
+        adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
                 power_save_timer_->SetEnabled(false);
             } else {
@@ -47,26 +48,15 @@ private:
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        power_save_timer_ = new PowerSaveTimer(160, 600);
+        power_save_timer_ = new PowerSaveTimer(160, 300);
 #else
         power_save_timer_ = new PowerSaveTimer(160, 60);
 #endif
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            GetDisplay()->SetPowerSaveMode(true);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -173,9 +163,6 @@ private:
         Settings settings("vendor");
         press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-#error "XiaoZhi 协议不支持"
-#elif CONFIG_IOT_PROTOCOL_MCP
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.set_press_to_talk",
             "Switch between press to talk mode (长按说话) and click to talk mode (单击说话).\n"
@@ -194,11 +181,10 @@ private:
                 }
                 throw std::runtime_error("Invalid mode: " + mode);
             });
-#endif
     }
 
 public:
-    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO, false, 0, 0, true) {  
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeCodecI2c();
@@ -224,14 +210,9 @@ public:
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
-        charging = power_manager_->IsCharging();
-        discharging = power_manager_->IsDischarging();
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
-        }
-        level = power_manager_->GetBatteryLevel();
+        charging = adc_battery_monitor_->IsCharging();
+        discharging = adc_battery_monitor_->IsDischarging();
+        level = adc_battery_monitor_->GetBatteryLevel();
         return true;
     }
 

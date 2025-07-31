@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8374_audio_codec.h"
+#include "codecs/es8374_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
 
@@ -135,12 +134,6 @@ private:
                                     });
     }
 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     MIXGO_NOVA() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -150,7 +143,6 @@ public:
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeIot();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

@@ -62,12 +62,26 @@ void PowerSaveTimer::PowerSaveCheck() {
     ticks_++;
     if (seconds_to_sleep_ != -1 && ticks_ >= seconds_to_sleep_) {
         if (!in_sleep_mode_) {
+            ESP_LOGI(TAG, "Enabling power save mode");
             in_sleep_mode_ = true;
             if (on_enter_sleep_mode_) {
                 on_enter_sleep_mode_();
             }
 
             if (cpu_max_freq_ != -1) {
+                // Disable wake word detection
+                auto& audio_service = app.GetAudioService();
+                is_wake_word_running_ = audio_service.IsWakeWordRunning();
+                if (is_wake_word_running_) {
+                    audio_service.EnableWakeWordDetection(false);
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+                // Disable audio input
+                auto codec = Board::GetInstance().GetAudioCodec();
+                if (codec) {
+                    codec->EnableInput(false);
+                }
+
                 esp_pm_config_t pm_config = {
                     .max_freq_mhz = cpu_max_freq_,
                     .min_freq_mhz = 40,
@@ -85,6 +99,7 @@ void PowerSaveTimer::PowerSaveCheck() {
 void PowerSaveTimer::WakeUp() {
     ticks_ = 0;
     if (in_sleep_mode_) {
+        ESP_LOGI(TAG, "Exiting power save mode");
         in_sleep_mode_ = false;
 
         if (cpu_max_freq_ != -1) {
@@ -94,6 +109,13 @@ void PowerSaveTimer::WakeUp() {
                 .light_sleep_enable = false,
             };
             esp_pm_configure(&pm_config);
+
+            // Enable wake word detection
+            auto& app = Application::GetInstance();
+            auto& audio_service = app.GetAudioService();
+            if (is_wake_word_running_) {
+                audio_service.EnableWakeWordDetection(true);
+            }
         }
 
         if (on_exit_sleep_mode_) {

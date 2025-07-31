@@ -84,7 +84,7 @@
 在建立 WebSocket 连接时，代码示例中设置了以下请求头：
 
 - `Authorization`: 用于存放访问令牌，形如 `"Bearer <token>"`  
-- `Protocol-Version`: 固定示例中为 `"1"`，与 hello 消息体内的 `version` 字段保持一致  
+- `Protocol-Version`: 协议版本号，与 hello 消息体内的 `version` 字段保持一致  
 - `Device-Id`: 设备物理网卡 MAC 地址
 - `Client-Id`: 软件生成的 UUID（擦除 NVS 或重新烧录完整固件会重置）
 
@@ -92,11 +92,44 @@
 
 ---
 
-## 3. JSON 消息结构
+## 3. 二进制协议版本
+
+设备支持多种二进制协议版本，通过配置中的 `version` 字段指定：
+
+### 3.1 版本1（默认）
+直接发送 Opus 音频数据，无额外元数据。Websocket 协议会区分 text 与 binary。
+
+### 3.2 版本2
+使用 `BinaryProtocol2` 结构：
+```c
+struct BinaryProtocol2 {
+    uint16_t version;        // 协议版本
+    uint16_t type;           // 消息类型 (0: OPUS, 1: JSON)
+    uint32_t reserved;       // 保留字段
+    uint32_t timestamp;      // 时间戳（毫秒，用于服务器端AEC）
+    uint32_t payload_size;   // 负载大小（字节）
+    uint8_t payload[];       // 负载数据
+} __attribute__((packed));
+```
+
+### 3.3 版本3
+使用 `BinaryProtocol3` 结构：
+```c
+struct BinaryProtocol3 {
+    uint8_t type;            // 消息类型
+    uint8_t reserved;        // 保留字段
+    uint16_t payload_size;   // 负载大小
+    uint8_t payload[];       // 负载数据
+} __attribute__((packed));
+```
+
+---
+
+## 4. JSON 消息结构
 
 WebSocket 文本帧以 JSON 方式传输，以下为常见的 `"type"` 字段及其对应业务逻辑。若消息里包含未列出的字段，可能为可选或特定实现细节。
 
-### 3.1 设备端→服务器
+### 4.1 设备端→服务器
 
 1. **Hello**  
    - 连接成功后，由设备端发送，告知服务器基本参数。  
@@ -183,7 +216,7 @@ WebSocket 文本帧以 JSON 方式传输，以下为常见的 `"type"` 字段及
 
 ---
 
-### 3.2 服务器→设备端
+### 4.2 服务器→设备端
 
 1. **Hello**  
    - 服务器端返回的握手确认消息。  
@@ -227,17 +260,43 @@ WebSocket 文本帧以 JSON 方式传输，以下为常见的 `"type"` 字段及
      }
      ```
 
-6. **音频数据：二进制帧**  
+6. **System**
+   - 系统控制命令，常用于远程升级更新。
+   - 例：
+     ```json
+     {
+       "session_id": "xxx",
+       "type": "system",
+       "command": "reboot"
+     }
+     ```
+   - 支持的命令：
+     - `"reboot"`：重启设备
+
+7. **Custom**（可选）
+   - 自定义消息，当 `CONFIG_RECEIVE_CUSTOM_MESSAGE` 启用时支持。
+   - 例：
+     ```json
+     {
+       "session_id": "xxx",
+       "type": "custom",
+       "payload": {
+         "message": "自定义内容"
+       }
+     }
+     ```
+
+8. **音频数据：二进制帧**  
    - 当服务器发送音频二进制帧（Opus 编码）时，设备端解码并播放。  
    - 若设备端正在处于 "listening" （录音）状态，收到的音频帧会被忽略或清空以防冲突。
 
 ---
 
-## 4. 音频编解码
+## 5. 音频编解码
 
 1. **设备端发送录音数据**  
    - 音频输入经过可能的回声消除、降噪或音量增益后，通过 Opus 编码打包为二进制帧发送给服务器。  
-   - 如果设备端每次编码生成的二进制帧大小为 N 字节，则会通过 WebSocket 的 **binary** 消息发送这块数据。
+   - 根据协议版本，可能直接发送 Opus 数据（版本1）或使用带元数据的二进制协议（版本2/3）。
 
 2. **设备端播放收到的音频**  
    - 收到服务器的二进制帧时，同样认定是 Opus 数据。  
@@ -246,7 +305,7 @@ WebSocket 文本帧以 JSON 方式传输，以下为常见的 `"type"` 字段及
 
 ---
 
-## 5. 常见状态流转
+## 6. 常见状态流转
 
 以下为常见设备端关键状态流转，与 WebSocket 消息对应：
 
@@ -307,7 +366,7 @@ stateDiagram
 
 ---
 
-## 6. 错误处理
+## 7. 错误处理
 
 1. **连接失败**  
    - 如果 `Connect(url)` 返回失败或在等待服务器 "hello" 消息时超时，触发 `on_network_error_()` 回调。设备会提示"无法连接到服务"或类似错误信息。
@@ -319,7 +378,7 @@ stateDiagram
 
 ---
 
-## 7. 其它注意事项
+## 8. 其它注意事项
 
 1. **鉴权**  
    - 设备通过设置 `Authorization: Bearer <token>` 提供鉴权，服务器端需验证是否有效。  
@@ -331,17 +390,23 @@ stateDiagram
 3. **音频负载**  
    - 代码里默认使用 Opus 格式，并设置 `sample_rate = 16000`，单声道。帧时长由 `OPUS_FRAME_DURATION_MS` 控制，一般为 60ms。可根据带宽或性能做适当调整。为了获得更好的音乐播放效果，服务器下行音频可能使用 24000 采样率。
 
-4. **物联网控制推荐 MCP 协议**  
+4. **协议版本配置**  
+   - 通过设置中的 `version` 字段配置二进制协议版本（1、2 或 3）
+   - 版本1：直接发送 Opus 数据
+   - 版本2：使用带时间戳的二进制协议，适用于服务器端 AEC
+   - 版本3：使用简化的二进制协议
+
+5. **物联网控制推荐 MCP 协议**  
    - 设备与服务器之间的物联网能力发现、状态同步、控制指令等，建议全部通过 MCP 协议（type: "mcp"）实现。原有的 type: "iot" 方案已废弃。
    - MCP 协议可在 WebSocket、MQTT 等多种底层协议上传输，具备更好的扩展性和标准化能力。
    - 详细用法请参考 [MCP 协议文档](./mcp-protocol.md) 及 [MCP 物联网控制用法](./mcp-usage.md)。
 
-5. **错误或异常 JSON**  
+6. **错误或异常 JSON**  
    - 当 JSON 中缺少必要字段，例如 `{"type": ...}`，设备端会记录错误日志（`ESP_LOGE(TAG, "Missing message type, data: %s", data);`），不会执行任何业务。
 
 ---
 
-## 8. 消息示例
+## 9. 消息示例
 
 下面给出一个典型的双向消息示例（流程简化示意）：
 
@@ -418,13 +483,13 @@ stateDiagram
 
 ---
 
-## 9. 总结
+## 10. 总结
 
 本协议通过在 WebSocket 上层传输 JSON 文本与二进制音频帧，完成功能包括音频流上传、TTS 音频播放、语音识别与状态管理、MCP 指令下发等。其核心特征：
 
 - **握手阶段**：发送 `"type":"hello"`，等待服务器返回。  
-- **音频通道**：采用 Opus 编码的二进制帧双向传输语音流。  
-- **JSON 消息**：使用 `"type"` 为核心字段标识不同业务逻辑，包括 TTS、STT、MCP、WakeWord 等。  
+- **音频通道**：采用 Opus 编码的二进制帧双向传输语音流，支持多种协议版本。  
+- **JSON 消息**：使用 `"type"` 为核心字段标识不同业务逻辑，包括 TTS、STT、MCP、WakeWord、System、Custom 等。  
 - **扩展性**：可根据实际需求在 JSON 消息中添加字段，或在 headers 里进行额外鉴权。
 
 服务器与设备端需提前约定各类消息的字段含义、时序逻辑以及错误处理规则，方能保证通信顺畅。上述信息可作为基础文档，便于后续对接、开发或扩展。

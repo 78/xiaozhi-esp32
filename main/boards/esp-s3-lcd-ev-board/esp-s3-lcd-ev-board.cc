@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -7,7 +7,6 @@
 #include "pin_config.h"
 
 #include "config.h"
-#include "iot/thing_manager.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -17,7 +16,6 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_io_additions.h>
 
-#include "audio_codecs/box_audio_codec.h"
 #include "esp_io_expander_tca9554.h"
 
 #define TAG "ESP_S3_LCD_EV_Board"
@@ -175,17 +173,10 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-    }
-
 public:
     ESP_S3_LCD_EV_Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeIot();
         InitializeRGB_GC9503V_Display();
     }
 

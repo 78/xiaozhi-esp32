@@ -279,7 +279,7 @@ std::string SscmaCamera::Explain(const std::string& question) {
     }
 
     auto network = Board::GetInstance().GetNetwork();
-    auto http = std::unique_ptr<Http>(network->CreateHttp(3));
+    auto http = network->CreateHttp(3);
     // 构造multipart/form-data请求体
     std::string boundary = "----ESP32_CAMERA_BOUNDARY";
     

@@ -141,7 +141,8 @@ void AdcPdmAudioCodec::EnableInput(bool enable) {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
     } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+        // ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+        return;
     }
     AudioCodec::EnableInput(enable);
 }

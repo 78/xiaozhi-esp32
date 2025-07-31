@@ -8,7 +8,7 @@
 #include <wifi_station.h>
 
 #include "application.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
