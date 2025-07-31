@@ -189,7 +189,7 @@
       audio.load();
       audio.play();
 
-      // 修改这里：使用 'ended' 事件来实现循环播放
+      // 修改了这里：使用 'ended' 事件来实现循环播放
       if (document.getElementById('loopCheck').checked) {
         audio.onended = function() {
           audio.currentTime = 0;  // 从头开始
