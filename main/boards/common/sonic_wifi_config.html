@@ -189,21 +189,19 @@
       audio.load();
       audio.play();
 
+      // 修改这里：使用 'ended' 事件来实现循环播放
       if (document.getElementById('loopCheck').checked) {
-        loopTimer = setInterval(() => {
-          audio.currentTime = 0;
-          audio.play();
-        }, (audio.duration * 1000 + 500) || 2000);
+        audio.onended = function() {
+          audio.currentTime = 0;  // 从头开始
+          audio.play();           // 重新播放
+        };
       }
     }
 
     function stopPlay() {
       const audio = document.getElementById('player');
       audio.pause();
-      if (loopTimer) {
-        clearInterval(loopTimer);
-        loopTimer = null;
-      }
+      audio.onended = null;  // 清除事件监听
     }
   </script>
 </body>
