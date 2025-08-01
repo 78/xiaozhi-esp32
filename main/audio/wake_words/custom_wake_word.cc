@@ -80,9 +80,20 @@ void CustomWakeWord::Feed(const std::vector<int16_t>& data) {
         return;
     }
 
-    StoreWakeWordData(data);
+    esp_mn_state_t mn_state;
+    // If input channels is 2, we need to fetch the left channel data
+    if (codec_->input_channels() == 2) {
+        auto mono_data = std::vector<int16_t>(data.size() / 2);
+        for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+            mono_data[i] = data[j];
+        }
 
-    esp_mn_state_t mn_state = multinet_->detect(multinet_model_data_, const_cast<int16_t*>(data.data()));
+        StoreWakeWordData(mono_data);
+        mn_state = multinet_->detect(multinet_model_data_, const_cast<int16_t*>(mono_data.data()));
+    } else {
+        StoreWakeWordData(data);
+        mn_state = multinet_->detect(multinet_model_data_, const_cast<int16_t*>(data.data()));
+    }
     
     if (mn_state == ESP_MN_STATE_DETECTING) {
         return;
