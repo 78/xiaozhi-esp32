@@ -26,6 +26,7 @@ LV_FONT_DECLARE(font_awesome_14_1);
 class XIAO_ESP32S3_Sense : public WifiBoard {
  private:
     Button boot_button_;
+    Button user_button_;
     Esp32Camera* camera_;
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -105,6 +106,14 @@ class XIAO_ESP32S3_Sense : public WifiBoard {
             }
             app.ToggleChatState();
         });
+
+        user_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        });
     }
 
     // 物联网初始化，逐步迁移到 MCP 协议
@@ -148,7 +157,8 @@ class XIAO_ESP32S3_Sense : public WifiBoard {
 
  public:
     XIAO_ESP32S3_Sense() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO),
+        user_button_(USER_BUTTON_GPIO) {
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
