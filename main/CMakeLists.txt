@@ -339,7 +339,15 @@ endif()
 
 if(CONFIG_BOARD_TYPE_ECHOEAR)
 
-set(SPIFFS_DIR "./boards/${BOARD_TYPE}/emoji")
+idf_build_get_property(build_components BUILD_COMPONENTS)
+foreach(COMPONENT ${build_components})
+    if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
+        set(EMOTE_GFX_COMPONENT ${COMPONENT})
+        idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
+        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        break()
+    endif()
+endforeach()
 
 spiffs_create_partition_assets(
     assets_A
