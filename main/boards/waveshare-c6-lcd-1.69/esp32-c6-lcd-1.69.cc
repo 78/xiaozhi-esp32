@@ -18,6 +18,13 @@
 #include <esp_timer.h>
 
 
+#include "iot_button.h"
+
+#include "power_manager.h"
+
+#include "power_save_timer.h"
+
+
 
 #define TAG "waveshare_lcd_1_69"
 
@@ -55,11 +62,61 @@ public:
 };
 
 
+class CustomButton: public Button{
+public:
+    void OnPressDownDel(void) {
+        if (button_handle_ == nullptr) {
+            return;
+        }
+        on_press_down_ = NULL;
+        iot_button_unregister_cb(button_handle_, BUTTON_PRESS_DOWN, nullptr);
+    }
+    void OnPressUpDel(void) {
+        if (button_handle_ == nullptr) {
+            return;
+        }
+        on_press_up_ = NULL;
+        iot_button_unregister_cb(button_handle_, BUTTON_PRESS_UP, nullptr);
+    }
+};
+
+
+
 class CustomBoard : public WifiBoard {
 private:
-    Button boot_button_;
+    CustomButton boot_button_;
+    CustomButton pwr_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
+
+    PowerManager* power_manager_ = nullptr;
+    PowerSaveTimer* power_save_timer_ = nullptr;
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(BATTERY_CHARGING_PIN, BATTERY_ADC_PIN, BATTERY_EN_PIN);
+        power_manager_->PowerON();
+    }
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(20);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            power_manager_->PowerOff();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
+
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -146,17 +203,46 @@ private:
             }
             app.ToggleChatState();
         });
+        pwr_button_.OnPressUp([this]() {
+            pwr_button_.OnDoubleClick([this]() {
+                static uint8_t brightness_last = 0;
+                auto backlight = Board::GetInstance().GetBacklight();
+                if (backlight->brightness() == 0) {
+                    brightness_last = 0;
+                    if (brightness_last == 0) {
+                        backlight->SetBrightness(50, true);
+                    } else {
+                        backlight->SetBrightness(brightness_last, true);
+                    }
+                } else {
+                    brightness_last = backlight->brightness();
+                    backlight->SetBrightness(0);
+                }
+            });
+            pwr_button_.OnLongPress([this]() {
+                printf("Power button long press\n");
+                if (power_manager_ != nullptr){
+                    power_manager_->PowerOff();
+                }
+            });
+
+            pwr_button_.OnPressUpDel();
+        });
     }
 
 public:
     CustomBoard() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO),
+        pwr_button_(PWR_BUTTON_GPIO) {
+        InitializePowerManager();
+        InitializePowerSaveTimer();
         InitializeI2c();
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
+    
 
     virtual AudioCodec* GetAudioCodec() override {
         static Es8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
@@ -172,6 +258,25 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 
