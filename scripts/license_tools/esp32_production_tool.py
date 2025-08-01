@@ -14,19 +14,25 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import time
 import os
+import sys
 import subprocess
+from typing import Dict
 import requests
 import json
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import serial.tools.list_ports
 import re
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
+import threading
+from functools import partial
 
 class DeviceManager:
     """设备管理器，负责单个设备的管理和烧录"""
-    def __init__(self, port_num, parent):
+    def __init__(self, port_num, parent, exact_name=None):
+        self.exact_name = exact_name
         self.port_num = port_num
-        self.parent = parent
+        self.parent: "ESP32ProductionTool" = parent
         self.device_path = None
         self.mac_address = None
         self.status = "未连接"
@@ -38,7 +44,7 @@ class DeviceManager:
         self.current_process = None  # 存储当前烧录进程
         
     def log(self, message):
-        """记录日志，自动添加端口前缀"""
+        """记录日志，自动添加端口前缀 - 线程安全版本"""
         self.parent.log(f"端口{self.port_num}: {message}")
         
     def update_status(self, status, device_path=None):
@@ -96,33 +102,46 @@ class DeviceManager:
             self.parent.root.after(0, update_ui)
             
     def read_info(self):
-        """读取设备信息"""
+        """读取设备信息 - 异步执行"""
+        # 在线程池中异步执行
+        future = self.parent.executor.submit(self._read_info_async)
+        return future
+    
+    def _read_info_async(self):
+        """读取设备信息 - 同步执行版本"""
         try:
             if not self.device_path:
                 self.log("设备不存在")
                 return None
                 
             # 读取MAC地址
-            cmd = ["esptool.py", "--chip", "auto", "--port", self.device_path, "read_mac"]
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            if sys.platform.startswith('win'):
+                cmd = ["esptool", "-c", "auto", "-p", self.device_path, "read-mac"]
+            else:
+                cmd = ["esptool.py", "--chip", "auto", "--port", self.device_path, "read_mac"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode != 0:
                 self.log(f"读取MAC地址失败: {result.stderr}")
                 return None
                 
             # 使用正则表达式提取第一个MAC地址
-            mac_pattern = r"MAC: ([0-9a-fA-F:]+)"
+            print(result.stdout)
+            mac_pattern = r"MAC:(\s+)([0-9a-fA-F:]+)"
             match = re.search(mac_pattern, result.stdout)
             if not match:
                 self.log("无法解析MAC地址")
                 return None
                 
-            self.mac_address = match.group(1)
+            self.mac_address = match.group(2)  # 修正：使用group(2)获取MAC地址
             self.log(f"MAC地址: {self.mac_address}")
             
             # 检查是否已烧录序列号
-            cmd = ["espefuse.py", "--port", self.device_path, "--do-not-confirm", "summary"]
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            if sys.platform.startswith("win"):
+                cmd = ["espefuse", "--port", self.device_path, "--do-not-confirm", "summary"]
+            else:
+                cmd = ["espefuse.py", "--port", self.device_path, "--do-not-confirm", "summary"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
             if result.returncode != 0:
                 self.log(f"读取序列号失败: {result.stderr}")
@@ -130,77 +149,93 @@ class DeviceManager:
                 
             if "HMAC_UP" in result.stdout:
                 self.log("设备已烧录序列号")
-                self.update_status("完成")
+                self.parent.root.after(0, lambda: self.update_status("完成"))
             else:
                 self.log("设备未烧录序列号")
-                self.update_status("已连接")
+                self.parent.root.after(0, lambda: self.update_status("已连接"))
                 
             return True
             
+        except subprocess.TimeoutExpired:
+            self.log("读取设备信息超时")
+            return None
         except Exception as e:
             self.log(f"读取设备信息失败: {str(e)}")
             return None
             
     def flash(self):
-        """烧录设备"""
-        if self.is_flashing:
-            return
-            
-        self.is_flashing = True
-        try:
-            # 立即更新状态为正在烧录
-            self.update_status("正在烧录")
-            self.log("开始烧录")
-            
-            # 获取授权信息
-            self.log("正在获取授权信息...")
-            license_data = self.get_license_info()
-            if not license_data:
-                self.update_status("失败")
-                self.log("获取授权信息失败")
+        """烧录设备 - 异步执行"""
+        def _flash_async():
+            if self.is_flashing:
                 return
                 
-            # 下载固件
-            if not license_data.get('firmware'):
-                self.log("固件信息不存在，请在后台配置最新版固件")
-                self.update_status("失败")
-                return
-            
-            self.log("正在下载固件...")
-            firmware_path = self.download_firmware(license_data['firmware']['image_url'])
-            if not firmware_path:
-                self.update_status("失败")
-                self.log("下载固件失败")
-                return
-                
-            # 烧录设备
+            self.is_flashing = True
             try:
-                # 烧录固件
-                self.log("开始烧录固件...")
-                if not self.flash_firmware(firmware_path):
-                    self.update_status("失败")
-                    self.log("烧录固件失败")
+                # 立即更新状态为正在烧录
+                self.parent.root.after(0, lambda: self.update_status("正在烧录"))
+                self.log("开始烧录")
+                
+                # 获取授权信息
+                self.log("正在获取授权信息...")
+                license_data = self._get_license_info_sync()
+                if not license_data:
+                    self.parent.root.after(0, lambda: self.update_status("失败"))
+                    self.log("获取授权信息失败")
                     return
                     
-                # 烧录序列号和授权密钥
-                self.log("开始烧录授权信息...")
-                if not self.flash_license_info(license_data):
-                    self.update_status("失败")
-                    self.log("烧录授权信息失败")
+                # 下载固件
+                if not license_data.get('firmware'):
+                    self.log("固件信息不存在，请在后台配置最新版固件")
+                    self.parent.root.after(0, lambda: self.update_status("失败"))
+                    return
+                
+                self.log("正在下载固件...")
+                firmware_path = self._download_firmware_sync(license_data['firmware']['image_url'])
+                if not firmware_path:
+                    self.parent.root.after(0, lambda: self.update_status("失败"))
+                    self.log("下载固件失败")
                     return
                     
-                self.update_status("完成")
-                self.log("烧录完成")
-                
-            except Exception as e:
-                self.log(f"烧录失败: {str(e)}")
-                self.update_status("失败")
-                
-        finally:
-            self.is_flashing = False
+                # 烧录设备
+                try:
+                    # 烧录固件
+                    self.log("开始烧录固件...")
+                    if not self._flash_firmware_sync(firmware_path):
+                        self.parent.root.after(0, lambda: self.update_status("失败"))
+                        self.log("烧录固件失败")
+                        return
+                        
+                    # 烧录序列号和授权密钥
+                    self.log("开始烧录授权信息...")
+                    if not self._flash_license_info_sync(license_data):
+                        self.parent.root.after(0, lambda: self.update_status("失败"))
+                        self.log("烧录授权信息失败")
+                        return
+                        
+                    self.parent.root.after(0, lambda: self.update_status("完成"))
+                    self.log("烧录完成")
+                    
+                except Exception as e:
+                    self.log(f"烧录失败: {str(e)}")
+                    self.parent.root.after(0, lambda: self.update_status("失败"))
+                    
+            finally:
+                self.is_flashing = False
+        
+        # 在线程池中异步执行
+        future = self.parent.executor.submit(_flash_async)
+        return future
 
     def get_license_info(self):
-        """获取授权信息"""
+        """获取授权信息 - 异步版本"""
+        def _get_license_info_async():
+            return self._get_license_info_sync()
+        
+        future = self.parent.executor.submit(_get_license_info_async)
+        return future
+    
+    def _get_license_info_sync(self):
+        """获取授权信息 - 同步版本"""
         try:
             if not self.mac_address:
                 self.log("无法获取MAC地址")
@@ -239,7 +274,7 @@ class DeviceManager:
             
             # 发送请求
             self.log(f"正在请求授权信息: {new_url[:80]}...")
-            response = requests.get(new_url)
+            response = requests.get(new_url, timeout=30)
             
             if response.status_code != 200:
                 self.log(f"获取授权信息失败: HTTP {response.status_code}")
@@ -261,7 +296,15 @@ class DeviceManager:
             return None
 
     def download_firmware(self, firmware_url):
-        """下载固件"""
+        """下载固件 - 异步版本"""
+        def _download_firmware_async():
+            return self._download_firmware_sync(firmware_url)
+        
+        future = self.parent.executor.submit(_download_firmware_async)
+        return future
+    
+    def _download_firmware_sync(self, firmware_url):
+        """下载固件 - 同步版本"""
         try:
             # 创建固件缓存目录
             cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "firmware_cache")
@@ -280,7 +323,7 @@ class DeviceManager:
                 
             # 下载固件
             self.log(f"正在下载固件: {firmware_url}")
-            response = requests.get(firmware_url, stream=True)
+            response = requests.get(firmware_url, stream=True, timeout=60)
             response.raise_for_status()
             
             # 保存固件
@@ -297,7 +340,15 @@ class DeviceManager:
             return None
             
     def flash_firmware(self, firmware_path):
-        """烧录固件"""
+        """烧录固件 - 异步版本"""
+        def _flash_firmware_async():
+            return self._flash_firmware_sync(firmware_path)
+        
+        future = self.parent.executor.submit(_flash_firmware_async)
+        return future
+    
+    def _flash_firmware_sync(self, firmware_path):
+        """烧录固件 - 同步版本"""
         try:
             if not os.path.exists(firmware_path):
                 self.log(f"固件文件不存在: {firmware_path}")
@@ -313,6 +364,17 @@ class DeviceManager:
                 "write_flash",
                 "0x0", firmware_path
             ]
+            if sys.platform.startswith("win"):
+                cmd = [
+                    "esptool",
+                    "--chip", "auto",
+                    "--port", self.device_path,
+                    "--baud", "921600",
+                    "--before", "default_reset",
+                    "--after", "hard_reset",
+                    "write-flash",
+                    "0x0", firmware_path
+                ]
             
             self.log(f"执行烧录命令: {' '.join(cmd)}")
             
@@ -346,7 +408,15 @@ class DeviceManager:
             return False
             
     def flash_license_info(self, license_data):
-        """烧录授权信息"""
+        """烧录授权信息 - 异步版本"""
+        def _flash_license_info_async():
+            return self._flash_license_info_sync(license_data)
+        
+        future = self.parent.executor.submit(_flash_license_info_async)
+        return future
+    
+    def _flash_license_info_sync(self, license_data):
+        """烧录授权信息 - 同步版本"""
         try:
             # 创建临时文件存储序列号和授权密钥
             serial_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"serial_{self.port_num}.bin")
@@ -369,6 +439,16 @@ class DeviceManager:
                 "BLOCK_USR_DATA",
                 serial_file
             ]
+            if sys.platform.startswith("win"):
+                cmd = [
+                    "espefuse",
+                    "--port", self.device_path,
+                    "--do-not-confirm",
+                    "burn-block-data",
+                    "BLOCK_USR_DATA",
+                    serial_file
+                ]
+
             
             self.log("正在烧录序列号...")
             self.log(f"执行命令: {' '.join(cmd)}")
@@ -405,6 +485,17 @@ class DeviceManager:
                 key_file,
                 "HMAC_UP"
             ]
+            if sys.platform.startswith("win"):
+                cmd = [
+                    "espefuse",
+                    "--port", self.device_path,
+                    "--do-not-confirm",
+                    "burn-key",
+                    "BLOCK_KEY0",
+                    key_file,
+                    "HMAC_UP"
+                ]
+
             
             self.log("正在烧录授权密钥...")
             self.log(f"执行命令: {' '.join(cmd)}")
@@ -465,7 +556,10 @@ class ESP32ProductionTool:
         self.fullscreen_on_startup = True
         
         # 设备管理器
-        self.devices = {}
+        self.devices:Dict[str, DeviceManager] = {}  # 改为以串口名为key
+        
+        # 有序串口列表
+        self.ordered_ports = []  # 存储排序后的串口名列表
         
         # 线程池
         self.executor = ThreadPoolExecutor(max_workers=16)  # 最多16个并发任务
@@ -495,6 +589,38 @@ class ESP32ProductionTool:
         self.root.bind('<F11>', self.toggle_fullscreen)
         self.root.bind('<Escape>', self.exit_fullscreen)
         self.root.focus_set()  # 确保窗口可以接收键盘事件
+        
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+    def on_closing(self):
+        """程序关闭时的清理操作"""
+        self.cleanup()
+        self.root.destroy()
+        
+    def cleanup(self):
+        """清理资源"""
+        try:
+            # 停止自动刷新
+            self.stop_auto_refresh()
+            
+            # 终止所有正在进行的设备操作
+            for device in self.devices.values():
+                if device.current_process:
+                    try:
+                        device.current_process.terminate()
+                        device.current_process.wait(timeout=1)
+                    except:
+                        pass
+                    device.current_process = None
+                    device.is_flashing = False
+            
+            # 关闭线程池
+            if hasattr(self, 'executor'):
+                self.executor.shutdown(wait=False)
+                
+        except Exception as e:
+            print(f"清理资源时出错: {e}")
         
     def create_styles(self):
         """创建自定义样式"""
@@ -621,47 +747,94 @@ class ESP32ProductionTool:
         for i in range(self.grid_rows):
             ports_frame.rowconfigure(i, weight=1)
         
-        # 创建网格
+        # 获取实际能查到的接口并排序
+        ports_name = []
+        for port in serial.tools.list_ports.comports():
+            ports_name.append(port.device)
+        ports_name = sorted(ports_name)
+        
+        # 更新有序串口列表
+        self.ordered_ports = ports_name.copy()
+        
+        # 动态计算网格布局
+        total_ports = len(ports_name)
+        if total_ports == 0:
+            # 没有检测到串口，创建一个占位框
+            self.grid_rows = 1
+            self.grid_cols = 1
+        else:
+            # 根据检测到的串口数量调整网格布局
+            if total_ports <= 4:
+                self.grid_rows = 1
+                self.grid_cols = total_ports
+            elif total_ports <= 8:
+                self.grid_rows = 2
+                self.grid_cols = 4
+            elif total_ports <= 16:
+                self.grid_rows = 4
+                self.grid_cols = 4
+            else:
+                # 超过16个串口，使用更大的网格
+                self.grid_cols = 8
+                self.grid_rows = (total_ports + self.grid_cols - 1) // self.grid_cols
+        
+        # 重新设置网格列的权重
+        for i in range(self.grid_cols):
+            ports_frame.columnconfigure(i, weight=1)
         for i in range(self.grid_rows):
-            for j in range(self.grid_cols):
-                port_num = i * self.grid_cols + j
-                device = DeviceManager(port_num, self)
-                self.devices[port_num] = device
-                
-                # 创建固定大小的端口框架
-                port_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
-                port_frame.grid(row=i, column=j, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
-                port_frame.grid_propagate(False)  # 禁止框架自动调整大小
-                
-                # 端口标签
-                port_label = ttk.Label(port_frame, text=f"端口 {port_num}", style='Port.TLabel')
-                port_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
-                
-                # 状态标签
-                status_label = ttk.Label(port_frame, text="未连接", style='Status.TLabel')
-                status_label.grid(row=1, column=0, sticky=(tk.W, tk.E))
-                
-                # 设备信息标签
-                info_label = ttk.Label(port_frame, text="", style='Info.TLabel')
-                info_label.grid(row=2, column=0, sticky=(tk.W, tk.E))
-                
-                # 操作按钮框架
-                button_frame = ttk.Frame(port_frame, style='Disconnected.TFrame')
-                button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E))
-                
-                # 烧录按钮
-                flash_btn = ttk.Button(button_frame, text="烧录", style='Port.TButton',
-                                     command=lambda p=port_num: self.flash_device(p))
-                flash_btn.grid(row=0, column=0, sticky=(tk.W, tk.E))
-                
-                # 存储框架引用
-                device.frame = port_frame
-                device.status_label = status_label
-                device.info_label = info_label
-                device.button = flash_btn
-                
-                # 初始化状态
-                device.update_status("未连接")
+            ports_frame.rowconfigure(i, weight=1)
+
+        # 创建网格 - 只为检测到的串口创建设备
+        for idx, port_name in enumerate(ports_name):
+            i = idx // self.grid_cols
+            j = idx % self.grid_cols
+            
+            device = DeviceManager(idx, self, exact_name=port_name)
+            self.devices[port_name] = device  # 使用串口名作为key
+            
+            # 创建固定大小的端口框架
+            port_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            port_frame.grid(row=i, column=j, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            port_frame.grid_propagate(False)  # 禁止框架自动调整大小
+            
+            # 端口标签 - 显示实际的串口名
+            port_label = ttk.Label(port_frame, text=f"{port_name}", style='Port.TLabel')
+            port_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 状态标签
+            status_label = ttk.Label(port_frame, text="未连接", style='Status.TLabel')
+            status_label.grid(row=1, column=0, sticky=(tk.W, tk.E))
+            
+            # 设备信息标签
+            info_label = ttk.Label(port_frame, text="", style='Info.TLabel')
+            info_label.grid(row=2, column=0, sticky=(tk.W, tk.E))
+            
+            # 操作按钮框架
+            button_frame = ttk.Frame(port_frame, style='Disconnected.TFrame')
+            button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E))
+            
+            # 烧录按钮
+            flash_btn = ttk.Button(button_frame, text="烧录", style='Port.TButton',
+                                 command=lambda p=port_name: self.flash_device(p))
+            flash_btn.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 存储框架引用
+            device.frame = port_frame
+            device.status_label = status_label
+            device.info_label = info_label
+            device.button = flash_btn
+            
+            # 初始化状态
+            device.update_status("未连接")
+        
+        # 如果没有检测到串口，显示提示信息
+        if total_ports == 0:
+            placeholder_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            placeholder_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            placeholder_frame.grid_propagate(False)
+            
+            placeholder_label = ttk.Label(placeholder_frame, text="未检测到串口设备", style='Port.TLabel')
+            placeholder_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 日志区域
         log_frame = ttk.LabelFrame(main_frame, text="日志", padding="10")
@@ -686,16 +859,31 @@ class ESP32ProductionTool:
         log_frame.rowconfigure(0, weight=1)
         
     def log(self, message):
-        """记录日志"""
-        timestamp = time.strftime("%H:%M:%S")
-        log_message = f"[{timestamp}] {message}"
-        self.status_text.insert(tk.END, log_message + "\n")
-        self.status_text.see(tk.END)
-        self.root.update_idletasks()
+        """记录日志 - 线程安全版本"""
+        def _log_in_main_thread():
+            timestamp = time.strftime("%H:%M:%S")
+            log_message = f"[{timestamp}] {message}"
+            self.status_text.insert(tk.END, log_message + "\n")
+            self.status_text.see(tk.END)
+            self.root.update_idletasks()
         
-    def flash_device(self, port_num):
+        # 如果在主线程中，直接执行；否则调度到主线程
+        try:
+            if threading.current_thread() == threading.main_thread():
+                _log_in_main_thread()
+            else:
+                self.root.after(0, _log_in_main_thread)
+        except:
+            # 备用方案，总是调度到主线程
+            self.root.after(0, _log_in_main_thread)
+        
+    def flash_device(self, port_name):
         """烧录指定端口的设备"""
-        device = self.devices[port_num]
+        device = self.devices.get(port_name)
+        if not device:
+            messagebox.showwarning("警告", f"未找到端口 {port_name} 的设备")
+            return
+            
         if device.device_path and device.status in ['已连接', '失败']:  # 允许在失败状态下重新烧录
             if device.status == '失败':
                 # 重置失败状态
@@ -705,38 +893,362 @@ class ESP32ProductionTool:
             messagebox.showwarning("警告", "请先连接设备")
 
     def refresh_devices(self):
-        """刷新设备状态"""
-        try:
-            # 获取所有USB设备
-            ports = list(serial.tools.list_ports.comports())
-            
-            # 更新每个端口的状态
-            for port_num, device in self.devices.items():
-                # 查找当前端口的设备
-                device_path = None
-                for port in ports:
-                    if port.device.endswith(f"USB{port_num}") or port.device.endswith(f"ACM{port_num}"):
-                        device_path = port.device
-                        break
+        """刷新设备状态 - 异步执行，支持动态重建界面"""
+        def _refresh_devices_async():
+            try:
+                # 获取所有USB设备
+                ports = list(serial.tools.list_ports.comports())
+                current_ports = sorted([port.device for port in ports])
                 
-                if device_path:
-                    if device.status == "未连接":
-                        # 新连接的设备，更新状态并读取信息
-                        device.update_status("已连接", device_path)
-                        device.read_info()
-                        # 如果启用了自动烧录，且不是完成状态，则开始烧录
-                        if device.status == "已连接" and self.auto_flash_enabled:
-                            self.flash_device(port_num)
-                    elif device.status == "已连接":
-                        # 保持已连接状态
-                        pass
+                # 检查是否需要重建界面
+                ports_changed = current_ports != self.ordered_ports
+                
+                if ports_changed:
+                    # 端口列表发生变化，需要重建界面
+                    self.root.after(0, lambda: self._rebuild_interface(current_ports))
                 else:
-                    if device.status != "未连接":
-                        self.log(f"端口 {port_num} 设备已断开")
-                        device.update_status("未连接")
+                    # 端口列表没有变化，只更新状态
+                    self._update_existing_devices(current_ports)
                         
+            except Exception as e:
+                self.root.after(0, lambda: self.log(f"刷新设备状态失败: {str(e)}"))
+        
+        # 在线程池中异步执行
+        self.executor.submit(_refresh_devices_async)
+    
+    def _rebuild_interface(self, current_ports):
+        """重建设备界面 - 增量更新，只处理变动的设备"""
+        try:
+            old_ports = set(self.ordered_ports)
+            new_ports = set(current_ports)
+            
+            # 计算端口变化
+            removed_ports = old_ports - new_ports  # 被移除的端口
+            added_ports = new_ports - old_ports    # 新增的端口
+            unchanged_ports = old_ports & new_ports # 未变化的端口
+            
+            self.log(f"端口变化: 移除{len(removed_ports)}个, 新增{len(added_ports)}个, 保持{len(unchanged_ports)}个")
+            
+            # 保存未变化设备的状态信息
+            preserved_devices = {}
+            for port_name in unchanged_ports:
+                device = self.devices.get(port_name)
+                if device:
+                    preserved_devices[port_name] = {
+                        'device': device,
+                        'status': device.status,
+                        'mac_address': device.mac_address,
+                        'is_flashing': device.is_flashing,
+                        'current_process': device.current_process
+                    }
+            
+            # 停止并清理被移除端口的设备操作
+            for port_name in removed_ports:
+                device = self.devices.get(port_name)
+                if device:
+                    if device.current_process:
+                        try:
+                            device.current_process.terminate()
+                            device.current_process.wait(timeout=1)
+                        except:
+                            pass
+                        device.current_process = None
+                        device.is_flashing = False
+                    self.log(f"清理端口 {port_name}")
+            
+            # 清理所有旧的UI框架（但保留设备对象数据）
+            for device in self.devices.values():
+                if device.frame:
+                    device.frame.destroy()
+                    device.frame = None
+                    device.status_label = None
+                    device.info_label = None
+                    device.button = None
+            
+            # 清空设备字典中被移除的端口
+            for port_name in removed_ports:
+                if port_name in self.devices:
+                    del self.devices[port_name]
+            
+            # 更新端口列表
+            self.ordered_ports = current_ports.copy()
+            
+            # 重新创建设备界面
+            self._create_device_grid_incremental(current_ports, preserved_devices, added_ports)
+            
         except Exception as e:
-            self.log(f"刷新设备状态失败: {str(e)}")
+            self.log(f"重建界面失败: {str(e)}")
+    
+    def _create_device_grid_incremental(self, ports_name, preserved_devices, added_ports):
+        """增量创建设备网格，保持已有设备状态"""
+        # 获取ports_frame
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget('text') == '端口状态':
+                        ports_frame = child
+                        break
+                else:
+                    continue
+                break
+        else:
+            self.log("未找到端口状态框架")
+            return
+        
+        # 动态计算网格布局
+        total_ports = len(ports_name)
+        if total_ports == 0:
+            self.grid_rows = 1
+            self.grid_cols = 1
+        else:
+            if total_ports <= 4:
+                self.grid_rows = 1
+                self.grid_cols = total_ports
+            elif total_ports <= 8:
+                self.grid_rows = 2
+                self.grid_cols = 4
+            elif total_ports <= 16:
+                self.grid_rows = 4
+                self.grid_cols = 4
+            else:
+                self.grid_cols = 8
+                self.grid_rows = (total_ports + self.grid_cols - 1) // self.grid_cols
+        
+        # 重新设置网格列的权重
+        for i in range(self.grid_cols):
+            ports_frame.columnconfigure(i, weight=1)
+        for i in range(self.grid_rows):
+            ports_frame.rowconfigure(i, weight=1)
+
+        # 创建设备网格
+        for idx, port_name in enumerate(ports_name):
+            i = idx // self.grid_cols
+            j = idx % self.grid_cols
+            
+            # 检查是否是保留的设备
+            if port_name in preserved_devices:
+                # 恢复已有设备
+                device_data = preserved_devices[port_name]
+                device = device_data['device']
+                device.port_num = idx  # 更新端口编号
+                self.devices[port_name] = device
+                
+                self.log(f"恢复端口 {port_name} 设备状态: {device_data['status']}")
+            else:
+                # 创建新设备（包括新增的端口）
+                device = DeviceManager(idx, self, exact_name=port_name)
+                self.devices[port_name] = device
+                self.log(f"创建新端口 {port_name} 设备")
+            
+            # 创建UI框架
+            port_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            port_frame.grid(row=i, column=j, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            port_frame.grid_propagate(False)
+            
+            # 端口标签
+            port_label = ttk.Label(port_frame, text=f"{port_name}", style='Port.TLabel')
+            port_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 状态标签
+            status_label = ttk.Label(port_frame, text="未连接", style='Status.TLabel')
+            status_label.grid(row=1, column=0, sticky=(tk.W, tk.E))
+            
+            # 设备信息标签
+            info_label = ttk.Label(port_frame, text="", style='Info.TLabel')
+            info_label.grid(row=2, column=0, sticky=(tk.W, tk.E))
+            
+            # 操作按钮框架
+            button_frame = ttk.Frame(port_frame, style='Disconnected.TFrame')
+            button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E))
+            
+            # 烧录按钮
+            flash_btn = ttk.Button(button_frame, text="烧录", style='Port.TButton',
+                                 command=lambda p=port_name: self.flash_device(p))
+            flash_btn.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 存储框架引用
+            device.frame = port_frame
+            device.status_label = status_label
+            device.info_label = info_label
+            device.button = flash_btn
+            
+            # 恢复或初始化设备状态
+            if port_name in preserved_devices:
+                # 恢复保留设备的状态
+                device_data = preserved_devices[port_name]
+                device.status = device_data['status']
+                device.mac_address = device_data['mac_address']
+                device.is_flashing = device_data['is_flashing']
+                device.current_process = device_data['current_process']
+                
+                # 恢复UI状态
+                device.update_status(device.status, port_name)
+            else:
+                # 新设备，初始化为未连接状态
+                device.update_status("未连接")
+                
+                # 只对新增的端口进行连接检查
+                if port_name in added_ports:
+                    self.executor.submit(self._check_device_connection, port_name)
+        
+        # 如果没有检测到串口，显示提示信息
+        if total_ports == 0:
+            placeholder_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            placeholder_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            placeholder_frame.grid_propagate(False)
+            
+            placeholder_label = ttk.Label(placeholder_frame, text="未检测到串口设备", style='Port.TLabel')
+            placeholder_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    
+    def _create_device_grid(self, ports_name):
+        """创建设备网格 - 用于初始创建"""
+        # 获取ports_frame
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget('text') == '端口状态':
+                        ports_frame = child
+                        break
+                else:
+                    continue
+                break
+        else:
+            self.log("未找到端口状态框架")
+            return
+        
+        # 动态计算网格布局
+        total_ports = len(ports_name)
+        if total_ports == 0:
+            self.grid_rows = 1
+            self.grid_cols = 1
+        else:
+            if total_ports <= 4:
+                self.grid_rows = 1
+                self.grid_cols = total_ports
+            elif total_ports <= 8:
+                self.grid_rows = 2
+                self.grid_cols = 4
+            elif total_ports <= 16:
+                self.grid_rows = 4
+                self.grid_cols = 4
+            else:
+                self.grid_cols = 8
+                self.grid_rows = (total_ports + self.grid_cols - 1) // self.grid_cols
+        
+        # 重新设置网格列的权重
+        for i in range(self.grid_cols):
+            ports_frame.columnconfigure(i, weight=1)
+        for i in range(self.grid_rows):
+            ports_frame.rowconfigure(i, weight=1)
+
+        # 创建设备网格
+        for idx, port_name in enumerate(ports_name):
+            i = idx // self.grid_cols
+            j = idx % self.grid_cols
+            
+            device = DeviceManager(idx, self, exact_name=port_name)
+            self.devices[port_name] = device
+            
+            # 创建固定大小的端口框架
+            port_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            port_frame.grid(row=i, column=j, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            port_frame.grid_propagate(False)
+            
+            # 端口标签
+            port_label = ttk.Label(port_frame, text=f"{port_name}", style='Port.TLabel')
+            port_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 状态标签
+            status_label = ttk.Label(port_frame, text="未连接", style='Status.TLabel')
+            status_label.grid(row=1, column=0, sticky=(tk.W, tk.E))
+            
+            # 设备信息标签
+            info_label = ttk.Label(port_frame, text="", style='Info.TLabel')
+            info_label.grid(row=2, column=0, sticky=(tk.W, tk.E))
+            
+            # 操作按钮框架
+            button_frame_inner = ttk.Frame(port_frame, style='Disconnected.TFrame')
+            button_frame_inner.grid(row=3, column=0, sticky=(tk.W, tk.E))
+            
+            # 烧录按钮
+            flash_btn = ttk.Button(button_frame_inner, text="烧录", style='Port.TButton',
+                                 command=lambda p=port_name: self.flash_device(p))
+            flash_btn.grid(row=0, column=0, sticky=(tk.W, tk.E))
+            
+            # 存储框架引用
+            device.frame = port_frame
+            device.status_label = status_label
+            device.info_label = info_label
+            device.button = flash_btn
+            
+            # 初始化状态为未连接，然后在线程池中异步检查连接状态
+            device.update_status("未连接")
+            
+            # 异步检查设备连接状态和读取信息
+            self.executor.submit(self._check_device_connection, port_name)
+        
+        # 如果没有检测到串口，显示提示信息
+        if total_ports == 0:
+            placeholder_frame = ttk.Frame(ports_frame, padding="5", relief="solid", borderwidth=1, style='Disconnected.TFrame', width=256, height=144)
+            placeholder_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+            placeholder_frame.grid_propagate(False)
+            
+            placeholder_label = ttk.Label(placeholder_frame, text="未检测到串口设备", style='Port.TLabel')
+            placeholder_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    
+    def _update_existing_devices(self, current_ports):
+        """更新现有设备状态"""
+        # 检查每个设备的连接状态
+        for port_name in self.ordered_ports:
+            device = self.devices.get(port_name)
+            if not device:
+                continue
+                
+            if port_name in current_ports:
+                # 设备仍然存在
+                if device.status == "未连接":
+                    # 设备重新连接，在线程池中异步检查
+                    self.executor.submit(self._check_device_connection, port_name)
+            else:
+                # 设备已断开
+                if device.status != "未连接":
+                    self.root.after(0, lambda d=device: d.update_status("未连接"))
+                    self.root.after(0, lambda p=port_name: self.log(f"端口 {p} 设备已断开"))
+    
+    def _check_device_connection(self, port_name):
+        """检查设备连接状态并读取信息 - 在线程池中执行"""
+        try:
+            device = self.devices.get(port_name)
+            if not device:
+                return
+            
+            # 更新设备路径
+            device.device_path = port_name
+            
+            # 先更新状态为已连接
+            self.root.after(0, lambda: device.update_status("已连接", port_name))
+            self.root.after(0, lambda: self.log(f"端口 {port_name} 设备已连接"))
+            
+            # 在线程池中读取设备信息
+            def _read_info_with_auto_flash():
+                # 调用设备的read_info方法的同步版本
+                device._read_info_async()
+                
+                # 检查是否需要自动烧录
+                if device.status == "已连接" and self.auto_flash_enabled:
+                    self.root.after(2000, lambda: self._check_auto_flash(port_name))
+            
+            # 提交读取信息任务
+            self.executor.submit(_read_info_with_auto_flash)
+            
+        except Exception as e:
+            self.root.after(0, lambda: self.log(f"检查设备连接失败 {port_name}: {str(e)}"))
+    
+    def _check_auto_flash(self, port_name):
+        """检查是否需要自动烧录"""
+        device = self.devices.get(port_name)
+        if device and device.status == "已连接" and self.auto_flash_enabled:
+            self.flash_device(port_name)
             
     def toggle_auto_flash(self):
         """切换自动烧录状态"""
@@ -899,6 +1411,7 @@ class ESP32ProductionTool:
 
 def main():
     root = tk.Tk()
+    app = None
     
     # 创建自定义样式
     style = ttk.Style()
@@ -919,6 +1432,12 @@ def main():
     except Exception as e:
         print(f"程序运行出错: {e}")
     finally:
+        # 确保资源被正确清理
+        try:
+            if app:
+                app.cleanup()
+        except:
+            pass
         # 确保窗口被正确关闭
         try:
             if root.winfo_exists():
