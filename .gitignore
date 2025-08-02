@@ -16,3 +16,4 @@ main/mmap_generate_emoji.h
 main/mmap_generate_emoji.h
 *.pyc
 *.bin
+mmap_generate_*.h

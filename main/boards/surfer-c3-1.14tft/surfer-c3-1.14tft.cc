@@ -76,14 +76,12 @@ private:
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling modem-sleep mode");
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);            
             esp_wifi_set_ps(WIFI_PS_MIN_MODEM); 
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();            
             esp_wifi_set_ps(WIFI_PS_NONE);  // 关闭Wi-Fi省电，恢复正常
             // esp_lcd_panel_disp_on_off(panel_, true); // 重新打开显示
