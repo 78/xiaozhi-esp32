@@ -22,6 +22,9 @@ private:
     AdcBatteryMonitor *battery_monitor_;
     bool no_dc_power_ = false;
     bool pwr_ctrl_state_ = false;
+    bool low_battery_warning_ = false;           
+    bool low_battery_shutdown_ = false;           
+    esp_timer_handle_t battery_check_timer_ = nullptr; 
 
     void UpdateBatteryStatus()
     {
@@ -62,6 +65,60 @@ private:
         }
     }
 
+    // 低电量检测逻辑
+    void CheckLowBattery()
+    {
+        uint8_t battery_level = battery_monitor_->GetBatteryLevel();
+
+        if (no_dc_power_)
+        {
+            // 低于30%自动关机
+            if (battery_level < 30 && !low_battery_shutdown_)
+            {
+                ESP_LOGW(TAG, "Critical battery level (%d%%), shutting down to protect battery", battery_level);
+                low_battery_shutdown_ = true;
+                
+                auto& app = Application::GetInstance();
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 发送关机通知
+
+                pwr_ctrl_state_ = false;
+                gpio_set_level(PWR_CTRL_GPIO, 0); // 关闭电源
+                gpio_set_level(LED_RED_GPIO, 0);
+                gpio_set_level(LED_GREEN_GPIO, 0);
+                ESP_LOGI(TAG, "Device shut down due to critical battery level");
+                return;
+            }
+            // 低于40%警告
+            else if (battery_level < 40 && battery_level >= 30 && !low_battery_warning_)
+            {
+                gpio_set_level(LED_RED_GPIO, 1);
+                gpio_set_level(LED_GREEN_GPIO, 0);
+                ESP_LOGW(TAG, "Low battery warning (%d%%)", battery_level);
+                low_battery_warning_ = true;
+                
+                auto& app = Application::GetInstance();
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);// 发送低电量警告通知
+            }
+            // 电量恢复到40%以上时重置警告标志
+            else if (battery_level >= 40)
+            {
+                low_battery_warning_ = false;
+            }
+        }
+        else
+        {
+            // 正在充电或充电完成时重置标志
+            low_battery_warning_ = false;
+            low_battery_shutdown_ = false;
+        }
+    }
+
+    static void BatteryCheckTimerCallback(void *arg)
+    {
+        FogSeekEsp32s3Audio *self = static_cast<FogSeekEsp32s3Audio *>(arg);
+        self->CheckLowBattery(); 
+    }
+
     void InitializeLeds()
     {
         gpio_config_t led_conf = {};
@@ -82,7 +139,7 @@ private:
     void InitializeBatteryMonitor()
     {
         // 使用通用的电池监测器处理电池电量检测
-        battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_2, 4.2f, 3.6f, PWR_CHARGE_DONE_GPIO);
+        battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_2, 2.0f, 1.0f, PWR_CHARGE_DONE_GPIO);
         // 初始化充电检测引脚（CHRG引脚）
         gpio_config_t charge_conf = {};
         charge_conf.intr_type = GPIO_INTR_DISABLE;
@@ -98,7 +155,13 @@ private:
 
         UpdateBatteryStatus(); // 初始化时立即更新LED状态
 
-        // 低电量管理
+        // 低电量管理 - 创建电池检查定时器，每30秒检查一次
+        esp_timer_create_args_t timer_args = {
+            .callback = &FogSeekEsp32s3Audio::BatteryCheckTimerCallback,
+            .arg = this,
+            .name = "battery_check_timer"};
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &battery_check_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(battery_check_timer_, 30 * 1000 * 1000)); // 每30秒检查一次
     }
 
     void InitializeButtons()
@@ -111,37 +174,37 @@ private:
         pwr_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         pwr_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&pwr_conf);
-
         gpio_set_level(PWR_CTRL_GPIO, 0); // 初始化为关机状态
 
         // 短按打断
-        boot_button_.OnClick([this]()
-                             {
-            auto& app = Application::GetInstance();
-            app.ToggleChatState(); }); // 聊天状态切换（包括打断）
+        pwr_button_.OnClick([this]()
+                            {
+                                ESP_LOGI(TAG, "Button clicked");
+                                auto &app = Application::GetInstance();
+                                app.ToggleChatState(); // 聊天状态切换（包括打断）
+                            });
 
         // 长按开关机
         pwr_button_.OnLongPress([this]()
                                 {
-            if(!no_dc_power_) {
-                ESP_LOGI(TAG, "DC power connected, power button ignored");
-                return;
-            }
-            
-            // 切换电源状态
-            if(!pwr_ctrl_state_) {
-                pwr_ctrl_state_ = true;
-                gpio_set_level(PWR_CTRL_GPIO, 1);   // 打开电源
-                gpio_set_level(LED_GREEN_GPIO, 1);
-                ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power.");
-            } 
-            else{
-                pwr_ctrl_state_ = false;
-                gpio_set_level(LED_RED_GPIO, 0);
-                gpio_set_level(LED_GREEN_GPIO, 0);
-                gpio_set_level(PWR_CTRL_GPIO, 0);   // 当按键再次长按，则关闭电源
-                ESP_LOGI(TAG, "Power control pin set to LOW for shutdown.");
-            } });
+                                    if(!no_dc_power_) {
+                                        ESP_LOGI(TAG, "DC power connected, power button ignored");
+                                        return;
+                                    }
+                                    // 切换电源状态
+                                    if(!pwr_ctrl_state_) {
+                                        pwr_ctrl_state_ = true;
+                                        gpio_set_level(PWR_CTRL_GPIO, 1);   // 打开电源
+                                        gpio_set_level(LED_GREEN_GPIO, 1);
+                                        ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power.");
+                                    } 
+                                    else{
+                                        pwr_ctrl_state_ = false;
+                                        gpio_set_level(LED_RED_GPIO, 0);
+                                        gpio_set_level(LED_GREEN_GPIO, 0);
+                                        gpio_set_level(PWR_CTRL_GPIO, 0);   // 当按键再次长按，则关闭电源
+                                        ESP_LOGI(TAG, "Power control pin set to LOW for shutdown.");
+                                    } });
     }
 
 public:
@@ -162,6 +225,12 @@ public:
 
     ~FogSeekEsp32s3Audio()
     {
+        if (battery_check_timer_)
+        {
+            esp_timer_stop(battery_check_timer_);
+            esp_timer_delete(battery_check_timer_);
+        }
+
         if (battery_monitor_)
         {
             delete battery_monitor_;
