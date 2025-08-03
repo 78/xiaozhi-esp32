@@ -524,6 +524,11 @@ void AudioService::EnableAudioTesting(bool enable) {
 
 void AudioService::EnableDeviceAec(bool enable) {
     ESP_LOGI(TAG, "%s device AEC", enable ? "Enabling" : "Disabling");
+    if (!audio_processor_initialized_) {
+        audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS);
+        audio_processor_initialized_ = true;
+    }
+
     audio_processor_->EnableDeviceAec(enable);
 }
 

@@ -75,6 +75,7 @@ void SleepTimer::CheckTimer() {
             bool is_wake_word_running = audio_service.IsWakeWordRunning();
             if (is_wake_word_running) {
                 audio_service.EnableWakeWordDetection(false);
+                vTaskDelay(pdMS_TO_TICKS(100));
             }
         
             app.Schedule([this, &app]() {
