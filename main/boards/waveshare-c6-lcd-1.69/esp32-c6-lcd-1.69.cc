@@ -5,7 +5,6 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-
 #include <esp_log.h>
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
@@ -14,20 +13,12 @@
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-
 #include <esp_timer.h>
-
-
 #include "iot_button.h"
-
 #include "power_manager.h"
-
 #include "power_save_timer.h"
 
-
-
 #define TAG "waveshare_lcd_1_69"
-
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
@@ -62,7 +53,7 @@ public:
 };
 
 
-class CustomButton: public Button{
+class CustomButton: public Button {
 public:
     void OnPressDownDel(void) {
         if (button_handle_ == nullptr) {
@@ -81,16 +72,15 @@ public:
 };
 
 
-
 class CustomBoard : public WifiBoard {
 private:
     CustomButton boot_button_;
     CustomButton pwr_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
-
     PowerManager* power_manager_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
+
     void InitializePowerManager() {
         power_manager_ = new PowerManager(BATTERY_CHARGING_PIN, BATTERY_ADC_PIN, BATTERY_EN_PIN);
         power_manager_->PowerON();
@@ -99,24 +89,16 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            GetBacklight()->SetBrightness(20);
+            GetDisplay()->SetPowerSaveMode(true);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
-            GetBacklight()->RestoreBrightness();
+            GetDisplay()->SetPowerSaveMode(false);
         });
         power_save_timer_->OnShutdownRequest([this]() {
             power_manager_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
     }
-
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -150,6 +132,7 @@ private:
     void InitializeLcdDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
+
         // 液晶屏控制IO初始化
         ESP_LOGI(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
@@ -162,26 +145,19 @@ private:
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
-
         // 初始化液晶屏驱动芯片
         ESP_LOGI(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
         panel_config.bits_per_pixel = 16;
-        // panel_config.vendor_config = &st7796_vendor_config;
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-         
-       
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel)); 
         esp_lcd_panel_reset(panel);
- 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        
         display_ = new CustomLcdDisplay(
             panel_io, 
             panel,
@@ -203,6 +179,7 @@ private:
             }
             app.ToggleChatState();
         });
+
         pwr_button_.OnPressUp([this]() {
             pwr_button_.OnDoubleClick([this]() {
                 static uint8_t brightness_last = 0;
@@ -219,8 +196,9 @@ private:
                     backlight->SetBrightness(0);
                 }
             });
+
             pwr_button_.OnLongPress([this]() {
-                printf("Power button long press\n");
+                // printf("Power button long press\n");
                 if (power_manager_ != nullptr){
                     power_manager_->PowerOff();
                 }
@@ -232,8 +210,7 @@ private:
 
 public:
     CustomBoard() :
-        boot_button_(BOOT_BUTTON_GPIO),
-        pwr_button_(PWR_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO), pwr_button_(PWR_BUTTON_GPIO) {
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeI2c();
@@ -242,12 +219,21 @@ public:
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
-    
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+        static Es8311AudioCodec audio_codec(
+            i2c_bus_, 
+            I2C_NUM_0, 
+            AUDIO_INPUT_SAMPLE_RATE, 
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, 
+            AUDIO_I2S_GPIO_BCLK, 
+            AUDIO_I2S_GPIO_WS, 
+            AUDIO_I2S_GPIO_DOUT, 
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_PA_PIN, 
+            AUDIO_CODEC_ES8311_ADDR
+        );
         return &audio_codec;
     }
 
@@ -259,6 +245,7 @@ public:
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
+
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;
         charging = power_manager_->IsCharging();
@@ -267,7 +254,6 @@ public:
             power_save_timer_->SetEnabled(discharging);
             last_discharging = discharging;
         }
-
         level = power_manager_->GetBatteryLevel();
         return true;
     }
