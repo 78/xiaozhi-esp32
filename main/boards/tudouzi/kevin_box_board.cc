@@ -67,20 +67,10 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(240, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            GetDisplay()->SetPowerSaveMode(true);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
         });
         power_save_timer_->SetEnabled(true);
     }

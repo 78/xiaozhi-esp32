@@ -269,8 +269,8 @@ void Display::SetTheme(const std::string& theme_name) {
     settings.SetString("theme", theme_name);
 }
 
-void Display::ShowStandbyScreen(bool show) {
-    if (show) {
+void Display::SetPowerSaveMode(bool on) {
+    if (on) {
         SetChatMessage("system", "");
         SetEmotion("sleepy");
     } else {
