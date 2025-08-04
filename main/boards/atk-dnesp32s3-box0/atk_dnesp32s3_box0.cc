@@ -139,8 +139,7 @@ private:
         power_save_timer_->OnEnterSleepMode([this]() {
             power_sleep_ = kDeviceNeutralSleep;
             XiaozhiStatus_ = kDevice_join_Sleep;
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
 
             if (LcdStatus_ != kDevicelcdbacklightOff) {
                 GetBacklight()->SetBrightness(1);
@@ -148,8 +147,7 @@ private:
         });
         power_save_timer_->OnExitSleepMode([this]() {
             power_sleep_ = kDeviceNoSleep;
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
 
             if (XiaozhiStatus_ != kDevice_Exit_Sleep) {
                 GetBacklight()->RestoreBrightness();
