@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ci/* # for ci test
   pull_request:
     branches:
       - main
@@ -92,11 +93,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build current board
-        run: python scripts/release.py ${{ matrix.board }}
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py ${{ matrix.board }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi-${{ matrix.board }}-${{ github.sha }}
+          name: xiaozhi_${{ matrix.board }}_${{ github.sha }}.bin
           path: build/merged-binary.bin
           if-no-files-found: error
