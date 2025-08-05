@@ -113,13 +113,97 @@ AdcPdmAudioCodec::AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate
         gpio_set_drive_capability(pdm_speak_n, GPIO_DRIVE_CAP_0);
     }
     ESP_LOGI(TAG, "AdcPdmAudioCodec initialized");
+
+    codec_task_queue_ = xQueueCreate(8, sizeof(CodecTaskAction));
+
+    xTaskCreate(
+        [](void* arg) {
+            static_cast<AdcPdmAudioCodec*>(arg)->CodecTask();
+            static_cast<AdcPdmAudioCodec*>(arg)->codec_status_task_handle_ = nullptr;
+            vTaskDelete(NULL);
+        },
+        "codec_status_task",
+        2048,
+        this,
+        1,
+        &codec_status_task_handle_
+    );
 }
 
 AdcPdmAudioCodec::~AdcPdmAudioCodec() {
-    ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-    esp_codec_dev_delete(output_dev_);
-    ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
-    esp_codec_dev_delete(input_dev_);
+    CodecTaskAction action = CODEC_TASK_ACTION_DESTROY;
+    xQueueSend(codec_task_queue_, &action, portMAX_DELAY);
+    // Wait for the task to finish cleaning up
+    vTaskDelay(pdMS_TO_TICKS(100));
+    if (codec_status_task_handle_) {
+        vTaskDelete(codec_status_task_handle_);
+    }
+    vQueueDelete(codec_task_queue_);
+}
+
+void AdcPdmAudioCodec::CodecTask() {
+    CodecTaskAction action;
+    while (true) {
+        if (xQueueReceive(codec_task_queue_, &action, portMAX_DELAY)) {
+            switch (action) {
+                case CODEC_TASK_ACTION_OPEN_INPUT: {
+                    esp_codec_dev_sample_info_t fs = {
+                        .bits_per_sample = 16,
+                        .channel = 1,
+                        .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+                        .sample_rate = (uint32_t)input_sample_rate_,
+                        .mclk_multiple = 0,
+                    };
+                    ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
+                    AudioCodec::EnableInput(true);
+                    ESP_LOGD(TAG, "Set input enable to true");
+                    break;
+                }
+                case CODEC_TASK_ACTION_CLOSE_INPUT:
+                    ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+                    AudioCodec::EnableInput(false);
+                    ESP_LOGD(TAG, "Set input enable to false");
+                    break;
+                case CODEC_TASK_ACTION_OPEN_OUTPUT: {
+                    // Play 16bit 1 channel
+                    esp_codec_dev_sample_info_t fs = {
+                        .bits_per_sample = 16,
+                        .channel = 1,
+                        .channel_mask = 0,
+                        .sample_rate = (uint32_t)output_sample_rate_,
+                        .mclk_multiple = 0,
+                    };
+                    ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+                    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+                    if (pa_ctrl_pin_ != GPIO_NUM_NC) {
+                        gpio_set_level(pa_ctrl_pin_, 1);
+                    }
+                    AudioCodec::EnableOutput(true);
+                    ESP_LOGD(TAG, "Set output enable to true");
+                    break;
+                }
+                case CODEC_TASK_ACTION_CLOSE_OUTPUT:
+                    if (pa_ctrl_pin_ != GPIO_NUM_NC) {
+                        gpio_set_level(pa_ctrl_pin_, 0);
+                    }
+                    ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+                    AudioCodec::EnableOutput(false);
+                    ESP_LOGD(TAG, "Set output enable to false");
+                    break;
+                case CODEC_TASK_ACTION_DESTROY:
+                    ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+                    esp_codec_dev_delete(output_dev_);
+                    ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
+                    esp_codec_dev_delete(input_dev_);
+                    // Exit the task loop
+                    return;
+                case CODEC_TASK_ACTION_NONE:
+                default:
+                    break;
+            }
+        }
+    }
+    return;
 }
 
 void AdcPdmAudioCodec::SetOutputVolume(int volume) {
@@ -128,51 +212,15 @@ void AdcPdmAudioCodec::SetOutputVolume(int volume) {
 }
 
 void AdcPdmAudioCodec::EnableInput(bool enable) {
-    if (enable == input_enabled_) {
-        return;
-    }
-    if (enable) {
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
-            .sample_rate = (uint32_t)input_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-    } else {
-        // ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
-        return;
-    }
-    AudioCodec::EnableInput(enable);
+    // Always enqueue the request; internal task will handle duplicate filtering if needed
+    CodecTaskAction action = enable ? CODEC_TASK_ACTION_OPEN_INPUT : CODEC_TASK_ACTION_CLOSE_INPUT;
+    xQueueSend(codec_task_queue_, &action, portMAX_DELAY);
 }
 
 void AdcPdmAudioCodec::EnableOutput(bool enable) {
-    if (enable == output_enabled_) {
-        return;
-    }
-    if (enable) {
-        // Play 16bit 1 channel
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-        if(pa_ctrl_pin_ != GPIO_NUM_NC){
-            gpio_set_level(pa_ctrl_pin_, 1);
-        }
-
-    } else {
-        if(pa_ctrl_pin_ != GPIO_NUM_NC){
-            gpio_set_level(pa_ctrl_pin_, 0);
-        }
-        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-    }
-    AudioCodec::EnableOutput(enable);
+    // Always enqueue the request; CodecTask will update output_enabled_ after actual HW operation
+    CodecTaskAction action = enable ? CODEC_TASK_ACTION_OPEN_OUTPUT : CODEC_TASK_ACTION_CLOSE_OUTPUT;
+    xQueueSend(codec_task_queue_, &action, portMAX_DELAY);
 }
 
 int AdcPdmAudioCodec::Read(int16_t* dest, int samples) {
