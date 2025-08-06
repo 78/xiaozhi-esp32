@@ -4,7 +4,8 @@
         {
             "name": "esp32-s3-touch-lcd-3.5",
             "sdkconfig_append": [
-                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+                "CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_5=y"
             ]
         }
     ]

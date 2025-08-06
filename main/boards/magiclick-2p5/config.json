@@ -5,7 +5,8 @@
             "name": "magiclick-2p5",
             "sdkconfig_append": [
                 "CONFIG_PM_ENABLE=y",
-                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y"
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_BOARD_TYPE_MAGICLICK_2P5=y"
             ]
         }
     ]
