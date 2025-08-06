@@ -148,6 +148,8 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06
+        bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
         depends on IDF_TARGET_ESP32S3
@@ -419,19 +421,26 @@ config USE_CUSTOM_WAKE_WORD
         
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
-    default "ni hao xiao zhi"
+    default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，用汉语拼音表示
+        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "你好小智"
+    default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词对应问候语 
-               
-        
+        唤醒后发送给服务器的问候语 
+
+config CUSTOM_WAKE_WORD_THRESHOLD
+    int "Custom Wake Word Threshold (%)"
+    default 20
+    range 1 99
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
@@ -442,7 +451,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
