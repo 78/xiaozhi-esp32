@@ -3,11 +3,11 @@
 #include "esp_lcd_sh8601.h"
 #include "font_awesome_symbols.h"
 
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
+#include "mcp_server.h"
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
@@ -21,7 +21,11 @@
 #include "esp_io_expander_tca9554.h"
 #include "settings.h"
 
-#define TAG "waveshare_amoled_1_8"
+#include <esp_lcd_touch_ft5x06.h>
+#include <esp_lvgl_port.h>
+#include <lvgl.h>
+
+#define TAG "WaveshareEsp32s3TouchAMOLED1inch8"
 
 LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
@@ -29,7 +33,29 @@ LV_FONT_DECLARE(font_awesome_30_4);
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
-        // TODO: Configure the power management IC here...
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
+
+        // Disable All DCs but DC1
+        WriteReg(0x80, 0x01);
+        // Disable All LDOs
+        WriteReg(0x90, 0x00);
+        WriteReg(0x91, 0x00);
+
+        // Set DC1 to 3.3V
+        WriteReg(0x82, (3300 - 1500) / 100);
+
+        // Set ALDO1 to 3.3V
+        WriteReg(0x92, (3300 - 500) / 100);
+
+        // Enable ALDO1(MIC)
+        WriteReg(0x90, 0x01);
+    
+        WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+        
+        WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
+        WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
     }
 };
 
@@ -45,8 +71,7 @@ static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
     {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x6F}, 4, 0},
     {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xBF}, 4, 0},
     {0x51, (uint8_t[]){0x00}, 1, 10},
-    {0x29, (uint8_t[]){0x00}, 0, 10},
-    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 10}
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
@@ -66,7 +91,11 @@ public:
                     {
                         .text_font = &font_puhui_30_4,
                         .icon_font = &font_awesome_30_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                        .emoji_font = font_emoji_32_init(),
+#else
                         .emoji_font = font_emoji_64_init(),
+#endif
                     }) {
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
@@ -82,6 +111,8 @@ protected:
     esp_lcd_panel_io_handle_t panel_io_;
 
     virtual void SetBrightnessImpl(uint8_t brightness) override {
+        auto display = Board::GetInstance().GetDisplay();
+        DisplayLockGuard lock(display);
         uint8_t data[1] = {((uint8_t)((255 * brightness) / 100))};
         int lcd_cmd = 0x51;
         lcd_cmd &= 0xff;
@@ -91,7 +122,7 @@ protected:
     }
 };
 
-class waveshare_amoled_1_8 : public WifiBoard {
+class WaveshareEsp32s3TouchAMOLED1inch8 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Pmic* pmic_ = nullptr;
@@ -108,7 +139,7 @@ private:
             auto display = GetDisplay();
             display->SetChatMessage("system", "");
             display->SetEmotion("sleepy");
-            GetBacklight()->SetBrightness(10);
+            GetBacklight()->SetBrightness(20);
         });
         power_save_timer_->OnExitSleepMode([this]() {
             auto display = GetDisplay();
@@ -217,7 +248,6 @@ private:
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new CustomLcdDisplay(panel_io, panel,
@@ -226,17 +256,52 @@ private:
         backlight_->RestoreBrightness();
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("BoardControl"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
+    void InitializeTouch()
+    {
+        esp_lcd_touch_handle_t tp;
+        esp_lcd_touch_config_t tp_cfg = {
+            .x_max = DISPLAY_WIDTH,
+            .y_max = DISPLAY_HEIGHT,
+            .rst_gpio_num = GPIO_NUM_NC,
+            .int_gpio_num = GPIO_NUM_21,
+            .levels = {
+                .reset = 0,
+                .interrupt = 0,
+            },
+            .flags = {
+                .swap_xy = 0,
+                .mirror_x = 0,
+                .mirror_y = 0,
+            },
+        };
+        esp_lcd_panel_io_handle_t tp_io_handle = NULL;
+        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
+        tp_io_config.scl_speed_hz = 400 * 1000;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(codec_i2c_bus_, &tp_io_config, &tp_io_handle));
+        ESP_LOGI(TAG, "Initialize touch controller");
+        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = lv_display_get_default(), 
+            .handle = tp,
+        };
+        lvgl_port_add_touch(&touch_cfg);
+        ESP_LOGI(TAG, "Touch panel initialized successfully");
+    }
+
+    // 初始化工具
+    void InitializeTools() {
+        auto &mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.system.reconfigure_wifi",
+            "Reboot the device and enter WiFi configuration mode.\n"
+            "**CAUTION** You must ask the user to confirm this action.",
+            PropertyList(), [this](const PropertyList& properties) {
+                ResetWifiConfiguration();
+                return true;
+            });
     }
 
 public:
-    waveshare_amoled_1_8() :
+    WaveshareEsp32s3TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitializeCodecI2c();
@@ -244,8 +309,9 @@ public:
         InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
+        InitializeTouch();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -284,4 +350,4 @@ public:
     }
 };
 
-DECLARE_BOARD(waveshare_amoled_1_8);
+DECLARE_BOARD(WaveshareEsp32s3TouchAMOLED1inch8);

@@ -7,6 +7,7 @@
 #include <esp_pm.h>
 
 #include <string>
+#include <chrono>
 
 struct DisplayFonts {
     const lv_font_t* text_font = nullptr;
@@ -25,6 +26,11 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void SetIcon(const char* icon);
+    virtual void SetPreviewImage(const lv_img_dsc_t* image);
+    virtual void SetTheme(const std::string& theme_name);
+    virtual std::string GetTheme() { return current_theme_name_; }
+    virtual void UpdateStatusBar(bool update_all = false);
+    virtual void ShowStandbyScreen(bool show);
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -44,26 +50,26 @@ protected:
     lv_obj_t *battery_label_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
     lv_obj_t* low_battery_popup_ = nullptr;
-
+    lv_obj_t* low_battery_label_ = nullptr;
+    
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
+    std::string current_theme_name_;
 
+    std::chrono::system_clock::time_point last_status_update_time_;
     esp_timer_handle_t notification_timer_ = nullptr;
-    esp_timer_handle_t update_timer_ = nullptr;
 
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;
     virtual void Unlock() = 0;
-
-    virtual void Update();
 };
 
 
 class DisplayLockGuard {
 public:
     DisplayLockGuard(Display *display) : display_(display) {
-        if (!display_->Lock(3000)) {
+        if (!display_->Lock(30000)) {
             ESP_LOGE("Display", "Failed to lock display");
         }
     }

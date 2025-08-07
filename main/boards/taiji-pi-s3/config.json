@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "taiji-pi-s3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y"
+            ]
         }
     ]
 }

@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -14,6 +13,7 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <wifi_station.h>
+#include "esp32_camera.h"
 
 #define TAG "esp32s3_korvo2_v3"
 
@@ -48,6 +48,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
     esp_io_expander_handle_t io_expander_ = NULL;
+    Esp32Camera* camera_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -136,13 +137,17 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            app.ToggleChatState();
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+
+#if CONFIG_USE_DEVICE_AEC
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+            }
         });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
+#endif
     }
 
     void InitializeIli9341Display() {
@@ -198,7 +203,7 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_NC;//酷世diy的korvo板子上cs引脚为GPIO46 官方korvo2 v3的lcd cs引脚由TCA9554的IO3控制 所以这里设置为GPIO_NUM_NC
+        io_config.cs_gpio_num = GPIO_NUM_46;
         io_config.dc_gpio_num = GPIO_NUM_2;
         io_config.spi_mode = 0;
         io_config.pclk_hz = 60 * 1000 * 1000;
@@ -230,11 +235,38 @@ private:
                                      });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
+    void InitializeCamera() {
+        // Open camera power
 
+        camera_config_t config = {};
+        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.pin_d0 = CAMERA_PIN_D0;
+        config.pin_d1 = CAMERA_PIN_D1;
+        config.pin_d2 = CAMERA_PIN_D2;
+        config.pin_d3 = CAMERA_PIN_D3;
+        config.pin_d4 = CAMERA_PIN_D4;
+        config.pin_d5 = CAMERA_PIN_D5;
+        config.pin_d6 = CAMERA_PIN_D6;
+        config.pin_d7 = CAMERA_PIN_D7;
+        config.pin_xclk = CAMERA_PIN_XCLK;
+        config.pin_pclk = CAMERA_PIN_PCLK;
+        config.pin_vsync = CAMERA_PIN_VSYNC;
+        config.pin_href = CAMERA_PIN_HREF;
+        config.pin_sccb_sda = -1;   // 这里写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_scl = CAMERA_PIN_SIOC;
+        config.sccb_i2c_port = 1;
+        config.pin_pwdn = CAMERA_PIN_PWDN;
+        config.pin_reset = CAMERA_PIN_RESET;
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_VGA;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
+        camera_ = new Esp32Camera(config);
     }
 
 public:
@@ -243,6 +275,7 @@ public:
         InitializeI2c();
         I2cDetect();
         InitializeTca9554();
+        InitializeCamera();
         InitializeSpi();
         InitializeButtons();
         #ifdef LCD_TYPE_ILI9341_SERIAL
@@ -250,7 +283,6 @@ public:
         #else
         InitializeSt7789Display(); 
         #endif
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -272,6 +304,9 @@ public:
 
     virtual Display *GetDisplay() override {
         return display_;
+    }
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 };
 

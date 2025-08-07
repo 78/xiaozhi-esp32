@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codec.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "i2c_device.h"
 
 #include <wifi_station.h>
@@ -24,29 +23,111 @@
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
-class XL9555 : public I2cDevice {
+
+class ATK_NoAudioCodecDuplex : public NoAudioCodec {
 public:
-    XL9555(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+    ATK_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+        duplex_ = true;
+        input_sample_rate_ = input_sample_rate;
+        output_sample_rate_ = output_sample_rate;
+    
+        i2s_chan_config_t chan_cfg = {
+            .id = I2S_NUM_0,
+            .role = I2S_ROLE_MASTER,
+            .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
+            .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
+            .auto_clear_after_cb = true,
+            .auto_clear_before_cb = false,
+            .intr_priority = 0,
+        };
+        ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
+    
+        i2s_std_config_t std_cfg = {
+            .clk_cfg = {
+                .sample_rate_hz = (uint32_t)output_sample_rate_,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+                #ifdef   I2S_HW_VERSION_2
+                    .ext_clk_freq_hz = 0,
+                #endif
+            },
+            .slot_cfg = {
+                .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                .slot_mode = I2S_SLOT_MODE_STEREO,
+                .slot_mask = I2S_STD_SLOT_BOTH,
+                .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+                .ws_pol = false,
+                .bit_shift = true,
+                #ifdef   I2S_HW_VERSION_2
+                    .left_align = true,
+                    .big_endian = false,
+                    .bit_order_lsb = false
+                #endif
+            },
+            .gpio_cfg = {
+                .mclk = I2S_GPIO_UNUSED,
+                .bclk = bclk,
+                .ws = ws,
+                .dout = dout,
+                .din = din,
+                .invert_flags = {
+                    .mclk_inv = false,
+                    .bclk_inv = false,
+                    .ws_inv = false
+                }
+            }
+        };
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+        ESP_LOGI(TAG, "Duplex channels created");
+    }
+};
+
+
+class XL9555_IN : public I2cDevice {
+public:
+    XL9555_IN(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+        WriteReg(0x06, 0x3B);
+        WriteReg(0x07, 0xFE);
+    }
+
+    void xl9555_cfg(void) {
         WriteReg(0x06, 0x1B);
         WriteReg(0x07, 0xFE);
     }
 
     void SetOutputState(uint8_t bit, uint8_t level) {
         uint16_t data;
+        int index = bit;
+
         if (bit < 8) {
             data = ReadReg(0x02);
         } else {
             data = ReadReg(0x03);
-            bit -= 8;
+            index -= 8;
         }
 
-        data = (data & ~(1 << bit)) | (level << bit);
+        data = (data & ~(1 << index)) | (level << index);
 
         if (bit < 8) {
             WriteReg(0x02, data);
         } else {
             WriteReg(0x03, data);
         }
+    }
+
+    int GetPingState(uint16_t pin) {
+        uint8_t data;
+        if (pin <= 0x0080) {
+            data = ReadReg(0x00);
+            return (data & (uint8_t)(pin & 0xFF)) ? 1 : 0;
+        } else {
+            data = ReadReg(0x01);
+            return (data & (uint8_t)((pin >> 8) & 0xFF )) ? 1 : 0;
+        }
+
+        return 0;
     }
 };
 
@@ -56,7 +137,8 @@ private:
     i2c_master_dev_handle_t xl9555_handle_;
     Button boot_button_;
     LcdDisplay* display_;
-    XL9555* xl9555_;
+    XL9555_IN* xl9555_in_;
+    bool es8311_detected_ = false;
     
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -75,7 +157,15 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
 
         // Initialize XL9555
-        xl9555_ = new XL9555(i2c_bus_, 0x20);
+        xl9555_in_ = new XL9555_IN(i2c_bus_, 0x20);
+
+        if (xl9555_in_->GetPingState(0x0020) == 1) {
+            es8311_detected_ = true;    /* 音频设备标志位，SPK_CTRL_IO为高电平时，该标志位置1，且判定为ES8311 */
+        } else {
+            es8311_detected_ = false;    /* 音频设备标志位，SPK_CTRL_IO为低电平时，该标志位置0，且判定为NS4168 */
+        }
+
+        xl9555_in_->xl9555_cfg();
     }
 
     void InitializeATK_ST7789_80_Display() {
@@ -142,7 +232,7 @@ private:
 
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         esp_lcd_panel_set_gap(panel, 0, 0);
         uint8_t data0[] = {0x00};
         uint8_t data1[] = {0x65};
@@ -157,7 +247,11 @@ private:
                                     {
                                         .text_font = &font_puhui_20_4,
                                         .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
+                                        #if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                            .emoji_font = font_emoji_32_init(),
+                                        #else
+                                            .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+                                        #endif
                                     });
     }
 
@@ -167,35 +261,48 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            app.ToggleChatState();
         });
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
-    }
-
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
 public:
     atk_dnesp32s3_box() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeATK_ST7789_80_Display();
-        xl9555_->SetOutputState(5, 1);
-        xl9555_->SetOutputState(7, 1);
+        xl9555_in_->SetOutputState(5, 1);
+        xl9555_in_->SetOutputState(7, 1);
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static ATK_NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-        return &audio_codec;
+        /* 根据探测结果初始化编解码器 */
+        if (es8311_detected_) {
+            /* 使用ES8311 驱动 */
+            static Es8311AudioCodec audio_codec(
+                i2c_bus_, 
+                I2C_NUM_0, 
+                AUDIO_INPUT_SAMPLE_RATE,
+                AUDIO_OUTPUT_SAMPLE_RATE,
+                GPIO_NUM_NC, 
+                AUDIO_I2S_GPIO_BCLK, 
+                AUDIO_I2S_GPIO_WS,
+                AUDIO_I2S_GPIO_DOUT,
+                AUDIO_I2S_GPIO_DIN,
+                GPIO_NUM_NC, 
+                AUDIO_CODEC_ES8311_ADDR, 
+                false);
+                return &audio_codec;
+        } else {
+            static ATK_NoAudioCodecDuplex audio_codec(
+                AUDIO_INPUT_SAMPLE_RATE,
+                AUDIO_OUTPUT_SAMPLE_RATE,
+                AUDIO_I2S_GPIO_BCLK,
+                AUDIO_I2S_GPIO_WS,
+                AUDIO_I2S_GPIO_DOUT,
+                AUDIO_I2S_GPIO_DIN);
+                return &audio_codec;
+        }
+        return NULL;
     }
     
     virtual Display* GetDisplay() override {

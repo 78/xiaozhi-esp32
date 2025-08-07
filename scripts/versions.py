@@ -69,14 +69,22 @@ def get_board_name(folder):
             return "bread-compact-wifi"
         elif "KevinBox1" in basename:
             return "kevin-box-1"
-    if basename.startswith("v0.7") or basename.startswith("v0.8") or basename.startswith("v0.9") or basename.startswith("v1."):
+    if basename.startswith("v0.7") or basename.startswith("v0.8") or basename.startswith("v0.9") or basename.startswith("v1.") or basename.startswith("v2."):
         return basename.split("_")[1]
     raise Exception(f"Unknown board name: {basename}")
 
 def read_binary(dir_path):
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
-    data = open(merged_bin_path, "rb").read()[0x100000:]
-    if data[0] != 0xE9:
+    merged_bin_data = open(merged_bin_path, "rb").read()
+
+    # find app partition
+    if merged_bin_data[0x100000] == 0xE9:
+        data = merged_bin_data[0x100000:]
+    elif merged_bin_data[0x200000] == 0xE9:
+        data = merged_bin_data[0x200000:]
+    elif merged_bin_data[0xe0000] == 0xE9:
+        data = merged_bin_data[0xe0000:]
+    else:
         print(dir_path, "is not a valid image")
         return
     # get flash size

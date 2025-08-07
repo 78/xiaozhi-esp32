@@ -8,41 +8,27 @@
 
 #include <string>
 #include <mutex>
-#include <list>
-
-#include <opus_encoder.h>
-#include <opus_decoder.h>
-#include <opus_resampler.h>
+#include <deque>
+#include <vector>
+#include <memory>
 
 #include "protocol.h"
 #include "ota.h"
-#include "background_task.h"
+#include "audio_service.h"
+#include "device_state_event.h"
 
-#if CONFIG_USE_WAKE_WORD_DETECT
-#include "wake_word_detect.h"
-#endif
-#if CONFIG_USE_AUDIO_PROCESSOR
-#include "audio_processor.h"
-#endif
+#define MAIN_EVENT_SCHEDULE (1 << 0)
+#define MAIN_EVENT_SEND_AUDIO (1 << 1)
+#define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
+#define MAIN_EVENT_VAD_CHANGE (1 << 3)
+#define MAIN_EVENT_ERROR (1 << 4)
+#define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
 
-#define SCHEDULE_EVENT (1 << 0)
-#define AUDIO_INPUT_READY_EVENT (1 << 1)
-#define AUDIO_OUTPUT_READY_EVENT (1 << 2)
-
-enum DeviceState {
-    kDeviceStateUnknown,
-    kDeviceStateStarting,
-    kDeviceStateWifiConfiguring,
-    kDeviceStateIdle,
-    kDeviceStateConnecting,
-    kDeviceStateListening,
-    kDeviceStateSpeaking,
-    kDeviceStateUpgrading,
-    kDeviceStateActivating,
-    kDeviceStateFatalError
+enum AecMode {
+    kAecOff,
+    kAecOnDeviceSide,
+    kAecOnServerSide,
 };
-
-#define OPUS_FRAME_DURATION_MS 60
 
 class Application {
 public:
@@ -56,7 +42,7 @@ public:
 
     void Start();
     DeviceState GetDeviceState() const { return device_state_; }
-    bool IsVoiceDetected() const { return voice_detected_; }
+    bool IsVoiceDetected() const { return audio_service_.IsVoiceDetected(); }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
@@ -65,55 +51,41 @@ public:
     void ToggleChatState();
     void StartListening();
     void StopListening();
-    void UpdateIotStates();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
-    void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
+    void SendMcpMessage(const std::string& payload);
+    void SetAecMode(AecMode mode);
+    AecMode GetAecMode() const { return aec_mode_; }
+    void PlaySound(const std::string_view& sound);
+    AudioService& GetAudioService() { return audio_service_; }
 
 private:
     Application();
     ~Application();
 
-#if CONFIG_USE_WAKE_WORD_DETECT
-    WakeWordDetect wake_word_detect_;
-#endif
-#if CONFIG_USE_AUDIO_PROCESSOR
-    AudioProcessor audio_processor_;
-#endif
-    Ota ota_;
     std::mutex mutex_;
-    std::list<std::function<void()>> main_tasks_;
+    std::deque<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     volatile DeviceState device_state_ = kDeviceStateUnknown;
-    bool keep_listening_ = false;
+    ListeningMode listening_mode_ = kListeningModeAutoStop;
+    AecMode aec_mode_ = kAecOff;
+    std::string last_error_message_;
+    AudioService audio_service_;
+
+    bool has_server_time_ = false;
     bool aborted_ = false;
-    bool voice_detected_ = false;
     int clock_ticks_ = 0;
+    TaskHandle_t check_new_version_task_handle_ = nullptr;
 
-    // Audio encode / decode
-    BackgroundTask* background_task_ = nullptr;
-    std::chrono::steady_clock::time_point last_output_time_;
-    std::list<std::vector<uint8_t>> audio_decode_queue_;
-
-    std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
-    std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
-
-    int opus_decode_sample_rate_ = -1;
-    OpusResampler input_resampler_;
-    OpusResampler reference_resampler_;
-    OpusResampler output_resampler_;
-
-    void MainLoop();
-    void InputAudio();
-    void OutputAudio();
-    void ResetDecoder();
-    void SetDecodeSampleRate(int sample_rate);
-    void CheckNewVersion();
-    void ShowActivationCode();
+    void MainEventLoop();
+    void OnWakeWordDetected();
+    void CheckNewVersion(Ota& ota);
+    void ShowActivationCode(const std::string& code, const std::string& message);
     void OnClockTimer();
+    void SetListeningMode(ListeningMode mode);
 };
 
 #endif // _APPLICATION_H_

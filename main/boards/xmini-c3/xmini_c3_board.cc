@@ -1,10 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
+#include "mcp_server.h"
 #include "settings.h"
 #include "config.h"
 #include "power_save_timer.h"
@@ -30,10 +30,14 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
-    PowerSaveTimer* power_save_timer_;
+    PowerSaveTimer* power_save_timer_ = nullptr;
 
     void InitializePowerSaveTimer() {
+#if CONFIG_USE_ESP_WAKE_WORD
+        power_save_timer_ = new PowerSaveTimer(160, 600);
+#else
         power_save_timer_ = new PowerSaveTimer(160, 60);
+#endif
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             auto display = GetDisplay();
@@ -69,6 +73,14 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+
+        // Print I2C bus info
+        if (i2c_master_probe(codec_i2c_bus_, 0x18, 1000) != ESP_OK) {
+            while (true) {
+                ESP_LOGE(TAG, "Failed to probe I2C bus, please check if you have installed the correct firmware");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
     }
 
     void InitializeSsd1306Display() {
@@ -130,7 +142,9 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            power_save_timer_->WakeUp();
+            if (power_save_timer_) {
+                power_save_timer_->WakeUp();
+            }
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
             }
@@ -142,26 +156,41 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
+    void InitializeTools() {
         Settings settings("vendor");
         press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
 
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("PressToTalk"));
+        auto& mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.set_press_to_talk",
+            "Switch between press to talk mode (长按说话) and click to talk mode (单击说话).\n"
+            "The mode can be `press_to_talk` or `click_to_talk`.",
+            PropertyList({
+                Property("mode", kPropertyTypeString)
+            }),
+            [this](const PropertyList& properties) -> ReturnValue {
+                auto mode = properties["mode"].value<std::string>();
+                if (mode == "press_to_talk") {
+                    SetPressToTalkEnabled(true);
+                    return true;
+                } else if (mode == "click_to_talk") {
+                    SetPressToTalkEnabled(false);
+                    return true;
+                }
+                throw std::runtime_error("Invalid mode: " + mode);
+            });
     }
 
 public:
-    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {  
-        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
-        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-
+    XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeSsd1306Display();
         InitializeButtons();
         InitializePowerSaveTimer();
-        InitializeIot();
+        InitializeTools();
+
+        // 避免使用错误的固件，把 EFUSE 操作放在最后
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
     }
 
     virtual Led* GetLed() override {
@@ -194,30 +223,3 @@ public:
 };
 
 DECLARE_BOARD(XminiC3Board);
-
-
-namespace iot {
-
-class PressToTalk : public Thing {
-public:
-    PressToTalk() : Thing("PressToTalk", "控制对话模式，一种是长按对话，一种是单击后连续对话。") {
-        // 定义设备的属性
-        properties_.AddBooleanProperty("enabled", "true 表示长按说话模式，false 表示单击说话模式", []() -> bool {
-            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
-            return board->IsPressToTalkEnabled();
-        });
-
-        // 定义设备可以被远程执行的指令
-        methods_.AddMethod("SetEnabled", "启用或禁用长按说话模式，调用前需要经过用户确认", ParameterList({
-            Parameter("enabled", "true 表示长按说话模式，false 表示单击说话模式", kValueTypeBoolean, true)
-        }), [](const ParameterList& parameters) {
-            bool enabled = parameters["enabled"].boolean();
-            auto board = static_cast<XminiC3Board*>(&Board::GetInstance());
-            board->SetPressToTalkEnabled(enabled);
-        });
-    }
-};
-
-} // namespace iot
-
-DECLARE_THING(PressToTalk);

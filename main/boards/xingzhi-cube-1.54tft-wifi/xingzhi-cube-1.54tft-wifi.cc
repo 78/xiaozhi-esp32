@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "power_manager.h"
@@ -159,15 +158,12 @@ private:
         {
             .text_font = &font_puhui_20_4,
             .icon_font = &font_awesome_20_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+            .emoji_font = font_emoji_32_init(),
+#else
             .emoji_font = font_emoji_64_init(),
+#endif
         });
-    }
-
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
 public:
@@ -179,8 +175,7 @@ public:
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeButtons();
-        InitializeSt7789Display();  
-        InitializeIot();
+        InitializeSt7789Display();
         GetBacklight()->RestoreBrightness();
     }
 

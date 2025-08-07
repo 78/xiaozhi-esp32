@@ -6,7 +6,6 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -222,13 +221,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Backlight"));
-    }
-
 public:
     LilygoTCircleS3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
@@ -238,7 +230,6 @@ public:
         InitSpi();
         InitGc9d01nDisplay();
         InitializeButtons();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

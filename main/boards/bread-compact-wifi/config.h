@@ -42,11 +42,18 @@
 #define DISPLAY_HEIGHT  32
 #elif CONFIG_OLED_SSD1306_128X64
 #define DISPLAY_HEIGHT  64
+#elif CONFIG_OLED_SH1106_128X64
+#define DISPLAY_HEIGHT  64
+#define SH1106
 #else
 #error "未选择 OLED 屏幕类型"
 #endif
 
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y true
+
+
+// A MCP Test: Control a lamp
+#define LAMP_GPIO GPIO_NUM_18
 
 #endif // _BOARD_CONFIG_H_

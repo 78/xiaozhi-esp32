@@ -1,0 +1,10 @@
+# ESP-IDF Partition Table
+# Name,   Type, SubType, Offset,  Size, Flags
+nvsfactory, data,   nvs,        ,     200K,
+nvs,        data,   nvs,        ,     840K,
+otadata,    data,   ota,        ,     0x2000,
+phy_init,   data,   phy,        ,     0x1000,
+model,      data,   spiffs,     ,     0xF0000,
+# According to scripts/versions.py, app partition must be aligned to 1MB
+ota_0,      app,    ota_0,      0x200000,     12M,
+ota_1,      app,    ota_1,      ,             12M,

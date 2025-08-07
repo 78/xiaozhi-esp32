@@ -30,20 +30,6 @@ Display::Display() {
     };
     ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
 
-    // Update display timer
-    esp_timer_create_args_t update_display_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
-            display->Update();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "display_update_timer",
-        .skip_unhandled_events = true,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&update_display_timer_args, &update_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(update_timer_, 1000000));
-
     // Create a power management lock
     auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
     if (ret == ESP_ERR_NOT_SUPPORTED) {
@@ -58,10 +44,6 @@ Display::~Display() {
         esp_timer_stop(notification_timer_);
         esp_timer_delete(notification_timer_);
     }
-    if (update_timer_ != nullptr) {
-        esp_timer_stop(update_timer_);
-        esp_timer_delete(update_timer_);
-    }
 
     if (network_label_ != nullptr) {
         lv_obj_del(network_label_);
@@ -71,7 +53,9 @@ Display::~Display() {
         lv_obj_del(battery_label_);
         lv_obj_del(emotion_label_);
     }
-
+    if( low_battery_popup_ != nullptr ) {
+        lv_obj_del(low_battery_popup_);
+    }
     if (pm_lock_ != nullptr) {
         esp_pm_lock_delete(pm_lock_);
     }
@@ -85,6 +69,8 @@ void Display::SetStatus(const char* status) {
     lv_label_set_text(status_label_, status);
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+
+    last_status_update_time_ = std::chrono::system_clock::now();
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
@@ -104,10 +90,12 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
     ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
 }
 
-void Display::Update() {
+void Display::UpdateStatusBar(bool update_all) {
+    auto& app = Application::GetInstance();
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
+    // Update mute icon
     {
         DisplayLockGuard lock(this);
         if (mute_label_ == nullptr) {
@@ -121,6 +109,23 @@ void Display::Update() {
         } else if (codec->output_volume() > 0 && muted_) {
             muted_ = false;
             lv_label_set_text(mute_label_, "");
+        }
+    }
+
+    // Update time
+    if (app.GetDeviceState() == kDeviceStateIdle) {
+        if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
+            // Set status to clock "HH:MM"
+            time_t now = time(NULL);
+            struct tm* tm = localtime(&now);
+            // Check if the we have already set the time
+            if (tm->tm_year >= 2025 - 1900) {
+                char time_str[16];
+                strftime(time_str, sizeof(time_str), "%H:%M  ", tm);
+                SetStatus(time_str);
+            } else {
+                ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
+            }
         }
     }
 
@@ -153,7 +158,6 @@ void Display::Update() {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
                     lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    auto& app = Application::GetInstance();
                     app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
                 }
             } else {
@@ -165,20 +169,25 @@ void Display::Update() {
         }
     }
 
-    // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
-    auto device_state = Application::GetInstance().GetDeviceState();
-    static const std::vector<DeviceState> allowed_states = {
-        kDeviceStateIdle,
-        kDeviceStateStarting,
-        kDeviceStateWifiConfiguring,
-        kDeviceStateListening,
-    };
-    if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
-        icon = board.GetNetworkStateIcon();
-        if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
-            DisplayLockGuard lock(this);
-            network_icon_ = icon;
-            lv_label_set_text(network_label_, network_icon_);
+    // 每 10 秒更新一次网络图标
+    static int seconds_counter = 0;
+    if (update_all || seconds_counter++ % 10 == 0) {
+        // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
+        auto device_state = Application::GetInstance().GetDeviceState();
+        static const std::vector<DeviceState> allowed_states = {
+            kDeviceStateIdle,
+            kDeviceStateStarting,
+            kDeviceStateWifiConfiguring,
+            kDeviceStateListening,
+            kDeviceStateActivating,
+        };
+        if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
+            icon = board.GetNetworkStateIcon();
+            if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
+                DisplayLockGuard lock(this);
+                network_icon_ = icon;
+                lv_label_set_text(network_label_, network_icon_);
+            }
         }
     }
 
@@ -242,10 +251,30 @@ void Display::SetIcon(const char* icon) {
     lv_label_set_text(emotion_label_, icon);
 }
 
+void Display::SetPreviewImage(const lv_img_dsc_t* image) {
+    // Do nothing
+}
+
 void Display::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
     }
     lv_label_set_text(chat_message_label_, content);
+}
+
+void Display::SetTheme(const std::string& theme_name) {
+    current_theme_name_ = theme_name;
+    Settings settings("display", true);
+    settings.SetString("theme", theme_name);
+}
+
+void Display::ShowStandbyScreen(bool show) {
+    if (show) {
+        SetChatMessage("system", "");
+        SetEmotion("sleepy");
+    } else {
+        SetChatMessage("system", "");
+        SetEmotion("neutral");
+    }
 }

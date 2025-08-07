@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "df-s3-ai-cam",
+            "sdkconfig_append": [
+                "CONFIG_ESP_PHY_MAX_WIFI_TX_POWER=10",
+                "CONFIG_ESP_PHY_MAX_TX_POWER=10",
+                "CONFIG_SPIRAM_MODE_OCT=y"
+            ]
+        }
+    ]
+}
