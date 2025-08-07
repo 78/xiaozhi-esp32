@@ -267,6 +267,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_S3_LCD_EV_Board
         bool "乐鑫ESP S3 LCD EV Board开发板"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP_S3_LCD_EV_Board_2
+        bool "乐鑫ESP S3 LCD EV Board 2开发板"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
         bool "征辰科技1.54(WIFI)"
         depends on IDF_TARGET_ESP32S3
@@ -310,6 +313,18 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
     depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
     prompt "EV_BOARD Type"
     default ESP_S3_LCD_EV_Board_1p4
+    help
+        开发板硬件版本型号选择
+    config ESP_S3_LCD_EV_Board_1p4
+        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.4"
+    config ESP_S3_LCD_EV_Board_1p5
+        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.5"
+endchoice
+
+choice ESP_S3_LCD_EV_Board_Version_TYPE
+    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board_2
+    prompt "EV_BOARD Type"
+    default ESP_S3_LCD_EV_Board_1p5
     help
         开发板硬件版本型号选择
     config ESP_S3_LCD_EV_Board_1p4
@@ -451,7 +466,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 

@@ -25,6 +25,7 @@ dependencies:
   espressif/esp32-camera: ^2.0.15
   espressif/esp_lcd_touch_ft5x06: ~1.0.7
   espressif/esp_lcd_touch_gt911: ^1
+  espressif/esp_lcd_touch_gt1151: ^1
   waveshare/esp_lcd_touch_cst9217: ^1.0.3
   espressif/esp_lcd_touch_cst816s: ^1.0.6
   lvgl/lvgl: ~9.2.2
@@ -65,7 +66,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   espressif/esp_hosted:
-    version: '2.0.17'
+    version: 2.0.17
     rules:
     - if: target in [esp32h2, esp32p4]
   espressif/esp_wifi_remote:
