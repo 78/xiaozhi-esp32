@@ -103,6 +103,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_KEVIN_YUYING_313LCD
         bool "鱼鹰科技3.13LCD开发板"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ALICHUANGTEST
+        bool "ALichuangTest"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_DEV
         bool "立创·实战派ESP32-S3开发板"
         depends on IDF_TARGET_ESP32S3
