@@ -34,12 +34,12 @@
 #define GC9503V_PIN_NUM_DATA5 GPIO_NUM_21  // G0
 
 //如果开发板是V1.4 IO 定义为
-#ifdef CONFIG_ESP_S3_LCD_EV_Board_2_1p4
+#ifdef CONFIG_ESP_S3_LCD_EV_Board_1p4
     #define GC9503V_PIN_NUM_DATA6 GPIO_NUM_47  // G1
     #define GC9503V_PIN_NUM_DATA7 GPIO_NUM_48  // G2
 #endif
 //如果开发板是V1.5 IO 定义为
-#ifdef CONFIG_ESP_S3_LCD_EV_Board_2_1p5
+#ifdef CONFIG_ESP_S3_LCD_EV_Board_1p5
     #define GC9503V_PIN_NUM_DATA6  GPIO_NUM_8  // G1
     #define GC9503V_PIN_NUM_DATA7  GPIO_NUM_18  // G2
 #endif
