@@ -310,21 +310,9 @@ choice BOARD_TYPE
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
-    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
+    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board || BOARD_TYPE_ESP_S3_LCD_EV_Board_2
     prompt "EV_BOARD Type"
     default ESP_S3_LCD_EV_Board_1p4
-    help
-        开发板硬件版本型号选择
-    config ESP_S3_LCD_EV_Board_1p4
-        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.4"
-    config ESP_S3_LCD_EV_Board_1p5
-        bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.5"
-endchoice
-
-choice ESP_S3_LCD_EV_Board_Version_TYPE
-    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board_2
-    prompt "EV_BOARD Type"
-    default ESP_S3_LCD_EV_Board_1p5
     help
         开发板硬件版本型号选择
     config ESP_S3_LCD_EV_Board_1p4
