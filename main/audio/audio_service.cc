@@ -539,6 +539,11 @@ void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
 }
 
 void AudioService::PlaySound(const std::string_view& sound) {
+    if (!codec_->input_enabled()) {
+        codec_->EnableInput(true);
+        esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+    }
+
     const char* data = sound.data();
     size_t size = sound.size();
     for (const char* p = data; p < data + size; ) {

@@ -6,14 +6,32 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
+
 class AdcPdmAudioCodec : public AudioCodec {
 private:
+    enum CodecTaskAction {
+        CODEC_TASK_ACTION_NONE,
+        CODEC_TASK_ACTION_OPEN_INPUT,
+        CODEC_TASK_ACTION_CLOSE_INPUT,
+        CODEC_TASK_ACTION_OPEN_OUTPUT,
+        CODEC_TASK_ACTION_CLOSE_OUTPUT,
+        CODEC_TASK_ACTION_DESTROY,
+    };
+
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
     gpio_num_t pa_ctrl_pin_ = GPIO_NUM_NC;
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
+
+    TaskHandle_t codec_status_task_handle_ = nullptr;
+    QueueHandle_t codec_task_queue_ = nullptr;
+
+    void CodecTask();
 
 public:
     AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate,

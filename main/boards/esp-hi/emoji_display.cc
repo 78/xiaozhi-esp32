@@ -3,6 +3,7 @@
 #include <esp_log.h>
 #include "mmap_generate_emoji.h"
 #include "emoji_display.h"
+#include "assets/lang_config.h"
 
 #include <esp_lcd_panel_io.h>
 #include <freertos/FreeRTOS.h>
@@ -146,9 +147,9 @@ void EmojiWidget::SetEmotion(const char* emotion)
 void EmojiWidget::SetStatus(const char* status)
 {
     if (player_) {
-        if (strcmp(status, "聆听中...") == 0) {
+        if (strcmp(status, Lang::Strings::LISTENING) == 0) {
             player_->StartPlayer(MMAP_EMOJI_ASKING_AAF, true, 15);
-        } else if (strcmp(status, "待命") == 0) {
+        } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
             player_->StartPlayer(MMAP_EMOJI_WAKE_AAF, true, 15);
         }
     }
