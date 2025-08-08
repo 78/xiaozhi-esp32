@@ -158,7 +158,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     }
 
     if (codec_->input_sample_rate() != sample_rate) {
-        data.resize(samples * codec_->input_sample_rate() / sample_rate);
+        data.resize(samples * codec_->input_sample_rate() / sample_rate * codec_->input_channels());
         if (!codec_->InputData(data)) {
             return false;
         }
@@ -184,7 +184,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
             data = std::move(resampled);
         }
     } else {
-        data.resize(samples);
+        data.resize(samples * codec_->input_channels());
         if (!codec_->InputData(data)) {
             return false;
         }
