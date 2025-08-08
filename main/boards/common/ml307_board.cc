@@ -50,9 +50,9 @@ void Ml307Board::StartNetwork() {
     while (true) {
         auto result = modem_->WaitForNetworkReady();
         if (result == NetworkStatus::ErrorInsertPin) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::P3_ERR_PIN);
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::OGG_ERR_PIN);
         } else if (result == NetworkStatus::ErrorRegistrationDenied) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::P3_ERR_REG);
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::OGG_ERR_REG);
         } else {
             break;
         }

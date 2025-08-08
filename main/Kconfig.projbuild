@@ -21,6 +21,42 @@ choice
         bool "English"
     config LANGUAGE_JA_JP
         bool "Japanese"
+    config LANGUAGE_KO_KR
+        bool "Korean"
+    config LANGUAGE_VI_VN
+        bool "Vietnamese"
+    config LANGUAGE_TH_TH
+        bool "Thai"
+    config LANGUAGE_DE_DE
+        bool "German"
+    config LANGUAGE_FR_FR
+        bool "French"
+    config LANGUAGE_ES_ES
+        bool "Spanish"
+    config LANGUAGE_IT_IT
+        bool "Italian"
+    config LANGUAGE_RU_RU
+        bool "Russian"
+    config LANGUAGE_AR_SA
+        bool "Arabic"
+    config LANGUAGE_HI_IN
+        bool "Hindi"
+    config LANGUAGE_PT_PT
+        bool "Portuguese"
+    config LANGUAGE_PL_PL
+        bool "Polish"
+    config LANGUAGE_CS_CZ
+        bool "Czech"
+    config LANGUAGE_FI_FI
+        bool "Finnish"
+    config LANGUAGE_TR_TR
+        bool "Turkish"
+    config LANGUAGE_ID_ID
+        bool "Indonesian"
+    config LANGUAGE_UK_UA
+        bool "Ukrainian"
+    config LANGUAGE_RO_RO
+        bool "Romanian"
 endchoice
 
 choice BOARD_TYPE
