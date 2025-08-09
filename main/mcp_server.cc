@@ -193,9 +193,9 @@ void McpServer::ParseMessage(const cJSON* json) {
             }
         }
         auto app_desc = esp_app_get_description();
-        std::string message = "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"" BOARD_NAME "\",\"version\":\"";
+        std::string message = R"({"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"")" + std::string(BOARD_NAME) + R"(","version":")";        
         message += app_desc->version;
-        message += "\"}}";
+        message += R"("}})";
         ReplyResult(id_int, message);
     } else if (method_str == "tools/list") {
         std::string cursor_str = "";
@@ -246,17 +246,17 @@ void McpServer::ReplyResult(int id, const std::string& result) {
 }
 
 void McpServer::ReplyError(int id, const std::string& message) {
-    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
+    std::string payload = R"("jsonrpc":"2.0","id":)";
     payload += std::to_string(id);
-    payload += ",\"error\":{\"message\":\"";
+    payload += R"(,"error":{"message":")";
     payload += message;
-    payload += "\"}}";
+    payload += R"("}})";
     Application::GetInstance().SendMcpMessage(payload);
 }
 
 void McpServer::GetToolsList(int id, const std::string& cursor) {
     const int max_payload_size = 8000;
-    std::string json = "{\"tools\":[";
+    std::string json = R"({"tools":[)";
     
     bool found_cursor = cursor.empty();
     auto it = tools_.begin();
@@ -297,9 +297,9 @@ void McpServer::GetToolsList(int id, const std::string& cursor) {
     }
 
     if (next_cursor.empty()) {
-        json += "]}";
+        json += R"(]})";
     } else {
-        json += "],\"nextCursor\":\"" + next_cursor + "\"}";
+        json += R"(],"nextCursor":")" + next_cursor + R"("})";
     }
     
     ReplyResult(id, json);

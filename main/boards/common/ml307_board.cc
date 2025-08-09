@@ -95,14 +95,14 @@ const char* Ml307Board::GetNetworkStateIcon() {
 
 std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
-    std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
-    board_json += "\"name\":\"" BOARD_NAME "\",";
-    board_json += "\"revision\":\"" + modem_->GetModuleRevision() + "\",";
-    board_json += "\"carrier\":\"" + modem_->GetCarrierName() + "\",";
-    board_json += "\"csq\":\"" + std::to_string(modem_->GetCsq()) + "\",";
-    board_json += "\"imei\":\"" + modem_->GetImei() + "\",";
-    board_json += "\"iccid\":\"" + modem_->GetIccid() + "\",";
-    board_json += "\"cereg\":" + modem_->GetRegistrationState().ToString() + "}";
+    std::string board_json = R"({"type":")" +  std::string(BOARD_TYPE) + R"(",)";
+    board_json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
+    board_json += R"("revision":")" + modem_->GetModuleRevision() +  R"(",)";  
+    board_json += R"("carrier":")" + modem_->GetCarrierName() +  R"(",)";
+    board_json += R"("csq":")" + std::to_string(modem_->GetCsq()) +  R"(",)";
+    board_json += R"("imei":")" + modem_->GetImei() +  R"(",)";
+    board_json += R"("iccid":")" + modem_->GetIccid() +  R"(",)";
+    board_json += R"("cereg":")" + modem_->GetRegistrationState().ToString() + R"(})";
     return board_json;
 }
 
