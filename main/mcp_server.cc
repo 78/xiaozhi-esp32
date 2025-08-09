@@ -56,6 +56,16 @@ void McpServer::AddCommonTools() {
             return true;
         });
     
+    AddTool("self.PowerSave.set_PowerSaveMode", 
+        "Set the Device power save mode.",
+        PropertyList({
+            Property("powerSaveMode", kPropertyTypeBoolean, true)
+        }), 
+        [&board](const PropertyList& properties) -> ReturnValue {
+            board.SetPowerSaveMode(properties["powerSaveMode"].value<bool>());
+            return true;
+        });
+
     auto backlight = board.GetBacklight();
     if (backlight) {
         AddTool("self.screen.set_brightness",
