@@ -245,13 +245,49 @@ elseif(CONFIG_LANGUAGE_EN_US)
     set(LANG_DIR "en-US")
 elseif(CONFIG_LANGUAGE_JA_JP)
     set(LANG_DIR "ja-JP")
+elseif(CONFIG_LANGUAGE_KO_KR)
+    set(LANG_DIR "ko-KR")
+elseif(CONFIG_LANGUAGE_VI_VN)
+    set(LANG_DIR "vi-VN")
+elseif(CONFIG_LANGUAGE_TH_TH)
+    set(LANG_DIR "th-TH")
+elseif(CONFIG_LANGUAGE_DE_DE)
+    set(LANG_DIR "de-DE")
+elseif(CONFIG_LANGUAGE_FR_FR)
+    set(LANG_DIR "fr-FR")
+elseif(CONFIG_LANGUAGE_ES_ES)
+    set(LANG_DIR "es-ES")
+elseif(CONFIG_LANGUAGE_IT_IT)
+    set(LANG_DIR "it-IT")
+elseif(CONFIG_LANGUAGE_RU_RU)
+    set(LANG_DIR "ru-RU")
+elseif(CONFIG_LANGUAGE_AR_SA)
+    set(LANG_DIR "ar-SA")
+elseif(CONFIG_LANGUAGE_HI_IN)
+    set(LANG_DIR "hi-IN")
+elseif(CONFIG_LANGUAGE_PT_PT)
+    set(LANG_DIR "pt-PT")
+elseif(CONFIG_LANGUAGE_PL_PL)
+    set(LANG_DIR "pl-PL")
+elseif(CONFIG_LANGUAGE_CS_CZ)
+    set(LANG_DIR "cs-CZ")
+elseif(CONFIG_LANGUAGE_FI_FI)
+    set(LANG_DIR "fi-FI")
+elseif(CONFIG_LANGUAGE_TR_TR)
+    set(LANG_DIR "tr-TR")
+elseif(CONFIG_LANGUAGE_ID_ID)
+    set(LANG_DIR "id-ID")
+elseif(CONFIG_LANGUAGE_UK_UA)
+    set(LANG_DIR "uk-UA")
+elseif(CONFIG_LANGUAGE_RO_RO)
+    set(LANG_DIR "ro-RO")
 endif()
 
 # 定义生成路径
-set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
-file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
-file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
+file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/*.ogg)
+file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
@@ -281,7 +317,7 @@ target_compile_definitions(${COMPONENT_LIB}
 add_custom_command(
     OUTPUT ${LANG_HEADER}
     COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
-            --input "${LANG_JSON}"
+            --language "${LANG_DIR}"
             --output "${LANG_HEADER}"
     DEPENDS
         ${LANG_JSON}
