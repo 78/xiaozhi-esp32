@@ -554,7 +554,6 @@ void AudioService::PlaySound(const std::string_view& ogg) {
     bool seen_head = false;
     bool seen_tags = false;
     int sample_rate = 16000; // 默认值
-    int frame_duration = OPUS_FRAME_DURATION_MS; // 默认值
 
     while (true) {
         size_t pos = find_page(offset);
@@ -595,15 +594,8 @@ void AudioService::PlaySound(const std::string_view& ogg) {
                 if (pkt_len >= 19 && std::memcmp(pkt_ptr, "OpusHead", 8) == 0) {
                     seen_head = true;
                     
-                    // OpusHead结构：
-                    // 0-7: "OpusHead"
-                    // 8: version (1)
-                    // 9: channel_count
-                    // 10-11: pre_skip (little-endian)
-                    // 12-15: input_sample_rate (little-endian)
-                    // 16-17: output_gain (little-endian)
-                    // 18: mapping_family
-                    
+                    // OpusHead结构：[0-7] "OpusHead", [8] version, [9] channel_count, [10-11] pre_skip
+                    // [12-15] input_sample_rate, [16-17] output_gain, [18] mapping_family
                     if (pkt_len >= 12) {
                         uint8_t version = pkt_ptr[8];
                         uint8_t channel_count = pkt_ptr[9];
@@ -612,18 +604,8 @@ void AudioService::PlaySound(const std::string_view& ogg) {
                             // 读取输入采样率 (little-endian)
                             sample_rate = pkt_ptr[12] | (pkt_ptr[13] << 8) | 
                                         (pkt_ptr[14] << 16) | (pkt_ptr[15] << 24);
-                            
                             ESP_LOGI(TAG, "OpusHead: version=%d, channels=%d, sample_rate=%d", 
                                    version, channel_count, sample_rate);
-                            
-                            // 根据采样率推断可能的帧持续时间
-                            if (sample_rate == 48000) {
-                                frame_duration = 20;
-                            } else if (sample_rate == 16000) {
-                                frame_duration = 60;
-                            } else {
-                                frame_duration = OPUS_FRAME_DURATION_MS; // 保持默认值
-                            }
                         }
                     }
                 }
@@ -640,7 +622,7 @@ void AudioService::PlaySound(const std::string_view& ogg) {
             // Audio packet (Opus)
             auto packet = std::make_unique<AudioStreamPacket>();
             packet->sample_rate = sample_rate;
-            packet->frame_duration = frame_duration;
+            packet->frame_duration = 60;
             packet->payload.resize(pkt_len);
             std::memcpy(packet->payload.data(), pkt_ptr, pkt_len);
             PushPacketToDecodeQueue(std::move(packet), true);
