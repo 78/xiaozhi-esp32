@@ -121,7 +121,7 @@ size_t CustomWakeWord::GetFeedSize() {
     if (multinet_model_data_ == nullptr) {
         return 0;
     }
-    return multinet_->get_samp_chunksize(multinet_model_data_) * codec_->input_channels();
+    return multinet_->get_samp_chunksize(multinet_model_data_);
 }
 
 void CustomWakeWord::StoreWakeWordData(const std::vector<int16_t>& data) {

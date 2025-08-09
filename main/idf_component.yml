@@ -38,10 +38,6 @@ dependencies:
   espressif/adc_battery_estimation: ^0.2.0
 
   # SenseCAP Watcher Board
-  wvirgil123/esp_jpeg_simd:
-    version: 1.0.0
-    rules:
-    - if: target in [esp32s3]
   wvirgil123/sscma_client:
     version: 1.0.2
     rules:
