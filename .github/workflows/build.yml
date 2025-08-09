@@ -14,10 +14,10 @@ permissions:
 
 jobs:
   prepare:
-    name: Determine boards to build
+    name: Determine variants to build
     runs-on: ubuntu-latest
     outputs:
-      boards: ${{ steps.select.outputs.boards }}
+      variants: ${{ steps.select.outputs.variants }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,35 +28,39 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - id: list
-        name: Get all board list
+        name: Get all variant list
         run: |
-          echo "all_boards=$(python scripts/release.py --list-boards --json)" >> $GITHUB_OUTPUT
+          echo "all_variants=$(python scripts/release.py --list-boards --json)" >> $GITHUB_OUTPUT
 
       - id: select
-        name: Select boards based on changes
+        name: Select variants based on changes
         env:
-          ALL_BOARDS: ${{ steps.list.outputs.all_boards }}
+          ALL_VARIANTS: ${{ steps.list.outputs.all_variants }}
         run: |
           EVENT_NAME="${{ github.event_name }}"
 
-          # For push to main branch, build all boards
+          # push 到 main 分支，编译全部变体
           if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "boards=$ALL_BOARDS" >> $GITHUB_OUTPUT
+            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # For pull_request
+          # pull_request 场景
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           echo "Base: $BASE_SHA, Head: $HEAD_SHA"
 
           CHANGED=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
-          echo "Changed files:\n$CHANGED"
+          echo -e "Changed files:\n$CHANGED"
 
           NEED_ALL=0
           declare -A AFFECTED
           while IFS= read -r file; do
             if [[ "$file" == main/* && "$file" != main/boards/* ]]; then
+              NEED_ALL=1
+            fi
+
+            if [[ "$file" == main/boards/common/* ]]; then
               NEED_ALL=1
             fi
 
@@ -67,24 +71,25 @@ jobs:
           done <<< "$CHANGED"
 
           if [[ "$NEED_ALL" -eq 1 ]]; then
-            echo "boards=$ALL_BOARDS" >> $GITHUB_OUTPUT
+            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
           else
             if [[ ${#AFFECTED[@]} -eq 0 ]]; then
-              echo "boards=[]" >> $GITHUB_OUTPUT
+              echo "variants=[]" >> $GITHUB_OUTPUT
             else
-              JSON=$(printf '%s\n' "${!AFFECTED[@]}" | sort -u | jq -R -s -c 'split("\n")[:-1]')
-              echo "boards=$JSON" >> $GITHUB_OUTPUT
+              BOARDS_JSON=$(printf '%s\n' "${!AFFECTED[@]}" | sort -u | jq -R -s -c 'split("\n")[:-1]')
+              FILTERED=$(echo "$ALL_VARIANTS" | jq -c --argjson boards "$BOARDS_JSON" 'map(select(.board as $b | $boards | index($b)))')
+              echo "variants=$FILTERED" >> $GITHUB_OUTPUT
             fi
           fi
 
   build:
-    name: Build ${{ matrix.board }}
+    name: Build ${{ matrix.name }}
     needs: prepare
-    if: ${{ needs.prepare.outputs.boards != '[]' }}
+    if: ${{ needs.prepare.outputs.variants != '[]' }}
     strategy:
-      fail-fast: false  # 单个 board 失败不影响其它 board
+      fail-fast: false  # 单个变体失败不影响其它变体
       matrix:
-        board: ${{ fromJson(needs.prepare.outputs.boards) }}
+        include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:release-v5.4
@@ -92,15 +97,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build current board
+      - name: Build current variant
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/release.py ${{ matrix.board }}
+          python scripts/release.py ${{ matrix.board }} --name ${{ matrix.name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi_${{ matrix.board }}_${{ github.sha }}.bin
+          name: xiaozhi_${{ matrix.name }}_${{ github.sha }}.bin
           path: build/merged-binary.bin
           if-no-files-found: error

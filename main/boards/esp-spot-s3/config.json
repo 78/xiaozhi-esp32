@@ -2,9 +2,9 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "esp32-s3-touch-lcd-1.85c",
+            "name": "esp-spot-s3",
             "sdkconfig_append": [
-                "CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C=y"
+                "CONFIG_BOARD_TYPE_ESP_SPOT_S3=y"
             ]
         }
     ]

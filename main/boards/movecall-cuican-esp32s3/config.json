@@ -6,7 +6,8 @@
             "sdkconfig_append": [
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\"",
-                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y"  
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y",
+                "CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3=y"
             ]
         }
     ]
