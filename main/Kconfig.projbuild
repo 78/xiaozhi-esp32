@@ -424,19 +424,26 @@ config USE_CUSTOM_WAKE_WORD
         
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
-    default "ni hao xiao zhi"
+    default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，用汉语拼音表示
+        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "你好小智"
+    default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词对应问候语 
-               
-        
+        唤醒后发送给服务器的问候语 
+
+config CUSTOM_WAKE_WORD_THRESHOLD
+    int "Custom Wake Word Threshold (%)"
+    default 20
+    range 1 99
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y

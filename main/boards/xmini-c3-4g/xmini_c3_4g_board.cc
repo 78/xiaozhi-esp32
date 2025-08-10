@@ -48,14 +48,14 @@ private:
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        sleep_timer_ = new SleepTimer(600);
+        sleep_timer_ = new SleepTimer(300);
 #else
         sleep_timer_ = new SleepTimer(30);
 #endif
         sleep_timer_->OnEnterLightSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             // Show the standby screen
-            GetDisplay()->ShowStandbyScreen(true);
+            GetDisplay()->SetPowerSaveMode(true);
             // Enable sleep mode, and sleep in 1 second after DTR is set to high
             modem_->SetSleepMode(true, 1);
             // Set the DTR pin to high to make the modem enter sleep mode
@@ -65,7 +65,7 @@ private:
             // Set the DTR pin to low to make the modem wake up
             modem_->GetAtUart()->SetDtrPin(false);
             // Hide the standby screen
-            GetDisplay()->ShowStandbyScreen(false);
+            GetDisplay()->SetPowerSaveMode(false);
         });
         sleep_timer_->SetEnabled(true);
     }
