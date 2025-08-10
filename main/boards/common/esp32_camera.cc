@@ -127,15 +127,13 @@ bool Esp32Camera::Capture() {
                 ESP_LOGE(TAG, "Failed to convert JPEG to RGB565 for preview");
             }
         } else {
-            // RGB565格式需要进行字节交换处理
-            size_t copy_len = std::min(static_cast<size_t>(fb_->len), static_cast<size_t>(preview_image_.data_size));
-            uint16_t* src = (uint16_t*)fb_->buf;
-            uint16_t* dst = (uint16_t*)preview_buffer_;
-            size_t pixel_count = copy_len / 2;
-            
-            // 进行字节交换，将大端序转换为小端序
+            // RGB565等格式需要进行字节交换处理
+            auto src = (uint16_t*)fb_->buf;
+            auto dst = (uint16_t*)preview_image_.data;
+            size_t pixel_count = fb_->len / 2;
             for (size_t i = 0; i < pixel_count; i++) {
-                dst[i] = ((src[i] & 0xFF) << 8) | ((src[i] & 0xFF00) >> 8);
+                // 交换每个16位字内的字节
+                dst[i] = __builtin_bswap16(src[i]);
             }
             display->SetPreviewImage(&preview_image_);
         }
