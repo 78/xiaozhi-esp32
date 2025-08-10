@@ -5,7 +5,15 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(powershell:*)",
+      "Bash(\"D:\\Program Files\\Git\\bin\\bash.exe\" -c \"claude mcp add --transport http context7 https://mcp.context7.com/mcp\")",
+      "Bash(rm:*)",
+      "WebFetch(domain:gitee.com)",
+      "Bash(dir .git)",
+      "Bash(where git)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }
