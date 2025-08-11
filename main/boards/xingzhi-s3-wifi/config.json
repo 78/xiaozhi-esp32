@@ -1,0 +1,10 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xingzhi-s3-wifi",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}
