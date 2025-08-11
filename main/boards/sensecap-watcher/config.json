@@ -8,7 +8,8 @@
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/32m.csv\"",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
                 "CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n",
-                "CONFIG_IDF_EXPERIMENTAL_FEATURES=y"
+                "CONFIG_IDF_EXPERIMENTAL_FEATURES=y",
+                "CONFIG_FREERTOS_HZ=1000"
             ]
         }
     ]

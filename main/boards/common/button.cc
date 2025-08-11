@@ -18,7 +18,7 @@ AdcButton::AdcButton(const button_adc_config_t& adc_config) : Button(nullptr) {
 Button::Button(button_handle_t button_handle) : button_handle_(button_handle) {
 }
 
-Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, uint16_t short_press_time) : gpio_num_(gpio_num) {
+Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, uint16_t short_press_time, bool enable_power_save) : gpio_num_(gpio_num) {
     if (gpio_num == GPIO_NUM_NC) {
         return;
     }
@@ -29,7 +29,7 @@ Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, 
     button_gpio_config_t gpio_config = {
         .gpio_num = gpio_num,
         .active_level = static_cast<uint8_t>(active_high ? 1 : 0),
-        .enable_power_save = false,
+        .enable_power_save = enable_power_save,
         .disable_pull = false
     };
     ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle_));

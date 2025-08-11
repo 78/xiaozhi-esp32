@@ -118,12 +118,12 @@ mkdir main/boards/my-custom-board
 
 ```cpp
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
+#include "mcp_server.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -220,12 +220,9 @@ private:
                                     });
     }
 
-    // IoT设备初始化
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        // 可以添加更多IoT设备
+    // MCP Tools 初始化
+    void InitializeTools() {
+        // 参考 MCP 文档
     }
 
 public:
@@ -235,7 +232,7 @@ public:
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
         GetBacklight()->SetBrightness(100);
     }
 
