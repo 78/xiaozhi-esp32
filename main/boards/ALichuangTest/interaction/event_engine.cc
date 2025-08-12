@@ -180,11 +180,9 @@ bool EventEngine::DetectPickup(const ImuData& data) {
     // 计算运动参数
     float z_diff = data.accel_z - last_imu_data_.accel_z;
     float current_magnitude = CalculateAccelMagnitude(data);
-    float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     
-    // 检测设备是否处于稳定状态（放宽条件，更容易检测到放下）
-    bool is_stable = (accel_delta < 0.2f) && (std::abs(data.gyro_x) < 30.0f) && 
-                     (std::abs(data.gyro_y) < 30.0f) && (std::abs(data.gyro_z) < 30.0f);
+    // 使用辅助函数判断设备是否稳定
+    bool is_stable = IsStable(data, last_imu_data_);
     
     if (!is_picked_up_) {
         // 当前未拿起状态，检测是否被拿起
@@ -222,6 +220,9 @@ bool EventEngine::DetectPickup(const ImuData& data) {
         // 检查是否超时（超过10秒后，更容易检测放下）
         int64_t pickup_duration = esp_timer_get_time() - pickup_start_time_;
         bool timeout_mode = pickup_duration > 10000000; // 10秒
+        
+        // 重新判断稳定性（注意：这里需要再次判断，因为is_stable是在if (!is_picked_up_)分支外定义的）
+        is_stable = IsStable(data, last_imu_data_);
         
         if (is_stable) {
             stable_count_++;
@@ -381,4 +382,12 @@ bool EventEngine::DetectFlip(const ImuData& data) {
     }
     
     return flip_detected;
+}
+
+bool EventEngine::IsStable(const ImuData& data, const ImuData& last_data) {
+    // 计算加速度变化量
+    float accel_delta = CalculateAccelDelta(data, last_data);
+    
+    // 判断是否稳定（加速度变化小于0.1g）
+    return accel_delta < 0.1f;
 }

@@ -154,6 +154,9 @@ private:
     float CalculateAccelMagnitude(const ImuData& data);
     float CalculateAccelDelta(const ImuData& current, const ImuData& last);
     
+    // 辅助函数
+    bool IsStable(const ImuData& data, const ImuData& last_data);
+    
     // 事件分发
     void DispatchEvent(const Event& event);
 };
