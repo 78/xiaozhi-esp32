@@ -1,11 +1,11 @@
 #include "wifi_board.h"
 #include "codecs/box_audio_codec.h"
-#include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
 #include "esp32_camera.h"
+#include "skills/animation.h"
 #include "qmi8658.h"
 #include "motion_detector.h"
 
@@ -18,6 +18,24 @@
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 #include <esp_timer.h>
+#include <lvgl.h>
+#include <mutex>
+
+#include "images/emotions/neutral/1.h"
+#include "images/emotions/angry/1.h"
+#include "images/emotions/angry/2.h"
+#include "images/emotions/angry/3.h"
+#include "images/emotions/angry/4.h"
+#include "images/emotions/happy/1.h"
+#include "images/emotions/happy/2.h"
+#include "images/emotions/happy/3.h"
+#include "images/emotions/laughting/1.h"
+#include "images/emotions/sad/1.h"
+#include "images/emotions/sad/2.h"
+#include "images/emotions/sad/3.h"
+#include "images/emotions/surprised/2.h"
+#include "images/emotions/surprised/4.h"
+#include "images/emotions/surprised/6.h"
 
 
 #define TAG "ALichuangTest"
@@ -75,12 +93,16 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     i2c_master_dev_handle_t pca9557_handle_;
     Button boot_button_;
-    LcdDisplay* display_;
+    AnimaDisplay* display_;
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
     MotionDetector* motion_detector_ = nullptr;
     esp_timer_handle_t motion_timer_ = nullptr;
+    TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
+    // 情感相关成员变量
+    std::string current_emotion_ = "neutral";
+    mutable std::mutex emotion_mutex_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -162,7 +184,7 @@ private:
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel,
+        display_ = new AnimaDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_20_4,
@@ -173,6 +195,270 @@ private:
                                         .emoji_font = font_emoji_64_init(),
 #endif
                                     });
+    }
+    
+    void StartImageSlideshow() {
+        xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
+        ESP_LOGI(TAG, "图片循环显示任务已启动");
+    }
+    
+    // 根据情感获取对应的图片数组
+    std::pair<const uint8_t**, int> GetEmotionImageArray(const std::string& emotion) {
+        // 默认图片数组（neutral或未知情感时使用）
+        static const uint8_t* neutral_images[] = {
+            gImage_1  // neutral时只显示第一张静态图片
+        };
+        
+        // 根据情感返回对应的图片数组
+        if (emotion == "happy" || emotion == "funny") {
+            // 开心相关情感 - 使用快节奏动画
+            static const uint8_t* happy_images[] = {
+                gImage_9, gImage_10, gImage_11
+            };
+            return {happy_images, 3};
+        }
+        else if (emotion == "laughting") {
+            // 大笑情感
+            static const uint8_t* angry_images[] = {
+                gImage_12
+            };
+            return {angry_images, 1};
+        }
+        else if (emotion == "angry") {
+            // 愤怒情感 - 使用较强烈的图片
+            static const uint8_t* angry_images[] = {
+                gImage_2, gImage_3, gImage_4, gImage_5
+            };
+            return {angry_images, 4};
+        }
+        else if (emotion == "sad" || emotion == "crying") {
+            // 悲伤相关情感 - 使用较慢的动画
+            static const uint8_t* sad_images[] = {
+                gImage_23, gImage_24, gImage_25
+            };
+            return {sad_images, 3};
+        }
+        else if (emotion == "surprised" || emotion == "shocked") {
+            // 惊讶相关情感 - 使用跳跃式动画
+            static const uint8_t* surprised_images[] = {
+                gImage_27, gImage_29, gImage_31
+            };
+            return {surprised_images, 3};
+        }
+        else {
+            // neutral或其他情感 - 只显示静态图片
+            return {neutral_images, 1};
+        }
+    }
+    
+    // 获取当前情感状态
+    std::string GetCurrentEmotion() {
+        std::lock_guard<std::mutex> lock(emotion_mutex_);
+        return current_emotion_;
+    }
+    
+    // 设置当前情感状态
+    void SetCurrentEmotion(const std::string& emotion) {
+        std::lock_guard<std::mutex> lock(emotion_mutex_);
+        current_emotion_ = emotion;
+        ESP_LOGI(TAG, "情感状态变更为: %s", emotion.c_str());
+    }
+    
+    // 根据情感获取播放间隔（毫秒）
+    int GetEmotionPlayInterval(const std::string& emotion) {
+        if (emotion == "happy" || emotion == "laughing" || emotion == "funny") {
+            return 50;  // 开心情感 - 快速播放
+        }
+        else if (emotion == "angry") {
+            return 40;  // 愤怒情感 - 很快播放，表达强烈情绪
+        }
+        else if (emotion == "sad" || emotion == "crying") {
+            return 120; // 悲伤情感 - 慢速播放
+        }
+        else if (emotion == "surprised" || emotion == "shocked") {
+            return 80;  // 惊讶情感 - 中等速度
+        }
+        else if (emotion == "thinking") {
+            return 150; // 思考情感 - 最慢播放
+        }
+        else {
+            return 60;  // 默认间隔
+        }
+    }
+    
+    // 图片循环显示任务函数
+    static void ImageSlideshowTask(void* arg) {
+        ALichuangTest* board = static_cast<ALichuangTest*>(arg);
+        AnimaDisplay* display = board->GetDisplay();
+        
+        if (!display) {
+            ESP_LOGE(TAG, "无法获取显示设备");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 获取AudioProcessor实例的事件组 - 从application.h中直接获取
+        auto& app = Application::GetInstance();
+        // 这里使用Application中可用的方法来判断音频状态
+        // 根据编译错误修改为可用的方法
+        
+        // 创建画布（如果不存在）
+        if (!display->HasCanvas()) {
+            display->CreateCanvas();
+        }
+        
+        // 设置图片显示参数
+        int imgWidth = 320;
+        int imgHeight = 240;
+        int x = 0;
+        int y = 0;
+        
+        // 根据当前情感动态获取图片数组
+        std::string current_emotion = board->GetCurrentEmotion();
+        auto [imageArray, totalImages] = board->GetEmotionImageArray(current_emotion);
+        
+        ESP_LOGI(TAG, "当前情感: %s, 图片数量: %d", current_emotion.c_str(), totalImages);
+        
+        // 创建临时缓冲区用于字节序转换
+        uint16_t* convertedData = new uint16_t[imgWidth * imgHeight];
+        if (!convertedData) {
+            ESP_LOGE(TAG, "无法分配内存进行图像转换");
+            vTaskDelete(NULL);
+            return;
+        }
+        
+        // 先显示第一张图片
+        int currentIndex = 0;
+        const uint8_t* currentImage = imageArray[currentIndex];
+        
+        // 转换并显示第一张图片
+        for (int i = 0; i < imgWidth * imgHeight; i++) {
+            uint16_t pixel = ((uint16_t*)currentImage)[i];
+            convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+        }
+        display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+        ESP_LOGI(TAG, "初始显示图片");
+        
+        // 持续监控和处理图片显示
+        TickType_t lastUpdateTime = xTaskGetTickCount();
+        TickType_t cycleInterval = pdMS_TO_TICKS(60); // 图片切换间隔，会根据情感动态调整
+        
+        // 定义用于判断是否正在播放音频的变量
+        bool isAudioPlaying = false;
+        
+        // 定义用于检测情感变化的变量
+        std::string lastEmotion = current_emotion;
+        
+        // 定义用于判断是否应该播放情感动画的变量
+        bool shouldPlayAnimation = false;
+        bool wasPlayingAnimation = false;
+        
+        // 定义自动回归neutral的超时机制（10秒无音频播放后自动回到neutral）
+        TickType_t lastAudioTime = xTaskGetTickCount();
+        const TickType_t neutralTimeout = pdMS_TO_TICKS(10000); // 10秒超时
+        
+        while (true) {
+            // 检查情感是否发生变化
+            std::string currentEmotion = board->GetCurrentEmotion();
+            if (currentEmotion != lastEmotion) {
+                ESP_LOGI(TAG, "情感变化检测: %s -> %s", lastEmotion.c_str(), currentEmotion.c_str());
+                // 重新获取图片数组
+                auto [newImageArray, newTotalImages] = board->GetEmotionImageArray(currentEmotion);
+                imageArray = newImageArray;
+                totalImages = newTotalImages;
+                lastEmotion = currentEmotion;
+                currentIndex = 0; // 重置到第一张图片
+                
+                // 根据新情感调整播放间隔
+                int intervalMs = board->GetEmotionPlayInterval(currentEmotion);
+                cycleInterval = pdMS_TO_TICKS(intervalMs);
+                ESP_LOGI(TAG, "调整播放间隔为: %d毫秒", intervalMs);
+                
+                // 立即显示新情感的第一张图片
+                currentImage = imageArray[currentIndex];
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "切换到新情感图片组: %s，图片数: %d", currentEmotion.c_str(), totalImages);
+            }
+            
+            // 检查是否正在播放音频 - 使用应用程序状态判断
+            isAudioPlaying = (app.GetDeviceState() == kDeviceStateSpeaking);
+            
+            // 更新最后一次音频播放时间
+            if (isAudioPlaying) {
+                lastAudioTime = xTaskGetTickCount();
+            }
+            
+            // 检查是否需要自动回归neutral状态
+            TickType_t timeSinceLastAudio = xTaskGetTickCount() - lastAudioTime;
+            if (!isAudioPlaying && currentEmotion != "neutral" && timeSinceLastAudio > neutralTimeout) {
+                ESP_LOGI(TAG, "长时间无音频播放，自动回归neutral状态");
+                board->SetCurrentEmotion("neutral");
+                // 注意：这里不直接修改currentEmotion，让下次循环检测情感变化时处理
+            }
+            
+            // 判断是否应该播放情感动画：情绪不为neutral且正在说话
+            bool isEmotionalState = (currentEmotion != "neutral") && (currentEmotion != "sleepy") && (currentEmotion != "");
+            shouldPlayAnimation = isEmotionalState && isAudioPlaying;
+            
+            // 输出调试信息（每10次循环输出一次，避免日志过多）
+            static int debugCount = 0;
+            if (++debugCount >= 10) {
+                ESP_LOGD(TAG, "状态检查 - 情绪: %s, 说话: %s, 播放动画: %s", 
+                    currentEmotion.c_str(), 
+                    isAudioPlaying ? "是" : "否",
+                    shouldPlayAnimation ? "是" : "否");
+                debugCount = 0;
+            }
+            
+            TickType_t currentTime = xTaskGetTickCount();
+            
+            // 如果应该播放情感动画且时间到了切换间隔
+            if (shouldPlayAnimation && (currentTime - lastUpdateTime >= cycleInterval)) {
+                // 更新索引到下一张图片
+                currentIndex = (currentIndex + 1) % totalImages;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示新图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "播放情感动画: %s, 图片索引: %d", currentEmotion.c_str(), currentIndex);
+                
+                // 更新上次更新时间
+                lastUpdateTime = currentTime;
+            }
+            // 如果不应该播放情感动画但之前在播放，或者当前不在第一张图片
+            else if ((!shouldPlayAnimation && wasPlayingAnimation) || (!shouldPlayAnimation && currentIndex != 0)) {
+                // 切换回第一张图片
+                currentIndex = 0;
+                currentImage = imageArray[currentIndex];
+                
+                // 转换并显示第一张图片
+                for (int i = 0; i < imgWidth * imgHeight; i++) {
+                    uint16_t pixel = ((uint16_t*)currentImage)[i];
+                    convertedData[i] = ((pixel & 0xFF) << 8) | ((pixel & 0xFF00) >> 8);
+                }
+                display->DrawImageOnCanvas(x, y, imgWidth, imgHeight, (const uint8_t*)convertedData);
+                ESP_LOGI(TAG, "停止情感动画，显示初始图片 - 情绪: %s, 说话: %s", 
+                    currentEmotion.c_str(), isAudioPlaying ? "是" : "否");
+            }
+            
+            // 更新上一次动画播放状态
+            wasPlayingAnimation = shouldPlayAnimation;
+            
+            // 短暂延时，避免CPU占用过高
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        
+        // 释放资源（实际上不会执行到这里，除非任务被外部终止）
+        delete[] convertedData;
+        vTaskDelete(NULL);
     }
 
     void InitializeTouch()
@@ -338,6 +624,18 @@ public:
         InitializeImu();  // 初始化IMU和运动检测
 
         GetBacklight()->RestoreBrightness();
+
+        // 设置情感变化回调
+        auto display = GetDisplay();
+        if (display) {
+            display->OnEmotionChanged([this](const std::string& emotion) {
+                ESP_LOGI(TAG, "接收到情感变化回调: %s", emotion.c_str());
+                SetCurrentEmotion(emotion);
+            });
+        }
+        
+        // 启动图片循环显示任务
+        StartImageSlideshow();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -347,10 +645,6 @@ public:
         return &audio_codec;
     }
 
-    virtual Display* GetDisplay() override {
-        return display_;
-    }
-    
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
@@ -358,6 +652,14 @@ public:
 
     virtual Camera* GetCamera() override {
         return camera_;
+    }
+
+    virtual AnimaDisplay* GetDisplay() override {
+        return display_;
+    }
+
+    virtual std::string GetBoardType() override {
+        return "lingxi";
     }
     
     // 获取运动检测器（可选，用于外部访问）

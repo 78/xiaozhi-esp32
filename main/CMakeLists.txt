@@ -222,6 +222,8 @@ endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.c
 )
 list(APPEND SOURCES ${BOARD_SOURCES})
 
