@@ -6,6 +6,7 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
+#include "iot/thing_manager.h"
 #include "sy6970.h"
 #include "pin_config.h"
 #include "esp32_camera.h"
@@ -82,11 +83,16 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(true);
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("sleepy");
             GetBacklight()->SetBrightness(10);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(false);
+            auto display = GetDisplay();
+            display->SetChatMessage("system", "");
+            display->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -271,10 +277,6 @@ private:
         camera_->SetHMirror(1);
     }
 
-    void InitializeTools() {
-        static IrFilterController irFilter(AP1511B_GPIO);
-    }
-
 public:
     LilygoTCameraPlusS3Board() : boot_button_(BOOT_BUTTON_GPIO), key1_button_(KEY1_BUTTON_GPIO) {
         InitializePowerSaveTimer();
@@ -286,7 +288,14 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeCamera();
-        InitializeTools();
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+        auto &thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+#elif CONFIG_IOT_PROTOCOL_MCP
+        static IrFilterController irFilter(AP1511B_GPIO);
+#endif
         GetBacklight()->RestoreBrightness();
     }
 

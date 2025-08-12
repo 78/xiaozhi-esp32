@@ -1,9 +1,10 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-#include "codecs/es8311_audio_codec.h"
+#include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "led/circular_strip.h"
+#include "iot/thing_manager.h"
 #include "config.h"
 #include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
@@ -87,11 +88,14 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(240, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(true);
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("sleepy");
             GetBacklight()->SetBrightness(1);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            GetDisplay()->SetPowerSaveMode(false);
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
         });
          
@@ -221,6 +225,13 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+    }
+
 public:
     magiclick_2p4() :
         main_button_(MAIN_BUTTON_GPIO),
@@ -233,6 +244,7 @@ public:
         InitializeButtons();
         InitializeSpi();
         InitializeNv3023Display();
+        InitializeIot();
         GetBacklight()->RestoreBrightness();
         
     }

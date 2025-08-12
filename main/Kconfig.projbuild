@@ -46,12 +46,6 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
         bool "面包板（WiFi+ LCD） ESP32 DevKit"
         depends on IDF_TARGET_ESP32
-    config BOARD_TYPE_XMINI_C3_V3
-        bool "虾哥 Mini C3 V3"
-        depends on IDF_TARGET_ESP32C3
-    config BOARD_TYPE_XMINI_C3_4G
-        bool "虾哥 Mini C3 4G"
-        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3
         bool "虾哥 Mini C3"
         depends on IDF_TARGET_ESP32C3
@@ -148,8 +142,6 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06
-        bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
         depends on IDF_TARGET_ESP32S3
@@ -215,12 +207,6 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3_BOX0
         bool "正点原子DNESP32S3-BOX0"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATK_DNESP32S3_BOX2_WIFI
-        bool "正点原子DNESP32S3-BOX2-WIFI"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATK_DNESP32S3_BOX2_4G
-        bool "正点原子DNESP32S3-BOX2-4G" 
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3M_WIFI
         bool "正点原子DNESP32S3M-WIFI"
@@ -294,13 +280,6 @@ choice BOARD_TYPE
         select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
-    config BOARD_TYPE_LABPLUS_MPYTHON_V3
-        bool "labplus mpython_v3 board"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_LABPLUS_LEDONG_V2
-        bool "labplus ledong_v2 board"
-        depends on IDF_TARGET_ESP32S3
-    depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SURFER_C3_1_14TFT
         bool "Surfer-C3-1-14TFT"
         depends on IDF_TARGET_ESP32C3
@@ -412,35 +391,6 @@ config USE_AFE_WAKE_WORD
     help
         需要 ESP32 S3 与 PSRAM 支持
 
-config USE_CUSTOM_WAKE_WORD
-    bool "Enable Custom Wake Word Detection"
-    default n
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
-    help
-        需要 ESP32 S3 与 PSRAM 支持
-        
-config CUSTOM_WAKE_WORD
-    string "Custom Wake Word"
-    default "xiao tu dou"
-    depends on USE_CUSTOM_WAKE_WORD
-    help
-        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
-
-config CUSTOM_WAKE_WORD_DISPLAY
-    string "Custom Wake Word Display"
-    default "小土豆"
-    depends on USE_CUSTOM_WAKE_WORD
-    help
-        唤醒后发送给服务器的问候语 
-
-config CUSTOM_WAKE_WORD_THRESHOLD
-    int "Custom Wake Word Threshold (%)"
-    default 20
-    range 1 99
-    depends on USE_CUSTOM_WAKE_WORD
-    help
-        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
-
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
@@ -451,7 +401,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
@@ -481,11 +431,16 @@ config AUDIO_DEBUG_UDP_SERVER
     help
         UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
 
-config RECEIVE_CUSTOM_MESSAGE
-    bool "Enable Custom Message Reception"
-    default n
+choice IOT_PROTOCOL
+    prompt "IoT Protocol"
+    default IOT_PROTOCOL_MCP
     help
-        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+        IoT 协议，用于获取设备状态与发送控制指令
+    config IOT_PROTOCOL_MCP
+        bool "MCP 2024-11-05"
+    config IOT_PROTOCOL_XIAOZHI
+        bool "Xiaozhi IoT 1.0 (Deprecated)"
+endchoice
 
 choice I2S_TYPE_TAIJIPI_S3
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi

@@ -133,7 +133,7 @@ exit:    //Common return path
 }
 
 void SystemInfo::PrintTaskList() {
-    char buffer[1000];
+    char buffer[500];
     vTaskList(buffer);
     ESP_LOGI(TAG, "Task list: \n%s", buffer);
 }

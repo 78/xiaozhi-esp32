@@ -278,8 +278,7 @@ std::string SscmaCamera::Explain(const std::string& question) {
         return "{\"success\": false, \"message\": \"Image explain URL or token is not set\"}";
     }
 
-    auto network = Board::GetInstance().GetNetwork();
-    auto http = network->CreateHttp(3);
+    auto http = Board::GetInstance().CreateHttp();
     // 构造multipart/form-data请求体
     std::string boundary = "----ESP32_CAMERA_BOUNDARY";
     

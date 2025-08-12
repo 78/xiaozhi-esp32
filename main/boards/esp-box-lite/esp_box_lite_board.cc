@@ -6,6 +6,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
@@ -204,12 +205,20 @@ private:
                                     });
     }
 
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+    }
+
 public:
     EspBoxBoardLite() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

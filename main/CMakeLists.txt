@@ -1,13 +1,10 @@
-set(SOURCES "audio/audio_codec.cc"
-            "audio/audio_service.cc"
-            "audio/codecs/no_audio_codec.cc"
-            "audio/codecs/box_audio_codec.cc"
-            "audio/codecs/es8311_audio_codec.cc"
-            "audio/codecs/es8374_audio_codec.cc"
-            "audio/codecs/es8388_audio_codec.cc"
-            "audio/codecs/es8389_audio_codec.cc"
-            "audio/codecs/dummy_audio_codec.cc"
-            "audio/processors/audio_debugger.cc"
+set(SOURCES "audio_codecs/audio_codec.cc"
+            "audio_codecs/no_audio_codec.cc"
+            "audio_codecs/box_audio_codec.cc"
+            "audio_codecs/es8311_audio_codec.cc"
+            "audio_codecs/es8374_audio_codec.cc"
+            "audio_codecs/es8388_audio_codec.cc"
+            "audio_processing/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -17,16 +14,22 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
+            "iot/thing.cc"
+            "iot/thing_manager.cc"
             "mcp_server.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
             "settings.cc"
-            "device_state_event.cc"
+            "background_task.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "audio_codecs" "protocols" "audio_processing")
+
+# 添加 IOT 相关文件
+file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
+list(APPEND SOURCES ${IOT_SOURCES})
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -88,10 +91,6 @@ elseif(CONFIG_BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-cam-m12-echo-base")
 elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
     set(BOARD_TYPE "atommatrix-echo-base")
-elseif(CONFIG_BOARD_TYPE_XMINI_C3_V3)
-    set(BOARD_TYPE "xmini-c3-v3")
-elseif(CONFIG_BOARD_TYPE_XMINI_C3_4G)
-    set(BOARD_TYPE "xmini-c3-4g")
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
@@ -106,8 +105,6 @@ elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
-elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06)
-    set(BOARD_TYPE "waveshare-s3-touch-amoled-2.06")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75)
     set(BOARD_TYPE "waveshare-s3-touch-amoled-1.75")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_1_85C)
@@ -154,10 +151,6 @@ elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
     set(BOARD_TYPE "atk-dnesp32s3-box")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
     set(BOARD_TYPE "atk-dnesp32s3-box0")
-elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_WIFI)
-    set(BOARD_TYPE "atk-dnesp32s3-box2-wifi")
-elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_4G)
-    set(BOARD_TYPE "atk-dnesp32s3-box2-4g")   
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
     set(BOARD_TYPE "atk-dnesp32s3m-wifi")
 elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
@@ -210,10 +203,6 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_CAM)
     set(BOARD_TYPE "bread-compact-wifi-s3cam")
 elseif(CONFIG_BOARD_TYPE_JIUCHUAN )
     set(BOARD_TYPE "jiuchuan-s3")
-elseif(CONFIG_BOARD_TYPE_LABPLUS_MPYTHON_V3)
-    set(BOARD_TYPE "labplus-mpython-v3") 
-elseif(CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2)
-    set(BOARD_TYPE "labplus-ledong-v2") 
 elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(BOARD_TYPE "surfer-c3-1.14tft")
 endif()
@@ -224,16 +213,16 @@ file(GLOB BOARD_SOURCES
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_USE_AUDIO_PROCESSOR)
-    list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/afe_audio_processor.cc")
 else()
-    list(APPEND SOURCES "audio/processors/no_audio_processor.cc")
+    list(APPEND SOURCES "audio_processing/no_audio_processor.cc")
 endif()
 if(CONFIG_USE_AFE_WAKE_WORD)
-    list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
+    list(APPEND SOURCES "audio_processing/afe_wake_word.cc")
 elseif(CONFIG_USE_ESP_WAKE_WORD)
-    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
-elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
-    list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    list(APPEND SOURCES "audio_processing/esp_wake_word.cc")
+else()
+    list(APPEND SOURCES "audio_processing/no_wake_word.cc")
 endif()
 
 # 根据Kconfig选择语言目录
@@ -255,9 +244,8 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
-    list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
-                             "audio/codecs/es8388_audio_codec.cc"
-                             "audio/codecs/es8389_audio_codec.cc"
+    list(REMOVE_ITEM SOURCES "audio_codecs/box_audio_codec.cc"
+                             "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
 endif()
@@ -334,26 +322,5 @@ spiffs_create_partition_assets(
     ${SPIFFS_DIR}
     FLASH_IN_PROJECT
     MMAP_FILE_SUPPORT_FORMAT ".aaf"
-)
-endif()
-
-if(CONFIG_BOARD_TYPE_ECHOEAR)
-
-idf_build_get_property(build_components BUILD_COMPONENTS)
-foreach(COMPONENT ${build_components})
-    if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
-        set(EMOTE_GFX_COMPONENT ${COMPONENT})
-        idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
-        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
-        break()
-    endif()
-endforeach()
-
-spiffs_create_partition_assets(
-    assets_A
-    ${SPIFFS_DIR}
-    FLASH_IN_PROJECT
-    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
-    IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
 endif()

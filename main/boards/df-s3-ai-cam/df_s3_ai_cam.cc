@@ -1,9 +1,10 @@
 #include "wifi_board.h"
-#include "codecs/no_audio_codec.h"
+#include "audio_codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 #include "esp32_camera.h"
 
 #include "led/gpio_led.h"
@@ -27,6 +28,12 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
             }
             app.ToggleChatState();
         });
+    }
+
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
     }
 
     void InitializeCamera() {
@@ -66,7 +73,13 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
     DfrobotEsp32S3AiCam() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeButtons();
+        InitializeIot();
         InitializeCamera();
+
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+#endif
     }
 
     virtual Led* GetLed() override {

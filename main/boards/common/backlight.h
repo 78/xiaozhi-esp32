@@ -29,7 +29,7 @@ protected:
 
 class PwmBacklight : public Backlight {
 public:
-    PwmBacklight(gpio_num_t pin, bool output_invert = false, uint32_t freq_hz = 25000);
+    PwmBacklight(gpio_num_t pin, bool output_invert = false);
     ~PwmBacklight();
 
     void SetBrightnessImpl(uint8_t brightness) override;

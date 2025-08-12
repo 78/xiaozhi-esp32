@@ -1,9 +1,10 @@
 #include "wifi_board.h"
-#include "codecs/no_audio_codec.h"
+#include "audio_codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 #include "led/gpio_led.h"
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -99,6 +100,12 @@ private:
         });
     }
 
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+    }
+
 
     void InitializeGpio(gpio_num_t gpio_num_) {
         gpio_config_t config = {
@@ -121,6 +128,7 @@ public:
         // 上拉io48 置高电平
         InitializeGpio(GPIO_NUM_48);
         InitializeButtons();
+        InitializeIot();
     }
 
     virtual Led* GetLed() override {

@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "echoear",
+            "name": "EchoEar",
             "sdkconfig_append": []
         }
     ]

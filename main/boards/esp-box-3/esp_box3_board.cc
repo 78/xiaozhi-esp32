@@ -1,11 +1,12 @@
 #include "wifi_board.h"
-#include "codecs/box_audio_codec.h"
+#include "audio_codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
 #include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -142,12 +143,20 @@ private:
                                     });
     }
 
+    // 物联网初始化，添加对 AI 可见设备
+    void InitializeIot() {
+        auto& thing_manager = iot::ThingManager::GetInstance();
+        thing_manager.AddThing(iot::CreateThing("Speaker"));
+        thing_manager.AddThing(iot::CreateThing("Screen"));
+    }
+
 public:
     EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
 

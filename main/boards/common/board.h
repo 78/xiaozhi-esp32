@@ -6,7 +6,6 @@
 #include <mqtt.h>
 #include <udp.h>
 #include <string>
-#include <network_interface.h>
 
 #include "led/led.h"
 #include "backlight.h"
@@ -42,7 +41,10 @@ public:
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();
-    virtual NetworkInterface* GetNetwork() = 0;
+    virtual Http* CreateHttp() = 0;
+    virtual WebSocket* CreateWebSocket() = 0;
+    virtual Mqtt* CreateMqtt() = 0;
+    virtual Udp* CreateUdp() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);

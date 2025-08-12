@@ -82,7 +82,7 @@ void McpServer::AddCommonTools() {
                 return true;
             });
     }
-
+    /* 获取摄像头句柄 */
     auto camera = board.GetCamera();
     if (camera) {
         AddTool("self.camera.take_photo",
@@ -95,10 +95,12 @@ void McpServer::AddCommonTools() {
                 Property("question", kPropertyTypeString)
             }),
             [camera](const PropertyList& properties) -> ReturnValue {
+                /* 获取图像 */
                 if (!camera->Capture()) {
                     return "{\"success\": false, \"message\": \"Failed to capture photo\"}";
                 }
                 auto question = properties["question"].value<std::string>();
+                // 发送图像到服务器进行解释
                 return camera->Explain(question);
             });
     }
