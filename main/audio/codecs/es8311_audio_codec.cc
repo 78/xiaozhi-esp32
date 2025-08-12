@@ -155,6 +155,7 @@ void Es8311AudioCodec::SetOutputVolume(int volume) {
 }
 
 void Es8311AudioCodec::EnableInput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == input_enabled_) {
         return;
     }
@@ -163,6 +164,7 @@ void Es8311AudioCodec::EnableInput(bool enable) {
 }
 
 void Es8311AudioCodec::EnableOutput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == output_enabled_) {
         return;
     }
@@ -171,6 +173,7 @@ void Es8311AudioCodec::EnableOutput(bool enable) {
 }
 
 int Es8311AudioCodec::Read(int16_t* dest, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(dev_, (void*)dest, samples * sizeof(int16_t)));
     }
@@ -178,6 +181,7 @@ int Es8311AudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int Es8311AudioCodec::Write(const int16_t* data, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(dev_, (void*)data, samples * sizeof(int16_t)));
     }

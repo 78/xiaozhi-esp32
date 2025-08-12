@@ -133,6 +133,7 @@ void Es8374AudioCodec::SetOutputVolume(int volume) {
 }
 
 void Es8374AudioCodec::EnableInput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == input_enabled_) {
         return;
     }
@@ -153,6 +154,7 @@ void Es8374AudioCodec::EnableInput(bool enable) {
 }
 
 void Es8374AudioCodec::EnableOutput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == output_enabled_) {
         return;
     }
@@ -180,6 +182,7 @@ void Es8374AudioCodec::EnableOutput(bool enable) {
 }
 
 int Es8374AudioCodec::Read(int16_t* dest, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
     }
@@ -187,6 +190,7 @@ int Es8374AudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int Es8374AudioCodec::Write(const int16_t* data, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }

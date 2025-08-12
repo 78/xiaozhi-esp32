@@ -279,6 +279,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
 }
 
 int NoAudioCodec::Write(const int16_t* data, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     std::vector<int32_t> buffer(samples);
 
     // output_volume_: 0-100
@@ -301,6 +302,7 @@ int NoAudioCodec::Write(const int16_t* data, int samples) {
 }
 
 int NoAudioCodec::Read(int16_t* dest, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     size_t bytes_read;
 
     std::vector<int32_t> bit32_buffer(samples);
@@ -318,6 +320,7 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int NoAudioCodecSimplexPdm::Read(int16_t* dest, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     size_t bytes_read;
 
     // PDM 解调后的数据位宽为 16 位，直接读取到目标缓冲区
