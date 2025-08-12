@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "labplus-ledong-v2",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2=y"
+            ]
         }
     ]
 }

@@ -7,7 +7,8 @@
                 "CONFIG_SPIRAM_MODE_QUAD=y",
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\"",
-                "CONFIG_LCD_ST7735_128X160=y"
+                "CONFIG_LCD_ST7735_128X160=y",
+                "CONFIG_BOARD_TYPE_MIXGO_NOVA=y"
             ]
         }
     ]

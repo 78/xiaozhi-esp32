@@ -6,7 +6,8 @@
             "sdkconfig_append": [
                 "CONFIG_USE_WAKE_WORD_DETECT=n",
                 "CONFIG_PM_ENABLE=y",
-                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y"
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_BOARD_TYPE_TUDOUZI=y"
             ]
         }
     ]

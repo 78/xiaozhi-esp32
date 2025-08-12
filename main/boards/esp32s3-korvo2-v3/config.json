@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "esp32s3-korvo2-v3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3=y"
+            ]
         }
     ]
 }

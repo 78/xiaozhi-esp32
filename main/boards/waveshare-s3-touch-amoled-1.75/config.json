@@ -5,7 +5,8 @@
             "name": "waveshare-s3-touch-amoled-1.75",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
-                "CONFIG_USE_DEVICE_AEC=y"
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75=y"
             ]
         }
     ]
