@@ -184,6 +184,7 @@ void BoxAudioCodec::SetOutputVolume(int volume) {
 }
 
 void BoxAudioCodec::EnableInput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == input_enabled_) {
         return;
     }
@@ -207,6 +208,7 @@ void BoxAudioCodec::EnableInput(bool enable) {
 }
 
 void BoxAudioCodec::EnableOutput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (enable == output_enabled_) {
         return;
     }
