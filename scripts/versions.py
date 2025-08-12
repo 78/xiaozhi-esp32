@@ -73,40 +73,80 @@ def get_board_name(folder):
         return basename.split("_")[1]
     raise Exception(f"Unknown board name: {basename}")
 
+def find_app_partition(data):
+    partition_begin = 0x8000
+    partition_end = partition_begin + 0x4000
+    # find the first parition with type 0x00
+    for i in range(partition_begin, partition_end, 0x20):
+        # magic is aa 50
+        if data[i] == 0xaa and data[i + 1] == 0x50:
+            # type is app
+            if data[i + 2] == 0x00:
+                # read offset and size
+                offset = struct.unpack("<I", data[i + 4:i + 8])[0]
+                size = struct.unpack("<I", data[i + 8:i + 12])[0]
+                # then 16 bytes is label
+                label = data[i + 12:i + 28].decode("utf-8").strip('\0')
+                print(f"found app partition at 0x{i:08x}, offset: 0x{offset:08x}, size: 0x{size:08x}, label: {label}")
+                return {
+                    "offset": offset,
+                    "size": size,
+                    "label": label,
+                }
+    return None
+
 def read_binary(dir_path):
     merged_bin_path = os.path.join(dir_path, "merged-binary.bin")
     merged_bin_data = open(merged_bin_path, "rb").read()
 
     # find app partition
-    if merged_bin_data[0x100000] == 0xE9:
-        data = merged_bin_data[0x100000:]
-    elif merged_bin_data[0x200000] == 0xE9:
-        data = merged_bin_data[0x200000:]
-    elif merged_bin_data[0xe0000] == 0xE9:
-        data = merged_bin_data[0xe0000:]
-    else:
-        print(dir_path, "is not a valid image")
+    app_partition = find_app_partition(merged_bin_data)
+    if app_partition is None:
+        print("no app partition found")
+        return
+    app_data = merged_bin_data[app_partition["offset"]:app_partition["offset"] + app_partition["size"]]
+    # check magic
+    if app_data[0] != 0xE9:
+        print("not a valid image")
         return
     # get flash size
-    flash_size = get_flash_size(data[0x3] >> 4)
-    chip_id = get_chip_id_string(data[0xC])
+    flash_size = get_flash_size(app_data[0x3] >> 4)
+    chip_id = get_chip_id_string(app_data[0xC])
     # get segments
-    segment_count = data[0x1]
+    segment_count = app_data[0x1]
     segments = []
     offset = 0x18
+    image_size = 0x18
     for i in range(segment_count):
-        segment_size = struct.unpack("<I", data[offset + 4:offset + 8])[0]
+        segment_size = struct.unpack("<I", app_data[offset + 4:offset + 8])[0]
+        image_size += 8 + segment_size
         offset += 8
-        segment_data = data[offset:offset + segment_size]
+        segment_data = app_data[offset:offset + segment_size]
         offset += segment_size
         segments.append(segment_data)
-    assert offset < len(data), "offset is out of bounds"
+    assert offset < len(app_data), "offset is out of bounds"
+
+    # add checksum size
+    image_size += 1
+    image_size = (image_size + 15) & ~15
+    # hash appended
+    if app_data[0x17] == 1:
+        image_size += 32
+    print(f"image size: {image_size}")
+
+    # verify the remaining data are all 0xFF
+    for i in range(image_size, len(app_data)):
+        if app_data[i] != 0xFF:
+            print(f"Failed to verify image, data at 0x{i:08x} is not 0xFF")
+            return
+
+    image_data = app_data[:image_size]
     
     # extract bin file
     bin_path = os.path.join(dir_path, "xiaozhi.bin")
     if not os.path.exists(bin_path):
         print("extract bin file to", bin_path)
-        open(bin_path, "wb").write(data)
+        open(bin_path, "wb").write(image_data)
 
     # The app desc is in the first segment
     desc = get_app_desc(segments[0])
@@ -115,7 +155,7 @@ def read_binary(dir_path):
         "flash_size": flash_size,
         "board": get_board_name(dir_path),
         "application": desc,
-        "firmware_size": len(data),
+        "firmware_size": image_size,
     }
 
 def extract_zip(zip_path, extract_path):
