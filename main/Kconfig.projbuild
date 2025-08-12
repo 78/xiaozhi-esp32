@@ -310,7 +310,7 @@ choice BOARD_TYPE
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
-    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board || BOARD_TYPE_ESP_S3_LCD_EV_Board_2
+    depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
     prompt "EV_BOARD Type"
     default ESP_S3_LCD_EV_Board_1p4
     help

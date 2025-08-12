@@ -37,8 +37,8 @@ private:
         ESP_LOGI(TAG, "Init GC9503V");
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
-        
-         //add support ev board lcd
+
+        // add support ev board lcd
         gpio_config_t io_conf = {
             .pin_bit_mask = BIT64(GC9503V_PIN_NUM_VSYNC),
             .mode = GPIO_MODE_OUTPUT,
