@@ -10,7 +10,6 @@ EventEngine::EventEngine()
     : imu_(nullptr)
     , motion_detection_enabled_(false)
     , first_reading_(true)
-    , last_event_time_us_(0)
     , last_debug_time_us_(0)
     , debug_output_(false)
     , free_fall_start_time_(0)
@@ -19,7 +18,8 @@ EventEngine::EventEngine()
     , upside_down_count_(0)
     , is_picked_up_(false)
     , stable_count_(0)
-    , stable_z_reference_(1.0f) {
+    , stable_z_reference_(1.0f)
+    , pickup_start_time_(0) {
 }
 
 EventEngine::~EventEngine() {
@@ -69,30 +69,27 @@ void EventEngine::ProcessMotionDetection() {
     
     int64_t current_time = esp_timer_get_time();
     
-    // 检查去抖时间
-    if (current_time - last_event_time_us_ < DEBOUNCE_TIME_US) {
-        last_imu_data_ = current_imu_data_;
-        return;
-    }
-    
     // 检测各种运动事件
     EventType motion_type = EventType::MOTION_NONE;
     
     // 按优先级检测运动事件（优先级从高到低）
     // 1. 自由落体（最危险，需要立即检测）
-    if (DetectFreeFall(current_imu_data_, current_time)) {
+    if (DetectFreeFall(current_imu_data_, current_time) &&
+        (current_time - last_event_times_[EventType::MOTION_FREE_FALL] > FREE_FALL_COOLDOWN_US)) {
         motion_type = EventType::MOTION_FREE_FALL;
         ESP_LOGW(TAG, "Motion detected: FREE_FALL! Duration: %lld ms | Magnitude: %.3f g", 
                 (current_time - free_fall_start_time_) / 1000, CalculateAccelMagnitude(current_imu_data_));
     } 
     // 2. 剧烈摇晃（可能损坏设备）
-    else if (DetectShakeViolently(current_imu_data_)) {
+    else if (DetectShakeViolently(current_imu_data_) &&
+             (current_time - last_event_times_[EventType::MOTION_SHAKE_VIOLENTLY] > SHAKE_VIOLENTLY_COOLDOWN_US)) {
         motion_type = EventType::MOTION_SHAKE_VIOLENTLY;
         float accel_delta = CalculateAccelDelta(current_imu_data_, last_imu_data_);
         ESP_LOGW(TAG, "Motion detected: SHAKE_VIOLENTLY! AccelDelta: %.2f g", accel_delta);
     } 
     // 3. 翻转（快速旋转）
-    else if (DetectFlip(current_imu_data_)) {
+    else if (DetectFlip(current_imu_data_) &&
+             (current_time - last_event_times_[EventType::MOTION_FLIP] > FLIP_COOLDOWN_US)) {
         motion_type = EventType::MOTION_FLIP;
         float gyro_mag = std::sqrt(current_imu_data_.gyro_x * current_imu_data_.gyro_x + 
                                   current_imu_data_.gyro_y * current_imu_data_.gyro_y + 
@@ -101,27 +98,31 @@ void EventEngine::ProcessMotionDetection() {
                 gyro_mag, current_imu_data_.gyro_x, current_imu_data_.gyro_y, current_imu_data_.gyro_z);
     } 
     // 4. 普通摇晃
-    else if (DetectShake(current_imu_data_)) {
+    else if (DetectShake(current_imu_data_) &&
+             (current_time - last_event_times_[EventType::MOTION_SHAKE] > SHAKE_COOLDOWN_US)) {
         motion_type = EventType::MOTION_SHAKE;
         float accel_delta = CalculateAccelDelta(current_imu_data_, last_imu_data_);
         ESP_LOGI(TAG, "Motion detected: SHAKE | AccelDelta: %.2f g", accel_delta);
     } 
     // 5. 拿起
-    else if (DetectPickup(current_imu_data_)) {
+    else if (DetectPickup(current_imu_data_) &&
+             (current_time - last_event_times_[EventType::MOTION_PICKUP] > PICKUP_COOLDOWN_US)) {
         motion_type = EventType::MOTION_PICKUP;
         float z_diff = current_imu_data_.accel_z - last_imu_data_.accel_z;
         ESP_LOGI(TAG, "Motion detected: PICKUP | Z-diff: %.3f g, Current Z: %.2f g (State: picked up)", 
                 z_diff, current_imu_data_.accel_z);
     }
     // 6. 倒置状态（持续状态检测）
-    else if (DetectUpsideDown(current_imu_data_)) {
+    else if (DetectUpsideDown(current_imu_data_) &&
+             (current_time - last_event_times_[EventType::MOTION_UPSIDE_DOWN] > UPSIDE_DOWN_COOLDOWN_US)) {
         motion_type = EventType::MOTION_UPSIDE_DOWN;
         ESP_LOGI(TAG, "Motion detected: UPSIDE_DOWN | Z-axis: %.2f g, Count: %d", 
                 current_imu_data_.accel_z, upside_down_count_);
     }
     
     if (motion_type != EventType::MOTION_NONE) {
-        last_event_time_us_ = current_time;
+        // 更新该事件类型的时间戳
+        last_event_times_[motion_type] = current_time;
         
         // 创建事件并分发
         Event event;
@@ -181,9 +182,9 @@ bool EventEngine::DetectPickup(const ImuData& data) {
     float current_magnitude = CalculateAccelMagnitude(data);
     float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     
-    // 检测设备是否处于稳定状态
-    bool is_stable = (accel_delta < 0.1f) && (std::abs(data.gyro_x) < 20.0f) && 
-                     (std::abs(data.gyro_y) < 20.0f) && (std::abs(data.gyro_z) < 20.0f);
+    // 检测设备是否处于稳定状态（放宽条件，更容易检测到放下）
+    bool is_stable = (accel_delta < 0.2f) && (std::abs(data.gyro_x) < 30.0f) && 
+                     (std::abs(data.gyro_y) < 30.0f) && (std::abs(data.gyro_z) < 30.0f);
     
     if (!is_picked_up_) {
         // 当前未拿起状态，检测是否被拿起
@@ -207,6 +208,7 @@ bool EventEngine::DetectPickup(const ImuData& data) {
             // 检测到拿起动作
             is_picked_up_ = true;
             stable_count_ = 0;
+            pickup_start_time_ = esp_timer_get_time();
             
             if (debug_output_) {
                 ESP_LOGD(TAG, "Pickup started - Z_diff:%.3f Mag:%.3f", z_diff, current_magnitude);
@@ -217,13 +219,18 @@ bool EventEngine::DetectPickup(const ImuData& data) {
     } else {
         // 当前已拿起状态，检测是否被放下
         
+        // 检查是否超时（超过10秒后，更容易检测放下）
+        int64_t pickup_duration = esp_timer_get_time() - pickup_start_time_;
+        bool timeout_mode = pickup_duration > 10000000; // 10秒
+        
         if (is_stable) {
             stable_count_++;
             
             // 需要持续稳定一段时间，且Z轴回到接近初始值
-            if (stable_count_ >= 20) {  // 约1秒稳定
-                // 检查Z轴是否回到水平位置附近（0.8g ~ 1.2g）
-                if (std::abs(data.accel_z) > 0.8f && std::abs(data.accel_z) < 1.2f) {
+            int required_stable_count = timeout_mode ? 5 : 10; // 超时后只需要更短的稳定时间
+            if (stable_count_ >= required_stable_count) {
+                // 检查Z轴是否回到水平位置附近（0.7g ~ 1.3g，放宽范围）
+                if (std::abs(data.accel_z) > 0.7f && std::abs(data.accel_z) < 1.3f) {
                     is_picked_up_ = false;
                     stable_count_ = 0;
                     
@@ -235,6 +242,15 @@ bool EventEngine::DetectPickup(const ImuData& data) {
             }
         } else {
             stable_count_ = 0;
+        }
+        
+        // 如果有明显的向下运动且超时，也可以重置状态
+        if (timeout_mode && z_diff < -0.3f && current_magnitude < 1.5f) {
+            is_picked_up_ = false;
+            stable_count_ = 0;
+            if (debug_output_) {
+                ESP_LOGD(TAG, "Device put down - Detected downward motion after timeout");
+            }
         }
         
         // 已经在拿起状态，不再触发新的拿起事件

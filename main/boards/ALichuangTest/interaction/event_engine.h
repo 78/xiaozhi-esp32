@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <unordered_map>
 
 // 事件类型枚举 - 包含所有可能的事件
 enum class EventType {
@@ -105,7 +106,7 @@ private:
     ImuData current_imu_data_;
     ImuData last_imu_data_;
     bool first_reading_;
-    int64_t last_event_time_us_;
+    std::unordered_map<EventType, int64_t> last_event_times_;
     int64_t last_debug_time_us_;
     bool debug_output_;
     
@@ -121,6 +122,7 @@ private:
     bool is_picked_up_;
     int stable_count_;
     float stable_z_reference_;
+    int64_t pickup_start_time_;
     
     // 运动检测阈值
     static constexpr float FREE_FALL_THRESHOLD_G = 0.3f;
@@ -131,8 +133,15 @@ private:
     static constexpr float PICKUP_THRESHOLD_G = 0.15f;
     static constexpr float UPSIDE_DOWN_THRESHOLD_G = -0.8f;
     static constexpr int UPSIDE_DOWN_STABLE_COUNT = 10;
-    static constexpr int64_t DEBOUNCE_TIME_US = 300000;
     static constexpr int64_t DEBUG_INTERVAL_US = 1000000;
+    
+    // 事件特定的冷却时间（微秒）
+    static constexpr int64_t FREE_FALL_COOLDOWN_US = 500000;      // 500ms - 自由落体需要较长冷却
+    static constexpr int64_t SHAKE_VIOLENTLY_COOLDOWN_US = 400000; // 400ms - 剧烈摇晃冷却
+    static constexpr int64_t FLIP_COOLDOWN_US = 300000;           // 300ms - 翻转冷却
+    static constexpr int64_t SHAKE_COOLDOWN_US = 200000;          // 200ms - 普通摇晃较短冷却
+    static constexpr int64_t PICKUP_COOLDOWN_US = 1000000;        // 1s - 拿起需要长冷却避免重复
+    static constexpr int64_t UPSIDE_DOWN_COOLDOWN_US = 500000;    // 500ms - 倒置状态冷却
     
     // 运动检测方法
     void ProcessMotionDetection();
