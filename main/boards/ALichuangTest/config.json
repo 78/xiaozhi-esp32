@@ -4,7 +4,12 @@
         {
             "name": "ALichuangTest",
             "sdkconfig_append": [
-                "CONFIG_USE_DEVICE_AEC=y"
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m_anima.csv\"",
+                "CONFIG_PARTITION_TABLE_FILENAME=\"partitions/v1/16m_anima.csv\"",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\""
             ]
         }
     ]

@@ -7,7 +7,7 @@
 #include "esp32_camera.h"
 #include "skills/animation.h"
 #include "qmi8658.h"
-#include "motion_detector.h"
+#include "interaction/event_engine.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -97,8 +97,8 @@ private:
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
-    MotionDetector* motion_detector_ = nullptr;
-    esp_timer_handle_t motion_timer_ = nullptr;
+    EventEngine* event_engine_ = nullptr;
+    esp_timer_handle_t event_timer_ = nullptr;
     TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
     // 情感相关成员变量
     std::string current_emotion_ = "neutral";
@@ -539,29 +539,30 @@ private:
             ESP_LOGI(TAG, "IMU initialized successfully");
             
             // 创建运动检测器
-            motion_detector_ = new MotionDetector(imu_);
-            motion_detector_->SetDebugOutput(true);  // 启用调试输出
+            event_engine_ = new EventEngine();
+            event_engine_->Initialize(imu_);
+            event_engine_->SetDebugOutput(true);  // 启用调试输出
             
-            // 设置运动事件回调
-            motion_detector_->SetEventCallback([this](MotionEvent event, const ImuData& data) {
-                HandleMotionEvent(event, data);
+            // 设置事件回调
+            event_engine_->RegisterCallback([this](const Event& event) {
+                HandleEvent(event);
             });
             
             // 创建定时器，每50ms处理一次运动数据
-            esp_timer_create_args_t motion_timer_args = {};
-            motion_timer_args.callback = [](void* arg) {
-                auto* detector = static_cast<MotionDetector*>(arg);
-                detector->Process();
+            esp_timer_create_args_t event_timer_args = {};
+            event_timer_args.callback = [](void* arg) {
+                auto* engine = static_cast<EventEngine*>(arg);
+                engine->Process();
             };
-            motion_timer_args.arg = motion_detector_;
-            motion_timer_args.dispatch_method = ESP_TIMER_TASK;
-            motion_timer_args.name = "motion_timer";
-            motion_timer_args.skip_unhandled_events = true;
+            event_timer_args.arg = event_engine_;
+            event_timer_args.dispatch_method = ESP_TIMER_TASK;
+            event_timer_args.name = "event_timer";
+            event_timer_args.skip_unhandled_events = true;
             
-            esp_timer_create(&motion_timer_args, &motion_timer_);
-            esp_timer_start_periodic(motion_timer_, 50000);  // 50ms
+            esp_timer_create(&event_timer_args, &event_timer_);
+            esp_timer_start_periodic(event_timer_, 50000);  // 50ms
             
-            ESP_LOGI(TAG, "Motion detection started");
+            ESP_LOGI(TAG, "Event engine started");
         } else {
             ESP_LOGW(TAG, "Failed to initialize IMU");
             delete imu_;
@@ -569,38 +570,47 @@ private:
         }
     }
     
-    void HandleMotionEvent(MotionEvent event, const ImuData& data) {
-        // 在终端输出运动事件信息
+    void HandleEvent(const Event& event) {
+        // 在终端输出事件信息
         const char* event_name = "";
-        switch (event) {
-            case MotionEvent::FREE_FALL:
+        const ImuData& data = event.data.imu_data;
+        
+        switch (event.type) {
+            case EventType::MOTION_FREE_FALL:
                 event_name = "FREE_FALL";
                 ESP_LOGW(TAG, "⚠️ FREE FALL DETECTED! Accel magnitude: %.3f g", 
                         std::sqrt(data.accel_x * data.accel_x + 
                                 data.accel_y * data.accel_y + 
                                 data.accel_z * data.accel_z));
                 break;
-            case MotionEvent::SHAKE_VIOLENTLY:
+            case EventType::MOTION_SHAKE_VIOLENTLY:
                 event_name = "SHAKE_VIOLENTLY";
                 ESP_LOGW(TAG, "⚡ VIOLENT SHAKE! Accel: X=%.2f Y=%.2f Z=%.2f g", 
                         data.accel_x, data.accel_y, data.accel_z);
                 break;
-            case MotionEvent::FLIP: 
+            case EventType::MOTION_FLIP: 
                 event_name = "FLIP";
                 ESP_LOGI(TAG, "🔄 Device flipped! (gyro: x=%.1f y=%.1f z=%.1f deg/s)", 
                         data.gyro_x, data.gyro_y, data.gyro_z);
                 break;
-            case MotionEvent::SHAKE: 
+            case EventType::MOTION_SHAKE: 
                 event_name = "SHAKE";
                 ESP_LOGI(TAG, "🔔 Device shaken!");
                 break;
-            case MotionEvent::PICKUP: 
+            case EventType::MOTION_PICKUP: 
                 event_name = "PICKUP";
                 ESP_LOGI(TAG, "📱 Device picked up!");
                 break;
-            case MotionEvent::UPSIDE_DOWN:
+            case EventType::MOTION_UPSIDE_DOWN:
                 event_name = "UPSIDE_DOWN";
                 ESP_LOGI(TAG, "🙃 Device is upside down! (Z-axis: %.2f g)", data.accel_z);
+                break;
+            // 可以处理其他类型的事件
+            case EventType::TOUCH_TAP:
+            case EventType::TOUCH_DOUBLE_TAP:
+            case EventType::TOUCH_LONG_PRESS:
+                // 处理触摸事件
+                ESP_LOGI(TAG, "Touch event detected");
                 break;
             default: 
                 return;
@@ -663,8 +673,8 @@ public:
     }
     
     // 获取运动检测器（可选，用于外部访问）
-    MotionDetector* GetMotionDetector() {
-        return motion_detector_;
+    EventEngine* GetEventEngine() {
+        return event_engine_;
     }
     
     // 获取IMU（可选，用于外部访问）

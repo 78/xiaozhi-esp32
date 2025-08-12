@@ -219,12 +219,24 @@ elseif(CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2)
 elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(BOARD_TYPE "surfer-c3-1.14tft")
 endif()
+
+# Base board sources (all boards have these)
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.c
 )
+
+# ALichuangTest specific sources
+if(CONFIG_BOARD_TYPE_ALICHUANGTEST)
+    file(GLOB ALICHUANGTEST_EXTRA_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/skills/*.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/interaction/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/interaction/*.c
+    )
+    list(APPEND BOARD_SOURCES ${ALICHUANGTEST_EXTRA_SOURCES})
+endif()
+
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_USE_AUDIO_PROCESSOR)

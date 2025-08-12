@@ -1,26 +1,68 @@
-#include "motion_detector.h"
+#include "event_engine.h"
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <cmath>
+#include <algorithm>
 
-#define TAG "MotionDetector"
+#define TAG "EventEngine"
 
-MotionDetector::MotionDetector(Qmi8658* imu) : imu_(imu) {
+EventEngine::EventEngine() 
+    : imu_(nullptr)
+    , motion_detection_enabled_(false)
+    , first_reading_(true)
+    , last_event_time_us_(0)
+    , last_debug_time_us_(0)
+    , debug_output_(false)
+    , free_fall_start_time_(0)
+    , in_free_fall_(false)
+    , is_upside_down_(false)
+    , upside_down_count_(0)
+    , is_picked_up_(false)
+    , stable_count_(0)
+    , stable_z_reference_(1.0f) {
 }
 
-void MotionDetector::SetEventCallback(EventCallback callback) {
-    callback_ = callback;
+EventEngine::~EventEngine() {
 }
 
-void MotionDetector::Process() {
+void EventEngine::Initialize(Qmi8658* imu) {
+    imu_ = imu;
+    if (imu_) {
+        motion_detection_enabled_ = true;
+        ESP_LOGI(TAG, "Event engine initialized with IMU support");
+    } else {
+        ESP_LOGI(TAG, "Event engine initialized without IMU");
+    }
+}
+
+void EventEngine::RegisterCallback(EventCallback callback) {
+    global_callback_ = callback;
+}
+
+void EventEngine::RegisterCallback(EventType type, EventCallback callback) {
+    type_callbacks_.push_back({type, callback});
+}
+
+void EventEngine::Process() {
+    // 处理运动检测
+    if (motion_detection_enabled_ && imu_) {
+        ProcessMotionDetection();
+    }
+    
+    // 未来可以在这里添加其他事件源的处理
+    // ProcessTouchEvents();
+    // ProcessAudioEvents();
+}
+
+void EventEngine::ProcessMotionDetection() {
     // 读取IMU数据和角度
-    if (imu_->ReadDataWithAngles(current_data_) != ESP_OK) {
+    if (imu_->ReadDataWithAngles(current_imu_data_) != ESP_OK) {
         return;
     }
     
     // 第一次读取，初始化last_data_
     if (first_reading_) {
-        last_data_ = current_data_;
+        last_imu_data_ = current_imu_data_;
         first_reading_ = false;
         return;
     }
@@ -29,83 +71,115 @@ void MotionDetector::Process() {
     
     // 检查去抖时间
     if (current_time - last_event_time_us_ < DEBOUNCE_TIME_US) {
-        last_data_ = current_data_;
+        last_imu_data_ = current_imu_data_;
         return;
     }
     
     // 检测各种运动事件
-    MotionEvent event = MotionEvent::NONE;
+    EventType motion_type = EventType::MOTION_NONE;
     
     // 按优先级检测运动事件（优先级从高到低）
     // 1. 自由落体（最危险，需要立即检测）
-    if (DetectFreeFall(current_data_, current_time)) {
-        event = MotionEvent::FREE_FALL;
+    if (DetectFreeFall(current_imu_data_, current_time)) {
+        motion_type = EventType::MOTION_FREE_FALL;
         ESP_LOGW(TAG, "Motion detected: FREE_FALL! Duration: %lld ms | Magnitude: %.3f g", 
-                (current_time - free_fall_start_time_) / 1000, CalculateAccelMagnitude(current_data_));
+                (current_time - free_fall_start_time_) / 1000, CalculateAccelMagnitude(current_imu_data_));
     } 
     // 2. 剧烈摇晃（可能损坏设备）
-    else if (DetectShakeViolently(current_data_)) {
-        event = MotionEvent::SHAKE_VIOLENTLY;
-        float accel_delta = CalculateAccelDelta(current_data_, last_data_);
+    else if (DetectShakeViolently(current_imu_data_)) {
+        motion_type = EventType::MOTION_SHAKE_VIOLENTLY;
+        float accel_delta = CalculateAccelDelta(current_imu_data_, last_imu_data_);
         ESP_LOGW(TAG, "Motion detected: SHAKE_VIOLENTLY! AccelDelta: %.2f g", accel_delta);
     } 
     // 3. 翻转（快速旋转）
-    else if (DetectFlip(current_data_)) {
-        event = MotionEvent::FLIP;
-        float gyro_mag = std::sqrt(current_data_.gyro_x * current_data_.gyro_x + 
-                                  current_data_.gyro_y * current_data_.gyro_y + 
-                                  current_data_.gyro_z * current_data_.gyro_z);
+    else if (DetectFlip(current_imu_data_)) {
+        motion_type = EventType::MOTION_FLIP;
+        float gyro_mag = std::sqrt(current_imu_data_.gyro_x * current_imu_data_.gyro_x + 
+                                  current_imu_data_.gyro_y * current_imu_data_.gyro_y + 
+                                  current_imu_data_.gyro_z * current_imu_data_.gyro_z);
         ESP_LOGI(TAG, "Motion detected: FLIP | Gyro: %.1f deg/s (X:%.1f Y:%.1f Z:%.1f)", 
-                gyro_mag, current_data_.gyro_x, current_data_.gyro_y, current_data_.gyro_z);
+                gyro_mag, current_imu_data_.gyro_x, current_imu_data_.gyro_y, current_imu_data_.gyro_z);
     } 
     // 4. 普通摇晃
-    else if (DetectShake(current_data_)) {
-        event = MotionEvent::SHAKE;
-        float accel_delta = CalculateAccelDelta(current_data_, last_data_);
+    else if (DetectShake(current_imu_data_)) {
+        motion_type = EventType::MOTION_SHAKE;
+        float accel_delta = CalculateAccelDelta(current_imu_data_, last_imu_data_);
         ESP_LOGI(TAG, "Motion detected: SHAKE | AccelDelta: %.2f g", accel_delta);
     } 
     // 5. 拿起
-    else if (DetectPickup(current_data_)) {
-        event = MotionEvent::PICKUP;
-        float z_diff = current_data_.accel_z - last_data_.accel_z;
+    else if (DetectPickup(current_imu_data_)) {
+        motion_type = EventType::MOTION_PICKUP;
+        float z_diff = current_imu_data_.accel_z - last_imu_data_.accel_z;
         ESP_LOGI(TAG, "Motion detected: PICKUP | Z-diff: %.3f g, Current Z: %.2f g (State: picked up)", 
-                z_diff, current_data_.accel_z);
+                z_diff, current_imu_data_.accel_z);
     }
     // 6. 倒置状态（持续状态检测）
-    else if (DetectUpsideDown(current_data_)) {
-        event = MotionEvent::UPSIDE_DOWN;
+    else if (DetectUpsideDown(current_imu_data_)) {
+        motion_type = EventType::MOTION_UPSIDE_DOWN;
         ESP_LOGI(TAG, "Motion detected: UPSIDE_DOWN | Z-axis: %.2f g, Count: %d", 
-                current_data_.accel_z, upside_down_count_);
+                current_imu_data_.accel_z, upside_down_count_);
     }
     
-    if (event != MotionEvent::NONE && callback_) {
+    if (motion_type != EventType::MOTION_NONE) {
         last_event_time_us_ = current_time;
-        callback_(event, current_data_);
+        
+        // 创建事件并分发
+        Event event;
+        event.type = motion_type;
+        event.timestamp_us = current_time;
+        event.data.imu_data = current_imu_data_;
+        
+        DispatchEvent(event);
     }
     
-    last_data_ = current_data_;
+    last_imu_data_ = current_imu_data_;
 }
 
-float MotionDetector::CalculateAccelMagnitude(const ImuData& data) {
+void EventEngine::TriggerEvent(const Event& event) {
+    DispatchEvent(event);
+}
+
+void EventEngine::TriggerEvent(EventType type) {
+    Event event;
+    event.type = type;
+    event.timestamp_us = esp_timer_get_time();
+    DispatchEvent(event);
+}
+
+void EventEngine::DispatchEvent(const Event& event) {
+    // 调用全局回调
+    if (global_callback_) {
+        global_callback_(event);
+    }
+    
+    // 调用特定类型的回调
+    for (const auto& pair : type_callbacks_) {
+        if (pair.first == event.type) {
+            pair.second(event);
+        }
+    }
+}
+
+float EventEngine::CalculateAccelMagnitude(const ImuData& data) {
     return std::sqrt(data.accel_x * data.accel_x + 
                     data.accel_y * data.accel_y + 
                     data.accel_z * data.accel_z);
 }
 
-float MotionDetector::CalculateAccelDelta(const ImuData& current, const ImuData& last) {
+float EventEngine::CalculateAccelDelta(const ImuData& current, const ImuData& last) {
     float dx = current.accel_x - last.accel_x;
     float dy = current.accel_y - last.accel_y;
     float dz = current.accel_z - last.accel_z;
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-bool MotionDetector::DetectPickup(const ImuData& data) {
+bool EventEngine::DetectPickup(const ImuData& data) {
     // 状态式拿起检测：区分拿起和放下，避免重复触发
     
     // 计算运动参数
-    float z_diff = data.accel_z - last_data_.accel_z;
+    float z_diff = data.accel_z - last_imu_data_.accel_z;
     float current_magnitude = CalculateAccelMagnitude(data);
-    float accel_delta = CalculateAccelDelta(data, last_data_);
+    float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     
     // 检测设备是否处于稳定状态
     bool is_stable = (accel_delta < 0.1f) && (std::abs(data.gyro_x) < 20.0f) && 
@@ -124,7 +198,7 @@ bool MotionDetector::DetectPickup(const ImuData& data) {
         
         // 检测向上的运动（拿起动作）
         bool upward_motion = z_diff > PICKUP_THRESHOLD_G;  // Z轴正向加速
-        bool magnitude_increase = (current_magnitude - CalculateAccelMagnitude(last_data_)) > PICKUP_THRESHOLD_G;
+        bool magnitude_increase = (current_magnitude - CalculateAccelMagnitude(last_imu_data_)) > PICKUP_THRESHOLD_G;
         
         // 排除向下运动（放置动作）
         bool downward_motion = z_diff < -PICKUP_THRESHOLD_G;
@@ -170,11 +244,11 @@ bool MotionDetector::DetectPickup(const ImuData& data) {
     return false;
 }
 
-bool MotionDetector::DetectUpsideDown(const ImuData& data) {
+bool EventEngine::DetectUpsideDown(const ImuData& data) {
     // 倒置检测：Z轴持续接近-1g（设备倒置）
     // 需要稳定且不在剧烈运动中
     
-    float accel_delta = CalculateAccelDelta(data, last_data_);
+    float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     bool is_stable = accel_delta < 0.5f;  // 相对稳定，没有剧烈运动
     
     // 检查Z轴是否接近-1g（倒置）
@@ -201,14 +275,13 @@ bool MotionDetector::DetectUpsideDown(const ImuData& data) {
     return false;
 }
 
-bool MotionDetector::DetectShake(const ImuData& data) {
+bool EventEngine::DetectShake(const ImuData& data) {
     // 检测快速来回运动
-    float accel_delta = CalculateAccelDelta(data, last_data_);
+    float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     return accel_delta > SHAKE_THRESHOLD_G;
 }
 
-
-bool MotionDetector::DetectFreeFall(const ImuData& data, int64_t current_time) {
+bool EventEngine::DetectFreeFall(const ImuData& data, int64_t current_time) {
     // 自由落体检测：总加速度接近0g，持续超过200ms
     float magnitude = CalculateAccelMagnitude(data);
     
@@ -242,9 +315,9 @@ bool MotionDetector::DetectFreeFall(const ImuData& data, int64_t current_time) {
     return false;
 }
 
-bool MotionDetector::DetectShakeViolently(const ImuData& data) {
+bool EventEngine::DetectShakeViolently(const ImuData& data) {
     // 剧烈摇晃检测：加速度变化超过3g
-    float accel_delta = CalculateAccelDelta(data, last_data_);
+    float accel_delta = CalculateAccelDelta(data, last_imu_data_);
     
     // 同时检查陀螺仪是否有剧烈旋转
     float gyro_magnitude = std::sqrt(data.gyro_x * data.gyro_x + 
@@ -263,7 +336,7 @@ bool MotionDetector::DetectShakeViolently(const ImuData& data) {
     return violent_shake;
 }
 
-bool MotionDetector::DetectFlip(const ImuData& data) {
+bool EventEngine::DetectFlip(const ImuData& data) {
     // 改进的翻转检测：需要持续高速旋转，避免误触发
     float gyro_magnitude = std::sqrt(data.gyro_x * data.gyro_x + 
                                    data.gyro_y * data.gyro_y + 
@@ -281,7 +354,7 @@ bool MotionDetector::DetectFlip(const ImuData& data) {
     bool dominant_axis = max_single_axis > (FLIP_THRESHOLD_DEG_S * 0.7f);
     
     // 3. 加速度也要有明显变化（真正翻转时会有）
-    float accel_change = CalculateAccelDelta(data, last_data_);
+    float accel_change = CalculateAccelDelta(data, last_imu_data_);
     bool accel_detected = accel_change > 0.5f;  // 至少0.5g的加速度变化
     
     bool flip_detected = high_rotation && dominant_axis && accel_detected;
