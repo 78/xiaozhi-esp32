@@ -1,0 +1,9 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "xingzhi-c3-4g",
+            "sdkconfig_append": []
+        }
+    ]
+}
