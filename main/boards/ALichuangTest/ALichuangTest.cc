@@ -345,7 +345,6 @@ private:
         
         // 定义用于判断是否正在播放音频的变量
         bool isAudioPlaying = false;
-        bool wasAudioPlaying = false;
         
         // 定义用于检测情感变化的变量
         std::string lastEmotion = current_emotion;
