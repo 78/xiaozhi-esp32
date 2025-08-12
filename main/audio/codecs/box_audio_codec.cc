@@ -230,7 +230,6 @@ void BoxAudioCodec::EnableOutput(bool enable) {
 }
 
 int BoxAudioCodec::Read(int16_t* dest, int samples) {
-    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (input_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
     }
@@ -238,7 +237,6 @@ int BoxAudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int BoxAudioCodec::Write(const int16_t* data, int samples) {
-    std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (output_enabled_) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }
