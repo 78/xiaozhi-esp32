@@ -5,6 +5,7 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
+#include "emote_display.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -24,6 +25,8 @@
 #include <freertos/task.h>
 
 #define TAG "EchoEar"
+
+#define USE_LVGL_DEFAULT    0
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
@@ -219,26 +222,34 @@ gpio_num_t AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_1;
 gpio_num_t AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_1;
 gpio_num_t QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_1;
 gpio_num_t TOUCH_PAD2 = TOUCH_PAD2_1;
-gpio_num_t UART1_TX = UART1_TX_1;   
-gpio_num_t UART1_RX = UART1_RX_1;   
+gpio_num_t UART1_TX = UART1_TX_1;
+gpio_num_t UART1_RX = UART1_RX_1;
 
 class Charge : public I2cDevice {
 public:
-    Charge(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+    Charge(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
+    {
         read_buffer_ = new uint8_t[8];
     }
-    ~Charge() {
+    ~Charge()
+    {
         delete[] read_buffer_;
     }
-    void Printcharge() {
-        ReadRegs(0x08, read_buffer_, 2);        
+    void Printcharge()
+    {
+        ReadRegs(0x08, read_buffer_, 2);
         ReadRegs(0x0c, read_buffer_ + 2, 2);
         ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_value));
 
-        int16_t voltage =  (uint16_t)(read_buffer_[1] << 8 | read_buffer_[0]);
-        int16_t current = (int16_t)(read_buffer_[3] << 8 | read_buffer_[2]);
-    } 
-    static void TaskFunction(void *pvParameters) {
+        int16_t voltage = static_cast<uint16_t>(read_buffer_[1] << 8 | read_buffer_[0]);
+        int16_t current = static_cast<int16_t>(read_buffer_[3] << 8 | read_buffer_[2]);
+        
+        // Use the variables to avoid warnings (can be removed if actual implementation uses them)
+        (void)voltage;
+        (void)current;
+    }
+    static void TaskFunction(void *pvParameters)
+    {
         Charge* charge = static_cast<Charge*>(pvParameters);
         while (true) {
             charge->Printcharge();
@@ -250,7 +261,6 @@ private:
     uint8_t* read_buffer_ = nullptr;
 };
 
-
 class Cst816s : public I2cDevice {
 public:
     struct TouchPoint_t {
@@ -258,32 +268,120 @@ public:
         int x = -1;
         int y = -1;
     };
-    Cst816s(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
+
+    enum TouchEvent {
+        TOUCH_NONE,
+        TOUCH_PRESS,
+        TOUCH_RELEASE,
+        TOUCH_HOLD
+    };
+
+    Cst816s(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
+    {
         read_buffer_ = new uint8_t[6];
+        was_touched_ = false;
+        press_count_ = 0;
+
+        // Create touch interrupt semaphore
+        touch_isr_mux_ = xSemaphoreCreateBinary();
+        if (touch_isr_mux_ == NULL) {
+            ESP_LOGE("EchoEar", "Failed to create touch semaphore");
+        }
     }
 
-    ~Cst816s() {
+    ~Cst816s()
+    {
         delete[] read_buffer_;
+
+        // Delete semaphore if it exists
+        if (touch_isr_mux_ != NULL) {
+            vSemaphoreDelete(touch_isr_mux_);
+            touch_isr_mux_ = NULL;
+        }
     }
 
-    void UpdateTouchPoint() {
+    void UpdateTouchPoint()
+    {
         ReadRegs(0x02, read_buffer_, 6);
         tp_.num = read_buffer_[0] & 0x0F;
         tp_.x = ((read_buffer_[1] & 0x0F) << 8) | read_buffer_[2];
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
 
-    const TouchPoint_t& GetTouchPoint() {
+    const TouchPoint_t &GetTouchPoint()
+    {
         return tp_;
+    }
+
+    TouchEvent CheckTouchEvent()
+    {
+        bool is_touched = (tp_.num > 0);
+        TouchEvent event = TOUCH_NONE;
+
+        if (is_touched && !was_touched_) {
+            // Press event (transition from not touched to touched)
+            press_count_++;
+            event = TOUCH_PRESS;
+            ESP_LOGI("EchoEar", "TOUCH PRESS - count: %d, x: %d, y: %d", press_count_, tp_.x, tp_.y);
+        } else if (!is_touched && was_touched_) {
+            // Release event (transition from touched to not touched)
+            event = TOUCH_RELEASE;
+            ESP_LOGI("EchoEar", "TOUCH RELEASE - total presses: %d", press_count_);
+        } else if (is_touched && was_touched_) {
+            // Continuous touch (hold)
+            event = TOUCH_HOLD;
+            ESP_LOGD("EchoEar", "TOUCH HOLD - x: %d, y: %d", tp_.x, tp_.y);
+        }
+
+        // Update previous state
+        was_touched_ = is_touched;
+        return event;
+    }
+
+    int GetPressCount() const
+    {
+        return press_count_;
+    }
+
+    void ResetPressCount()
+    {
+        press_count_ = 0;
+    }
+
+    // Semaphore management methods
+    SemaphoreHandle_t GetTouchSemaphore()
+    {
+        return touch_isr_mux_;
+    }
+
+    bool WaitForTouchEvent(TickType_t timeout = portMAX_DELAY)
+    {
+        if (touch_isr_mux_ != NULL) {
+            return xSemaphoreTake(touch_isr_mux_, timeout) == pdTRUE;
+        }
+        return false;
+    }
+
+    void NotifyTouchEvent()
+    {
+        if (touch_isr_mux_ != NULL) {
+            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+            xSemaphoreGiveFromISR(touch_isr_mux_, &xHigherPriorityTaskWoken);
+            portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+        }
     }
 
 private:
     uint8_t* read_buffer_ = nullptr;
     TouchPoint_t tp_;
+
+    // Touch state tracking
+    bool was_touched_;
+    int press_count_;
+
+    // Touch interrupt semaphore
+    SemaphoreHandle_t touch_isr_mux_;
 };
-static SemaphoreHandle_t touch_isr_mux = NULL;
-static bool touch_event_pending = false;
-static int64_t touch_event_time = 0;
 
 class EspS3Cat : public WifiBoard {
 private:
@@ -291,13 +389,17 @@ private:
     Cst816s* cst816s_;
     Charge* charge_;
     Button boot_button_;
+#if USE_LVGL_DEFAULT
     LcdDisplay* display_;
+#else
+    anim::EmoteDisplay* display_ = nullptr;
+#endif
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
 
-
-    void InitializeI2c() {
+    void InitializeI2c()
+    {
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = I2C_NUM_0,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
@@ -315,14 +417,15 @@ private:
         temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
         ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
         ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
-        
+
     }
-    uint8_t DetectPcbVersion() {
-        esp_err_t ret = i2c_master_probe(i2c_bus_, 0x18, 100);  
+    uint8_t DetectPcbVersion()
+    {
+        esp_err_t ret = i2c_master_probe(i2c_bus_, 0x18, 100);
         uint8_t pcb_verison = 0;
         if (ret == ESP_OK) {
             ESP_LOGI(TAG, "PCB verison V1.0");
-            pcb_verison = 0;  
+            pcb_verison = 0;
         } else {
             gpio_config_t gpio_conf = {
                 .pin_bit_mask = (1ULL << GPIO_NUM_48),
@@ -334,10 +437,10 @@ private:
             ESP_ERROR_CHECK(gpio_config(&gpio_conf));
             ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_48, 1));
             vTaskDelay(pdMS_TO_TICKS(100));
-            ret = i2c_master_probe(i2c_bus_, 0x18, 100);  
+            ret = i2c_master_probe(i2c_bus_, 0x18, 100);
             if (ret == ESP_OK) {
                 ESP_LOGI(TAG, "PCB verison V1.2");
-                pcb_verison = 1;  
+                pcb_verison = 1;
                 AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
                 AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
                 QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
@@ -346,141 +449,87 @@ private:
                 UART1_RX = UART1_RX_2;
             } else {
                 ESP_LOGE(TAG, "PCB version detection error");
-                
+
             }
-        } 
+        }
         return pcb_verison;
     }
 
-
-    static void touchpad_timer_callback(void* arg) {
-        auto& board = (EspS3Cat&)Board::GetInstance();
-        auto touchpad = board.GetTouchpad();
-        static bool was_touched = false;
-        static int64_t touch_start_time = 0;
-        const int64_t TOUCH_THRESHOLD_MS = 500;
-        
-        touchpad->UpdateTouchPoint();
-        auto touch_point = touchpad->GetTouchPoint();
-        
-        if (touch_point.num > 0 && !was_touched) {
-            was_touched = true;
-            touch_start_time = esp_timer_get_time() / 1000;
-        } 
-        else if (touch_point.num == 0 && was_touched) {
-            was_touched = false;
-            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
-            
-            if (touch_duration < TOUCH_THRESHOLD_MS) {
-                auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateStarting && 
-                    !WifiStation::GetInstance().IsConnected()) {
-                    board.ResetWifiConfiguration();
-                }
-                app.ToggleChatState();
-            }
-        }
-    }
-    static void touchpad_callback(Cst816s::TouchPoint_t touch_point) {
-        auto& board = (EspS3Cat&)Board::GetInstance();
-        static bool was_touched = false;
-        static int64_t touch_start_time = 0;
-        const int64_t TOUCH_THRESHOLD_MS = 500;
-        
-        if (touch_point.num > 0 && !was_touched) {
-            was_touched = true;
-            touch_start_time = esp_timer_get_time() / 1000;
-        } 
-        else if (touch_point.num == 0 && was_touched) {
-            was_touched = false;
-            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
-            
-            if (touch_duration < TOUCH_THRESHOLD_MS) {
-                auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateStarting && 
-                    !WifiStation::GetInstance().IsConnected()) {
-                    board.ResetWifiConfiguration();
-                }
-                app.ToggleChatState();
-            }
-        }
-    }
-
-    static void lvgl_port_touch_isr_cb(void* arg)
+    static void touch_isr_callback(void* arg)
     {
-        int64_t current_time = esp_timer_get_time() / 1000;
-        static int64_t last_touch_time = 0;
-
-        if (current_time - last_touch_time >= 300) {
-            touch_event_pending = true;
-            touch_event_time = current_time;
-            last_touch_time = current_time;
-
-            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-            if (touch_isr_mux != NULL) {
-                xSemaphoreGiveFromISR(touch_isr_mux, &xHigherPriorityTaskWoken);
-                portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-            }
+        Cst816s* touchpad = static_cast<Cst816s*>(arg);
+        if (touchpad != nullptr) {
+            touchpad->NotifyTouchEvent();
         }
     }
 
-    static void touch_event_task(void* arg) {
+    static void touch_event_task(void* arg)
+    {
+        Cst816s* touchpad = static_cast<Cst816s*>(arg);
+        if (touchpad == nullptr) {
+            ESP_LOGE(TAG, "Invalid touchpad pointer in touch_event_task");
+            vTaskDelete(NULL);
+            return;
+        }
+
         while (true) {
-            if (xSemaphoreTake(touch_isr_mux, portMAX_DELAY) == pdTRUE) {
-                if (touch_event_pending) {
-                    touch_event_pending = false;
+            if (touchpad->WaitForTouchEvent()) {
+                auto &app = Application::GetInstance();
+                auto &board = (EspS3Cat &)Board::GetInstance();
 
-                    auto& board = (EspS3Cat&)Board::GetInstance();
-                    auto& app = Application::GetInstance();
+                ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
+                touchpad->UpdateTouchPoint();
+                auto touch_event = touchpad->CheckTouchEvent();
 
-                    if (app.GetDeviceState() == kDeviceStateStarting && 
-                        !WifiStation::GetInstance().IsConnected()) {
+                if (touch_event == Cst816s::TOUCH_RELEASE) {
+                    if (app.GetDeviceState() == kDeviceStateStarting &&
+                            !WifiStation::GetInstance().IsConnected()) {
                         board.ResetWifiConfiguration();
+                    } else {
+                        app.ToggleChatState();
                     }
-                    app.ToggleChatState();
                 }
             }
         }
     }
 
-    void InitializeCharge() {
+    void InitializeCharge()
+    {
         charge_ = new Charge(i2c_bus_, 0x55);
         xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, NULL, 0);
     }
 
-    void InitializeCst816sTouchPad() {
+    void InitializeCst816sTouchPad()
+    {
         cst816s_ = new Cst816s(i2c_bus_, 0x15);
 
-        touch_isr_mux = xSemaphoreCreateBinary();
-        if (touch_isr_mux == NULL) {
-            ESP_LOGE(TAG, "Failed to create touch semaphore");
-            return;
-        }
+        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, cst816s_, 5, NULL, 1);
 
-        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, NULL, 5, NULL, 1);
-        
         const gpio_config_t int_gpio_config = {
             .pin_bit_mask = (1ULL << TP_PIN_NUM_INT),
             .mode = GPIO_MODE_INPUT,
-            .intr_type = GPIO_INTR_NEGEDGE
+            // .intr_type = GPIO_INTR_NEGEDGE
+            .intr_type = GPIO_INTR_ANYEDGE
         };
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::lvgl_port_touch_isr_cb, NULL);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::touch_isr_callback, cst816s_);
     }
 
-    void InitializeSpi() {
+    void InitializeSpi()
+    {
         const spi_bus_config_t bus_config = TAIJIPI_ST77916_PANEL_BUS_QSPI_CONFIG(QSPI_PIN_NUM_LCD_PCLK,
-                                                                        QSPI_PIN_NUM_LCD_DATA0,
-                                                                        QSPI_PIN_NUM_LCD_DATA1,
-                                                                        QSPI_PIN_NUM_LCD_DATA2,
-                                                                        QSPI_PIN_NUM_LCD_DATA3,
-                                                                        QSPI_LCD_H_RES * 80 * sizeof(uint16_t));
+                                                                                  QSPI_PIN_NUM_LCD_DATA0,
+                                                                                  QSPI_PIN_NUM_LCD_DATA1,
+                                                                                  QSPI_PIN_NUM_LCD_DATA2,
+                                                                                  QSPI_PIN_NUM_LCD_DATA3,
+                                                                                  QSPI_LCD_H_RES * 80 * sizeof(uint16_t));
         ESP_ERROR_CHECK(spi_bus_initialize(QSPI_LCD_HOST, &bus_config, SPI_DMA_CH_AUTO));
     }
 
-    void Initializest77916Display(uint8_t pcb_verison) {
+    void Initializest77916Display(uint8_t pcb_verison)
+    {
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
@@ -511,73 +560,83 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
+#if USE_LVGL_DEFAULT
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, {
+            .text_font = &font_puhui_20_4,
+            .icon_font = &font_awesome_20_4,
+            .emoji_font = font_emoji_64_init(),
+        });
+#else
+        display_ = new anim::EmoteDisplay(panel, panel_io);
+#endif
         backlight_ = new PwmBacklight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         backlight_->RestoreBrightness();
     }
 
-    void InitializeButtons() {
+    void InitializeButtons()
+    {
         boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
+            auto &app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ESP_LOGI(TAG, "Boot button pressed, enter WiFi configuration mode");
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
         });
-         gpio_config_t power_gpio_config = {
-            .pin_bit_mask = (BIT64(POWER_CTRL) ),
+        gpio_config_t power_gpio_config = {
+            .pin_bit_mask = (BIT64(POWER_CTRL)),
             .mode = GPIO_MODE_OUTPUT,
-            
-      };
+
+        };
         ESP_ERROR_CHECK(gpio_config(&power_gpio_config));
 
         gpio_set_level(POWER_CTRL, 0);
     }
 
 public:
-    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO) {
+    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO)
+    {
         InitializeI2c();
         uint8_t pcb_verison = DetectPcbVersion();
         InitializeCharge();
         InitializeCst816sTouchPad();
-        
+
         InitializeSpi();
         Initializest77916Display(pcb_verison);
         InitializeButtons();
     }
 
-    virtual AudioCodec* GetAudioCodec() override {
+    virtual AudioCodec* GetAudioCodec() override
+    {
         static BoxAudioCodec audio_codec(
-            i2c_bus_, 
-            AUDIO_INPUT_SAMPLE_RATE, 
+            i2c_bus_,
+            AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, 
-            AUDIO_I2S_GPIO_BCLK, 
-            AUDIO_I2S_GPIO_WS, 
-            AUDIO_I2S_GPIO_DOUT, 
+            AUDIO_I2S_GPIO_MCLK,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, 
-            AUDIO_CODEC_ES8311_ADDR, 
-            AUDIO_CODEC_ES7210_ADDR, 
+            AUDIO_CODEC_PA_PIN,
+            AUDIO_CODEC_ES8311_ADDR,
+            AUDIO_CODEC_ES7210_ADDR,
             AUDIO_INPUT_REFERENCE);
         return &audio_codec;
     }
-    
-    virtual Display* GetDisplay() override {
+
+    virtual Display* GetDisplay() override
+    {
         return display_;
     }
 
-    Cst816s* GetTouchpad() {
+    Cst816s* GetTouchpad()
+    {
         return cst816s_;
     }
 
-    virtual Backlight* GetBacklight() override {
+    virtual Backlight* GetBacklight() override
+    {
         return backlight_;
     }
 };

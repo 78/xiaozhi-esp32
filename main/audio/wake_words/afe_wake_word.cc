@@ -111,7 +111,7 @@ size_t AfeWakeWord::GetFeedSize() {
     if (afe_data_ == nullptr) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    return afe_iface_->get_feed_chunksize(afe_data_);
 }
 
 void AfeWakeWord::AudioDetectionTask() {

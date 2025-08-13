@@ -71,7 +71,7 @@ size_t EspWakeWord::GetFeedSize() {
     if (wakenet_data_ == nullptr) {
         return 0;
     }
-    return wakenet_iface_->get_samp_chunksize(wakenet_data_) * codec_->input_channels();
+    return wakenet_iface_->get_samp_chunksize(wakenet_data_);
 }
 
 void EspWakeWord::EncodeWakeWordData() {

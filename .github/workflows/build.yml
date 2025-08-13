@@ -1,32 +1,106 @@
-name: Build and Test
+name: Build Boards
 
 on:
   push:
     branches:
       - main
+      - ci/* # for ci test
   pull_request:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  prepare:
+    name: Determine boards to build
     runs-on: ubuntu-latest
-
+    outputs:
+      boards: ${{ steps.select.outputs.boards }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Espressif IoT Development Framework (ESP-IDF)
-        # You may pin to the exact commit or the version.
-        # uses: espressif/esp-idf-ci-action@8cd22ae10042fadc37890e81e9988a9113e7b506
-        uses: espressif/esp-idf-ci-action@v1.1.0
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          # Relative path under $GITHUB_WORKSPACE to place the repository
-          #path: # optional, default is 
-          # Version of ESP-IDF docker image to use
-          esp_idf_version: release-v5.4
-          # ESP32 variant to build for
-          target: esp32s3
-          # Command to run inside the docker container (default: builds the project)
-          # command: # optional, default is idf.py build
-                
+          fetch-depth: 0
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - id: list
+        name: Get all board list
+        run: |
+          echo "all_boards=$(python scripts/release.py --list-boards --json)" >> $GITHUB_OUTPUT
+
+      - id: select
+        name: Select boards based on changes
+        env:
+          ALL_BOARDS: ${{ steps.list.outputs.all_boards }}
+        run: |
+          EVENT_NAME="${{ github.event_name }}"
+
+          # For push to main branch, build all boards
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "boards=$ALL_BOARDS" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For pull_request
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          echo "Base: $BASE_SHA, Head: $HEAD_SHA"
+
+          CHANGED=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
+          echo "Changed files:\n$CHANGED"
+
+          NEED_ALL=0
+          declare -A AFFECTED
+          while IFS= read -r file; do
+            if [[ "$file" == main/* && "$file" != main/boards/* ]]; then
+              NEED_ALL=1
+            fi
+
+            if [[ "$file" == main/boards/* ]]; then
+              board=$(echo "$file" | cut -d '/' -f3)
+              AFFECTED[$board]=1
+            fi
+          done <<< "$CHANGED"
+
+          if [[ "$NEED_ALL" -eq 1 ]]; then
+            echo "boards=$ALL_BOARDS" >> $GITHUB_OUTPUT
+          else
+            if [[ ${#AFFECTED[@]} -eq 0 ]]; then
+              echo "boards=[]" >> $GITHUB_OUTPUT
+            else
+              JSON=$(printf '%s\n' "${!AFFECTED[@]}" | sort -u | jq -R -s -c 'split("\n")[:-1]')
+              echo "boards=$JSON" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  build:
+    name: Build ${{ matrix.board }}
+    needs: prepare
+    if: ${{ needs.prepare.outputs.boards != '[]' }}
+    strategy:
+      fail-fast: false  # 单个 board 失败不影响其它 board
+      matrix:
+        board: ${{ fromJson(needs.prepare.outputs.boards) }}
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v5.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build current board
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py ${{ matrix.board }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_${{ matrix.board }}_${{ github.sha }}.bin
+          path: build/merged-binary.bin
+          if-no-files-found: error

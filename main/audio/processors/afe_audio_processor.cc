@@ -81,7 +81,7 @@ size_t AfeAudioProcessor::GetFeedSize() {
     if (afe_data_ == nullptr) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    return afe_iface_->get_feed_chunksize(afe_data_);
 }
 
 void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {

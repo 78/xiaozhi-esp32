@@ -2,6 +2,7 @@
 #include "application.h"
 #include "board.h"
 #include "display.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_sleep.h>
@@ -32,6 +33,12 @@ SleepTimer::~SleepTimer() {
 
 void SleepTimer::SetEnabled(bool enabled) {
     if (enabled && !enabled_) {
+        Settings settings("wifi", false);
+        if (!settings.GetBool("sleep_mode", true)) {
+            ESP_LOGI(TAG, "Power save timer is disabled by settings");
+            return;
+        }
+
         ticks_ = 0;
         enabled_ = enabled;
         ESP_ERROR_CHECK(esp_timer_start_periodic(sleep_timer_, 1000000));
@@ -75,6 +82,7 @@ void SleepTimer::CheckTimer() {
             bool is_wake_word_running = audio_service.IsWakeWordRunning();
             if (is_wake_word_running) {
                 audio_service.EnableWakeWordDetection(false);
+                vTaskDelay(pdMS_TO_TICKS(100));
             }
         
             app.Schedule([this, &app]() {
