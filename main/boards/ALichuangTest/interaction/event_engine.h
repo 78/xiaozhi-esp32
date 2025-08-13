@@ -1,11 +1,10 @@
 #ifndef ALICHUANGTEST_EVENT_ENGINE_H
 #define ALICHUANGTEST_EVENT_ENGINE_H
 
-#include "../qmi8658.h"
+#include "motion_engine.h"
 #include <functional>
 #include <memory>
 #include <vector>
-#include <unordered_map>
 
 // 事件类型枚举 - 包含所有可能的事件
 enum class EventType {
@@ -57,9 +56,9 @@ struct Event {
 };
 
 // 前向声明
-class Qmi8658;
+class MotionEngine;
 
-// 事件引擎类
+// 事件引擎类 - 作为各种事件源的协调器
 class EventEngine {
 public:
     using EventCallback = std::function<void(const Event&)>;
@@ -68,7 +67,7 @@ public:
     ~EventEngine();
     
     // 初始化引擎
-    void Initialize(Qmi8658* imu = nullptr);
+    void Initialize(MotionEngine* motion_engine = nullptr);
     
     // 注册事件回调
     void RegisterCallback(EventCallback callback);
@@ -81,84 +80,26 @@ public:
     void TriggerEvent(const Event& event);
     void TriggerEvent(EventType type);
     
-    // 运动检测相关接口
-    void EnableMotionDetection(bool enable) { motion_detection_enabled_ = enable; }
-    bool IsMotionDetectionEnabled() const { return motion_detection_enabled_; }
-    
-    // 获取运动状态
-    bool IsPickedUp() const { return is_picked_up_; }
-    bool IsUpsideDown() const { return is_upside_down_; }
-    const ImuData& GetCurrentImuData() const { return current_imu_data_; }
-    
-    // 调试输出控制
-    void SetDebugOutput(bool enable) { debug_output_ = enable; }
+    // 获取运动状态（通过MotionEngine）
+    bool IsPickedUp() const;
+    bool IsUpsideDown() const;
     
 private:
-    // IMU相关
-    Qmi8658* imu_;
-    bool motion_detection_enabled_;
+    // 运动引擎
+    MotionEngine* motion_engine_;
     
     // 事件回调
     EventCallback global_callback_;
     std::vector<std::pair<EventType, EventCallback>> type_callbacks_;
     
-    // 运动检测状态
-    ImuData current_imu_data_;
-    ImuData last_imu_data_;
-    bool first_reading_;
-    std::unordered_map<EventType, int64_t> last_event_times_;
-    int64_t last_debug_time_us_;
-    bool debug_output_;
-    
-    // 自由落体检测的状态跟踪
-    int64_t free_fall_start_time_;
-    bool in_free_fall_;
-    
-    // 倒置检测的状态跟踪
-    bool is_upside_down_;
-    int upside_down_count_;
-    
-    // 拿起检测的状态跟踪
-    bool is_picked_up_;
-    int stable_count_;
-    float stable_z_reference_;
-    int64_t pickup_start_time_;
-    
-    // 运动检测阈值
-    static constexpr float FREE_FALL_THRESHOLD_G = 0.3f;
-    static constexpr int64_t FREE_FALL_MIN_TIME_US = 200000;
-    static constexpr float SHAKE_VIOLENTLY_THRESHOLD_G = 3.0f;
-    static constexpr float SHAKE_THRESHOLD_G = 1.5f;
-    static constexpr float FLIP_THRESHOLD_DEG_S = 400.0f;
-    static constexpr float PICKUP_THRESHOLD_G = 0.15f;
-    static constexpr float UPSIDE_DOWN_THRESHOLD_G = -0.8f;
-    static constexpr int UPSIDE_DOWN_STABLE_COUNT = 10;
-    static constexpr int64_t DEBUG_INTERVAL_US = 1000000;
-    
-    // 事件特定的冷却时间（微秒）
-    static constexpr int64_t FREE_FALL_COOLDOWN_US = 500000;      // 500ms - 自由落体需要较长冷却
-    static constexpr int64_t SHAKE_VIOLENTLY_COOLDOWN_US = 400000; // 400ms - 剧烈摇晃冷却
-    static constexpr int64_t FLIP_COOLDOWN_US = 300000;           // 300ms - 翻转冷却
-    static constexpr int64_t SHAKE_COOLDOWN_US = 200000;          // 200ms - 普通摇晃较短冷却
-    static constexpr int64_t PICKUP_COOLDOWN_US = 1000000;        // 1s - 拿起需要长冷却避免重复
-    static constexpr int64_t UPSIDE_DOWN_COOLDOWN_US = 500000;    // 500ms - 倒置状态冷却
-    
-    // 运动检测方法
-    void ProcessMotionDetection();
-    bool DetectFreeFall(const ImuData& data, int64_t current_time);
-    bool DetectShakeViolently(const ImuData& data);
-    bool DetectFlip(const ImuData& data);
-    bool DetectShake(const ImuData& data);
-    bool DetectPickup(const ImuData& data);
-    bool DetectUpsideDown(const ImuData& data);
-    float CalculateAccelMagnitude(const ImuData& data);
-    float CalculateAccelDelta(const ImuData& current, const ImuData& last);
-    
-    // 辅助函数
-    bool IsStable(const ImuData& data, const ImuData& last_data);
+    // 运动事件回调处理
+    void OnMotionEvent(const MotionEvent& motion_event);
     
     // 事件分发
     void DispatchEvent(const Event& event);
+    
+    // 运动事件类型转换
+    EventType ConvertMotionEventType(MotionEventType motion_type);
 };
 
 #endif // ALICHUANGTEST_EVENT_ENGINE_H

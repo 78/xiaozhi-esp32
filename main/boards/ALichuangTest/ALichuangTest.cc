@@ -7,6 +7,7 @@
 #include "esp32_camera.h"
 #include "skills/animation.h"
 #include "qmi8658.h"
+#include "interaction/motion_engine.h"
 #include "interaction/event_engine.h"
 
 #include <esp_log.h>
@@ -97,6 +98,7 @@ private:
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
+    MotionEngine* motion_engine_ = nullptr;
     EventEngine* event_engine_ = nullptr;
     esp_timer_handle_t event_timer_ = nullptr;
     TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
@@ -538,17 +540,21 @@ private:
         if (imu_->Initialize() == ESP_OK) {
             ESP_LOGI(TAG, "IMU initialized successfully");
             
-            // 创建运动检测器
+            // 创建运动引擎
+            motion_engine_ = new MotionEngine();
+            motion_engine_->Initialize(imu_);
+            motion_engine_->SetDebugOutput(true);  // 启用调试输出
+            
+            // 创建事件引擎（协调器）
             event_engine_ = new EventEngine();
-            event_engine_->Initialize(imu_);
-            event_engine_->SetDebugOutput(true);  // 启用调试输出
+            event_engine_->Initialize(motion_engine_);
             
             // 设置事件回调
             event_engine_->RegisterCallback([this](const Event& event) {
                 HandleEvent(event);
             });
             
-            // 创建定时器，每50ms处理一次运动数据
+            // 创建定时器，每50ms处理一次事件
             esp_timer_create_args_t event_timer_args = {};
             event_timer_args.callback = [](void* arg) {
                 auto* engine = static_cast<EventEngine*>(arg);
