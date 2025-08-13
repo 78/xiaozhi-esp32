@@ -58,5 +58,10 @@
 
 #define XCLK_FREQ_HZ 24000000
 
+/* 振动马达引脚 - 使用GPIO10进行物理控制 */
+#define VIBRATION_MOTOR_GPIO GPIO_NUM_10
+
+/* 振动测试按键引脚 - GPIO11 */
+#define VIBRATION_TEST_BUTTON_GPIO GPIO_NUM_11
 
 #endif // _BOARD_CONFIG_H_

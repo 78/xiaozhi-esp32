@@ -6,6 +6,18 @@
             "sdkconfig_append": [
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
+        },
+        {
+            "name": "xiaozhi-default-UI",
+            "sdkconfig_append": [
+                "CONFIG_XIAOZHI_DEFAULT_UI=y"
+            ]
+        },
+        {
+            "name": "lingxi-anima-UI",
+            "sdkconfig_append": [
+                "CONFIG_LINGXI_ANIMA_UI=y"
+            ]
         }
     ]
 }
