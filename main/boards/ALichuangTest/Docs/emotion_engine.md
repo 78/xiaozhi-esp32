@@ -1,54 +1,57 @@
+emotion_engine.h: 情感状态机
 模块概述:
-作为交互层的“神经末梢”，event_engine负责将来自L0驱动层的、离散的、原始的传感器数据，实时地处理和融合成L2层可以理解的、有意义的高级事件。它是连接物理世界和虚拟情感的桥梁。
+emotion_engine是玩具“性格”的数学模型。它不直接产生行为，而是作为一个状态管理器，根据外部事件来更新内部的{Happiness, Energy}情感坐标，并为其他模块提供查询当前情感状态的服务。
 核心需求与逻辑:
-后台任务驱动: event_engine必须在一个独立的、周期性运行的FreeRTOS后台任务 (event_task) 中执行，以确保不阻塞其他系统。推荐运行频率为20-50Hz（每20-50ms运行一次）。
-短期事件缓冲区: 引擎内部需维护一个固定大小的FIFO（先进先出）队列作为“短期记忆”，用于存储最近1-2秒内发生的所有基础事件（如TOUCH_HEAD_ON, TOUCH_HEAD_OFF, IMU_HIGH_G_IMPACT）。每个基础事件都应带有精确的时间戳。
-状态机与规则引擎:
-简单事件识别: 通过状态机判断触摸传感器的ON/OFF和持续时间，来生成EVENT_TOUCH_HEAD_SINGLE、EVENT_TOUCH_HEAD_HOLD等简单事件。
-复合事件识别: 周期性地扫描事件缓冲区，应用一系列规则来匹配模式，生成复合事件。例如：
-规则EVENT_TICKLED: IF 缓冲区在2秒内的TOUCH_ON事件数量 > 4, THEN 生成EVENT_TICKLED。
-规则EVENT_INVERTED: IF IMU的重力向量Z轴持续为负超过1秒, THEN 生成EVENT_INVERTED。
-事件发布机制:
-当一个高级事件被成功识别后，引擎应通过一个全局的回调函数指针或消息队列，将该事件的ID (event_id_t) “发布”出去，供emotion_engine和reaction_engine等上层模块订阅和接收。
-事件抑制逻辑: 为避免事件风暴，需要实现抑制逻辑。例如，在生成一个EVENT_TICKLED复合事件后，应在接下来的一小段时间内抑制所有构成它的简单TOUCH事件的生成。
+数据维护: 模块内部需维护两个核心浮点数变量：current_happiness和current_energy。
+情感影响映射表: 内部需要一个static const的查找表（或switch-case结构），将每个event_id_t映射到一个预设的{ΔH, ΔE}变化值。
+状态更新: 当接收到新事件时，根据查找表更新current_happiness和current_energy。
+边界与饱和: 更新后的情感值必须被限制在**[-10.0, +10.0]**的范围内。
+时间衰减: 模块需要一个低频定时器（例如每10-30秒触发一次）。每次触发时，将当前的情感值向默认的基线（如H=+2.0, E=0.0）缓慢地移动一小步，模拟情绪的自然平复。
 输入:
-IMU传感器数据（加速度、角速度）。
-三个触摸传感器的实时状态（按下/弹起）。
-输出 (发布的事件ID event_id_t):
-EVENT_TOUCH_HEAD_SINGLE
-EVENT_TOUCH_HEAD_HOLD
-EVENT_TOUCH_LEFT_SINGLE
-EVENT_TOUCH_RIGHT_SINGLE
-EVENT_PICKED_UP (复合)
-EVENT_CRADLED (复合)
-EVENT_TICKLED (复合)
-EVENT_PUT_DOWN (复合)
-EVENT_INVERTED (复合)
-EVENT_IMU_FREE_FALL
-EVENT_IMU_SHAKE_VIOLENT
-函数接口定义 (event_engine.h):
-code
-C
-#ifndef INTERACTION_EVENT_ENGINE_H_
-#define INTERACTION_EVENT_ENGINE_H_
+由event_engine发布的event_id_t。
+由云端下发的直接情感覆写指令。
+输出 (供查询):
+当前所属的情感象限 (emotion_quadrant_t枚举)。
+当前的精确{H, E}坐标值（可选，用于调试或更精细的逻辑）。
+函数接口定义 (emotion_engine.h):
 
-// 定义所有高级事件的ID
-typedef enum { EVENT_NONE, EVENT_TOUCH_HEAD_SINGLE, ... } event_id_t;
+#ifndef INTERACTION_EMOTION_ENGINE_H_
+#define INTERACTION_EMOTION_ENGINE_H_
 
-// 定义事件回调函数的类型
-typedef void (*event_callback_t)(event_id_t event_id);
+#include "event_engine.h" // 依赖事件定义
+
+// 定义四个情感象限
+typedef enum { 
+    QUADRANT_HAPPY_EXCITED, 
+    QUADRANT_HAPPY_CALM, 
+    QUADRANT_UNHAPPY_ENERGETIC, 
+    QUADRANT_UNHAPPY_CALM 
+} emotion_quadrant_t;
 
 /**
- * @brief 初始化智能事件引擎
- *        内部会创建并启动一个后台FreeRTOS任务来处理传感器数据
+ * @brief 初始化情感状态机
+ *        内部会启动一个用于时间衰减的低频定时器
  */
-void event_engine_init(void);
+void emotion_engine_init(void);
 
 /**
- * @brief 注册一个事件回调函数
- *        当引擎识别出新事件时，将通过此回调通知订阅者
- * @param callback 要注册的回调函数指针
+ * @brief [核心接口] 根据一个事件来更新情感状态
+ *        此函数会被事件回调函数所调用
+ * @param event_id 发生的新事件ID
  */
-void event_engine_register_callback(event_callback_t callback);
+void emotion_engine_on_event(event_id_t event_id);
 
-#endif // INTERACTION_EVENT_ENGINE_H_
+/**
+ * @brief [核心接口] 从云端直接设置情感状态
+ * @param h 目标Happiness值
+ * @param e 目标Energy值
+ */
+void emotion_engine_set_state(float h, float e);
+
+/**
+ * @brief [核心接口] 获取当前所属的情感象限
+ * @return emotion_quadrant_t 当前的情感象限
+ */
+emotion_quadrant_t emotion_engine_get_quadrant(void);
+
+#endif // INTERACTION_EMOTION_ENGINE_H_

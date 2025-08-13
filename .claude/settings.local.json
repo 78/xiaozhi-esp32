@@ -13,7 +13,11 @@
       "WebFetch(domain:gitee.com)",
       "Bash(dir .git)",
       "Bash(where git)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "WebFetch(domain:docs.espressif.com)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }
