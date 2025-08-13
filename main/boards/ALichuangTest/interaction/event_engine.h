@@ -59,6 +59,7 @@ struct Event {
 // 前向声明
 class MotionEngine;
 class TouchEngine;
+class Qmi8658;
 
 // 事件引擎类 - 作为各种事件源的协调器
 class EventEngine {
@@ -68,8 +69,14 @@ public:
     EventEngine();
     ~EventEngine();
     
-    // 初始化引擎
-    void Initialize(MotionEngine* motion_engine = nullptr, TouchEngine* touch_engine = nullptr);
+    // 初始化引擎 - 内部创建和管理子引擎
+    void Initialize();
+    
+    // 初始化运动引擎（内部创建）
+    void InitializeMotionEngine(Qmi8658* imu, bool enable_debug = false);
+    
+    // 初始化触摸引擎（内部创建）
+    void InitializeTouchEngine();
     
     // 注册事件回调
     void RegisterCallback(EventCallback callback);
@@ -91,10 +98,16 @@ public:
     bool IsRightTouched() const;
     
 private:
-    // 运动引擎
+    // 运动引擎（内部创建和管理）
     MotionEngine* motion_engine_;
-    // 触摸引擎
+    bool owns_motion_engine_;
+    // 触摸引擎（内部创建和管理）
     TouchEngine* touch_engine_;
+    bool owns_touch_engine_;
+    
+    // 初始化子引擎的回调
+    void SetupMotionEngineCallbacks();
+    void SetupTouchEngineCallbacks();
     
     // 事件回调
     EventCallback global_callback_;

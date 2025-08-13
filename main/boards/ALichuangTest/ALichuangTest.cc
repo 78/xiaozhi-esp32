@@ -7,8 +7,6 @@
 #include "esp32_camera.h"
 #include "skills/animation.h"
 #include "qmi8658.h"
-#include "interaction/motion_engine.h"
-#include "interaction/touch_engine.h"
 #include "interaction/event_engine.h"
 
 #include <esp_log.h>
@@ -99,8 +97,6 @@ private:
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
-    MotionEngine* motion_engine_ = nullptr;
-    TouchEngine* touch_engine_ = nullptr;
     EventEngine* event_engine_ = nullptr;
     esp_timer_handle_t event_timer_ = nullptr;
     TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
@@ -536,51 +532,51 @@ private:
     }
     
     void InitializeImu() {
-        // 创建IMU设备
+        // 仅初始化IMU硬件
         imu_ = new Qmi8658(i2c_bus_);
         
         if (imu_->Initialize() == ESP_OK) {
             ESP_LOGI(TAG, "IMU initialized successfully");
-            
-            // 创建运动引擎
-            motion_engine_ = new MotionEngine();
-            motion_engine_->Initialize(imu_);
-            motion_engine_->SetDebugOutput(true);  // 启用调试输出
-            
-            // 创建触摸引擎
-            touch_engine_ = new TouchEngine();
-            touch_engine_->Initialize();
-            ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT)");
-            
-            // 创建事件引擎（协调器）
-            event_engine_ = new EventEngine();
-            event_engine_->Initialize(motion_engine_, touch_engine_);
-            
-            // 设置事件回调
-            event_engine_->RegisterCallback([this](const Event& event) {
-                HandleEvent(event);
-            });
-            
-            // 创建定时器，每50ms处理一次事件
-            esp_timer_create_args_t event_timer_args = {};
-            event_timer_args.callback = [](void* arg) {
-                auto* engine = static_cast<EventEngine*>(arg);
-                engine->Process();
-            };
-            event_timer_args.arg = event_engine_;
-            event_timer_args.dispatch_method = ESP_TIMER_TASK;
-            event_timer_args.name = "event_timer";
-            event_timer_args.skip_unhandled_events = true;
-            
-            esp_timer_create(&event_timer_args, &event_timer_);
-            esp_timer_start_periodic(event_timer_, 50000);  // 50ms
-            
-            ESP_LOGI(TAG, "Event engine started");
         } else {
             ESP_LOGW(TAG, "Failed to initialize IMU");
             delete imu_;
             imu_ = nullptr;
         }
+    }
+    
+    void InitializeInteractionSystem() {
+        // 创建事件引擎
+        event_engine_ = new EventEngine();
+        event_engine_->Initialize();
+        
+        // 初始化运动引擎（如果IMU可用）
+        if (imu_) {
+            event_engine_->InitializeMotionEngine(imu_, true);  // 启用调试输出
+        }
+        
+        // 初始化触摸引擎
+        event_engine_->InitializeTouchEngine();
+        
+        // 设置事件回调
+        event_engine_->RegisterCallback([this](const Event& event) {
+            HandleEvent(event);
+        });
+        
+        // 创建定时器，每50ms处理一次事件
+        esp_timer_create_args_t event_timer_args = {};
+        event_timer_args.callback = [](void* arg) {
+            auto* engine = static_cast<EventEngine*>(arg);
+            engine->Process();
+        };
+        event_timer_args.arg = event_engine_;
+        event_timer_args.dispatch_method = ESP_TIMER_TASK;
+        event_timer_args.name = "event_timer";
+        event_timer_args.skip_unhandled_events = true;
+        
+        esp_timer_create(&event_timer_args, &event_timer_);
+        esp_timer_start_periodic(event_timer_, 50000);  // 50ms
+        
+        ESP_LOGI(TAG, "Interaction system initialized and started");
     }
     
     void HandleEvent(const Event& event) {
@@ -657,7 +653,8 @@ public:
         InitializeTouch();
         InitializeButtons();
         InitializeCamera();
-        InitializeImu();  // 初始化IMU和运动检测
+        InitializeImu();  // 初始化IMU硬件
+        InitializeInteractionSystem();  // 初始化交互系统
 
         GetBacklight()->RestoreBrightness();
 

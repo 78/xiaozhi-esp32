@@ -1,4 +1,6 @@
 #include "event_engine.h"
+#include "motion_engine.h"
+#include "touch_engine.h"
 #include <esp_log.h>
 #include <esp_timer.h>
 
@@ -6,38 +8,88 @@
 
 EventEngine::EventEngine() 
     : motion_engine_(nullptr)
-    , touch_engine_(nullptr) {
+    , owns_motion_engine_(false)
+    , touch_engine_(nullptr)
+    , owns_touch_engine_(false) {
 }
 
 EventEngine::~EventEngine() {
+    // 清理内部创建的引擎
+    if (owns_motion_engine_ && motion_engine_) {
+        delete motion_engine_;
+        motion_engine_ = nullptr;
+    }
+    if (owns_touch_engine_ && touch_engine_) {
+        delete touch_engine_;
+        touch_engine_ = nullptr;
+    }
 }
 
-void EventEngine::Initialize(MotionEngine* motion_engine, TouchEngine* touch_engine) {
-    motion_engine_ = motion_engine;
-    touch_engine_ = touch_engine;
+void EventEngine::Initialize() {
+    ESP_LOGI(TAG, "Event engine initialized");
+}
+
+void EventEngine::InitializeMotionEngine(Qmi8658* imu, bool enable_debug) {
+    if (!imu) {
+        ESP_LOGW(TAG, "Cannot initialize motion engine without IMU");
+        return;
+    }
     
+    // 如果已经存在旧的引擎，先清理
+    if (owns_motion_engine_ && motion_engine_) {
+        delete motion_engine_;
+    }
+    
+    // 创建新的运动引擎
+    motion_engine_ = new MotionEngine();
+    motion_engine_->Initialize(imu);
+    
+    if (enable_debug) {
+        motion_engine_->SetDebugOutput(true);
+    }
+    
+    owns_motion_engine_ = true;
+    
+    // 设置回调
+    SetupMotionEngineCallbacks();
+    
+    ESP_LOGI(TAG, "Motion engine initialized and registered with event engine");
+}
+
+void EventEngine::InitializeTouchEngine() {
+    // 如果已经存在旧的引擎，先清理
+    if (owns_touch_engine_ && touch_engine_) {
+        delete touch_engine_;
+    }
+    
+    // 创建新的触摸引擎
+    touch_engine_ = new TouchEngine();
+    touch_engine_->Initialize();
+    owns_touch_engine_ = true;
+    
+    // 设置回调
+    SetupTouchEngineCallbacks();
+    
+    ESP_LOGI(TAG, "Touch engine initialized and registered with event engine - GPIO10 (LEFT), GPIO11 (RIGHT)");
+}
+
+void EventEngine::SetupMotionEngineCallbacks() {
     if (motion_engine_) {
-        // 注册运动事件回调
         motion_engine_->RegisterCallback(
             [this](const MotionEvent& event) {
                 this->OnMotionEvent(event);
             }
         );
-        ESP_LOGI(TAG, "Event engine initialized with motion engine support");
     }
-    
+}
+
+void EventEngine::SetupTouchEngineCallbacks() {
     if (touch_engine_) {
-        // 注册触摸事件回调
         touch_engine_->RegisterCallback(
             [this](const TouchEvent& event) {
                 this->OnTouchEvent(event);
             }
         );
-        ESP_LOGI(TAG, "Event engine initialized with touch engine support");
-    }
-    
-    if (!motion_engine_ && !touch_engine_) {
-        ESP_LOGW(TAG, "Event engine initialized without any input engines");
     }
 }
 
