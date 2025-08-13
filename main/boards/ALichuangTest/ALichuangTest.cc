@@ -8,6 +8,7 @@
 #include "skills/animation.h"
 #include "qmi8658.h"
 #include "interaction/motion_engine.h"
+#include "interaction/touch_engine.h"
 #include "interaction/event_engine.h"
 
 #include <esp_log.h>
@@ -99,6 +100,7 @@ private:
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
     MotionEngine* motion_engine_ = nullptr;
+    TouchEngine* touch_engine_ = nullptr;
     EventEngine* event_engine_ = nullptr;
     esp_timer_handle_t event_timer_ = nullptr;
     TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
@@ -545,9 +547,14 @@ private:
             motion_engine_->Initialize(imu_);
             motion_engine_->SetDebugOutput(true);  // 启用调试输出
             
+            // 创建触摸引擎
+            touch_engine_ = new TouchEngine();
+            touch_engine_->Initialize();
+            ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT)");
+            
             // 创建事件引擎（协调器）
             event_engine_ = new EventEngine();
-            event_engine_->Initialize(motion_engine_);
+            event_engine_->Initialize(motion_engine_, touch_engine_);
             
             // 设置事件回调
             event_engine_->RegisterCallback([this](const Event& event) {
@@ -611,12 +618,25 @@ private:
                 event_name = "UPSIDE_DOWN";
                 ESP_LOGI(TAG, "🙃 Device is upside down! (Z-axis: %.2f g)", data.accel_z);
                 break;
-            // 可以处理其他类型的事件
+            // 处理触摸事件
             case EventType::TOUCH_TAP:
+                event_name = "TOUCH_TAP";
+                // touch_data.x: -1表示左侧，1表示右侧
+                // touch_data.y: 持续时间（毫秒）
+                ESP_LOGI(TAG, "👆 Touch TAP on %s side! (duration: %d ms)", 
+                        event.data.touch_data.x < 0 ? "LEFT" : "RIGHT",
+                        event.data.touch_data.y);
+                break;
             case EventType::TOUCH_DOUBLE_TAP:
+                event_name = "TOUCH_DOUBLE_TAP";
+                ESP_LOGI(TAG, "👆👆 Touch DOUBLE TAP on RIGHT side! (duration: %d ms)", 
+                        event.data.touch_data.y);
+                break;
             case EventType::TOUCH_LONG_PRESS:
-                // 处理触摸事件
-                ESP_LOGI(TAG, "Touch event detected");
+                event_name = "TOUCH_LONG_PRESS";
+                ESP_LOGI(TAG, "👇 Touch LONG PRESS on %s side! (duration: %d ms)", 
+                        event.data.touch_data.x < 0 ? "LEFT" : "RIGHT",
+                        event.data.touch_data.y);
                 break;
             default: 
                 return;

@@ -2,6 +2,7 @@
 #define ALICHUANGTEST_EVENT_ENGINE_H
 
 #include "motion_engine.h"
+#include "touch_engine.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -57,6 +58,7 @@ struct Event {
 
 // 前向声明
 class MotionEngine;
+class TouchEngine;
 
 // 事件引擎类 - 作为各种事件源的协调器
 class EventEngine {
@@ -67,7 +69,7 @@ public:
     ~EventEngine();
     
     // 初始化引擎
-    void Initialize(MotionEngine* motion_engine = nullptr);
+    void Initialize(MotionEngine* motion_engine = nullptr, TouchEngine* touch_engine = nullptr);
     
     // 注册事件回调
     void RegisterCallback(EventCallback callback);
@@ -84,9 +86,15 @@ public:
     bool IsPickedUp() const;
     bool IsUpsideDown() const;
     
+    // 获取触摸状态（通过TouchEngine）
+    bool IsLeftTouched() const;
+    bool IsRightTouched() const;
+    
 private:
     // 运动引擎
     MotionEngine* motion_engine_;
+    // 触摸引擎
+    TouchEngine* touch_engine_;
     
     // 事件回调
     EventCallback global_callback_;
@@ -95,11 +103,15 @@ private:
     // 运动事件回调处理
     void OnMotionEvent(const MotionEvent& motion_event);
     
+    // 触摸事件回调处理
+    void OnTouchEvent(const TouchEvent& touch_event);
+    
     // 事件分发
     void DispatchEvent(const Event& event);
     
-    // 运动事件类型转换
+    // 事件类型转换
     EventType ConvertMotionEventType(MotionEventType motion_type);
+    EventType ConvertTouchEventType(TouchEventType touch_type, TouchPosition position);
 };
 
 #endif // ALICHUANGTEST_EVENT_ENGINE_H

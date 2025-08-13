@@ -5,14 +5,16 @@
 #define TAG "EventEngine"
 
 EventEngine::EventEngine() 
-    : motion_engine_(nullptr) {
+    : motion_engine_(nullptr)
+    , touch_engine_(nullptr) {
 }
 
 EventEngine::~EventEngine() {
 }
 
-void EventEngine::Initialize(MotionEngine* motion_engine) {
+void EventEngine::Initialize(MotionEngine* motion_engine, TouchEngine* touch_engine) {
     motion_engine_ = motion_engine;
+    touch_engine_ = touch_engine;
     
     if (motion_engine_) {
         // 注册运动事件回调
@@ -22,8 +24,20 @@ void EventEngine::Initialize(MotionEngine* motion_engine) {
             }
         );
         ESP_LOGI(TAG, "Event engine initialized with motion engine support");
-    } else {
-        ESP_LOGI(TAG, "Event engine initialized without motion engine");
+    }
+    
+    if (touch_engine_) {
+        // 注册触摸事件回调
+        touch_engine_->RegisterCallback(
+            [this](const TouchEvent& event) {
+                this->OnTouchEvent(event);
+            }
+        );
+        ESP_LOGI(TAG, "Event engine initialized with touch engine support");
+    }
+    
+    if (!motion_engine_ && !touch_engine_) {
+        ESP_LOGW(TAG, "Event engine initialized without any input engines");
     }
 }
 
@@ -41,13 +55,8 @@ void EventEngine::Process() {
         motion_engine_->Process();
     }
     
-    // 未来可以在这里添加其他事件源的处理
-    // if (touch_engine_) {
-    //     touch_engine_->Process();
-    // }
-    // if (audio_engine_) {
-    //     audio_engine_->Process();
-    // }
+    // 注意：TouchEngine有自己的任务，不需要在这里调用Process
+    // TouchEngine的事件会通过回调异步到达
 }
 
 void EventEngine::TriggerEvent(const Event& event) {
@@ -118,4 +127,59 @@ bool EventEngine::IsUpsideDown() const {
         return motion_engine_->IsUpsideDown();
     }
     return false;
+}
+
+bool EventEngine::IsLeftTouched() const {
+    if (touch_engine_) {
+        return touch_engine_->IsLeftTouched();
+    }
+    return false;
+}
+
+bool EventEngine::IsRightTouched() const {
+    if (touch_engine_) {
+        return touch_engine_->IsRightTouched();
+    }
+    return false;
+}
+
+void EventEngine::OnTouchEvent(const TouchEvent& touch_event) {
+    // 将TouchEvent转换为Event
+    Event event;
+    event.type = ConvertTouchEventType(touch_event.type, touch_event.position);
+    event.timestamp_us = touch_event.timestamp_us;
+    
+    // 将触摸位置信息存储在touch_data中
+    if (touch_event.position == TouchPosition::LEFT) {
+        event.data.touch_data.x = -1;  // 左侧用负值表示
+        event.data.touch_data.y = static_cast<int>(touch_event.duration_ms);
+    } else {
+        event.data.touch_data.x = 1;   // 右侧用正值表示
+        event.data.touch_data.y = static_cast<int>(touch_event.duration_ms);
+    }
+    
+    // 分发事件
+    DispatchEvent(event);
+}
+
+EventType EventEngine::ConvertTouchEventType(TouchEventType touch_type, TouchPosition position) {
+    // 根据触摸类型和位置映射到事件类型
+    switch (touch_type) {
+        case TouchEventType::SINGLE_TAP:
+            if (position == TouchPosition::LEFT) {
+                return EventType::TOUCH_TAP;  // 左侧单击映射为普通TAP
+            } else {
+                return EventType::TOUCH_DOUBLE_TAP;  // 右侧单击映射为DOUBLE_TAP（临时）
+            }
+            
+        case TouchEventType::HOLD:
+            return EventType::TOUCH_LONG_PRESS;
+            
+        case TouchEventType::RELEASE:
+            // 释放事件暂时不映射，或可以创建新的事件类型
+            return EventType::TOUCH_TAP;  // 临时映射
+            
+        default:
+            return EventType::MOTION_NONE;
+    }
 }
