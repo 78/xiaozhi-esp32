@@ -6,19 +6,22 @@
 #include <freertos/task.h>
 #include <functional>
 #include <vector>
+#include <algorithm>
 
 // 触摸事件类型
 enum class TouchEventType {
     NONE,
-    SINGLE_TAP,     // 单击
-    HOLD,           // 长按
-    RELEASE,        // 释放（长按后）
+    SINGLE_TAP,     // 单击（左或右，<500ms）
+    CRADLED,        // 摇篮模式（双侧持续触摸>2秒且IMU静止）
+    TICKLED,        // 挠痒模式（2秒内多次无规律触摸>4次）
 };
 
 // 触摸位置
 enum class TouchPosition {
     LEFT,           // GPIO10
     RIGHT,          // GPIO11
+    BOTH,           // 双侧同时
+    ANY,            // 任意侧（用于tickled事件）
 };
 
 // 触摸事件数据结构
@@ -63,9 +66,11 @@ private:
     static constexpr gpio_num_t GPIO_TOUCH_RIGHT = GPIO_NUM_11;
     
     // 时间阈值（毫秒）
-    static constexpr uint32_t TAP_MAX_DURATION_MS = 500;     // 超过500ms认为是长按
-    static constexpr uint32_t HOLD_MIN_DURATION_MS = 500;    // 最少500ms才触发长按
-    static constexpr uint32_t DEBOUNCE_TIME_MS = 50;         // 消抖时间
+    static constexpr uint32_t TAP_MAX_DURATION_MS = 500;     // 单击最大持续时间
+    static constexpr uint32_t CRADLED_MIN_DURATION_MS = 2000; // 摇篮模式最少2秒
+    static constexpr uint32_t TICKLED_WINDOW_MS = 2000;      // 挠痒检测窗口2秒
+    static constexpr uint32_t TICKLED_MIN_TOUCHES = 4;       // 挠痒最少触摸次数
+    static constexpr uint32_t DEBOUNCE_TIME_MS = 30;         // 消抖时间（减少以提高响应）
     
     // 触摸状态
     struct TouchState {
@@ -73,7 +78,15 @@ private:
         bool was_touched;
         int64_t touch_start_time;
         int64_t last_change_time;
-        bool hold_triggered;
+        bool event_triggered;  // 替代hold_triggered，更通用
+    };
+    
+    // 挠痒检测状态
+    struct TickleDetector {
+        std::vector<int64_t> touch_times;  // 记录触摸时间戳
+        int64_t window_start_time;
+        
+        TickleDetector() : window_start_time(0) {}
     };
     
     // 状态变量
@@ -88,6 +101,11 @@ private:
     uint32_t right_baseline_;  // 右侧触摸基准值
     uint32_t left_threshold_;  // 左侧触摸阈值
     uint32_t right_threshold_; // 右侧触摸阈值
+    
+    // 特殊事件检测
+    TickleDetector tickle_detector_;
+    int64_t both_touch_start_time_;  // 双侧同时触摸开始时间
+    bool cradled_triggered_;
     
     // 任务相关
     TaskHandle_t task_handle_;
@@ -105,8 +123,10 @@ private:
     // 处理单个触摸输入（旧版本，保留兼容）
     void ProcessTouch(gpio_num_t gpio, TouchPosition position, TouchState& state);
     
-    // 处理触摸状态（新版本）
-    void ProcessTouchWithState(bool currently_touched, TouchPosition position, TouchState& state);
+    // 处理触摸状态
+    void ProcessSingleTouch(bool currently_touched, TouchPosition position, TouchState& state);
+    void ProcessSpecialEvents();  // 处理特殊事件（cradled, tickled）
+    bool IsIMUStable();  // 检查IMU是否稳定（用于cradled检测）
     
     // 事件分发
     void DispatchEvent(const TouchEvent& event);

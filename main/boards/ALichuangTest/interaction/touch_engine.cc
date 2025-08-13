@@ -1,7 +1,7 @@
 #include "touch_engine.h"
 #include <esp_log.h>
 #include <esp_timer.h>
-#include <driver/touch_sensor.h>
+#include <driver/touch_pad.h>
 #include <soc/touch_sensor_channel.h>
 
 #define TAG "TouchEngine"
@@ -17,7 +17,9 @@ TouchEngine::TouchEngine()
     , right_baseline_(0)
     , left_threshold_(0)
     , right_threshold_(0)
-    , task_handle_(nullptr) {
+    , task_handle_(nullptr)
+    , both_touch_start_time_(0)
+    , cradled_triggered_(false) {
     
     // 初始化触摸状态
     left_state_ = {false, false, 0, 0, false};
@@ -36,7 +38,7 @@ TouchEngine::~TouchEngine() {
 }
 
 void TouchEngine::Initialize() {
-    ESP_LOGI(TAG, "Initializing ESP32-S3 touch engine (Simple version)");
+    ESP_LOGI(TAG, "Initializing ESP32-S3 touch engine with denoise");
     
     // 1. 初始化触摸传感器驱动
     esp_err_t ret = touch_pad_init();
@@ -52,134 +54,83 @@ void TouchEngine::Initialize() {
     xTaskCreate(TouchTask, "touch_task", 3072, this, 10, &task_handle_);
     
     enabled_ = true;
-    ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (TOUCH10), GPIO11 (TOUCH11)");
+    ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT)");
 }
 
 void TouchEngine::InitializeGPIO() {
-    ESP_LOGI(TAG, "Configuring touch sensor...");
-    
-    // 1. 基本配置 - 按照文档最简单的方式
-    // 配置GPIO10为触摸通道
+    // 1. 配置触摸通道
     esp_err_t ret = touch_pad_config(TOUCH_PAD_NUM10);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to config touch pad 10: %s", esp_err_to_name(ret));
         return;
     }
-    ESP_LOGI(TAG, "Touch pad 10 configured");
     
-    // 配置GPIO11为触摸通道
     ret = touch_pad_config(TOUCH_PAD_NUM11);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to config touch pad 11: %s", esp_err_to_name(ret));
         return;
     }
-    ESP_LOGI(TAG, "Touch pad 11 configured");
     
-    // 2. 设置测量时间参数（可选）
-    touch_pad_set_charge_discharge_times(500);
-    touch_pad_set_measurement_interval(0x1000);
+    // 2. 配置去噪功能（重要！防止误触发）
+    touch_pad_denoise_t denoise = {
+        .grade = TOUCH_PAD_DENOISE_BIT4,      // 去噪级别
+        .cap_level = TOUCH_PAD_DENOISE_CAP_L4, // 电容级别
+    };
+    touch_pad_denoise_set_config(&denoise);
+    touch_pad_denoise_enable();
+    ESP_LOGI(TAG, "Denoise function enabled");
     
-    // 3. 设置电压（可选）
-    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
+    // 3. 使用TIMER模式自动触发测量
+    touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+    touch_pad_fsm_start();
     
-    // 4. 设置FSM模式为软件控制（我们手动触发）
-    touch_pad_set_fsm_mode(TOUCH_FSM_MODE_SW);
-    
-    // 5. 等待稳定
+    // 4. 等待稳定后读取基准值
     vTaskDelay(pdMS_TO_TICKS(100));
-    
-    // 6. 读取初始值来确定是否工作
-    uint32_t value10 = 0, value11 = 0;
-    
-    // 触发一次测量
-    touch_pad_sw_start();
-    vTaskDelay(pdMS_TO_TICKS(10));
-    
-    // 读取值
-    ret = touch_pad_read_raw_data(TOUCH_PAD_NUM10, &value10);
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Initial Touch10 value: %ld", value10);
-    } else {
-        ESP_LOGE(TAG, "Failed to read Touch10: %s", esp_err_to_name(ret));
-    }
-    
-    ret = touch_pad_read_raw_data(TOUCH_PAD_NUM11, &value11);
-    if (ret == ESP_OK) {
-        ESP_LOGI(TAG, "Initial Touch11 value: %ld", value11);
-    } else {
-        ESP_LOGE(TAG, "Failed to read Touch11: %s", esp_err_to_name(ret));
-    }
-    
-    // 7. 多次读取来建立基准值
     ReadBaseline();
 }
 
 void TouchEngine::ReadBaseline() {
-    ESP_LOGI(TAG, "Establishing baseline values...");
-    
     uint32_t sum10 = 0, sum11 = 0;
-    uint32_t min10 = UINT32_MAX, max10 = 0;
-    uint32_t min11 = UINT32_MAX, max11 = 0;
+    const int samples = 30;  // 增加采样次数
     
-    // 读取20次，找出范围
-    for(int i = 0; i < 20; i++) {
-        uint32_t val10, val11;
+    // 读取多次建立稳定基准
+    for(int i = 0; i < samples; i++) {
+        uint32_t val10 = 0, val11 = 0;
         
-        // 触发测量
-        touch_pad_sw_start();
-        vTaskDelay(pdMS_TO_TICKS(10));
-        
-        // 读取GPIO10
-        if (touch_pad_read_raw_data(TOUCH_PAD_NUM10, &val10) == ESP_OK) {
+        // TIMER模式下自动测量，直接读取
+        esp_err_t ret10 = touch_pad_read_raw_data(TOUCH_PAD_NUM10, &val10);
+        if (ret10 == ESP_OK) {
             sum10 += val10;
-            if (val10 < min10) min10 = val10;
-            if (val10 > max10) max10 = val10;
-            if (i % 5 == 0) {  // 每5次显示一次
-                ESP_LOGI(TAG, "Touch10 reading %d: %ld", i, val10);
-            }
+        } else if (i == 0) {
+            ESP_LOGE(TAG, "Failed to read TOUCH_PAD_NUM10: %s", esp_err_to_name(ret10));
         }
         
-        // 读取GPIO11
-        if (touch_pad_read_raw_data(TOUCH_PAD_NUM11, &val11) == ESP_OK) {
+        esp_err_t ret11 = touch_pad_read_raw_data(TOUCH_PAD_NUM11, &val11);
+        if (ret11 == ESP_OK) {
             sum11 += val11;
-            if (val11 < min11) min11 = val11;
-            if (val11 > max11) max11 = val11;
-            if (i % 5 == 0) {  // 每5次显示一次
-                ESP_LOGI(TAG, "Touch11 reading %d: %ld", i, val11);
-            }
+        } else if (i == 0) {
+            ESP_LOGE(TAG, "Failed to read TOUCH_PAD_NUM11: %s", esp_err_to_name(ret11));
         }
         
-        vTaskDelay(pdMS_TO_TICKS(20));
+        // 首次读取时显示原始值
+        if (i == 0) {
+            ESP_LOGI(TAG, "Initial raw values - Touch10: %ld, Touch11: %ld", val10, val11);
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
     
     // 计算平均值作为基准
-    left_baseline_ = sum10 / 20;
-    right_baseline_ = sum11 / 20;
+    left_baseline_ = sum10 / samples;
+    right_baseline_ = sum11 / samples;
     
-    ESP_LOGI(TAG, "Touch10 - Baseline: %ld, Range: [%ld-%ld]", 
-             left_baseline_, min10, max10);
-    ESP_LOGI(TAG, "Touch11 - Baseline: %ld, Range: [%ld-%ld]", 
-             right_baseline_, min11, max11);
+    // 设置更保守的阈值，减少误触发
+    // ESP32-S3触摸时数值通常会减少
+    left_threshold_ = left_baseline_ * 0.6;   // 60%的基准值（更大的变化才触发）
+    right_threshold_ = right_baseline_ * 0.6;
     
-    // 设置阈值 - 先尝试两种可能：
-    // 1. 如果触摸时数值减少（大多数ESP32）
-    left_threshold_ = left_baseline_ * 0.8;   // 80%的基准值
-    right_threshold_ = right_baseline_ * 0.8;
-    
-    // 2. 如果基准值很小（<1000），可能触摸时数值增加
-    if (left_baseline_ < 1000) {
-        left_threshold_ = left_baseline_ * 1.5;  // 150%的基准值
-        ESP_LOGI(TAG, "Touch10 using increase mode, threshold: %ld", left_threshold_);
-    } else {
-        ESP_LOGI(TAG, "Touch10 using decrease mode, threshold: %ld", left_threshold_);
-    }
-    
-    if (right_baseline_ < 1000) {
-        right_threshold_ = right_baseline_ * 1.5;
-        ESP_LOGI(TAG, "Touch11 using increase mode, threshold: %ld", right_threshold_);
-    } else {
-        ESP_LOGI(TAG, "Touch11 using decrease mode, threshold: %ld", right_threshold_);
-    }
+    ESP_LOGI(TAG, "Touch baselines - Left: %ld (thr: %ld), Right: %ld (thr: %ld)", 
+             left_baseline_, left_threshold_, right_baseline_, right_threshold_);
 }
 
 void TouchEngine::RegisterCallback(TouchEventCallback callback) {
@@ -189,24 +140,18 @@ void TouchEngine::RegisterCallback(TouchEventCallback callback) {
 void TouchEngine::TouchTask(void* param) {
     TouchEngine* engine = static_cast<TouchEngine*>(param);
     
-    ESP_LOGI(TAG, "Touch task started");
-    
     while (true) {
         if (engine->enabled_) {
             engine->Process();
         }
         
-        // 50ms轮询间隔
-        vTaskDelay(pdMS_TO_TICKS(50));
+        // 20ms轮询间隔，提高响应速度
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
 void TouchEngine::Process() {
-    // 触发测量
-    touch_pad_sw_start();
-    vTaskDelay(pdMS_TO_TICKS(10));
-    
-    // 读取触摸传感器值
+    // TIMER模式下自动测量，直接读取值
     uint32_t left_value = 0, right_value = 0;
     esp_err_t ret1 = touch_pad_read_raw_data(TOUCH_PAD_NUM10, &left_value);
     esp_err_t ret2 = touch_pad_read_raw_data(TOUCH_PAD_NUM11, &right_value);
@@ -215,63 +160,47 @@ void TouchEngine::Process() {
         return;  // 读取失败，跳过这次
     }
     
-    // 调试输出（每2秒一次，更详细）
+    // 调试输出（每10秒一次，减少干扰）
     static int64_t last_debug_time = 0;
     int64_t current_time = esp_timer_get_time();
-    if (current_time - last_debug_time > 2000000) {
-        ESP_LOGI(TAG, "Touch values:");
-        ESP_LOGI(TAG, "  Left  (GPIO10): curr=%ld, base=%ld, thr=%ld, touched=%s", 
-                left_value, left_baseline_, left_threshold_,
-                left_touched_ ? "YES" : "NO");
-        ESP_LOGI(TAG, "  Right (GPIO11): curr=%ld, base=%ld, thr=%ld, touched=%s", 
-                right_value, right_baseline_, right_threshold_,
-                right_touched_ ? "YES" : "NO");
+    if (current_time - last_debug_time > 10000000) {  // 10秒
+        ESP_LOGD(TAG, "Touch values - L: %ld/%ld (%.1f%%), R: %ld/%ld (%.1f%%)", 
+                left_value, left_baseline_, 
+                left_baseline_ > 0 ? (float)left_value/left_baseline_*100 : 0,
+                right_value, right_baseline_,
+                right_baseline_ > 0 ? (float)right_value/right_baseline_*100 : 0);
         last_debug_time = current_time;
     }
     
-    // 根据基准值大小判断触摸检测逻辑
+    // 简化检测逻辑 - ESP32-S3触摸时数值减少
+    // 添加死区防止噪声触发
     bool left_touched = false;
     bool right_touched = false;
     
-    // 对于GPIO10
-    if (left_baseline_ < 1000) {
-        // 小基准值：触摸时增加
-        left_touched = (left_value > left_threshold_);
-    } else {
-        // 大基准值：触摸时减少
-        left_touched = (left_value < left_threshold_);
+    // 只有当变化足够大时才认为是触摸
+    if (left_baseline_ > 0) {
+        float left_ratio = (float)left_value / left_baseline_;
+        left_touched = (left_ratio < 0.6);  // 值下降到60%以下才认为触摸
     }
     
-    // 对于GPIO11
-    if (right_baseline_ < 1000) {
-        // 小基准值：触摸时增加
-        right_touched = (right_value > right_threshold_);
-    } else {
-        // 大基准值：触摸时减少
-        right_touched = (right_value < right_threshold_);
+    if (right_baseline_ > 0) {
+        float right_ratio = (float)right_value / right_baseline_;
+        right_touched = (right_ratio < 0.6);  // 值下降到60%以下才认为触摸
     }
     
-    // 如果检测到显著变化，输出日志
-    if (left_touched != left_touched_) {
-        ESP_LOGI(TAG, "Touch10 state changed: %s (value: %ld)", 
-                left_touched ? "TOUCHED" : "RELEASED", left_value);
-    }
-    if (right_touched != right_touched_) {
-        ESP_LOGI(TAG, "Touch11 state changed: %s (value: %ld)", 
-                right_touched ? "TOUCHED" : "RELEASED", right_value);
-    }
+    // 处理单侧触摸事件
+    ProcessSingleTouch(left_touched, TouchPosition::LEFT, left_state_);
+    ProcessSingleTouch(right_touched, TouchPosition::RIGHT, right_state_);
     
-    // 处理触摸状态
-    ProcessTouchWithState(left_touched, TouchPosition::LEFT, left_state_);
-    ProcessTouchWithState(right_touched, TouchPosition::RIGHT, right_state_);
+    // 处理特殊事件（cradled, tickled）
+    ProcessSpecialEvents();
     
     // 更新全局状态
     left_touched_ = left_touched;
     right_touched_ = right_touched;
 }
 
-// 保持原有的ProcessTouchWithState和其他辅助函数不变
-void TouchEngine::ProcessTouchWithState(bool currently_touched, TouchPosition position, TouchState& state) {
+void TouchEngine::ProcessSingleTouch(bool currently_touched, TouchPosition position, TouchState& state) {
     int64_t current_time = esp_timer_get_time();
     
     // 消抖处理
@@ -287,16 +216,16 @@ void TouchEngine::ProcessTouchWithState(bool currently_touched, TouchPosition po
         // 按下事件
         state.is_touched = true;
         state.touch_start_time = current_time;
-        state.hold_triggered = false;
+        state.event_triggered = false;
         
-        ESP_LOGI(TAG, "Touch DOWN on %s", 
-                position == TouchPosition::LEFT ? "LEFT" : "RIGHT");
+        // 记录触摸时间用于tickled检测
+        tickle_detector_.touch_times.push_back(current_time);
         
     } else if (state.is_touched && !currently_touched) {
         // 释放事件
         uint32_t duration_ms = (current_time - state.touch_start_time) / 1000;
         
-        if (!state.hold_triggered && duration_ms < TAP_MAX_DURATION_MS) {
+        if (!state.event_triggered && duration_ms < TAP_MAX_DURATION_MS) {
             // 触发单击事件
             TouchEvent event;
             event.type = TouchEventType::SINGLE_TAP;
@@ -308,58 +237,79 @@ void TouchEngine::ProcessTouchWithState(bool currently_touched, TouchPosition po
             
             ESP_LOGI(TAG, "SINGLE_TAP on %s (duration: %ld ms)", 
                     position == TouchPosition::LEFT ? "LEFT" : "RIGHT", duration_ms);
-        } else if (state.hold_triggered) {
-            // 长按释放事件
-            TouchEvent event;
-            event.type = TouchEventType::RELEASE;
-            event.position = position;
-            event.timestamp_us = current_time;
-            event.duration_ms = duration_ms;
-            
-            DispatchEvent(event);
-            
-            ESP_LOGI(TAG, "RELEASE on %s after hold (duration: %ld ms)", 
-                    position == TouchPosition::LEFT ? "LEFT" : "RIGHT", duration_ms);
         }
         
         state.is_touched = false;
-        state.hold_triggered = false;
-        
-        ESP_LOGI(TAG, "Touch UP on %s", 
-                position == TouchPosition::LEFT ? "LEFT" : "RIGHT");
-        
-    } else if (state.is_touched && currently_touched) {
-        // 持续按下状态
-        uint32_t duration_ms = (current_time - state.touch_start_time) / 1000;
-        
-        if (!state.hold_triggered && duration_ms >= HOLD_MIN_DURATION_MS) {
-            // 触发长按事件
-            state.hold_triggered = true;
-            
-            TouchEvent event;
-            event.type = TouchEventType::HOLD;
-            event.position = position;
-            event.timestamp_us = current_time;
-            event.duration_ms = duration_ms;
-            
-            DispatchEvent(event);
-            
-            ESP_LOGI(TAG, "HOLD on %s (duration: %ld ms)", 
-                    position == TouchPosition::LEFT ? "LEFT" : "RIGHT", duration_ms);
-        }
+        state.event_triggered = false;
     }
     
     state.was_touched = currently_touched;
 }
 
-void TouchEngine::ProcessTouch(gpio_num_t gpio, TouchPosition position, TouchState& state) {
-    // 这个函数在新版本中不再使用
+void TouchEngine::ProcessSpecialEvents() {
+    int64_t current_time = esp_timer_get_time();
+    
+    // 1. 检测cradled事件（双侧持续触摸>2秒且IMU静止）
+    if (left_touched_ && right_touched_) {
+        if (both_touch_start_time_ == 0) {
+            both_touch_start_time_ = current_time;
+            cradled_triggered_ = false;
+        } else {
+            uint32_t duration_ms = (current_time - both_touch_start_time_) / 1000;
+            if (!cradled_triggered_ && duration_ms >= CRADLED_MIN_DURATION_MS) {
+                // 检查IMU是否稳定
+                if (IsIMUStable()) {
+                    cradled_triggered_ = true;
+                    
+                    TouchEvent event;
+                    event.type = TouchEventType::CRADLED;
+                    event.position = TouchPosition::BOTH;
+                    event.timestamp_us = current_time;
+                    event.duration_ms = duration_ms;
+                    
+                    DispatchEvent(event);
+                    ESP_LOGI(TAG, "CRADLED detected (both sides held for %ld ms with stable IMU)", duration_ms);
+                }
+            }
+        }
+    } else {
+        both_touch_start_time_ = 0;
+        cradled_triggered_ = false;
+    }
+    
+    // 2. 检测tickled事件（2秒内多次无规律触摸>4次）
+    // 清理过时的触摸记录
+    auto& times = tickle_detector_.touch_times;
+    times.erase(
+        std::remove_if(times.begin(), times.end(),
+            [current_time](int64_t t) { 
+                return (current_time - t) > (TICKLED_WINDOW_MS * 1000); 
+            }),
+        times.end()
+    );
+    
+    // 检查是否达到tickled条件
+    if (times.size() >= TICKLED_MIN_TOUCHES) {
+        TouchEvent event;
+        event.type = TouchEventType::TICKLED;
+        event.position = TouchPosition::ANY;
+        event.timestamp_us = current_time;
+        event.duration_ms = 0;
+        
+        DispatchEvent(event);
+        ESP_LOGI(TAG, "TICKLED detected (%zu touches in 2 seconds)", times.size());
+        
+        // 清空记录，避免重复触发
+        times.clear();
+    }
 }
 
-bool TouchEngine::ReadTouchGPIO(gpio_num_t gpio) {
-    // 这个函数在新版本中不再使用
-    return false;
+bool TouchEngine::IsIMUStable() {
+    // TODO: 需要从MotionEngine获取IMU稳定状态
+    // 暂时返回true，后续集成MotionEngine时实现
+    return true;
 }
+
 
 void TouchEngine::DispatchEvent(const TouchEvent& event) {
     for (const auto& callback : callbacks_) {
