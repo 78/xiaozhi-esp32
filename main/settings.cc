@@ -67,6 +67,27 @@ void Settings::SetInt(const std::string& key, int32_t value) {
     }
 }
 
+bool Settings::GetBool(const std::string& key, bool default_value) {
+    if (nvs_handle_ == 0) {
+        return default_value;
+    }
+
+    uint8_t value;
+    if (nvs_get_u8(nvs_handle_, key.c_str(), &value) != ESP_OK) {
+        return default_value;
+    }
+    return value != 0;
+}
+
+void Settings::SetBool(const std::string& key, bool value) {
+    if (read_write_) {
+        ESP_ERROR_CHECK(nvs_set_u8(nvs_handle_, key.c_str(), value ? 1 : 0));
+        dirty_ = true;
+    } else {
+        ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
+    }
+}
+
 void Settings::EraseKey(const std::string& key) {
     if (read_write_) {
         auto ret = nvs_erase_key(nvs_handle_, key.c_str());
