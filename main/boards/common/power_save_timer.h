@@ -22,6 +22,7 @@ private:
     esp_timer_handle_t power_save_timer_ = nullptr;
     bool enabled_ = false;
     bool in_sleep_mode_ = false;
+    bool is_wake_word_running_ = false;
     int ticks_ = 0;
     int cpu_max_freq_;
     int seconds_to_sleep_;

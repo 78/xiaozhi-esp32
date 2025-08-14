@@ -158,7 +158,7 @@ void Display::UpdateStatusBar(bool update_all) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
                     lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                    app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty
@@ -269,8 +269,8 @@ void Display::SetTheme(const std::string& theme_name) {
     settings.SetString("theme", theme_name);
 }
 
-void Display::ShowStandbyScreen(bool show) {
-    if (show) {
+void Display::SetPowerSaveMode(bool on) {
+    if (on) {
         SetChatMessage("system", "");
         SetEmotion("sleepy");
     } else {

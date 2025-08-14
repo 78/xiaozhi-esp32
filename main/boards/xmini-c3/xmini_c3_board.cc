@@ -9,6 +9,7 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "font_awesome_symbols.h"
+#include "press_to_talk_mcp_tool.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -29,31 +30,20 @@ private:
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
     Button boot_button_;
-    bool press_to_talk_enabled_ = false;
     PowerSaveTimer* power_save_timer_ = nullptr;
+    PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        power_save_timer_ = new PowerSaveTimer(160, 600);
+        power_save_timer_ = new PowerSaveTimer(160, 300);
 #else
         power_save_timer_ = new PowerSaveTimer(160, 60);
 #endif
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            GetDisplay()->SetPowerSaveMode(true);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -137,7 +127,7 @@ private:
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            if (!press_to_talk_enabled_) {
+            if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
                 app.ToggleChatState();
             }
         });
@@ -145,39 +135,20 @@ private:
             if (power_save_timer_) {
                 power_save_timer_->WakeUp();
             }
-            if (press_to_talk_enabled_) {
+            if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
                 Application::GetInstance().StartListening();
             }
         });
         boot_button_.OnPressUp([this]() {
-            if (press_to_talk_enabled_) {
+            if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
                 Application::GetInstance().StopListening();
             }
         });
     }
 
     void InitializeTools() {
-        Settings settings("vendor");
-        press_to_talk_enabled_ = settings.GetInt("press_to_talk", 0) != 0;
-
-        auto& mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.set_press_to_talk",
-            "Switch between press to talk mode (长按说话) and click to talk mode (单击说话).\n"
-            "The mode can be `press_to_talk` or `click_to_talk`.",
-            PropertyList({
-                Property("mode", kPropertyTypeString)
-            }),
-            [this](const PropertyList& properties) -> ReturnValue {
-                auto mode = properties["mode"].value<std::string>();
-                if (mode == "press_to_talk") {
-                    SetPressToTalkEnabled(true);
-                    return true;
-                } else if (mode == "click_to_talk") {
-                    SetPressToTalkEnabled(false);
-                    return true;
-                }
-                throw std::runtime_error("Invalid mode: " + mode);
-            });
+        press_to_talk_tool_ = new PressToTalkMcpTool();
+        press_to_talk_tool_->Initialize();
     }
 
 public:
@@ -209,16 +180,11 @@ public:
         return &audio_codec;
     }
 
-    void SetPressToTalkEnabled(bool enabled) {
-        press_to_talk_enabled_ = enabled;
-
-        Settings settings("vendor", true);
-        settings.SetInt("press_to_talk", enabled ? 1 : 0);
-        ESP_LOGI(TAG, "Press to talk enabled: %d", enabled);
-    }
-
-    bool IsPressToTalkEnabled() {
-        return press_to_talk_enabled_;
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 
