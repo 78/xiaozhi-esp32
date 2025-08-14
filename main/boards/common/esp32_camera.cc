@@ -60,12 +60,12 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
 
     preview_image_.header.stride = preview_image_.header.w * 2;
     preview_image_.data_size = preview_image_.header.w * preview_image_.header.h * 2;
-    preview_buffer_ = (uint8_t*)heap_caps_malloc(preview_image_.data_size, MALLOC_CAP_SPIRAM);
-    if (preview_buffer_ == nullptr) {
+    preview_image_.data = (uint8_t*)heap_caps_malloc(preview_image_.data_size, MALLOC_CAP_SPIRAM);
+    if (preview_image_.data == nullptr) {
         ESP_LOGE(TAG, "Failed to allocate memory for preview image");
         return;
     }
-    preview_image_.data = preview_buffer_;
+
 }
 
 Esp32Camera::~Esp32Camera() {
@@ -73,9 +73,9 @@ Esp32Camera::~Esp32Camera() {
         esp_camera_fb_return(fb_);
         fb_ = nullptr;
     }
-    if (preview_buffer_) {
-        heap_caps_free(preview_buffer_);
-        preview_buffer_ = nullptr;
+    if (preview_image_.data) {
+        heap_caps_free((void*)preview_image_.data);
+        preview_image_.data = nullptr;
     }
     esp_camera_deinit();
 }
@@ -120,7 +120,7 @@ bool Esp32Camera::Capture() {
         if (fb_->format == PIXFORMAT_JPEG) {
             // JPEG格式需要先解码为RGB565
             // 分配足够的缓冲区用于RGB565数据
-            bool converted = jpg2rgb565(fb_->buf, fb_->len, preview_buffer_, JPG_SCALE_NONE);
+            bool converted = jpg2rgb565(fb_->buf, fb_->len, preview_image_.data, JPG_SCALE_NONE);
             if (converted) {
                 display->SetPreviewImage(&preview_image_);
             } else {
