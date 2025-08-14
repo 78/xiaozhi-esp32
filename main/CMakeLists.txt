@@ -26,7 +26,18 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "audio" "protocols" "ui/ui")
+
+# 添加UI文件
+file(GLOB UI_SOURCES
+    "ui/ui/*.c"
+    "ui/ui/screens/*.c"
+    "ui/ui/components/*.c"
+    "ui/ui/images/*.c"
+    "ui/ui/fonts/*.c"
+    "ui/ui/themes/*.c"
+)
+list(APPEND SOURCES ${UI_SOURCES})
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
