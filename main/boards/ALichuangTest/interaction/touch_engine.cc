@@ -17,9 +17,9 @@ TouchEngine::TouchEngine()
     , right_baseline_(0)
     , left_threshold_(0)
     , right_threshold_(0)
-    , task_handle_(nullptr)
     , both_touch_start_time_(0)
-    , cradled_triggered_(false) {
+    , cradled_triggered_(false)
+    , task_handle_(nullptr) {
     
     // 初始化触摸状态
     left_state_ = {false, false, 0, 0, false};
@@ -46,15 +46,20 @@ void TouchEngine::Initialize() {
         ESP_LOGE(TAG, "Touch pad init failed: %s", esp_err_to_name(ret));
         return;
     }
+    ESP_LOGI(TAG, "Touch pad driver initialized successfully");
     
     // 2. 配置触摸传感器
     InitializeGPIO();
     
     // 3. 创建触摸处理任务
-    xTaskCreate(TouchTask, "touch_task", 3072, this, 10, &task_handle_);
+    BaseType_t task_result = xTaskCreate(TouchTask, "touch_task", 3072, this, 10, &task_handle_);
+    if (task_result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create touch task");
+        return;
+    }
     
     enabled_ = true;
-    ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT)");
+    ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT), task handle: %p", task_handle_);
 }
 
 void TouchEngine::InitializeGPIO() {
@@ -112,9 +117,9 @@ void TouchEngine::ReadBaseline() {
             ESP_LOGE(TAG, "Failed to read TOUCH_PAD_NUM11: %s", esp_err_to_name(ret11));
         }
         
-        // 首次读取时显示原始值
-        if (i == 0) {
-            ESP_LOGI(TAG, "Initial raw values - Touch10: %ld, Touch11: %ld", val10, val11);
+            // 首次和最后一次读取时显示原始值
+        if (i == 0 || i == samples - 1) {
+            ESP_LOGI(TAG, "Sample %d raw values - Touch10: %ld, Touch11: %ld", i, val10, val11);
         }
         
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -125,12 +130,13 @@ void TouchEngine::ReadBaseline() {
     right_baseline_ = sum11 / samples;
     
     // 设置更保守的阈值，减少误触发
-    // ESP32-S3触摸时数值通常会减少
-    left_threshold_ = left_baseline_ * 0.6;   // 60%的基准值（更大的变化才触发）
-    right_threshold_ = right_baseline_ * 0.6;
+    // ESP32-S3触摸时数值会增加（不是减少）
+    left_threshold_ = left_baseline_ * 1.5;   // 150%的基准值（增加50%才触发）
+    right_threshold_ = right_baseline_ * 1.5;
     
     ESP_LOGI(TAG, "Touch baselines - Left: %ld (thr: %ld), Right: %ld (thr: %ld)", 
              left_baseline_, left_threshold_, right_baseline_, right_threshold_);
+    ESP_LOGI(TAG, "Touch detection: values must increase to 150%% of baseline");
 }
 
 void TouchEngine::RegisterCallback(TouchEventCallback callback) {
@@ -139,10 +145,18 @@ void TouchEngine::RegisterCallback(TouchEventCallback callback) {
 
 void TouchEngine::TouchTask(void* param) {
     TouchEngine* engine = static_cast<TouchEngine*>(param);
+    ESP_LOGI(TAG, "Touch task started");
     
+    int counter = 0;
     while (true) {
         if (engine->enabled_) {
             engine->Process();
+            
+            // 每5秒输出一次任务运行状态
+            if (++counter >= 250) {  // 250 * 20ms = 5s
+                ESP_LOGI(TAG, "Touch task running, enabled=%d", engine->enabled_);
+                counter = 0;
+            }
         }
         
         // 20ms轮询间隔，提高响应速度
@@ -157,19 +171,11 @@ void TouchEngine::Process() {
     esp_err_t ret2 = touch_pad_read_raw_data(TOUCH_PAD_NUM11, &right_value);
     
     if (ret1 != ESP_OK || ret2 != ESP_OK) {
+        static int error_count = 0;
+        if (++error_count <= 5) {  // 只报告前5次错误
+            ESP_LOGE(TAG, "Failed to read touch values: ret1=%d, ret2=%d", ret1, ret2);
+        }
         return;  // 读取失败，跳过这次
-    }
-    
-    // 调试输出（每10秒一次，减少干扰）
-    static int64_t last_debug_time = 0;
-    int64_t current_time = esp_timer_get_time();
-    if (current_time - last_debug_time > 10000000) {  // 10秒
-        ESP_LOGD(TAG, "Touch values - L: %ld/%ld (%.1f%%), R: %ld/%ld (%.1f%%)", 
-                left_value, left_baseline_, 
-                left_baseline_ > 0 ? (float)left_value/left_baseline_*100 : 0,
-                right_value, right_baseline_,
-                right_baseline_ > 0 ? (float)right_value/right_baseline_*100 : 0);
-        last_debug_time = current_time;
     }
     
     // 简化检测逻辑 - ESP32-S3触摸时数值减少
@@ -177,15 +183,44 @@ void TouchEngine::Process() {
     bool left_touched = false;
     bool right_touched = false;
     
+    // 每隔一段时间输出原始值以便调试
+    static int debug_counter = 0;
+    if (++debug_counter >= 100) {  // 100 * 20ms = 2s
+        ESP_LOGI(TAG, "Current touch values - L: %ld (base: %ld), R: %ld (base: %ld)",
+                left_value, left_baseline_, right_value, right_baseline_);
+        debug_counter = 0;
+    }
+    
     // 只有当变化足够大时才认为是触摸
+    // ESP32-S3触摸时数值增加（不是减少）
     if (left_baseline_ > 0) {
         float left_ratio = (float)left_value / left_baseline_;
-        left_touched = (left_ratio < 0.6);  // 值下降到60%以下才认为触摸
+        left_touched = (left_ratio > 1.5);  // 值增加到150%以上才认为触摸
+        
+        // 只在状态改变时输出日志
+        static bool last_left_touched = false;
+        if (left_touched != last_left_touched) {
+            ESP_LOGI(TAG, "Left touch %s - value: %ld, baseline: %ld, ratio: %.1f%%", 
+                    left_touched ? "DETECTED" : "RELEASED",
+                    left_value, left_baseline_, left_ratio * 100);
+            last_left_touched = left_touched;
+        }
+    } else {
+        ESP_LOGW(TAG, "Left baseline is 0, cannot detect touch");
     }
     
     if (right_baseline_ > 0) {
         float right_ratio = (float)right_value / right_baseline_;
-        right_touched = (right_ratio < 0.6);  // 值下降到60%以下才认为触摸
+        right_touched = (right_ratio > 1.5);  // 值增加到150%以上才认为触摸
+        
+        // 只在状态改变时输出日志
+        static bool last_right_touched = false;
+        if (right_touched != last_right_touched) {
+            ESP_LOGI(TAG, "Right touch %s - value: %ld, baseline: %ld, ratio: %.1f%%", 
+                    right_touched ? "DETECTED" : "RELEASED",
+                    right_value, right_baseline_, right_ratio * 100);
+            last_right_touched = right_touched;
+        }
     }
     
     // 处理单侧触摸事件

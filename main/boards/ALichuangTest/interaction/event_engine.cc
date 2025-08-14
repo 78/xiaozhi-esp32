@@ -218,18 +218,24 @@ EventType EventEngine::ConvertTouchEventType(TouchEventType touch_type, TouchPos
     // 根据触摸类型和位置映射到事件类型
     switch (touch_type) {
         case TouchEventType::SINGLE_TAP:
-            if (position == TouchPosition::LEFT) {
-                return EventType::TOUCH_TAP;  // 左侧单击映射为普通TAP
-            } else {
-                return EventType::TOUCH_DOUBLE_TAP;  // 右侧单击映射为DOUBLE_TAP（临时）
-            }
+            return EventType::TOUCH_TAP;  // 左右侧单击都映射为TAP
             
         case TouchEventType::HOLD:
             return EventType::TOUCH_LONG_PRESS;
             
         case TouchEventType::RELEASE:
-            // 释放事件暂时不映射，或可以创建新的事件类型
-            return EventType::TOUCH_TAP;  // 临时映射
+            // 释放事件暂时不处理
+            return EventType::MOTION_NONE;
+            
+        case TouchEventType::CRADLED:
+            // TODO: 可以添加特殊的摇篮模式事件类型
+            ESP_LOGI(TAG, "CRADLED event detected but not mapped to specific EventType");
+            return EventType::MOTION_NONE;
+            
+        case TouchEventType::TICKLED:
+            // TODO: 可以添加特殊的挠痒模式事件类型
+            ESP_LOGI(TAG, "TICKLED event detected but not mapped to specific EventType");
+            return EventType::MOTION_NONE;
             
         default:
             return EventType::MOTION_NONE;

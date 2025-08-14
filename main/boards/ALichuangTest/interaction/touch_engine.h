@@ -12,6 +12,8 @@
 enum class TouchEventType {
     NONE,
     SINGLE_TAP,     // 单击（左或右，<500ms）
+    HOLD,           // 长按（>500ms）
+    RELEASE,        // 释放（之前有HOLD）
     CRADLED,        // 摇篮模式（双侧持续触摸>2秒且IMU静止）
     TICKLED,        // 挠痒模式（2秒内多次无规律触摸>4次）
 };
