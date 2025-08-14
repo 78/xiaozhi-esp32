@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-s3-lcd-ev-board-2",
+            "sdkconfig_append": []
+        }
+    ]
+}
