@@ -65,7 +65,6 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
         ESP_LOGE(TAG, "Failed to allocate memory for preview image");
         return;
     }
-
 }
 
 Esp32Camera::~Esp32Camera() {
@@ -116,27 +115,14 @@ bool Esp32Camera::Capture() {
     // 显示预览图片
     auto display = Board::GetInstance().GetDisplay();
     if (display != nullptr) {
-        // 检查摄像头输出格式
-        if (fb_->format == PIXFORMAT_JPEG) {
-            // JPEG格式需要先解码为RGB565
-            // 分配足够的缓冲区用于RGB565数据
-            bool converted = jpg2rgb565(fb_->buf, fb_->len, preview_image_.data, JPG_SCALE_NONE);
-            if (converted) {
-                display->SetPreviewImage(&preview_image_);
-            } else {
-                ESP_LOGE(TAG, "Failed to convert JPEG to RGB565 for preview");
-            }
-        } else {
-            // RGB565等格式需要进行字节交换处理
-            auto src = (uint16_t*)fb_->buf;
-            auto dst = (uint16_t*)preview_image_.data;
-            size_t pixel_count = fb_->len / 2;
-            for (size_t i = 0; i < pixel_count; i++) {
-                // 交换每个16位字内的字节
-                dst[i] = __builtin_bswap16(src[i]);
-            }
-            display->SetPreviewImage(&preview_image_);
+        auto src = (uint16_t*)fb_->buf;
+        auto dst = (uint16_t*)preview_image_.data;
+        size_t pixel_count = fb_->len / 2;
+        for (size_t i = 0; i < pixel_count; i++) {
+            // 交换每个16位字内的字节
+            dst[i] = __builtin_bswap16(src[i]);
         }
+        display->SetPreviewImage(&preview_image_);
     }
     return true;
 }
@@ -202,56 +188,26 @@ std::string Esp32Camera::Explain(const std::string& question) {
         return "{\"success\": false, \"message\": \"Image explain URL or token is not set\"}";
     }
 
-    QueueHandle_t jpeg_queue = nullptr;
-    // If the format is not JPEG, we need to convert it to JPEG first
-    if (fb_->format != PIXFORMAT_JPEG) {
-        // 创建局部的 JPEG 队列, 40 entries is about to store 512 * 40 = 20480 bytes of JPEG data
-        jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
-        if (jpeg_queue == nullptr) {
-            ESP_LOGE(TAG, "Failed to create JPEG queue");
-            return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
-        }
-
-        // We spawn a thread to encode the image to JPEG
-        encoder_thread_ = std::thread([this, jpeg_queue]() {
-            frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
-                auto jpeg_queue = (QueueHandle_t)arg;
-                JpegChunk chunk = {
-                    .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
-                    .len = len
-                };
-                if (chunk.data != nullptr) {
-                    memcpy(chunk.data, data, len);
-                    xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
-                }
-                return len;
-            }, jpeg_queue);
-            // Add a null chunk to indicate the end of the queue
-            JpegChunk null_chunk = { .data = nullptr, .len = 0 };
-            xQueueSend(jpeg_queue, &null_chunk, portMAX_DELAY);
-        });
-    } else {
-        // JPEG format, we can send it directly
-        // To keep the logic consistent, we still use a queue to send the data
-        jpeg_queue = xQueueCreate(2, sizeof(JpegChunk));
-        if (jpeg_queue == nullptr) {
-            ESP_LOGE(TAG, "Failed to create JPEG queue");
-            return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
-        }
-        JpegChunk chunk = {
-            .data = (uint8_t*)heap_caps_aligned_alloc(16, fb_->len, MALLOC_CAP_SPIRAM),
-            .len = fb_->len
-        };
-        if (chunk.data != nullptr) {
-            memcpy(chunk.data, fb_->buf, fb_->len);
-            xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
-        } else {
-            ESP_LOGE(TAG, "Failed to allocate memory for JPEG chunk");
-        }
-        // Add a null chunk to indicate the end of the queue
-        JpegChunk null_chunk = { .data = nullptr, .len = 0 };
-        xQueueSend(jpeg_queue, &null_chunk, portMAX_DELAY);
+    // 创建局部的 JPEG 队列, 40 entries is about to store 512 * 40 = 20480 bytes of JPEG data
+    QueueHandle_t jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
+    if (jpeg_queue == nullptr) {
+        ESP_LOGE(TAG, "Failed to create JPEG queue");
+        return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
     }
+
+    // We spawn a thread to encode the image to JPEG
+    encoder_thread_ = std::thread([this, jpeg_queue]() {
+        frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
+            auto jpeg_queue = (QueueHandle_t)arg;
+            JpegChunk chunk = {
+                .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
+                .len = len
+            };
+            memcpy(chunk.data, data, len);
+            xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
+            return len;
+        }, jpeg_queue);
+    });
 
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(3);
@@ -269,9 +225,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
     if (!http->Open("POST", explain_url_)) {
         ESP_LOGE(TAG, "Failed to connect to explain URL");
         // Clear the queue
-        if (encoder_thread_.joinable()) {
-            encoder_thread_.join();
-        }
+        encoder_thread_.join();
         JpegChunk chunk;
         while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
             if (chunk.data != nullptr) {
@@ -319,9 +273,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
         heap_caps_free(chunk.data);
     }
     // Wait for the encoder thread to finish
-    if (encoder_thread_.joinable()) {
-        encoder_thread_.join();
-    }
+    encoder_thread_.join();
     // 清理队列
     vQueueDelete(jpeg_queue);
 
