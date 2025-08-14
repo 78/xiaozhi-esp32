@@ -7,6 +7,7 @@
 #include <functional>
 #include <vector>
 #include <algorithm>
+#include "touch_config.h"
 
 // 触摸事件类型
 enum class TouchEventType {
@@ -48,6 +49,9 @@ public:
     // 初始化引擎
     void Initialize();
     
+    // 加载配置
+    void LoadConfiguration(const char* config_path = nullptr);
+    
     // 注册事件回调
     void RegisterCallback(TouchEventCallback callback);
     
@@ -67,12 +71,8 @@ private:
     static constexpr gpio_num_t GPIO_TOUCH_LEFT = GPIO_NUM_10;
     static constexpr gpio_num_t GPIO_TOUCH_RIGHT = GPIO_NUM_11;
     
-    // 时间阈值（毫秒）
-    static constexpr uint32_t TAP_MAX_DURATION_MS = 500;     // 单击最大持续时间
-    static constexpr uint32_t CRADLED_MIN_DURATION_MS = 2000; // 摇篮模式最少2秒
-    static constexpr uint32_t TICKLED_WINDOW_MS = 2000;      // 挠痒检测窗口2秒
-    static constexpr uint32_t TICKLED_MIN_TOUCHES = 4;       // 挠痒最少触摸次数
-    static constexpr uint32_t DEBOUNCE_TIME_MS = 30;         // 消抖时间（减少以提高响应）
+    // 配置参数（从配置文件加载）
+    TouchDetectionConfig config_;
     
     // 触摸状态
     struct TouchState {

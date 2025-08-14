@@ -56,6 +56,9 @@ struct Event {
     Event(EventType t) : type(t), timestamp_us(0) {}
 };
 
+// 现在可以包含 event_processor.h，因为 Event 和 EventType 已定义
+#include "event_processor.h"
+
 // 前向声明
 class MotionEngine;
 class TouchEngine;
@@ -97,6 +100,13 @@ public:
     bool IsLeftTouched() const;
     bool IsRightTouched() const;
     
+    // 配置事件处理策略
+    void ConfigureEventProcessing(EventType type, const EventProcessingConfig& config);
+    void SetDefaultProcessingStrategy(const EventProcessingConfig& config);
+    
+    // 获取事件统计
+    EventProcessor::EventStats GetEventStats(EventType type) const;
+    
 private:
     // 运动引擎（内部创建和管理）
     MotionEngine* motion_engine_;
@@ -105,9 +115,18 @@ private:
     TouchEngine* touch_engine_;
     bool owns_touch_engine_;
     
+    // 事件处理器
+    EventProcessor* event_processor_;
+    
     // 初始化子引擎的回调
     void SetupMotionEngineCallbacks();
     void SetupTouchEngineCallbacks();
+    
+    // 配置默认的事件处理策略
+    void ConfigureDefaultEventProcessing();
+    
+    // 从配置文件或默认配置加载
+    void LoadEventConfiguration();
     
     // 事件回调
     EventCallback global_callback_;

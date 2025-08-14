@@ -557,6 +557,10 @@ private:
         // 初始化触摸引擎
         event_engine_->InitializeTouchEngine();
         
+        // 事件处理策略已通过配置文件自动加载
+        // 如需覆盖特定策略，可在此处调用：
+        // event_engine_->ConfigureEventProcessing(EventType::TOUCH_TAP, custom_config);
+        
         // 设置事件回调
         event_engine_->RegisterCallback([this](const Event& event) {
             HandleEvent(event);

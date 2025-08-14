@@ -1,0 +1,129 @@
+{
+  "touch_detection_parameters": {
+    "comment": "触摸检测参数配置",
+    "tap_max_duration_ms": 500,
+    "hold_min_duration_ms": 600,
+    "cradled_min_duration_ms": 2000,
+    "tickled_window_ms": 2000,
+    "tickled_min_touches": 4,
+    "debounce_time_ms": 30,
+    "touch_threshold_ratio": 1.5
+  },
+  
+  "event_processing_strategies": {
+    "comment": "事件处理策略配置 - 支持 IMMEDIATE, DEBOUNCE, THROTTLE, QUEUE, MERGE, COOLDOWN",
+    
+    "touch_events": {
+      "TOUCH_TAP": {
+        "strategy": "MERGE",
+        "merge_window_ms": 1500,
+        "interval_ms": 500,
+        "comment": "合并1.5秒内的连续点击，处理后500ms冷却"
+      },
+      "TOUCH_DOUBLE_TAP": {
+        "strategy": "COOLDOWN",
+        "interval_ms": 1000,
+        "comment": "双击后1秒冷却"
+      },
+      "TOUCH_LONG_PRESS": {
+        "strategy": "COOLDOWN",
+        "interval_ms": 1000,
+        "comment": "长按后1秒冷却"
+      }
+    },
+    
+    "motion_events": {
+      "MOTION_SHAKE": {
+        "strategy": "THROTTLE",
+        "interval_ms": 2000,
+        "comment": "2秒内只处理一次摇晃"
+      },
+      "MOTION_FLIP": {
+        "strategy": "THROTTLE",
+        "interval_ms": 2000,
+        "comment": "2秒内只处理一次翻转"
+      },
+      "MOTION_PICKUP": {
+        "strategy": "DEBOUNCE",
+        "interval_ms": 500,
+        "comment": "防抖500ms，避免误触发"
+      },
+      "MOTION_FREE_FALL": {
+        "strategy": "IMMEDIATE",
+        "allow_interrupt": true,
+        "comment": "自由落体立即处理"
+      },
+      "MOTION_SHAKE_VIOLENTLY": {
+        "strategy": "IMMEDIATE",
+        "allow_interrupt": true,
+        "comment": "剧烈摇晃立即处理"
+      }
+    },
+    
+    "special_patterns": {
+      "rapid_tap_sequence": {
+        "description": "连续快速点击转换为特殊动作",
+        "min_taps": 3,
+        "window_ms": 2000,
+        "action": "tickle_response"
+      },
+      "left_right_alternating": {
+        "description": "左右交替点击模式",
+        "pattern": ["LEFT", "RIGHT", "LEFT", "RIGHT"],
+        "window_ms": 3000,
+        "action": "dance_mode"
+      }
+    },
+    
+    "default_strategy": {
+      "strategy": "IMMEDIATE",
+      "interval_ms": 0,
+      "comment": "默认立即处理所有未配置的事件"
+    }
+  },
+  
+  "response_mappings": {
+    "comment": "事件响应映射 - 定义不同事件触发的动作",
+    
+    "single_tap": {
+      "left": {
+        "motion": "happy_wiggle",
+        "sound": "chuckle",
+        "emotion": "happy"
+      },
+      "right": {
+        "motion": "curious_tilt",
+        "sound": "hmm",
+        "emotion": "curious"
+      }
+    },
+    
+    "multi_tap": {
+      "3_taps": {
+        "motion": "excited_bounce",
+        "sound": "laugh",
+        "emotion": "laughing"
+      },
+      "5_taps": {
+        "motion": "tickled_shake",
+        "sound": "giggle",
+        "emotion": "tickled"
+      }
+    },
+    
+    "combined_events": {
+      "tap_while_shaking": {
+        "description": "摇晃时点击",
+        "motion": "dizzy_spin",
+        "sound": "whoa",
+        "emotion": "dizzy"
+      },
+      "tap_while_upside_down": {
+        "description": "倒置时点击",
+        "motion": "confused_wobble",
+        "sound": "huh",
+        "emotion": "confused"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 #include "touch_engine.h"
+#include "touch_config.h"
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <driver/touch_pad.h>
@@ -40,7 +41,10 @@ TouchEngine::~TouchEngine() {
 void TouchEngine::Initialize() {
     ESP_LOGI(TAG, "Initializing ESP32-S3 touch engine with denoise");
     
-    // 1. 初始化触摸传感器驱动
+    // 1. 加载配置（使用默认路径）
+    LoadConfiguration();
+    
+    // 2. 初始化触摸传感器驱动
     esp_err_t ret = touch_pad_init();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Touch pad init failed: %s", esp_err_to_name(ret));
@@ -48,10 +52,10 @@ void TouchEngine::Initialize() {
     }
     ESP_LOGI(TAG, "Touch pad driver initialized successfully");
     
-    // 2. 配置触摸传感器
+    // 3. 配置触摸传感器
     InitializeGPIO();
     
-    // 3. 创建触摸处理任务
+    // 4. 创建触摸处理任务
     BaseType_t task_result = xTaskCreate(TouchTask, "touch_task", 3072, this, 10, &task_handle_);
     if (task_result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create touch task");
@@ -60,6 +64,24 @@ void TouchEngine::Initialize() {
     
     enabled_ = true;
     ESP_LOGI(TAG, "Touch engine initialized - GPIO10 (LEFT), GPIO11 (RIGHT), task handle: %p", task_handle_);
+}
+
+void TouchEngine::LoadConfiguration(const char* config_path) {
+    // 如果没有指定路径，使用默认路径
+    const char* path = config_path ? config_path : "/spiffs/event_config.json";
+    
+    // 尝试从文件加载配置
+    if (!TouchConfigLoader::LoadFromFile(path, config_)) {
+        // 如果失败，使用默认配置
+        config_ = TouchConfigLoader::LoadDefaults();
+    }
+    
+    ESP_LOGI(TAG, "Touch detection configuration loaded:");
+    ESP_LOGI(TAG, "  tap_max: %ldms, hold_min: %ldms, debounce: %ldms",
+            config_.tap_max_duration_ms, 
+            config_.hold_min_duration_ms,
+            config_.debounce_time_ms);
+    ESP_LOGI(TAG, "  threshold_ratio: %.1f", config_.touch_threshold_ratio);
 }
 
 void TouchEngine::InitializeGPIO() {
@@ -131,8 +153,8 @@ void TouchEngine::ReadBaseline() {
     
     // 设置更保守的阈值，减少误触发
     // ESP32-S3触摸时数值会增加（不是减少）
-    left_threshold_ = left_baseline_ * 1.5;   // 150%的基准值（增加50%才触发）
-    right_threshold_ = right_baseline_ * 1.5;
+    left_threshold_ = left_baseline_ * config_.touch_threshold_ratio;
+    right_threshold_ = right_baseline_ * config_.touch_threshold_ratio;
     
     ESP_LOGI(TAG, "Touch baselines - Left: %ld (thr: %ld), Right: %ld (thr: %ld)", 
              left_baseline_, left_threshold_, right_baseline_, right_threshold_);
@@ -154,7 +176,7 @@ void TouchEngine::TouchTask(void* param) {
             
             // 每5秒输出一次任务运行状态
             if (++counter >= 250) {  // 250 * 20ms = 5s
-                ESP_LOGI(TAG, "Touch task running, enabled=%d", engine->enabled_);
+                // ESP_LOGD(TAG, "Touch task running, enabled=%d", engine->enabled_);
                 counter = 0;
             }
         }
@@ -186,8 +208,8 @@ void TouchEngine::Process() {
     // 每隔一段时间输出原始值以便调试
     static int debug_counter = 0;
     if (++debug_counter >= 100) {  // 100 * 20ms = 2s
-        ESP_LOGI(TAG, "Current touch values - L: %ld (base: %ld), R: %ld (base: %ld)",
-                left_value, left_baseline_, right_value, right_baseline_);
+        // ESP_LOGD(TAG, "Current touch values - L: %ld (base: %ld), R: %ld (base: %ld)",
+        //         left_value, left_baseline_, right_value, right_baseline_);
         debug_counter = 0;
     }
     
@@ -195,7 +217,7 @@ void TouchEngine::Process() {
     // ESP32-S3触摸时数值增加（不是减少）
     if (left_baseline_ > 0) {
         float left_ratio = (float)left_value / left_baseline_;
-        left_touched = (left_ratio > 1.5);  // 值增加到150%以上才认为触摸
+        left_touched = (left_ratio > config_.touch_threshold_ratio);  // 值增加到配置的比例以上才认为触摸
         
         // 只在状态改变时输出日志
         static bool last_left_touched = false;
@@ -211,7 +233,7 @@ void TouchEngine::Process() {
     
     if (right_baseline_ > 0) {
         float right_ratio = (float)right_value / right_baseline_;
-        right_touched = (right_ratio > 1.5);  // 值增加到150%以上才认为触摸
+        right_touched = (right_ratio > config_.touch_threshold_ratio);  // 值增加到配置的比例以上才认为触摸
         
         // 只在状态改变时输出日志
         static bool last_right_touched = false;
@@ -238,9 +260,14 @@ void TouchEngine::Process() {
 void TouchEngine::ProcessSingleTouch(bool currently_touched, TouchPosition position, TouchState& state) {
     int64_t current_time = esp_timer_get_time();
     
+    // ESP_LOGD(TAG, "ProcessSingleTouch: pos=%s, currently=%d, was=%d, is=%d", 
+    //         position == TouchPosition::LEFT ? "LEFT" : "RIGHT",
+    //         currently_touched, state.was_touched, state.is_touched);
+    
     // 消抖处理
     if (currently_touched != state.was_touched) {
-        if ((current_time - state.last_change_time) < (DEBOUNCE_TIME_MS * 1000)) {
+        if ((current_time - state.last_change_time) < (config_.debounce_time_ms * 1000)) {
+            // ESP_LOGD(TAG, "Debounce: ignoring change within %ldms", config_.debounce_time_ms);
             return;  // 忽略抖动
         }
         state.last_change_time = current_time;
@@ -249,6 +276,9 @@ void TouchEngine::ProcessSingleTouch(bool currently_touched, TouchPosition posit
     // 状态转换处理
     if (currently_touched && !state.is_touched) {
         // 按下事件
+        ESP_LOGI(TAG, "Touch PRESSED on %s", 
+                position == TouchPosition::LEFT ? "LEFT" : "RIGHT");
+        
         state.is_touched = true;
         state.touch_start_time = current_time;
         state.event_triggered = false;
@@ -256,21 +286,52 @@ void TouchEngine::ProcessSingleTouch(bool currently_touched, TouchPosition posit
         // 记录触摸时间用于tickled检测
         tickle_detector_.touch_times.push_back(current_time);
         
+    } else if (state.is_touched && currently_touched) {
+        // 持续按住状态 - 检查是否应该触发长按事件
+        uint32_t duration_ms = (current_time - state.touch_start_time) / 1000;
+        
+        // 如果超过长按阈值且还没有触发过事件
+        if (!state.event_triggered && duration_ms >= config_.hold_min_duration_ms) {
+            // 触发长按事件
+            TouchEvent event;
+            event.type = TouchEventType::HOLD;
+            event.position = position;
+            event.timestamp_us = current_time;
+            event.duration_ms = duration_ms;
+            
+            ESP_LOGI(TAG, "Creating HOLD event: type=%d, position=%d, duration=%ld ms", 
+                    (int)event.type, (int)event.position, event.duration_ms);
+            
+            DispatchEvent(event);
+            
+            ESP_LOGI(TAG, "HOLD on %s dispatched (duration: %ld ms)", 
+                    position == TouchPosition::LEFT ? "LEFT" : "RIGHT", duration_ms);
+            
+            state.event_triggered = true;  // 标记已触发，避免重复触发
+        }
+        
     } else if (state.is_touched && !currently_touched) {
         // 释放事件
         uint32_t duration_ms = (current_time - state.touch_start_time) / 1000;
         
-        if (!state.event_triggered && duration_ms < TAP_MAX_DURATION_MS) {
-            // 触发单击事件
+        ESP_LOGI(TAG, "Touch RELEASED on %s: duration=%ldms, triggered=%d, TAP_MAX=%ld", 
+                position == TouchPosition::LEFT ? "LEFT" : "RIGHT",
+                duration_ms, state.event_triggered, config_.tap_max_duration_ms);
+        
+        if (!state.event_triggered && duration_ms < config_.tap_max_duration_ms) {
+            // 触发单击事件（只有在没有触发长按且时间短于TAP_MAX时）
             TouchEvent event;
             event.type = TouchEventType::SINGLE_TAP;
             event.position = position;
             event.timestamp_us = current_time;
             event.duration_ms = duration_ms;
             
+            ESP_LOGI(TAG, "Creating SINGLE_TAP event: type=%d, position=%d, duration=%ld ms", 
+                    (int)event.type, (int)event.position, event.duration_ms);
+            
             DispatchEvent(event);
             
-            ESP_LOGI(TAG, "SINGLE_TAP on %s (duration: %ld ms)", 
+            ESP_LOGI(TAG, "SINGLE_TAP on %s dispatched (duration: %ld ms)", 
                     position == TouchPosition::LEFT ? "LEFT" : "RIGHT", duration_ms);
         }
         
@@ -291,7 +352,7 @@ void TouchEngine::ProcessSpecialEvents() {
             cradled_triggered_ = false;
         } else {
             uint32_t duration_ms = (current_time - both_touch_start_time_) / 1000;
-            if (!cradled_triggered_ && duration_ms >= CRADLED_MIN_DURATION_MS) {
+            if (!cradled_triggered_ && duration_ms >= config_.cradled_min_duration_ms) {
                 // 检查IMU是否稳定
                 if (IsIMUStable()) {
                     cradled_triggered_ = true;
@@ -317,14 +378,14 @@ void TouchEngine::ProcessSpecialEvents() {
     auto& times = tickle_detector_.touch_times;
     times.erase(
         std::remove_if(times.begin(), times.end(),
-            [current_time](int64_t t) { 
-                return (current_time - t) > (TICKLED_WINDOW_MS * 1000); 
+            [current_time, this](int64_t t) { 
+                return (current_time - t) > (config_.tickled_window_ms * 1000); 
             }),
         times.end()
     );
     
     // 检查是否达到tickled条件
-    if (times.size() >= TICKLED_MIN_TOUCHES) {
+    if (times.size() >= config_.tickled_min_touches) {
         TouchEvent event;
         event.type = TouchEventType::TICKLED;
         event.position = TouchPosition::ANY;
@@ -347,8 +408,12 @@ bool TouchEngine::IsIMUStable() {
 
 
 void TouchEngine::DispatchEvent(const TouchEvent& event) {
+    ESP_LOGI(TAG, "Dispatching TouchEvent: type=%d, position=%d, callbacks=%zu", 
+            (int)event.type, (int)event.position, callbacks_.size());
+    
     for (const auto& callback : callbacks_) {
         if (callback) {
+            ESP_LOGI(TAG, "Calling callback with event type=%d", (int)event.type);
             callback(event);
         }
     }
