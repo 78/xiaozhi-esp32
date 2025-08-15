@@ -55,6 +55,7 @@ void McpServer::AddCommonTools() {
             codec->SetOutputVolume(properties["volume"].value<int>());
             return true;
         });
+        
     AddTool("self.power_save.set_power_save_mode", 
         "Set mcu run mode. If the mode is true, mcu will sleep after 10 minutes(use wake word, button wake up will be 1 minute.)",
         PropertyList({
