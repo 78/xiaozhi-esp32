@@ -321,6 +321,18 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
         bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.5"
 endchoice
 
+choice ALichuang_Display_UI_TYPE
+    depends on BOARD_TYPE_ALICHUANGTEST
+    prompt "Display UI Type"
+    default LINGXI_ANIMA_UI
+    help
+        开发板硬件版本型号选择
+    config XIAOZHI_DEFAULT_UI
+        bool "小智默认UI界面"
+    config LINGXI_ANIMA_UI
+        bool "灵犀动画UI界面"
+endchoice
+
 choice DISPLAY_OLED_TYPE
     depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32
     prompt "OLED Type"

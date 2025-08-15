@@ -5,9 +5,10 @@
 #include "config.h"
 #include "i2c_device.h"
 #include "esp32_camera.h"
-#include "skills/animation.h"
+#include "skills/vibration.h"
 #include "qmi8658.h"
 #include "interaction/event_engine.h"
+#include "pca9685.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -18,9 +19,10 @@
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 #include <esp_timer.h>
-#include <lvgl.h>
 #include <mutex>
 
+#if CONFIG_LINGXI_ANIMA_UI
+#include "skills/animation.h"
 #include "images/emotions/neutral/1.h"
 #include "images/emotions/angry/1.h"
 #include "images/emotions/angry/2.h"
@@ -36,6 +38,9 @@
 #include "images/emotions/surprised/2.h"
 #include "images/emotions/surprised/4.h"
 #include "images/emotions/surprised/6.h"
+#elif CONFIG_XIAOZHI_DEFAULT_UI
+#include "display/lcd_display.h"
+#endif
 
 
 #define TAG "ALichuangTest"
@@ -93,111 +98,30 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     i2c_master_dev_handle_t pca9557_handle_;
     Button boot_button_;
-    AnimaDisplay* display_;
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     Qmi8658* imu_ = nullptr;
     EventEngine* event_engine_ = nullptr;
     esp_timer_handle_t event_timer_ = nullptr;
-    TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
+    Pca9685* pca9685_ = nullptr;           // PCA9685 PWM控制器
+    Vibration* vibration_skill_ = nullptr; // 振动技能管理器
+    TaskHandle_t delay_task_handle = nullptr;
+#if CONFIG_LINGXI_ANIMA_UI
     // 情感相关成员变量
     std::string current_emotion_ = "neutral";
     mutable std::mutex emotion_mutex_;
+    AnimaDisplay* display_;
+    TaskHandle_t image_task_handle_ = nullptr; // 图片显示任务句柄
 
-    void InitializeI2c() {
-        // Initialize I2C peripheral
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)1,
-            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
-        };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-
-        // Initialize PCA9557
-        pca9557_ = new Pca9557(i2c_bus_, 0x19);
-    }
-
-    void InitializeSpi() {
-        spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = GPIO_NUM_40;
-        buscfg.miso_io_num = GPIO_NUM_NC;
-        buscfg.sclk_io_num = GPIO_NUM_41;
-        buscfg.quadwp_io_num = GPIO_NUM_NC;
-        buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
-    }
-
-    void InitializeButtons() {
-        boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
-
-#if CONFIG_USE_DEVICE_AEC
-        boot_button_.OnDoubleClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateIdle) {
-                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
-            }
-        });
-#endif
-    }
-
-    void InitializeSt7789Display() {
-        esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
-        // 液晶屏控制IO初始化
-        ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = GPIO_NUM_NC;
-        io_config.dc_gpio_num = GPIO_NUM_39;
-        io_config.spi_mode = 2;
-        io_config.pclk_hz = 80 * 1000 * 1000;
-        io_config.trans_queue_depth = 10;
-        io_config.lcd_cmd_bits = 8;
-        io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
-
-        // 初始化液晶屏驱动芯片ST7789
-        ESP_LOGD(TAG, "Install LCD driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        
-        esp_lcd_panel_reset(panel);
-        pca9557_->SetOutputState(0, 0);
-
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, true);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new AnimaDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = font_emoji_64_init(),
-#endif
-                                    });
-    }
-    
     void StartImageSlideshow() {
+        // 设置情感变化回调
+        auto display = GetDisplay();
+        if (display) {
+            display->OnEmotionChanged([this](const std::string& emotion) {
+                ESP_LOGI(TAG, "接收到情感变化回调: %s", emotion.c_str());
+                SetCurrentEmotion(emotion);
+            });
+        }
         xTaskCreate(ImageSlideshowTask, "img_slideshow", 4096, this, 3, &image_task_handle_);
         ESP_LOGI(TAG, "图片循环显示任务已启动");
     }
@@ -460,6 +384,131 @@ private:
         delete[] convertedData;
         vTaskDelete(NULL);
     }
+#elif CONFIG_XIAOZHI_DEFAULT_UI
+    LcdDisplay* display_;
+#endif
+
+    void InitializeI2c() {
+        // Initialize I2C peripheral
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = (i2c_port_t)1,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+
+        // Initialize PCA9557
+        pca9557_ = new Pca9557(i2c_bus_, 0x19);
+    }
+
+    bool IsDevicePresent(uint8_t addr) {
+        // 创建设备句柄
+        i2c_master_dev_handle_t dev_handle;
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = addr,
+            .scl_speed_hz = 100000,
+        };
+        
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev_handle);
+        if (ret != ESP_OK) {
+            return false;
+        }
+        
+        // 发送一个字节的数据来检测设备
+        uint8_t test_data = 0x00;
+        ret = i2c_master_transmit(dev_handle, &test_data, 1, 100);
+        
+        // 删除设备句柄
+        i2c_master_bus_rm_device(dev_handle);
+        
+        return (ret == ESP_OK);
+    }
+
+    void InitializeSpi() {
+        spi_bus_config_t buscfg = {};
+        buscfg.mosi_io_num = GPIO_NUM_40;
+        buscfg.miso_io_num = GPIO_NUM_NC;
+        buscfg.sclk_io_num = GPIO_NUM_41;
+        buscfg.quadwp_io_num = GPIO_NUM_NC;
+        buscfg.quadhd_io_num = GPIO_NUM_NC;
+        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    }
+
+    void InitializeButtons() {
+        boot_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        });
+
+#if CONFIG_USE_DEVICE_AEC
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+            }
+        });
+#endif
+    }
+
+    void InitializeSt7789Display() {
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+        // 液晶屏控制IO初始化
+        ESP_LOGD(TAG, "Install panel IO");
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = GPIO_NUM_NC;
+        io_config.dc_gpio_num = GPIO_NUM_39;
+        io_config.spi_mode = 2;
+        io_config.pclk_hz = 80 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
+
+        // 初始化液晶屏驱动芯片ST7789
+        ESP_LOGD(TAG, "Install LCD driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+        
+        esp_lcd_panel_reset(panel);
+        pca9557_->SetOutputState(0, 0);
+
+        esp_lcd_panel_init(panel);
+        esp_lcd_panel_invert_color(panel, true);
+        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
+        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+#if CONFIG_LINGXI_ANIMA_UI
+        display_ = new AnimaDisplay(panel_io, panel,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, {});
+#elif CONFIG_XIAOZHI_DEFAULT_UI
+        display_ = new SpiLcdDisplay(panel_io, panel,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    {
+                                        .text_font = &font_puhui_20_4,
+                                        .icon_font = &font_awesome_20_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+                                        .emoji_font = font_emoji_32_init(),
+#else
+                                        .emoji_font = font_emoji_64_init(),
+#endif
+                                    });
+#endif
+    }
 
     void InitializeTouch()
     {
@@ -543,6 +592,52 @@ private:
             imu_ = nullptr;
         }
     }
+
+    void InitializePca9685() {
+        // 现在我们知道PCA9685在0x40地址，直接使用
+        IsDevicePresent(PCA9685_DEFAULT_ADDR);
+        ESP_LOGI(TAG, "Initializing PCA9685 at address 0x40...");
+        pca9685_ = new Pca9685(i2c_bus_, PCA9685_DEFAULT_ADDR);
+        
+        esp_err_t ret = pca9685_->Initialize(1000);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize PCA9685: %s", esp_err_to_name(ret));
+            delete pca9685_;
+            pca9685_ = nullptr;
+        }
+    }
+    
+    void InitializeVibration() {
+        if (pca9685_ == nullptr) {
+            ESP_LOGW(TAG, "PCA9685 not available, skipping vibration initialization");
+            return;
+        }
+        
+        vibration_skill_ = new Vibration(pca9685_, 0);
+        
+        esp_err_t ret = vibration_skill_->Initialize();
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "Vibration skill initialized successfully");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize vibration skill: %s", esp_err_to_name(ret));
+            delete vibration_skill_;
+            vibration_skill_ = nullptr;
+        }
+    }
+    
+    void StartVibrationTask() {
+        if (vibration_skill_) {
+            esp_err_t ret = vibration_skill_->StartTask();
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "Vibration task started successfully");
+            } else {
+                ESP_LOGE(TAG, "Failed to start vibration task: %s", esp_err_to_name(ret));
+            }
+            vibration_skill_->EnableButtonCycleTest();
+            ESP_LOGI(TAG, "Button cycle test enabled - press GPIO11 to test all patterns");
+        }
+    }
+    
     
     void InitializeInteractionSystem() {
         // 创建事件引擎
@@ -658,21 +753,17 @@ public:
         InitializeButtons();
         InitializeCamera();
         InitializeImu();  // 初始化IMU硬件
+        InitializePca9685();  // 初始化PCA9685 PWM控制器
+        InitializeVibration();  // 初始化振动技能（使用PCA9685）
         InitializeInteractionSystem();  // 初始化交互系统
 
         GetBacklight()->RestoreBrightness();
-
-        // 设置情感变化回调
-        auto display = GetDisplay();
-        if (display) {
-            display->OnEmotionChanged([this](const std::string& emotion) {
-                ESP_LOGI(TAG, "接收到情感变化回调: %s", emotion.c_str());
-                SetCurrentEmotion(emotion);
-            });
-        }
-        
+#if CONFIG_LINGXI_ANIMA_UI       
         // 启动图片循环显示任务
         StartImageSlideshow();
+#endif
+        // 启动振动任务
+        StartVibrationTask();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -691,10 +782,16 @@ public:
         return camera_;
     }
 
+#if CONFIG_LINGXI_ANIMA_UI       
     virtual AnimaDisplay* GetDisplay() override {
         return display_;
     }
-
+#elif CONFIG_XIAOZHI_DEFAULT_UI
+    virtual Display* GetDisplay() override {
+        return display_;
+    }
+#endif
+    
     virtual std::string GetBoardType() override {
         return "lingxi";
     }
@@ -707,6 +804,11 @@ public:
     // 获取IMU（可选，用于外部访问）
     Qmi8658* GetImu() {
         return imu_;
+    }
+    
+    // 获取振动技能管理器（可选，用于外部访问和测试）
+    Vibration* GetVibration() {
+        return vibration_skill_;
     }
 };
 

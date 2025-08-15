@@ -11,6 +11,18 @@
                 "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
                 "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\""
             ]
+        },
+        {
+            "name": "xiaozhi-default-UI",
+            "sdkconfig_append": [
+                "CONFIG_XIAOZHI_DEFAULT_UI=y"
+            ]
+        },
+        {
+            "name": "lingxi-anima-UI",
+            "sdkconfig_append": [
+                "CONFIG_LINGXI_ANIMA_UI=y"
+            ]
         }
     ]
 }

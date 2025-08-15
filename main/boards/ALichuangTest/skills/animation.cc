@@ -71,7 +71,40 @@ AnimaDisplay::AnimaDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_han
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
+    // 调用简化的SetupUI
     SetupUI();
+}
+
+void AnimaDisplay::SetupUI() {
+    DisplayLockGuard lock(this);
+    
+    // 创建最基本的LVGL对象以避免空指针，但不设置复杂UI
+    auto screen = lv_screen_active();
+    
+    // 创建透明容器
+    container_ = lv_obj_create(screen);
+    lv_obj_set_size(container_, width_, height_);
+    lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(container_, 0, 0);
+    lv_obj_set_style_pad_all(container_, 0, 0);
+    
+    // 创建基本的状态标签（设为隐藏，避免系统调用时崩溃）
+    emotion_label_ = lv_label_create(container_);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    
+    // 其他UI组件设为nullptr，避免系统调用时出错
+    status_label_ = nullptr;
+    notification_label_ = nullptr;
+    network_label_ = nullptr;
+    mute_label_ = nullptr;
+    battery_label_ = nullptr;
+    chat_message_label_ = nullptr;
+    low_battery_popup_ = nullptr;
+    low_battery_label_ = nullptr;
+    status_bar_ = nullptr;
+    content_ = nullptr;
+    
+    ESP_LOGI(TAG, "Simplified UI setup completed");
 }
 
 void AnimaDisplay::SetEmotion(const char* emotion) {
@@ -79,6 +112,12 @@ void AnimaDisplay::SetEmotion(const char* emotion) {
     if (emotion_callback_) {
         emotion_callback_(std::string(emotion));
     }
+}
+
+void AnimaDisplay::SetTheme(const std::string& theme_name) {
+    // 只保存主题名称，不操作UI元素（因为我们使用canvas）
+    current_theme_name_ = theme_name;
+    ESP_LOGI(TAG, "Theme set to: %s (UI elements not affected due to canvas usage)", theme_name.c_str());
 }
 
 void AnimaDisplay::CreateCanvas() {
