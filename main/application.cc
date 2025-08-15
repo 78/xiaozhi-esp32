@@ -8,6 +8,8 @@
 #include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
+#include "settings.h"
+
 
 #include <cstring>
 #include <esp_log.h>
@@ -395,7 +397,10 @@ void Application::Start() {
         }
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
-        board.SetPowerSaveMode(true);
+        Settings settings("wifi", false);
+        if (settings.GetBool("sleep_mode", true)) {
+            board.SetPowerSaveMode(true);
+        }
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
