@@ -8,6 +8,7 @@
 #include <string>
 #include <functional>
 #include "../config.h"
+#include "../pca9685.h"
 
 // 所有预设的、声明式的振动模式ID
 typedef enum {
@@ -27,7 +28,7 @@ typedef enum {
 
 // 振动关键帧结构，定义每个振动步骤的强度和持续时间
 typedef struct {
-    uint8_t strength;     // 振动强度 (0-255)
+    uint16_t strength;    // 振动强度 (0-4095，12位PWM)
     uint16_t duration_ms; // 持续时间 (毫秒)
 } vibration_keyframe_t;
 
@@ -37,7 +38,8 @@ typedef struct {
  */
 class Vibration {
 private:
-    gpio_num_t vibration_pin_;
+    Pca9685* pca9685_;
+    uint8_t vibration_channel_;
     QueueHandle_t vibration_queue_;
     TaskHandle_t vibration_task_handle_;
     bool initialized_;
@@ -50,9 +52,9 @@ private:
     static void ButtonTestTask(void* parameter);
     
     // 私有方法
-    void SetVibrationStrength(uint8_t strength);
+    void SetVibrationStrength(uint16_t strength);
     void PlayVibrationPattern(const vibration_keyframe_t* pattern);
-    esp_err_t InitVibrationGpio();
+    esp_err_t InitVibrationPwm();
     esp_err_t InitTestButton();
     vibration_id_t GetVibrationForEmotion(const std::string& emotion);
     
@@ -64,7 +66,12 @@ private:
     bool cycle_test_mode_;  // 是否为循环测试模式
 
 public:
-    Vibration();
+    /**
+     * @brief 构造函数
+     * @param pca9685 PCA9685驱动器实例指针
+     * @param channel PWM通道号（0-15），默认0（LED0）
+     */
+    Vibration(Pca9685* pca9685, uint8_t channel = 0);
     ~Vibration();
 
     /**

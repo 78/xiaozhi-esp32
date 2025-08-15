@@ -8,6 +8,7 @@
 #include "skills/vibration.h"
 #include "qmi8658.h"
 #include "motion_detector.h"
+#include "pca9685.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -102,6 +103,7 @@ private:
     Qmi8658* imu_ = nullptr;
     MotionDetector* motion_detector_ = nullptr;
     esp_timer_handle_t motion_timer_ = nullptr;
+    Pca9685* pca9685_ = nullptr;           // PCA9685 PWM控制器
     Vibration* vibration_skill_ = nullptr; // 振动技能管理器
     TaskHandle_t delay_task_handle = nullptr;
 #if CONFIG_LINGXI_ANIMA_UI
@@ -406,6 +408,30 @@ private:
         pca9557_ = new Pca9557(i2c_bus_, 0x19);
     }
 
+    bool IsDevicePresent(uint8_t addr) {
+        // 创建设备句柄
+        i2c_master_dev_handle_t dev_handle;
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = addr,
+            .scl_speed_hz = 100000,
+        };
+        
+        esp_err_t ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev_handle);
+        if (ret != ESP_OK) {
+            return false;
+        }
+        
+        // 发送一个字节的数据来检测设备
+        uint8_t test_data = 0x00;
+        ret = i2c_master_transmit(dev_handle, &test_data, 1, 100);
+        
+        // 删除设备句柄
+        i2c_master_bus_rm_device(dev_handle);
+        
+        return (ret == ESP_OK);
+    }
+
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_40;
@@ -593,9 +619,27 @@ private:
         }
     }
 
+    void InitializePca9685() {
+        // 现在我们知道PCA9685在0x40地址，直接使用
+        IsDevicePresent(PCA9685_DEFAULT_ADDR);
+        ESP_LOGI(TAG, "Initializing PCA9685 at address 0x40...");
+        pca9685_ = new Pca9685(i2c_bus_, PCA9685_DEFAULT_ADDR);
+        
+        esp_err_t ret = pca9685_->Initialize(1000);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize PCA9685: %s", esp_err_to_name(ret));
+            delete pca9685_;
+            pca9685_ = nullptr;
+        }
+    }
+    
     void InitializeVibration() {
-        // 创建振动技能管理器
-        vibration_skill_ = new Vibration();
+        if (pca9685_ == nullptr) {
+            ESP_LOGW(TAG, "PCA9685 not available, skipping vibration initialization");
+            return;
+        }
+        
+        vibration_skill_ = new Vibration(pca9685_, 0);
         
         esp_err_t ret = vibration_skill_->Initialize();
         if (ret == ESP_OK) {
@@ -674,7 +718,8 @@ public:
         InitializeButtons();
         InitializeCamera();
         InitializeImu();  // 初始化IMU和运动检测
-        InitializeVibration();  // 重新启用振动GPIO初始化
+        InitializePca9685();  // 初始化PCA9685 PWM控制器
+        InitializeVibration();  // 初始化振动技能（使用PCA9685）
 
         GetBacklight()->RestoreBrightness();
 #if CONFIG_LINGXI_ANIMA_UI       

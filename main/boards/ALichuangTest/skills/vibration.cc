@@ -9,7 +9,7 @@
 
 static const char* TAG = "Vibration";
 
-// 简化振动控制 - 使用GPIO直接开关，避免LEDC冲突
+// 振动控制 - 通过PCA9685的12位PWM控制振动强度 (0-4095)
 
 // 音频提示功能 - 简单的日志提示（可以替换为实际音频播放）
 void PlayBeepSound() {
@@ -24,77 +24,77 @@ void PlayBeepSound() {
 #define VIBRATION_TASK_PRIORITY   3
 #define VIBRATION_QUEUE_SIZE      8
 
-// 振动模式数据定义 - 存储在Flash中节省RAM
+// 振动模式数据定义 - 存储在Flash中节省RAM (12位PWM: 0-4095)
 static const vibration_keyframe_t vibration_short_buzz[] = {
-    {255, 80},  // 高强度80ms
-    {0, 0}      // 结束标记
+    {4095, 80},  // 高强度80ms
+    {0, 0}       // 结束标记
 };
 
 static const vibration_keyframe_t vibration_purr_short[] = {
-    {80, 50}, {100, 50}, {90, 50}, {110, 50}, {85, 50},
-    {95, 50}, {75, 100}, {0, 0}
+    {1680, 50}, {2200, 50}, {2040, 50}, {2360, 50}, {1760, 50},
+    {1920, 50}, {1600, 100}, {0, 0}
 };
 
 static const vibration_keyframe_t vibration_purr_pattern[] = {
-    {60, 100}, {80, 100}, {70, 100}, {90, 100}, 
-    {65, 100}, {85, 100}, {75, 200},
-    {50, 100}, {70, 100}, {60, 100}, {80, 100},
+    {1460, 100}, {1780, 100}, {1620, 100}, {1940, 100}, 
+    {1540, 100}, {1860, 100}, {1700, 200},
+    {1300, 100}, {1620, 100}, {1460, 100}, {1780, 100},
     {0, 300}, // 300ms暂停后重复
-    {60, 100}, {80, 100}, {70, 100}, {90, 100},
+    {1460, 100}, {1780, 100}, {1620, 100}, {1940, 100},
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_gentle_heartbeat[] = {
-    {150, 100}, {80, 50},   // 强弱心跳
-    {0, 600},               // 心跳间隔
-    {150, 100}, {80, 50},   // 强弱心跳
-    {0, 600},               // 心跳间隔
-    {150, 100}, {80, 50},   // 强弱心跳
+    {2400, 100}, {1780, 50},   // 强弱心跳
+    {0, 600},                  // 心跳间隔
+    {2400, 100}, {1780, 50},   // 强弱心跳
+    {0, 600},                  // 心跳间隔
+    {2400, 100}, {1780, 50},   // 强弱心跳
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_struggle_pattern[] = {
-    {200, 80}, {0, 60}, {250, 120}, {0, 40}, 
-    {180, 100}, {0, 80}, {220, 150}, {0, 50},
-    {190, 90}, {0, 70}, {240, 110}, {0, 90},
-    {210, 130}, {0, 0}
+    {3200, 80}, {0, 60}, {4000, 120}, {0, 40}, 
+    {2880, 100}, {0, 80}, {3520, 150}, {0, 50},
+    {3040, 90}, {0, 70}, {3840, 110}, {0, 90},
+    {3360, 130}, {0, 0}
 };
 
 static const vibration_keyframe_t vibration_sharp_buzz[] = {
-    {255, 150},  // 高强度150ms
+    {4095, 200},  // 高强度200ms
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_tremble_pattern[] = {
-    {40, 30}, {0, 20}, {45, 30}, {0, 20}, {35, 30}, {0, 20},
-    {50, 30}, {0, 20}, {42, 30}, {0, 20}, {38, 30}, {0, 20},
-    {47, 30}, {0, 20}, {41, 30}, {0, 20}, {36, 30}, {0, 20},
+    {2286, 50}, {0, 50}, {2572, 50}, {0, 20}, {2000, 50}, {0, 20},
+    {2858, 50}, {0, 50}, {2400, 50}, {0, 20}, {2172, 50}, {0, 20},
+    {2686, 50}, {0, 50}, {2344, 50}, {0, 20}, {2058, 50}, {0, 20},
     {0, 200}, // 短暂停顿
-    {40, 30}, {0, 20}, {45, 30}, {0, 20}, {35, 30}, {0, 20},
+    {2286, 50}, {0, 20}, {2572, 50}, {0, 20}, {2000, 50}, {0, 20},
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_giggle_pattern[] = {
-    {120, 60}, {0, 40}, {130, 50}, {0, 30}, {140, 60}, {0, 40},
-    {125, 50}, {0, 30}, {135, 60}, {0, 40}, {115, 50}, {0, 30},
-    {145, 60}, {0, 40}, {120, 50}, {0, 30}, {130, 60}, {0, 200},
+    {2611, 60}, {0, 40}, {2829, 50}, {0, 30}, {3046, 60}, {0, 40},
+    {2720, 50}, {0, 30}, {2938, 60}, {0, 40}, {2502, 50}, {0, 30},
+    {3155, 60}, {0, 40}, {2611, 50}, {0, 30}, {2829, 60}, {0, 200},
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_heartbeat_strong[] = {
-    {200, 120}, {120, 80},  // 强心跳
-    {0, 800},               // 更长的心跳间隔
-    {200, 120}, {120, 80},  // 强心跳
-    {0, 800},               // 更长的心跳间隔
-    {200, 120}, {120, 80},  // 强心跳
+    {3600, 120}, {2320, 80},  // 强心跳
+    {0, 800},                 // 更长的心跳间隔
+    {3600, 120}, {2320, 80},  // 强心跳
+    {0, 800},                 // 更长的心跳间隔
+    {3600, 120}, {2320, 80},  // 强心跳
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_erratic_strong[] = {
-    {255, 70}, {0, 30}, {200, 120}, {0, 60}, {240, 90}, {0, 20},
-    {180, 140}, {0, 80}, {220, 60}, {0, 40}, {255, 100}, {0, 90},
-    {160, 110}, {0, 50}, {230, 80}, {0, 30}, {190, 130}, {0, 70},
-    {255, 90}, {0, 40}, {210, 100}, {0, 0}
+    {4095, 70}, {0, 30}, {3200, 120}, {0, 60}, {3840, 90}, {0, 20},
+    {2880, 140}, {0, 80}, {3520, 60}, {0, 40}, {4095, 100}, {0, 90},
+    {2560, 110}, {0, 50}, {3680, 80}, {0, 30}, {3040, 130}, {0, 70},
+    {4095, 90}, {0, 40}, {3360, 100}, {0, 0}
 };
 
 // 振动模式查找表
@@ -126,8 +126,9 @@ static const char* const vibration_pattern_names[] = {
 };
 
 // Vibration类实现
-Vibration::Vibration() 
-    : vibration_pin_(VIBRATION_MOTOR_GPIO),  // 使用GPIO10物理控制
+Vibration::Vibration(Pca9685* pca9685, uint8_t channel) 
+    : pca9685_(pca9685),
+      vibration_channel_(channel),
       vibration_queue_(nullptr),
       vibration_task_handle_(nullptr),
       initialized_(false),
@@ -171,15 +172,18 @@ esp_err_t Vibration::Initialize() {
         return ESP_OK;
     }
     
-    // 初始化GPIO10控制振动马达
-    esp_err_t ret = InitVibrationGpio();
+    if (pca9685_ == nullptr) {
+        ESP_LOGE(TAG, "PCA9685 pointer is null");
+        return ESP_ERR_INVALID_ARG;
+    }
+    
+    esp_err_t ret = InitVibrationPwm();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize vibration GPIO");
+        ESP_LOGE(TAG, "Failed to initialize vibration PWM");
         return ret;
     }
     
     initialized_ = true;
-    ESP_LOGI(TAG, "Vibration GPIO initialized successfully on GPIO%d", vibration_pin_);
     return ESP_OK;
 }
 
@@ -219,13 +223,13 @@ esp_err_t Vibration::StartTask() {
         return ESP_ERR_NO_MEM;
     }
     
-    ESP_LOGI(TAG, "Vibration task started successfully on GPIO%d", vibration_pin_);
+    ESP_LOGI(TAG, "Vibration task started successfully on PCA9685 channel %d", vibration_channel_);
     return ESP_OK;
 }
 
 void Vibration::Play(vibration_id_t id) {
     if (!initialized_) {
-        ESP_LOGW(TAG, "Vibration not initialized, call Initialize() first");
+        ESP_LOGE(TAG, "❌ Vibration not initialized, call Initialize() first");
         return;
     }
     
@@ -235,7 +239,7 @@ void Vibration::Play(vibration_id_t id) {
     }
     
     if (id >= VIBRATION_MAX && id != VIBRATION_STOP) {
-        ESP_LOGW(TAG, "Invalid vibration ID: %d", id);
+        ESP_LOGW(TAG, "⚠️ Invalid vibration ID: %d (max: %d)", id, VIBRATION_MAX-1);
         return;
     }
     
@@ -307,18 +311,18 @@ vibration_id_t Vibration::GetVibrationForEmotion(const std::string& emotion) {
     return VIBRATION_MAX;
 }
 
-void Vibration::SetVibrationStrength(uint8_t strength) {
-    if (vibration_pin_ == GPIO_NUM_NC) return;
-    
-    // 使用GPIO直接控制振动马达
-    // 强度大于0时开启，等于0时关闭
-    if (strength > 0) {
-        gpio_set_level(vibration_pin_, 1);
-        ESP_LOGD(TAG, "🔵 Vibration ON (strength: %d)", strength);
-    } else {
-        gpio_set_level(vibration_pin_, 0);
-        ESP_LOGD(TAG, "⚫ Vibration OFF");
+void Vibration::SetVibrationStrength(uint16_t strength) {
+    if (pca9685_ == nullptr) {
+        ESP_LOGE(TAG, "❌ PCA9685 is null, cannot set vibration strength");
+        return;
     }
+    
+    // 确保强度值在有效范围内 (0-4095)
+    if (strength > 4095) {
+        strength = 4095;
+    }
+
+    pca9685_->SetPwm(vibration_channel_, strength);
 }
 
 void Vibration::PlayVibrationPattern(const vibration_keyframe_t* pattern) {
@@ -326,6 +330,7 @@ void Vibration::PlayVibrationPattern(const vibration_keyframe_t* pattern) {
     
     const vibration_keyframe_t* frame = pattern;
     
+    pca9685_->IsDevicePresent();
     while (frame->duration_ms > 0 || frame->strength > 0) {
         // 设置振动强度
         SetVibrationStrength(frame->strength);
@@ -356,25 +361,22 @@ void Vibration::PlayVibrationPattern(const vibration_keyframe_t* pattern) {
     SetVibrationStrength(0);
 }
 
-esp_err_t Vibration::InitVibrationGpio() {
-    // 配置GPIO10为输出模式
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL << vibration_pin_);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    
-    esp_err_t ret = gpio_config(&io_conf);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure GPIO: %s", esp_err_to_name(ret));
-        return ret;
+esp_err_t Vibration::InitVibrationPwm() {
+    if (pca9685_ == nullptr) {
+        ESP_LOGE(TAG, "PCA9685 pointer is null");
+        return ESP_ERR_INVALID_ARG;
     }
     
-    // 初始化为低电平（关闭振动）
-    gpio_set_level(vibration_pin_, 0);
+    // 检查通道号是否有效
+    if (vibration_channel_ > 15) {
+        ESP_LOGE(TAG, "Invalid PWM channel: %d (max 15)", vibration_channel_);
+        return ESP_ERR_INVALID_ARG;
+    }
     
-    ESP_LOGI(TAG, "Vibration GPIO initialized on GPIO%d", vibration_pin_);
+    // 初始化时关闭振动（设置PWM为0）
+    pca9685_->SetPwm(vibration_channel_, 0);
+    
+    ESP_LOGI(TAG, "Vibration PWM initialized on PCA9685 channel %d", vibration_channel_);
     return ESP_OK;
 }
 
@@ -422,26 +424,27 @@ void Vibration::VibrationTask(void* parameter) {
         if (xQueueReceive(skill->vibration_queue_, &pattern_id, portMAX_DELAY) == pdTRUE) {
             
             if (pattern_id == VIBRATION_STOP) {
-                ESP_LOGI(TAG, "Stopping all vibrations");
+                skill->pca9685_->IsDevicePresent();
+                ESP_LOGI(TAG, "🛑 Stopping all vibrations");
                 skill->SetVibrationStrength(0);
                 skill->current_pattern_ = VIBRATION_MAX;
                 continue;
             }
             
             if (pattern_id >= VIBRATION_MAX) {
-                ESP_LOGW(TAG, "Invalid vibration pattern ID: %d", pattern_id);
+                ESP_LOGW(TAG, "⚠️ Invalid vibration pattern ID: %d", pattern_id);
                 continue;
             }
             
             skill->current_pattern_ = pattern_id;
-            ESP_LOGI(TAG, "Playing vibration pattern: %s", vibration_pattern_names[pattern_id]);
+            ESP_LOGI(TAG, "🎵 Starting vibration pattern: %s", vibration_pattern_names[pattern_id]);
             
             // 获取对应的振动模式并播放
             const vibration_keyframe_t* pattern = vibration_patterns[pattern_id];
             if (pattern) {
                 skill->PlayVibrationPattern(pattern);
             } else {
-                ESP_LOGW(TAG, "Pattern not found for ID: %d", pattern_id);
+                ESP_LOGE(TAG, "❌ Pattern not found for ID: %d", pattern_id);
             }
             
             skill->current_pattern_ = VIBRATION_MAX;
@@ -489,10 +492,10 @@ void Vibration::ButtonTestTask(void* parameter) {
                     // 等待振动结束（给足够时间让模式播放完成）
                     vTaskDelay(pdMS_TO_TICKS(3000));
                     
-                    // 5秒间隔
+                    // 2秒间隔
                     if (i < VIBRATION_MAX - 1) {  // 最后一个模式后不需要等待
-                        ESP_LOGI(TAG, "⏳ Waiting 5 seconds before next pattern...");
-                        vTaskDelay(pdMS_TO_TICKS(5000));
+                        ESP_LOGI(TAG, "⏳ Waiting 2 seconds before next pattern...");
+                        vTaskDelay(pdMS_TO_TICKS(2000));
                     }
                 }
                 
