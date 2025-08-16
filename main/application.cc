@@ -1,6 +1,7 @@
 #include "application.h"
 #include "board.h"
 #include "display.h"
+#include "ui/ui.h"
 #include "system_info.h"
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
@@ -645,6 +646,9 @@ void Application::SetDeviceState(DeviceState state) {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
+    if (previous_state == kDeviceStateSpeaking && state != kDeviceStateSpeaking) {
+        lv_disp_load_scr(ui_defaultStandBy);
+    }
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
@@ -672,6 +676,7 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
+            lv_disp_load_scr(ui_talking);
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
