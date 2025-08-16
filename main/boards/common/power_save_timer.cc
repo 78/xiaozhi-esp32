@@ -20,6 +20,8 @@ PowerSaveTimer::PowerSaveTimer(int cpu_max_freq, int seconds_to_sleep, int secon
         .skip_unhandled_events = true,
     };
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &power_save_timer_));
+    Settings settings("wifi", false);
+    enabled_ = settings.GetBool("sleep_mode", true);
 }
 
 PowerSaveTimer::~PowerSaveTimer() {
@@ -28,22 +30,19 @@ PowerSaveTimer::~PowerSaveTimer() {
 }
 
 void PowerSaveTimer::SetEnabled(bool enabled) {
+    Settings settings("wifi", true);
     if (enabled && !enabled_) {
-        Settings settings("wifi", false);
-        if (!settings.GetBool("sleep_mode", true)) {
-            ESP_LOGI(TAG, "Power save timer is disabled by settings");
-            return;
-        }
-
         ticks_ = 0;
         enabled_ = enabled;
         ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
         ESP_LOGI(TAG, "Power save timer enabled");
+        settings.SetBool("sleep_mode", enabled);
     } else if (!enabled && enabled_) {
         ESP_ERROR_CHECK(esp_timer_stop(power_save_timer_));
         enabled_ = enabled;
         WakeUp();
         ESP_LOGI(TAG, "Power save timer disabled");
+        settings.SetBool("sleep_mode", enabled);
     }
 }
 
