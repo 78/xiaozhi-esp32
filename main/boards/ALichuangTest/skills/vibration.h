@@ -129,14 +129,10 @@ public:
 
     /**
      * @brief 启用按键测试功能
-     * @param pattern_id 按下按键时执行的振动模式ID
+     * @param pattern_id 按下按键时执行的振动模式ID（循环测试模式下可忽略）
+     * @param cycle_test 是否启用循环测试模式，默认false
      */
-    void EnableButtonTest(vibration_id_t pattern_id);
-
-    /**
-     * @brief 启用按键循环测试功能（按一次按键循环测试所有振动模式）
-     */
-    void EnableButtonCycleTest();
+    void EnableButtonTest(vibration_id_t pattern_id = VIBRATION_SHORT_BUZZ, bool cycle_test = false);
 
     /**
      * @brief 禁用按键测试功能

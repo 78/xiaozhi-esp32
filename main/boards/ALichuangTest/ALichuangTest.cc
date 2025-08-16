@@ -633,7 +633,8 @@ private:
             } else {
                 ESP_LOGE(TAG, "Failed to start vibration task: %s", esp_err_to_name(ret));
             }
-            vibration_skill_->EnableButtonCycleTest();
+            // 如有振动效果测试需要再启用
+            // vibration_skill_->EnableButtonTest(VIBRATION_SHORT_BUZZ, true); 
             ESP_LOGI(TAG, "Button cycle test enabled - press GPIO11 to test all patterns");
         }
     }
@@ -690,28 +691,34 @@ private:
                         std::sqrt(data.accel_x * data.accel_x + 
                                 data.accel_y * data.accel_y + 
                                 data.accel_z * data.accel_z));
+                vibration_skill_->Play(VIBRATION_SHARP_BUZZ);
                 break;
             case EventType::MOTION_SHAKE_VIOLENTLY:
                 event_name = "SHAKE_VIOLENTLY";
                 ESP_LOGW(TAG, "⚡ VIOLENT SHAKE! Accel: X=%.2f Y=%.2f Z=%.2f g", 
                         data.accel_x, data.accel_y, data.accel_z);
+                vibration_skill_->Play(VIBRATION_ERRATIC_STRONG);
                 break;
             case EventType::MOTION_FLIP: 
                 event_name = "FLIP";
                 ESP_LOGI(TAG, "🔄 Device flipped! (gyro: x=%.1f y=%.1f z=%.1f deg/s)", 
                         data.gyro_x, data.gyro_y, data.gyro_z);
+                vibration_skill_->Play(VIBRATION_GIGGLE_PATTERN);
                 break;
             case EventType::MOTION_SHAKE: 
                 event_name = "SHAKE";
                 ESP_LOGI(TAG, "🔔 Device shaken!");
+                vibration_skill_->Play(VIBRATION_SHARP_BUZZ);
                 break;
             case EventType::MOTION_PICKUP: 
                 event_name = "PICKUP";
                 ESP_LOGI(TAG, "📱 Device picked up!");
+                vibration_skill_->Play(VIBRATION_TREMBLE_PATTERN);
                 break;
             case EventType::MOTION_UPSIDE_DOWN:
                 event_name = "UPSIDE_DOWN";
                 ESP_LOGI(TAG, "🙃 Device is upside down! (Z-axis: %.2f g)", data.accel_z);
+                vibration_skill_->Play(VIBRATION_STRUGGLE_PATTERN);
                 break;
             // 处理触摸事件
             case EventType::TOUCH_TAP:
@@ -721,17 +728,20 @@ private:
                 ESP_LOGI(TAG, "👆 Touch TAP on %s side! (duration: %d ms)", 
                         event.data.touch_data.x < 0 ? "LEFT" : "RIGHT",
                         event.data.touch_data.y);
+                vibration_skill_->Play(VIBRATION_SHORT_BUZZ);
                 break;
             case EventType::TOUCH_DOUBLE_TAP:
                 event_name = "TOUCH_DOUBLE_TAP";
                 ESP_LOGI(TAG, "👆👆 Touch DOUBLE TAP on RIGHT side! (duration: %d ms)", 
                         event.data.touch_data.y);
+                vibration_skill_->Play(VIBRATION_PURR_PATTERN);
                 break;
             case EventType::TOUCH_LONG_PRESS:
                 event_name = "TOUCH_LONG_PRESS";
                 ESP_LOGI(TAG, "👇 Touch LONG PRESS on %s side! (duration: %d ms)", 
                         event.data.touch_data.x < 0 ? "LEFT" : "RIGHT",
                         event.data.touch_data.y);
+                vibration_skill_->Play(VIBRATION_HEARTBEAT_STRONG);
                 break;
             default: 
                 return;
@@ -762,7 +772,7 @@ public:
         // 启动图片循环显示任务
         StartImageSlideshow();
 #endif
-        // 启动振动任务
+        // 启动振动任务 当需要检查振动马达功能时启用（此时用GPIO11作为按键输入）
         StartVibrationTask();
     }
 

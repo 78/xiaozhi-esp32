@@ -26,30 +26,30 @@ void PlayBeepSound() {
 
 // 振动模式数据定义 - 存储在Flash中节省RAM (12位PWM: 0-4095)
 static const vibration_keyframe_t vibration_short_buzz[] = {
-    {4095, 80},  // 高强度80ms
+    {4095, 100},  // 高强度100ms
     {0, 0}       // 结束标记
 };
 
 static const vibration_keyframe_t vibration_purr_short[] = {
-    {1680, 50}, {2200, 50}, {2040, 50}, {2360, 50}, {1760, 50},
-    {1920, 50}, {1600, 100}, {0, 0}
+    {2520, 50}, {3300, 50}, {3060, 50}, {3540, 50}, {2640, 50},
+    {2880, 50}, {2400, 100}, {0, 0}
 };
 
 static const vibration_keyframe_t vibration_purr_pattern[] = {
-    {1460, 100}, {1780, 100}, {1620, 100}, {1940, 100}, 
-    {1540, 100}, {1860, 100}, {1700, 200},
-    {1300, 100}, {1620, 100}, {1460, 100}, {1780, 100},
+    {2808, 100}, {3423, 100}, {3115, 100}, {3730, 100}, 
+    {2962, 100}, {3577, 100}, {3269, 200},
+    {2500, 100}, {3115, 100}, {2808, 100}, {3423, 100},
     {0, 300}, // 300ms暂停后重复
-    {1460, 100}, {1780, 100}, {1620, 100}, {1940, 100},
+    {2808, 100}, {3423, 100}, {3115, 100}, {3730, 100},
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_gentle_heartbeat[] = {
-    {2400, 100}, {1780, 50},   // 强弱心跳
+    {2800, 100}, {1780, 50},   // 强弱心跳
     {0, 600},                  // 心跳间隔
-    {2400, 100}, {1780, 50},   // 强弱心跳
+    {2800, 100}, {1780, 50},   // 强弱心跳
     {0, 600},                  // 心跳间隔
-    {2400, 100}, {1780, 50},   // 强弱心跳
+    {2800, 100}, {1780, 50},   // 强弱心跳
     {0, 0}
 };
 
@@ -66,18 +66,18 @@ static const vibration_keyframe_t vibration_sharp_buzz[] = {
 };
 
 static const vibration_keyframe_t vibration_tremble_pattern[] = {
-    {2286, 50}, {0, 50}, {2572, 50}, {0, 20}, {2000, 50}, {0, 20},
-    {2858, 50}, {0, 50}, {2400, 50}, {0, 20}, {2172, 50}, {0, 20},
-    {2686, 50}, {0, 50}, {2344, 50}, {0, 20}, {2058, 50}, {0, 20},
+    {3429, 60}, {0, 50}, {3858, 60}, {0, 30}, {3000, 60}, {0, 30},
+    {4095, 60}, {0, 50}, {3600, 60}, {0, 30}, {3258, 60}, {0, 30},
+    {4029, 60}, {0, 50}, {3516, 60}, {0, 30}, {3087, 60}, {0, 30},
     {0, 200}, // 短暂停顿
-    {2286, 50}, {0, 20}, {2572, 50}, {0, 20}, {2000, 50}, {0, 20},
+    {3429, 50}, {0, 50}, {3858, 60}, {0, 30}, {3000, 60}, {0, 30},
     {0, 0}
 };
 
 static const vibration_keyframe_t vibration_giggle_pattern[] = {
-    {2611, 60}, {0, 40}, {2829, 50}, {0, 30}, {3046, 60}, {0, 40},
-    {2720, 50}, {0, 30}, {2938, 60}, {0, 40}, {2502, 50}, {0, 30},
-    {3155, 60}, {0, 40}, {2611, 50}, {0, 30}, {2829, 60}, {0, 200},
+    {3131, 78}, {0, 52}, {3392, 65}, {0, 39}, {3653, 78}, {0, 52},
+    {3261, 65}, {0, 39}, {3523, 78}, {0, 52}, {3000, 65}, {0, 39},
+    {3783, 78}, {0, 52}, {3131, 65}, {0, 39}, {3392, 78}, {0, 260},
     {0, 0}
 };
 
@@ -519,13 +519,13 @@ void Vibration::ButtonTestTask(void* parameter) {
     vTaskDelete(NULL);
 }
 
-void Vibration::EnableButtonTest(vibration_id_t pattern_id) {
+void Vibration::EnableButtonTest(vibration_id_t pattern_id, bool cycle_test) {
     if (!initialized_) {
         ESP_LOGW(TAG, "Vibration not initialized");
         return;
     }
     
-    if (pattern_id >= VIBRATION_MAX) {
+    if (!cycle_test && pattern_id >= VIBRATION_MAX) {
         ESP_LOGW(TAG, "Invalid pattern ID for button test: %d", pattern_id);
         return;
     }
@@ -544,13 +544,17 @@ void Vibration::EnableButtonTest(vibration_id_t pattern_id) {
     
     current_test_pattern_ = pattern_id;
     button_test_enabled_ = true;
-    cycle_test_mode_ = false;  // 单一模式测试
+    cycle_test_mode_ = cycle_test;
+    
+    // 根据测试模式选择任务名称和栈大小
+    const char* task_name = cycle_test ? "button_cycle_test_task" : "button_test_task";
+    uint32_t stack_size = cycle_test ? 4096 : 2048;  // 循环测试需要更多栈空间
     
     // 创建按键测试任务
     BaseType_t task_ret = xTaskCreate(
         ButtonTestTask,
-        "button_test_task",
-        2048,
+        task_name,
+        stack_size,
         this,
         2,  // 中等优先级
         &button_test_task_handle_
@@ -562,48 +566,11 @@ void Vibration::EnableButtonTest(vibration_id_t pattern_id) {
         return;
     }
     
-    ESP_LOGI(TAG, "Button test enabled with pattern: %s", vibration_pattern_names[pattern_id]);
-}
-
-void Vibration::EnableButtonCycleTest() {
-    if (!initialized_) {
-        ESP_LOGW(TAG, "Vibration not initialized");
-        return;
+    if (cycle_test) {
+        ESP_LOGI(TAG, "Button cycle test enabled - press button to test all %d patterns", VIBRATION_MAX);
+    } else {
+        ESP_LOGI(TAG, "Button test enabled with pattern: %s", vibration_pattern_names[pattern_id]);
     }
-    
-    if (button_test_enabled_) {
-        ESP_LOGW(TAG, "Button test already enabled");
-        return;
-    }
-    
-    // 初始化测试按键
-    esp_err_t ret = InitTestButton();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize test button");
-        return;
-    }
-    
-    button_test_enabled_ = true;
-    cycle_test_mode_ = true;  // 循环模式测试
-    current_test_pattern_ = VIBRATION_SHORT_BUZZ;  // 默认值，循环模式下不使用
-    
-    // 创建按键测试任务
-    BaseType_t task_ret = xTaskCreate(
-        ButtonTestTask,
-        "button_cycle_test_task",
-        4096,  // 增加栈大小，因为循环测试需要更多空间
-        this,
-        2,  // 中等优先级
-        &button_test_task_handle_
-    );
-    
-    if (task_ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create button cycle test task");
-        button_test_enabled_ = false;
-        return;
-    }
-    
-    ESP_LOGI(TAG, "Button cycle test enabled - press button to test all %d patterns", VIBRATION_MAX);
 }
 
 void Vibration::DisableButtonTest() {
