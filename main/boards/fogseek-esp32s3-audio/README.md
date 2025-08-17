@@ -46,7 +46,7 @@ idf.py menuconfig
 **选择板子：**
 
 ```
-Xiaozhi Assistant -> Board Type -> 雾岸科技AUS3邮票板
+Xiaozhi Assistant -> Board Type -> 雾岸科技 ESP32-S3-Audio 
 ```
 
 **编译：**

@@ -27,4 +27,8 @@
 #define LED_RED_GPIO GPIO_NUM_16
 #define LED_GREEN_GPIO GPIO_NUM_17
 
+// 冷暖色灯控制引脚
+#define WARM_LIGHT_GPIO GPIO_NUM_47
+#define COLD_LIGHT_GPIO GPIO_NUM_48
+
 #endif
