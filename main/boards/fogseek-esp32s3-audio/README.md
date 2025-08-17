@@ -12,7 +12,7 @@
 | ---------------- | ------------------- | -------------------- |
 | IO35(内部 PSRAM) | VDD_AU              | 模组/音频供电        |
 | IO36(内部 PSRAM) | OUTP                | 音频输出P            |
-| IO36(内部 PSRAM) | OUTN                | 音频输出N            |
+| IO37(内部 PSRAM) | OUTN                | 音频输出N            |
 | **已占用引脚**   |                     |                      |
 | IO1              | AUDIO_I2S_GPIO_DOUT | 保证天线净空区未引出 |
 | IO2              | AUDIO_I2S_GPIO_DIN  | 保证天线净空区未引出 |

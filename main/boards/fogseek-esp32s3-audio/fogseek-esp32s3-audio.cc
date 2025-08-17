@@ -7,6 +7,7 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
+#include "led/gpio_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
@@ -22,9 +23,15 @@ private:
     AdcBatteryMonitor *battery_monitor_;
     bool no_dc_power_ = false;
     bool pwr_ctrl_state_ = false;
-    bool low_battery_warning_ = false;           
-    bool low_battery_shutdown_ = false;           
-    esp_timer_handle_t battery_check_timer_ = nullptr; 
+    bool low_battery_warning_ = false;
+    bool low_battery_shutdown_ = false;
+    esp_timer_handle_t battery_check_timer_ = nullptr;
+
+    // 冷暖色灯控制
+    GpioLed *cold_light_ = nullptr;
+    GpioLed *warm_light_ = nullptr;
+    bool cold_light_state_ = false; // 添加冷灯状态变量
+    bool warm_light_state_ = false; // 添加暖灯状态变量
 
     void UpdateBatteryStatus()
     {
@@ -72,14 +79,19 @@ private:
 
         if (no_dc_power_)
         {
-            // 低于30%自动关机
-            if (battery_level < 30 && !low_battery_shutdown_)
+            // 低于10%自动关机，使用CONFIG_OCV_SOC_MODEL_2，最低电压是 3.305545V（对应0%电量）
+            if (battery_level < 10 && !low_battery_shutdown_)
             {
                 ESP_LOGW(TAG, "Critical battery level (%d%%), shutting down to protect battery", battery_level);
                 low_battery_shutdown_ = true;
-                
-                auto& app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 发送关机通知
+
+                auto &app = Application::GetInstance();
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 关机
+                vTaskDelay(pdMS_TO_TICKS(500));
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                vTaskDelay(pdMS_TO_TICKS(500));
 
                 pwr_ctrl_state_ = false;
                 gpio_set_level(PWR_CTRL_GPIO, 0); // 关闭电源
@@ -88,19 +100,24 @@ private:
                 ESP_LOGI(TAG, "Device shut down due to critical battery level");
                 return;
             }
-            // 低于40%警告
-            else if (battery_level < 40 && battery_level >= 30 && !low_battery_warning_)
+            // 低于20%警告
+            else if (battery_level < 20 && battery_level >= 10 && !low_battery_warning_)
             {
                 gpio_set_level(LED_RED_GPIO, 1);
                 gpio_set_level(LED_GREEN_GPIO, 0);
                 ESP_LOGW(TAG, "Low battery warning (%d%%)", battery_level);
                 low_battery_warning_ = true;
-                
-                auto& app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);// 发送低电量警告通知
+
+                auto &app = Application::GetInstance();
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 发送低电量警告通知
+                vTaskDelay(pdMS_TO_TICKS(500));
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                vTaskDelay(pdMS_TO_TICKS(500));
             }
-            // 电量恢复到40%以上时重置警告标志
-            else if (battery_level >= 40)
+            // 电量恢复到20%以上时重置警告标志
+            else if (battery_level >= 20)
             {
                 low_battery_warning_ = false;
             }
@@ -116,7 +133,7 @@ private:
     static void BatteryCheckTimerCallback(void *arg)
     {
         FogSeekEsp32s3Audio *self = static_cast<FogSeekEsp32s3Audio *>(arg);
-        self->CheckLowBattery(); 
+        self->CheckLowBattery();
     }
 
     void InitializeLeds()
@@ -129,11 +146,76 @@ private:
         led_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&led_conf);
         gpio_set_level(LED_GREEN_GPIO, 0);
+
+        // 初始化冷暖色灯（使用PWM控制）
+        // 为冷色灯和暖色灯分配不同的LEDC通道，避免冲突
+        cold_light_ = new GpioLed(COLD_LIGHT_GPIO, 0, LEDC_TIMER_1, LEDC_CHANNEL_0);
+        warm_light_ = new GpioLed(WARM_LIGHT_GPIO, 0, LEDC_TIMER_1, LEDC_CHANNEL_1);
+
+        // 默认关闭所有灯
+        cold_light_->TurnOff();
+        warm_light_->TurnOff();
     }
 
     void InitializeMCP()
     {
         static LampController lamp(LED_RED_GPIO); // 红灯通过MCP控制
+
+        // 获取MCP服务器实例
+        auto &mcp_server = McpServer::GetInstance();
+
+        // 添加获取当前灯状态的工具函数
+        mcp_server.AddTool("self.light.get_status", "获取当前灯的状态", PropertyList(), [this](const PropertyList &properties) -> ReturnValue
+                           {
+            // 创建JSON格式的返回值
+            cJSON* root = cJSON_CreateObject();
+            cJSON_AddBoolToObject(root, "cold_light", cold_light_state_);
+            cJSON_AddBoolToObject(root, "warm_light", warm_light_state_);
+            
+            char* json_str = cJSON_PrintUnformatted(root);
+            std::string result(json_str);
+            cJSON_free(json_str);
+            cJSON_Delete(root);
+            
+            return result; });
+
+        // 添加设置冷暖灯光亮度的工具函数
+        mcp_server.AddTool("self.light.set_brightness",
+                           "设置冷暖灯光的亮度，冷光和暖光可以独立调节，亮度范围为0-100，关灯为0，开灯默认为60亮度。"
+                           "根据用户情绪描述调节冷暖灯光亮度，大模型应该分析用户的话语，理解用户的情绪状态和场景描述，然后根据情绪设置合适的冷暖灯光亮度组合。",
+                           PropertyList({Property("cold_brightness", kPropertyTypeInteger, 0, 100),
+                                         Property("warm_brightness", kPropertyTypeInteger, 0, 100)}),
+                           [this](const PropertyList &properties) -> ReturnValue
+                           {
+                               // 使用operator[]而不是at()访问属性
+                               int cold_brightness = properties["cold_brightness"].value<int>();
+                               int warm_brightness = properties["warm_brightness"].value<int>();
+
+                               cold_light_->SetBrightness(cold_brightness);
+                               warm_light_->SetBrightness(warm_brightness);
+                               cold_light_->TurnOn();
+                               warm_light_->TurnOn();
+
+                               // 更新状态
+                               cold_light_state_ = cold_brightness > 0;
+                               warm_light_state_ = warm_brightness > 0;
+
+                               ESP_LOGI(TAG, "Color temperature set - Cold: %d%%, Warm: %d%%",
+                                        cold_brightness, warm_brightness);
+
+                               // 创建JSON格式的返回值
+                               cJSON *root = cJSON_CreateObject();
+                               cJSON_AddBoolToObject(root, "success", true);
+                               cJSON_AddNumberToObject(root, "cold_brightness", cold_brightness);
+                               cJSON_AddNumberToObject(root, "warm_brightness", warm_brightness);
+
+                               char *json_str = cJSON_PrintUnformatted(root);
+                               std::string result(json_str);
+                               cJSON_free(json_str);
+                               cJSON_Delete(root);
+
+                               return result;
+                           });
     }
 
     void InitializeBatteryMonitor()
