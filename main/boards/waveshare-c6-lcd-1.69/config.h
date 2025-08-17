@@ -20,6 +20,7 @@
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
 #define BOOT_BUTTON_GPIO        GPIO_NUM_9
+#define PWR_BUTTON_GPIO         GPIO_NUM_18
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
 
@@ -31,6 +32,9 @@
 #define DISPLAY_DC_PIN          GPIO_NUM_3
 #define DISPLAY_RST_PIN         GPIO_NUM_4
 
+#define BATTERY_EN_PIN          GPIO_NUM_15
+#define BATTERY_ADC_PIN         GPIO_NUM_0
+#define BATTERY_CHARGING_PIN    GPIO_NUM_NC
 
 
 #define DISPLAY_WIDTH           240

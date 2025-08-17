@@ -1,5 +1,6 @@
 #include "power_save_timer.h"
 #include "application.h"
+#include "settings.h"
 
 #include <esp_log.h>
 
@@ -28,6 +29,12 @@ PowerSaveTimer::~PowerSaveTimer() {
 
 void PowerSaveTimer::SetEnabled(bool enabled) {
     if (enabled && !enabled_) {
+        Settings settings("wifi", false);
+        if (!settings.GetBool("sleep_mode", true)) {
+            ESP_LOGI(TAG, "Power save timer is disabled by settings");
+            return;
+        }
+
         ticks_ = 0;
         enabled_ = enabled;
         ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));

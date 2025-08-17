@@ -279,6 +279,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
 }
 
 int NoAudioCodec::Write(const int16_t* data, int samples) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
     std::vector<int32_t> buffer(samples);
 
     // output_volume_: 0-100
