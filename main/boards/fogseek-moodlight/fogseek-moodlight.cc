@@ -86,11 +86,11 @@ private:
                 low_battery_shutdown_ = true;
 
                 auto &app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 关机
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 关机
                 vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 vTaskDelay(pdMS_TO_TICKS(500));
 
                 pwr_ctrl_state_ = false;
@@ -109,11 +109,11 @@ private:
                 low_battery_warning_ = true;
 
                 auto &app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY); // 发送低电量警告通知
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 发送低电量警告通知
                 vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 vTaskDelay(pdMS_TO_TICKS(500));
             }
             // 电量恢复到20%以上时重置警告标志

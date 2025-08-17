@@ -1,5 +1,6 @@
 #include "audio_service.h"
 #include <esp_log.h>
+#include <cstring>
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "processors/afe_audio_processor.h"
@@ -152,12 +153,13 @@ void AudioService::Stop() {
 
 bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples) {
     if (!codec_->input_enabled()) {
-        codec_->EnableInput(true);
+        esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+        codec_->EnableInput(true);
     }
 
     if (codec_->input_sample_rate() != sample_rate) {
-        data.resize(samples * codec_->input_sample_rate() / sample_rate);
+        data.resize(samples * codec_->input_sample_rate() / sample_rate * codec_->input_channels());
         if (!codec_->InputData(data)) {
             return false;
         }
@@ -183,7 +185,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
             data = std::move(resampled);
         }
     } else {
-        data.resize(samples);
+        data.resize(samples * codec_->input_channels());
         if (!codec_->InputData(data)) {
             return false;
         }
@@ -287,8 +289,9 @@ void AudioService::AudioOutputTask() {
         lock.unlock();
 
         if (!codec_->output_enabled()) {
-            codec_->EnableOutput(true);
+            esp_timer_stop(audio_power_timer_);
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+            codec_->EnableOutput(true);
         }
         codec_->OutputData(task->pcm);
 
@@ -536,22 +539,96 @@ void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
     callbacks_ = callbacks;
 }
 
-void AudioService::PlaySound(const std::string_view& sound) {
-    const char* data = sound.data();
-    size_t size = sound.size();
-    for (const char* p = data; p < data + size; ) {
-        auto p3 = (BinaryProtocol3*)p;
-        p += sizeof(BinaryProtocol3);
+void AudioService::PlaySound(const std::string_view& ogg) {
+    const uint8_t* buf = reinterpret_cast<const uint8_t*>(ogg.data());
+    size_t size = ogg.size();
+    size_t offset = 0;
 
-        auto payload_size = ntohs(p3->payload_size);
-        auto packet = std::make_unique<AudioStreamPacket>();
-        packet->sample_rate = 16000;
-        packet->frame_duration = 60;
-        packet->payload.resize(payload_size);
-        memcpy(packet->payload.data(), p3->payload, payload_size);
-        p += payload_size;
+    auto find_page = [&](size_t start)->size_t {
+        for (size_t i = start; i + 4 <= size; ++i) {
+            if (buf[i] == 'O' && buf[i+1] == 'g' && buf[i+2] == 'g' && buf[i+3] == 'S') return i;
+        }
+        return static_cast<size_t>(-1);
+    };
 
-        PushPacketToDecodeQueue(std::move(packet), true);
+    bool seen_head = false;
+    bool seen_tags = false;
+    int sample_rate = 16000; // 默认值
+
+    while (true) {
+        size_t pos = find_page(offset);
+        if (pos == static_cast<size_t>(-1)) break;
+        offset = pos;
+        if (offset + 27 > size) break;
+
+        const uint8_t* page = buf + offset;
+        uint8_t page_segments = page[26];
+        size_t seg_table_off = offset + 27;
+        if (seg_table_off + page_segments > size) break;
+
+        size_t body_size = 0;
+        for (size_t i = 0; i < page_segments; ++i) body_size += page[27 + i];
+
+        size_t body_off = seg_table_off + page_segments;
+        if (body_off + body_size > size) break;
+
+        // Parse packets using lacing
+        size_t cur = body_off;
+        size_t seg_idx = 0;
+        while (seg_idx < page_segments) {
+            size_t pkt_len = 0;
+            size_t pkt_start = cur;
+            bool continued = false;
+            do {
+                uint8_t l = page[27 + seg_idx++];
+                pkt_len += l;
+                cur += l;
+                continued = (l == 255);
+            } while (continued && seg_idx < page_segments);
+
+            if (pkt_len == 0) continue;
+            const uint8_t* pkt_ptr = buf + pkt_start;
+
+            if (!seen_head) {
+                // 解析OpusHead包
+                if (pkt_len >= 19 && std::memcmp(pkt_ptr, "OpusHead", 8) == 0) {
+                    seen_head = true;
+                    
+                    // OpusHead结构：[0-7] "OpusHead", [8] version, [9] channel_count, [10-11] pre_skip
+                    // [12-15] input_sample_rate, [16-17] output_gain, [18] mapping_family
+                    if (pkt_len >= 12) {
+                        uint8_t version = pkt_ptr[8];
+                        uint8_t channel_count = pkt_ptr[9];
+                        
+                        if (pkt_len >= 16) {
+                            // 读取输入采样率 (little-endian)
+                            sample_rate = pkt_ptr[12] | (pkt_ptr[13] << 8) | 
+                                        (pkt_ptr[14] << 16) | (pkt_ptr[15] << 24);
+                            ESP_LOGI(TAG, "OpusHead: version=%d, channels=%d, sample_rate=%d", 
+                                   version, channel_count, sample_rate);
+                        }
+                    }
+                }
+                continue;
+            }
+            if (!seen_tags) {
+                // Expect OpusTags in second packet
+                if (pkt_len >= 8 && std::memcmp(pkt_ptr, "OpusTags", 8) == 0) {
+                    seen_tags = true;
+                }
+                continue;
+            }
+
+            // Audio packet (Opus)
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->sample_rate = sample_rate;
+            packet->frame_duration = 60;
+            packet->payload.resize(pkt_len);
+            std::memcpy(packet->payload.data(), pkt_ptr, pkt_len);
+            PushPacketToDecodeQueue(std::move(packet), true);
+        }
+
+        offset = body_off + body_size;
     }
 }
 
