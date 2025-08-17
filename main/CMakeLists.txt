@@ -218,6 +218,8 @@ elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(BOARD_TYPE "surfer-c3-1.14tft")
 elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_AUDIO)
     set(BOARD_TYPE "fogseek-esp32s3-audio")
+elseif(CONFIG_BOARD_TYPE_FOGSEEK_MOODLIGHT)
+    set(BOARD_TYPE "fogseek-moodlight")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

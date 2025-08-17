@@ -58,6 +58,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_FOGSEEK_ESP32S3_AUDIO
         bool "雾岸科技 ESP32-S3-Audio"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_MOODLIGHT
+        bool "雾岸科技 MoodLight"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_KORVO2_V3
         bool "ESP32S3_KORVO2_V3开发板"
         depends on IDF_TARGET_ESP32S3

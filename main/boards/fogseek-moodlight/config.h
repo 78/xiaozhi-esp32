@@ -1,0 +1,34 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+// 音频相关配置
+#define AUDIO_INPUT_SAMPLE_RATE 16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
+
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_1
+#define AUDIO_I2S_GPIO_DIN GPIO_NUM_2
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_38
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_39
+
+// boot相关配置
+#define BOOT_GPIO GPIO_NUM_0
+
+// 按钮相关配置
+#define BUTTON_GPIO GPIO_NUM_8
+
+// 电源相关配置
+#define PWR_CTRL_GPIO GPIO_NUM_18
+#define PWR_CHARGE_DONE_GPIO GPIO_NUM_9
+#define PWR_CHARGING_GPIO GPIO_NUM_46
+
+// LED相关配置
+#define LED_RED_GPIO GPIO_NUM_16
+#define LED_GREEN_GPIO GPIO_NUM_17
+
+// 冷暖色灯控制引脚
+#define WARM_LIGHT_GPIO GPIO_NUM_47
+#define COLD_LIGHT_GPIO GPIO_NUM_48
+
+#endif
