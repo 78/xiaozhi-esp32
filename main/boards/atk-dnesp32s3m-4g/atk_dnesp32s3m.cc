@@ -1,12 +1,11 @@
 #include "ml307_board.h"
-#include "es8388_audio_codec.h"
+#include "codecs/es8388_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "driver/gpio.h"
 #include "assets/lang_config.h"
@@ -176,15 +175,8 @@ private:
                                     });
     }
 
-    // 物联网初始化，添加对 AI 可见设备 
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
-    atk_dnesp32s3m_4g() : Ml307Board(Module_4G_TX_PIN, Module_4G_RX_PIN, 4096),
+    atk_dnesp32s3m_4g() : Ml307Board(Module_4G_TX_PIN, Module_4G_RX_PIN),
         boot_button_(BOOT_BUTTON_GPIO), 
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO), 
@@ -193,7 +185,6 @@ public:
         InitializeSpi();
         InitializeSt7735Display();
         InitializeButtons();
-        InitializeIot();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <esp_log.h>
@@ -70,23 +69,13 @@ private:
     }
 
     void InitializePowerSaveTimer() {
+        // 第一个参数不为 -1 时，进入睡眠会关闭音频输入
         power_save_timer_ = new PowerSaveTimer(240, 60);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+            GetDisplay()->SetPowerSaveMode(true);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -219,14 +208,6 @@ private:
                             });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
     GenJuTech_s3_1_54TFT() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -238,8 +219,7 @@ public:
         InitializeCodecI2c();
         InitializeSpi();
         InitializeButtons();
-        InitializeSt7789Display();  
-        InitializeIot();
+        InitializeSt7789Display();
         GetBacklight()->RestoreBrightness();
     }
     

@@ -1,5 +1,5 @@
 #include "dual_network_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/oled_display.h"
 #include "system_reset.h"
 #include "application.h"
@@ -7,7 +7,6 @@
 #include "config.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
@@ -155,18 +154,12 @@ private:
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-#elif CONFIG_IOT_PROTOCOL_MCP
+    void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
-#endif
     }
 
 public:
-    CompactMl307Board() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    CompactMl307Board() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -175,7 +168,7 @@ public:
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
     }
 
     virtual Led* GetLed() override {
