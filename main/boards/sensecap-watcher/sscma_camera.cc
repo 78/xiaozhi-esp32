@@ -9,6 +9,7 @@
 #include <esp_heap_caps.h>
 #include <img_converters.h>
 #include <cstring>
+#include "application.h"
 
 #define TAG "SscmaCamera"
 
@@ -50,25 +51,85 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     callback.on_event = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
         SscmaCamera* self = static_cast<SscmaCamera*>(user_ctx);
         if (!self) return;
+        
         char *img = NULL;
         int img_size = 0;
-        if (sscma_utils_fetch_image_from_reply(reply, &img, &img_size) == ESP_OK)
-        {
-            ESP_LOGI(TAG, "image_size: %d\n", img_size);
-            // 将数据通过队列发送出去
-            SscmaData data;
-            data.img = (uint8_t*)img;
-            data.len = img_size;
+        sscma_client_class_t *classes = NULL;
+        sscma_client_box_t     *boxes = NULL;
+        sscma_client_point_t  *points = NULL;
+        int class_count = 0;
+        int box_count = 0;
+        int point_count = 0;
+        bool is_need_wake =  false;
 
-            // 清空队列，保证只保存最新的数据
-            SscmaData dummy;
-            while (xQueueReceive(self->sscma_data_queue_, &dummy, 0) == pdPASS) {
-                if (dummy.img) {
-                    heap_caps_free(dummy.img);
-                }
+        int width = 0, height = 0;
+        cJSON *data = cJSON_GetObjectItem(reply->payload, "data");
+        if (data != NULL && cJSON_IsObject(data)) {
+            cJSON *resolution = cJSON_GetObjectItem(data, "resolution");
+            if (data != NULL && cJSON_IsArray(resolution) && cJSON_GetArraySize(resolution) == 2) {
+                width = cJSON_GetArrayItem(resolution, 0)->valueint;
+                height = cJSON_GetArrayItem(resolution, 1)->valueint;
             }
-            xQueueSend(self->sscma_data_queue_, &data, 0);
-            // 注意：img 的释放由接收方负责
+        }
+        
+        switch ((width+height)) {
+            case (416+416):                
+                if (sscma_utils_fetch_boxes_from_reply(reply, &boxes, &box_count) == ESP_OK) {
+                    if (box_count > 0) {
+                        for (int i = 0; i < box_count; i++) {
+                            ESP_LOGI(TAG, "[box %d]: x=%d, y=%d, w=%d, h=%d, score=%d, target=%d", i,  \
+                                    boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h, boxes[i].score, boxes[i].target);
+                            if (boxes[i].target == 0 && boxes[i].score > 85) { //当检测人得分大于85时唤醒
+                               is_need_wake = true;
+                            }
+                        }
+                        if( is_need_wake ) {
+                            ESP_LOGI(TAG, "Detect Person, Wake...");
+                            std::string wake_word = "检测到人";
+                            Application::GetInstance().WakeWordInvoke(wake_word);
+                        }
+                    }
+                } else if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK) {
+                    if (class_count > 0) {
+                        for (int i = 0; i < class_count; i++) {
+                            ESP_LOGI(TAG, "[class %d]: target=%d, score=%d", i, \
+                                    classes[i].target, classes[i].score);
+                        }
+                    }
+                } else if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK ) {
+                    if (point_count > 0) {
+                        for (int i = 0; i < point_count; i++) {
+                            ESP_LOGI(TAG, "[point %d]: x=%d, y=%d, z=%d, score=%d, target=%d", i, \
+                                    points[i].x, points[i].y, points[i].z, points[i].score, points[i].target);
+                        }
+                    }
+                }
+                
+                break;
+            case (640+480):
+
+                if (sscma_utils_fetch_image_from_reply(reply, &img, &img_size) == ESP_OK)
+                {
+                    ESP_LOGI(TAG, "image_size: %d\n", img_size);
+                    // 将数据通过队列发送出去
+                    SscmaData data;
+                    data.img = (uint8_t*)img;
+                    data.len = img_size;
+
+                    // 清空队列，保证只保存最新的数据
+                    SscmaData dummy;
+                    while (xQueueReceive(self->sscma_data_queue_, &dummy, 0) == pdPASS) {
+                        if (dummy.img) {
+                            heap_caps_free(dummy.img);
+                        }
+                    }
+                    xQueueSend(self->sscma_data_queue_, &data, 0);
+                    // 注意：img 的释放由接收方负责
+                }
+                break;
+            default:
+                ESP_LOGI(TAG, "unknown resolution");
+                break;
         }
     };
     callback.on_connect = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
@@ -148,6 +209,30 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         ESP_LOGE(TAG, "Failed to allocate memory for preview image");
         return;
     }
+
+    xTaskCreate([](void* arg) {
+        auto this_ = (SscmaCamera*)arg;
+        bool is_inference = false;
+        while (true)
+        {
+            if (Application::GetInstance().GetDeviceState() == kDeviceStateIdle ) {
+                if (!is_inference) {
+                    ESP_LOGI(TAG, "------- Start inference");
+                    sscma_client_break(this_->sscma_client_handle_);
+                    sscma_client_set_model(this_->sscma_client_handle_, 1);
+                    sscma_client_set_sensor(this_->sscma_client_handle_, 1, 1, true); // 设置分辨率 416X416
+                    sscma_client_invoke(this_->sscma_client_handle_, -1, false, true);
+                    is_inference = true;
+                }
+            } else if ( is_inference )  {
+                ESP_LOGI(TAG, "Stop inference");
+                is_inference = false;
+                sscma_client_break(this_->sscma_client_handle_);
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }, "sscma_camera", 4096, this, 1, nullptr);
+
 }
 
 SscmaCamera::~SscmaCamera() {
@@ -194,8 +279,11 @@ bool SscmaCamera::Capture() {
         return false;
     }
 
+    if (sscma_client_set_sensor(sscma_client_handle_, 1, 3, true)) {
+        ESP_LOGE(TAG, "Failed to set sensor");
+        return false;
+    }
     ESP_LOGI(TAG, "Capturing image...");
-
     // himax 有缓存数据,需要拍两张照片, 只获取最新的照片即可.
     if (sscma_client_sample(sscma_client_handle_, 2) ) {
         ESP_LOGE(TAG, "Failed to capture image from SSCMA client");
