@@ -56,7 +56,7 @@
 #define CAMERA_PIN_HREF 46
 #define CAMERA_PIN_PCLK 7
 
-#define XCLK_FREQ_HZ 20000000
+#define XCLK_FREQ_HZ 24000000
 
 
 #endif // _BOARD_CONFIG_H_
