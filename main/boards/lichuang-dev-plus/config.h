@@ -32,7 +32,6 @@
 // --- 4G 模块 UART ---
 #define ML307_TX_PIN GPIO_NUM_10
 #define ML307_RX_PIN GPIO_NUM_11
-#define ML307_RX_BUFFER_SIZE 4096
 
 // --- DVP 摄像头接口 ---
 #define CAMERA_PIN_PWDN  -1 // 由 AW9523B 控制

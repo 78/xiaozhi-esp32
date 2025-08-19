@@ -1,18 +1,13 @@
 #include "dual_network_board.h" 
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "mcp_server.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "axp2101.h"
 #include "power_save_timer.h"
 #include "esp32_camera.h"
-#include <esp_lcd_touch_ft5x06.h>
-#include <esp_lvgl_port.h> 
-#include <lvgl.h> 
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -20,6 +15,10 @@
 #include <driver/spi_common.h>
 #include <esp_timer.h>
 #include <wifi_station.h> 
+#include <esp_lcd_touch_ft5x06.h>
+#include <esp_lvgl_port.h>
+#include <lvgl.h>
+
 
 #define TAG "LichuangDevPlusBoard"
 
@@ -163,10 +162,10 @@ public:
 class LichuangDevPlusBoard : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
-    Button boot_button_;
-    AW9523B* aw9523b_;
     Pmic* pmic_;
+    Button boot_button_;
     LcdDisplay* display_;
+    AW9523B* aw9523b_;
     Esp32Camera* camera_;
     PowerSaveTimer* power_save_timer_;
 
@@ -221,17 +220,26 @@ private:
     void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
+        // 液晶屏控制IO初始化
+        ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_SPI_CS;
         io_config.dc_gpio_num = DISPLAY_SPI_DC;
-        io_config.spi_mode = 2; io_config.pclk_hz = 80 * 1000 * 1000;
-        io_config.trans_queue_depth = 10; io_config.lcd_cmd_bits = 8; io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((spi_host_device_t)DISPLAY_SPI_HOST, &io_config, &panel_io));
+        io_config.spi_mode = 2;
+        io_config.pclk_hz = 80 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
+
+        // 初始化液晶屏驱动芯片ST7789
+        ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_NC;
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+        
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, true);
@@ -327,31 +335,33 @@ private:
         ESP_LOGI(TAG, "I2C bus scan complete.");
         // --- End I2C Bus Scan ---
         camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2; 
-        config.ledc_timer = LEDC_TIMER_2;
-        config.pin_d0 = CAMERA_PIN_D0; 
-        config.pin_d1 = CAMERA_PIN_D1; 
-        config.pin_d2 = CAMERA_PIN_D2; 
+        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.pin_d0 = CAMERA_PIN_D0;
+        config.pin_d1 = CAMERA_PIN_D1;
+        config.pin_d2 = CAMERA_PIN_D2;
         config.pin_d3 = CAMERA_PIN_D3;
-        config.pin_d4 = CAMERA_PIN_D4; 
-        config.pin_d5 = CAMERA_PIN_D5; 
-        config.pin_d6 = CAMERA_PIN_D6; 
+        config.pin_d4 = CAMERA_PIN_D4;
+        config.pin_d5 = CAMERA_PIN_D5;
+        config.pin_d6 = CAMERA_PIN_D6;
         config.pin_d7 = CAMERA_PIN_D7;
-        config.pin_xclk = CAMERA_PIN_XCLK; 
+        config.pin_xclk = CAMERA_PIN_XCLK;
         config.pin_pclk = CAMERA_PIN_PCLK;
-        config.pin_vsync = CAMERA_PIN_VSYNC; 
+        config.pin_vsync = CAMERA_PIN_VSYNC;
         config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = -1; 
-        config.pin_sccb_scl = 1;
-        config.sccb_i2c_port = I2C_MASTER_PORT;
-        config.pin_pwdn = CAMERA_PIN_PWDN; 
+        config.pin_sccb_sda = -1;   // 这里写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_scl = CAMERA_PIN_SIOC;
+        config.sccb_i2c_port = 1;
+        config.pin_pwdn = CAMERA_PIN_PWDN;
         config.pin_reset = CAMERA_PIN_RESET;
-        config.xclk_freq_hz = XCLK_FREQ_HZ; 
-        config.frame_size = FRAMESIZE_VGA; 
-        config.jpeg_quality = 12; 
+        config.xclk_freq_hz = XCLK_FREQ_HZ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_VGA;
+        config.jpeg_quality = 12;
         config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM; 
+        config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
         camera_ = new Esp32Camera(config);
         if (!camera_) { 
             ESP_LOGE(TAG, "Camera initialization failed!"); 
@@ -374,16 +384,8 @@ private:
         }
     }
     
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
-    LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ML307_RX_BUFFER_SIZE), boot_button_(BOOT_BUTTON_GPIO) {
+    LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN), boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitializeI2cBus();
         vTaskDelay(pdMS_TO_TICKS(100)); // 增加100毫秒的延时
@@ -393,7 +395,7 @@ public:
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        InitializeTouch();
+        //InitializeTouch();
         InitializeCamera();
     }
     virtual AudioCodec* GetAudioCodec() override {
