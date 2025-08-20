@@ -48,6 +48,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
 
     sscma_client_callback_t callback = {0};
 
+    last_detect_tm = 0;
     callback.on_event = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
         SscmaCamera* self = static_cast<SscmaCamera*>(user_ctx);
         if (!self) return;
@@ -82,7 +83,17 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                             if (boxes[i].target == 0 && boxes[i].score > 85) { //当检测人得分大于85时唤醒
                                is_need_wake = true;
                             }
+
                         }
+
+                        if( is_need_wake ) {
+                            int64_t cur_tm = esp_timer_get_time();
+                            if( (cur_tm - self->last_detect_tm) < 10000000 ) { //持续10s没人才触发
+                                is_need_wake = false;
+                            }
+                            self->last_detect_tm = cur_tm;
+                        }
+
                         if( is_need_wake ) {
                             ESP_LOGI(TAG, "Detect Person, Wake...");
                             std::string wake_word = "检测到人";
@@ -217,12 +228,16 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         {
             if (Application::GetInstance().GetDeviceState() == kDeviceStateIdle ) {
                 if (!is_inference) {
-                    ESP_LOGI(TAG, "------- Start inference");
+                    ESP_LOGI(TAG, "Start inference");
                     sscma_client_break(this_->sscma_client_handle_);
                     sscma_client_set_model(this_->sscma_client_handle_, 1);
                     sscma_client_set_sensor(this_->sscma_client_handle_, 1, 1, true); // 设置分辨率 416X416
                     sscma_client_invoke(this_->sscma_client_handle_, -1, false, true);
                     is_inference = true;
+
+                    if( this_->last_detect_tm != 0 ) {
+                        this_->last_detect_tm = esp_timer_get_time(); // 第二次开启推理更新该时间(对话过程不会更新该时间)
+                    }
                 }
             } else if ( is_inference )  {
                 ESP_LOGI(TAG, "Stop inference");

@@ -35,6 +35,7 @@ private:
     jpeg_dec_handle_t jpeg_dec_;
     jpeg_dec_io_t *jpeg_io_;
     jpeg_dec_header_info_t *jpeg_out_;
+    int64_t last_detect_tm;
 public:
     SscmaCamera(esp_io_expander_handle_t io_exp_handle);
     ~SscmaCamera();
