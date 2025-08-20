@@ -3,7 +3,10 @@
     "builds": [
         {
             "name": "fogseek-esp32s3-audio",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y",
+                "CONFIG_OCV_SOC_MODEL_2=y"
+            ]
         }
     ]
 }
