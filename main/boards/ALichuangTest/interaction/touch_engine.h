@@ -104,6 +104,10 @@ private:
     uint32_t left_threshold_;  // 左侧触摸阈值
     uint32_t right_threshold_; // 右侧触摸阈值
     
+    // 传感器卡死检测
+    int stuck_detection_count_;
+    static const int STUCK_THRESHOLD = 10; // 连续10次检测到卡死状态
+    
     // 特殊事件检测
     TickleDetector tickle_detector_;
     int64_t both_touch_start_time_;  // 双侧同时触摸开始时间
@@ -121,6 +125,9 @@ private:
     
     // 读取基准值（新增）
     void ReadBaseline();
+    
+    // 重置触摸传感器
+    void ResetTouchSensor();
     
     // 处理单个触摸输入（旧版本，保留兼容）
     void ProcessTouch(gpio_num_t gpio, TouchPosition position, TouchState& state);

@@ -18,6 +18,7 @@ TouchEngine::TouchEngine()
     , right_baseline_(0)
     , left_threshold_(0)
     , right_threshold_(0)
+    , stuck_detection_count_(0)
     , both_touch_start_time_(0)
     , cradled_triggered_(false)
     , task_handle_(nullptr) {
@@ -161,6 +162,62 @@ void TouchEngine::ReadBaseline() {
     ESP_LOGI(TAG, "Touch detection: values must increase to 150%% of baseline");
 }
 
+void TouchEngine::ResetTouchSensor() {
+    ESP_LOGW(TAG, "========== TOUCH SENSOR RESET START ==========");
+    
+    // 1. 清除内部状态
+    left_state_ = {false, false, 0, 0, false};
+    right_state_ = {false, false, 0, 0, false};
+    left_touched_ = false;
+    right_touched_ = false;
+    both_touch_start_time_ = 0;
+    cradled_triggered_ = false;
+    
+    ESP_LOGI(TAG, "Step 1: Internal state cleared");
+    
+    // 2. 停止FSM
+    touch_pad_fsm_stop();
+    vTaskDelay(pdMS_TO_TICKS(50));  // 增加延迟
+    ESP_LOGI(TAG, "Step 2: FSM stopped");
+    
+    // 3. 反初始化
+    touch_pad_deinit();
+    vTaskDelay(pdMS_TO_TICKS(100));  // 增加延迟
+    ESP_LOGI(TAG, "Step 3: Touch pad deinitialized");
+    
+    // 4. 重新初始化
+    esp_err_t ret = touch_pad_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Touch sensor reset failed at init: %s", esp_err_to_name(ret));
+        // 尝试第二次
+        vTaskDelay(pdMS_TO_TICKS(500));
+        ret = touch_pad_init();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Touch sensor reset failed again: %s", esp_err_to_name(ret));
+            return;
+        }
+    }
+    ESP_LOGI(TAG, "Step 4: Touch pad reinitialized");
+    
+    // 5. 重新配置
+    InitializeGPIO();
+    ESP_LOGI(TAG, "Step 5: GPIO reconfigured");
+    
+    // 6. 等待稳定并重新读取基线
+    vTaskDelay(pdMS_TO_TICKS(200));
+    ReadBaseline();
+    
+    ESP_LOGI(TAG, "========== TOUCH SENSOR RESET COMPLETE ==========");
+    ESP_LOGI(TAG, "New baselines - L: %ld, R: %ld", left_baseline_, right_baseline_);
+    
+    // 7. 测试读取
+    uint32_t test_left = 0, test_right = 0;
+    esp_err_t test1 = touch_pad_read_raw_data(TOUCH_PAD_NUM10, &test_left);
+    esp_err_t test2 = touch_pad_read_raw_data(TOUCH_PAD_NUM11, &test_right);
+    ESP_LOGI(TAG, "Test read - L: %ld (err: %s), R: %ld (err: %s)", 
+             test_left, esp_err_to_name(test1), test_right, esp_err_to_name(test2));
+}
+
 void TouchEngine::RegisterCallback(TouchEventCallback callback) {
     callbacks_.push_back(callback);
 }
@@ -171,14 +228,20 @@ void TouchEngine::TouchTask(void* param) {
     
     int counter = 0;
     while (true) {
-        if (engine->enabled_) {
-            engine->Process();
-            
-            // 每5秒输出一次任务运行状态
-            if (++counter >= 250) {  // 250 * 20ms = 5s
-                // ESP_LOGD(TAG, "Touch task running, enabled=%d", engine->enabled_);
-                counter = 0;
+        try {
+            if (engine->enabled_) {
+                engine->Process();
+                
+                // 每5秒输出一次任务运行状态
+                if (++counter >= 250) {  // 250 * 20ms = 5s
+                    ESP_LOGD(TAG, "Touch task running - baselines: L=%ld, R=%ld", 
+                            engine->left_baseline_, engine->right_baseline_);
+                    counter = 0;
+                }
             }
+        } catch (...) {
+            ESP_LOGE(TAG, "Exception in touch task processing!");
+            // 继续运行，不要让任务退出
         }
         
         // 20ms轮询间隔，提高响应速度
@@ -194,8 +257,15 @@ void TouchEngine::Process() {
     
     if (ret1 != ESP_OK || ret2 != ESP_OK) {
         static int error_count = 0;
-        if (++error_count <= 5) {  // 只报告前5次错误
-            ESP_LOGE(TAG, "Failed to read touch values: ret1=%d, ret2=%d", ret1, ret2);
+        if (++error_count <= 10) {  // 增加错误报告次数
+            ESP_LOGE(TAG, "Failed to read touch values: ret1=%s, ret2=%s (count: %d)", 
+                    esp_err_to_name(ret1), esp_err_to_name(ret2), error_count);
+        }
+        
+        // 如果连续失败超过20次，尝试重新初始化
+        if (error_count > 20 && error_count % 50 == 0) {
+            ESP_LOGE(TAG, "Touch sensor persistent failure, attempting recovery...");
+            // TODO: 实现触摸传感器重新初始化
         }
         return;  // 读取失败，跳过这次
     }
@@ -207,9 +277,54 @@ void TouchEngine::Process() {
     
     // 每隔一段时间输出原始值以便调试
     static int debug_counter = 0;
+    static uint32_t last_left_value = 0;
+    static uint32_t last_right_value = 0;
+    static int frozen_count = 0;
+    
     if (++debug_counter >= 100) {  // 100 * 20ms = 2s
-        // ESP_LOGD(TAG, "Current touch values - L: %ld (base: %ld), R: %ld (base: %ld)",
-        //         left_value, left_baseline_, right_value, right_baseline_);
+        ESP_LOGD(TAG, "Touch values - L: %ld (%.1f%%), R: %ld (%.1f%%)",
+                left_value, (float)left_value/left_baseline_*100,
+                right_value, (float)right_value/right_baseline_*100);
+        
+        // 检测数值是否冻结（硬件驱动卡死）
+        if (left_value == last_left_value && right_value == last_right_value) {
+            frozen_count++;
+            if (frozen_count >= 3) {  // 连续3次（6秒）数值完全不变
+                ESP_LOGE(TAG, "Touch sensor values frozen! Hardware driver may be stuck.");
+                ESP_LOGE(TAG, "Attempting automatic recovery...");
+                ResetTouchSensor();
+                frozen_count = 0;
+            }
+        } else {
+            frozen_count = 0;  // 数值有变化，重置计数
+        }
+        
+        // 检测异常高值（可能是传感器卡死）
+        bool sensor_stuck = false;
+        if (left_baseline_ > 0 && (float)left_value/left_baseline_ > 3.0f) {
+            ESP_LOGW(TAG, "Left sensor stuck at high value! Ratio: %.1f%%", (float)left_value/left_baseline_*100);
+            sensor_stuck = true;
+        }
+        if (right_baseline_ > 0 && (float)right_value/right_baseline_ > 3.0f) {
+            ESP_LOGW(TAG, "Right sensor stuck at high value! Ratio: %.1f%%", (float)right_value/right_baseline_*100);
+            sensor_stuck = true;
+        }
+        
+        // 卡死检测和恢复
+        if (sensor_stuck) {
+            stuck_detection_count_++;
+            if (stuck_detection_count_ >= STUCK_THRESHOLD) {
+                ESP_LOGE(TAG, "Touch sensor persistently stuck, attempting reset...");
+                ResetTouchSensor();
+                stuck_detection_count_ = 0;
+            }
+        } else {
+            stuck_detection_count_ = 0; // 重置计数器
+        }
+        
+        // 更新上次的值
+        last_left_value = left_value;
+        last_right_value = right_value;
         debug_counter = 0;
     }
     
@@ -222,11 +337,12 @@ void TouchEngine::Process() {
         // 只在状态改变时输出日志
         static bool last_left_touched = false;
         if (left_touched != last_left_touched) {
-            ESP_LOGI(TAG, "Left touch %s - value: %ld, baseline: %ld, ratio: %.1f%%", 
+            ESP_LOGI(TAG, "Left touch %s - value: %ld, baseline: %ld, ratio: %.1f%% (cradled: %d)", 
                     left_touched ? "DETECTED" : "RELEASED",
-                    left_value, left_baseline_, left_ratio * 100);
+                    left_value, left_baseline_, left_ratio * 100, cradled_triggered_);
             last_left_touched = left_touched;
         }
+        
     } else {
         ESP_LOGW(TAG, "Left baseline is 0, cannot detect touch");
     }
@@ -238,9 +354,9 @@ void TouchEngine::Process() {
         // 只在状态改变时输出日志
         static bool last_right_touched = false;
         if (right_touched != last_right_touched) {
-            ESP_LOGI(TAG, "Right touch %s - value: %ld, baseline: %ld, ratio: %.1f%%", 
+            ESP_LOGI(TAG, "Right touch %s - value: %ld, baseline: %ld, ratio: %.1f%% (cradled: %d)", 
                     right_touched ? "DETECTED" : "RELEASED",
-                    right_value, right_baseline_, right_ratio * 100);
+                    right_value, right_baseline_, right_ratio * 100, cradled_triggered_);
             last_right_touched = right_touched;
         }
     }
@@ -249,20 +365,17 @@ void TouchEngine::Process() {
     ProcessSingleTouch(left_touched, TouchPosition::LEFT, left_state_);
     ProcessSingleTouch(right_touched, TouchPosition::RIGHT, right_state_);
     
-    // 处理特殊事件（cradled, tickled）
-    ProcessSpecialEvents();
-    
-    // 更新全局状态
+    // 更新全局状态（应该在处理特殊事件之前）
     left_touched_ = left_touched;
     right_touched_ = right_touched;
+    
+    // 处理特殊事件（cradled, tickled）
+    ProcessSpecialEvents();
 }
 
 void TouchEngine::ProcessSingleTouch(bool currently_touched, TouchPosition position, TouchState& state) {
     int64_t current_time = esp_timer_get_time();
     
-    // ESP_LOGD(TAG, "ProcessSingleTouch: pos=%s, currently=%d, was=%d, is=%d", 
-    //         position == TouchPosition::LEFT ? "LEFT" : "RIGHT",
-    //         currently_touched, state.was_touched, state.is_touched);
     
     // 消抖处理
     if (currently_touched != state.was_touched) {
@@ -369,6 +482,10 @@ void TouchEngine::ProcessSpecialEvents() {
             }
         }
     } else {
+        // 双侧触摸结束，重置cradled状态
+        if (both_touch_start_time_ != 0 || cradled_triggered_) {
+            ESP_LOGD(TAG, "Both touch ended - resetting cradled state (was_triggered=%d)", cradled_triggered_);
+        }
         both_touch_start_time_ = 0;
         cradled_triggered_ = false;
     }
@@ -411,10 +528,16 @@ void TouchEngine::DispatchEvent(const TouchEvent& event) {
     ESP_LOGI(TAG, "Dispatching TouchEvent: type=%d, position=%d, callbacks=%zu", 
             (int)event.type, (int)event.position, callbacks_.size());
     
-    for (const auto& callback : callbacks_) {
-        if (callback) {
-            ESP_LOGI(TAG, "Calling callback with event type=%d", (int)event.type);
-            callback(event);
+    for (size_t i = 0; i < callbacks_.size(); ++i) {
+        if (callbacks_[i]) {
+            ESP_LOGD(TAG, "Calling callback %zu with event type=%d", i, (int)event.type);
+            try {
+                callbacks_[i](event);
+                ESP_LOGD(TAG, "Callback %zu completed", i);
+            } catch (...) {
+                ESP_LOGE(TAG, "Exception in callback %zu for event type=%d", i, (int)event.type);
+            }
         }
     }
+    ESP_LOGD(TAG, "Event dispatch completed for type=%d", (int)event.type);
 }
