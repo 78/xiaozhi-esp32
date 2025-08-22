@@ -141,7 +141,7 @@ void ElectronEmojiDisplay::SetChatMessage(const char* role, const char* content)
     }
 
     lv_label_set_text(chat_message_label_, content);
-    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
 }
@@ -163,7 +163,7 @@ void ElectronEmojiDisplay::SetIcon(const char* icon) {
         }
 
         lv_label_set_text(chat_message_label_, icon_message.c_str());
-        lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
         ESP_LOGI(TAG, "设置图标: %s", icon);
     }
