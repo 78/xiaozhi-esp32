@@ -15,7 +15,7 @@ public:
 
     void SetupHighTempWarningPopup() {
         // 创建高温警告弹窗
-        high_temp_popup_ = lv_obj_create(lv_scr_act());  // 使用当前屏幕
+        high_temp_popup_ = lv_obj_create(lv_screen_active());  // 使用当前屏幕
         lv_obj_set_scrollbar_mode(high_temp_popup_, LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
         lv_obj_align(high_temp_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -47,7 +47,7 @@ public:
 
     void ShowHighTempWarning() {
         if (high_temp_popup_ && lv_obj_has_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN)) {
-            lv_obj_clear_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(high_temp_popup_, LV_OBJ_FLAG_HIDDEN);
         }
     }
 

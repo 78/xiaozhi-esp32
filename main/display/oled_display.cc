@@ -23,7 +23,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
     port_cfg.task_stack = 6144;
-    port_cfg.timer_period_ms = 50;
+    port_cfg.timer_period_ms = 40;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding OLED display");
@@ -112,7 +112,7 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
             lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_label_set_text(chat_message_label_, content_str.c_str());
-            lv_obj_clear_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
         }
     }
 }
