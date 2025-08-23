@@ -77,3 +77,6 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  lijunru-hub/esp-ppbuffer: ^0.1.0
+  espressif/usb_stream: ^1.5.0
+  espressif/esp_new_jpeg: ^0.5.1
