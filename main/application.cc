@@ -36,17 +36,17 @@ static const char* const STATE_STRINGS[] = {
 Application::Application() {
     event_group_ = xEventGroupCreate();
 
-#if CONFIG_USE_DEVICE_AEC && CONFIG_USE_SERVER_AEC
+#if CONFIG_USE_DEVICE_AEC && CONFIG_USE_SERVER_AEC//AEC设置冲突
 #error "CONFIG_USE_DEVICE_AEC and CONFIG_USE_SERVER_AEC cannot be enabled at the same time"
 #elif CONFIG_USE_DEVICE_AEC
     aec_mode_ = kAecOnDeviceSide;
 #elif CONFIG_USE_SERVER_AEC
     aec_mode_ = kAecOnServerSide;
 #else
-    aec_mode_ = kAecOff;
+    aec_mode_ = kAecOff;//
 #endif
-
-    esp_timer_create_args_t clock_timer_args = {
+    // 配置并创建时钟定时器，用于定期执行时钟相关任务
+    esp_timer_create_args_t clock_timer_args = {// 定时器参数
         .callback = [](void* arg) {
             Application* app = (Application*)arg;
             app->OnClockTimer();
@@ -331,12 +331,12 @@ void Application::Start() {
     SetDeviceState(kDeviceStateStarting);
 
     /* Setup the display */
-    auto display = board.GetDisplay();
+    auto display = board.GetDisplay();  // 获取显示器
 
     /* Setup the audio service */
-    auto codec = board.GetAudioCodec();
-    audio_service_.Initialize(codec);
-    audio_service_.Start();
+    auto codec = board.GetAudioCodec();  // 获取音频编码器
+    audio_service_.Initialize(codec);    // 初始化音频服务
+    audio_service_.Start();              // 启动音频服务
 
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {
@@ -544,12 +544,12 @@ void Application::MainEventLoop() {
             MAIN_EVENT_WAKE_WORD_DETECTED |
             MAIN_EVENT_VAD_CHANGE |
             MAIN_EVENT_ERROR, pdTRUE, pdFALSE, portMAX_DELAY);
-        if (bits & MAIN_EVENT_ERROR) {
+        if (bits & MAIN_EVENT_ERROR) {//错误事件
             SetDeviceState(kDeviceStateIdle);
             Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "sad", Lang::Sounds::P3_EXCLAMATION);
         }
 
-        if (bits & MAIN_EVENT_SEND_AUDIO) {
+        if (bits & MAIN_EVENT_SEND_AUDIO) {//发送音频数据事件
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
                 if (!protocol_->SendAudio(std::move(packet))) {
                     break;
@@ -557,18 +557,18 @@ void Application::MainEventLoop() {
             }
         }
 
-        if (bits & MAIN_EVENT_WAKE_WORD_DETECTED) {
+        if (bits & MAIN_EVENT_WAKE_WORD_DETECTED) {//唤醒词检测到事件
             OnWakeWordDetected();
         }
 
-        if (bits & MAIN_EVENT_VAD_CHANGE) {
+        if (bits & MAIN_EVENT_VAD_CHANGE) {//VAD 状态改变事件
             if (device_state_ == kDeviceStateListening) {
                 auto led = Board::GetInstance().GetLed();
                 led->OnStateChanged();
             }
         }
 
-        if (bits & MAIN_EVENT_SCHEDULE) {
+        if (bits & MAIN_EVENT_SCHEDULE) {//主事件循环调度事件
             std::unique_lock<std::mutex> lock(mutex_);
             auto tasks = std::move(main_tasks_);
             lock.unlock();

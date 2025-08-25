@@ -17,28 +17,28 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
-#define MAIN_EVENT_SCHEDULE (1 << 0)
-#define MAIN_EVENT_SEND_AUDIO (1 << 1)
-#define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
-#define MAIN_EVENT_VAD_CHANGE (1 << 3)
-#define MAIN_EVENT_ERROR (1 << 4)
-#define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
+#define MAIN_EVENT_SCHEDULE (1 << 0)                   // 主事件循环调度事件    事件组bit0
+#define MAIN_EVENT_SEND_AUDIO (1 << 1)                 // 发送音频数据         事件组bit1  
+#define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)         // 唤醒词检测到事件     事件组bit2
+#define MAIN_EVENT_VAD_CHANGE (1 << 3)                 // VAD 状态改变事件     事件组bit3
+#define MAIN_EVENT_ERROR (1 << 4)                      // 错误事件             事件组bit4
+#define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)     // 检查新版本完成事件    事件组bit5
 
-enum AecMode {
-    kAecOff,
-    kAecOnDeviceSide,
-    kAecOnServerSide,
+enum AecMode {//回音消除模式
+    kAecOff,            // 关闭 AEC
+    kAecOnDeviceSide,   // 设备 AEC
+    kAecOnServerSide,   // 端侧不做 AEC，服务器侧做 AEC
 };
 
 class Application {
 public:
-    static Application& GetInstance() {
+    static Application& GetInstance() {  
         static Application instance;
         return instance;
     }
     // 删除拷贝构造函数和赋值运算符
     Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
+    Application& operator=(const Application&) = delete;//单例操作
 
     void Start();
     void MainEventLoop();

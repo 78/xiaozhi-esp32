@@ -26,28 +26,28 @@ bool MqttProtocol::Start() {
 bool MqttProtocol::StartMqttClient(bool report_error) {
     if (mqtt_ != nullptr) {
         ESP_LOGW(TAG, "Mqtt client already started");
-        mqtt_.reset();
+        mqtt_.reset();      
     }
 
-    Settings settings("mqtt", false);
-    auto endpoint = settings.GetString("endpoint");
-    auto client_id = settings.GetString("client_id");
-    auto username = settings.GetString("username");
-    auto password = settings.GetString("password");
-    int keepalive_interval = settings.GetInt("keepalive", 240);
-    publish_topic_ = settings.GetString("publish_topic");
+    Settings settings("mqtt", false);                               // nvs读取配置文件  false 只读
+    auto endpoint = settings.GetString("endpoint");                 // 服务器地址
+    auto client_id = settings.GetString("client_id");                // 客户端ID
+    auto username = settings.GetString("username");                  // 用户名
+    auto password = settings.GetString("password");                  // 密码
+    int keepalive_interval = settings.GetInt("keepalive", 240);     // 心跳间隔
+    publish_topic_ = settings.GetString("publish_topic");            // 发布主题
 
     if (endpoint.empty()) {
-        ESP_LOGW(TAG, "MQTT endpoint is not specified");
+        ESP_LOGW(TAG, "MQTT endpoint is not specified");            // 服务器地址为空
         if (report_error) {
-            SetError(Lang::Strings::SERVER_NOT_FOUND);
+            SetError(Lang::Strings::SERVER_NOT_FOUND);               // 设置错误
         }
         return false;
     }
 
-    auto network = Board::GetInstance().GetNetwork();
-    mqtt_ = network->CreateMqtt(0);
-    mqtt_->SetKeepAlive(keepalive_interval);
+    auto network = Board::GetInstance().GetNetwork();            // 获取网络实例    NetworkInterface* network
+    mqtt_ = network->CreateMqtt(0);                              // 创建MQTT客户端
+    mqtt_->SetKeepAlive(keepalive_interval);                     // 设置心跳间隔
 
     mqtt_->OnDisconnected([this]() {
         ESP_LOGI(TAG, "Disconnected from endpoint");

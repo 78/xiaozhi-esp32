@@ -37,14 +37,14 @@ private:
     std::string publish_topic_;
 
     std::mutex channel_mutex_;
-    std::unique_ptr<Mqtt> mqtt_;
-    std::unique_ptr<Udp> udp_;
-    mbedtls_aes_context aes_ctx_;
-    std::string aes_nonce_;
+    std::unique_ptr<Mqtt> mqtt_;                                        // MQTT客户端
+    std::unique_ptr<Udp> udp_;                                          // UDP客户端
+    mbedtls_aes_context aes_ctx_;                                       // AES上下文
+    std::string aes_nonce_;                                             // AES非重复数
     std::string udp_server_;
-    int udp_port_;
-    uint32_t local_sequence_;
-    uint32_t remote_sequence_;
+    int udp_port_;                                                     // UDP端口
+    uint32_t local_sequence_;                                           // 本地序列号
+    uint32_t remote_sequence_;                                          // 远程序列号
 
     bool StartMqttClient(bool report_error=false);
     void ParseServerHello(const cJSON* root);

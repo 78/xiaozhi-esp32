@@ -25,7 +25,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Launch the application
-    auto& app = Application::GetInstance();
+    auto& app = Application::GetInstance();  //application单例入口
     app.Start();
     app.MainEventLoop();
 }
