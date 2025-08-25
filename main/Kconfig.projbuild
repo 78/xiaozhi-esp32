@@ -178,6 +178,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
         bool "AtomS3R CAM/M12 + Echo Base"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ATOM_ECHOS3R
+        bool "AtomEchoS3R"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
