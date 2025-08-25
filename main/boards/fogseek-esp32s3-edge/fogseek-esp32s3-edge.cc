@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "codecs/no_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -11,10 +11,11 @@
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
 #include <esp_log.h>
+#include <driver/i2c_master.h>
 
-#define TAG "FogSeekEsp32s3Audio"
+#define TAG "FogSeekEsp32s3Edge"
 
-class FogSeekEsp32s3Audio : public WifiBoard
+class FogSeekEsp32s3Edge : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -27,6 +28,8 @@ private:
     esp_timer_handle_t battery_check_timer_ = nullptr;
     esp_timer_handle_t speaking_blink_timer_ = nullptr;
     bool speaking_led_state_ = false;
+
+    i2c_master_bus_handle_t i2c_bus_ = nullptr;
 
     void UpdateBatteryStatus()
     {
@@ -127,14 +130,14 @@ private:
 
     static void BatteryCheckTimerCallback(void *arg)
     {
-        FogSeekEsp32s3Audio *self = static_cast<FogSeekEsp32s3Audio *>(arg);
+        FogSeekEsp32s3Edge *self = static_cast<FogSeekEsp32s3Edge *>(arg);
         self->CheckLowBattery();
     }
 
     // 说话状态LED闪烁定时器回调
     static void SpeakingBlinkTimerCallback(void *arg)
     {
-        FogSeekEsp32s3Audio *self = static_cast<FogSeekEsp32s3Audio *>(arg);
+        FogSeekEsp32s3Edge *self = static_cast<FogSeekEsp32s3Edge *>(arg);
         self->speaking_led_state_ = !self->speaking_led_state_;
         gpio_set_level(LED_RED_GPIO, self->speaking_led_state_);
         gpio_set_level(LED_GREEN_GPIO, self->speaking_led_state_);
@@ -190,7 +193,7 @@ private:
 
         // 创建说话状态LED闪烁定时器
         esp_timer_create_args_t timer_args = {
-            .callback = &FogSeekEsp32s3Audio::SpeakingBlinkTimerCallback,
+            .callback = &FogSeekEsp32s3Edge::SpeakingBlinkTimerCallback,
             .arg = this,
             .name = "speaking_blink_timer"};
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &speaking_blink_timer_));
@@ -222,7 +225,7 @@ private:
 
         // 低电量管理 - 创建电池检查定时器，每30秒检查一次
         esp_timer_create_args_t timer_args = {
-            .callback = &FogSeekEsp32s3Audio::BatteryCheckTimerCallback,
+            .callback = &FogSeekEsp32s3Edge::BatteryCheckTimerCallback,
             .arg = this,
             .name = "battery_check_timer"};
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &battery_check_timer_));
@@ -272,9 +275,28 @@ private:
                                     } });
     }
 
-public:
-    FogSeekEsp32s3Audio() : boot_button_(BOOT_GPIO), pwr_button_(BUTTON_GPIO)
+    void InitializeI2c()
     {
+        // Initialize I2C peripheral
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = (i2c_port_t)0,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+
+public:
+    FogSeekEsp32s3Edge() : boot_button_(BOOT_GPIO), pwr_button_(BUTTON_GPIO)
+    {
+        InitializeI2c();
         InitializeLeds();
         InitializeMCP();
         InitializeBatteryMonitor();
@@ -290,12 +312,26 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                                              AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
+        // 使用ES8311编解码器实现全双工对讲和语音唤醒打断
+        static Es8311AudioCodec audio_codec(
+            i2c_bus_,
+            (i2c_port_t)0,
+            AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK,
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_PA_PIN,
+            AUDIO_CODEC_ES8311_ADDR,
+            true, // use_mclk
+            false // pa_inverted
+        );
         return &audio_codec;
     }
 
-    ~FogSeekEsp32s3Audio()
+    ~FogSeekEsp32s3Edge()
     {
         if (battery_check_timer_)
         {
@@ -313,7 +349,12 @@ public:
         {
             delete battery_monitor_;
         }
+
+        if (i2c_bus_)
+        {
+            i2c_del_master_bus(i2c_bus_);
+        }
     }
 };
 
-DECLARE_BOARD(FogSeekEsp32s3Audio);
+DECLARE_BOARD(FogSeekEsp32s3Edge);
