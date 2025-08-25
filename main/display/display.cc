@@ -21,7 +21,7 @@ Display::Display() {
             Display *display = static_cast<Display*>(arg);
             DisplayLockGuard lock(display);
             lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_clear_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
@@ -67,7 +67,7 @@ void Display::SetStatus(const char* status) {
         return;
     }
     lv_label_set_text(status_label_, status);
-    lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
     last_status_update_time_ = std::chrono::system_clock::now();
@@ -83,7 +83,7 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
         return;
     }
     lv_label_set_text(notification_label_, notification);
-    lv_obj_clear_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
 
     esp_timer_stop(notification_timer_);
@@ -157,8 +157,8 @@ void Display::UpdateStatusBar(bool update_all) {
         if (low_battery_popup_ != nullptr) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
-                    lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
+                    lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+                    app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty

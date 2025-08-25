@@ -28,7 +28,7 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
     memset(&preview_image_, 0, sizeof(preview_image_));
     preview_image_.header.magic = LV_IMAGE_HEADER_MAGIC;
     preview_image_.header.cf = LV_COLOR_FORMAT_RGB565;
-    preview_image_.header.flags = LV_IMAGE_FLAGS_ALLOCATED | LV_IMAGE_FLAGS_MODIFIABLE;
+    preview_image_.header.flags = 0;
 
     switch (config.frame_size) {
         case FRAMESIZE_SVGA:

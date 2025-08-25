@@ -13,11 +13,6 @@ void NoAudioProcessor::Feed(std::vector<int16_t>&& data) {
         return;
     }
 
-    if (data.size() != frame_samples_) {
-        ESP_LOGE(TAG, "Feed data size is not equal to frame size, feed size: %u, frame size: %u", data.size(), frame_samples_);
-        return;
-    }
-
     if (codec_->input_channels() == 2) {
         // If input channels is 2, we need to fetch the left channel data
         auto mono_data = std::vector<int16_t>(data.size() / 2);
