@@ -6,7 +6,8 @@
             "sdkconfig_append": [
                 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\"",
-                "CONFIG_LCD_ST7735_128X128=y"
+                "CONFIG_LCD_ST7735_128X128=y",
+                "CONFIG_BOARD_TYPE_ESP32_CGC=y"
             ]
         }
     ]

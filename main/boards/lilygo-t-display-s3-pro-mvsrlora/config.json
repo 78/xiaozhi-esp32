@@ -3,7 +3,15 @@
     "builds": [
         {
             "name": "lilygo-t-display-s3-pro-mvsrlora",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA=y"
+            ]
+        },
+        {
+            "name": "lilygo-t-display-s3-pro-mvsrlora-no-battery",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY=y"
+            ]
         }
     ]
 }
