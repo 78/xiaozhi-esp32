@@ -475,6 +475,28 @@ void Application::Start() {
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
+#if 1
+        } else if (strcmp(type->valuestring, "image") == 0) {
+            ESP_LOGI(TAG, "Received image message: %s", cJSON_PrintUnformatted(root));
+            auto url = cJSON_GetObjectItem(root, "url");
+            auto msg_height = cJSON_GetObjectItem(root, "height");
+            auto msg_width = cJSON_GetObjectItem(root, "width");
+            // 默认值
+            int image_width = 128;
+            int image_height = 128;
+            if (cJSON_IsNumber(msg_width) && cJSON_IsNumber(msg_height)) {
+                image_width = msg_width->valueint;
+                image_height = msg_height->valueint;
+            }
+
+            if (cJSON_IsString(url)) {
+                Schedule([this, url_str = std::string(url->valuestring), image_width, image_height]() {
+                    DisplayJpg(url_str, image_width, image_height);
+                });
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
+#endif
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -770,4 +792,108 @@ void Application::SetAecMode(AecMode mode) {
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+void Application::DisplayJpg(const std::string& url_str, int image_width, int image_height) {
+        // 下载并显示图片
+        auto& board = Board::GetInstance();
+        auto network = board.GetNetwork();
+        auto display = board.GetDisplay();
+
+        auto http = network->CreateHttp(0);
+        
+        if (!http->Open("GET", url_str)) {
+            ESP_LOGE(TAG, "Failed to open HTTP connection for image: %s", url_str.c_str());
+            return;
+        }
+        
+        if (http->GetStatusCode() != 200) {
+            ESP_LOGE(TAG, "Failed to get image, status code: %d", http->GetStatusCode());
+            http->Close();
+            return;
+        }
+        
+        size_t content_length = http->GetBodyLength();
+        if (content_length == 0) {
+            ESP_LOGE(TAG, "Failed to get image content length");
+            http->Close();
+            return;
+        }
+        
+        // 分配buffer来存储图片数据
+        uint8_t* image_buffer = (uint8_t*)heap_caps_malloc(content_length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (image_buffer == nullptr) {
+            ESP_LOGE(TAG, "Failed to allocate memory for image (size: %u bytes)", (unsigned int)content_length);
+            http->Close();
+            return;
+        }
+        
+        // 分块读取图片数据
+        char buffer[512];
+        size_t total_read = 0;
+        while (total_read < content_length) {
+            int ret = http->Read(buffer, sizeof(buffer));
+            if (ret <= 0) {
+                ESP_LOGE(TAG, "Failed to read image data, ret: %d", ret);
+                heap_caps_free(image_buffer);
+                http->Close();
+                return;
+            }
+            
+            // 确保不会超出buffer边界
+            size_t copy_len = (total_read + ret > content_length) ? (content_length - total_read) : ret;
+            memcpy(image_buffer + total_read, buffer, copy_len);
+            total_read += copy_len;
+            
+            if (ret == 0) {
+                break;
+            }
+        }
+        
+        http->Close();
+        
+        ESP_LOGI(TAG, "Successfully downloaded image: %u bytes", (unsigned int)total_read);
+        
+        // 构造lv_img_dsc_t
+        const int expected_size = image_width * image_height * 2; // RGB565 = 2 bytes per pixel
+        
+        ESP_LOGI(TAG, "Image dimensions: %dx%d, expected size: %d bytes, actual size: %u bytes", 
+            image_width, image_height, expected_size, (unsigned int)total_read);
+        
+        if (total_read == expected_size) {
+            
+            // 创建lv_img_dsc_t结构体
+            lv_img_dsc_t* img_dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
+            if (img_dsc != nullptr) {
+                memset(img_dsc, 0, sizeof(lv_img_dsc_t)); // 区域清零
+                img_dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+                img_dsc->header.cf = LV_COLOR_FORMAT_RGB565; // png->argb565, jpeg->rgb565
+                img_dsc->header.flags = 0;
+                img_dsc->header.w = image_width;
+                img_dsc->header.h = image_height;
+                img_dsc->header.stride = image_width * 2; // RGB565 = 2 bytes per pixel
+                img_dsc->data_size = total_read;
+                img_dsc->data = image_buffer; // 指向下载的RGB565数据
+                
+                // 打印图片信息
+                ESP_LOGI(TAG, "Created image info - width: %d, height: %d, data_size: %u, magic: 0x%x, cf: %d", 
+                    img_dsc->header.w, img_dsc->header.h, (unsigned int)img_dsc->data_size, 
+                    img_dsc->header.magic, img_dsc->header.cf);
+                
+                display->SetPreviewImage(img_dsc);
+                ESP_LOGI(TAG, "Image displayed successfully");
+                
+            } else {
+                ESP_LOGE(TAG, "Failed to allocate memory for lv_img_dsc_t");
+                heap_caps_free(image_buffer);
+            }
+        } else {
+            ESP_LOGE(TAG, "Downloaded image data size mismatch, got %u bytes, expected %d bytes (%dx%d RGB565)", 
+                (unsigned int)total_read, expected_size, image_width, image_height);
+            heap_caps_free(image_buffer);
+        }
+        
+        // 延迟释放图片数据内存，给足够时间让显示函数处理
+        vTaskDelay(pdMS_TO_TICKS(100));
+        heap_caps_free(image_buffer);
 }
