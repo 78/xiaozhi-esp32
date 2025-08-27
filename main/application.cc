@@ -8,6 +8,8 @@
 #include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
+#include "settings.h"
+
 
 #include <cstring>
 #include <esp_log.h>
@@ -129,7 +131,10 @@ void Application::CheckNewVersion(Ota& ota) {
                 // Upgrade failed, restart audio service and continue running
                 ESP_LOGE(TAG, "Firmware upgrade failed, restarting audio service and continuing operation...");
                 audio_service_.Start(); // Restart audio service
-                board.SetPowerSaveMode(true); // Restore power save mode
+                Settings settings("wifi", false);
+                if (settings.GetBool("sleep_mode", true)) {
+                    board.SetPowerSaveMode(true);           // Restore power save mode
+                }
                 Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "sad", Lang::Sounds::OGG_EXCLAMATION);
                 vTaskDelay(pdMS_TO_TICKS(3000));
                 // Continue to normal operation (don't break, just fall through)
@@ -395,7 +400,10 @@ void Application::Start() {
         }
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
-        board.SetPowerSaveMode(true);
+        Settings settings("wifi", false);
+        if (settings.GetBool("sleep_mode", true)) {
+            board.SetPowerSaveMode(true);
+        }
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
