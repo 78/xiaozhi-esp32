@@ -1,5 +1,4 @@
 #include "oled_display.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 
 #include <string>
@@ -8,6 +7,7 @@
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
+#include <font_awesome.h>
 
 #define TAG "OledDisplay"
 
@@ -157,7 +157,7 @@ void OledDisplay::SetupUI_128x64() {
 
     emotion_label_ = lv_label_create(content_left_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
     lv_obj_center(emotion_label_);
     lv_obj_set_style_pad_top(emotion_label_, 8, 0);
 
@@ -249,7 +249,7 @@ void OledDisplay::SetupUI_128x32() {
 
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
     lv_obj_center(emotion_label_);
 
     /* Right side */

@@ -8,7 +8,6 @@
 #include "settings.h"
 #include "config.h"
 #include "sleep_timer.h"
-#include "font_awesome_symbols.h"
 #include "adc_battery_monitor.h"
 #include "press_to_talk_mcp_tool.h"
 

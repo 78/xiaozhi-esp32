@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <algorithm>
-#include <font_awesome_symbols.h>
+#include <font_awesome.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
@@ -367,7 +367,7 @@ void LcdDisplay::SetupUI() {
     emotion_label_ = lv_label_create(status_bar_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
     lv_obj_set_style_margin_right(emotion_label_, 5, 0); // 添加右边距，与后面的元素分隔
 
     notification_label_ = lv_label_create(status_bar_);
@@ -744,7 +744,7 @@ void LcdDisplay::SetupUI() {
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
 
     preview_image_ = lv_image_create(content_);
     lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
@@ -867,6 +867,13 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     std::string_view emotion_view(emotion);
     auto it = std::find_if(emotions.begin(), emotions.end(),
         [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
+    if (fonts_.emoji_font == nullptr || it == emotions.end()) {
+        const char* utf8 = font_awesome_get_utf8(emotion);
+        if (utf8 != nullptr) {
+            SetIcon(utf8);
+        }
+        return;
+    }
 
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {

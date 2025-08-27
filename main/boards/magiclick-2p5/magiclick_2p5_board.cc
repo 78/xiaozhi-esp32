@@ -6,7 +6,6 @@
 #include "led/circular_strip.h"
 #include "config.h"
 #include "assets/lang_config.h"
-#include "font_awesome_symbols.h"
 
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>

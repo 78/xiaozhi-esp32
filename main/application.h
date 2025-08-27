@@ -9,7 +9,6 @@
 #include <string>
 #include <mutex>
 #include <deque>
-#include <vector>
 #include <memory>
 
 #include "protocol.h"

@@ -3,7 +3,6 @@
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
 #include "led_control.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"

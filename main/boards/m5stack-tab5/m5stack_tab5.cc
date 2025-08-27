@@ -2,7 +2,6 @@
 #include "tab5_audio_codec.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9881c.h"
-#include "font_awesome_symbols.h"
 #include "font_emoji.h"
 #include "application.h"
 #include "button.h"

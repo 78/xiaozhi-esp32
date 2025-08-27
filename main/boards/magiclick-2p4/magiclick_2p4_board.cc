@@ -5,7 +5,6 @@
 #include "button.h"
 #include "led/circular_strip.h"
 #include "config.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 
 #include <esp_lcd_panel_vendor.h>
