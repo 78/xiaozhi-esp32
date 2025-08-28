@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-dualeye-lcd-1.28",
+            "sdkconfig_append": []
+        }
+    ]
+}
