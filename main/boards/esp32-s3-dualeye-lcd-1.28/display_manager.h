@@ -32,7 +32,10 @@ public:
     virtual void SetTheme(const std::string& theme_name) override;
     virtual void SetStatus(const char* status) override;
     
-    virtual void ShowNotification(const char* message);
+    virtual void ShowNotification(const char* message, int duration_ms) override;
+    virtual void ShowNotification(const std::string& notification, int duration_ms) override;
+    virtual void UpdateStatusBar(bool update_all = false) override;
+    virtual std::string GetTheme() override;
     
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;

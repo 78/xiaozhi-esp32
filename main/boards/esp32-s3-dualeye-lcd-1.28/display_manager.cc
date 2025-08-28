@@ -72,13 +72,35 @@ void DisplayManager::SetStatus(const char* status) {
         if (display) display->SetStatus(status);
     }
 }
-
-void DisplayManager::ShowNotification(const char* message) {
+void DisplayManager::ShowNotification(const char* message, int duration_ms) {
     for (auto display : displays_) {
         if (display) {
-            display->ShowNotification(message);
+            display->ShowNotification(message, duration_ms);
         }
     }
+}
+
+void DisplayManager::ShowNotification(const std::string& notification, int duration_ms) {
+    for (auto display : displays_) {
+        if (display) {
+            display->ShowNotification(notification, duration_ms);
+        }
+    }
+}
+
+void DisplayManager::UpdateStatusBar(bool update_all) {
+    for (auto display : displays_) {
+        if (display) {
+            display->UpdateStatusBar(update_all);
+        }
+    }
+}
+
+std::string DisplayManager::GetTheme() {
+    if (primary_display_) {
+        return primary_display_->GetTheme();
+    }
+    return displays_.empty() ? "" : displays_[0]->GetTheme();
 }
 
 bool DisplayManager::Lock(int timeout_ms) {
