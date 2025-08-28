@@ -4,6 +4,7 @@
 #include "board.h"
 #include "system_info.h"
 #include "config.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -48,20 +49,21 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
 
     sscma_client_callback_t callback = {0};
 
-    last_detect_tm = 0;
+    detection_state = SscmaCamera::IDLE;
+    state_start_time = 0;
+    need_start_cooldown = false;
     callback.on_event = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
         SscmaCamera* self = static_cast<SscmaCamera*>(user_ctx);
         if (!self) return;
         
         char *img = NULL;
         int img_size = 0;
-        sscma_client_class_t *classes = NULL;
-        sscma_client_box_t     *boxes = NULL;
-        sscma_client_point_t  *points = NULL;
-        int class_count = 0;
         int box_count = 0;
-        int point_count = 0;
-        bool is_need_wake =  false;
+        sscma_client_box_t     *boxes = NULL;
+        // int class_count = 0;
+        // sscma_client_class_t *classes = NULL;
+        // int point_count = 0;
+        // sscma_client_point_t  *points = NULL;
 
         int width = 0, height = 0;
         cJSON *data = cJSON_GetObjectItem(reply->payload, "data");
@@ -74,48 +76,125 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         }
         
         switch ((width+height)) {
-            case (416+416):                
-                if (sscma_utils_fetch_boxes_from_reply(reply, &boxes, &box_count) == ESP_OK) {
-                    if (box_count > 0) {
-                        for (int i = 0; i < box_count; i++) {
-                            ESP_LOGI(TAG, "[box %d]: x=%d, y=%d, w=%d, h=%d, score=%d, target=%d", i,  \
-                                    boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h, boxes[i].score, boxes[i].target);
-                            if (boxes[i].target == 0 && boxes[i].score > 85) { //当检测人得分大于85时唤醒
-                               is_need_wake = true;
-                            }
+            case (416+416):  // 人体检测模型
+            // case (224+224):  // 分类模型
+            // case (320+240):  // 小型检测模型
+            // case (640+640):  // 大型检测模型
+            // case (512+512):  // 中型检测模型
+            {
+                bool is_object_detected = false;
+                bool is_need_wake = false;
+                
+                // 定期更新检测配置参数，避免频繁NVS访问
+                int64_t cur_tm = esp_timer_get_time();
+                if (cur_tm - self->last_config_load_tm > 5000000LL) { // 每5秒更新一次配置
+                    Settings vision_settings("vision", false);
+                    self->cached_target_type = vision_settings.GetInt("tar", 0);
+                    self->cached_detect_invoke_interval_sec = vision_settings.GetInt("intv", 15);
+                    self->cached_detect_duration_sec = vision_settings.GetInt("dura", 2);
+                    self->cached_detect_threshold = vision_settings.GetInt("thre", 75);
 
-                        }
-
-                        if( is_need_wake ) {
-                            int64_t cur_tm = esp_timer_get_time();
-                            if( (cur_tm - self->last_detect_tm) < 10000000 ) { //持续10s没人才触发
-                                is_need_wake = false;
-                            }
-                            self->last_detect_tm = cur_tm;
-                        }
-
-                        if( is_need_wake ) {
-                            ESP_LOGI(TAG, "Detect Person, Wake...");
-                            std::string wake_word = "检测到人";
-                            Application::GetInstance().WakeWordInvoke(wake_word);
-                        }
-                    }
-                } else if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK) {
-                    if (class_count > 0) {
-                        for (int i = 0; i < class_count; i++) {
-                            ESP_LOGI(TAG, "[class %d]: target=%d, score=%d", i, \
-                                    classes[i].target, classes[i].score);
-                        }
-                    }
-                } else if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK ) {
-                    if (point_count > 0) {
-                        for (int i = 0; i < point_count; i++) {
-                            ESP_LOGI(TAG, "[point %d]: x=%d, y=%d, z=%d, score=%d, target=%d", i, \
-                                    points[i].x, points[i].y, points[i].z, points[i].score, points[i].target);
+                    self->cached_detect_duration_us = self->cached_detect_duration_sec * 1000000LL;
+                    self->cached_detect_invoke_interval_us = self->cached_detect_invoke_interval_sec * 1000000LL;
+                    self->last_config_load_tm = cur_tm;
+                }
+                
+                // 尝试获取检测框数据（目标检测模型）
+                if (sscma_utils_fetch_boxes_from_reply(reply, &boxes, &box_count) == ESP_OK && box_count > 0) {
+                    for (int i = 0; i < box_count; i++) {
+                        ESP_LOGI(TAG, "[box %d]: x=%d, y=%d, w=%d, h=%d, score=%d, target=%d", i,  \
+                                boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h, boxes[i].score, boxes[i].target);
+                        if (boxes[i].target == self->cached_target_type && boxes[i].score > self->cached_detect_threshold) {
+                           is_object_detected = true;
+                           break;
                         }
                     }
                 }
                 
+                // 如果需要开始冷却期，现在开始计时
+                if (self->need_start_cooldown) { // 回调暂停，标志保持，等待回调恢复后开始计时
+                    self->state_start_time = cur_tm;
+                    self->need_start_cooldown = false;
+                    ESP_LOGI(TAG, "Starting cooldown timer");
+                }
+                
+                // 状态机驱动的检测逻辑 - 只在人员出现时触发
+                switch (self->detection_state) {
+                    case SscmaCamera::IDLE:
+                        if (is_object_detected) {
+                            // 人员出现，开始验证（这是从无到有的转换）
+                            self->detection_state = SscmaCamera::VALIDATING;
+                            self->state_start_time = cur_tm; // 记录物体出现时间
+                            self->last_detected_time = cur_tm; // 初始化最后检测时间
+                            ESP_LOGI(TAG, "Person appeared, starting validation");
+                        }
+                        break;
+                        
+                    case SscmaCamera::VALIDATING:
+                        if (is_object_detected) {
+                            // 更新最后检测到的时间
+                            self->last_detected_time = cur_tm;
+                            // 检查是否验证足够时间
+                            if ((cur_tm - self->state_start_time) >= self->cached_detect_duration_us) {
+                                is_need_wake = true;
+                            }
+                        } else {
+                            // 验证期间人员离开，检查去抖动时间
+                            if (self->last_detected_time > 0 && 
+                                (cur_tm - self->last_detected_time) >= self->cached_detect_debounce_us) {
+                                // 去抖动时间已过，确认人员已离开，回到空闲
+                                self->detection_state = SscmaCamera::IDLE;
+                                self->last_detected_time = 0;
+                                ESP_LOGI(TAG, "Person left during validation (debounced), back to idle");
+                            }
+                        }
+                        break;
+                        
+                    case SscmaCamera::COOLDOWN:
+                        // 冷却期，需要满足两个条件：1)object离开 2)过了15秒
+                        if (!is_object_detected && 
+                            (cur_tm - self->state_start_time) >= self->cached_detect_invoke_interval_us) {
+                            // object离开且冷却时间到，回到空闲状态
+                            self->detection_state = SscmaCamera::IDLE;
+                            ESP_LOGI(TAG, "Cooldown complete and object left, back to idle - ready for next appearance");
+                        }
+                        // 其他情况继续保持冷却状态
+                        break;
+                }
+                // // 尝试获取分类数据（分类模型）
+                // if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK && class_count > 0) {
+                //     for (int i = 0; i < class_count; i++) {
+                //         ESP_LOGI(TAG, "[class %d]: target=%d, score=%d", i,
+                //                 classes[i].target, classes[i].score);
+                //         // if (classes[i].target == self->cached_target_type && classes[i].score > self->cached_detect_threshold) {
+                //         //    is_need_wake = true;
+                //         // }
+                //     }
+                // }
+                // // 尝试获取关键点数据（姿态估计模型）
+                // if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK && point_count > 0) {
+                //     for (int i = 0; i < point_count; i++) {
+                //         ESP_LOGI(TAG, "[point %d]: x=%d, y=%d, z=%d, score=%d, target=%d", i, 
+                //                 points[i].x, points[i].y, points[i].z, points[i].score, points[i].target);
+                //     //     if (points[i].target == self->cached_target_type && points[i].score > self->cached_detect_threshold) {
+                //     //        is_need_wake = true;
+                //     //     }
+                //     }
+                // }
+
+                if( is_need_wake ) {
+                    ESP_LOGI(TAG, "Validation complete, triggering conversation (type=%d, res=%dx%d)", 
+                             self->cached_target_type, width, height);
+                    
+                    // 触发对话
+                    std::string wake_word = "你好";
+                    Application::GetInstance().WakeWordInvoke(wake_word);
+                    
+                    // 进入冷却状态，标记需要开始冷却期；如下变量将在会话结束后被使用，等待回调恢复后开始计时
+                    self->detection_state = SscmaCamera::COOLDOWN;
+                    self->need_start_cooldown = true;
+                }
+            }
                 break;
             case (640+480):
 
@@ -235,9 +314,8 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                     sscma_client_invoke(this_->sscma_client_handle_, -1, false, true);
                     is_inference = true;
 
-                    if( this_->last_detect_tm != 0 ) {
-                        this_->last_detect_tm = esp_timer_get_time(); // 第二次开启推理更新该时间(对话过程不会更新该时间)
-                    }
+                    // 重新开始推理时，可以清除之前的检测状态，避免旧状态干扰
+                    // this_->continuous_detect_start_tm = 0;
                 }
             } else if ( is_inference )  {
                 ESP_LOGI(TAG, "Stop inference");
