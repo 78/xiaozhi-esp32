@@ -184,6 +184,8 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_ESP32S3_DUALEYE_LCD_1_28
+        bool "Waveshare ESP32-S3-DualEye-LCD-1.28"
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
