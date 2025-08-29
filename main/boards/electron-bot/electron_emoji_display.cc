@@ -1,12 +1,12 @@
 #include "electron_emoji_display.h"
 
 #include <esp_log.h>
+#include <font_awesome.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 
-#include "font_awesome_symbols.h"
 
 #define TAG "ElectronEmojiDisplay"
 

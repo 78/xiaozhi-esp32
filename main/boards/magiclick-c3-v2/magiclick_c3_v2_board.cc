@@ -6,7 +6,6 @@
 #include "led/single_led.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
