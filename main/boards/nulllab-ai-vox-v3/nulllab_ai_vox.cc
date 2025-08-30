@@ -36,6 +36,13 @@ class NulllabAIVox : public WifiBoard {
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(BATTERY_LEVEL_PIN, BATTERY_EN_PIN, BATTERY_CHARGING_PIN);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
     }
 
     void InitializePowerSaveTimer() {

@@ -56,6 +56,25 @@ void Otto::DetachServos() {
 }
 
 ///////////////////////////////////////////////////////////////////
+//-- OSCILLATORS TRIMS ------------------------------------------//
+///////////////////////////////////////////////////////////////////
+void Otto::SetTrims(int right_pitch, int right_roll, int left_pitch, int left_roll, int body,
+                    int head) {
+    servo_trim_[RIGHT_PITCH] = right_pitch;
+    servo_trim_[RIGHT_ROLL] = right_roll;
+    servo_trim_[LEFT_PITCH] = left_pitch;
+    servo_trim_[LEFT_ROLL] = left_roll;
+    servo_trim_[BODY] = body;
+    servo_trim_[HEAD] = head;
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (servo_pins_[i] != -1) {
+            servo_[i].SetTrim(servo_trim_[i]);
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////
 //-- BASIC MOTION FUNCTIONS -------------------------------------//
 ///////////////////////////////////////////////////////////////////
 void Otto::MoveServos(int time, int servo_target[]) {

@@ -1,11 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -269,12 +268,6 @@ private:
 
         camera_ = new Esp32Camera(config);
     }
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-
-    }
 
 public:
     Esp32S3Korvo2V3Board() : boot_button_(BOOT_BUTTON_GPIO) {
@@ -290,7 +283,6 @@ public:
         #else
         InitializeSt7789Display(); 
         #endif
-        InitializeIot();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

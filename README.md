@@ -29,7 +29,7 @@
 
 我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
 
-如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：575180511
+如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：1011329060
 
 ### 基于 MCP 控制万物
 
@@ -140,11 +140,12 @@
 - [自定义开发板指南](main/boards/README.md) - 学习如何为小智 AI 创建自定义开发板
 - [MCP 协议物联网控制用法说明](docs/mcp-usage.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol.md) - 设备端 MCP 协议的实现方式
+- [MQTT + UDP 混合通信协议文档](docs/mqtt-udp.md)
 - [一份详细的 WebSocket 通信协议文档](docs/websocket.md)
 
 ## 大模型配置
 
-如果你已经拥有一个的小智 AI 聊天机器人设备，并且已接入官方服务器，可以登录 [xiaozhi.me](https://xiaozhi.me) 控制台进行配置。
+如果你已经拥有一个小智 AI 聊天机器人设备，并且已接入官方服务器，可以登录 [xiaozhi.me](https://xiaozhi.me) 控制台进行配置。
 
 👉 [后台操作视频教程（旧版界面）](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 

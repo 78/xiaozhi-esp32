@@ -1,13 +1,13 @@
 #include "otto_emoji_display.h"
 
 #include <esp_log.h>
+#include <font_awesome.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 
 #include "display/lcd_display.h"
-#include "font_awesome_symbols.h"
 
 #define TAG "OttoEmojiDisplay"
 
@@ -142,7 +142,7 @@ void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
     }
 
     lv_label_set_text(chat_message_label_, content);
-    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
 }
@@ -164,7 +164,7 @@ void OttoEmojiDisplay::SetIcon(const char* icon) {
         }
 
         lv_label_set_text(chat_message_label_, icon_message.c_str());
-        lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
         ESP_LOGI(TAG, "设置图标: %s", icon);
     }

@@ -1,12 +1,12 @@
 #include "electron_emoji_display.h"
 
 #include <esp_log.h>
+#include <font_awesome.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 
-#include "font_awesome_symbols.h"
 
 #define TAG "ElectronEmojiDisplay"
 
@@ -71,7 +71,7 @@ void ElectronEmojiDisplay::SetupGifContainer() {
         lv_obj_del(content_);
     }
 
-    lv_obj_t* content_ = lv_obj_create(container_);
+    content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(content_, LV_HOR_RES, LV_HOR_RES);
     lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
@@ -141,7 +141,7 @@ void ElectronEmojiDisplay::SetChatMessage(const char* role, const char* content)
     }
 
     lv_label_set_text(chat_message_label_, content);
-    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
 }
@@ -163,7 +163,7 @@ void ElectronEmojiDisplay::SetIcon(const char* icon) {
         }
 
         lv_label_set_text(chat_message_label_, icon_message.c_str());
-        lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
         ESP_LOGI(TAG, "设置图标: %s", icon);
     }

@@ -1,7 +1,7 @@
 #ifndef _AI_VOX_AUDIO_CODEC_H
 #define _AI_VOX_AUDIO_CODEC_H
 
-#include "audio_codecs/audio_codec.h"
+#include "audio/audio_codec.h"
 
 #include "esp_log.h"
 #include <driver/gpio.h>

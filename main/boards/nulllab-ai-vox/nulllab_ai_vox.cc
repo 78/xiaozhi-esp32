@@ -14,7 +14,7 @@
 #include "led/single_led.h"
 #include "power_save_timer.h"
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "audio/codecs/no_audio_codec.h"
 
 #include "power_manager.h"
 

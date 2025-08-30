@@ -13,6 +13,7 @@
 #include "mcp_server.h"
 #include "otto_movements.h"
 #include "sdkconfig.h"
+#include "settings.h"
 
 #define TAG "OttoController"
 
@@ -48,7 +49,8 @@ private:
         ACTION_FLAPPING = 13,
         ACTION_HANDS_UP = 14,
         ACTION_HANDS_DOWN = 15,
-        ACTION_HAND_WAVE = 16
+        ACTION_HAND_WAVE = 16,
+        ACTION_HOME = 17
     };
 
     static void ActionTask(void* arg) {
@@ -121,11 +123,16 @@ private:
                             controller->otto_.HandWave(params.speed, params.direction);
                         }
                         break;
+                    case ACTION_HOME:
+                        controller->otto_.Home(params.direction == 1);
+                        break;
                 }
-                controller->otto_.Home(params.action_type < ACTION_HANDS_UP);
+                if (params.action_type != ACTION_HOME) {
+                    controller->otto_.Home(params.action_type < ACTION_HANDS_UP);
+                }
                 controller->is_action_in_progress_ = false;
+                vTaskDelay(pdMS_TO_TICKS(20));
             }
-            vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
 
@@ -151,6 +158,22 @@ private:
         StartActionTaskIfNeeded();
     }
 
+    void LoadTrimsFromNVS() {
+        Settings settings("otto_trims", false);
+
+        int left_leg = settings.GetInt("left_leg", 0);
+        int right_leg = settings.GetInt("right_leg", 0);
+        int left_foot = settings.GetInt("left_foot", 0);
+        int right_foot = settings.GetInt("right_foot", 0);
+        int left_hand = settings.GetInt("left_hand", 0);
+        int right_hand = settings.GetInt("right_hand", 0);
+
+        ESP_LOGI(TAG, "从NVS加载微调设置: 左腿=%d, 右腿=%d, 左脚=%d, 右脚=%d, 左手=%d, 右手=%d",
+                 left_leg, right_leg, left_foot, right_foot, left_hand, right_hand);
+
+        otto_.SetTrims(left_leg, right_leg, left_foot, right_foot, left_hand, right_hand);
+    }
+
 public:
     OttoController() {
         otto_.Init(LEFT_LEG_PIN, RIGHT_LEG_PIN, LEFT_FOOT_PIN, RIGHT_FOOT_PIN, LEFT_HAND_PIN,
@@ -159,8 +182,11 @@ public:
         has_hands_ = (LEFT_HAND_PIN != -1 && RIGHT_HAND_PIN != -1);
         ESP_LOGI(TAG, "Otto机器人初始化%s手部舵机", has_hands_ ? "带" : "不带");
 
-        otto_.Home(true);
+        LoadTrimsFromNVS();
+
         action_queue_ = xQueueCreate(10, sizeof(OttoActionParams));
+
+        QueueAction(ACTION_HOME, 1, 1000, 1, 0);  // direction=1表示复位手部
 
         RegisterMcpTools();
     }
@@ -338,8 +364,92 @@ public:
                                }
                                is_action_in_progress_ = false;
                                xQueueReset(action_queue_);
-                               otto_.Home(true);
+
+                               QueueAction(ACTION_HOME, 1, 1000, 1, 0);
                                return true;
+                           });
+
+        mcp_server.AddTool(
+            "self.otto.set_trim",
+            "校准单个舵机位置。设置指定舵机的微调参数以调整Otto的初始站立姿态，设置将永久保存。"
+            "servo_type: 舵机类型(left_leg/right_leg/left_foot/right_foot/left_hand/right_hand); "
+            "trim_value: 微调值(-50到50度)",
+            PropertyList({Property("servo_type", kPropertyTypeString, "left_leg"),
+                          Property("trim_value", kPropertyTypeInteger, 0, -50, 50)}),
+            [this](const PropertyList& properties) -> ReturnValue {
+                std::string servo_type = properties["servo_type"].value<std::string>();
+                int trim_value = properties["trim_value"].value<int>();
+
+                ESP_LOGI(TAG, "设置舵机微调: %s = %d度", servo_type.c_str(), trim_value);
+
+                // 获取当前所有微调值
+                Settings settings("otto_trims", true);
+                int left_leg = settings.GetInt("left_leg", 0);
+                int right_leg = settings.GetInt("right_leg", 0);
+                int left_foot = settings.GetInt("left_foot", 0);
+                int right_foot = settings.GetInt("right_foot", 0);
+                int left_hand = settings.GetInt("left_hand", 0);
+                int right_hand = settings.GetInt("right_hand", 0);
+
+                // 更新指定舵机的微调值
+                if (servo_type == "left_leg") {
+                    left_leg = trim_value;
+                    settings.SetInt("left_leg", left_leg);
+                } else if (servo_type == "right_leg") {
+                    right_leg = trim_value;
+                    settings.SetInt("right_leg", right_leg);
+                } else if (servo_type == "left_foot") {
+                    left_foot = trim_value;
+                    settings.SetInt("left_foot", left_foot);
+                } else if (servo_type == "right_foot") {
+                    right_foot = trim_value;
+                    settings.SetInt("right_foot", right_foot);
+                } else if (servo_type == "left_hand") {
+                    if (!has_hands_) {
+                        return "错误：机器人没有配置手部舵机";
+                    }
+                    left_hand = trim_value;
+                    settings.SetInt("left_hand", left_hand);
+                } else if (servo_type == "right_hand") {
+                    if (!has_hands_) {
+                        return "错误：机器人没有配置手部舵机";
+                    }
+                    right_hand = trim_value;
+                    settings.SetInt("right_hand", right_hand);
+                } else {
+                    return "错误：无效的舵机类型，请使用: left_leg, right_leg, left_foot, "
+                           "right_foot, left_hand, right_hand";
+                }
+
+                otto_.SetTrims(left_leg, right_leg, left_foot, right_foot, left_hand, right_hand);
+
+                QueueAction(ACTION_JUMP, 1, 500, 0, 0);
+
+                return "舵机 " + servo_type + " 微调设置为 " + std::to_string(trim_value) +
+                       " 度，已永久保存";
+            });
+
+        mcp_server.AddTool("self.otto.get_trims", "获取当前的舵机微调设置", PropertyList(),
+                           [this](const PropertyList& properties) -> ReturnValue {
+                               Settings settings("otto_trims", false);
+
+                               int left_leg = settings.GetInt("left_leg", 0);
+                               int right_leg = settings.GetInt("right_leg", 0);
+                               int left_foot = settings.GetInt("left_foot", 0);
+                               int right_foot = settings.GetInt("right_foot", 0);
+                               int left_hand = settings.GetInt("left_hand", 0);
+                               int right_hand = settings.GetInt("right_hand", 0);
+
+                               std::string result =
+                                   "{\"left_leg\":" + std::to_string(left_leg) +
+                                   ",\"right_leg\":" + std::to_string(right_leg) +
+                                   ",\"left_foot\":" + std::to_string(left_foot) +
+                                   ",\"right_foot\":" + std::to_string(right_foot) +
+                                   ",\"left_hand\":" + std::to_string(left_hand) +
+                                   ",\"right_hand\":" + std::to_string(right_hand) + "}";
+
+                               ESP_LOGI(TAG, "获取微调设置: %s", result.c_str());
+                               return result;
                            });
 
         mcp_server.AddTool("self.otto.get_status", "获取机器人状态，返回 moving 或 idle",
