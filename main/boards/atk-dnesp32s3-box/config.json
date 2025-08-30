@@ -4,7 +4,8 @@
         {
             "name": "atk-dnesp32s3-box",
             "sdkconfig_append": [
-                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+                "CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX=y"
             ]
         }
     ]

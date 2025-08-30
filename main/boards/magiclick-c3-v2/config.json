@@ -6,7 +6,8 @@
             "sdkconfig_append": [
                 "CONFIG_PM_ENABLE=y",
                 "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
-                "CONFIG_USE_ESP_WAKE_WORD=n"
+                "CONFIG_USE_ESP_WAKE_WORD=n",
+                "CONFIG_BOARD_TYPE_MAGICLICK_C3_V2=y"
             ]
         }
     ]

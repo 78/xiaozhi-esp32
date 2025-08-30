@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "xingzhi-cube-1.54tft-wifi",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI=y"
+            ]
         }
     ]
 }

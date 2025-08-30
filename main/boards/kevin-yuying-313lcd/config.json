@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "kevin-yuying-313lcd",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_KEVIN_YUYING_313LCD=y"
+            ]
         }
     ]
 }
