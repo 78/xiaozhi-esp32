@@ -31,12 +31,16 @@ choice BOARD_TYPE
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
+    config BOARD_TYPE_NULLLAB_AI_Vox_V3
+        bool "NULLLAB AI Vox v3"
     config BOARD_TYPE_NULLLAB_AI_Vox
         bool "NULLLAB AI Vox"
     config BOARD_TYPE_NULLLAB_AI_Vox_Emoji
         bool "NULLLAB AI Vox Emoji"
     config BOARD_TYPE_NULLLAB_AI_Vox_Eyes
         bool "NULLLAB AI Vox Eyes"
+    config BOARD_TYPE_NULLLAB_AI_Vox_Otto
+        bool "NULLLAB AI Vox Otto"
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "面包板新版接线（WiFi）"
         depends on IDF_TARGET_ESP32S3
@@ -390,7 +394,7 @@ config USE_AUDIO_PROCESSOR
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_NULLLAB_AI_Vox || BOARD_TYPE_NULLLAB_AI_Vox_Emoji || BOARD_TYPE_NULLLAB_AI_Vox_Eyes || BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_NULLLAB_AI_Vox_V3 || BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 

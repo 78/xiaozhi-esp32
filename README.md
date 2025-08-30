@@ -1,9 +1,12 @@
 > **修改笔记：**
 > - 增加可自定义热点名称的选项 `CONFIG_CUSTOM_SSID_PREFIX="AI-VOX"`
+> - 增加 NULLLAB AI-Vox v3 开发板
 > - 增加 NULLLAB AI-Vox 开发版的的两个开发案例：
 >     - 自定义图片表情（[nulllab-ai-vox-emoji](./main/boards/nulllab-ai-vox-emoji)）
 >     - 动画眼睛表情（[nulllab-ai-vox-eyes](./main/boards/nulllab-ai-vox-eyes)）
-> - 为 NULLLAB AI-Vox 添加加实时打断支持，可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
+>     - Otto 机器人
+> - NULLLAB AI-Vox v3 支持实时打断（完全），可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
+> - NULLLAB AI-Vox 不再支持实时打断（因为效果不好）
 > - 编译配置通过 idf.py menuconfig 进行设置或在开发板的 config.json 中设置（推荐）
 > - 图片转换工具 [https://lvgl.io/tools/imageconverter](https://lvgl.io/tools/imageconverter)
 >
