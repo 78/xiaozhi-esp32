@@ -184,6 +184,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_ESP32S3_AUDIO_BOARD
+        bool "Waveshare ESP32-S3-Audio-Board"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
@@ -432,6 +435,18 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ST7789, 分辨率240*280"
     config LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
+endchoice
+
+choice DISPLAY_ESP32S3_AUDIO_BOARD
+    depends on BOARD_TYPE_ESP32S3_AUDIO_BOARD
+    prompt "ESP32S3_AUDIO_BOARD LCD Type"
+    default LCD_JD9853
+    help
+        屏幕类型选择
+    config LCD_JD9853
+        bool "JD9853, 分辨率320*172"
+    config LCD_ST7789
+        bool "ST7789, 分辨率240*320"
 endchoice
 
 config USE_WECHAT_MESSAGE_STYLE
