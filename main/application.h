@@ -59,7 +59,7 @@ public:
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
-    void DisplayJpg(const std::string& url, int image_width, int image_height);
+    void DisplayImage(const std::string& url, int image_width, int image_height, const std::string& format);
     AudioService& GetAudioService() { return audio_service_; }
 
 private:
