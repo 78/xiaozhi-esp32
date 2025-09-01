@@ -5,7 +5,8 @@
             "name": "atommatrix-echo-base",
             "sdkconfig_append": [
                 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\"",
+                "CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE=y"
             ]
         }
     ]

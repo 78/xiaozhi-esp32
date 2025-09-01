@@ -4,6 +4,7 @@
         {
             "name": "otto-robot",
             "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_OTTO_ROBOT=y"
             ]
         }
     ]

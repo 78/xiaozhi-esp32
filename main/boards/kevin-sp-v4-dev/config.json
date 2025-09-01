@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "kevin-sp-v4-dev",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_KEVIN_SP_V4_DEV=y"
+            ]
         }
     ]
 }

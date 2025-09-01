@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "movecall-moji-esp32s3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3=y"
+            ]
         }
     ]
 }

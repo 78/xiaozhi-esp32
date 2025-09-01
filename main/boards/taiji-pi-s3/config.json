@@ -4,7 +4,8 @@
         {
             "name": "taiji-pi-s3",
             "sdkconfig_append": [
-                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y"
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y",
+                "CONFIG_BOARD_TYPE_ESP32S3_Taiji_Pi=y"
             ]
         }
     ]
