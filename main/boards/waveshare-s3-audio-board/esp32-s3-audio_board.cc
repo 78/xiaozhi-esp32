@@ -61,17 +61,17 @@ private:
         ESP_ERROR_CHECK(ret);
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);                                // 复位 LCD 与 TouchPad
         ESP_ERROR_CHECK(ret);
-        vTaskDelay(pdMS_TO_TICKS(300));
+        vTaskDelay(pdMS_TO_TICKS(10));
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 0);                                // 复位 LCD 与 TouchPad
         ESP_ERROR_CHECK(ret);
-        vTaskDelay(pdMS_TO_TICKS(300));
+        vTaskDelay(pdMS_TO_TICKS(10));
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);                                // 复位 LCD 与 TouchPad
         ESP_ERROR_CHECK(ret);
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_8, 1);                                                         // 启用喇叭功放
-        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_5, false); 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_5, false);                                                     // 复位摄像头
+        vTaskDelay(pdMS_TO_TICKS(5));
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_6, true); 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(5));
         ESP_ERROR_CHECK(ret);
     }
 
