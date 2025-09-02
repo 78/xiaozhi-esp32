@@ -239,7 +239,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     }
 
     if (content_length > partition_->size) {
-        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%u)", content_length, partition_->size);
+        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)", content_length, partition_->size);
         return false;
     }
 
@@ -282,7 +282,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
             
             // 确保擦除范围不超过分区大小
             if (sector_end > partition_->size) {
-                ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%u)", sector_end, partition_->size);
+                ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)", sector_end, partition_->size);
                 return false;
             }
             
