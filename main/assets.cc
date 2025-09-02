@@ -52,7 +52,6 @@ uint32_t Assets::CalculateChecksum(const char* data, uint32_t length) {
     return checksum & 0xFFFF;
 }
 
-
 bool Assets::InitializePartition() {
     partition_valid_ = false;
     checksum_valid_ = false;

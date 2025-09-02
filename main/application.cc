@@ -114,7 +114,6 @@ void Application::CheckAssetsVersion() {
 
         board.SetPowerSaveMode(true);
         vTaskDelay(pdMS_TO_TICKS(1000));
-        display->SetChatMessage("system", "");
 
         if (!success) {
             Alert(Lang::Strings::ERROR, Lang::Strings::DOWNLOAD_ASSETS_FAILED, "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
@@ -125,6 +124,8 @@ void Application::CheckAssetsVersion() {
 
     // Apply assets
     assets->Apply();
+    display->SetChatMessage("system", "");
+    display->SetEmotion("microchip_ai");
 }
 
 void Application::CheckNewVersion(Ota& ota) {
