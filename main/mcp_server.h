@@ -177,6 +177,7 @@ private:
     std::string description_;
     PropertyList properties_;
     std::function<ReturnValue(const PropertyList&)> callback_;
+    bool user_only_ = false;
 
 public:
     McpTool(const std::string& name, 
@@ -188,9 +189,11 @@ public:
         properties_(properties), 
         callback_(callback) {}
 
+    void set_user_only(bool user_only) { user_only_ = user_only; }
     inline const std::string& name() const { return name_; }
     inline const std::string& description() const { return description_; }
     inline const PropertyList& properties() const { return properties_; }
+    inline bool user_only() const { return user_only_; }
 
     std::string to_json() const {
         std::vector<std::string> required = properties_.GetRequired();
@@ -214,6 +217,15 @@ public:
         }
         
         cJSON_AddItemToObject(json, "inputSchema", input_schema);
+
+        // Add audience annotation if the tool is user only (invisible to AI)
+        if (user_only_) {
+            cJSON *annotations = cJSON_CreateObject();
+            cJSON *audience = cJSON_CreateArray();
+            cJSON_AddItemToArray(audience, cJSON_CreateString("user"));
+            cJSON_AddItemToObject(annotations, "audience", audience);
+            cJSON_AddItemToObject(json, "annotations", annotations);
+        }
         
         char *json_str = cJSON_PrintUnformatted(json);
         std::string result(json_str);
@@ -259,6 +271,7 @@ public:
     void AddCommonTools();
     void AddTool(McpTool* tool);
     void AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
+    void AddUserOnlyTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
     void ParseMessage(const cJSON* json);
     void ParseMessage(const std::string& message);
 
