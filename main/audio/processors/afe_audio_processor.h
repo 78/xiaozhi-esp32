@@ -18,7 +18,7 @@ public:
     AfeAudioProcessor();
     ~AfeAudioProcessor();
 
-    void Initialize(AudioCodec* codec, int frame_duration_ms) override;
+    void Initialize(AudioCodec* codec, int frame_duration_ms, srmodel_list_t* models_list) override;
     void Feed(std::vector<int16_t>&& data) override;
     void Start() override;
     void Stop() override;

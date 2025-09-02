@@ -17,7 +17,7 @@
 
 #define TAG "Yuying_313lcd"
 
-LV_FONT_DECLARE(font_puhui_30_4);
+LV_FONT_DECLARE(font_puhui_basic_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
 
 class Yuying_313lcd : public WifiBoard {
@@ -104,12 +104,9 @@ private:
         display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
                                   DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_30_4,
-                                      .icon_font = &font_awesome_30_4,
-                                      .emoji_font = font_emoji_64_init(),
-                                  });
+                                  {&font_puhui_basic_30_4, &font_awesome_30_4});
     }
+
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -148,6 +145,11 @@ public:
         InitializeButtons();
         InitializeRGB_GC9503V_Display();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

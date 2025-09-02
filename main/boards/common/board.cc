@@ -160,3 +160,7 @@ std::string Board::GetJson() {
     json += R"(})";
     return json;
 }
+
+Assets* Board::GetAssets() {
+    return nullptr;
+}

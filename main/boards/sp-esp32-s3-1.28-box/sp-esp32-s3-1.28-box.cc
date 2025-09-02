@@ -27,7 +27,7 @@
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
@@ -81,11 +81,7 @@ public:
                     bool mirror_y,
                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+                    {&font_puhui_basic_16_4, &font_awesome_16_4}) {
 
         DisplayLockGuard lock(this);
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
@@ -284,6 +280,11 @@ public:
         GetBacklight()->RestoreBrightness();
     }
 
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64);
+        return &assets;
+    }
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);

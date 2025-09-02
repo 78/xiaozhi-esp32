@@ -20,7 +20,7 @@
 
 #define TAG "XminiC3Board"
 
-LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_puhui_basic_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
 
@@ -131,7 +131,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
         display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+            {&font_puhui_basic_14_1, &font_awesome_14_1});
     }
 
     void InitializeButtons() {
@@ -172,6 +172,11 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1);
+        return &assets;
     }
 
     virtual Led* GetLed() override {

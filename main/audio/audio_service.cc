@@ -479,7 +479,7 @@ void AudioService::EnableWakeWordDetection(bool enable) {
     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!wake_word_initialized_) {
-            if (!wake_word_->Initialize(codec_)) {
+            if (!wake_word_->Initialize(codec_, models_list_)) {
                 ESP_LOGE(TAG, "Failed to initialize wake word");
                 return;
             }
@@ -497,7 +497,7 @@ void AudioService::EnableVoiceProcessing(bool enable) {
     ESP_LOGD(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!audio_processor_initialized_) {
-            audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS);
+            audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_);
             audio_processor_initialized_ = true;
         }
 
@@ -528,7 +528,7 @@ void AudioService::EnableAudioTesting(bool enable) {
 void AudioService::EnableDeviceAec(bool enable) {
     ESP_LOGI(TAG, "%s device AEC", enable ? "Enabling" : "Disabling");
     if (!audio_processor_initialized_) {
-        audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS);
+        audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_);
         audio_processor_initialized_ = true;
     }
 
@@ -666,4 +666,8 @@ void AudioService::CheckAndUpdateAudioPowerState() {
     if (!codec_->input_enabled() && !codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
     }
+}
+
+void AudioService::SetModelsList(srmodel_list_t* models_list) {
+    models_list_ = models_list;
 }

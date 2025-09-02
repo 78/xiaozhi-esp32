@@ -47,10 +47,20 @@ Display::~Display() {
 
     if (network_label_ != nullptr) {
         lv_obj_del(network_label_);
+    }
+    if (notification_label_ != nullptr) {
         lv_obj_del(notification_label_);
+    }
+    if (status_label_ != nullptr) {
         lv_obj_del(status_label_);
+    }
+    if (mute_label_ != nullptr) {
         lv_obj_del(mute_label_);
+    }
+    if (battery_label_ != nullptr) {
         lv_obj_del(battery_label_);
+    }
+    if (emotion_label_ != nullptr) {
         lv_obj_del(emotion_label_);
     }
     if( low_battery_popup_ != nullptr ) {
@@ -197,19 +207,15 @@ void Display::UpdateStatusBar(bool update_all) {
 
 void Display::SetEmotion(const char* emotion) {
     const char* utf8 = font_awesome_get_utf8(emotion);
-    if (utf8 != nullptr) {
-        SetIcon(utf8);
-    } else {
-        SetIcon(FONT_AWESOME_NEUTRAL);
-    }
-}
-
-void Display::SetIcon(const char* icon) {
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(emotion_label_, icon);
+    if (utf8 != nullptr) {
+        lv_label_set_text(emotion_label_, utf8);
+    } else {
+        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
+    }
 }
 
 void Display::SetPreviewImage(const lv_img_dsc_t* image) {
@@ -237,5 +243,17 @@ void Display::SetPowerSaveMode(bool on) {
     } else {
         SetChatMessage("system", "");
         SetEmotion("neutral");
+    }
+}
+
+void Display::UpdateStyle(const DisplayStyle& style) {
+    DisplayLockGuard lock(this);
+    if (style.text_font != nullptr) {
+        lv_obj_set_style_text_font(lv_screen_active(), style.text_font, 0);
+        style_.text_font = style.text_font;
+    }
+    if (style.emoji_collection != nullptr) {
+        delete style_.emoji_collection;
+        style_.emoji_collection = style.emoji_collection;
     }
 }
