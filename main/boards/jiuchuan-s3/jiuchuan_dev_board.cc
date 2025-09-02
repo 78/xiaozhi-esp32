@@ -41,8 +41,8 @@ public:
                      bool mirror_x,
                      bool mirror_y,
                      bool swap_xy,
-                     DisplayFonts fonts)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts)
+                     DisplayStyle style)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, style)
     {
 
         DisplayLockGuard lock(this);

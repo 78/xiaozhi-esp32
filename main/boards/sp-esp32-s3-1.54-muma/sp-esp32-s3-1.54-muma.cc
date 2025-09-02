@@ -28,7 +28,7 @@
 
 #define TAG "Spotpear_esp32_s3_lcd_1_54"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 class Cst816d : public I2cDevice {
