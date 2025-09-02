@@ -51,9 +51,9 @@ const OttoEmojiDisplay::EmotionMap OttoEmojiDisplay::emotion_maps_[] = {
 
 OttoEmojiDisplay::OttoEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                                    int width, int height, int offset_x, int offset_y, bool mirror_x,
-                                   bool mirror_y, bool swap_xy, DisplayFonts fonts)
+                                   bool mirror_y, bool swap_xy, DisplayStyle style)
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    fonts),
+                    style),
       emotion_gif_(nullptr) {
     SetupGifContainer();
 };
