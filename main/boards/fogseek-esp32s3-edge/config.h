@@ -10,31 +10,50 @@
 #define AUDIO_INPUT_REFERENCE true
 
 // ES8311编解码器I2S接口引脚定义
-#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_38 // 主时钟，ES8311需要此信号
-#define AUDIO_I2S_GPIO_WS GPIO_NUM_1    // 帧时钟（左右声道）
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_40 // 位时钟
-#define AUDIO_I2S_GPIO_DIN GPIO_NUM_2   // 数据输入（麦克风信号输入到ESP32）
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_3  // 数据输出（ESP32输出信号到扬声器）
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_38 // 主时钟
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_37 // 位时钟
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_35   // 帧时钟
+#define AUDIO_I2S_GPIO_DIN GPIO_NUM_34  // 数据输入（麦克风）
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_36 // 数据输出（扬声器）
 
 // ES8311 I2C控制接口定义
-#define AUDIO_CODEC_PA_PIN GPIO_NUM_NC                    // NS4150B功放使能引脚（如无使能控制则设为GPIO_NUM_NC）
-#define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_41               // I2C数据线
-#define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_42               // I2C时钟线
+#define AUDIO_CODEC_PA_PIN GPIO_NUM_NC                    // NS4150B功放使能引脚，未用到
+#define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_42               // I2C数据线
+#define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_41               // I2C时钟线
 #define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR // ES8311默认I2C地址 (0x18)
 
 // boot相关配置
 #define BOOT_GPIO GPIO_NUM_0
 
 // 按钮相关配置
-#define BUTTON_GPIO GPIO_NUM_8
+#define BUTTON_GPIO GPIO_NUM_21
 
 // 电源相关配置
-#define PWR_CTRL_GPIO GPIO_NUM_18
-#define PWR_CHARGE_DONE_GPIO GPIO_NUM_9
-#define PWR_CHARGING_GPIO GPIO_NUM_46
+#define PWR_CTRL_GPIO GPIO_NUM_17
+#define PWR_CHARGE_DONE_GPIO GPIO_NUM_14
+#define PWR_CHARGING_GPIO GPIO_NUM_16
 
 // LED相关配置
-#define LED_RED_GPIO GPIO_NUM_16
-#define LED_GREEN_GPIO GPIO_NUM_17
+#define LED_RED_GPIO GPIO_NUM_12
+#define LED_GREEN_GPIO GPIO_NUM_11
+
+// 电池电压检测（ADC）
+#define BATTERY_ADC_GPIO GPIO_NUM_15 // ADC2_CH4
+
+// LCD 屏幕接口
+#define LEDK_GPIO GPIO_NUM_1
+#define LCD_CS_GPIO GPIO_NUM_2
+#define LCD_SDA3_GPIO GPIO_NUM_3
+#define LCD_SDA1_GPIO GPIO_NUM_4
+#define LCD_SDA2_GPIO GPIO_NUM_5
+#define LCD_SDA0_GPIO GPIO_NUM_6
+#define LCD_SCL_GPIO GPIO_NUM_7
+#define LCD_DC_GPIO GPIO_NUM_8
+#define LCD_RST_GPIO GPIO_NUM_9
+#define LCD_TE_GPIO GPIO_NUM_10
+
+// 外部扩展接口
+#define EXT_IO1_GPIO GPIO_NUM_10
+#define EXT_IO2_GPIO GPIO_NUM_11
 
 #endif

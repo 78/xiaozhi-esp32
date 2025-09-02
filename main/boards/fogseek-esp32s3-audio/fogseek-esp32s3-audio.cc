@@ -27,6 +27,7 @@ private:
     esp_timer_handle_t battery_check_timer_ = nullptr;
     esp_timer_handle_t speaking_blink_timer_ = nullptr;
     bool speaking_led_state_ = false;
+    bool first_idle_state_ = true;
 
     void UpdateBatteryStatus()
     {
@@ -154,6 +155,48 @@ private:
         case kDeviceStateIdle:
             // 休眠状态，显示充电状态颜色
             UpdateBatteryStatus();
+
+            // 设备完成启动后自动进入对话状态
+            // 打印状态转换信息以便调试
+            ESP_LOGI(TAG, "Device state changed from %d to %d", previous_state, current_state);
+
+            // 检查是否是首次进入空闲状态（设备启动完成）
+            if (first_idle_state_)
+            {
+                first_idle_state_ = false;
+                ESP_LOGI(TAG, "Device started, scheduling auto wake check");
+
+                // 使用一个任务来检查应用程序是否完全准备好
+                xTaskCreate([](void *arg)
+                            {
+                                // 等待应用程序完全初始化完成
+                                auto &app = Application::GetInstance();
+
+                                // 等待足够长的时间确保所有子系统都已准备好
+                                // 音频系统、网络连接等需要一些时间来完全初始化
+                                ESP_LOGI(TAG, "Waiting for full system initialization");
+                                vTaskDelay(pdMS_TO_TICKS(5000)); // 等待5秒确保系统完全就绪
+
+                                // 检查当前状态是否仍然稳定
+                                if (app.GetDeviceState() == kDeviceStateIdle)
+                                {
+                                    ESP_LOGI(TAG, "System fully initialized, triggering auto wake");
+                                    // 触发自动唤醒
+                                    app.WakeWordInvoke("Hi,小雾");
+                                }
+                                else
+                                {
+                                    ESP_LOGW(TAG, "System state changed during initialization, skipping auto wake");
+                                }
+
+                                vTaskDelete(NULL); // 删除任务自身
+                            },
+                            "auto_wake_task", 4096, NULL, 5, NULL);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Not first idle state, skipping auto wake");
+            }
             break;
 
         case kDeviceStateListening:

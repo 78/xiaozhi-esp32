@@ -207,7 +207,7 @@ private:
     void InitializeBatteryMonitor()
     {
         // 使用通用的电池监测器处理电池电量检测
-        battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_2, 2.0f, 1.0f, PWR_CHARGE_DONE_GPIO);
+        battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_2, ADC_CHANNEL_4, 2.0f, 1.0f, PWR_CHARGE_DONE_GPIO);
         // 初始化充电检测引脚（CHRG引脚）
         gpio_config_t charge_conf = {};
         charge_conf.intr_type = GPIO_INTR_DISABLE;
