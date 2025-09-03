@@ -112,8 +112,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
-#if CONFIG_SPIRAM
-    // lv image cache, currently only PNG is supported
+    // lv image cache
     size_t psram_size_mb = esp_psram_get_size() / 1024 / 1024;
     if (psram_size_mb >= 8) {
         lv_image_cache_resize(2 * 1024 * 1024, true);
@@ -122,7 +121,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_image_cache_resize(512 * 1024, true);
         ESP_LOGI(TAG, "Use 512KB of PSRAM for image cache");
     }
-#endif
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
@@ -138,7 +136,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .panel_handle = panel_,
         .control_handle = nullptr,
         .buffer_size = static_cast<uint32_t>(width_ * 20),
-        .double_buffer = false,
+        .double_buffer = true,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
