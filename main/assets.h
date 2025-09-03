@@ -13,17 +13,20 @@
 #include <model_path.h>
 
 
-#define ASSETS_XIAOZHI_WAKENET                      "xiaozhi_wakenet.bin"
-#define ASSETS_XIAOZHI_WAKENET_SMALL                "xiaozhi_wakenet_small.bin"
-#define ASSETS_XIAOZHI_PUHUI_COMMON_14_1            "xiaozhi-puhuicommon_14_1.bin"
-#define ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32   "xiaozhi-puhuicommon_16_4-emoji_32.bin"
-#define ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64   "xiaozhi-puhuicommon_16_4-emoji_64.bin"
-#define ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64   "xiaozhi-puhuicommon_20_4-emoji_64.bin"
-#define ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64   "xiaozhi-puhuicommon_30_4-emoji_64.bin"
-#define ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1          "xiaozhi_s-puhuicommon_14_1.bin"
-#define ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "xiaozhi_s-puhuicommon_20_4-emoji_64.bin"
-#define ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "xiaozhi_s-puhuicommon_30_4-emoji_64.bin"
-#define ASSETS_PUHUI_COMMON_14_1                    "puhuicommon_14_1.bin"
+// All combinations of wakenet_model, text_font, emoji_collection can be found from the following url:
+// https://github.com/78/xiaozhi-fonts/releases/tag/assets
+
+#define ASSETS_PUHUI_COMMON_14_1                    "none-font_puhui_common_14_1-none.bin"
+#define ASSETS_XIAOZHI_WAKENET                      "wn9_nihaoxiaozhi_tts-none-none.bin"
+#define ASSETS_XIAOZHI_WAKENET_SMALL                "wn9s_nihaoxiaozhi-none-none.bin"
+#define ASSETS_XIAOZHI_PUHUI_COMMON_14_1            "wn9_nihaoxiaozhi_tts-font_puhui_common_14_1-none.bin"
+#define ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32   "wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_32.bin"
+#define ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64   "wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_64.bin"
+#define ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64   "wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_64.bin"
+#define ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64   "wn9_nihaoxiaozhi_tts-font_puhui_common_30_4-emojis_64.bin"
+#define ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1          "wn9s_nihaoxiaozhi-font_puhui_common_14_1-none.bin"
+#define ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_64.bin"
+#define ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_30_4-emojis_64.bin"
 
 struct Asset {
     size_t size;

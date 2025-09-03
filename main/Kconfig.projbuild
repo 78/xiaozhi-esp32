@@ -8,7 +8,7 @@ config OTA_URL
 
 config DEFAULT_ASSETS_URL_PREFIX
     string "Default Assets URL Prefix"
-    default "https://files.xiaozhi.me/assets/"
+    default "https://files.xiaozhi.me/assets/default/"
     help
         The assets will be downloaded from this URL.
 

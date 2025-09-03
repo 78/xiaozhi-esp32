@@ -171,11 +171,11 @@ bool Assets::Apply() {
         for (int i = 0; i < emoji_count; i++) {
             cJSON* emoji = cJSON_GetArrayItem(emoji_collection, i);
             if (cJSON_IsObject(emoji)) {
-                cJSON* text = cJSON_GetObjectItem(emoji, "text");
-                cJSON* image_file = cJSON_GetObjectItem(emoji, "image_file");
-                if (cJSON_IsString(text) && cJSON_IsString(image_file)) {
-                    if (!GetAssetData(image_file->valuestring, ptr, size)) {
-                        ESP_LOGE(TAG, "Emoji %s image file %s is not found", text->valuestring, image_file->valuestring);
+                cJSON* name = cJSON_GetObjectItem(emoji, "name");
+                cJSON* file = cJSON_GetObjectItem(emoji, "file");
+                if (cJSON_IsString(name) && cJSON_IsString(file)) {
+                    if (!GetAssetData(file->valuestring, ptr, size)) {
+                        ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring, file->valuestring);
                         continue;
                     }
                     auto img = new lv_img_dsc_t {
@@ -186,7 +186,7 @@ bool Assets::Apply() {
                         .data_size = size,
                         .data = static_cast<uint8_t*>(ptr),
                     };
-                    custom_emoji_collection_->AddEmoji(text->valuestring, img);
+                    custom_emoji_collection_->AddEmoji(name->valuestring, img);
                 }
             }
         }

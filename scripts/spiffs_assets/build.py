@@ -107,8 +107,8 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
                 
                 # Add to emoji list
                 emoji_list.append({
-                    "text": filename_without_ext,
-                    "image_file": file
+                    "name": filename_without_ext,
+                    "file": file
                 })
     
     return emoji_list
