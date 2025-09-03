@@ -66,7 +66,7 @@ Led* Board::GetLed() {
     return &led;
 }
 
-std::string Board::GetJson() {
+std::string Board::GetSystemInfoJson() {
     /* 
         {
             "version": 2,

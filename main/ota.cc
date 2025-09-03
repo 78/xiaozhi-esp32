@@ -89,7 +89,7 @@ bool Ota::CheckVersion() {
 
     auto http = SetupHttp();
 
-    std::string data = board.GetJson();
+    std::string data = board.GetSystemInfoJson();
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 

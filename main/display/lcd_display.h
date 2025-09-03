@@ -10,6 +10,8 @@
 #include <atomic>
 #include <memory>
 
+#define PREVIEW_IMAGE_DURATION_MS 5000
+
 // Theme color structure
 struct ThemeColors {
     lv_color_t background;
@@ -36,6 +38,8 @@ protected:
     lv_obj_t* side_bar_ = nullptr;
     lv_obj_t* preview_image_ = nullptr;
     lv_obj_t* emoji_image_ = nullptr;
+    lv_obj_t* emoji_box_ = nullptr;
+    esp_timer_handle_t preview_timer_ = nullptr;
 
     ThemeColors current_theme_;
 

@@ -219,7 +219,11 @@ void Display::SetEmotion(const char* emotion) {
 }
 
 void Display::SetPreviewImage(const lv_img_dsc_t* image) {
-    // Do nothing
+    // Do nothing but free the image
+    if (image != nullptr) {
+        heap_caps_free((void*)image->data);
+        heap_caps_free((void*)image);
+    }
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {

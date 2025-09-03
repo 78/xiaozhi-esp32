@@ -430,7 +430,9 @@ void Application::Start() {
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
     // Add MCP common tools before initializing the protocol
-    McpServer::GetInstance().AddCommonTools();
+    auto& mcp_server = McpServer::GetInstance();
+    mcp_server.AddCommonTools();
+    mcp_server.AddUserOnlyTools();
 
     if (ota.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
@@ -560,7 +562,6 @@ void Application::Start() {
     });
     bool protocol_started = protocol_->Start();
 
-    // Print heap stats
     SystemInfo::PrintHeapStats();
     SetDeviceState(kDeviceStateIdle);
 
