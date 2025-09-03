@@ -476,7 +476,7 @@ void Application::Start() {
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+#if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "image") == 0) {
             ESP_LOGI(TAG, "Received image message: %s", cJSON_PrintUnformatted(root));
             auto url = cJSON_GetObjectItem(root, "url");
@@ -499,8 +499,6 @@ void Application::Start() {
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
             }
-#endif
-#if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
@@ -964,7 +962,7 @@ void Application::DisplayImage(const std::string& url_str, int image_width, int 
         // 构造lv_img_dsc_t
         const int expected_size = image_width * image_height * 2; // RGB565 = 2 bytes per pixel
         
-        // 使用栈上的lv_img_dsc_t结构体，避免内存泄露
+        // 使用栈上的lv_img_dsc_t结构体
         lv_img_dsc_t img_dsc;
         memset(&img_dsc, 0, sizeof(lv_img_dsc_t)); // 区域清零
         img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -973,18 +971,14 @@ void Application::DisplayImage(const std::string& url_str, int image_width, int 
         img_dsc.header.w = image_width;
         img_dsc.header.h = image_height;
         img_dsc.data_size = expected_size;
-        img_dsc.data = decoded_data; // 指向RGB565数据（解码后或原始）
+        img_dsc.data = decoded_data; // 指向RGB565数据, 不能被释放否则会无法悬浮!
         
         // 打印图片信息
         ESP_LOGI(TAG, "Created image info - width: %d, height: %d, data_size: %u, magic: 0x%x, cf: %d", 
             img_dsc.header.w, img_dsc.header.h, (unsigned int)img_dsc.data_size, 
             img_dsc.header.magic, img_dsc.header.cf);
         
-        // SetPreviewImage会复制图片描述符和数据，所以可以立即释放原始数据
+        // SetPreviewImage会复制图片描述符
         display->SetPreviewImage(&img_dsc);
         ESP_LOGI(TAG, "Image displayed successfully");
-        
-        // 延迟释放
-        vTaskDelay(pdMS_TO_TICKS(100));
-        heap_caps_free(decoded_data);
 }

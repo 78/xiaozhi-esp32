@@ -64,6 +64,27 @@ const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
+// Define a structure to hold timer data
+struct preview_timer_data_t {
+    lv_obj_t* popup;
+    lv_obj_t* emotion_label;
+};
+
+// Timer callback for delayed hiding of preview popup
+static void preview_hide_timer_cb(lv_timer_t* t) {
+    preview_timer_data_t* d = (preview_timer_data_t*)lv_timer_get_user_data(t);
+    if (d != nullptr) {
+        if (d->popup != nullptr) {
+            lv_obj_add_flag(d->popup, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (d->emotion_label != nullptr) {
+            lv_obj_remove_flag(d->emotion_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        heap_caps_free(d);
+    }
+    // delete the one-shot timer
+    lv_timer_del(t);
+}
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
@@ -746,17 +767,25 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
 
-    preview_image_ = lv_image_create(content_);
-    lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
-    lv_obj_align(preview_image_, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 限制宽度为屏幕宽度的 90%
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
+
+    preview_image_popup_ = lv_obj_create(screen); // 改为popup形式
+    lv_obj_set_scrollbar_mode(preview_image_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(preview_image_popup_, width_ * 0.6, height_ * 0.6);
+    lv_obj_align(preview_image_popup_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(preview_image_popup_, current_theme_.chat_background, 0);
+    lv_obj_add_flag(preview_image_popup_, LV_OBJ_FLAG_FLOATING);
+    preview_image_ = lv_image_create(preview_image_popup_);
+    lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
+    lv_obj_center(preview_image_);
+    lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_FLOATING);
+    lv_obj_add_flag(preview_image_popup_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(preview_image_popup_);
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -814,18 +843,46 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     }
     
     if (img_dsc != nullptr) {
-        // 设置图片源并显示预览图片
-        lv_image_set_src(preview_image_, img_dsc);
-        // zoom factor 0.5
-        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
-        lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        // 隐藏emotion_label_
+        lv_img_dsc_t* copied = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
+        if (copied == nullptr) {
+            ESP_LOGE(TAG, "Failed to alloc image descriptor");
+            return;
+        }
+        memcpy(copied, img_dsc, sizeof(*img_dsc));
+
+        // Compute zoom to fit into the preview image area
+        lv_coord_t max_w = lv_obj_get_width(preview_image_);
+        lv_coord_t max_h = lv_obj_get_height(preview_image_);
+        lv_coord_t img_w = copied->header.w;
+        lv_coord_t img_h = copied->header.h;
+        lv_coord_t zoom_w = (img_w > 0) ? (max_w * 256) / img_w : 256;
+        lv_coord_t zoom_h = (img_h > 0) ? (max_h * 256) / img_h : 256;
+        lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
+        if (zoom > 256) zoom = 256;
+
+        // Set the copied image as the source for preview_image_
+        lv_image_set_src(preview_image_, copied);
+        lv_image_set_scale(preview_image_, zoom);
+
+        // Add event handler to clean up copied data when image is deleted
+        lv_obj_add_event_cb(preview_image_, [](lv_event_t* e) {
+            lv_img_dsc_t* d = (lv_img_dsc_t*)lv_event_get_user_data(e);
+            if (d != nullptr) {
+                if (d->data) heap_caps_free((void*)d->data);
+                heap_caps_free(d);
+            }
+        }, LV_EVENT_DELETE, (void*)copied);
+
+        // Show popup and move popup to foreground (not just the inner image)
+        lv_obj_remove_flag(preview_image_popup_, LV_OBJ_FLAG_HIDDEN);
+
+        // Hide emotion label while preview is visible
         if (emotion_label_ != nullptr) {
             lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
         }
     } else {
         // 隐藏预览图片并显示emotion_label_
-        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(preview_image_popup_, LV_OBJ_FLAG_HIDDEN);
         if (emotion_label_ != nullptr) {
             lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
         }
@@ -882,10 +939,17 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
 
 #if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
+    // 显示emotion_label_，延迟隐藏 preview_image_popup_
     lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-    if (preview_image_ != nullptr) {
-        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    // Only schedule hide if popup exists and is currently visible
+    if (preview_image_popup_ != nullptr && !lv_obj_has_flag(preview_image_popup_, LV_OBJ_FLAG_HIDDEN)) {
+        // create a small data struct to pass object pointers to the timer callback
+        preview_timer_data_t* d = (preview_timer_data_t*)heap_caps_malloc(sizeof(preview_timer_data_t), MALLOC_CAP_8BIT);
+        if (d != nullptr) {
+            d->popup = preview_image_popup_;
+            d->emotion_label = emotion_label_;
+            lv_timer_create(preview_hide_timer_cb, 5000, d);
+        }
     }
 #endif
 }
@@ -899,10 +963,17 @@ void LcdDisplay::SetIcon(const char* icon) {
     lv_label_set_text(emotion_label_, icon);
 
 #if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
+    // 显示emotion_label_，延迟隐藏 preview_image_popup_
     lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-    if (preview_image_ != nullptr) {
-        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    // Only schedule hide if popup exists and is currently visible
+    if (preview_image_popup_ != nullptr && !lv_obj_has_flag(preview_image_popup_, LV_OBJ_FLAG_HIDDEN)) {
+        // create a small data struct to pass object pointers to the timer callback
+        preview_timer_data_t* d2 = (preview_timer_data_t*)heap_caps_malloc(sizeof(preview_timer_data_t), MALLOC_CAP_8BIT);
+        if (d2 != nullptr) {
+            d2->popup = preview_image_popup_;
+            d2->emotion_label = emotion_label_;
+            lv_timer_create(preview_hide_timer_cb, 5000, d2);
+        }
     }
 #endif
 }
