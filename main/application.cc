@@ -496,6 +496,8 @@ void Application::Start() {
     });
     bool protocol_started = protocol_->Start();
 
+    // Print heap stats
+    SystemInfo::PrintHeapStats();
     SetDeviceState(kDeviceStateIdle);
 
     has_server_time_ = ota.HasServerTime();
@@ -506,9 +508,6 @@ void Application::Start() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     }
-
-    // Print heap stats
-    SystemInfo::PrintHeapStats();
 }
 
 // Add a async task to MainLoop
