@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
@@ -8,7 +8,6 @@
 #include "power_save_timer.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
@@ -70,14 +69,11 @@ void InitializePowerManager() {
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
 
@@ -157,16 +153,8 @@ void InitializePowerManager() {
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("BoardControl"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
-#elif CONFIG_IOT_PROTOCOL_MCP
+    void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
-#endif
     }
 
 public:
@@ -177,7 +165,7 @@ public:
         InitializeSpi();
         InitializeSt7735Display();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
         GetBacklight()->RestoreBrightness();
     }
 

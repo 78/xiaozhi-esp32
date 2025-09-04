@@ -3,11 +3,9 @@
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
 #include "led_control.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "esp32_camera.h"
 
 #include "led/circular_strip.h"
@@ -258,11 +256,6 @@ public:
         InitializeButtons();
         InitializeIot();
         InitializeCamera();
-
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-#endif
     }
 
    virtual Led* GetLed() override {
