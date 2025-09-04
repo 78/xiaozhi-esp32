@@ -167,7 +167,7 @@ public:
     }
 
     virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32);
+        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32);
         return &assets;
     }
 

@@ -25,6 +25,8 @@
 #define ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64   "wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_64.bin"
 #define ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64   "wn9_nihaoxiaozhi_tts-font_puhui_common_30_4-emojis_64.bin"
 #define ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1          "wn9s_nihaoxiaozhi-font_puhui_common_14_1-none.bin"
+#define ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32 "wn9s_nihaoxiaozhi-font_puhui_common_16_4-emojis_32.bin"
+#define ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32 "wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_32.bin"
 #define ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_64.bin"
 #define ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_30_4-emojis_64.bin"
 
