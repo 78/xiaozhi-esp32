@@ -13,6 +13,7 @@
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
+#include <esp_jpeg_dec.h>
 #include <font_awesome.h>
 
 #define TAG "Application"
@@ -479,6 +480,28 @@ void Application::Start() {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
             }
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
+        } else if (strcmp(type->valuestring, "image") == 0) {
+            ESP_LOGI(TAG, "Received image message: %s", cJSON_PrintUnformatted(root));
+            auto url = cJSON_GetObjectItem(root, "url");
+            auto msg_height = cJSON_GetObjectItem(root, "height");
+            auto msg_width = cJSON_GetObjectItem(root, "width");
+            auto msg_format = cJSON_GetObjectItem(root, "format");
+            // 默认值
+            int image_width = 128;
+            int image_height = 128;
+
+            if (cJSON_IsNumber(msg_width) && cJSON_IsNumber(msg_height)) {
+                image_width = msg_width->valueint;
+                image_height = msg_height->valueint;
+            }
+
+            if (cJSON_IsString(url)) {
+                Schedule([this, url_str = std::string(url->valuestring), image_width, image_height, format = std::string(msg_format->valuestring)]() {
+                    DisplayImage(url_str, image_width, image_height, format);
+                });
+            } else {
+                ESP_LOGW(TAG, "Invalid custom message format: missing payload");
+            }
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
@@ -773,4 +796,192 @@ void Application::SetAecMode(AecMode mode) {
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+void Application::DisplayImage(const std::string& url_str, int image_width, int image_height, const std::string& format) {
+        // 下载并显示图片
+        auto& board = Board::GetInstance();
+        auto network = board.GetNetwork();
+        auto display = board.GetDisplay();
+        if (display == nullptr || network == nullptr) {
+            ESP_LOGE(TAG, "Display or Network not initialized");
+            return;
+        }
+
+        auto http = network->CreateHttp();
+        
+        if (!http->Open("GET", url_str)) {
+            ESP_LOGE(TAG, "Failed to open HTTP connection for image: %s", url_str.c_str());
+            return;
+        }
+        
+        if (http->GetStatusCode() != 200) {
+            ESP_LOGE(TAG, "Failed to get image, status code: %d", http->GetStatusCode());
+            http->Close();
+            return;
+        }
+        
+        size_t content_length = http->GetBodyLength();
+        if (content_length == 0) {
+            ESP_LOGE(TAG, "Failed to get image content length");
+            http->Close();
+            return;
+        }
+
+        // 分配至SPIRAM来存储图片数据
+        uint8_t* image_buffer = (uint8_t*)heap_caps_malloc(content_length, MALLOC_CAP_SPIRAM);
+        if (image_buffer == nullptr) {
+            ESP_LOGE(TAG, "Failed to allocate memory for image (size: %u bytes)", (unsigned int)content_length);
+            http->Close();
+            return;
+        }
+        
+        // 分块读取图片数据
+        char buffer[512];
+        size_t total_read = 0;
+        while (total_read < content_length) {
+            int ret = http->Read(buffer, sizeof(buffer));
+            if (ret <= 0) {
+                ESP_LOGE(TAG, "Failed to read image data, ret: %d", ret);
+                heap_caps_free(image_buffer);
+                http->Close();
+                return;
+            }
+            
+            // 确保不会超出buffer边界
+            size_t copy_len = (total_read + ret > content_length) ? (content_length - total_read) : ret;
+            memcpy(image_buffer + total_read, buffer, copy_len);
+            total_read += copy_len;
+            
+            if (ret == 0) {
+                break;
+            }
+        }
+        
+        http->Close();
+        ESP_LOGI(TAG, "Image downloaded, size: %u bytes", (unsigned int)total_read);
+        uint8_t* decoded_data = image_buffer;
+        size_t decoded_size = total_read;
+
+        if (format == "jpeg") {
+            ESP_LOGI(TAG, "Decoding JPEG image...");
+            
+            // 创建JPEG解码器配置
+            jpeg_dec_config_t config = {
+                .output_type = JPEG_PIXEL_FORMAT_RGB565_LE,
+                .scale = {.width = 0, .height = 0},
+                .clipper = {.width = 0, .height = 0},
+                .rotate = JPEG_ROTATE_0D,
+                .block_enable = false,
+            };
+            
+            // 创建JPEG解码器句柄
+            jpeg_dec_handle_t decoder_handle;
+            jpeg_error_t ret = jpeg_dec_open(&config, &decoder_handle);
+            if (ret != JPEG_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to create JPEG decoder: %d", ret);
+                heap_caps_free(image_buffer);
+                return;
+            }
+            
+            // 设置输入数据
+            jpeg_dec_io_t io = {
+                .inbuf = image_buffer,
+                .inbuf_len = (int)total_read,
+                .inbuf_remain = 0,
+                .outbuf = nullptr,
+                .out_size = 0,
+            };
+            
+            // 解析JPEG头部信息
+            jpeg_dec_header_info_t header_info;
+            ret = jpeg_dec_parse_header(decoder_handle, &io, &header_info);
+            if (ret != JPEG_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to parse JPEG header: %d", ret);
+                jpeg_dec_close(decoder_handle);
+                heap_caps_free(image_buffer);
+                return;
+            }
+            
+            ESP_LOGI(TAG, "JPEG info - width: %d, height: %d", header_info.width, header_info.height);
+            
+            // 验证尺寸是否匹配
+            if (header_info.width != image_width || header_info.height != image_height) {
+                ESP_LOGW(TAG, "JPEG dimensions (%dx%d) don't match expected (%dx%d)", 
+                    header_info.width, header_info.height, image_width, image_height);
+                image_width = header_info.width;
+                image_height = header_info.height;
+            }
+            
+            // 获取输出缓冲区大小
+            int outbuf_len = 0;
+            ret = jpeg_dec_get_outbuf_len(decoder_handle, &outbuf_len);
+            if (ret != JPEG_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to get output buffer length: %d", ret);
+                jpeg_dec_close(decoder_handle);
+                heap_caps_free(image_buffer);
+                return;
+            }
+            
+            // 分配RGB565输出缓冲区到SPIRAM（16字节对齐）
+            uint8_t* rgb565_buffer = (uint8_t*)heap_caps_aligned_alloc(16, outbuf_len, MALLOC_CAP_SPIRAM);
+            if (rgb565_buffer == nullptr) {
+                // 如果SPIRAM分配失败，回退到内部RAM
+                rgb565_buffer = (uint8_t*)heap_caps_aligned_alloc(16, outbuf_len, MALLOC_CAP_8BIT);
+            }
+            if (rgb565_buffer == nullptr) {
+                ESP_LOGE(TAG, "Failed to allocate RGB565 buffer (%d bytes)", outbuf_len);
+                jpeg_dec_close(decoder_handle);
+                heap_caps_free(image_buffer);
+                return;
+            }
+            
+            // 重置IO结构体进行解码
+            io.inbuf = image_buffer;
+            io.inbuf_len = (int)total_read;
+            io.inbuf_remain = (int)total_read;
+            io.outbuf = rgb565_buffer;
+            io.out_size = 0;
+            
+            // 进行JPEG解码
+            ret = jpeg_dec_process(decoder_handle, &io);
+            if (ret != JPEG_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to decode JPEG: %d", ret);
+                jpeg_dec_close(decoder_handle);
+                heap_caps_free(rgb565_buffer);
+                heap_caps_free(image_buffer);
+                return;
+            }
+            
+            ESP_LOGI(TAG, "JPEG decoded successfully, output size: %d bytes", io.out_size);
+            
+            // 清理解码器
+            jpeg_dec_close(decoder_handle);
+            heap_caps_free(image_buffer);
+            decoded_data = rgb565_buffer;
+            decoded_size = io.out_size;
+        }
+
+        // 构造lv_img_dsc_t
+        const int expected_size = image_width * image_height * 2; // RGB565 = 2 bytes per pixel
+        
+        // 使用栈上的lv_img_dsc_t结构体
+        lv_img_dsc_t img_dsc;
+        memset(&img_dsc, 0, sizeof(lv_img_dsc_t)); // 区域清零
+        img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        img_dsc.header.cf = LV_COLOR_FORMAT_RGB565; // TODO: png->argb565, jpeg->rgb565
+        img_dsc.header.flags = 0;
+        img_dsc.header.w = image_width;
+        img_dsc.header.h = image_height;
+        img_dsc.data_size = expected_size;
+        img_dsc.data = decoded_data; // 指向RGB565数据, 不能被释放否则会无法悬浮!
+        
+        // 打印图片信息
+        ESP_LOGI(TAG, "Created image info - width: %d, height: %d, data_size: %u, magic: 0x%x, cf: %d", 
+            img_dsc.header.w, img_dsc.header.h, (unsigned int)img_dsc.data_size, 
+            img_dsc.header.magic, img_dsc.header.cf);
+        
+        // SetPreviewImage会复制图片描述符
+        display->SetPreviewImage(&img_dsc);
+        ESP_LOGI(TAG, "Image displayed successfully");
 }

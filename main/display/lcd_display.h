@@ -33,6 +33,7 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* preview_image_popup_ = nullptr;
     lv_obj_t* preview_image_ = nullptr;
 
     DisplayFonts fonts_;
