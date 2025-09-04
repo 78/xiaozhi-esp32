@@ -6,6 +6,11 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config DEFAULT_ASSETS_URL_PREFIX
+    string "Default Assets URL Prefix"
+    default "https://files.xiaozhi.me/assets/default/"
+    help
+        The assets will be downloaded from this URL.
 
 choice
     prompt "Default Language"

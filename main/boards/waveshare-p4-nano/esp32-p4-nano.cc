@@ -20,8 +20,8 @@
 #include "esp_lcd_touch_gt911.h"
 #define TAG "WaveshareEsp32p4nano"
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_puhui_basic_30_4);
+LV_FONT_DECLARE(font_awesome_30_4);
 
 class CustomBacklight : public Backlight {
 public:
@@ -161,11 +161,7 @@ private:
 
         display__ = new MipiLcdDisplay(io, disp_panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                        DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                       {
-                                           .text_font = &font_puhui_20_4,
-                                           .icon_font = &font_awesome_20_4,
-                                           .emoji_font = font_emoji_64_init(),
-                                       });
+                                       {&font_puhui_basic_30_4, &font_awesome_30_4});
         backlight_ = new CustomBacklight(codec_i2c_bus_);
         backlight_->RestoreBrightness();
     }
@@ -232,6 +228,11 @@ public:
     virtual Backlight *GetBacklight() override {
          return backlight_;
      }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64);
+        return &assets;
+    }
 };
 
 DECLARE_BOARD(WaveshareEsp32p4nano);

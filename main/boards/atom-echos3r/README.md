@@ -22,7 +22,7 @@ idf.py menuconfig
 分别配置如下选项：
 
 - `Xiaozhi Assistant` → `Board Type` → 选择 `AtomEchoS3R`
-- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v1/8m.csv`
+- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v2/8m.csv`
 - `Serial flasher config` → `Flash size` → 选择 `8 MB`
 - `Component config` → `ESP PSRAM` → `Support for external, SPI-connected RAM` → `SPI RAM config` → 选择 `Octal Mode PSRAM`
 

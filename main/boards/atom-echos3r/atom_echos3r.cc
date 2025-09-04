@@ -71,6 +71,11 @@ public:
         InitializeButtons();
     }
 
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_WAKENET);
+        return &assets;
+    }
+
     virtual AudioCodec* GetAudioCodec() override {
         static Es8311AudioCodec audio_codec(
             i2c_bus_, 

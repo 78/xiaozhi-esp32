@@ -30,8 +30,8 @@
 #define TAG "waveshare_lcd_3_5"
 
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 
 class Pmic : public Axp2101 {
@@ -304,11 +304,7 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
+                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
     void InitializeButtons() {
@@ -352,6 +348,11 @@ public:
         InitializeCamera();
         InitializeTools();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

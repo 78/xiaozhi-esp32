@@ -21,7 +21,7 @@
 
 #define TAG "DF-K10"
 
-LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 class Df_K10Board : public WifiBoard {
@@ -104,6 +104,7 @@ private:
             ESP_LOGE(TAG, "Set direction failed: %s", esp_err_to_name(ret));
         }
     }
+
     void InitializeButtons() {
         instance_ = this;
 
@@ -234,11 +235,7 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                 DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                });
+                                {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
     // 物联网初始化，添加对 AI 可见设备
@@ -258,7 +255,12 @@ public:
         InitializeCamera();
     }
 
-   virtual Led* GetLed() override {
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
+    }
+
+    virtual Led* GetLed() override {
         return led_strip_;
     }
 

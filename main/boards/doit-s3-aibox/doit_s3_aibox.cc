@@ -123,6 +123,11 @@ public:
         InitializeButtons();
     }
 
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_WAKENET);
+        return &assets;
+    }
+
     virtual Led* GetLed() override {
         static GpioLed led(BUILTIN_LED_GPIO, 1);
         return &led;
