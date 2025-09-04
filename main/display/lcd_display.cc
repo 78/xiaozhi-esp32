@@ -674,7 +674,7 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         if (img_width == 0 || img_height == 0) {
             img_width = max_width;
             img_height = max_height;
-            ESP_LOGW(TAG, "Invalid image dimensions: %d x %d, using default dimensions: %d x %d", img_width, img_height, max_width, max_height);
+            ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
         }
         
         lv_coord_t zoom_w = (max_width * 256) / img_width;
