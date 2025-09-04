@@ -428,24 +428,24 @@ endchoice
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32S3_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
-    default LCD_ST7789
+    default ESP32S3_KORVO2_V3_LCD_ST7789
     help
         屏幕类型选择
-    config LCD_ST7789
+    config ESP32S3_KORVO2_V3_LCD_ST7789
         bool "ST7789, 分辨率240*280"
-    config LCD_ILI9341
+    config ESP32S3_KORVO2_V3_LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
 endchoice
 
 choice DISPLAY_ESP32S3_AUDIO_BOARD
     depends on BOARD_TYPE_ESP32S3_AUDIO_BOARD
     prompt "ESP32S3_AUDIO_BOARD LCD Type"
-    default LCD_JD9853
+    default AUDIO_BOARD_LCD_JD9853
     help
         屏幕类型选择
-    config LCD_JD9853
+    config AUDIO_BOARD_LCD_JD9853
         bool "JD9853, 分辨率320*172"
-    config LCD_ST7789
+    config AUDIO_BOARD_LCD_ST7789
         bool "ST7789, 分辨率240*320"
 endchoice
 
