@@ -636,9 +636,6 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         // Create the image object inside the bubble
         lv_obj_t* preview_image = lv_image_create(img_bubble);
         
-        // Create the image object inside the bubble
-        lv_obj_t* preview_image = lv_image_create(img_bubble);
-        
         // Copy the image descriptor and data to avoid source data changes
         lv_img_dsc_t* copied_img_dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
         if (copied_img_dsc == nullptr) {
