@@ -428,10 +428,10 @@ endchoice
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32S3_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
-    default LCD_ST7789
+    default LCD_ST7789_240X280_KORVO2
     help
         屏幕类型选择
-    config LCD_ST7789
+    config LCD_ST7789_240X280_KORVO2
         bool "ST7789, 分辨率240*280"
     config LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
@@ -445,15 +445,31 @@ choice DISPLAY_ESP32S3_AUDIO_BOARD
         屏幕类型选择
     config LCD_JD9853
         bool "JD9853, 分辨率320*172"
-    config LCD_ST7789
+    config LCD_ST7789_240X320_AUDIO
         bool "ST7789, 分辨率240*320"
 endchoice
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "Enable WeChat Message Style"
-    default n
+choice DISPLAY_STYLE
+    prompt "Display Style"
+    default USE_DEFAULT_STYLE
     help
-        使用微信聊天界面风格
+        选择显示风格
+
+    config USE_DEFAULT_STYLE
+        bool "Default Style"
+        help
+            默认显示风格
+
+    config USE_WECHAT_MESSAGE_STYLE
+        bool "Enable WeChat Message Style"
+        help
+            使用微信聊天界面风格
+
+    config USE_EMOTE_STYLE
+        bool "Emote face Style"
+        help
+            表情交互提示风格
+endchoice
 
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"

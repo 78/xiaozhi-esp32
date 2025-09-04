@@ -14,6 +14,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/display.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
+            "display/emote_display.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -336,66 +337,32 @@ add_custom_target(lang_header ALL
     DEPENDS ${LANG_HEADER}
 )
 
-if(CONFIG_BOARD_TYPE_ESP_HI)
-set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
-set(SPIFFS_DIR "${CMAKE_BINARY_DIR}/emoji")
-file(MAKE_DIRECTORY ${SPIFFS_DIR})
-
-# List all files to download
-set(FILES_TO_DOWNLOAD "")
-list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
-list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
-list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
-
-foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
-    set(REMOTE_FILE "${URL}/${FILENAME}")
-    set(LOCAL_FILE "${SPIFFS_DIR}/${FILENAME}")
-    
-    # 检查本地文件是否存在
-    if(EXISTS ${LOCAL_FILE})
-        message(STATUS "File ${FILENAME} already exists, skipping download")
-    else()
-        message(STATUS "Downloading ${FILENAME}")
-        file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
-             STATUS DOWNLOAD_STATUS)
-        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-        if(NOT STATUS_CODE EQUAL 0)
-            message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
-        endif()
-    endif()
-endforeach()
-
-spiffs_create_partition_assets(
-    assets_A
-    ${SPIFFS_DIR}
-    FLASH_IN_PROJECT
-    MMAP_FILE_SUPPORT_FORMAT ".aaf"
-)
-endif()
-
-if(CONFIG_BOARD_TYPE_ECHOEAR)
+if(CONFIG_BOARD_TYPE_ECHOEAR OR CONFIG_BOARD_TYPE_ESP_BOX_3 OR CONFIG_BOARD_TYPE_ESP_HI)
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
 foreach(COMPONENT ${build_components})
     if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
         set(EMOTE_GFX_COMPONENT ${COMPONENT})
         idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
-        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
         break()
     endif()
 endforeach()
 
+if(CONFIG_BOARD_TYPE_ESP_HI)
+    set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_small")
+else()  
+    set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_large")
+endif()
+
+target_include_directories(${COMPONENT_LIB} BEFORE PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
+)
+
 spiffs_create_partition_assets(
-    assets_A
+    assets
     ${SPIFFS_DIR}
     FLASH_IN_PROJECT
-    MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    MMAP_FILE_SUPPORT_FORMAT ".eaf, bin"
     IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
 endif()

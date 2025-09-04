@@ -4,7 +4,9 @@
         {
             "name": "esp-box-3",
             "sdkconfig_append": [
-                "CONFIG_USE_DEVICE_AEC=y"
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m_echoear.csv\"",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_USE_EMOTE_STYLE=y"
             ]
         }
     ]
