@@ -2,12 +2,18 @@
 #define LCD_DISPLAY_H
 
 #include "display.h"
+#include <lvgl.h>
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <font_emoji.h>
 
 #include <atomic>
+
+// 字体类型转换函数
+inline const lv_font_t* to_lv_font(const void* font) {
+    return static_cast<const lv_font_t*>(font);
+}
 
 // Theme color structure
 struct ThemeColors {
@@ -28,12 +34,31 @@ protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     
+    // LVGL 相关元素，从 Display 基类移到这里
+    lv_display_t *display_ = nullptr;
     lv_draw_buf_t draw_buf_;
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
     lv_obj_t* preview_image_ = nullptr;
+
+    // LVGL UI 元素
+    lv_obj_t *emotion_label_ = nullptr;
+    lv_obj_t *network_label_ = nullptr;
+    lv_obj_t *status_label_ = nullptr;
+    lv_obj_t *notification_label_ = nullptr;
+    lv_obj_t *mute_label_ = nullptr;
+    lv_obj_t *battery_label_ = nullptr;
+    lv_obj_t* chat_message_label_ = nullptr;
+    lv_obj_t* low_battery_popup_ = nullptr;
+    lv_obj_t* low_battery_label_ = nullptr;
+
+    // 从 Display 基类移过来的成员变量
+    const char* battery_icon_ = nullptr;
+    const char* network_icon_ = nullptr;
+    bool muted_ = false;
+    esp_timer_handle_t notification_timer_ = nullptr;
 
     DisplayFonts fonts_;
     ThemeColors current_theme_;
@@ -48,13 +73,15 @@ protected:
     
 public:
     ~LcdDisplay();
+
+    // 重写 Display 基类的方法，提供 LVGL 实现
+    virtual void SetStatus(const char* status) override;
+    virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetIcon(const char* icon) override;
-    virtual void SetPreviewImage(const lv_img_dsc_t* img_dsc) override;
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    virtual void SetPreviewImage(const void* img_dsc) override;
     virtual void SetChatMessage(const char* role, const char* content) override; 
-#endif  
-
+    virtual void UpdateStatusBar(bool update_all = false) override;
     // Add theme switching function
     virtual void SetTheme(const std::string& theme_name) override;
 };
