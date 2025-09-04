@@ -49,7 +49,7 @@ Application::Application() {
     esp_timer_create_args_t clock_timer_args = {
         .callback = [](void* arg) {
             Application* app = (Application*)arg;
-            app->OnClockTimer();
+            xEventGroupSetBits(app->event_group_, MAIN_EVENT_CLOCK_TICK);
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
@@ -511,20 +511,6 @@ void Application::Start() {
     SystemInfo::PrintHeapStats();
 }
 
-void Application::OnClockTimer() {
-    clock_ticks_++;
-
-    auto display = Board::GetInstance().GetDisplay();
-    display->UpdateStatusBar();
-
-    // Print the debug info every 10 seconds
-    if (clock_ticks_ % 10 == 0) {
-        // SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(1000));
-        // SystemInfo::PrintTaskList();
-        SystemInfo::PrintHeapStats();
-    }
-}
-
 // Add a async task to MainLoop
 void Application::Schedule(std::function<void()> callback) {
     {
@@ -546,7 +532,9 @@ void Application::MainEventLoop() {
             MAIN_EVENT_SEND_AUDIO |
             MAIN_EVENT_WAKE_WORD_DETECTED |
             MAIN_EVENT_VAD_CHANGE |
+            MAIN_EVENT_CLOCK_TICK |
             MAIN_EVENT_ERROR, pdTRUE, pdFALSE, portMAX_DELAY);
+
         if (bits & MAIN_EVENT_ERROR) {
             SetDeviceState(kDeviceStateIdle);
             Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
@@ -577,6 +565,19 @@ void Application::MainEventLoop() {
             lock.unlock();
             for (auto& task : tasks) {
                 task();
+            }
+        }
+
+        if (bits & MAIN_EVENT_CLOCK_TICK) {
+            clock_ticks_++;
+            auto display = Board::GetInstance().GetDisplay();
+            display->UpdateStatusBar();
+        
+            // Print the debug info every 10 seconds
+            if (clock_ticks_ % 10 == 0) {
+                // SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(1000));
+                // SystemInfo::PrintTaskList();
+                SystemInfo::PrintHeapStats();
             }
         }
     }

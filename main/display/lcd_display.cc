@@ -102,7 +102,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
-    // lv image cache
+    // lv image cache, currently only PNG is supported
     size_t psram_size_mb = esp_psram_get_size() / 1024 / 1024;
     if (psram_size_mb >= 8) {
         lv_image_cache_resize(2 * 1024 * 1024, true);
@@ -115,7 +115,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
-    port_cfg.timer_period_ms = 40;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
@@ -124,7 +123,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .panel_handle = panel_,
         .control_handle = nullptr,
         .buffer_size = static_cast<uint32_t>(width_ * 20),
-        .double_buffer = true,
+        .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -631,6 +630,9 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(img_bubble, (void*)"image");
+
+        // Create the image object inside the bubble
+        lv_obj_t* preview_image = lv_image_create(img_bubble);
         
         // Create the image object inside the bubble
         lv_obj_t* preview_image = lv_image_create(img_bubble);
@@ -826,8 +828,10 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     if (img_dsc != nullptr) {
         // 设置图片源并显示预览图片
         lv_image_set_src(preview_image_, img_dsc);
-        // zoom factor 0.5
-        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        if (img_dsc->header.w > 0) {
+            // zoom factor 0.5
+            lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        }
         lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
         // 隐藏emotion_label_
         if (emotion_label_ != nullptr) {
