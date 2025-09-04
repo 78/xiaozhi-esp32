@@ -139,7 +139,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .panel_handle = panel_,
         .control_handle = nullptr,
         .buffer_size = static_cast<uint32_t>(width_ * 20),
-        .double_buffer = true,
+        .double_buffer = false,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -660,6 +660,9 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(img_bubble, (void*)"image");
+
+        // Create the image object inside the bubble
+        lv_obj_t* preview_image = lv_image_create(img_bubble);
         
         // Calculate appropriate size for the image
         lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
@@ -847,8 +850,10 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     if (img_dsc != nullptr) {
         // 设置图片源并显示预览图片
         lv_image_set_src(preview_image_, img_dsc);
-        // zoom factor 0.5
-        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
+            // zoom factor 0.5
+            lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        }
         // Hide emoji_box_
         lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);

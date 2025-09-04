@@ -183,7 +183,12 @@ void McpServer::AddUserOnlyTools() {
                     heap_caps_free(img_dsc);
                     throw std::runtime_error("Failed to get image info");
                 }
-                display->SetPreviewImage(img_dsc);
+                ESP_LOGI(TAG, "Preview image: %s size: %d resolution: %d x %d", url.c_str(), content_length, img_dsc->header.w, img_dsc->header.h);
+
+                auto& app = Application::GetInstance();
+                app.Schedule([display, img_dsc]() {
+                    display->SetPreviewImage(img_dsc);
+                });
                 return true;
             });
     }
