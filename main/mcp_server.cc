@@ -29,11 +29,16 @@ McpServer::~McpServer() {
 }
 
 void McpServer::AddCommonTools() {
-    // To speed up the response time, we add the common tools to the beginning of
+    // *Important* To speed up the response time, we add the common tools to the beginning of
     // the tools list to utilize the prompt cache.
+    // **重要** 为了提升响应速度，我们把常用的工具放在前面，利用 prompt cache 的特性。
+
     // Backup the original tools list and restore it after adding the common tools.
     auto original_tools = std::move(tools_);
     auto& board = Board::GetInstance();
+
+    // Do not add custom tools here.
+    // Custom tools must be added in the board's InitializeTools function.
 
     AddTool("self.get_device_status",
         "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\n"
@@ -120,6 +125,12 @@ void McpServer::AddTool(McpTool* tool) {
 
 void McpServer::AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback) {
     AddTool(new McpTool(name, description, properties, callback));
+}
+
+void McpServer::AddUserOnlyTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback) {
+    auto tool = new McpTool(name, description, properties, callback);
+    tool->set_user_only(true);
+    AddTool(tool);
 }
 
 void McpServer::ParseMessage(const std::string& message) {

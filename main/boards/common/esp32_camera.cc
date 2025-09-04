@@ -89,6 +89,7 @@ bool Esp32Camera::Capture() {
         encoder_thread_.join();
     }
 
+    auto start_time = esp_timer_get_time();
     int frames_to_get = 2;
     // Try to get a stable frame
     for (int i = 0; i < frames_to_get; i++) {
@@ -101,6 +102,8 @@ bool Esp32Camera::Capture() {
             return false;
         }
     }
+    auto end_time = esp_timer_get_time();
+    ESP_LOGI(TAG, "Camera captured %d frames in %d ms", frames_to_get, int((end_time - start_time) / 1000));
 
     // 如果预览图片 buffer 为空，则跳过预览
     // 但仍返回 true，因为此时图像可以上传至服务器
