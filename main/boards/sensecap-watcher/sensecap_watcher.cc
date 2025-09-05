@@ -28,6 +28,7 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
+#include "esp_app_desc.h"
 
 #include "assets/lang_config.h"
 
@@ -496,6 +497,24 @@ private:
             .context =this
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
+
+                const esp_console_cmd_t cmd6 = {
+            .command = "version",
+            .help = "Read version info",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                auto app_desc = esp_app_get_description();
+                printf("xiaozhi agent\n");
+                printf("version: %s\n", app_desc->version);
+                printf("camera: %d\n",self->GetCamera() == nullptr ? 0 : 1);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd6));
 
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));

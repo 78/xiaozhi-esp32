@@ -13,7 +13,6 @@
 #include "application.h"
 #include "display.h"
 #include "board.h"
-#include "settings.h"
 
 #define TAG "MCP"
 
@@ -101,76 +100,6 @@ void McpServer::AddCommonTools() {
                 }
                 auto question = properties["question"].value<std::string>();
                 return camera->Explain(question);
-            });
-
-        // 获取人体检测配置
-        AddTool("self.vision.get_detection_config",
-            "Get the current vision detection configuration. Use this tool when user asks about vision settings, detection parameters, or camera configuration. Returns threshold, interval, and target type settings.",
-            PropertyList(),
-            [](const PropertyList& properties) -> ReturnValue {
-                Settings settings("vision", false);
-                int threshold = settings.GetInt("threshold", 75);
-                int interval = settings.GetInt("interval", 8);
-                int duration = settings.GetInt("duration", 2);
-                int target_type = settings.GetInt("target", 0);
-                
-                std::string result = "{\"threshold\":" + std::to_string(threshold) + 
-                                   ",\"interval\":" + std::to_string(interval) + 
-                                   ",\"duration\":" + std::to_string(duration) + 
-                                   ",\"target_type\":" + std::to_string(target_type) + "}";
-                return result;
-            });
-
-        // 设置人体检测配置
-        AddTool("self.vision.set_detection_config",
-            "Set person detection configuration parameters.\n"
-            "Args:\n"
-            "  `threshold`: Detection confidence threshold (0-100, default 75)\n"
-            "  `interval`: Cooldown period after conversation ends, prevents frequent interruptions (default 8 seconds)\n"
-            "  `duration`: Detection duration (default 2 seconds) \n"
-            "  `target_type`: Target type to detect (0=person, 1=body, default 0)",
-            PropertyList({
-                Property("threshold", kPropertyTypeInteger, 75, 0, 100),
-                Property("interval", kPropertyTypeInteger, 8, 1, 60),
-                Property("duration", kPropertyTypeInteger, 2, 1, 60),
-                Property("target_type", kPropertyTypeInteger, 0, 0, 1)
-            }),
-            [](const PropertyList& properties) -> ReturnValue {
-                Settings settings("vision", true);
-                
-                try {
-                    const Property& threshold_prop = properties["threshold"];
-                    int threshold = threshold_prop.value<int>();
-                    settings.SetInt("threshold", threshold);
-                } catch (const std::runtime_error&) {
-                    // threshold parameter not provided, skip
-                }
-                
-                try {
-                    const Property& interval_prop = properties["interval"];
-                    int interval = interval_prop.value<int>();
-                    settings.SetInt("interval", interval);
-                } catch (const std::runtime_error&) {
-                    // interval parameter not provided, skip
-                }
-                
-                try {
-                    const Property& duration_prop = properties["duration"];
-                    int duration = duration_prop.value<int>();
-                    settings.SetInt("duration", duration);
-                } catch (const std::runtime_error&) {
-                    // duration parameter not provided, skip
-                }
-                
-                try {
-                    const Property& target_prop = properties["target_type"];
-                    int target = target_prop.value<int>();
-                    settings.SetInt("target", target);
-                } catch (const std::runtime_error&) {
-                    // target_type parameter not provided, skip
-                }
-
-                return "{\"status\": \"success\", \"message\": \"Detection configuration updated\"}";
             });
     }
 

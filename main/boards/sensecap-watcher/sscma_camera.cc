@@ -60,10 +60,12 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         int img_size = 0;
         int box_count = 0;
         sscma_client_box_t     *boxes = NULL;
-        // int class_count = 0;
-        // sscma_client_class_t *classes = NULL;
-        // int point_count = 0;
-        // sscma_client_point_t  *points = NULL;
+        int class_count = 0;
+        sscma_client_class_t *classes = NULL;
+        int point_count = 0;
+        sscma_client_point_t  *points = NULL;
+        int model_type = 0;
+        int obj_cnt = 0;
 
         int width = 0, height = 0;
         cJSON *data = cJSON_GetObjectItem(reply->payload, "data");
@@ -76,41 +78,51 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         }
         
         switch ((width+height)) {
-            case (416+416):  // 人体检测模型
-            // case (224+224):  // 分类模型
-            // case (320+240):  // 小型检测模型
-            // case (640+640):  // 大型检测模型
-            // case (512+512):  // 中型检测模型
+            case (416+416): 
             {
                 bool is_object_detected = false;
                 bool is_need_wake = false;
                 
                 // 定期更新检测配置参数，避免频繁NVS访问
                 int64_t cur_tm = esp_timer_get_time();
-                if (cur_tm - self->last_config_load_tm > 5000000LL) { // 每5秒更新一次配置
-                    Settings vision_settings("vision", false);
-                    self->cached_target_type = vision_settings.GetInt("tar", 0);
-                    self->cached_detect_invoke_interval_sec = vision_settings.GetInt("intv", 15);
-                    self->cached_detect_duration_sec = vision_settings.GetInt("dura", 2);
-                    self->cached_detect_threshold = vision_settings.GetInt("thre", 75);
 
-                    self->cached_detect_duration_us = self->cached_detect_duration_sec * 1000000LL;
-                    self->cached_detect_invoke_interval_us = self->cached_detect_invoke_interval_sec * 1000000LL;
-                    self->last_config_load_tm = cur_tm;
-                }
-                
                 // 尝试获取检测框数据（目标检测模型）
                 if (sscma_utils_fetch_boxes_from_reply(reply, &boxes, &box_count) == ESP_OK && box_count > 0) {
                     for (int i = 0; i < box_count; i++) {
                         ESP_LOGI(TAG, "[box %d]: x=%d, y=%d, w=%d, h=%d, score=%d, target=%d", i,  \
                                 boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h, boxes[i].score, boxes[i].target);
-                        if (boxes[i].target == self->cached_target_type && boxes[i].score > self->cached_detect_threshold) {
+                        if (boxes[i].target == self->detect_target && boxes[i].score > self->detect_threshold) {
                            is_object_detected = true;
+                           model_type = 0;
+                           obj_cnt++;
                            break;
                         }
                     }
+                    
+                } else if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK && class_count > 0) {
+                    // 尝试获取分类数据（分类模型）
+                    for (int i = 0; i < class_count; i++) {
+                        ESP_LOGI(TAG, "[class %d]: target=%d, score=%d", i,
+                                classes[i].target, classes[i].score);
+                        if (classes[i].target == self->detect_target && classes[i].score > self->detect_threshold) {
+                           is_object_detected = true;
+                           model_type = 1;
+                           obj_cnt++;
+                        }
+                    }
+                } else if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK && point_count > 0) {
+                     // 尝试获取关键点数据（姿态估计模型）
+                    for (int i = 0; i < point_count; i++) {
+                        ESP_LOGI(TAG, "[point %d]: x=%d, y=%d, z=%d, score=%d, target=%d", i, 
+                                points[i].x, points[i].y, points[i].z, points[i].score, points[i].target);
+                        if (points[i].target == self->detect_target && points[i].score > self->detect_threshold) {
+                           is_object_detected = true;
+                           model_type = 2;
+                           obj_cnt++;
+                        }
+                    }
                 }
-                
+
                 // 如果需要开始冷却期，现在开始计时
                 if (self->need_start_cooldown) { // 回调暂停，标志保持，等待回调恢复后开始计时
                     self->state_start_time = cur_tm;
@@ -126,7 +138,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                             self->detection_state = SscmaCamera::VALIDATING;
                             self->state_start_time = cur_tm; // 记录物体出现时间
                             self->last_detected_time = cur_tm; // 初始化最后检测时间
-                            ESP_LOGI(TAG, "Person appeared, starting validation");
+                            ESP_LOGI(TAG, "object appeared, starting validation");
                         }
                         break;
                         
@@ -135,17 +147,17 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                             // 更新最后检测到的时间
                             self->last_detected_time = cur_tm;
                             // 检查是否验证足够时间
-                            if ((cur_tm - self->state_start_time) >= self->cached_detect_duration_us) {
+                            if ((cur_tm - self->state_start_time) >= (self->detect_duration_sec * 1000000)) {
                                 is_need_wake = true;
                             }
                         } else {
                             // 验证期间人员离开，检查去抖动时间
                             if (self->last_detected_time > 0 && 
-                                (cur_tm - self->last_detected_time) >= self->cached_detect_debounce_us) {
+                                (cur_tm - self->last_detected_time) >= self->detect_debounce_sec * 1000000LL) {
                                 // 去抖动时间已过，确认人员已离开，回到空闲
                                 self->detection_state = SscmaCamera::IDLE;
                                 self->last_detected_time = 0;
-                                ESP_LOGI(TAG, "Person left during validation (debounced), back to idle");
+                                ESP_LOGI(TAG, "object left during validation (debounced), back to idle");
                             }
                         }
                         break;
@@ -153,7 +165,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                     case SscmaCamera::COOLDOWN:
                         // 冷却期，需要满足两个条件：1)object离开 2)过了15秒
                         if (!is_object_detected && 
-                            (cur_tm - self->state_start_time) >= self->cached_detect_invoke_interval_us) {
+                            (cur_tm - self->state_start_time) >= (self->detect_invoke_interval_sec * 1000000LL)) {
                             // object离开且冷却时间到，回到空闲状态
                             self->detection_state = SscmaCamera::IDLE;
                             ESP_LOGI(TAG, "Cooldown complete and object left, back to idle - ready for next appearance");
@@ -161,33 +173,34 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                         // 其他情况继续保持冷却状态
                         break;
                 }
-                // // 尝试获取分类数据（分类模型）
-                // if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK && class_count > 0) {
-                //     for (int i = 0; i < class_count; i++) {
-                //         ESP_LOGI(TAG, "[class %d]: target=%d, score=%d", i,
-                //                 classes[i].target, classes[i].score);
-                //         // if (classes[i].target == self->cached_target_type && classes[i].score > self->cached_detect_threshold) {
-                //         //    is_need_wake = true;
-                //         // }
-                //     }
-                // }
-                // // 尝试获取关键点数据（姿态估计模型）
-                // if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK && point_count > 0) {
-                //     for (int i = 0; i < point_count; i++) {
-                //         ESP_LOGI(TAG, "[point %d]: x=%d, y=%d, z=%d, score=%d, target=%d", i, 
-                //                 points[i].x, points[i].y, points[i].z, points[i].score, points[i].target);
-                //     //     if (points[i].target == self->cached_target_type && points[i].score > self->cached_detect_threshold) {
-                //     //        is_need_wake = true;
-                //     //     }
-                //     }
-                // }
+
 
                 if( is_need_wake ) {
                     ESP_LOGI(TAG, "Validation complete, triggering conversation (type=%d, res=%dx%d)", 
-                             self->cached_target_type, width, height);
+                             self->detect_target, width, height);
                     
                     // 触发对话
-                    std::string wake_word = "你好";
+                    std::string wake_word;
+                    if ( model_type  == 0 ) {
+                        std::string cached_target_name = "object";
+                        if( self->model != NULL && self->model->classes[self->detect_target] != NULL ) {
+                            cached_target_name = self->model->classes[self->detect_target];
+                        }
+                        wake_word = "<detect>" + std::to_string(obj_cnt) + " " + cached_target_name + " detected </detect>";
+                    } else if ( model_type  == 1 ) {
+                        std::string cached_target_name = "object";
+                        if( self->model != NULL && self->model->classes[self->detect_target] != NULL ) {
+                            cached_target_name = self->model->classes[self->detect_target];
+                        }
+                        wake_word = "<detect>" + std::to_string(obj_cnt) + " " + cached_target_name + " detected </detect>";
+                    } else if ( model_type  == 2 ) {
+                        std::string cached_target_name = "object";
+                        if( self->model != NULL && self->model->classes[self->detect_target] != NULL ) {
+                            cached_target_name = self->model->classes[self->detect_target];
+                        }
+                        wake_word = "<detect>" + std::to_string(obj_cnt) + " " + cached_target_name + " detected </detect>";
+                    }
+                    printf("wake_word:%s\n", wake_word.c_str());
                     Application::GetInstance().WakeWordInvoke(wake_word);
                     
                     // 进入冷却状态，标记需要开始冷却期；如下变量将在会话结束后被使用，等待回调恢复后开始计时
@@ -300,6 +313,33 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         return;
     }
 
+    sscma_client_set_model(sscma_client_handle_, 4);
+    model_class_cnt = 0;
+    if (sscma_client_get_model(sscma_client_handle_, &model, true) == ESP_OK) {
+        printf("ID: %d\n", model->id ? model->id : -1);
+        printf("UUID: %s\n", model->uuid ? model->uuid : "N/A");
+        printf("Name: %s\n", model->name ? model->name : "N/A");
+        printf("Version: %s\n", model->ver ? model->ver : "N/A");
+        printf("URL: %s\n", model->url ? model->url : "N/A");
+        printf("Checksum: %s\n", model->checksum ? model->checksum : "N/A");
+        printf("Classes:\n");
+        if (model->classes[0] != NULL)
+        {
+            for (int i = 0; model->classes[i] != NULL; i++)
+            {
+                printf("  - %s\n", model->classes[i]);
+                model_class_cnt++;
+            }
+        } else {
+            printf("  N/A\n");
+        }
+    } else {
+        printf("get model failed\n");
+    }
+
+    ESP_LOGI(TAG, "initialize mcp tools");
+    InitializeMcpTools();
+
     xTaskCreate([](void* arg) {
         auto this_ = (SscmaCamera*)arg;
         bool is_inference = false;
@@ -309,7 +349,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                 if (!is_inference) {
                     ESP_LOGI(TAG, "Start inference");
                     sscma_client_break(this_->sscma_client_handle_);
-                    sscma_client_set_model(this_->sscma_client_handle_, 1);
+                    sscma_client_set_model(this_->sscma_client_handle_, 4);
                     sscma_client_set_sensor(this_->sscma_client_handle_, 1, 1, true); // 设置分辨率 416X416
                     sscma_client_invoke(this_->sscma_client_handle_, -1, false, true);
                     is_inference = true;
@@ -355,6 +395,96 @@ SscmaCamera::~SscmaCamera() {
         heap_caps_free(jpeg_out_);
         jpeg_out_ = nullptr;
     }
+}
+
+void SscmaCamera::InitializeMcpTools() {
+    
+    Settings settings("model", false);
+    detect_threshold = settings.GetInt("threshold", 75);
+    detect_invoke_interval_sec = settings.GetInt("interval", 8);
+    detect_duration_sec = settings.GetInt("duration", 2);
+    detect_target = settings.GetInt("target", 0);
+
+    auto& mcp_server = McpServer::GetInstance();
+        // 获取模型参数配置
+    mcp_server.AddTool("self.model.param_get",
+        "获取模型参数配置\n"
+        "  `threshold`: 检测置信度阈值 (0-100, 默认 75);\n"
+        "  `interval`: 对话结束后的冷却时间，防止频繁打断 (默认 8 秒);\n"
+        "  `duration`: 检测持续时间 (默认 2 秒);\n"
+        "  `target`: 检测目标 (默认 0);",
+        PropertyList(),
+        [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("model", false);
+            int threshold = settings.GetInt("threshold", 75);
+            int interval = settings.GetInt("interval", 8);
+            int duration = settings.GetInt("duration", 2);
+            int target_type = settings.GetInt("target", 0);
+            
+            std::string result = "{\"threshold\":" + std::to_string(threshold) + 
+                            ",\"interval\":" + std::to_string(interval) + 
+                            ",\"duration\":" + std::to_string(duration) + 
+                            ",\"target_type\":" + std::to_string(target_type) + "}";
+            return result;
+    });
+
+    
+    // 设置模型参数配置
+    mcp_server.AddTool("self.model.param_set",
+        "模型参数设置\n"
+        "  `threshold`: 检测置信度阈值 (单位百分比, 默认 75);"
+        "  `interval`: 对话结束后的冷却时间，防止频繁打断 (单位秒，默认 8 秒);"
+        "  `duration`: 检测持续时间 (单位秒，默认 2 秒);"
+        "  `target`: 检测目标 (默认 0);",
+        PropertyList({
+            Property("threshold", kPropertyTypeInteger, 75, 0, 100),
+            Property("interval", kPropertyTypeInteger, 8, 1, 60),
+            Property("duration", kPropertyTypeInteger, 2, 1, 60),
+            Property("target", kPropertyTypeInteger, 0, 0, this->model_class_cnt > 0 ? this->model_class_cnt - 1 : 0)
+        }),
+        [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("model", true);
+            try {
+                const Property& threshold_prop = properties["threshold"];
+                int threshold = threshold_prop.value<int>();
+                settings.SetInt("threshold", threshold);
+                this->detect_threshold = threshold;
+                ESP_LOGI(TAG, "Set detection threshold to %d", threshold);
+            } catch (const std::runtime_error&) {
+                // threshold parameter not provided, skip
+            }
+            
+            try {
+                const Property& interval_prop = properties["interval"];
+                int interval = interval_prop.value<int>();
+                settings.SetInt("interval", interval);
+                this->detect_invoke_interval_sec = interval;
+                ESP_LOGI(TAG, "Set detection interval to %d", interval);
+            } catch (const std::runtime_error&) {
+                // interval parameter not provided, skip
+            }
+            
+            try {
+                const Property& duration_prop = properties["duration"];
+                int duration = duration_prop.value<int>();
+                settings.SetInt("duration", duration);
+                this->detect_duration_sec = duration;
+            } catch (const std::runtime_error&) {
+                // duration parameter not provided, skip
+            }
+            
+            try {
+                const Property& target_prop = properties["target"];
+                int target = target_prop.value<int>();
+                settings.SetInt("target", target);
+                this->detect_target = target;
+                ESP_LOGI(TAG, "Set detection target to %d", target);
+            } catch (const std::runtime_error&) {
+                // target_type parameter not provided, skip
+            }
+
+            return "{\"status\": \"success\", \"message\": \"Detection configuration updated\"}";
+        });
 }
 
 void SscmaCamera::SetExplainUrl(const std::string& url, const std::string& token) {

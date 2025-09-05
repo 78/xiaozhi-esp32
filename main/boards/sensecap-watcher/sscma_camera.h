@@ -48,21 +48,18 @@ private:
     bool need_start_cooldown = false; // 是否需要开始冷却期
     int64_t last_detected_time = 0; // 验证期间最后一次检测到物体的时间
     
-    // 缓存检测配置参数以避免频繁NVS访问
-    int cached_target_type = 0;
-
-    int cached_detect_threshold = 75;
-    int cached_detect_duration_sec = 2; // 检测持续时间2秒，确认人员持续存在
-    int cached_detect_invoke_interval_sec = 8; // 默认15秒冷却期，避免频繁开始会话
-    int cached_detect_debounce_sec = 1; // 验证期间人员离开的去抖动时间1秒
-
-    int64_t cached_detect_duration_us = cached_detect_duration_sec * 1000000LL; // 3秒 = 3,000,000微秒
-    int64_t cached_detect_invoke_interval_us = cached_detect_invoke_interval_sec * 1000000LL; // 1秒 = 1,000,000微秒
-    const int64_t cached_detect_debounce_us = cached_detect_debounce_sec * 1000000LL; // 去抖动时间
-    int64_t last_config_load_tm = 0;
+    int detect_target = 0;
+    int detect_threshold = 75;
+    int detect_duration_sec = 2; // 检测持续时间2秒，确认人员持续存在
+    int detect_invoke_interval_sec = 8; // 默认15秒冷却期，避免频繁开始会话
+    int detect_debounce_sec = 1; // 验证期间人员离开的去抖动时间1秒
+    
+    sscma_client_model_t *model;
+    int model_class_cnt = 0;
 public:
     SscmaCamera(esp_io_expander_handle_t io_exp_handle);
     ~SscmaCamera();
+    void InitializeMcpTools();
 
     virtual void SetExplainUrl(const std::string& url, const std::string& token);
     virtual bool Capture();
@@ -70,6 +67,7 @@ public:
     virtual bool SetHMirror(bool enabled) override;
     virtual bool SetVFlip(bool enabled) override;
     virtual std::string Explain(const std::string& question);
+
 };
 
 #endif // ESP32_CAMERA_H
