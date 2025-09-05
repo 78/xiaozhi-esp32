@@ -1,0 +1,17 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32s3-smart-speaker",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_LVGL_USE_LOG=y",
+                "CONFIG_LVGL_LOG_LEVEL_INFO=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y",
+                "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y"
+            ]
+        }
+    ]
+}

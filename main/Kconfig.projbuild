@@ -66,7 +66,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_ESP32S3_SMART_SPEAKER
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -78,6 +78,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "面包板新版接线（WiFi）+ LCD + Camera"
         depends on IDF_TARGET_ESP32S3     
+    config BOARD_TYPE_ESP32S3_SMART_SPEAKER
+        bool "ESP32-S3 智能音箱（ES8311+NS4150+INMP441）"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
         depends on IDF_TARGET_ESP32S3
