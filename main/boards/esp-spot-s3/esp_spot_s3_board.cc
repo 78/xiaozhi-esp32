@@ -195,6 +195,11 @@ public:
         InitializeButtons();
     }
 
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_WAKENET);
+        return &assets;
+    }
+
     virtual Led* GetLed() override {
         static CircularStrip led(LED_PIN, 1);
         return &led;

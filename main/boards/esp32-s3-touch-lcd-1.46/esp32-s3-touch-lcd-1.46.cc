@@ -21,7 +21,7 @@
 
 #define TAG "waveshare_lcd_1_46"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 
@@ -48,11 +48,7 @@ public:
                     bool swap_xy) 
         : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+                    {&font_puhui_basic_16_4, &font_awesome_16_4}) {
         DisplayLockGuard lock(this);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
@@ -160,6 +156,7 @@ private:
         // gpio_set_level(PWR_Control_PIN, false);
         gpio_set_level(PWR_Control_PIN, true);
     }
+
     void InitializeButtons() {
         instance_ = this;
         InitializeButtonsCustom();
@@ -222,6 +219,11 @@ public:
         InitializeSpd2010Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

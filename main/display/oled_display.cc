@@ -1,5 +1,4 @@
 #include "oled_display.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 
 #include <string>
@@ -8,22 +7,23 @@
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
+#include <font_awesome.h>
 
 #define TAG "OledDisplay"
 
 LV_FONT_DECLARE(font_awesome_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-    int width, int height, bool mirror_x, bool mirror_y, DisplayFonts fonts)
-    : panel_io_(panel_io), panel_(panel), fonts_(fonts) {
+    int width, int height, bool mirror_x, bool mirror_y, DisplayStyle style)
+    : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
+    style_ = style;
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
     port_cfg.task_stack = 6144;
-    port_cfg.timer_period_ms = 40;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding OLED display");
@@ -121,7 +121,7 @@ void OledDisplay::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_font(screen, style_.text_font, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
     /* Container */
@@ -157,7 +157,7 @@ void OledDisplay::SetupUI_128x64() {
 
     emotion_label_ = lv_label_create(content_left_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
     lv_obj_center(emotion_label_);
     lv_obj_set_style_pad_top(emotion_label_, 8, 0);
 
@@ -192,7 +192,7 @@ void OledDisplay::SetupUI_128x64() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -207,15 +207,15 @@ void OledDisplay::SetupUI_128x64() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, style_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
@@ -230,7 +230,7 @@ void OledDisplay::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_font(screen, style_.text_font, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -249,7 +249,7 @@ void OledDisplay::SetupUI_128x32() {
 
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_1, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
     lv_obj_center(emotion_label_);
 
     /* Right side */
@@ -283,15 +283,15 @@ void OledDisplay::SetupUI_128x32() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
 
     chat_message_label_ = lv_label_create(side_bar_);
     lv_obj_set_size(chat_message_label_, width_ - 32, LV_SIZE_CONTENT);

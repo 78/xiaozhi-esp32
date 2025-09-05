@@ -19,7 +19,7 @@
 
 #define TAG "ZHENGCHEN_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
@@ -167,11 +167,7 @@ private:
 
         display_ = new ZHENGCHEN_LcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
-        {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-            .emoji_font = font_emoji_64_init(),
-        });
+            {&font_puhui_basic_20_4, &font_awesome_20_4});
         display_->SetupHighTempWarningPopup();
     }
 
@@ -179,7 +175,7 @@ private:
     }
 
 public:
-ZHENGCHEN_1_54TFT_WIFI() :
+    ZHENGCHEN_1_54TFT_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -190,6 +186,11 @@ ZHENGCHEN_1_54TFT_WIFI() :
         InitializeSt7789Display();  
         InitializeTools();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
     }
 
     // 获取音频编解码器

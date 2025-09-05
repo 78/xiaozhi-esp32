@@ -2,7 +2,6 @@
 #include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -15,7 +14,7 @@
 
 #define TAG "EspBoxBoard"
 
-LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 // Init ili9341 by custom cmd
@@ -131,15 +130,7 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = font_emoji_64_init(),
-#endif
-                                    });
+                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
 public:
@@ -149,6 +140,11 @@ public:
         InitializeIli9341Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

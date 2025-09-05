@@ -1,13 +1,13 @@
 #include "otto_emoji_display.h"
 
 #include <esp_log.h>
+#include <font_awesome.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 
 #include "display/lcd_display.h"
-#include "font_awesome_symbols.h"
 
 #define TAG "OttoEmojiDisplay"
 
@@ -51,9 +51,9 @@ const OttoEmojiDisplay::EmotionMap OttoEmojiDisplay::emotion_maps_[] = {
 
 OttoEmojiDisplay::OttoEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                                    int width, int height, int offset_x, int offset_y, bool mirror_x,
-                                   bool mirror_y, bool swap_xy, DisplayFonts fonts)
+                                   bool mirror_y, bool swap_xy, DisplayStyle style)
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    fonts),
+                    style),
       emotion_gif_(nullptr) {
     SetupGifContainer();
 };
@@ -145,27 +145,4 @@ void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
-}
-
-void OttoEmojiDisplay::SetIcon(const char* icon) {
-    if (!icon) {
-        return;
-    }
-
-    DisplayLockGuard lock(this);
-
-    if (chat_message_label_ != nullptr) {
-        std::string icon_message = std::string(icon) + " ";
-
-        if (strcmp(icon, FONT_AWESOME_DOWNLOAD) == 0) {
-            icon_message += "正在升级...";
-        } else {
-            icon_message += "系统状态";
-        }
-
-        lv_label_set_text(chat_message_label_, icon_message.c_str());
-        lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
-
-        ESP_LOGI(TAG, "设置图标: %s", icon);
-    }
 }

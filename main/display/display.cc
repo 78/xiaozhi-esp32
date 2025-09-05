@@ -3,11 +3,11 @@
 #include <string>
 #include <cstdlib>
 #include <cstring>
+#include <font_awesome.h>
 
 #include "display.h"
 #include "board.h"
 #include "application.h"
-#include "font_awesome_symbols.h"
 #include "audio_codec.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -47,10 +47,20 @@ Display::~Display() {
 
     if (network_label_ != nullptr) {
         lv_obj_del(network_label_);
+    }
+    if (notification_label_ != nullptr) {
         lv_obj_del(notification_label_);
+    }
+    if (status_label_ != nullptr) {
         lv_obj_del(status_label_);
+    }
+    if (mute_label_ != nullptr) {
         lv_obj_del(mute_label_);
+    }
+    if (battery_label_ != nullptr) {
         lv_obj_del(battery_label_);
+    }
+    if (emotion_label_ != nullptr) {
         lv_obj_del(emotion_label_);
     }
     if( low_battery_popup_ != nullptr ) {
@@ -105,7 +115,7 @@ void Display::UpdateStatusBar(bool update_all) {
         // 如果静音状态改变，则更新图标
         if (codec->output_volume() == 0 && !muted_) {
             muted_ = true;
-            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_MUTE);
+            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_XMARK);
         } else if (codec->output_volume() > 0 && muted_) {
             muted_ = false;
             lv_label_set_text(mute_label_, "");
@@ -136,13 +146,13 @@ void Display::UpdateStatusBar(bool update_all) {
     const char* icon = nullptr;
     if (board.GetBatteryLevel(battery_level, charging, discharging)) {
         if (charging) {
-            icon = FONT_AWESOME_BATTERY_CHARGING;
+            icon = FONT_AWESOME_BATTERY_BOLT;
         } else {
             const char* levels[] = {
                 FONT_AWESOME_BATTERY_EMPTY, // 0-19%
-                FONT_AWESOME_BATTERY_1,    // 20-39%
-                FONT_AWESOME_BATTERY_2,    // 40-59%
-                FONT_AWESOME_BATTERY_3,    // 60-79%
+                FONT_AWESOME_BATTERY_QUARTER,    // 20-39%
+                FONT_AWESOME_BATTERY_HALF,    // 40-59%
+                FONT_AWESOME_BATTERY_THREE_QUARTERS,    // 60-79%
                 FONT_AWESOME_BATTERY_FULL, // 80-99%
                 FONT_AWESOME_BATTERY_FULL, // 100%
             };
@@ -196,63 +206,24 @@ void Display::UpdateStatusBar(bool update_all) {
 
 
 void Display::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
-    };
-
-    static const std::vector<Emotion> emotions = {
-        {FONT_AWESOME_EMOJI_NEUTRAL, "neutral"},
-        {FONT_AWESOME_EMOJI_HAPPY, "happy"},
-        {FONT_AWESOME_EMOJI_LAUGHING, "laughing"},
-        {FONT_AWESOME_EMOJI_FUNNY, "funny"},
-        {FONT_AWESOME_EMOJI_SAD, "sad"},
-        {FONT_AWESOME_EMOJI_ANGRY, "angry"},
-        {FONT_AWESOME_EMOJI_CRYING, "crying"},
-        {FONT_AWESOME_EMOJI_LOVING, "loving"},
-        {FONT_AWESOME_EMOJI_EMBARRASSED, "embarrassed"},
-        {FONT_AWESOME_EMOJI_SURPRISED, "surprised"},
-        {FONT_AWESOME_EMOJI_SHOCKED, "shocked"},
-        {FONT_AWESOME_EMOJI_THINKING, "thinking"},
-        {FONT_AWESOME_EMOJI_WINKING, "winking"},
-        {FONT_AWESOME_EMOJI_COOL, "cool"},
-        {FONT_AWESOME_EMOJI_RELAXED, "relaxed"},
-        {FONT_AWESOME_EMOJI_DELICIOUS, "delicious"},
-        {FONT_AWESOME_EMOJI_KISSY, "kissy"},
-        {FONT_AWESOME_EMOJI_CONFIDENT, "confident"},
-        {FONT_AWESOME_EMOJI_SLEEPY, "sleepy"},
-        {FONT_AWESOME_EMOJI_SILLY, "silly"},
-        {FONT_AWESOME_EMOJI_CONFUSED, "confused"}
-    };
-    
-    // 查找匹配的表情
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-    
+    const char* utf8 = font_awesome_get_utf8(emotion);
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
-
-    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
+    if (utf8 != nullptr) {
+        lv_label_set_text(emotion_label_, utf8);
     } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_EMOJI_NEUTRAL);
+        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
     }
-}
-
-void Display::SetIcon(const char* icon) {
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    lv_label_set_text(emotion_label_, icon);
 }
 
 void Display::SetPreviewImage(const lv_img_dsc_t* image) {
-    // Do nothing
+    // Do nothing but free the image
+    if (image != nullptr) {
+        heap_caps_free((void*)image->data);
+        heap_caps_free((void*)image);
+    }
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {
@@ -276,5 +247,17 @@ void Display::SetPowerSaveMode(bool on) {
     } else {
         SetChatMessage("system", "");
         SetEmotion("neutral");
+    }
+}
+
+void Display::UpdateStyle(const DisplayStyle& style) {
+    DisplayLockGuard lock(this);
+    if (style.text_font != nullptr) {
+        lv_obj_set_style_text_font(lv_screen_active(), style.text_font, 0);
+        style_.text_font = style.text_font;
+    }
+    if (style.emoji_collection != nullptr) {
+        delete style_.emoji_collection;
+        style_.emoji_collection = style.emoji_collection;
     }
 }

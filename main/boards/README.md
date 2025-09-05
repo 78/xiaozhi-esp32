@@ -98,7 +98,7 @@ mkdir main/boards/my-custom-board
             "sdkconfig_append": [
                 // 额外需要的编译配置
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
             ]
         }
     ]
@@ -132,8 +132,8 @@ mkdir main/boards/my-custom-board
 #define TAG "MyCustomBoard"
 
 // 声明字体
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 class MyCustomBoard : public WifiBoard {
 private:
@@ -213,11 +213,7 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, 
                                     DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
                                     DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
+                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
     // MCP Tools 初始化
@@ -234,6 +230,12 @@ public:
         InitializeButtons();
         InitializeTools();
         GetBacklight()->SetBrightness(100);
+    }
+
+    // 动态加载资源文件（包括字体、唤醒词、表情包）
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
     }
 
     // 获取音频编解码器

@@ -23,7 +23,7 @@
 #define PI4IOE_REG_IO_OUT    0x05
 #define PI4IOE_REG_IO_PULLUP 0x0D
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 class Pi4ioe : public I2cDevice {
@@ -114,6 +114,7 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool is_echo_base_connected_ = false;
+
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -177,7 +178,7 @@ private:
         InitializeButtons();
         GetBacklight()->SetBrightness(100);
         display_->SetStatus(Lang::Strings::ERROR);
-        display_->SetEmotion("sad");
+        display_->SetEmotion("triangle_exclamation");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {
@@ -255,11 +256,7 @@ private:
 
         display_ = new SpiLcdDisplay(io_handle, panel_handle,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
+                                    {&font_puhui_basic_16_4, &font_awesome_16_4});
     }
 
     void InitializeButtons() {
@@ -283,6 +280,11 @@ public:
         InitializeGc9107Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

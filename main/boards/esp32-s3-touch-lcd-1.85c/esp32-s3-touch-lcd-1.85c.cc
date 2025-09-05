@@ -23,7 +23,7 @@
 #define LCD_OPCODE_READ_CMD         (0x0BULL)
 #define LCD_OPCODE_WRITE_COLOR      (0x32ULL)
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 static const st77916_lcd_init_cmd_t vendor_specific_init_new[] = {
@@ -356,11 +356,7 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    {&font_puhui_basic_16_4, &font_awesome_16_4});
     }
 
     void InitializeButtons() {
@@ -382,6 +378,11 @@ public:
         Initializest77916Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64);
+        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

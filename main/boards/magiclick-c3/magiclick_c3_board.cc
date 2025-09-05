@@ -6,7 +6,6 @@
 #include "led/single_led.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -18,7 +17,7 @@
 
 #define TAG "magiclick_c3"
 
-LV_FONT_DECLARE(font_puhui_16_4);
+LV_FONT_DECLARE(font_puhui_basic_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
 class NV3023Display : public SpiLcdDisplay {
@@ -26,11 +25,7 @@ public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_32_init(),
-                    }) {
+                    {&font_puhui_basic_16_4, &font_awesome_16_4}) {
 
         DisplayLockGuard lock(this);
         // 只需要覆盖颜色相关的样式
@@ -172,6 +167,11 @@ public:
         
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32);
+        return &assets;
     }
 
     virtual Led* GetLed() override {

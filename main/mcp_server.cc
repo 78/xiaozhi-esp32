@@ -13,6 +13,7 @@
 #include "application.h"
 #include "display.h"
 #include "board.h"
+#include "settings.h"
 
 #define TAG "MCP"
 
@@ -29,11 +30,16 @@ McpServer::~McpServer() {
 }
 
 void McpServer::AddCommonTools() {
-    // To speed up the response time, we add the common tools to the beginning of
+    // *Important* To speed up the response time, we add the common tools to the beginning of
     // the tools list to utilize the prompt cache.
+    // **重要** 为了提升响应速度，我们把常用的工具放在前面，利用 prompt cache 的特性。
+
     // Backup the original tools list and restore it after adding the common tools.
     auto original_tools = std::move(tools_);
     auto& board = Board::GetInstance();
+
+    // Do not add custom tools here.
+    // Custom tools must be added in the board's InitializeTools function.
 
     AddTool("self.get_device_status",
         "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\n"
@@ -96,7 +102,7 @@ void McpServer::AddCommonTools() {
             }),
             [camera](const PropertyList& properties) -> ReturnValue {
                 if (!camera->Capture()) {
-                    return "{\"success\": false, \"message\": \"Failed to capture photo\"}";
+                    throw std::runtime_error("Failed to capture photo");
                 }
                 auto question = properties["question"].value<std::string>();
                 return camera->Explain(question);
@@ -107,6 +113,104 @@ void McpServer::AddCommonTools() {
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }
 
+void McpServer::AddUserOnlyTools() {
+    // System tools
+    AddUserOnlyTool("self.get_system_info",
+        "Get the system information",
+        PropertyList(),
+        [this](const PropertyList& properties) -> ReturnValue {
+            auto& board = Board::GetInstance();
+            return board.GetSystemInfoJson();
+        });
+
+    AddUserOnlyTool("self.reboot", "Reboot the system",
+        PropertyList(),
+        [this](const PropertyList& properties) -> ReturnValue {
+            std::thread([]() {
+                ESP_LOGW(TAG, "User requested reboot");
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                auto& app = Application::GetInstance();
+                app.Reboot();
+            }).detach();
+            return true;
+        });
+
+    // Display control
+    auto display = Board::GetInstance().GetDisplay();
+    if (display) {
+        AddUserOnlyTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
+            PropertyList(),
+            [display](const PropertyList& properties) -> ReturnValue {
+                cJSON *json = cJSON_CreateObject();
+                cJSON_AddNumberToObject(json, "width", display->width());
+                cJSON_AddNumberToObject(json, "height", display->height());
+                return json;
+            });
+        
+        AddUserOnlyTool("self.screen.preview_image", "Preview an image on the screen",
+            PropertyList({
+                Property("url", kPropertyTypeString)
+            }),
+            [display](const PropertyList& properties) -> ReturnValue {
+                auto url = properties["url"].value<std::string>();
+                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+
+                if (!http->Open("GET", url)) {
+                    throw std::runtime_error("Failed to open URL: " + url);
+                }
+                if (http->GetStatusCode() != 200) {
+                    throw std::runtime_error("Unexpected status code: " + std::to_string(http->GetStatusCode()));
+                }
+
+                size_t content_length = http->GetBodyLength();
+                char* data = (char*)heap_caps_malloc(content_length, MALLOC_CAP_8BIT);
+                size_t total_read = 0;
+                while (total_read < content_length) {
+                    int ret = http->Read(data + total_read, content_length - total_read);
+                    if (ret < 0) {
+                        heap_caps_free(data);
+                        throw std::runtime_error("Failed to download image: " + url);
+                    }
+                    total_read += ret;
+                }
+                http->Close();
+
+                auto img_dsc = (lv_img_dsc_t*)heap_caps_calloc(1, sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
+                img_dsc->data_size = content_length;
+                img_dsc->data = (uint8_t*)data;
+                if (lv_image_decoder_get_info(img_dsc, &img_dsc->header) != LV_RESULT_OK) {
+                    heap_caps_free(data);
+                    heap_caps_free(img_dsc);
+                    throw std::runtime_error("Failed to get image info");
+                }
+                ESP_LOGI(TAG, "Preview image: %s size: %d resolution: %d x %d", url.c_str(), content_length, img_dsc->header.w, img_dsc->header.h);
+
+                auto& app = Application::GetInstance();
+                app.Schedule([display, img_dsc]() {
+                    display->SetPreviewImage(img_dsc);
+                });
+                return true;
+            });
+    }
+
+    // Assets download url
+    auto assets = Board::GetInstance().GetAssets();
+    if (assets) {
+        if (assets->partition_valid()) {
+            AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
+                PropertyList({
+                    Property("url", kPropertyTypeString)
+                }),
+                [assets](const PropertyList& properties) -> ReturnValue {
+                    auto url = properties["url"].value<std::string>();
+                    Settings settings("assets", true);
+                    settings.SetString("download_url", url);
+                    return true;
+                });
+        }
+    }
+}
+
 void McpServer::AddTool(McpTool* tool) {
     // Prevent adding duplicate tools
     if (std::find_if(tools_.begin(), tools_.end(), [tool](const McpTool* t) { return t->name() == tool->name(); }) != tools_.end()) {
@@ -114,12 +218,18 @@ void McpServer::AddTool(McpTool* tool) {
         return;
     }
 
-    ESP_LOGI(TAG, "Add tool: %s", tool->name().c_str());
+    ESP_LOGI(TAG, "Add tool: %s%s", tool->name().c_str(), tool->user_only() ? " [user]" : "");
     tools_.push_back(tool);
 }
 
 void McpServer::AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback) {
     AddTool(new McpTool(name, description, properties, callback));
+}
+
+void McpServer::AddUserOnlyTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback) {
+    auto tool = new McpTool(name, description, properties, callback);
+    tool->set_user_only(true);
+    AddTool(tool);
 }
 
 void McpServer::ParseMessage(const std::string& message) {
@@ -199,13 +309,18 @@ void McpServer::ParseMessage(const cJSON* json) {
         ReplyResult(id_int, message);
     } else if (method_str == "tools/list") {
         std::string cursor_str = "";
+        bool list_user_only_tools = false;
         if (params != nullptr) {
             auto cursor = cJSON_GetObjectItem(params, "cursor");
             if (cJSON_IsString(cursor)) {
                 cursor_str = std::string(cursor->valuestring);
             }
+            auto with_system_tools = cJSON_GetObjectItem(params, "withSystemTools");
+            if (cJSON_IsBool(with_system_tools)) {
+                list_user_only_tools = with_system_tools->valueint == 1;
+            }
         }
-        GetToolsList(id_int, cursor_str);
+        GetToolsList(id_int, cursor_str, list_user_only_tools);
     } else if (method_str == "tools/call") {
         if (!cJSON_IsObject(params)) {
             ESP_LOGE(TAG, "tools/call: Missing params");
@@ -254,7 +369,7 @@ void McpServer::ReplyError(int id, const std::string& message) {
     Application::GetInstance().SendMcpMessage(payload);
 }
 
-void McpServer::GetToolsList(int id, const std::string& cursor) {
+void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools) {
     const int max_payload_size = 8000;
     std::string json = "{\"tools\":[";
     
@@ -271,6 +386,11 @@ void McpServer::GetToolsList(int id, const std::string& cursor) {
                 ++it;
                 continue;
             }
+        }
+
+        if (!list_user_only_tools && (*it)->user_only()) {
+            ++it;
+            continue;
         }
         
         // 添加tool前检查大小

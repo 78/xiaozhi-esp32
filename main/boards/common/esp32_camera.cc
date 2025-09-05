@@ -23,58 +23,12 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
     if (s->id.PID == GC0308_PID) {
         s->set_hmirror(s, 0);  // 这里控制摄像头镜像 写1镜像 写0不镜像
     }
-
-    // 初始化预览图片的内存
-    memset(&preview_image_, 0, sizeof(preview_image_));
-    preview_image_.header.magic = LV_IMAGE_HEADER_MAGIC;
-    preview_image_.header.cf = LV_COLOR_FORMAT_RGB565;
-    preview_image_.header.flags = 0;
-
-    switch (config.frame_size) {
-        case FRAMESIZE_SVGA:
-            preview_image_.header.w = 800;
-            preview_image_.header.h = 600;
-            break;
-        case FRAMESIZE_VGA:
-            preview_image_.header.w = 640;
-            preview_image_.header.h = 480;
-            break;
-        case FRAMESIZE_QVGA:
-            preview_image_.header.w = 320;
-            preview_image_.header.h = 240;
-            break;
-        case FRAMESIZE_128X128:
-            preview_image_.header.w = 128;
-            preview_image_.header.h = 128;
-            break;
-        case FRAMESIZE_240X240:
-            preview_image_.header.w = 240;
-            preview_image_.header.h = 240;
-            break;
-        default:
-            ESP_LOGE(TAG, "Unsupported frame size: %d, image preview will not be shown", config.frame_size);
-            preview_image_.data_size = 0;
-            preview_image_.data = nullptr;
-            return;
-    }
-
-    preview_image_.header.stride = preview_image_.header.w * 2;
-    preview_image_.data_size = preview_image_.header.w * preview_image_.header.h * 2;
-    preview_image_.data = (uint8_t*)heap_caps_malloc(preview_image_.data_size, MALLOC_CAP_SPIRAM);
-    if (preview_image_.data == nullptr) {
-        ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-        return;
-    }
 }
 
 Esp32Camera::~Esp32Camera() {
     if (fb_) {
         esp_camera_fb_return(fb_);
         fb_ = nullptr;
-    }
-    if (preview_image_.data) {
-        heap_caps_free((void*)preview_image_.data);
-        preview_image_.data = nullptr;
     }
     esp_camera_deinit();
 }
@@ -89,6 +43,7 @@ bool Esp32Camera::Capture() {
         encoder_thread_.join();
     }
 
+    auto start_time = esp_timer_get_time();
     int frames_to_get = 2;
     // Try to get a stable frame
     for (int i = 0; i < frames_to_get; i++) {
@@ -101,28 +56,36 @@ bool Esp32Camera::Capture() {
             return false;
         }
     }
+    auto end_time = esp_timer_get_time();
+    ESP_LOGI(TAG, "Camera captured %d frames in %d ms", frames_to_get, int((end_time - start_time) / 1000));
 
-    // 如果预览图片 buffer 为空，则跳过预览
-    // 但仍返回 true，因为此时图像可以上传至服务器
-    if (preview_image_.data_size == 0) {
-        ESP_LOGW(TAG, "Skip preview because of unsupported frame size");
-        return true;
-    }
-    if (preview_image_.data == nullptr) {
-        ESP_LOGE(TAG, "Preview image data is not initialized");
-        return true;
-    }
     // 显示预览图片
     auto display = Board::GetInstance().GetDisplay();
     if (display != nullptr) {
+        // Create a new preview image
+        auto img_dsc = (lv_img_dsc_t*)heap_caps_calloc(1, sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
+        img_dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+        img_dsc->header.cf = LV_COLOR_FORMAT_RGB565;
+        img_dsc->header.flags = 0;
+        img_dsc->header.w = fb_->width;
+        img_dsc->header.h = fb_->height;
+        img_dsc->header.stride = fb_->width * 2;
+        img_dsc->data_size = fb_->width * fb_->height * 2;
+        img_dsc->data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_SPIRAM);
+        if (img_dsc->data == nullptr) {
+            ESP_LOGE(TAG, "Failed to allocate memory for preview image");
+            heap_caps_free(img_dsc);
+            return false;
+        }
+
         auto src = (uint16_t*)fb_->buf;
-        auto dst = (uint16_t*)preview_image_.data;
+        auto dst = (uint16_t*)img_dsc->data;
         size_t pixel_count = fb_->len / 2;
         for (size_t i = 0; i < pixel_count; i++) {
             // 交换每个16位字内的字节
             dst[i] = __builtin_bswap16(src[i]);
         }
-        display->SetPreviewImage(&preview_image_);
+        display->SetPreviewImage(img_dsc);
     }
     return true;
 }
@@ -185,14 +148,14 @@ bool Esp32Camera::SetVFlip(bool enabled) {
  */
 std::string Esp32Camera::Explain(const std::string& question) {
     if (explain_url_.empty()) {
-        return "{\"success\": false, \"message\": \"Image explain URL or token is not set\"}";
+        throw std::runtime_error("Image explain URL or token is not set");
     }
 
     // 创建局部的 JPEG 队列, 40 entries is about to store 512 * 40 = 20480 bytes of JPEG data
     QueueHandle_t jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
     if (jpeg_queue == nullptr) {
         ESP_LOGE(TAG, "Failed to create JPEG queue");
-        return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
+        throw std::runtime_error("Failed to create JPEG queue");
     }
 
     // We spawn a thread to encode the image to JPEG
@@ -235,7 +198,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
             }
         }
         vQueueDelete(jpeg_queue);
-        return "{\"success\": false, \"message\": \"Failed to connect to explain URL\"}";
+        throw std::runtime_error("Failed to connect to explain URL");
     }
     
     {
@@ -288,7 +251,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
 
     if (http->GetStatusCode() != 200) {
         ESP_LOGE(TAG, "Failed to upload photo, status code: %d", http->GetStatusCode());
-        return "{\"success\": false, \"message\": \"Failed to upload photo\"}";
+        throw std::runtime_error("Failed to upload photo");
     }
 
     std::string result = http->ReadAll();

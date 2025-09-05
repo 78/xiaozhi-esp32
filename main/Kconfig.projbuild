@@ -6,6 +6,11 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config DEFAULT_ASSETS_URL_PREFIX
+    string "Default Assets URL Prefix"
+    default "https://files.xiaozhi.me/assets/default/"
+    help
+        The assets will be downloaded from this URL.
 
 choice
     prompt "Default Language"
@@ -184,6 +189,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
         bool "AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_ESP32S3_AUDIO_BOARD
+        bool "Waveshare ESP32-S3-Audio-Board"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
@@ -431,13 +439,25 @@ endchoice
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32S3_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
-    default LCD_ST7789
+    default ESP32S3_KORVO2_V3_LCD_ST7789
     help
         屏幕类型选择
-    config LCD_ST7789
+    config ESP32S3_KORVO2_V3_LCD_ST7789
         bool "ST7789, 分辨率240*280"
-    config LCD_ILI9341
+    config ESP32S3_KORVO2_V3_LCD_ILI9341
         bool "ILI9341, 分辨率240*320"
+endchoice
+
+choice DISPLAY_ESP32S3_AUDIO_BOARD
+    depends on BOARD_TYPE_ESP32S3_AUDIO_BOARD
+    prompt "ESP32S3_AUDIO_BOARD LCD Type"
+    default AUDIO_BOARD_LCD_JD9853
+    help
+        屏幕类型选择
+    config AUDIO_BOARD_LCD_JD9853
+        bool "JD9853, 分辨率320*172"
+    config AUDIO_BOARD_LCD_ST7789
+        bool "ST7789, 分辨率240*320"
 endchoice
 
 config USE_WECHAT_MESSAGE_STYLE

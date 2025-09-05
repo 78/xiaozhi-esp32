@@ -1,15 +1,15 @@
 #include "lcd_display.h"
+#include "assets/lang_config.h"
+#include "settings.h"
 
 #include <vector>
 #include <algorithm>
-#include <font_awesome_symbols.h>
+#include <font_awesome.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
-#include <esp_heap_caps.h>
-#include "assets/lang_config.h"
+#include <esp_psram.h>
 #include <cstring>
-#include "settings.h"
 
 #include "board.h"
 
@@ -67,10 +67,11 @@ const ThemeColors LIGHT_THEME = {
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
-LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts, int width, int height)
-    : panel_io_(panel_io), panel_(panel), fonts_(fonts) {
+LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, DisplayStyle style)
+    : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
+    style_ = style;
 
     // Load theme from settings
     Settings settings("display", false);
@@ -82,12 +83,25 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     } else if (current_theme_name_ == "light") {
         current_theme_ = LIGHT_THEME;
     }
+
+    // Create a timer to hide the preview image
+    esp_timer_create_args_t preview_timer_args = {
+        .callback = [](void* arg) {
+            LcdDisplay* display = static_cast<LcdDisplay*>(arg);
+            display->SetPreviewImage(nullptr);
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "preview_timer",
+        .skip_unhandled_events = false,
+    };
+    esp_timer_create(&preview_timer_args, &preview_timer_);
 }
 
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                           DisplayStyle style)
+    : LcdDisplay(panel_io, panel, width, height, style) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -102,10 +116,21 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
+#if CONFIG_SPIRAM
+    // lv image cache, currently only PNG is supported
+    size_t psram_size_mb = esp_psram_get_size() / 1024 / 1024;
+    if (psram_size_mb >= 8) {
+        lv_image_cache_resize(2 * 1024 * 1024, true);
+        ESP_LOGI(TAG, "Use 2MB of PSRAM for image cache");
+    } else if (psram_size_mb >= 2) {
+        lv_image_cache_resize(512 * 1024, true);
+        ESP_LOGI(TAG, "Use 512KB of PSRAM for image cache");
+    }
+#endif
+
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
-    port_cfg.timer_period_ms = 40;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
@@ -152,8 +177,8 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y,
                            bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                           DisplayStyle style)
+    : LcdDisplay(panel_io, panel, width, height, style) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -214,8 +239,8 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                             int width, int height,  int offset_x, int offset_y,
                             bool mirror_x, bool mirror_y, bool swap_xy,
-                            DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                            DisplayStyle style)
+    : LcdDisplay(panel_io, panel, width, height, style) {
 
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
@@ -230,16 +255,16 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
 
     ESP_LOGI(TAG, "Adding LCD display");
     const lvgl_port_display_cfg_t disp_cfg = {
-            .io_handle = panel_io,
-            .panel_handle = panel,
-            .control_handle = nullptr,
-            .buffer_size = static_cast<uint32_t>(width_ * 50),
-            .double_buffer = false,
-            .hres = static_cast<uint32_t>(width_),
-            .vres = static_cast<uint32_t>(height_),
-            .monochrome = false,
-            /* Rotation values must be same as used in esp_lcd for initial settings of the screen */
-            .rotation = {
+        .io_handle = panel_io,
+        .panel_handle = panel,
+        .control_handle = nullptr,
+        .buffer_size = static_cast<uint32_t>(width_ * 50),
+        .double_buffer = false,
+        .hres = static_cast<uint32_t>(width_),
+        .vres = static_cast<uint32_t>(height_),
+        .monochrome = false,
+        /* Rotation values must be same as used in esp_lcd for initial settings of the screen */
+        .rotation = {
             .swap_xy = swap_xy,
             .mirror_x = mirror_x,
             .mirror_y = mirror_y,
@@ -270,6 +295,12 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
 }
 
 LcdDisplay::~LcdDisplay() {
+    SetPreviewImage(nullptr);
+    if (preview_timer_ != nullptr) {
+        esp_timer_stop(preview_timer_);
+        esp_timer_delete(preview_timer_);
+    }
+
     // 然后再清理 LVGL 对象
     if (content_ != nullptr) {
         lv_obj_del(content_);
@@ -308,7 +339,7 @@ void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_font(screen, style_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme_.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
 
@@ -363,12 +394,10 @@ void LcdDisplay::SetupUI() {
     // 设置状态栏的内容垂直居中
     lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    // 创建emotion_label_在状态栏最左侧
-    emotion_label_ = lv_label_create(status_bar_);
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-    lv_obj_set_style_margin_right(emotion_label_, 5, 0); // 添加右边距，与后面的元素分隔
+    network_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(network_label_, "");
+    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -386,25 +415,19 @@ void LcdDisplay::SetupUI() {
     
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
-
-    network_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
-    lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
-    lv_obj_set_style_margin_left(network_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
     lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, style_.text_font->line_height * 2);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -10);
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
@@ -412,6 +435,16 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    emoji_image_ = lv_img_create(screen);
+    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, style_.text_font->line_height + 10);
+
+    // Display AI logo while booting
+    emotion_label_ = lv_label_create(screen);
+    lv_obj_center(emotion_label_);
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
 }
 #if CONFIG_IDF_TARGET_ESP32P4
 #define  MAX_MESSAGES 40
@@ -423,9 +456,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (content_ == nullptr) {
         return;
     }
-    
-    //避免出现空的消息框
-    if(strlen(content) == 0) return;
     
     // 检查消息数量是否超过限制
     uint32_t child_count = lv_obj_get_child_cnt(content_);
@@ -443,23 +473,33 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     }
     
     // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
-    if (strcmp(role, "system") == 0 && child_count > 0) {
-        // 获取最后一个消息容器
-        lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
-        if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
-            // 获取容器内的气泡
-            lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
-            if (last_bubble != nullptr) {
-                // 检查气泡类型是否为系统消息
-                void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
-                if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
-                    // 如果最后一个消息也是系统消息，则删除它
-                    lv_obj_del(last_container);
+    if (strcmp(role, "system") == 0) {
+        if (child_count > 0) {
+            // 获取最后一个消息容器
+            lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
+            if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
+                // 获取容器内的气泡
+                lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
+                if (last_bubble != nullptr) {
+                    // 检查气泡类型是否为系统消息
+                    void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
+                    if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
+                        // 如果最后一个消息也是系统消息，则删除它
+                        lv_obj_del(last_container);
+                    }
                 }
             }
         }
+    } else {
+        // 隐藏居中显示的 AI logo
+        lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
     }
-    
+
+    //避免出现空的消息框
+    if(strlen(content) == 0) {
+        return;
+    }
+
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
@@ -473,7 +513,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_label_set_text(msg_text, content);
     
     // 计算文本实际宽度
-    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
+    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), style_.text_font, 0);
 
     // 计算气泡宽度
     lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
@@ -495,7 +535,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // 设置消息文本的宽度
     lv_obj_set_width(msg_text, bubble_width);  // 减去padding
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_font(msg_text, fonts_.text_font, 0);
 
     // 设置气泡宽度
     lv_obj_set_width(msg_bubble, bubble_width);
@@ -621,45 +660,22 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         
         // 设置自定义属性标记气泡类型
         lv_obj_set_user_data(img_bubble, (void*)"image");
-        
+
         // Create the image object inside the bubble
         lv_obj_t* preview_image = lv_image_create(img_bubble);
-        
-        // Copy the image descriptor and data to avoid source data changes
-        lv_img_dsc_t* copied_img_dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
-        if (copied_img_dsc == nullptr) {
-            ESP_LOGE(TAG, "Failed to allocate memory for image descriptor");
-            lv_obj_del(img_bubble);
-            return;
-        }
-        
-        // Copy the header
-        copied_img_dsc->header = img_dsc->header;
-        copied_img_dsc->data_size = img_dsc->data_size;
-        
-        // Copy the image data
-        uint8_t* copied_data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (copied_data == nullptr) {
-            // Fallback to internal RAM if SPIRAM allocation fails
-            copied_data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_8BIT);
-        }
-        if (copied_data == nullptr) {
-            ESP_LOGE(TAG, "Failed to allocate memory for image data (size: %lu bytes)", img_dsc->data_size);
-            heap_caps_free(copied_img_dsc);
-            lv_obj_del(img_bubble);
-            return;
-        }
-        
-        memcpy(copied_data, img_dsc->data, img_dsc->data_size);
-        copied_img_dsc->data = copied_data;
         
         // Calculate appropriate size for the image
         lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
         lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
         
         // Calculate zoom factor to fit within maximum dimensions
-        lv_coord_t img_width = copied_img_dsc->header.w;
-        lv_coord_t img_height = copied_img_dsc->header.h;
+        lv_coord_t img_width = img_dsc->header.w;
+        lv_coord_t img_height = img_dsc->header.h;
+        if (img_width == 0 || img_height == 0) {
+            img_width = max_width;
+            img_height = max_height;
+            ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
+        }
         
         lv_coord_t zoom_w = (max_width * 256) / img_width;
         lv_coord_t zoom_h = (max_height * 256) / img_height;
@@ -669,17 +685,17 @@ void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
         if (zoom > 256) zoom = 256;
         
         // Set image properties
-        lv_image_set_src(preview_image, copied_img_dsc);
+        lv_image_set_src(preview_image, img_dsc);
         lv_image_set_scale(preview_image, zoom);
         
         // Add event handler to clean up copied data when image is deleted
         lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
-            lv_img_dsc_t* copied_img_dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
-            if (copied_img_dsc != nullptr) {
-                heap_caps_free((void*)copied_img_dsc->data);
-                heap_caps_free(copied_img_dsc);
+            lv_img_dsc_t* img_dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
+            if (img_dsc != nullptr) {
+                heap_caps_free((void*)img_dsc->data);
+                heap_caps_free(img_dsc);
             }
-        }, LV_EVENT_DELETE, (void*)copied_img_dsc);
+        }, LV_EVENT_DELETE, (void*)img_dsc);
         
         // Calculate actual scaled image dimensions
         lv_coord_t scaled_width = (img_width * zoom) / 256;
@@ -707,7 +723,7 @@ void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_font(screen, style_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme_.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
 
@@ -723,7 +739,7 @@ void LcdDisplay::SetupUI() {
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, style_.text_font->line_height);
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
@@ -741,13 +757,22 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
     lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
-    emotion_label_ = lv_label_create(content_);
+    emoji_box_ = lv_obj_create(content_);
+    lv_obj_set_size(emoji_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(emoji_box_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(emoji_box_, 0, 0);
+    lv_obj_set_style_border_width(emoji_box_, 0, 0);
+
+    emotion_label_ = lv_label_create(emoji_box_);
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
+
+    emoji_image_ = lv_img_create(emoji_box_);
+    lv_obj_center(emoji_image_);
 
     preview_image_ = lv_image_create(content_);
-    lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
+    lv_obj_set_size(preview_image_, width_ / 2, height_ / 2);
     lv_obj_align(preview_image_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
 
@@ -768,7 +793,7 @@ void LcdDisplay::SetupUI() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
     lv_obj_set_style_text_color(network_label_, current_theme_.text, 0);
 
     notification_label_ = lv_label_create(status_bar_);
@@ -784,20 +809,21 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(status_label_, current_theme_.text, 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
+
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, current_theme_.text, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, style_.text_font->line_height * 2);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -10);
     lv_obj_set_style_bg_color(low_battery_popup_, current_theme_.low_battery, 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
@@ -810,100 +836,67 @@ void LcdDisplay::SetupUI() {
 void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
     DisplayLockGuard lock(this);
     if (preview_image_ == nullptr) {
+        ESP_LOGE(TAG, "Preview image is not initialized");
         return;
+    }
+
+    auto old_src = (const lv_img_dsc_t*)lv_image_get_src(preview_image_);
+    if (old_src != nullptr) {
+        lv_image_set_src(preview_image_, nullptr);
+        heap_caps_free((void*)old_src->data);
+        heap_caps_free((void*)old_src);
     }
     
     if (img_dsc != nullptr) {
         // 设置图片源并显示预览图片
         lv_image_set_src(preview_image_, img_dsc);
-        // zoom factor 0.5
-        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
+            // zoom factor 0.5
+            lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+        }
+        // Hide emoji_box_
+        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        // 隐藏emotion_label_
-        if (emotion_label_ != nullptr) {
-            lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-        }
+        esp_timer_stop(preview_timer_);
+        ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
     } else {
-        // 隐藏预览图片并显示emotion_label_
+        esp_timer_stop(preview_timer_);
+        lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        if (emotion_label_ != nullptr) {
-            lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-        }
     }
 }
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
-    };
-
-    static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},
-        {"🙂", "happy"},
-        {"😆", "laughing"},
-        {"😂", "funny"},
-        {"😔", "sad"},
-        {"😠", "angry"},
-        {"😭", "crying"},
-        {"😍", "loving"},
-        {"😳", "embarrassed"},
-        {"😯", "surprised"},
-        {"😱", "shocked"},
-        {"🤔", "thinking"},
-        {"😉", "winking"},
-        {"😎", "cool"},
-        {"😌", "relaxed"},
-        {"🤤", "delicious"},
-        {"😘", "kissy"},
-        {"😏", "confident"},
-        {"😴", "sleepy"},
-        {"😜", "silly"},
-        {"🙄", "confused"}
-    };
-    
-    // 查找匹配的表情
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (emoji_image_ == nullptr) {
         return;
     }
 
-    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
-    lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
+    auto img_dsc = style_.emoji_collection != nullptr ? style_.emoji_collection->GetEmojiImage(emotion) : nullptr;
+    if (img_dsc == nullptr) {
+        const char* utf8 = font_awesome_get_utf8(emotion);
+        if (utf8 != nullptr && emotion_label_ != nullptr) {
+            DisplayLockGuard lock(this);
+            lv_label_set_text(emotion_label_, utf8);
+            lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+    }
+
+    DisplayLockGuard lock(this);
+    lv_image_set_src(emoji_image_, img_dsc);
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    // Wechat message style中，如果emotion是neutral，则隐藏emoji_image_
+    if (strcmp(emotion, "neutral") == 0) {
+        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_label_set_text(emotion_label_, "😶");
+        lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
     }
-
-#if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
-    lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-    if (preview_image_ != nullptr) {
-        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-    }
-#endif
-}
-
-void LcdDisplay::SetIcon(const char* icon) {
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    lv_label_set_text(emotion_label_, icon);
-
-#if !CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 显示emotion_label_，隐藏preview_image_
-    lv_obj_remove_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
-    if (preview_image_ != nullptr) {
-        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-    }
+#else
+    // 显示emoji_image_，隐藏emotion_label_, preview_image_
+    lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
 #endif
 }
 

@@ -75,6 +75,11 @@ public:
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
     }
 
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_WAKENET_SMALL);
+        return &assets;
+    }
+
     virtual Led* GetLed() override {
         return led_strip_;
     }

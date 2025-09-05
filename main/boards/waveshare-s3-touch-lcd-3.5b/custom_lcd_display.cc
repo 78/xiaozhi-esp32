@@ -3,7 +3,6 @@
 #include "lcd_display.h"
 
 #include <vector>
-#include <font_awesome_symbols.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
@@ -253,8 +252,8 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
 
 CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                           DisplayStyle style)
+    : LcdDisplay(panel_io, panel, width, height, style) {
     //     width_ = width;
     // height_ = height;
 
