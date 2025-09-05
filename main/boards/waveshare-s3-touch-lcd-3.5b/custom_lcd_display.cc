@@ -3,7 +3,6 @@
 #include "lcd_display.h"
 
 #include <vector>
-#include <font_awesome_symbols.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
