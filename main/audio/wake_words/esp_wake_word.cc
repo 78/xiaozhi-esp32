@@ -14,10 +14,15 @@ EspWakeWord::~EspWakeWord() {
     }
 }
 
-bool EspWakeWord::Initialize(AudioCodec* codec) {
+bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
     codec_ = codec;
 
-    wakenet_model_ = esp_srmodel_init("model");
+    if (models_list == nullptr) {
+        wakenet_model_ = esp_srmodel_init("model");
+    } else {
+        wakenet_model_ = models_list;
+    }
+
     if (wakenet_model_ == nullptr || wakenet_model_->num == -1) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
         return false;

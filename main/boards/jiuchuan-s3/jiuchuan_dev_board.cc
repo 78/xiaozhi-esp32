@@ -25,7 +25,7 @@
 #define BOARD_TAG "JiuchuanDevBoard"
 #define __USER_GPIO_PWRDOWN__
 
-LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 // 自定义LCD显示器类，用于圆形屏幕适配
@@ -41,8 +41,8 @@ public:
                      bool mirror_x,
                      bool mirror_y,
                      bool swap_xy,
-                     DisplayFonts fonts)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts)
+                     DisplayStyle style)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, style)
     {
 
         DisplayLockGuard lock(this);
@@ -316,15 +316,7 @@ private:
             esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
             display_ = new CustomLcdDisplay(panel_io, panel,
                                             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                            {
-                                                .text_font = &font_puhui_20_4,
-                                                .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                                .emoji_font = font_emoji_32_init(),
-#else
-                                                .emoji_font = font_emoji_64_init(),
-#endif
-                                            });
+                                            {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
 public:
@@ -341,6 +333,11 @@ public:
         InitializeGC9301isplay();
         GetBacklight()->RestoreBrightness();
 
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
     }
 
     virtual Led* GetLed() override {

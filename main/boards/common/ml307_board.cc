@@ -2,11 +2,11 @@
 
 #include "application.h"
 #include "display.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <font_awesome.h>
 #include <opus_encoder.h>
 
 static const char *TAG = "Ml307Board";
@@ -50,9 +50,9 @@ void Ml307Board::StartNetwork() {
     while (true) {
         auto result = modem_->WaitForNetworkReady();
         if (result == NetworkStatus::ErrorInsertPin) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "sad", Lang::Sounds::OGG_ERR_PIN);
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
         } else if (result == NetworkStatus::ErrorRegistrationDenied) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "sad", Lang::Sounds::OGG_ERR_REG);
+            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_REG);
         } else {
             break;
         }
@@ -80,13 +80,13 @@ const char* Ml307Board::GetNetworkStateIcon() {
     if (csq == -1) {
         return FONT_AWESOME_SIGNAL_OFF;
     } else if (csq >= 0 && csq <= 14) {
-        return FONT_AWESOME_SIGNAL_1;
+        return FONT_AWESOME_SIGNAL_WEAK;
     } else if (csq >= 15 && csq <= 19) {
-        return FONT_AWESOME_SIGNAL_2;
+        return FONT_AWESOME_SIGNAL_FAIR;
     } else if (csq >= 20 && csq <= 24) {
-        return FONT_AWESOME_SIGNAL_3;
+        return FONT_AWESOME_SIGNAL_GOOD;
     } else if (csq >= 25 && csq <= 31) {
-        return FONT_AWESOME_SIGNAL_4;
+        return FONT_AWESOME_SIGNAL_STRONG;
     }
 
     ESP_LOGW(TAG, "Invalid CSQ: %d", csq);

@@ -14,6 +14,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/display.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
+            "display/emoji_collection.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -23,6 +24,7 @@ set(SOURCES "audio/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "device_state_event.cc"
+            "assets.cc"
             "main.cc"
             )
 
@@ -88,6 +90,8 @@ elseif(CONFIG_BOARD_TYPE_ATOMS3R_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-echo-base")
 elseif(CONFIG_BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE)
     set(BOARD_TYPE "atoms3r-cam-m12-echo-base")
+elseif(CONFIG_BOARD_TYPE_ATOM_ECHOS3R)
+    set(BOARD_TYPE "atom-echos3r")
 elseif(CONFIG_BOARD_TYPE_ATOMMATRIX_ECHO_BASE)
     set(BOARD_TYPE "atommatrix-echo-base")
 elseif(CONFIG_BOARD_TYPE_XMINI_C3_V3)
@@ -106,6 +110,8 @@ elseif(CONFIG_BOARD_TYPE_ESP_HI)
     set(BOARD_TYPE "esp-hi")
 elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
+elseif(CONFIG_BOARD_TYPE_ESP32S3_AUDIO_BOARD)
+    set(BOARD_TYPE "waveshare-s3-audio-board")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.8")
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06)
