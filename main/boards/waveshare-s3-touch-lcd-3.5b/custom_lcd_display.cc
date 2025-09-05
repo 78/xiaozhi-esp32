@@ -1,24 +1,21 @@
-#include "custom_lcd_display.h"
 
+#include "config.h"
+#include "custom_lcd_display.h"
 #include "lcd_display.h"
+#include "assets/lang_config.h"
+#include "settings.h"
+#include "board.h"
 
 #include <vector>
+#include <cstring>
+
+#include <esp_lcd_panel_io.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
-#include "assets/lang_config.h"
-#include <cstring>
-#include "settings.h"
-
-#include "esp_lcd_panel_io.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-
-#include "config.h"
-
-#include "board.h"
 
 
 #define TAG "CustomLcdDisplay"

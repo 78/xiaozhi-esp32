@@ -21,8 +21,8 @@
 
 #define TAG "SURFERC3114TFT"
 
-LV_FONT_DECLARE(font_puhui_basic_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
 
 class SurferC3114TFT : public WifiBoard {
 private:
@@ -147,7 +147,7 @@ private:
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io_, panel_,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_16_4, &font_awesome_16_4});
+                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
 public:
@@ -167,7 +167,7 @@ public:
     }
 
     virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32);
+        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32);
         return &assets;
     }
 
