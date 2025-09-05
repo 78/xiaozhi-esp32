@@ -6,18 +6,15 @@
 // ESP32-S3 智能音箱开发板配置
 
 // 音频配置
-#define AUDIO_INPUT_SAMPLE_RATE  24000
-#define AUDIO_OUTPUT_SAMPLE_RATE 24000
-#define AUDIO_INPUT_REFERENCE    true
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
+#define AUDIO_INPUT_REFERENCE    false
 
-// 使用软件音频编解码器 (不需要硬件芯片)
-#define AUDIO_I2S_METHOD_SIMPLEX
-
-// I2S音频接口配置 (软件编解码器)
-#define AUDIO_I2S_GPIO_WS   GPIO_NUM_47
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_16  // INMP441麦克风数据输入
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // NS4150功放数据输出
+// INMP441麦克风配置
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // INMP441 Word Select
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // INMP441 Serial Clock
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_16  // INMP441 Serial Data
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出 (可选)
 
 // ES8311音频编解码器配置
 #define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_8

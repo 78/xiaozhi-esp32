@@ -4,6 +4,7 @@
 #include "config.h"
 #include "led/single_led.h"
 #include "settings.h"
+#include "mpu6050_sensor.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -13,6 +14,9 @@
 #include <esp_adc/adc_oneshot.h>
 #include <esp_adc/adc_cali.h>
 #include <esp_adc/adc_cali_scheme.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <memory>
 
 #define TAG "SmartSpeaker"
 
@@ -28,8 +32,11 @@ private:
     
     adc_oneshot_unit_handle_t adc1_handle_;
     adc_cali_handle_t adc1_cali_handle_;
-    bool imu_initialized_ = false;
     bool pressure_sensor_initialized_ = false;
+    
+    // MPU6050传感器
+    std::unique_ptr<Mpu6050Sensor> mpu6050_sensor_;
+    bool imu_initialized_ = false;
 
     void InitializeI2c() {
         // ES8311编解码器I2C总线
@@ -153,10 +160,43 @@ private:
     }
 
     void InitializeImu() {
-        // 这里可以初始化IMU传感器 (如MPU6050, BMI160等)
-        // 由于IMU初始化需要具体的传感器型号，这里只做框架
-        imu_initialized_ = true;
-        ESP_LOGI(TAG, "IMU sensor initialized");
+        // 初始化MPU6050传感器
+        mpu6050_sensor_ = std::make_unique<Mpu6050Sensor>(imu_i2c_bus_);
+        
+        if (mpu6050_sensor_) {
+            // 初始化传感器
+            if (mpu6050_sensor_->Initialize(ACCE_FS_4G, GYRO_FS_500DPS)) {
+                // 唤醒传感器
+                if (mpu6050_sensor_->WakeUp()) {
+                    // 验证设备ID
+                    uint8_t device_id;
+                    if (mpu6050_sensor_->GetDeviceId(&device_id)) {
+                        if (device_id == MPU6050_WHO_AM_I_VAL) {
+                            imu_initialized_ = true;
+                            ESP_LOGI(TAG, "MPU6050 sensor initialized successfully (ID: 0x%02X)", device_id);
+                            
+                            // 启动传感器数据读取任务
+                            StartImuDataTask();
+                        } else {
+                            ESP_LOGE(TAG, "MPU6050 device ID mismatch: expected 0x%02X, got 0x%02X", 
+                                    MPU6050_WHO_AM_I_VAL, device_id);
+                        }
+                    } else {
+                        ESP_LOGE(TAG, "Failed to read MPU6050 device ID");
+                    }
+                } else {
+                    ESP_LOGE(TAG, "Failed to wake up MPU6050");
+                }
+            } else {
+                ESP_LOGE(TAG, "Failed to initialize MPU6050");
+            }
+        } else {
+            ESP_LOGE(TAG, "Failed to create MPU6050 sensor instance");
+        }
+        
+        if (!imu_initialized_) {
+            ESP_LOGW(TAG, "IMU sensor initialization failed");
+        }
     }
 
     void InitializeGpio() {
@@ -195,6 +235,65 @@ private:
     void InitializeTools() {
         // 简化的MCP工具注册
         ESP_LOGI(TAG, "MCP tools initialized (simplified)");
+    }
+
+    void StartImuDataTask() {
+        // 创建IMU数据读取任务
+        BaseType_t ret = xTaskCreate(
+            ImuDataTask,           // 任务函数
+            "imu_data_task",       // 任务名称
+            4096,                  // 栈大小
+            this,                  // 任务参数
+            5,                     // 任务优先级
+            nullptr                // 任务句柄
+        );
+        
+        if (ret != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create IMU data task");
+        } else {
+            ESP_LOGI(TAG, "IMU data task created successfully");
+        }
+    }
+
+    static void ImuDataTask(void* pvParameters) {
+        Esp32s3SmartSpeaker* board = static_cast<Esp32s3SmartSpeaker*>(pvParameters);
+        
+        mpu6050_acce_value_t acce;
+        mpu6050_gyro_value_t gyro;
+        mpu6050_temp_value_t temp;
+        complimentary_angle_t angle;
+        
+        ESP_LOGI(TAG, "IMU data task started");
+        
+        while (true) {
+            if (board->mpu6050_sensor_ && board->imu_initialized_) {
+                // 读取加速度计数据
+                if (board->mpu6050_sensor_->GetAccelerometer(&acce)) {
+                    ESP_LOGI(TAG, "Accelerometer - X:%.2f, Y:%.2f, Z:%.2f", 
+                            acce.acce_x, acce.acce_y, acce.acce_z);
+                }
+                
+                // 读取陀螺仪数据
+                if (board->mpu6050_sensor_->GetGyroscope(&gyro)) {
+                    ESP_LOGI(TAG, "Gyroscope - X:%.2f, Y:%.2f, Z:%.2f", 
+                            gyro.gyro_x, gyro.gyro_y, gyro.gyro_z);
+                }
+                
+                // 读取温度数据
+                if (board->mpu6050_sensor_->GetTemperature(&temp)) {
+                    ESP_LOGI(TAG, "Temperature: %.2f°C", temp.temp);
+                }
+                
+                // 计算姿态角
+                if (board->mpu6050_sensor_->ComplimentaryFilter(&acce, &gyro, &angle)) {
+                    ESP_LOGI(TAG, "Attitude - Pitch:%.2f°, Roll:%.2f°, Yaw:%.2f°", 
+                            angle.pitch, angle.roll, angle.yaw);
+                }
+            }
+            
+            // 每500ms读取一次
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
     }
 
     void InitializeDefaultWifi() {
@@ -242,15 +341,14 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodecSimplex audio_codec(
+        static NoAudioCodecSimplexPdm audio_codec(
             AUDIO_INPUT_SAMPLE_RATE, 
             AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK,  // 扬声器BCLK
             AUDIO_I2S_GPIO_WS,    // 扬声器WS
             AUDIO_I2S_GPIO_DOUT,  // 扬声器DOUT
-            AUDIO_I2S_GPIO_BCLK,  // 麦克风SCK (复用BCLK)
-            AUDIO_I2S_GPIO_WS,    // 麦克风WS (复用WS)
-            AUDIO_I2S_GPIO_DIN);  // 麦克风DIN
+            AUDIO_I2S_GPIO_BCLK,  // INMP441 SCK引脚
+            AUDIO_I2S_GPIO_DIN);  // INMP441 SD引脚
         return &audio_codec;
     }
 
@@ -265,12 +363,25 @@ public:
         std::string json = R"({"board_type":"esp32s3-smart-speaker",)";
         json += R"("version":")" + std::string(SMART_SPEAKER_VERSION) + R"(",)";
         json += R"("features":["audio","imu","pressure","led_ring","fan","relay","status_led"],)";
-        json += R"("audio_codec":"NoAudioCodecSimplex",)";
-        json += R"("audio_method":"software",)";
+        json += R"("audio_codec":"NoAudioCodecSimplexPdm",)";
+        json += R"("audio_method":"software_pdm",)";
         json += R"("microphone":"INMP441",)";
-        json += R"("speaker":"NS4150",)";
+        json += R"("speaker":"I2S_Standard",)";
         json += R"("imu_initialized":)" + std::string(imu_initialized_ ? "true" : "false") + R"(,)";
-        json += R"("pressure_sensor_initialized":)" + std::string(pressure_sensor_initialized_ ? "true" : "false") + R"(})";
+        json += R"("pressure_sensor_initialized":)" + std::string(pressure_sensor_initialized_ ? "true" : "false") + R"(,)";
+        
+        // 添加MPU6050传感器状态信息
+        if (mpu6050_sensor_) {
+            json += R"("imu_sensor":{)";
+            json += R"("type":"MPU6050",)";
+            json += R"("initialized":)" + std::string(mpu6050_sensor_->IsInitialized() ? "true" : "false") + R"(,)";
+            json += R"("status":)" + mpu6050_sensor_->GetStatusJson();
+            json += R"(})";
+        } else {
+            json += R"("imu_sensor":{"type":"MPU6050","initialized":false,"status":"not_created"})";
+        }
+        
+        json += R"(})";
         return json;
     }
 };
