@@ -3,42 +3,54 @@
 
 #include <driver/gpio.h>
 
-// ======================================================================
-//                            通用配置
-// ======================================================================
 #define AUDIO_INPUT_SAMPLE_RATE  24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
 #define AUDIO_INPUT_REFERENCE    true
 
-// ======================================================================
-//                          主控引脚分配
-// ======================================================================
-
-// --- I2S 音频接口 ---
 #define AUDIO_I2S_GPIO_MCLK GPIO_NUM_38
-#define AUDIO_I2S_GPIO_WS   GPIO_NUM_13
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_13
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_14
 #define AUDIO_I2S_GPIO_DIN  GPIO_NUM_12
 #define AUDIO_I2S_GPIO_DOUT GPIO_NUM_45
 
-// --- I2C 主总线 (连接音频CODEC, 触摸屏, IO扩展) ---
-#define I2C_MASTER_SDA_PIN  GPIO_NUM_1
-#define I2C_MASTER_SCL_PIN  GPIO_NUM_2
-#define I2C_MASTER_PORT     I2C_NUM_1 // 使用I2C1
+#define AUDIO_CODEC_USE_AW9523B
+#define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_1
+#define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_2
+#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
+#define AUDIO_CODEC_ES7210_ADDR  0x82
 
-// --- 板载按键 ---
-#define BOOT_BUTTON_GPIO    GPIO_NUM_0
+#define BUILTIN_LED_GPIO        GPIO_NUM_48
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
 
-// --- 4G 模块 UART ---
 #define ML307_TX_PIN GPIO_NUM_10
 #define ML307_RX_PIN GPIO_NUM_11
 
-// --- DVP 摄像头接口 ---
-#define CAMERA_PIN_PWDN  -1 // 由 AW9523B 控制
+#define DISPLAY_WIDTH   240
+#define DISPLAY_HEIGHT  320
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
+
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+
+#define DISPLAY_CS_PIN GPIO_NUM_42
+#define DISPLAY_DC_PIN GPIO_NUM_39
+#define DISPLAY_MOSI_PIN GPIO_NUM_40
+#define DISPLAY_SCLK_PIN GPIO_NUM_41
+
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_NC
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+/* Camera pins */
+#define CAMERA_PIN_PWDN -1
 #define CAMERA_PIN_RESET -1
-#define CAMERA_PIN_XCLK  5
-#define CAMERA_PIN_SIOD  I2C_MASTER_SDA_PIN // 与I2C共用
-#define CAMERA_PIN_SIOC  I2C_MASTER_SCL_PIN // 与I2C共用
+#define CAMERA_PIN_XCLK 5
+#define CAMERA_PIN_SIOD 1
+#define CAMERA_PIN_SIOC 2
 
 #define CAMERA_PIN_D7 9
 #define CAMERA_PIN_D6 4
@@ -51,36 +63,8 @@
 #define CAMERA_PIN_VSYNC 3
 #define CAMERA_PIN_HREF 46
 #define CAMERA_PIN_PCLK 7
+
 #define XCLK_FREQ_HZ 24000000
 
-// --- SPI 屏幕接口 ---
-#define DISPLAY_SPI_HOST    SPI3_HOST
-#define DISPLAY_SPI_MOSI    GPIO_NUM_40
-#define DISPLAY_SPI_SCLK    GPIO_NUM_41
-#define DISPLAY_SPI_DC      GPIO_NUM_39
-// CS由AW9523B控制
-
-// --- 屏幕参数 ---
-#define DISPLAY_WIDTH   240
-#define DISPLAY_HEIGHT  320
-#define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY false
-#define DISPLAY_OFFSET_X  0
-#define DISPLAY_OFFSET_Y  0
-#define DISPLAY_SPI_CS      GPIO_NUM_42
-// ======================================================================
-//                        I2C 设备地址和定义
-// ======================================================================
-#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
-#define AUDIO_CODEC_ES7210_ADDR  0x82
-// ======================================================================
-//                       AW9523B IO 扩展芯片定义
-// ======================================================================
-#define AW9523B_INTERRUPT_PIN    GPIO_NUM_NC // <<< 禁用中断
-
-// -- AW9523B 引脚功能分配 --
-#define AW9523B_PIN_PA_EN        0  // P0_0
-#define AW9523B_PIN_DVP_PWDN     2  // P0_2
 
 #endif // _BOARD_CONFIG_H_

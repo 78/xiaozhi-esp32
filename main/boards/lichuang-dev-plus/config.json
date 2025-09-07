@@ -5,6 +5,7 @@
             "name": "lichuang-dev-plus",
             "sdkconfig_append": [
                 "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\""
             ]
         }
     ]

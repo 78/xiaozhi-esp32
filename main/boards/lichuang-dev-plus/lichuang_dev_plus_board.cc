@@ -22,13 +22,13 @@
 
 #define TAG "LichuangDevPlusBoard"
 
-LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_puhui_basic_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
-        ESP_LOGI(TAG, "--- PMIC Minimal & Correct Configuration ---");
+        ESP_LOGI(TAG, "Init AXP2101 PMIC");
         
         WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
         WriteReg(0x27, 0x21);  // hold 4s to power off
@@ -62,7 +62,6 @@ public:
     }
 
     void EnableBacklight(bool enable) {
-        // 使用正确的 ALDO2 开关: REG 0x90, bit 1
         uint8_t ldo_en_ctrl = ReadReg(0x90);
         if (enable) {
             ldo_en_ctrl |= (1 << 1);
@@ -73,25 +72,25 @@ public:
     }
 };
 
-class AW9523B : public I2cDevice {
+class Aw9523b : public I2cDevice {
 public:
-    AW9523B(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {}
-    void Init() {
-        ESP_LOGI(TAG, "Initializing AW9523B...");
+    Aw9523b(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         WriteReg(0x7F, 0x00); vTaskDelay(pdMS_TO_TICKS(10));
         WriteReg(0x11, 0x01); 
         vTaskDelay(pdMS_TO_TICKS(10));
-        // 只配置实际用到的GPIO
-        uint16_t gpio_mode_mask = (1 << AW9523B_PIN_PA_EN) | (1 << AW9523B_PIN_DVP_PWDN);
-        WriteReg(0x12, (uint8_t)(gpio_mode_mask & 0xFF));
-        WriteReg(0x13, 0x00); // P1口没有用到
-        WriteReg(0x04, 0x00); // 全部设为输出
-        WriteReg(0x05, 0x00);
+        WriteReg(0x02, 0x00);  // P0 初始输出状态
+        WriteReg(0x03, 0x00);  // P1 初始输出状态  
+        WriteReg(0x04, 0x00);  // P0 配置为输出
+        WriteReg(0x05, 0x00);  // P1 配置为输出
+        WriteReg(0x12, 0x05);  // P0_0,P0_2 为GPIO模式（只使用这两个引脚）
+        WriteReg(0x13, 0x00);  // P1 全部为GPIO模式
     }
-    void SetGpio(uint8_t pin, bool level) {
-        uint8_t reg = (pin < 8) ? 0x02 : 0x03; uint8_t bit = (pin < 8) ? pin : pin - 8;
+
+    void SetOutputState(uint8_t bit, uint8_t level) {
+        uint8_t reg = (bit < 8) ? 0x02 : 0x03;
+        uint8_t pin = (bit < 8) ? bit : bit - 8;
         uint8_t data = ReadReg(reg);
-        if (level) { data |= (1 << bit); } else { data &= ~(1 << bit); }
+        data = (data & ~(1 << pin)) | (level << pin);
         WriteReg(reg, data);
     }
 };
@@ -100,45 +99,38 @@ public:
 class PmicBacklight : public Backlight {
 private: 
     Pmic* pmic_;
-    // 定义一个静态Tag，用于日志输出
     static constexpr const char* BL_TAG = "PmicBacklight"; 
 
 public:
     PmicBacklight(Pmic* pmic) : pmic_(pmic) {}
 
-    /**
-     * @brief 设置背光亮度，采用简化的单行公式实现。
-     * 
-     * 将0-255的亮度值映射到硬件寄存器的一个有效范围（约20-27），并直接写入。
-     * 这样就不再需要复杂的浮点数电压计算。
-     */
     void SetBrightnessImpl(uint8_t brightness) override {
         if (!pmic_) {
+            ESP_LOGE(BL_TAG, "PMIC not initialized!");
             return;
         }
 
-        // 当亮度为0时，直接关闭ALDO2电源通道。
         if (brightness == 0) {
             pmic_->EnableBacklight(false);
-            ESP_LOGD(TAG, "Backlight OFF"); // 使用Debug级别日志，避免刷屏
+            ESP_LOGI(BL_TAG, "Backlight OFF");
             return;
         }
         
-        // 只要亮度不为0，就确保ALDO2电源是开启的。
         pmic_->EnableBacklight(true);
         uint8_t reg_val = (brightness >> 5) + 20; // 计算寄存器值，范围从20到27
         pmic_->SetBacklightRegValue(reg_val); //计算出的值写入ALDO2的电压控制寄存器 (0x93)
 
-        ESP_LOGD(BL_TAG, "Set brightness to %u -> reg_val 0x%02X", brightness, reg_val);
+        ESP_LOGI(BL_TAG, "Set brightness to %u", brightness);
     }
 };
 
 
 class LichuangDevPlusAudioCodec : public BoxAudioCodec {
 private:
-    AW9523B* aw9523b_; 
+    Aw9523b* aw9523b_;
+
 public:
-    LichuangDevPlusAudioCodec(i2c_master_bus_handle_t i2c_bus, AW9523B* aw9523b) 
+    LichuangDevPlusAudioCodec(i2c_master_bus_handle_t i2c_bus, Aw9523b* aw9523b) 
         : BoxAudioCodec(i2c_bus, 
                        AUDIO_INPUT_SAMPLE_RATE, 
                        AUDIO_OUTPUT_SAMPLE_RATE,
@@ -151,10 +143,16 @@ public:
                        AUDIO_CODEC_ES8311_ADDR, 
                        AUDIO_CODEC_ES7210_ADDR, 
                        AUDIO_INPUT_REFERENCE),
-           aw9523b_(aw9523b) {}
+          aw9523b_(aw9523b) {
+    }
+
     virtual void EnableOutput(bool enable) override {
         BoxAudioCodec::EnableOutput(enable);
-        if (aw9523b_) { aw9523b_->SetGpio(AW9523B_PIN_PA_EN, enable); }
+        if (enable) {
+            aw9523b_->SetOutputState(0, 1);
+        } else {
+            aw9523b_->SetOutputState(0, 0);
+        }
     }
 };
 
@@ -165,7 +163,7 @@ private:
     Pmic* pmic_;
     Button boot_button_;
     LcdDisplay* display_;
-    AW9523B* aw9523b_;
+    Aw9523b* aw9523b_;
     Esp32Camera* camera_;
     PowerSaveTimer* power_save_timer_;
 
@@ -187,34 +185,35 @@ private:
         power_save_timer_->SetEnabled(true);
     }
 
-    void InitializeI2cBus() {
+    void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)I2C_MASTER_PORT,
-            .sda_io_num = I2C_MASTER_SDA_PIN,
-            .scl_io_num = I2C_MASTER_SCL_PIN,
+            .i2c_port = (i2c_port_t)1,
+            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
+            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
             .glitch_ignore_cnt = 7,
             .flags = { .enable_internal_pullup = true },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-        ESP_LOGI(TAG, "I2C master bus created.");
+
+        // Initialize Aw9523b
+        aw9523b_ = new Aw9523b(i2c_bus_, 0x58);
     }
 
     void InitializePmic() { 
         pmic_ = new Pmic(i2c_bus_, 0x34); 
     }
 
-    void InitializeAW9523B() {
-        aw9523b_ = new AW9523B(i2c_bus_, 0x58);
-        aw9523b_->Init();
-    }
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
-        buscfg.mosi_io_num = DISPLAY_SPI_MOSI;
-        buscfg.sclk_io_num = DISPLAY_SPI_SCLK;
+        buscfg.mosi_io_num = DISPLAY_MOSI_PIN;
+        buscfg.miso_io_num = GPIO_NUM_NC;
+        buscfg.sclk_io_num = DISPLAY_SCLK_PIN;
+        buscfg.quadwp_io_num = GPIO_NUM_NC;
+        buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(DISPLAY_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
     void InitializeSt7789Display() {
@@ -223,8 +222,8 @@ private:
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_SPI_CS;
-        io_config.dc_gpio_num = DISPLAY_SPI_DC;
+        io_config.cs_gpio_num = DISPLAY_CS_PIN;
+        io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = 2;
         io_config.pclk_hz = 80 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
@@ -247,15 +246,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = font_emoji_64_init(),
-#endif
-                                    });
+                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
     }
 
     void InitializeTouch()
@@ -321,22 +312,11 @@ private:
     }
 
     void InitializeCamera() {
-        if (aw9523b_) { aw9523b_->SetGpio(AW9523B_PIN_DVP_PWDN, false); }
-        // --- Start I2C Bus Scan (for debugging) ---
-        ESP_LOGI(TAG, "Scanning I2C bus for devices...");
-        for (uint8_t i = 1; i < 127; i++) {
-            esp_err_t ret = i2c_master_probe(i2c_bus_, i, 100 / portTICK_PERIOD_MS);
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "I2C device found at address 0x%02x", i);
-            } else if (ret != ESP_ERR_TIMEOUT) { // Log other errors, but not timeouts (expected for empty addresses)
-                ESP_LOGE(TAG, "I2C probe error at address 0x%02x: 0x%x", i, ret);
-            }
-        }
-        ESP_LOGI(TAG, "I2C bus scan complete.");
-        // --- End I2C Bus Scan ---
+        // Open camera power
+        aw9523b_->SetOutputState(2, 0);
         camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
+        config.ledc_channel = LEDC_CHANNEL_2;
+        config.ledc_timer = LEDC_TIMER_2;
         config.pin_d0 = CAMERA_PIN_D0;
         config.pin_d1 = CAMERA_PIN_D1;
         config.pin_d2 = CAMERA_PIN_D2;
@@ -349,7 +329,7 @@ private:
         config.pin_pclk = CAMERA_PIN_PCLK;
         config.pin_vsync = CAMERA_PIN_VSYNC;
         config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = -1;   // 这里写-1 表示使用已经初始化的I2C接口
+        config.pin_sccb_sda = -1;
         config.pin_sccb_scl = CAMERA_PIN_SIOC;
         config.sccb_i2c_port = 1;
         config.pin_pwdn = CAMERA_PIN_PWDN;
@@ -365,14 +345,13 @@ private:
         camera_ = new Esp32Camera(config);
         if (!camera_) { 
             ESP_LOGE(TAG, "Camera initialization failed!"); 
-            return; // 如果初始化失败，直接返回
+            return;
         }
         
-         // 获取底层的 sensor_t 对象
+        // 获取底层的 sensor_t 对象
         sensor_t *s = esp_camera_sensor_get();
         if (s) {
-            // 设置垂直翻转 (vflip)
-            // 参数1: 使能垂直翻转 (1=开启, 0=关闭)
+            // 设置垂直翻转
             s->set_vflip(s, 1); 
             ESP_LOGI(TAG, "Camera vertical flip enabled.");
 
@@ -387,17 +366,22 @@ private:
 public:
     LichuangDevPlusBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN), boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
-        InitializeI2cBus();
-        vTaskDelay(pdMS_TO_TICKS(100)); // 增加100毫秒的延时
-        InitializePmic(); 
+        InitializeI2c();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        InitializePmic();
         GetBacklight()->RestoreBrightness();
-        InitializeAW9523B();
         InitializeSpi();
         InitializeSt7789Display();
         InitializeButtons();
-        //InitializeTouch();
+        InitializeTouch();
         InitializeCamera();
     }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
+        return &assets;
+    }
+
     virtual AudioCodec* GetAudioCodec() override {
         static LichuangDevPlusAudioCodec audio_codec(i2c_bus_, aw9523b_);
         return &audio_codec;
@@ -419,18 +403,39 @@ public:
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         if (!pmic_) return false;
         static bool last_discharging = false;
+        static bool initialized = false;
+        
         charging = pmic_->IsCharging();
         discharging = pmic_->IsDischarging();
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
+        
+        // 添加调试信息
+        static int debug_counter = 0;
+        if (++debug_counter % 100 == 0) { // 每100次调用打印一次
+            ESP_LOGI(TAG, "Battery status: charging=%d, discharging=%d, level=%d", 
+                     charging, discharging, pmic_->GetBatteryLevel());
         }
+        
+        // 放电状态变化时，控制PowerSaveTimer
+        if (!initialized || discharging != last_discharging) {
+            if (discharging) {
+                // 放电时启用省电模式
+                power_save_timer_->SetEnabled(true);
+                ESP_LOGI(TAG, "Discharging detected, enabling power save timer");
+            } else {
+                // 不在放电时禁用省电模式（充电或充电完成但插着充电器）
+                power_save_timer_->SetEnabled(false);
+                ESP_LOGI(TAG, "Not discharging, disabling power save timer");
+            }
+            last_discharging = discharging;
+            initialized = true;
+        }
+        
         level = pmic_->GetBatteryLevel();
         return true;
     }
 
 
-	virtual void SetPowerSaveMode(bool enabled) override {
+    virtual void SetPowerSaveMode(bool enabled) override {
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
