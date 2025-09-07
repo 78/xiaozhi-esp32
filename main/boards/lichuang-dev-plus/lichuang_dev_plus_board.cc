@@ -7,7 +7,7 @@
 #include "i2c_device.h"
 #include "axp2101.h"
 #include "power_save_timer.h"
-#include "esp32_camera.h"
+#include "lichuang_camera.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -342,24 +342,10 @@ private:
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
-        camera_ = new Esp32Camera(config);
+        camera_ = new LichuangDevPlusCamera(config);
         if (!camera_) { 
             ESP_LOGE(TAG, "Camera initialization failed!"); 
             return;
-        }
-        
-        // 获取底层的 sensor_t 对象
-        sensor_t *s = esp_camera_sensor_get();
-        if (s) {
-            // 设置垂直翻转
-            s->set_vflip(s, 1); 
-            ESP_LOGI(TAG, "Camera vertical flip enabled.");
-
-            // 可以同时开启水平翻转
-            // s->set_hmirror(s, 1);
-            // ESP_LOGI(TAG, "Camera horizontal mirror enabled.");
-        } else {
-            ESP_LOGE(TAG, "Failed to get camera sensor handle!");
         }
     }
     
@@ -407,13 +393,6 @@ public:
         
         charging = pmic_->IsCharging();
         discharging = pmic_->IsDischarging();
-        
-        // 添加调试信息
-        static int debug_counter = 0;
-        if (++debug_counter % 100 == 0) { // 每100次调用打印一次
-            ESP_LOGI(TAG, "Battery status: charging=%d, discharging=%d, level=%d", 
-                     charging, discharging, pmic_->GetBatteryLevel());
-        }
         
         // 放电状态变化时，控制PowerSaveTimer
         if (!initialized || discharging != last_discharging) {
