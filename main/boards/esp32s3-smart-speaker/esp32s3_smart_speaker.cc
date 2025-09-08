@@ -5,6 +5,8 @@
 #include "led/single_led.h"
 #include "settings.h"
 #include "mpu6050_sensor.h"
+#include "assets.h"
+#include "esplog_display.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -141,7 +143,6 @@ private:
             .bitwidth = ADC_BITWIDTH_12,
         };
         ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle_, ADC_CHANNEL_3, &chan_config));
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle_, ADC_CHANNEL_4, &chan_config));
         
         // 初始化ADC校准 (可选)
         adc_cali_curve_fitting_config_t cali_config = {
@@ -160,42 +161,46 @@ private:
     }
 
     void InitializeImu() {
+        ESP_LOGI(TAG, "Initializing MPU6050 IMU sensor...");
+        
         // 初始化MPU6050传感器
         mpu6050_sensor_ = std::make_unique<Mpu6050Sensor>(imu_i2c_bus_);
         
         if (mpu6050_sensor_) {
-            // 初始化传感器
-            if (mpu6050_sensor_->Initialize(ACCE_FS_4G, GYRO_FS_500DPS)) {
-                // 唤醒传感器
-                if (mpu6050_sensor_->WakeUp()) {
-                    // 验证设备ID
-                    uint8_t device_id;
-                    if (mpu6050_sensor_->GetDeviceId(&device_id)) {
-                        if (device_id == MPU6050_WHO_AM_I_VAL) {
+            // 先验证设备ID
+            uint8_t device_id;
+            if (mpu6050_sensor_->GetDeviceId(&device_id)) {
+                ESP_LOGI(TAG, "MPU6050 device ID: 0x%02X", device_id);
+                if (device_id == MPU6050_WHO_AM_I_VAL) {
+                    // 初始化传感器
+                    if (mpu6050_sensor_->Initialize(ACCE_FS_4G, GYRO_FS_500DPS)) {
+                        // 唤醒传感器
+                        if (mpu6050_sensor_->WakeUp()) {
                             imu_initialized_ = true;
                             ESP_LOGI(TAG, "MPU6050 sensor initialized successfully (ID: 0x%02X)", device_id);
                             
                             // 启动传感器数据读取任务
                             StartImuDataTask();
                         } else {
-                            ESP_LOGE(TAG, "MPU6050 device ID mismatch: expected 0x%02X, got 0x%02X", 
-                                    MPU6050_WHO_AM_I_VAL, device_id);
+                            ESP_LOGE(TAG, "Failed to wake up MPU6050");
                         }
                     } else {
-                        ESP_LOGE(TAG, "Failed to read MPU6050 device ID");
+                        ESP_LOGE(TAG, "Failed to initialize MPU6050");
                     }
                 } else {
-                    ESP_LOGE(TAG, "Failed to wake up MPU6050");
+                    ESP_LOGE(TAG, "MPU6050 device ID mismatch: expected 0x%02X, got 0x%02X", 
+                            MPU6050_WHO_AM_I_VAL, device_id);
                 }
             } else {
-                ESP_LOGE(TAG, "Failed to initialize MPU6050");
+                ESP_LOGE(TAG, "Failed to read MPU6050 device ID - check hardware connections");
+                ESP_LOGE(TAG, "I2C SDA: GPIO%d, SCL: GPIO%d", IMU_I2C_SDA_PIN, IMU_I2C_SCL_PIN);
             }
         } else {
             ESP_LOGE(TAG, "Failed to create MPU6050 sensor instance");
         }
         
         if (!imu_initialized_) {
-            ESP_LOGW(TAG, "IMU sensor initialization failed");
+            ESP_LOGW(TAG, "IMU sensor initialization failed - continuing without IMU");
         }
     }
 
@@ -211,22 +216,8 @@ private:
         io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&io_conf);
         
-        // 风扇控制
-        io_conf.pin_bit_mask = (1ULL << FAN_CONTROL_GPIO);
-        gpio_config(&io_conf);
-        
-        // 继电器控制
-        io_conf.pin_bit_mask = (1ULL << RELAY_CONTROL_GPIO);
-        gpio_config(&io_conf);
-        
         // 状态指示灯
         io_conf.pin_bit_mask = (1ULL << STATUS_LED_GPIO);
-        gpio_config(&io_conf);
-        
-        // 电源检测输入
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pin_bit_mask = (1ULL << POWER_DETECT_GPIO);
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
         gpio_config(&io_conf);
         
         ESP_LOGI(TAG, "GPIO initialized");
@@ -306,12 +297,16 @@ private:
         // 设置最大发射功率
         wifi_settings.SetInt("max_tx_power", 0);
         
+        // 禁用AP配网模式
+        wifi_settings.SetInt("force_ap", 0);
+        
         // 添加默认WiFi配置
         auto& wifi_station = WifiStation::GetInstance();
         wifi_station.AddAuth("xoxo", "12340000");
         
         ESP_LOGI(TAG, "Default WiFi credentials added: SSID=xoxo, Password=12340000");
         ESP_LOGI(TAG, "WiFi configured to not distinguish MAC addresses (remember_bssid=0)");
+        ESP_LOGI(TAG, "AP configuration mode disabled");
     }
 
 public:
@@ -341,18 +336,24 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodecSimplexPdm audio_codec(
-            AUDIO_INPUT_SAMPLE_RATE, 
+        static NoAudioCodecSimplex audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_BCLK,  // 扬声器BCLK
-            AUDIO_I2S_GPIO_WS,    // 扬声器WS
-            AUDIO_I2S_GPIO_DOUT,  // 扬声器DOUT
-            AUDIO_I2S_GPIO_BCLK,  // INMP441 SCK引脚
-            AUDIO_I2S_GPIO_DIN);  // INMP441 SD引脚
+            // 扬声器（标准 I2S 输出）
+            AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS,
+            AUDIO_I2S_GPIO_DOUT,
+            // 麦克风（标准 I2S 输入，单声道）
+            AUDIO_MIC_I2S_BCLK,
+            AUDIO_MIC_I2S_WS,
+            AUDIO_MIC_I2S_DIN);
         return &audio_codec;
     }
 
-    // 使用基类的默认GetDisplay()实现，返回NoDisplay
+    virtual Display* GetDisplay() override {
+        static EspLogDisplay display;
+        return &display;
+    }
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);
@@ -363,9 +364,9 @@ public:
         std::string json = R"({"board_type":"esp32s3-smart-speaker",)";
         json += R"("version":")" + std::string(SMART_SPEAKER_VERSION) + R"(",)";
         json += R"("features":["audio","imu","pressure","led_ring","fan","relay","status_led"],)";
-        json += R"("audio_codec":"NoAudioCodecSimplexPdm",)";
-        json += R"("audio_method":"software_pdm",)";
-        json += R"("microphone":"INMP441",)";
+        json += R"("audio_codec":"NoAudioCodecSimplex",)";
+        json += R"("audio_method":"i2s_standard",)";
+        json += R"("microphone":"INMP441_I2S",)";
         json += R"("speaker":"I2S_Standard",)";
         json += R"("imu_initialized":)" + std::string(imu_initialized_ ? "true" : "false") + R"(,)";
         json += R"("pressure_sensor_initialized":)" + std::string(pressure_sensor_initialized_ ? "true" : "false") + R"(,)";
@@ -383,6 +384,11 @@ public:
         
         json += R"(})";
         return json;
+    }
+
+    virtual Assets* GetAssets() override {
+        static Assets assets(ASSETS_XIAOZHI_WAKENET_SMALL);
+        return &assets;
     }
 };
 

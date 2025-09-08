@@ -27,7 +27,7 @@ Mpu6050Sensor::Mpu6050Sensor(i2c_master_bus_handle_t i2c_bus, uint8_t device_add
 
 Mpu6050Sensor::~Mpu6050Sensor() {
     if (device_handle_) {
-        i2c_master_bus_rm_device(i2c_bus_, device_handle_);
+        i2c_master_bus_rm_device(device_handle_);
     }
 }
 

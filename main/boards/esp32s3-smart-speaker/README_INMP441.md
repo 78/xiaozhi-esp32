@@ -2,21 +2,21 @@
 
 ## 📋 硬件连接
 
-### ESP32-S3 与 INMP441 接线：
+### ESP32-S3 与 INMP441 接线 (PDM模式)：
 ```
 INMP441    →    ESP32-S3
 VDD       →    3.3V
 GND       →    GND
-WS        →    GPIO47 (Word Select)
-SCK       →    GPIO17 (Serial Clock)  
-SD        →    GPIO16 (Serial Data)
+SCK       →    GPIO14 (PDM Clock)  
+SD        →    GPIO16 (PDM Data)
+注意: PDM模式不需要WS引脚!
 ```
 
 ### 扬声器连接：
 ```
 扬声器     →    ESP32-S3
-BCLK      →    GPIO17 (Bit Clock) - 与INMP441 SCK复用
-WS        →    GPIO47 (Word Select) - 与INMP441 WS复用
+BCLK      →    GPIO17 (Bit Clock)
+WS        →    GPIO47 (Word Select)
 DATA      →    GPIO15 (Data)
 ```
 

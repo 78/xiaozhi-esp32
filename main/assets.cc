@@ -124,7 +124,26 @@ bool Assets::Apply() {
         ESP_LOGE(TAG, "The index.json file is not valid");
         return false;
     }
-    
+    // 打印 index.json 的所有字段和内容
+    cJSON* item = nullptr;
+    cJSON_ArrayForEach(item, root) {
+        if (cJSON_IsString(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = %s", item->string, item->valuestring);
+        } else if (cJSON_IsNumber(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = %f", item->string, item->valuedouble);
+        } else if (cJSON_IsBool(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = %s", item->string, cJSON_IsTrue(item) ? "true" : "false");
+        } else if (cJSON_IsArray(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = [数组, 元素数: %d]", item->string, cJSON_GetArraySize(item));
+        } else if (cJSON_IsObject(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = {对象}", item->string);
+        } else if (cJSON_IsNull(item)) {
+            ESP_LOGI(TAG, "index.json 字段: %s = null", item->string);
+        } else {
+            ESP_LOGI(TAG, "index.json 字段: %s = [未知类型]", item->string);
+        }
+    }
+
     cJSON* srmodels = cJSON_GetObjectItem(root, "srmodels");
     if (cJSON_IsString(srmodels)) {
         std::string srmodels_file = srmodels->valuestring;

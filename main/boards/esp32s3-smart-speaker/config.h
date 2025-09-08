@@ -10,11 +10,17 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 16000
 #define AUDIO_INPUT_REFERENCE    false
 
-// INMP441麦克风配置
-#define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // INMP441 Word Select
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // INMP441 Serial Clock
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_16  // INMP441 Serial Data
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出 (可选)
+// 扬声器I2S配置
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // 扬声器Word Select
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // 扬声器Bit Clock
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出
+
+// INMP441 I2S麦克风配置 (BCLK/WS/DIN)
+// 说明: INMP441 是 I2S 数字麦，需要标准 I2S 三线
+// 建议映射: BCLK=GPIO14, WS=GPIO38, DIN=GPIO16（可按需要调整）
+#define AUDIO_MIC_I2S_BCLK  GPIO_NUM_14
+#define AUDIO_MIC_I2S_WS    GPIO_NUM_38
+#define AUDIO_MIC_I2S_DIN   GPIO_NUM_16
 
 // ES8311音频编解码器配置
 #define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_8
@@ -44,15 +50,9 @@
 #define IO_EXPANDER_INT_PIN     GPIO_NUM_5
 
 // 功能IO定义
+// LED控制
 #define LED_RING_GPIO           GPIO_NUM_6   // LED灯环控制
-#define FAN_CONTROL_GPIO        GPIO_NUM_7   // 风扇控制
-#define RELAY_CONTROL_GPIO      GPIO_NUM_9   // 继电器控制
 #define STATUS_LED_GPIO         GPIO_NUM_10  // 状态指示灯
-
-// 电源管理
-#define POWER_DETECT_GPIO       GPIO_NUM_11  // 电源检测
-#define BATTERY_ADC_CHANNEL     ADC_CHANNEL_4  // GPIO12 电池电压检测
-#define BATTERY_ADC_GPIO        GPIO_NUM_12
 
 // 无显示配置
 #define DISPLAY_SDA_PIN GPIO_NUM_NC
