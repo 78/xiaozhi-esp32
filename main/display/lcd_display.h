@@ -49,7 +49,7 @@ protected:
 
 protected:
     // 添加protected构造函数
-    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, DisplayStyle style);
+    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height);
     
 public:
     ~LcdDisplay();
@@ -68,8 +68,7 @@ class SpiLcdDisplay : public LcdDisplay {
 public:
     SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                   int width, int height, int offset_x, int offset_y,
-                  bool mirror_x, bool mirror_y, bool swap_xy,
-                  DisplayStyle style);
+                  bool mirror_x, bool mirror_y, bool swap_xy);
 };
 
 // RGB LCD显示器
@@ -77,8 +76,7 @@ class RgbLcdDisplay : public LcdDisplay {
 public:
     RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                   int width, int height, int offset_x, int offset_y,
-                  bool mirror_x, bool mirror_y, bool swap_xy,
-                  DisplayStyle style);
+                  bool mirror_x, bool mirror_y, bool swap_xy);
 };
 
 // MIPI LCD显示器
@@ -86,8 +84,7 @@ class MipiLcdDisplay : public LcdDisplay {
 public:
     MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                    int width, int height, int offset_x, int offset_y,
-                   bool mirror_x, bool mirror_y, bool swap_xy,
-                   DisplayStyle style);
+                   bool mirror_x, bool mirror_y, bool swap_xy);
 };
 
 #endif // LCD_DISPLAY_H

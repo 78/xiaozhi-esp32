@@ -4,9 +4,7 @@
 #include <driver/i2c.h>
 #include <driver/i2s_tdm.h>
 
-
 #define TAG "Tab5AudioCodec"
-
 
 Tab5AudioCodec::Tab5AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,

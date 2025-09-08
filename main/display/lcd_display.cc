@@ -64,14 +64,18 @@ const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
-
+LV_FONT_DECLARE(LVGL_TEXT_FONT);
+LV_FONT_DECLARE(LVGL_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_4);
 
-LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, DisplayStyle style)
+LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height)
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
-    style_ = style;
+    style_ = {
+        .text_font = &LVGL_TEXT_FONT,
+        .icon_font = &LVGL_ICON_FONT,
+    };
 
     // Load theme from settings
     Settings settings("display", false);
@@ -99,9 +103,8 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 }
 
 SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayStyle style)
-    : LcdDisplay(panel_io, panel, width, height, style) {
+                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+    : LcdDisplay(panel_io, panel, width, height) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -176,9 +179,8 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 // RGB LCD实现
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y,
-                           bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayStyle style)
-    : LcdDisplay(panel_io, panel, width, height, style) {
+                           bool mirror_x, bool mirror_y, bool swap_xy)
+    : LcdDisplay(panel_io, panel, width, height) {
 
     // draw white
     std::vector<uint16_t> buffer(width_, 0xFFFF);
@@ -238,9 +240,8 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
 MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                             int width, int height,  int offset_x, int offset_y,
-                            bool mirror_x, bool mirror_y, bool swap_xy,
-                            DisplayStyle style)
-    : LcdDisplay(panel_io, panel, width, height, style) {
+                            bool mirror_x, bool mirror_y, bool swap_xy)
+    : LcdDisplay(panel_io, panel, width, height) {
 
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");

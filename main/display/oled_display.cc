@@ -11,14 +11,19 @@
 
 #define TAG "OledDisplay"
 
+LV_FONT_DECLARE(LVGL_TEXT_FONT);
+LV_FONT_DECLARE(LVGL_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-    int width, int height, bool mirror_x, bool mirror_y, DisplayStyle style)
+    int width, int height, bool mirror_x, bool mirror_y)
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
-    style_ = style;
+    style_ = {
+        .text_font = &LVGL_TEXT_FONT,
+        .icon_font = &LVGL_ICON_FONT,
+    };
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();

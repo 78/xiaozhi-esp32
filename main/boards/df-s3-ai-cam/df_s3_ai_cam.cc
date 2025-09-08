@@ -70,10 +70,6 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
     }
 
     // Wakenet model only
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_WAKENET);
-        return &assets;
-    }
 
     virtual Led* GetLed() override {
         static GpioLed led(BUILTIN_LED_GPIO, 0);

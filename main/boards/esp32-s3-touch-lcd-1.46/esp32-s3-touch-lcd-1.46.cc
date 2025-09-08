@@ -21,10 +21,6 @@
 
 #define TAG "waveshare_lcd_1_46"
 
-LV_FONT_DECLARE(font_puhui_basic_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
-
 // 在waveshare_lcd_1_46类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
@@ -47,8 +43,7 @@ public:
                     bool mirror_y,
                     bool swap_xy) 
         : SpiLcdDisplay(io_handle, panel_handle,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {&font_puhui_basic_16_4, &font_awesome_16_4}) {
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
@@ -63,7 +58,6 @@ private:
     button_driver_t* boot_btn_driver_ = nullptr;
     button_driver_t* pwr_btn_driver_ = nullptr;
     static CustomBoard* instance_;
-
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -219,11 +213,6 @@ public:
         InitializeSpd2010Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
