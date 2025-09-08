@@ -15,9 +15,6 @@
 
 #define TAG "LICHUANG_ESP32S3R8N8"
 
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
-
 class LichuangEsp32s3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
