@@ -6,48 +6,41 @@
 // ESP32-S3 智能音箱开发板配置
 
 // 音频配置
-#define AUDIO_INPUT_SAMPLE_RATE  16000
-#define AUDIO_OUTPUT_SAMPLE_RATE 16000
-#define AUDIO_INPUT_REFERENCE    false
+#define AUDIO_INPUT_SAMPLE_RATE  24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 // 扬声器I2S配置
 #define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // 扬声器Word Select
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // 扬声器Bit Clock
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_40  // 扬声器数据输出（避开 35/36/37，改用 GPIO40）
 
-// INMP441 I2S麦克风配置 (BCLK/WS/DIN)
-// 说明: INMP441 是 I2S 数字麦，需要标准 I2S 三线
-// 建议映射: BCLK=GPIO14, WS=GPIO38, DIN=GPIO16（可按需要调整）
-#define AUDIO_MIC_I2S_BCLK  GPIO_NUM_14
-#define AUDIO_MIC_I2S_WS    GPIO_NUM_38
-#define AUDIO_MIC_I2S_DIN   GPIO_NUM_16
+// MCLK（主时钟）— 若使用 ES8311 外部主时钟，请连接此脚
+// 默认给到 GPIO14，可按硬件改动
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_14
+
+// I2S 麦克风/ADC 数据输入（ES8311 ADC -> MCU DIN）
+// 时钟沿用扬声器 I2S 的 BCLK/WS，数据脚使用 DIN
+#define AUDIO_MIC_I2S_DIN   GPIO_NUM_16   // MCU I2S DIN
 
 // ES8311音频编解码器配置
 #define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_8
 #define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_18
 #define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
-#define AUDIO_CODEC_PA_PIN       GPIO_NUM_46  // NS4150功放使能
 
 // 用户交互
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_40
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_39
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_47
 
 // IMU传感器 (I2C接口)
 #define IMU_I2C_SDA_PIN         GPIO_NUM_21
 #define IMU_I2C_SCL_PIN         GPIO_NUM_20
-#define IMU_INT_PIN             GPIO_NUM_19
+#define IMU_INT_PIN             GPIO_NUM_13
 
 // 压感传感器 (ADC接口)
 #define PRESSURE_SENSOR_ADC_CHANNEL ADC_CHANNEL_3  // GPIO4
 #define PRESSURE_SENSOR_GPIO       GPIO_NUM_4
-
-// 通用IO扩展
-#define IO_EXPANDER_SDA_PIN     GPIO_NUM_41
-#define IO_EXPANDER_SCL_PIN     GPIO_NUM_42
-#define IO_EXPANDER_INT_PIN     GPIO_NUM_5
 
 // 功能IO定义
 // LED控制
