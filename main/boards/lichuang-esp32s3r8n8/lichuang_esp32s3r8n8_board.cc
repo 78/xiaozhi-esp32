@@ -83,8 +83,7 @@ private:
 
         display_ = new OledDisplay(panel_io_, panel_, 
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                  DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-                                  {&font_puhui_14_1, &font_awesome_14_1});
+                                  DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
