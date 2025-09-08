@@ -1,17 +1,18 @@
-> **修改笔记：**
-> - 增加可自定义热点名称的选项 `CONFIG_CUSTOM_SSID_PREFIX="AI-VOX"`
-> - 增加 NULLLAB AI-Vox v3 开发板
-> - 增加 NULLLAB AI-Vox 开发版的的两个开发案例：
->     - 自定义图片表情（[nulllab-ai-vox-emoji](./main/boards/nulllab-ai-vox-emoji)）
->     - 动画眼睛表情（[nulllab-ai-vox-eyes](./main/boards/nulllab-ai-vox-eyes)）
->     - Otto 机器人
-> - NULLLAB AI-Vox v3 支持实时打断（完全），可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
-> - NULLLAB AI-Vox 不再支持实时打断（因为效果不好）
-> - 编译配置通过 idf.py menuconfig 进行设置或在开发板的 config.json 中设置（推荐）
-> - 图片转换工具 [https://lvgl.io/tools/imageconverter](https://lvgl.io/tools/imageconverter)
->
-> 推荐使用编译脚本进行编译：`python3 ./scripts/release.py [开发板名称]`，省去切换开发板配置。
-> 案例所需要的配置都写在了 config.json 文件中，编译脚本可以自动完成配置。
+**NULLLAB 修改笔记：**
+
+- 增加可自定义热点名称的选项 `CONFIG_CUSTOM_SSID_PREFIX="AI-VOX"`
+- 增加 NULLLAB AI-VOX v3 开发板
+- 增加 NULLLAB AI-VOX 开发版的的两个自定义开发板案例：
+  - 自定义图片表情（[nulllab-ai-vox-emoji](./main/boards/nulllab-ai-vox-emoji)）
+  - 动画眼睛表情（[nulllab-ai-vox-eyes](./main/boards/nulllab-ai-vox-eyes)）
+- NULLLAB AI-VOX v3 支持实时打断，可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
+- 编译配置通过 idf.py menuconfig 进行设置或在开发板的 config.json 中设置（推荐）
+- 图片转换工具 [https://lvgl.io/tools/imageconverter](https://lvgl.io/tools/imageconverter)
+
+**官方推荐使用编译脚本进行编译：`python3 ./scripts/release.py nulllab-ai-vox-v3`，省去切换开发板配置。**
+案例所需要的配置都写在了 config.json 文件中，编译脚本可以自动完成配置。
+
+---
 
 # An MCP-based Chatbot | 一个基于 MCP 的聊天机器人
 
