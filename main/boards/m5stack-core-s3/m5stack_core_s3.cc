@@ -16,11 +16,7 @@
 #include <esp_timer.h>
 #include "esp32_camera.h"
 
-
 #define TAG "M5StackCoreS3Board"
-
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class Pmic : public Axp2101 {
 public:
@@ -44,7 +40,6 @@ public:
     }
 };
 
-
 class CustomBacklight : public Backlight {
 public:
     CustomBacklight(Pmic *pmic) : pmic_(pmic) {}
@@ -57,7 +52,6 @@ public:
 private:
     Pmic *pmic_;
 };
-
 
 class Aw9523 : public I2cDevice {
 public:
@@ -122,7 +116,6 @@ private:
     uint8_t* read_buffer_ = nullptr;
     TouchPoint_t tp_;
 };
-
 
 class M5StackCoreS3Board : public WifiBoard {
 private:
@@ -294,8 +287,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
      void InitializeCamera() {
@@ -340,11 +332,6 @@ public:
         InitializeCamera();
         InitializeFt6336TouchPad();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

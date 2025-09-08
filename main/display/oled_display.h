@@ -27,8 +27,7 @@ private:
     void SetupUI_128x32();
 
 public:
-    OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y,
-                DisplayStyle style);
+    OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
     ~OledDisplay();
 
     virtual void SetChatMessage(const char* role, const char* content) override;

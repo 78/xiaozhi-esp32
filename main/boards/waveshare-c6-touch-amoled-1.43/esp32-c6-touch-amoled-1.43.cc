@@ -17,10 +17,6 @@
 
 #define TAG "waveshare_c6_amoled_1_43"
 
-
-LV_FONT_DECLARE(font_puhui_basic_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
-
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = 
 {
     {0x11, (uint8_t []){0x00}, 0, 80},   
@@ -58,8 +54,7 @@ public:
                     bool mirror_y,
                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {&font_puhui_basic_30_4, &font_awesome_30_4}) {
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_display_add_event_cb(display_, MyDrawEventCb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
@@ -282,11 +277,6 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64);
-        return &assets;
     }
 
 };

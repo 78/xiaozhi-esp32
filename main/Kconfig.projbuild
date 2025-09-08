@@ -12,6 +12,13 @@ config DEFAULT_ASSETS_URL_PREFIX
     help
         The assets will be downloaded from this URL.
 
+config FLASH_DEFAULT_ASSETS
+    bool "Flash Default Assets"
+    default y
+    help
+        Download and flash default assets to the assets partition during build.
+        If disabled, the assets partition will not be automatically populated.
+
 choice
     prompt "Default Language"
     default LANGUAGE_ZH_CN

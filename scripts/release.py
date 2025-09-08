@@ -105,6 +105,8 @@ def release(board_type, board_config, config_filename="config.json"):
         # Append sdkconfig
         with open("sdkconfig", "a") as f:
             f.write("\n")
+            f.write("# Release\n")
+            f.write("CONFIG_FLASH_DEFAULT_ASSETS=n\n")
             for append in sdkconfig_append:
                 f.write(f"{append}\n")
         # Build with macro BOARD_NAME defined to name

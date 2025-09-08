@@ -25,9 +25,6 @@
 #define BOARD_TAG "JiuchuanDevBoard"
 #define __USER_GPIO_PWRDOWN__
 
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 // 自定义LCD显示器类，用于圆形屏幕适配
 class CustomLcdDisplay : public SpiLcdDisplay
 {
@@ -40,9 +37,8 @@ public:
                      int offset_y,
                      bool mirror_x,
                      bool mirror_y,
-                     bool swap_xy,
-                     DisplayStyle style)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, style)
+                     bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy)
     {
 
         DisplayLockGuard lock(this);
@@ -141,7 +137,6 @@ private:
         });
         power_save_timer_->SetEnabled(true);
     }
-
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -315,8 +310,7 @@ private:
             esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
             esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
             display_ = new CustomLcdDisplay(panel_io, panel,
-                                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                            {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -333,11 +327,6 @@ public:
         InitializeGC9301isplay();
         GetBacklight()->RestoreBrightness();
 
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual Led* GetLed() override {
