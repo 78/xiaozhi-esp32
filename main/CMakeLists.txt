@@ -69,6 +69,10 @@ file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
+# Set default LVGL_TEXT_FONT and LVGL_ICON_FONT
+set(LVGL_TEXT_FONT ${FONT_PUHUI_COMMON_14_1})
+set(LVGL_ICON_FONT ${FONT_AWESOME_14_1})
+
 # Add board files according to BOARD_TYPE
 # Set default assets if the board uses partition table V2
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
@@ -688,15 +692,15 @@ endif()
 # Font configuration validation function
 function(validate_font_config board_name text_font default_assets)
     if(text_font)
-        # Check if DEFAULT_ASSETS contains COMMON font
-        if(default_assets AND default_assets MATCHES "common")
-            # Rule 1: If DEFAULT_ASSETS uses COMMON font, LVGL_TEXT_FONT must be BASIC
+        # Check if DEFAULT_ASSETS contains font
+        if(default_assets AND default_assets MATCHES "font_")
+            # Rule 1: If DEFAULT_ASSETS uses font, LVGL_TEXT_FONT must be BASIC
             if(NOT text_font MATCHES "basic")
                 message(FATAL_ERROR "Font config error for ${board_name}: DEFAULT_ASSETS contains COMMON font but LVGL_TEXT_FONT is not BASIC (${text_font})")
             endif()
         else()
-            # Rule 2: If no DEFAULT_ASSETS or DEFAULT_ASSETS doesn't contain COMMON, LVGL_TEXT_FONT must be COMMON
-            if(NOT text_font MATCHES "common")
+            # Rule 2: If no DEFAULT_ASSETS or DEFAULT_ASSETS doesn't contain font_, LVGL_TEXT_FONT must not be BASIC
+            if(text_font MATCHES "basic")
                 message(FATAL_ERROR "Font config error for ${board_name}: No DEFAULT_ASSETS with COMMON font but LVGL_TEXT_FONT is not COMMON (${text_font})")
             endif()
         endif()
