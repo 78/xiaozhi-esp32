@@ -6,18 +6,27 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
-config DEFAULT_ASSETS_URL_PREFIX
-    string "Default Assets URL Prefix"
-    default "https://files.xiaozhi.me/assets/default/"
+choice
+    prompt "Flash Assets"
+    default FLASH_NONE_ASSETS
     help
-        The assets will be downloaded from this URL.
+        Select the assets to flash.
 
-config FLASH_DEFAULT_ASSETS
-    bool "Flash Default Assets"
-    default y
+    config FLASH_NONE_ASSETS
+        bool "Do not flash assets"
+    config FLASH_DEFAULT_ASSETS
+        bool "Flash Default Assets"
+    config FLASH_CUSTOM_ASSETS
+        bool "Flash Custom Assets"
+endchoice
+
+config CUSTOM_ASSETS_FILE
+    depends on FLASH_CUSTOM_ASSETS
+    string "Custom Assets File"
+    default "assets.bin"
     help
-        Download and flash default assets to the assets partition during build.
-        If disabled, the assets partition will not be automatically populated.
+        The custom assets file to flash.
+        It can be a local file relative to the project directory or a remote url.
 
 choice
     prompt "Default Language"

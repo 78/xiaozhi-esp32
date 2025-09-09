@@ -1,17 +1,19 @@
 # Define default assets files (Absolute url starting with http or https is supported)
-set(ASSETS_PUHUI_COMMON_14_1 "none-font_puhui_common_14_1-none.bin")
-set(ASSETS_XIAOZHI_WAKENET_ONLY "wn9_nihaoxiaozhi_tts-none-none.bin")
-set(ASSETS_XIAOZHI_PUHUI_COMMON_14_1 "wn9_nihaoxiaozhi_tts-font_puhui_common_14_1-none.bin")
-set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32 "wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_32.bin")
-set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64 "wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_64.bin")
-set(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64 "wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_64.bin")
-set(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64 "wn9_nihaoxiaozhi_tts-font_puhui_common_30_4-emojis_64.bin")
-set(ASSETS_XIAOZHI_S_WAKENET_ONLY "wn9s_nihaoxiaozhi-none-none.bin")
-set(ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1 "wn9s_nihaoxiaozhi-font_puhui_common_14_1-none.bin")
-set(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32 "wn9s_nihaoxiaozhi-font_puhui_common_16_4-emojis_32.bin")
-set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32 "wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_32.bin")
-set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_64.bin")
-set(ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "wn9s_nihaoxiaozhi-font_puhui_common_30_4-emojis_64.bin")
+set(ASSETS_URL_PREFIX "https://files.xiaozhi.me/assets/default/")
+
+set(ASSETS_PUHUI_COMMON_14_1                    "${ASSETS_URL_PREFIX}none-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_WAKENET_ONLY                 "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-none-none.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_14_1            "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_16_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64   "${ASSETS_URL_PREFIX}wn9_nihaoxiaozhi_tts-font_puhui_common_30_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_S_WAKENET_ONLY               "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-none-none.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_14_1          "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_14_1-none.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_16_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_32.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_64 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_20_4-emojis_64.bin")
+set(ASSETS_XIAOZHI_S_PUHUI_COMMON_30_4_EMOJI_64 "${ASSETS_URL_PREFIX}wn9s_nihaoxiaozhi-font_puhui_common_30_4-emojis_64.bin")
 
 # Embedded font files defined in `xiaozhi-fonts` component
 # Basic fonts include ASCII and about 600 characters used in assets/locales
@@ -743,43 +745,76 @@ if(DEFAULT_ASSETS)
     validate_default_assets_prefix("${BOARD_TYPE}" "${DEFAULT_ASSETS}")
 endif()
 
-# Download and flash DEFAULT_ASSETS if defined and enabled
-if(DEFAULT_ASSETS AND CONFIG_FLASH_DEFAULT_ASSETS)
-    # Construct the full URL
-    set(ASSETS_URL "${CONFIG_DEFAULT_ASSETS_URL_PREFIX}${DEFAULT_ASSETS}")
-    set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${DEFAULT_ASSETS}")
-    set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${DEFAULT_ASSETS}.tmp")
-    
-    # Check if local file exists
-    if(EXISTS ${ASSETS_LOCAL_FILE})
-        message(STATUS "Assets file ${DEFAULT_ASSETS} already exists, skipping download")
-    else()
-        message(STATUS "Downloading ${DEFAULT_ASSETS}")
+# Function to get local assets file path (handles both URL and local file)
+function(get_assets_local_file assets_source assets_local_file_var)
+    # Check if it's a URL (starts with http:// or https://)
+    if(assets_source MATCHES "^https?://")
+        # It's a URL, download it
+        get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
+        set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
+        set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
         
-        # Clean up any existing temp file
-        if(EXISTS ${ASSETS_TEMP_FILE})
-            file(REMOVE ${ASSETS_TEMP_FILE})
-        endif()
-        
-        # Download to temporary file first
-        file(DOWNLOAD ${ASSETS_URL} ${ASSETS_TEMP_FILE}
-             STATUS DOWNLOAD_STATUS)
-        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-        if(NOT STATUS_CODE EQUAL 0)
-            # Clean up temp file on failure
+        # Check if local file exists
+        if(EXISTS ${ASSETS_LOCAL_FILE})
+            message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
+        else()
+            message(STATUS "Downloading ${ASSETS_FILENAME}")
+            
+            # Clean up any existing temp file
             if(EXISTS ${ASSETS_TEMP_FILE})
                 file(REMOVE ${ASSETS_TEMP_FILE})
             endif()
-            message(FATAL_ERROR "Failed to download ${DEFAULT_ASSETS} from ${ASSETS_URL}")
+            
+            # Download to temporary file first
+            file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
+                 STATUS DOWNLOAD_STATUS)
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(NOT STATUS_CODE EQUAL 0)
+                # Clean up temp file on failure
+                if(EXISTS ${ASSETS_TEMP_FILE})
+                    file(REMOVE ${ASSETS_TEMP_FILE})
+                endif()
+                message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
+            endif()
+            
+            # Move temp file to final location (atomic operation)
+            file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
+            message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
+        endif()
+    else()
+        # It's a local file path
+        if(IS_ABSOLUTE "${assets_source}")
+            set(ASSETS_LOCAL_FILE "${assets_source}")
+        else()
+            set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
         endif()
         
-        # Move temp file to final location (atomic operation)
-        file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
-        message(STATUS "Successfully downloaded ${DEFAULT_ASSETS}")
+        # Check if local file exists
+        if(NOT EXISTS ${ASSETS_LOCAL_FILE})
+            message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
+        endif()
+        
+        message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
     endif()
     
-    # Flash assets to partition using esptool_py_flash_to_partition
+    set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
+endfunction()
+
+# Flash assets based on configuration
+if(CONFIG_FLASH_DEFAULT_ASSETS)
+    # Flash default assets
+    if(DEFAULT_ASSETS)
+        get_assets_local_file("${DEFAULT_ASSETS}" ASSETS_LOCAL_FILE)
+        esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
+        message(STATUS "Default assets download and flash configured: ${DEFAULT_ASSETS} -> assets partition")
+    else()
+        message(WARNING "FLASH_DEFAULT_ASSETS is enabled but no DEFAULT_ASSETS is defined for board ${BOARD_TYPE}")
+    endif()
+elseif(CONFIG_FLASH_CUSTOM_ASSETS)
+    # Flash custom assets
+    get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
     esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
-    
-    message(STATUS "Assets download and flash configured: ${ASSETS_URL} -> assets partition")
+    message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
+elseif(CONFIG_FLASH_NONE_ASSETS)
+    message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
 endif()
