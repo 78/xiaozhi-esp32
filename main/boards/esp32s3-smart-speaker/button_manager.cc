@@ -42,9 +42,23 @@ void ButtonManager::SetupButtonCallbacks() {
     boot_button_.OnLongPress([]() { 
         ESP_LOGI(TAG, "BOOT long pressed: play boot tone");
         // 使用Application的PlaySound方法播放开机音效
-        auto& app = Application::GetInstance();
-        app.PlaySound("activation");
-        ESP_LOGI(TAG, "Boot tone played");
+        //auto& app = Application::GetInstance();
+        //app.PlaySound("activation");
+        //ESP_LOGI(TAG, "Boot tone played");
+        auto& board = Board::GetInstance();
+        auto codec = board.GetAudioCodec();
+        codec->EnableOutput(true);
+        
+        auto music = Board::GetInstance().GetMusic();
+        auto song_name = "稻香";
+        auto artist_name = "";
+        if (!music->Download(song_name, artist_name)) {
+            ESP_LOGI(TAG, "获取音乐资源失败");
+            return;
+        }
+        
+        auto download_result = music->GetDownloadResult();
+        ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
     });
     
     // 音量上按钮回调

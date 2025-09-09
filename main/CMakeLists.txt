@@ -26,6 +26,8 @@ set(SOURCES "audio/audio_codec.cc"
             "settings.cc"
             "device_state_event.cc"
             "assets.cc"
+            "schedule_manager_simple.cc"
+            "timer_manager_simple.cc"
             "main.cc"
             )
 

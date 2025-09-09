@@ -38,30 +38,7 @@ private:
   }
   
   void InitializeCodecI2c() {
-    ESP_LOGI(TAG, "Initializing ES8311 codec I2C...");
-    
-    // 初始化I2C外设
-    i2c_master_bus_config_t i2c_bus_cfg = {
-        .i2c_port = I2C_NUM_0,
-        .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-        .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .intr_priority = 0,
-        .trans_queue_depth = 0,
-        .flags = {
-            .enable_internal_pullup = 1,
-            .allow_pd = false,
-        },
-    };
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
-    
-    // 探测I2C设备
-    if (i2c_master_probe(codec_i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 1000) != ESP_OK) {
-        ESP_LOGW(TAG, "ES8311 not found on I2C bus, audio may not work");
-    } else {
-        ESP_LOGI(TAG, "ES8311 codec detected on I2C bus");
-    }
+    return;
   }
 
 
@@ -74,7 +51,7 @@ public:
     ESP_LOGI(TAG, "Music player initialized");
 
     // 初始化I2C总线
-    //InitializeCodecI2c();
+    InitializeCodecI2c();
     
     // 初始化各个管理器
     InitializeManagers();
@@ -89,8 +66,17 @@ public:
   }
 
   virtual AudioCodec *GetAudioCodec() override {
-    static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-        AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_MIC_I2S_DIN);
+    static NoAudioCodecSimplex audio_codec(
+        AUDIO_INPUT_SAMPLE_RATE,
+        AUDIO_OUTPUT_SAMPLE_RATE,
+        // 扬声器（标准 I2S 输出）
+        AUDIO_I2S_GPIO_BCLK,
+        AUDIO_I2S_GPIO_WS,
+        AUDIO_I2S_GPIO_DOUT,
+        // 麦克风（标准 I2S 输入，单声道）
+        AUDIO_MIC_I2S_BCLK,
+        AUDIO_MIC_I2S_WS,
+        AUDIO_MIC_I2S_DIN);
     return &audio_codec;
   }
 
@@ -106,28 +92,53 @@ public:
 
   virtual std::string GetBoardJson() override {
     char json_buffer[2048];
+    
+    // 安全地获取管理器状态，避免在初始化过程中访问
+    bool imu_initialized = false;
+    bool adc_initialized = false;
+    int pressure_value = 0;
+    size_t pressure_sample_count = 0;
+    bool imu_sensor_initialized = false;
+    
+    try {
+      auto& imu_manager = ImuManager::GetInstance();
+      imu_initialized = imu_manager.IsInitialized();
+      
+      auto& adc_manager = AdcManager::GetInstance();
+      adc_initialized = adc_manager.IsInitialized();
+      pressure_value = adc_manager.GetCurrentPressureValue();
+      pressure_sample_count = adc_manager.GetPressureSampleCount();
+      
+      auto imu_sensor = imu_manager.GetImuSensor();
+      imu_sensor_initialized = imu_sensor && imu_sensor->IsInitialized();
+    } catch (...) {
+      ESP_LOGW(TAG, "Error accessing managers in GetBoardJson, using default values");
+    }
+    
     snprintf(json_buffer, sizeof(json_buffer),
         "{"
         "\"board_type\":\"esp32s3-smart-speaker\","
         "\"version\":\"%s\","
         "\"features\":[\"audio\",\"imu\",\"pressure\",\"led_ring\",\"fan\",\"relay\",\"status_led\"],"
-        "\"audio_codec\":\"NoAudioCodec\","
+        "\"audio_codec\":\"NoAudioCodecSimplex\","
         "\"audio_method\":\"i2s_standard\","
-        "\"microphone\":\"NoAudioCodec\","
+        "\"microphone\":\"INMP441_I2S\","
         "\"speaker\":\"NoAudioCodec\","
         "\"imu_initialized\":%s,"
         "\"pressure_sensor_initialized\":%s,"
-        "\"pressure_sensor\":{\"current_value\":%d,\"adc_channel\":%d,\"sample_count\":%zu},"
+        "\"pressure_sensor\":{\"current_value\":%d,\"adc_channel\":%d,\"sample_count\":%u},"
         "\"imu_sensor\":{\"type\":\"MPU6050\",\"initialized\":%s,\"status\":\"unknown\"}"
         "}",
         SMART_SPEAKER_VERSION,
-        ImuManager::GetInstance().IsInitialized() ? "true" : "false",
-        AdcManager::GetInstance().IsInitialized() ? "true" : "false",
-        AdcManager::GetInstance().GetCurrentPressureValue(),
+        imu_initialized ? "true" : "false",
+        adc_initialized ? "true" : "false",
+        pressure_value,
         PRESSURE_SENSOR_ADC_CHANNEL,
-        AdcManager::GetInstance().GetPressureSampleCount(),
-        ImuManager::GetInstance().GetImuSensor() && ImuManager::GetInstance().GetImuSensor()->IsInitialized() ? "true" : "false"
+        (unsigned int)pressure_sample_count,
+        imu_sensor_initialized ? "true" : "false"
     );
+    
+    ESP_LOGI(TAG, "GetBoardJson completed successfully");
     return std::string(json_buffer);
   }
 
