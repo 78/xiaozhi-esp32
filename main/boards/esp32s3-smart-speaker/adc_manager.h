@@ -41,6 +41,9 @@ public:
     // 长时间不动检测
     bool IsLongTimeNoMovement() const;
     uint32_t GetNoMovementDuration() const; // 返回不动持续时间(秒)
+    
+    // 压力检测触发音乐播放
+    void TriggerMusicPlayback();
 
 private:
     AdcManager() = default;

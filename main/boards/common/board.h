@@ -12,6 +12,7 @@
 #include "backlight.h"
 #include "camera.h"
 #include "assets.h"
+#include "music.h"
 
 
 void* create_board();
@@ -44,6 +45,7 @@ public:
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();
+    virtual Music* GetMusic() { return nullptr; }
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;

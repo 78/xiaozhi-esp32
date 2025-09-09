@@ -119,6 +119,18 @@ void AdcManager::ReadPressureSensorData() {
         ESP_LOGI(TAG, "ADC read: Raw=%d", adc_value);
         adc_log_counter = 0;
     }
+    
+    // 压力检测触发音乐播放
+    static bool last_pressure_state = false;
+    bool current_pressure_state = IsPressureDetected();
+    
+    if (current_pressure_state && !last_pressure_state) {
+        ESP_LOGI(TAG, "Pressure detected! Triggering music playback...");
+        // 触发音乐播放
+        TriggerMusicPlayback();
+    }
+    
+    last_pressure_state = current_pressure_state;
 }
 
 void AdcManager::StartAdcTask() {
@@ -222,4 +234,9 @@ uint32_t AdcManager::GetNoMovementDuration() const {
     
     uint32_t current_time = esp_timer_get_time() / 1000000;
     return current_time - no_movement_start_time_;
+}
+
+void AdcManager::TriggerMusicPlayback() {
+    // 通过Board接口获取音乐播放器并触发播放
+
 }
