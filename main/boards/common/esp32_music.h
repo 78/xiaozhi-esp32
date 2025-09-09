@@ -50,6 +50,7 @@ private:
     std::atomic<DisplayMode> display_mode_;
     std::atomic<bool> is_playing_;
     std::atomic<bool> is_downloading_;
+    std::atomic<bool> is_paused_;
     std::thread play_thread_;
     std::thread download_thread_;
     int64_t current_play_time_ms_;  // 当前播放时间(毫秒)
@@ -106,6 +107,13 @@ public:
     // 显示模式控制方法
     void SetDisplayMode(DisplayMode mode);
     DisplayMode GetDisplayMode() const { return display_mode_.load(); }
+    
+    // MCP工具需要的方法
+    virtual bool PlaySong() override;
+    virtual bool SetVolume(int volume) override;
+    virtual bool StopSong() override;
+    virtual bool PauseSong() override;
+    virtual bool ResumeSong() override;
 };
 
 #endif // ESP32_MUSIC_H

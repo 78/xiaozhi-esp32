@@ -16,6 +16,13 @@ public:
     virtual size_t GetBufferSize() const = 0;
     virtual bool IsDownloading() const = 0;
     virtual int16_t* GetAudioData() = 0;
+    
+    // MCP工具需要的方法
+    virtual bool PlaySong() = 0;
+    virtual bool SetVolume(int volume) = 0;
+    virtual bool StopSong() = 0;
+    virtual bool PauseSong() = 0;
+    virtual bool ResumeSong() = 0;
 };
 
 #endif // MUSIC_H 

@@ -154,15 +154,13 @@ void McpServer::AddUserOnlyTools() {
             [music](const PropertyList& properties) -> ReturnValue {
                 auto song_name = properties["song_name"].value<std::string>();
                 auto artist_name = properties["artist_name"].value<std::string>();
-                std::string query = song_name;
-                if (!artist_name.empty()) {
-                    query += " " + artist_name;
+                
+                if (!music->Download(song_name, artist_name)) {
+                    return "{\"success\": false, \"message\": \"获取音乐资源失败\"}";
                 }
-                bool ok = music->PlaySong(query);
-                if (!ok) {
-                    return std::string("{\"success\": false, \"message\": \"获取音乐资源失败\"}");
-                }
-                return std::string("{\"success\": true, \"message\": \"音乐开始播放\"}");
+                auto download_result = music->GetDownloadResult();
+                ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
+                return "{\"success\": true, \"message\": \"音乐开始播放\"}";
             });
         AddUserOnlyTool("self.music.set_volume",
             "Set music volume (0-100).",
@@ -172,7 +170,7 @@ void McpServer::AddUserOnlyTools() {
             [music](const PropertyList& properties) -> ReturnValue {
                 int vol = properties["volume"].value<int>();
                 bool ok = music->SetVolume(vol);
-                return ok ? std::string("{\\"success\\": true}") : std::string("{\\"success\\": false}");
+                return ok;
             });
 
 
@@ -181,7 +179,7 @@ void McpServer::AddUserOnlyTools() {
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
                 bool ok = music->PlaySong();
-                return ok ? std::string("{\\"success\\": true}") : std::string("{\\"success\\": false}");
+                return ok;
             });
 
         // 兼容更明确的命名：stop_song / pause_song / resume_song
@@ -190,7 +188,7 @@ void McpServer::AddUserOnlyTools() {
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
                 bool ok = music->StopSong();
-                return ok ? std::string("{\\"success\\": true}") : std::string("{\\"success\\": false}");
+                return ok;
             });
 
         AddUserOnlyTool("self.music.pause_song",
@@ -198,7 +196,7 @@ void McpServer::AddUserOnlyTools() {
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
                 bool ok = music->PauseSong();
-                return ok ? std::string("{\\"success\\": true}") : std::string("{\\"success\\": false}");
+                return ok;
             });
 
         AddUserOnlyTool("self.music.resume_song",
@@ -206,7 +204,7 @@ void McpServer::AddUserOnlyTools() {
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
                 bool ok = music->ResumeSong();
-                return ok ? std::string("{\\"success\\": true}") : std::string("{\\"success\\": false}");
+                return ok;
             });
     }
 

@@ -4,6 +4,7 @@
 #include "codecs/no_audio_codec.h"
 #include "config.h"
 #include "esplog_display.h"
+#include "esp32_music.h"
 #include "gpio_manager.h"
 #include "imu_manager.h"
 #include "led/single_led.h"
@@ -67,6 +68,10 @@ private:
 public:
   Esp32s3SmartSpeaker() {
     ESP_LOGI(TAG, "Initializing ESP32-S3 Smart Speaker");
+
+    // 初始化音乐播放器
+    music_ = new Esp32Music();
+    ESP_LOGI(TAG, "Music player initialized");
 
     // 初始化I2C总线
     //InitializeCodecI2c();

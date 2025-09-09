@@ -5,7 +5,6 @@
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "assets.h"

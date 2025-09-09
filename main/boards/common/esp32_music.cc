@@ -166,11 +166,12 @@ Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), curren
                          song_name_displayed_(false), current_lyric_url_(), lyrics_(), 
                          current_lyric_index_(-1), lyric_thread_(), is_lyric_running_(false),
                          display_mode_(DISPLAY_MODE_LYRICS), is_playing_(false), is_downloading_(false), 
-                         play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
+                         is_paused_(false), play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
                          mp3_decoder_initialized_(false) {
     ESP_LOGI(TAG, "Music player initialized with default spectrum display mode");
-    InitializeMp3Decoder();
+    // 延迟MP3解码器初始化，避免在构造函数中初始化导致的问题
+    // InitializeMp3Decoder();
 }
 
 Esp32Music::~Esp32Music() {
@@ -447,6 +448,14 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     
     ESP_LOGD(TAG, "Starting streaming for URL: %s", music_url.c_str());
     
+    // 确保MP3解码器已初始化
+    if (!mp3_decoder_initialized_) {
+        if (!InitializeMp3Decoder()) {
+            ESP_LOGE(TAG, "Failed to initialize MP3 decoder");
+            return false;
+        }
+    }
+    
     // 停止之前的播放和下载
     is_downloading_ = false;
     is_playing_ = false;
@@ -507,6 +516,7 @@ bool Esp32Music::StopStreaming() {
     // 停止下载和播放标志
     is_downloading_ = false;
     is_playing_ = false;
+    is_paused_ = false;  // 重置暂停状态
     
     // 清空歌名显示
     auto& board = Board::GetInstance();
@@ -759,6 +769,13 @@ void Esp32Music::PlayAudioStream() {
     bool id3_processed = false;
     
     while (is_playing_) {
+        // 检查是否被暂停
+        if (is_paused_) {
+            ESP_LOGD(TAG, "Music playback paused, waiting...");
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+        
         // 检查设备状态，只有在空闲状态才播放音乐
         auto& app = Application::GetInstance();
         DeviceState current_state = app.GetDeviceState();
@@ -1435,4 +1452,98 @@ void Esp32Music::SetDisplayMode(DisplayMode mode) {
     ESP_LOGI(TAG, "Display mode changed from %s to %s", 
             (old_mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS",
             (mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS");
+}
+
+// MCP工具需要的方法实现
+bool Esp32Music::SetVolume(int volume) {
+    ESP_LOGI(TAG, "SetVolume called with volume: %d", volume);
+    
+    // 验证音量范围
+    if (volume < 0 || volume > 100) {
+        ESP_LOGW(TAG, "Invalid volume level: %d, must be between 0-100", volume);
+        return false;
+    }
+    
+    // 通过Board获取AudioCodec并设置音量
+    auto& board = Board::GetInstance();
+    auto codec = board.GetAudioCodec();
+    if (codec) {
+        codec->SetOutputVolume(volume);
+        ESP_LOGI(TAG, "Volume set to %d%%", volume);
+        return true;
+    } else {
+        ESP_LOGE(TAG, "No audio codec available");
+        return false;
+    }
+}
+
+bool Esp32Music::PlaySong() {
+    return false;
+}
+
+bool Esp32Music::StopSong() {
+    ESP_LOGI(TAG, "StopSong called");
+    return StopStreaming();
+}
+
+bool Esp32Music::PauseSong() {
+    ESP_LOGI(TAG, "PauseSong called");
+    
+    // 检查是否正在播放
+    if (!is_playing_) {
+        ESP_LOGW(TAG, "No music is currently playing");
+        return false;
+    }
+    
+    // 检查是否已经暂停
+    if (is_paused_) {
+        ESP_LOGW(TAG, "Music is already paused");
+        return true;
+    }
+    
+    // 设置暂停标志
+    is_paused_ = true;
+    ESP_LOGI(TAG, "Music playback paused");
+    
+    // 更新显示状态
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    if (display && !current_song_name_.empty()) {
+        std::string formatted_song_name = "《" + current_song_name_ + "》已暂停";
+        display->SetMusicInfo(formatted_song_name.c_str());
+        ESP_LOGI(TAG, "Updated display: %s", formatted_song_name.c_str());
+    }
+    
+    return true;
+}
+
+bool Esp32Music::ResumeSong() {
+    ESP_LOGI(TAG, "ResumeSong called");
+    
+    // 检查是否正在播放
+    if (!is_playing_) {
+        ESP_LOGW(TAG, "No music is currently playing");
+        return false;
+    }
+    
+    // 检查是否已经恢复
+    if (!is_paused_) {
+        ESP_LOGW(TAG, "Music is not paused");
+        return true;
+    }
+    
+    // 清除暂停标志
+    is_paused_ = false;
+    ESP_LOGI(TAG, "Music playback resumed");
+    
+    // 更新显示状态
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    if (display && !current_song_name_.empty()) {
+        std::string formatted_song_name = "《" + current_song_name_ + "》播放中...";
+        display->SetMusicInfo(formatted_song_name.c_str());
+        ESP_LOGI(TAG, "Updated display: %s", formatted_song_name.c_str());
+    }
+    
+    return true;
 }
