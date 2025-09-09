@@ -36,11 +36,16 @@ AfeWakeWord::~AfeWakeWord() {
     vEventGroupDelete(event_group_);
 }
 
-bool AfeWakeWord::Initialize(AudioCodec* codec) {
+bool AfeWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
     codec_ = codec;
     int ref_num = codec_->input_reference() ? 1 : 0;
 
-    models_ = esp_srmodel_init("model");
+    if (models_list == nullptr) {
+        models_ = esp_srmodel_init("model");
+    } else {
+        models_ = models_list;
+    }
+
     if (models_ == nullptr || models_->num == -1) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
         return false;
@@ -111,7 +116,7 @@ size_t AfeWakeWord::GetFeedSize() {
     if (afe_data_ == nullptr) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    return afe_iface_->get_feed_chunksize(afe_data_);
 }
 
 void AfeWakeWord::AudioDetectionTask() {

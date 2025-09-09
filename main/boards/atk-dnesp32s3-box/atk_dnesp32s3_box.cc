@@ -20,10 +20,6 @@
 
 #define TAG "atk_dnesp32s3_box"
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
-
 class ATK_NoAudioCodecDuplex : public NoAudioCodec {
 public:
     ATK_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
@@ -83,7 +79,6 @@ public:
         ESP_LOGI(TAG, "Duplex channels created");
     }
 };
-
 
 class XL9555_IN : public I2cDevice {
 public:
@@ -243,16 +238,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                            .emoji_font = font_emoji_32_init(),
-                                        #else
-                                            .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-                                        #endif
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {

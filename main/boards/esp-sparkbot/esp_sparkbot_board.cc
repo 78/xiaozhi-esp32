@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -19,9 +18,6 @@
 #include "esp32_camera.h"
 
 #define TAG "esp_sparkbot"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class SparkBotEs8311AudioCodec : public Es8311AudioCodec {
 private:    
@@ -121,12 +117,7 @@ private:
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeCamera() {

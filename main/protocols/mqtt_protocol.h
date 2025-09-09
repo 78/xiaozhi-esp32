@@ -9,6 +9,7 @@
 #include <mbedtls/aes.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
+#include <esp_timer.h>
 
 #include <functional>
 #include <string>
@@ -16,7 +17,7 @@
 #include <mutex>
 
 #define MQTT_PING_INTERVAL_SECONDS 90
-#define MQTT_RECONNECT_INTERVAL_MS 10000
+#define MQTT_RECONNECT_INTERVAL_MS 60000
 
 #define MQTT_PROTOCOL_SERVER_HELLO_EVENT (1 << 0)
 
@@ -45,6 +46,7 @@ private:
     int udp_port_;
     uint32_t local_sequence_;
     uint32_t remote_sequence_;
+    esp_timer_handle_t reconnect_timer_;
 
     bool StartMqttClient(bool report_error=false);
     void ParseServerHello(const cJSON* root);

@@ -6,6 +6,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 
+
 class OledDisplay : public Display {
 private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -17,8 +18,7 @@ private:
     lv_obj_t* content_right_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
-
-    DisplayFonts fonts_;
+    DisplayStyle style_;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -27,8 +27,7 @@ private:
     void SetupUI_128x32();
 
 public:
-    OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y,
-                DisplayFonts fonts);
+    OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
     ~OledDisplay();
 
     virtual void SetChatMessage(const char* role, const char* content) override;

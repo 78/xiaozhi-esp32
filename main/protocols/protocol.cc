@@ -24,6 +24,14 @@ void Protocol::OnNetworkError(std::function<void(const std::string& message)> ca
     on_network_error_ = callback;
 }
 
+void Protocol::OnConnected(std::function<void()> callback) {
+    on_connected_ = callback;
+}
+
+void Protocol::OnDisconnected(std::function<void()> callback) {
+    on_disconnected_ = callback;
+}
+
 void Protocol::SetError(const std::string& message) {
     error_occurred_ = true;
     if (on_network_error_ != nullptr) {

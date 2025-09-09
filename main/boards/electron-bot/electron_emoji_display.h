@@ -23,7 +23,7 @@ public:
      */
     ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                          int width, int height, int offset_x, int offset_y, bool mirror_x,
-                         bool mirror_y, bool swap_xy, DisplayFonts fonts);
+                         bool mirror_y, bool swap_xy);
 
     virtual ~ElectronEmojiDisplay() = default;
 
@@ -32,9 +32,6 @@ public:
 
     // 重写聊天消息设置方法
     virtual void SetChatMessage(const char* role, const char* content) override;
-
-    // 重写图标设置方法
-    virtual void SetIcon(const char* icon) override;
 
 private:
     void SetupGifContainer();

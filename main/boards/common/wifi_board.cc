@@ -3,7 +3,6 @@
 #include "display.h"
 #include "application.h"
 #include "system_info.h"
-#include "font_awesome_symbols.h"
 #include "settings.h"
 #include "assets/lang_config.h"
 
@@ -12,6 +11,7 @@
 #include <esp_network.h>
 #include <esp_log.h>
 
+#include <font_awesome.h>
 #include <wifi_station.h>
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
@@ -49,7 +49,7 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::P3_WIFICONFIG);
+    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
@@ -64,9 +64,6 @@ void WifiBoard::EnterWifiConfigMode() {
     
     // Wait forever until reset after configuration
     while (true) {
-        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-        int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
-        ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
@@ -127,7 +124,7 @@ const char* WifiBoard::GetNetworkStateIcon() {
     }
     auto& wifi_station = WifiStation::GetInstance();
     if (!wifi_station.IsConnected()) {
-        return FONT_AWESOME_WIFI_OFF;
+        return FONT_AWESOME_WIFI_SLASH;
     }
     int8_t rssi = wifi_station.GetRssi();
     if (rssi >= -60) {

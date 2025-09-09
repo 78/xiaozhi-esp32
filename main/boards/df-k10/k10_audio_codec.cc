@@ -41,7 +41,6 @@ K10AudioCodec::K10AudioCodec(void* i2c_master_handle, int input_sample_rate, int
     const audio_codec_if_t *in_codec_if_ = es7243e_codec_new(&es7243e_cfg);
     assert(in_codec_if_ != NULL);
 
-
     esp_codec_dev_cfg_t codec_es7243e_dev_cfg = {
         .dev_type = ESP_CODEC_DEV_TYPE_IN,
         .codec_if = in_codec_if_,

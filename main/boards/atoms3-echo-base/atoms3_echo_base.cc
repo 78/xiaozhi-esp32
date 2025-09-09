@@ -16,9 +16,6 @@
 
 #define TAG "AtomS3+EchoBase"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
     {0xfe, (uint8_t[]){0x00}, 0, 0},
@@ -111,7 +108,7 @@ private:
         InitializeButtons();
         GetBacklight()->SetBrightness(100);
         display_->SetStatus(Lang::Strings::ERROR);
-        display_->SetEmotion("sad");
+        display_->SetEmotion("triangle_exclamation");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {
@@ -176,14 +173,8 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
-
         display_ = new SpiLcdDisplay(io_handle, panel_handle,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-            {
-                .text_font = &font_puhui_16_4,
-                .icon_font = &font_awesome_16_4,
-                .emoji_font = font_emoji_32_init(),
-            });
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         }
 
     void InitializeButtons() {

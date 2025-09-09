@@ -12,11 +12,33 @@
 
 MqttProtocol::MqttProtocol() {
     event_group_handle_ = xEventGroupCreate();
+
+    // Initialize reconnect timer
+    esp_timer_create_args_t reconnect_timer_args = {
+        .callback = [](void* arg) {
+            MqttProtocol* protocol = (MqttProtocol*)arg;
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                ESP_LOGI(TAG, "Reconnecting to MQTT server");
+                app.Schedule([protocol]() {
+                    protocol->StartMqttClient(false);
+                });
+            }
+        },
+        .arg = this,
+    };
+    esp_timer_create(&reconnect_timer_args, &reconnect_timer_);
 }
 
 MqttProtocol::~MqttProtocol() {
     ESP_LOGI(TAG, "MqttProtocol deinit");
-    vEventGroupDelete(event_group_handle_);
+    if (reconnect_timer_ != nullptr) {
+        esp_timer_stop(reconnect_timer_);
+        esp_timer_delete(reconnect_timer_);
+    }
+    if (event_group_handle_ != nullptr) {
+        vEventGroupDelete(event_group_handle_);
+    }
 }
 
 bool MqttProtocol::Start() {
@@ -50,7 +72,18 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     mqtt_->SetKeepAlive(keepalive_interval);
 
     mqtt_->OnDisconnected([this]() {
-        ESP_LOGI(TAG, "Disconnected from endpoint");
+        if (on_disconnected_ != nullptr) {
+            on_disconnected_();
+        }
+        ESP_LOGI(TAG, "MQTT disconnected, schedule reconnect in %d seconds", MQTT_RECONNECT_INTERVAL_MS / 1000);
+        esp_timer_start_once(reconnect_timer_, MQTT_RECONNECT_INTERVAL_MS * 1000);
+    });
+
+    mqtt_->OnConnected([this]() {
+        if (on_connected_ != nullptr) {
+            on_connected_();
+        }
+        esp_timer_stop(reconnect_timer_);
     });
 
     mqtt_->OnMessage([this](const std::string& topic, const std::string& payload) {

@@ -18,11 +18,7 @@
 #include "power_manager.h"
 // #include <esp_sleep.h> 
 
-
 #define TAG "SURFERC3114TFT"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class SurferC3114TFT : public WifiBoard {
 private:
@@ -146,12 +142,7 @@ private:
         esp_lcd_panel_swap_xy(panel_, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io_, panel_,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:

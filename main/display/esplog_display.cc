@@ -31,11 +31,6 @@ void EspLogDisplay::SetEmotion(const char* emotion)
     ESP_LOGW(TAG, "SetEmotion: %s", emotion);
 }
 
-void EspLogDisplay::SetIcon(const char* icon)
-{
-    ESP_LOGW(TAG, "SetIcon: %s", icon);
-}
-
 void EspLogDisplay::SetChatMessage(const char* role, const char* content)
 {
     ESP_LOGW(TAG, "Role:%s", role);

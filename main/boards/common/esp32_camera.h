@@ -19,7 +19,6 @@ struct JpegChunk {
 class Esp32Camera : public Camera {
 private:
     camera_fb_t* fb_ = nullptr;
-    lv_img_dsc_t preview_image_;
     std::string explain_url_;
     std::string explain_token_;
     std::thread encoder_thread_;

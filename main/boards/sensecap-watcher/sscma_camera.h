@@ -32,7 +32,7 @@ private:
     sscma_client_handle_t sscma_client_handle_;
     QueueHandle_t sscma_data_queue_;
     JpegData jpeg_data_;
-    jpeg_dec_handle_t *jpeg_dec_;
+    jpeg_dec_handle_t jpeg_dec_;
     jpeg_dec_io_t *jpeg_io_;
     jpeg_dec_header_info_t *jpeg_out_;
 public:

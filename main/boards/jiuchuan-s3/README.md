@@ -13,7 +13,7 @@
 4. 点击 VSCode 右下角提示，生成 [compile_commands.json] 文件；
 5. 设置目标设备为 `[esp32s3] -> [JTAG]`；
 6. 打开 **SDK Configuration Editor**；
-7. 配置自定义分区表路径为：`partitions/v1/16m.csv`；
+7. 配置自定义分区表路径为：`partitions/v2/16m.csv`；
 8. 设置 **Board Type** 为 **九川科技**；
 9. 保存配置并开始编译。
 

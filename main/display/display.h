@@ -1,6 +1,8 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#include "emoji_collection.h"
+
 #include <lvgl.h>
 #include <esp_timer.h>
 #include <esp_log.h>
@@ -9,10 +11,11 @@
 #include <string>
 #include <chrono>
 
-struct DisplayFonts {
-    const lv_font_t* text_font = nullptr;
-    const lv_font_t* icon_font = nullptr;
-    const lv_font_t* emoji_font = nullptr;
+
+struct DisplayStyle {
+    const lv_font_t* text_font;
+    const lv_font_t* icon_font;
+    EmojiCollection* emoji_collection;
 };
 
 class Display {
@@ -25,11 +28,11 @@ public:
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
-    virtual void SetIcon(const char* icon);
     virtual void SetPreviewImage(const lv_img_dsc_t* image);
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
     virtual void UpdateStatusBar(bool update_all = false);
+    virtual void UpdateStyle(const DisplayStyle& style);
     virtual void SetPowerSaveMode(bool on);
 
     inline int width() const { return width_; }
@@ -56,6 +59,7 @@ protected:
     const char* network_icon_ = nullptr;
     bool muted_ = false;
     std::string current_theme_name_;
+    DisplayStyle style_;
 
     std::chrono::system_clock::time_point last_status_update_time_;
     esp_timer_handle_t notification_timer_ = nullptr;

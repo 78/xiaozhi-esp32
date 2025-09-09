@@ -60,6 +60,8 @@ public:
     void OnAudioChannelOpened(std::function<void()> callback);
     void OnAudioChannelClosed(std::function<void()> callback);
     void OnNetworkError(std::function<void(const std::string& message)> callback);
+    void OnConnected(std::function<void()> callback);
+    void OnDisconnected(std::function<void()> callback);
 
     virtual bool Start() = 0;
     virtual bool OpenAudioChannel() = 0;
@@ -78,6 +80,8 @@ protected:
     std::function<void()> on_audio_channel_opened_;
     std::function<void()> on_audio_channel_closed_;
     std::function<void(const std::string& message)> on_network_error_;
+    std::function<void()> on_connected_;
+    std::function<void()> on_disconnected_;
 
     int server_sample_rate_ = 24000;
     int server_frame_duration_ = 60;

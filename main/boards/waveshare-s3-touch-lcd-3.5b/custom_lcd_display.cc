@@ -1,26 +1,21 @@
-#include "custom_lcd_display.h"
 
+#include "config.h"
+#include "custom_lcd_display.h"
 #include "lcd_display.h"
+#include "assets/lang_config.h"
+#include "settings.h"
+#include "board.h"
 
 #include <vector>
-#include <font_awesome_symbols.h>
+#include <cstring>
+
+#include <esp_lcd_panel_io.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
-#include "assets/lang_config.h"
-#include <cstring>
-#include "settings.h"
-
-#include "esp_lcd_panel_io.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-
-#include "config.h"
-
-#include "board.h"
-
 
 #define TAG "CustomLcdDisplay"
 
@@ -45,7 +40,6 @@
 #define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
 #define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
 #define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
-
 
 // Define dark theme colors
 static const ThemeColors DARK_THEME = {
@@ -81,8 +75,6 @@ static uint16_t *trans_act;
 static uint16_t *trans_buf_1;
 static uint16_t *trans_buf_2;
 
-
-
 bool CustomLcdDisplay::lvgl_port_flush_io_ready_callback(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
     BaseType_t taskAwake = pdFALSE;
@@ -99,7 +91,6 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     assert(drv != NULL);
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)lv_display_get_driver_data(drv);
     assert(panel_handle != NULL);
-
 
     size_t len = lv_area_get_size(area);
     lv_draw_sw_rgb565_swap(color_map, len);
@@ -250,11 +241,9 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     lv_disp_flush_ready(drv);
 }
 
-
 CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+    : LcdDisplay(panel_io, panel, width, height) {
     //     width_ = width;
     // height_ = height;
 

@@ -4,9 +4,7 @@
 #include <driver/i2c.h>
 #include <driver/i2s_tdm.h>
 
-
 #define TAG "Tab5AudioCodec"
-
 
 Tab5AudioCodec::Tab5AudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
@@ -66,7 +64,7 @@ Tab5AudioCodec::Tab5AudioCodec(void* i2c_master_handle, int input_sample_rate, i
 
     es7210_codec_cfg_t es7210_cfg = {};
     es7210_cfg.ctrl_if = in_ctrl_if_;
-    es7210_cfg.mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3 | ES7120_SEL_MIC4;
+    es7210_cfg.mic_selected = ES7210_SEL_MIC1 | ES7210_SEL_MIC2 | ES7210_SEL_MIC3 | ES7210_SEL_MIC4;
     in_codec_if_ = es7210_codec_new(&es7210_cfg);
     assert(in_codec_if_ != NULL);
 

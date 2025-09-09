@@ -11,6 +11,7 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 #include <esp_timer.h>
+#include <model_path.h>
 
 #include <opus_encoder.h>
 #include <opus_decoder.h>
@@ -106,6 +107,7 @@ public:
     void PlaySound(const std::string_view& sound);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
+    void SetModelsList(srmodel_list_t* models_list);
 
 private:
     AudioCodec* codec_ = nullptr;
@@ -119,6 +121,7 @@ private:
     OpusResampler reference_resampler_;
     OpusResampler output_resampler_;
     DebugStatistics debug_statistics_;
+    srmodel_list_t* models_list_ = nullptr;
 
     EventGroupHandle_t event_group_;
 
