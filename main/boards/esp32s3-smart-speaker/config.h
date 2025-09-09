@@ -12,7 +12,7 @@
 // 扬声器I2S配置
 #define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // 扬声器Word Select
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // 扬声器Bit Clock
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_40  // 扬声器数据输出（避开 35/36/37，改用 GPIO40）
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出
 
 // MCLK（主时钟）— 若使用 ES8311 外部主时钟，请连接此脚
 // 默认给到 GPIO14，可按硬件改动
@@ -25,13 +25,14 @@
 // ES8311音频编解码器配置
 #define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_8
 #define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_18
+#define ES8311_CODEC_DEFAULT_ADDR 0x18  // ES8311 I2C地址（7位）
 #define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
 
 // 用户交互
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_40
-#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_39
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_41
 
 // IMU传感器 (I2C接口)
 #define IMU_I2C_SDA_PIN         GPIO_NUM_21
@@ -39,8 +40,7 @@
 #define IMU_INT_PIN             GPIO_NUM_13
 
 // 压感传感器 (ADC接口)
-#define PRESSURE_SENSOR_ADC_CHANNEL ADC_CHANNEL_3  // GPIO4
-#define PRESSURE_SENSOR_GPIO       GPIO_NUM_4
+#define PRESSURE_SENSOR_ADC_CHANNEL ADC_CHANNEL_3  // GPIO4 (ADC1_CHANNEL_3)
 
 // 功能IO定义
 // LED控制
