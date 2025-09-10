@@ -15,72 +15,13 @@
 #define TAG "Display"
 
 Display::Display() {
-    // Notification timer
-    esp_timer_create_args_t notification_timer_args = {
-        .callback = [](void *arg) {
-            Display *display = static_cast<Display*>(arg);
-            DisplayLockGuard lock(display);
-            lv_obj_add_flag(display->notification_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(display->status_label_, LV_OBJ_FLAG_HIDDEN);
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "notification_timer",
-        .skip_unhandled_events = false,
-    };
-    ESP_ERROR_CHECK(esp_timer_create(&notification_timer_args, &notification_timer_));
-
-    // Create a power management lock
-    auto ret = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "display_update", &pm_lock_);
-    if (ret == ESP_ERR_NOT_SUPPORTED) {
-        ESP_LOGI(TAG, "Power management not supported");
-    } else {
-        ESP_ERROR_CHECK(ret);
-    }
 }
 
 Display::~Display() {
-    if (notification_timer_ != nullptr) {
-        esp_timer_stop(notification_timer_);
-        esp_timer_delete(notification_timer_);
-    }
-
-    if (network_label_ != nullptr) {
-        lv_obj_del(network_label_);
-    }
-    if (notification_label_ != nullptr) {
-        lv_obj_del(notification_label_);
-    }
-    if (status_label_ != nullptr) {
-        lv_obj_del(status_label_);
-    }
-    if (mute_label_ != nullptr) {
-        lv_obj_del(mute_label_);
-    }
-    if (battery_label_ != nullptr) {
-        lv_obj_del(battery_label_);
-    }
-    if (emotion_label_ != nullptr) {
-        lv_obj_del(emotion_label_);
-    }
-    if( low_battery_popup_ != nullptr ) {
-        lv_obj_del(low_battery_popup_);
-    }
-    if (pm_lock_ != nullptr) {
-        esp_pm_lock_delete(pm_lock_);
-    }
 }
 
 void Display::SetStatus(const char* status) {
-    DisplayLockGuard lock(this);
-    if (status_label_ == nullptr) {
-        return;
-    }
-    lv_label_set_text(status_label_, status);
-    lv_obj_remove_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
-
-    last_status_update_time_ = std::chrono::system_clock::now();
+    ESP_LOGW(TAG, "SetStatus: %s", status);
 }
 
 void Display::ShowNotification(const std::string &notification, int duration_ms) {
@@ -88,134 +29,15 @@ void Display::ShowNotification(const std::string &notification, int duration_ms)
 }
 
 void Display::ShowNotification(const char* notification, int duration_ms) {
-    DisplayLockGuard lock(this);
-    if (notification_label_ == nullptr) {
-        return;
-    }
-    lv_label_set_text(notification_label_, notification);
-    lv_obj_remove_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
-
-    esp_timer_stop(notification_timer_);
-    ESP_ERROR_CHECK(esp_timer_start_once(notification_timer_, duration_ms * 1000));
+    ESP_LOGW(TAG, "ShowNotification: %s", notification);
 }
 
 void Display::UpdateStatusBar(bool update_all) {
-    auto& app = Application::GetInstance();
-    auto& board = Board::GetInstance();
-    auto codec = board.GetAudioCodec();
-
-    // Update mute icon
-    {
-        DisplayLockGuard lock(this);
-        if (mute_label_ == nullptr) {
-            return;
-        }
-
-        // 如果静音状态改变，则更新图标
-        if (codec->output_volume() == 0 && !muted_) {
-            muted_ = true;
-            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_XMARK);
-        } else if (codec->output_volume() > 0 && muted_) {
-            muted_ = false;
-            lv_label_set_text(mute_label_, "");
-        }
-    }
-
-    // Update time
-    if (app.GetDeviceState() == kDeviceStateIdle) {
-        if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
-            // Set status to clock "HH:MM"
-            time_t now = time(NULL);
-            struct tm* tm = localtime(&now);
-            // Check if the we have already set the time
-            if (tm->tm_year >= 2025 - 1900) {
-                char time_str[16];
-                strftime(time_str, sizeof(time_str), "%H:%M  ", tm);
-                SetStatus(time_str);
-            } else {
-                ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
-            }
-        }
-    }
-
-    esp_pm_lock_acquire(pm_lock_);
-    // 更新电池图标
-    int battery_level;
-    bool charging, discharging;
-    const char* icon = nullptr;
-    if (board.GetBatteryLevel(battery_level, charging, discharging)) {
-        if (charging) {
-            icon = FONT_AWESOME_BATTERY_BOLT;
-        } else {
-            const char* levels[] = {
-                FONT_AWESOME_BATTERY_EMPTY, // 0-19%
-                FONT_AWESOME_BATTERY_QUARTER,    // 20-39%
-                FONT_AWESOME_BATTERY_HALF,    // 40-59%
-                FONT_AWESOME_BATTERY_THREE_QUARTERS,    // 60-79%
-                FONT_AWESOME_BATTERY_FULL, // 80-99%
-                FONT_AWESOME_BATTERY_FULL, // 100%
-            };
-            icon = levels[battery_level / 20];
-        }
-        DisplayLockGuard lock(this);
-        if (battery_label_ != nullptr && battery_icon_ != icon) {
-            battery_icon_ = icon;
-            lv_label_set_text(battery_label_, battery_icon_);
-        }
-
-        if (low_battery_popup_ != nullptr) {
-            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
-                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
-                    lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                }
-            } else {
-                // Hide the low battery popup when the battery is not empty
-                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
-                    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                }
-            }
-        }
-    }
-
-    // 每 10 秒更新一次网络图标
-    static int seconds_counter = 0;
-    if (update_all || seconds_counter++ % 10 == 0) {
-        // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
-        auto device_state = Application::GetInstance().GetDeviceState();
-        static const std::vector<DeviceState> allowed_states = {
-            kDeviceStateIdle,
-            kDeviceStateStarting,
-            kDeviceStateWifiConfiguring,
-            kDeviceStateListening,
-            kDeviceStateActivating,
-        };
-        if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end()) {
-            icon = board.GetNetworkStateIcon();
-            if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon) {
-                DisplayLockGuard lock(this);
-                network_icon_ = icon;
-                lv_label_set_text(network_label_, network_icon_);
-            }
-        }
-    }
-
-    esp_pm_lock_release(pm_lock_);
 }
 
 
 void Display::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    if (utf8 != nullptr) {
-        lv_label_set_text(emotion_label_, utf8);
-    } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
-    }
+    ESP_LOGW(TAG, "SetEmotion: %s", emotion);
 }
 
 void Display::SetPreviewImage(const lv_img_dsc_t* image) {
@@ -227,37 +49,12 @@ void Display::SetPreviewImage(const lv_img_dsc_t* image) {
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {
-    DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
-        return;
-    }
-    lv_label_set_text(chat_message_label_, content);
+    ESP_LOGW(TAG, "Role:%s", role);
+    ESP_LOGW(TAG, "     %s", content);
 }
 
-void Display::SetTheme(const std::string& theme_name) {
-    current_theme_name_ = theme_name;
-    Settings settings("display", true);
-    settings.SetString("theme", theme_name);
+void Display::SetTheme(Theme* theme) {
 }
 
 void Display::SetPowerSaveMode(bool on) {
-    if (on) {
-        SetChatMessage("system", "");
-        SetEmotion("sleepy");
-    } else {
-        SetChatMessage("system", "");
-        SetEmotion("neutral");
-    }
-}
-
-void Display::UpdateStyle(const DisplayStyle& style) {
-    DisplayLockGuard lock(this);
-    if (style.text_font != nullptr) {
-        lv_obj_set_style_text_font(lv_screen_active(), style.text_font, 0);
-        style_.text_font = style.text_font;
-    }
-    if (style.emoji_collection != nullptr) {
-        delete style_.emoji_collection;
-        style_.emoji_collection = style.emoji_collection;
-    }
 }

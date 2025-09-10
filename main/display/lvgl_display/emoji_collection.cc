@@ -122,14 +122,14 @@ const lv_img_dsc_t* Twemoji64::GetEmojiImage(const char* name) const {
 }
 
 
-void CustomEmojiCollection::AddEmoji(const std::string& name, lv_img_dsc_t* image) {
+void CustomEmojiCollection::AddEmoji(const std::string& name, LvglImage* image) {
     emoji_collection_[name] = image;
 }
 
 const lv_img_dsc_t* CustomEmojiCollection::GetEmojiImage(const char* name) const {
     auto it = emoji_collection_.find(name);
     if (it != emoji_collection_.end()) {
-        return it->second;
+        return it->second->image_dsc();
     }
 
     ESP_LOGW(TAG, "Emoji not found: %s", name);

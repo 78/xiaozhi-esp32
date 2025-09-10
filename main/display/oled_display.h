@@ -1,13 +1,13 @@
 #ifndef OLED_DISPLAY_H
 #define OLED_DISPLAY_H
 
-#include "display.h"
+#include "lvgl_display.h"
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 
 
-class OledDisplay : public Display {
+class OledDisplay : public LvglDisplay {
 private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
@@ -18,7 +18,8 @@ private:
     lv_obj_t* content_right_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
-    DisplayStyle style_;
+    const lv_font_t* text_font_ = nullptr;
+    const lv_font_t* icon_font_ = nullptr;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;

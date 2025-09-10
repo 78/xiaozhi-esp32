@@ -1,4 +1,5 @@
 #include "electron_emoji_display.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include <font_awesome.h>
@@ -105,7 +106,11 @@ void ElectronEmojiDisplay::SetupGifContainer() {
 
     lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    LcdDisplay::SetTheme("dark");
+    auto& theme_manager = LvglThemeManager::GetInstance();
+    auto theme = theme_manager.GetTheme("dark");
+    if (theme != nullptr) {
+        LcdDisplay::SetTheme(theme);
+    }
 }
 
 void ElectronEmojiDisplay::SetEmotion(const char* emotion) {

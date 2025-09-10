@@ -50,7 +50,11 @@ set(SOURCES "audio/audio_codec.cc"
             "display/display.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
-            "display/emoji_collection.cc"
+            "display/lvgl_display/lvgl_display.cc"
+            "display/lvgl_display/emoji_collection.cc"
+            "display/lvgl_display/lvgl_theme.cc"
+            "display/lvgl_display/lvgl_font.cc"
+            "display/lvgl_display/lvgl_image.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -64,7 +68,7 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "audio" "protocols")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)

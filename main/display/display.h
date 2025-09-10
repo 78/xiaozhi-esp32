@@ -11,11 +11,14 @@
 #include <string>
 #include <chrono>
 
+class Theme {
+public:
+    Theme(const std::string& name) : name_(name) {}
+    virtual ~Theme() = default;
 
-struct DisplayStyle {
-    const lv_font_t* text_font;
-    const lv_font_t* icon_font;
-    EmojiCollection* emoji_collection;
+    inline std::string name() const { return name_; }
+private:
+    std::string name_;
 };
 
 class Display {
@@ -29,10 +32,9 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void SetPreviewImage(const lv_img_dsc_t* image);
-    virtual void SetTheme(const std::string& theme_name);
-    virtual std::string GetTheme() { return current_theme_name_; }
+    virtual void SetTheme(Theme* theme);
+    virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
-    virtual void UpdateStyle(const DisplayStyle& style);
     virtual void SetPowerSaveMode(bool on);
 
     inline int width() const { return width_; }
@@ -41,28 +43,8 @@ public:
 protected:
     int width_ = 0;
     int height_ = 0;
-    
-    esp_pm_lock_handle_t pm_lock_ = nullptr;
-    lv_display_t *display_ = nullptr;
 
-    lv_obj_t *emotion_label_ = nullptr;
-    lv_obj_t *network_label_ = nullptr;
-    lv_obj_t *status_label_ = nullptr;
-    lv_obj_t *notification_label_ = nullptr;
-    lv_obj_t *mute_label_ = nullptr;
-    lv_obj_t *battery_label_ = nullptr;
-    lv_obj_t* chat_message_label_ = nullptr;
-    lv_obj_t* low_battery_popup_ = nullptr;
-    lv_obj_t* low_battery_label_ = nullptr;
-    
-    const char* battery_icon_ = nullptr;
-    const char* network_icon_ = nullptr;
-    bool muted_ = false;
-    std::string current_theme_name_;
-    DisplayStyle style_;
-
-    std::chrono::system_clock::time_point last_status_update_time_;
-    esp_timer_handle_t notification_timer_ = nullptr;
+    Theme* current_theme_ = nullptr;
 
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;

@@ -153,7 +153,10 @@ std::string Ml307Board::GetDeviceStatusJson() {
     }
     auto display = board.GetDisplay();
     if (display && display->height() > 64) { // For LCD display only
-        cJSON_AddStringToObject(screen, "theme", display->GetTheme().c_str());
+        auto theme = display->GetTheme();
+        if (theme != nullptr) {
+            cJSON_AddStringToObject(screen, "theme", theme->name().c_str());
+        }
     }
     cJSON_AddItemToObject(root, "screen", screen);
 

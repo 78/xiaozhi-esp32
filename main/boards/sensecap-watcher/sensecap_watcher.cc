@@ -46,7 +46,11 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
     
             DisplayLockGuard lock(this);
-            lv_obj_set_size(status_bar_, LV_HOR_RES, style_.text_font->line_height * 2 + 10);
+            auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+            auto text_font = lvgl_theme->text_font()->font();
+            auto icon_font = lvgl_theme->icon_font()->font();
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
@@ -54,9 +58,9 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             // 针对圆形屏幕调整位置
             //      network  battery  mute     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * style_.icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * style_.icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * style_.icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);

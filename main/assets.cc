@@ -2,6 +2,7 @@
 #include "board.h"
 #include "display.h"
 #include "application.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
@@ -32,12 +33,6 @@ Assets::Assets(std::string default_assets_url) {
 }
 
 Assets::~Assets() {
-    if (custom_emoji_collection_ != nullptr) {
-        delete custom_emoji_collection_;
-    }
-    if (text_font_) {
-        cbin_font_delete(text_font_);
-    }
     if (mmap_handle_ != 0) {
         esp_partition_munmap(mmap_handle_);
     }
@@ -111,6 +106,17 @@ bool Assets::InitializePartition() {
     return checksum_valid_;
 }
 
+lv_color_t Assets::ParseColor(const std::string& color) {
+    if (color.find("#") == 0) {
+        // Convert #112233 to lv_color_t
+        uint8_t r = strtol(color.substr(1, 2).c_str(), nullptr, 16);
+        uint8_t g = strtol(color.substr(3, 2).c_str(), nullptr, 16);
+        uint8_t b = strtol(color.substr(5, 2).c_str(), nullptr, 16);
+        return lv_color_make(r, g, b);
+    }
+    return lv_color_black();
+}
+
 bool Assets::Apply() {
     void* ptr = nullptr;
     size_t size = 0;
@@ -122,6 +128,14 @@ bool Assets::Apply() {
     if (root == nullptr) {
         ESP_LOGE(TAG, "The index.json file is not valid");
         return false;
+    }
+
+    cJSON* version = cJSON_GetObjectItem(root, "version");
+    if (cJSON_IsNumber(version)) {
+        if (version->valuedouble > 1) {
+            ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware", version->valueint);
+            return false;
+        }
     }
     
     cJSON* srmodels = cJSON_GetObjectItem(root, "srmodels");
@@ -144,17 +158,21 @@ bool Assets::Apply() {
         }
     }
 
+    auto& theme_manager = LvglThemeManager::GetInstance();
+    auto light_theme = theme_manager.GetTheme("light");
+    auto dark_theme = theme_manager.GetTheme("dark");
+
     cJSON* font = cJSON_GetObjectItem(root, "text_font");
     if (cJSON_IsString(font)) {
         std::string fonts_text_file = font->valuestring;
         if (GetAssetData(fonts_text_file, ptr, size)) {
-            if (text_font_ != nullptr) {
-                cbin_font_delete(text_font_);
-            }
-            text_font_ = cbin_font_create(static_cast<uint8_t*>(ptr));
-            if (text_font_ == nullptr) {
+            auto text_font = std::make_shared<LvglCBinFont>(ptr);
+            if (text_font->font() == nullptr) {
                 ESP_LOGE(TAG, "Failed to load fonts.bin");
+                return false;
             }
+            light_theme->set_text_font(text_font);
+            dark_theme->set_text_font(text_font);
         } else {
             ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
         }
@@ -162,10 +180,7 @@ bool Assets::Apply() {
 
     cJSON* emoji_collection = cJSON_GetObjectItem(root, "emoji_collection");
     if (cJSON_IsArray(emoji_collection)) {
-        if (custom_emoji_collection_ != nullptr) {
-            delete custom_emoji_collection_;
-        }
-        custom_emoji_collection_ = new CustomEmojiCollection();
+        auto custom_emoji_collection = std::make_shared<CustomEmojiCollection>();
         int emoji_count = cJSON_GetArraySize(emoji_collection);
         for (int i = 0; i < emoji_count; i++) {
             cJSON* emoji = cJSON_GetArrayItem(emoji_collection, i);
@@ -177,28 +192,63 @@ bool Assets::Apply() {
                         ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring, file->valuestring);
                         continue;
                     }
-                    auto img = new lv_img_dsc_t {
-                        .header = {
-                            .magic = LV_IMAGE_HEADER_MAGIC,
-                            .cf = LV_COLOR_FORMAT_RAW_ALPHA,
-                        },
-                        .data_size = size,
-                        .data = static_cast<uint8_t*>(ptr),
-                    };
-                    custom_emoji_collection_->AddEmoji(name->valuestring, img);
+                    custom_emoji_collection->AddEmoji(name->valuestring, new LvglRawImage(ptr, size));
                 }
+            }
+        }
+        light_theme->set_emoji_collection(custom_emoji_collection);
+        dark_theme->set_emoji_collection(custom_emoji_collection);
+    }
+
+    cJSON* skin = cJSON_GetObjectItem(root, "skin");
+    if (cJSON_IsObject(skin)) {
+        cJSON* light_skin = cJSON_GetObjectItem(skin, "light");
+        if (cJSON_IsObject(light_skin)) {
+            cJSON* text_color = cJSON_GetObjectItem(light_skin, "text_color");
+            cJSON* background_color = cJSON_GetObjectItem(light_skin, "background_color");
+            cJSON* background_image = cJSON_GetObjectItem(light_skin, "background_image");
+            if (cJSON_IsString(text_color)) {
+                light_theme->set_text_color(ParseColor(text_color->valuestring));
+            }
+            if (cJSON_IsString(background_color)) {
+                light_theme->set_background_color(ParseColor(background_color->valuestring));
+                light_theme->set_chat_background_color(ParseColor(background_color->valuestring));
+            }
+            if (cJSON_IsString(background_image)) {
+                if (!GetAssetData(background_image->valuestring, ptr, size)) {
+                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
+                    return false;
+                }
+                auto background_image = std::make_shared<LvglCBinImage>(ptr);
+                light_theme->set_background_image(background_image);
+            }
+        }
+        cJSON* dark_skin = cJSON_GetObjectItem(skin, "dark");
+        if (cJSON_IsObject(dark_skin)) {
+            cJSON* text_color = cJSON_GetObjectItem(dark_skin, "text_color");
+            cJSON* background_color = cJSON_GetObjectItem(dark_skin, "background_color");
+            cJSON* background_image = cJSON_GetObjectItem(dark_skin, "background_image");
+            if (cJSON_IsString(text_color)) {
+                dark_theme->set_text_color(ParseColor(text_color->valuestring));
+            }
+            if (cJSON_IsString(background_color)) {
+                dark_theme->set_background_color(ParseColor(background_color->valuestring));
+                dark_theme->set_chat_background_color(ParseColor(background_color->valuestring));
+            }
+            if (cJSON_IsString(background_image)) {
+                if (!GetAssetData(background_image->valuestring, ptr, size)) {
+                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
+                    return false;
+                }
+                auto background_image = std::make_shared<LvglCBinImage>(ptr);
+                dark_theme->set_background_image(background_image);
             }
         }
     }
     
     auto display = Board::GetInstance().GetDisplay();
-    ESP_LOGI(TAG, "Applying new assets to display");
-    display->UpdateStyle({
-        .text_font = text_font_,
-        .icon_font = nullptr,
-        .emoji_collection = custom_emoji_collection_,
-    });
-
+    ESP_LOGI(TAG, "Refreshing display theme...");
+    display->SetTheme(display->GetTheme());
     cJSON_Delete(root);
     return true;
 }

@@ -1,10 +1,13 @@
 #ifndef EMOJI_COLLECTION_H
 #define EMOJI_COLLECTION_H
 
+#include "lvgl_image.h"
+
 #include <lvgl.h>
 
 #include <map>
 #include <string>
+#include <memory>
 
 
 // Define interface for emoji collection
@@ -26,9 +29,10 @@ public:
 
 class CustomEmojiCollection : public EmojiCollection {
 private:
-    std::map<std::string, lv_img_dsc_t*> emoji_collection_;
+    std::map<std::string, LvglImage*> emoji_collection_;
+
 public:
-    void AddEmoji(const std::string& name, lv_img_dsc_t* image);
+    void AddEmoji(const std::string& name, LvglImage* image);
     virtual const lv_img_dsc_t* GetEmojiImage(const char* name) const override;
     virtual ~CustomEmojiCollection();
 };
