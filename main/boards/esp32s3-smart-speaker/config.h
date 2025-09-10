@@ -6,8 +6,8 @@
 // ESP32-S3 智能音箱开发板配置
 
 // 音频配置
-#define AUDIO_INPUT_SAMPLE_RATE  24000
-#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 // 扬声器I2S配置
 #define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // 扬声器Word Select

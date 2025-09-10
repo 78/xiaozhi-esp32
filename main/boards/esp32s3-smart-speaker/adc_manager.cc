@@ -115,7 +115,7 @@ void AdcManager::ReadPressureSensorData() {
     // 每隔5次打印一次详细日志（便于定位问题）
     static int adc_log_counter = 0;
     adc_log_counter++;
-    if (adc_log_counter >= 50) {
+    if (adc_log_counter >= 100) {
         ESP_LOGI(TAG, "ADC read: Raw=%d", adc_value);
         adc_log_counter = 0;
     }

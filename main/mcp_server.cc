@@ -117,7 +117,7 @@ void McpServer::AddCommonTools() {
 
 void McpServer::AddUserOnlyTools() {
     // System tools
-    AddUserOnlyTool("self.get_system_info",
+    AddTool("self.get_system_info",
         "Get the system information",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
@@ -125,7 +125,7 @@ void McpServer::AddUserOnlyTools() {
             return board.GetSystemInfoJson();
         });
 
-    AddUserOnlyTool("self.reboot", "Reboot the system",
+    AddTool("self.reboot", "Reboot the system",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
             std::thread([]() {
@@ -142,7 +142,7 @@ void McpServer::AddUserOnlyTools() {
         auto music = Board::GetInstance().GetMusic();
 
         // 播放指定歌曲（带歌曲名与可选歌手名）
-        AddUserOnlyTool("self.music.play_song",
+        AddTool("self.music.play_song",
             "播放指定的歌曲。当用户要求播放音乐时使用此工具，会自动获取歌曲详情并开始流式播放。\n"
             "参数:\n"
             "  `song_name`: 要播放的歌曲名称（必需）。\n"
@@ -164,7 +164,7 @@ void McpServer::AddUserOnlyTools() {
                 ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
                 return "{\"success\": true, \"message\": \"音乐开始播放\"}";
             });
-        AddUserOnlyTool("self.music.set_volume",
+        AddTool("self.music.set_volume",
             "Set music volume (0-100).",
             PropertyList({
                 Property("volume", kPropertyTypeInteger, 0, 100)
@@ -176,7 +176,7 @@ void McpServer::AddUserOnlyTools() {
             });
 
 
-        AddUserOnlyTool("self.music.play",
+        AddTool("self.music.play",
             "Play current music.",
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
@@ -185,7 +185,7 @@ void McpServer::AddUserOnlyTools() {
             });
 
         // 兼容更明确的命名：stop_song / pause_song / resume_song
-        AddUserOnlyTool("self.music.stop_song",
+        AddTool("self.music.stop_song",
             "Stop current song.",
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
@@ -193,7 +193,7 @@ void McpServer::AddUserOnlyTools() {
                 return ok;
             });
 
-        AddUserOnlyTool("self.music.pause_song",
+        AddTool("self.music.pause_song",
             "Pause current song.",
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
@@ -201,7 +201,7 @@ void McpServer::AddUserOnlyTools() {
                 return ok;
             });
 
-        AddUserOnlyTool("self.music.resume_song",
+        AddTool("self.music.resume_song",
             "Resume current song.",
             PropertyList(),
             [music](const PropertyList& properties) -> ReturnValue {
@@ -213,7 +213,7 @@ void McpServer::AddUserOnlyTools() {
     // Display control
     auto display = Board::GetInstance().GetDisplay();
     if (display) {
-        AddUserOnlyTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
+        AddTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
             PropertyList(),
             [display](const PropertyList& properties) -> ReturnValue {
                 cJSON *json = cJSON_CreateObject();
@@ -222,7 +222,7 @@ void McpServer::AddUserOnlyTools() {
                 return json;
             });
         
-        AddUserOnlyTool("self.screen.preview_image", "Preview an image on the screen",
+        AddTool("self.screen.preview_image", "Preview an image on the screen",
             PropertyList({
                 Property("url", kPropertyTypeString)
             }),
@@ -272,7 +272,7 @@ void McpServer::AddUserOnlyTools() {
     auto assets = Board::GetInstance().GetAssets();
     if (assets) {
         if (assets->partition_valid()) {
-            AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
+            AddTool("self.assets.set_download_url", "Set the download url for the assets",
                 PropertyList({
                     Property("url", kPropertyTypeString)
                 }),
@@ -288,7 +288,7 @@ void McpServer::AddUserOnlyTools() {
     // 日程管理工具
     auto& schedule_manager = SimpleScheduleManager::GetInstance();
     
-    AddUserOnlyTool("self.schedule.create_event",
+    AddTool("self.schedule.create_event",
         "创建新的日程事件。支持智能分类和提醒功能。\n"
         "参数:\n"
         "  `title`: 事件标题（必需）\n"
@@ -329,7 +329,7 @@ void McpServer::AddUserOnlyTools() {
             return "{\"success\": true, \"event_id\": \"" + event_id + "\", \"message\": \"事件创建成功\"}";
         });
 
-    AddUserOnlyTool("self.schedule.get_events",
+    AddTool("self.schedule.get_events",
         "获取所有日程事件。\n"
         "返回:\n"
         "  事件列表的JSON数组",
@@ -383,7 +383,7 @@ void McpServer::AddUserOnlyTools() {
     //         }
     //     });
 
-    AddUserOnlyTool("self.schedule.delete_event",
+    AddTool("self.schedule.delete_event",
         "删除日程事件。\n"
         "参数:\n"
         "  `event_id`: 要删除的事件ID（必需）\n"
@@ -404,7 +404,7 @@ void McpServer::AddUserOnlyTools() {
             }
         });
 
-    AddUserOnlyTool("self.schedule.get_statistics",
+    AddTool("self.schedule.get_statistics",
         "获取日程统计信息。\n"
         "返回:\n"
         "  统计信息的JSON对象",
@@ -422,7 +422,7 @@ void McpServer::AddUserOnlyTools() {
     // 定时任务工具
     auto& timer_manager = SimpleTimerManager::GetInstance();
     
-    AddUserOnlyTool("self.timer.create_countdown",
+    AddTool("self.timer.create_countdown",
         "创建倒计时器。\n"
         "参数:\n"
         "  `name`: 计时器名称（必需）\n"
@@ -445,7 +445,7 @@ void McpServer::AddUserOnlyTools() {
             return "{\"success\": true, \"timer_id\": \"" + timer_id + "\", \"message\": \"倒计时器创建成功\"}";
         });
 
-    AddUserOnlyTool("self.timer.create_delayed_task",
+    AddTool("self.timer.create_delayed_task",
         "创建延时执行MCP工具的任务。\n"
         "参数:\n"
         "  `name`: 任务名称（必需）\n"
@@ -476,7 +476,7 @@ void McpServer::AddUserOnlyTools() {
         });
 
 
-    AddUserOnlyTool("self.timer.start_task",
+    AddTool("self.timer.start_task",
         "启动定时任务。\n"
         "参数:\n"
         "  `task_id`: 任务ID（必需）\n"
@@ -497,7 +497,7 @@ void McpServer::AddUserOnlyTools() {
             }
         });
 
-    AddUserOnlyTool("self.timer.stop_task",
+    AddTool("self.timer.stop_task",
         "停止定时任务。\n"
         "参数:\n"
         "  `task_id`: 任务ID（必需）\n"
@@ -518,7 +518,7 @@ void McpServer::AddUserOnlyTools() {
             }
         });
 
-    AddUserOnlyTool("self.timer.get_tasks",
+    AddTool("self.timer.get_tasks",
         "获取所有定时任务列表。\n"
         "返回:\n"
         "  任务列表",
@@ -528,7 +528,7 @@ void McpServer::AddUserOnlyTools() {
             return json_str;
         });
 
-    AddUserOnlyTool("self.timer.get_statistics",
+    AddTool("self.timer.get_statistics",
         "获取定时任务统计信息。\n"
         "返回:\n"
         "  统计信息",
@@ -722,6 +722,7 @@ void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_o
         }
 
         if (!list_user_only_tools && (*it)->user_only()) {
+            ESP_LOGD(TAG, "Skipping user-only tool: %s", (*it)->name().c_str());
             ++it;
             continue;
         }

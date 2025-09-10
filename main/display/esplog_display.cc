@@ -2,7 +2,7 @@
 
 #include "esp_log.h"
 
-#define TAG "EspLogDisplay"
+#define TAG "Display2Log"
 
 
 EspLogDisplay::EspLogDisplay()
