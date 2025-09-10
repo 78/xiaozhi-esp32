@@ -999,6 +999,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     if (lvgl_theme->background_image() != nullptr) {
         lv_obj_set_style_bg_image_src(container_, lvgl_theme->background_image()->image_dsc(), 0);
     } else {
+        lv_obj_set_style_bg_image_src(container_, nullptr, 0);
         lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
     }
     
