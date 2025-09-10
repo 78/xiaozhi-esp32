@@ -14,6 +14,7 @@
 #include "display.h"
 #include "board.h"
 #include "settings.h"
+#include "lvgl_theme.h"
 
 #define TAG "MCP"
 
@@ -77,15 +78,21 @@ void McpServer::AddCommonTools() {
     }
 
     auto display = board.GetDisplay();
-    if (display && !display->GetTheme().empty()) {
+    if (display && display->GetTheme() != nullptr) {
         AddTool("self.screen.set_theme",
             "Set the theme of the screen. The theme can be `light` or `dark`.",
             PropertyList({
                 Property("theme", kPropertyTypeString)
             }),
             [display](const PropertyList& properties) -> ReturnValue {
-                display->SetTheme(properties["theme"].value<std::string>().c_str());
-                return true;
+                auto theme_name = properties["theme"].value<std::string>();
+                auto& theme_manager = LvglThemeManager::GetInstance();
+                auto theme = theme_manager.GetTheme(theme_name);
+                if (theme != nullptr) {
+                    display->SetTheme(theme);
+                    return true;
+                }
+                return false;
             });
     }
 

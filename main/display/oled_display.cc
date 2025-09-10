@@ -20,10 +20,8 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
-    style_ = {
-        .text_font = &LVGL_TEXT_FONT,
-        .icon_font = &LVGL_ICON_FONT,
-    };
+    text_font_ = &LVGL_TEXT_FONT;
+    icon_font_ = &LVGL_ICON_FONT;
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
@@ -126,7 +124,7 @@ void OledDisplay::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, style_.text_font, 0);
+    lv_obj_set_style_text_font(screen, text_font_, 0);
     lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
     /* Container */
@@ -197,7 +195,7 @@ void OledDisplay::SetupUI_128x64() {
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -212,15 +210,15 @@ void OledDisplay::SetupUI_128x64() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, style_.text_font->line_height * 2);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, text_font_->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
     lv_obj_set_style_radius(low_battery_popup_, 10, 0);
@@ -235,7 +233,7 @@ void OledDisplay::SetupUI_128x32() {
     DisplayLockGuard lock(this);
 
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, style_.text_font, 0);
+    lv_obj_set_style_text_font(screen, text_font_, 0);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -288,15 +286,15 @@ void OledDisplay::SetupUI_128x32() {
 
     mute_label_ = lv_label_create(status_bar_);
     lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(mute_label_, icon_font_, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(network_label_, icon_font_, 0);
 
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, style_.icon_font, 0);
+    lv_obj_set_style_text_font(battery_label_, icon_font_, 0);
 
     chat_message_label_ = lv_label_create(side_bar_);
     lv_obj_set_size(chat_message_label_, width_ - 32, LV_SIZE_CONTENT);

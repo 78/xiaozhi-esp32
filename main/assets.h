@@ -54,6 +54,7 @@ private:
     bool InitializePartition();
     uint32_t CalculateChecksum(const char* data, uint32_t length);
     bool GetAssetData(const std::string& name, void*& ptr, size_t& size);
+    lv_color_t ParseColor(const std::string& color);
 
     const esp_partition_t* partition_ = nullptr;
     esp_partition_mmap_handle_t mmap_handle_ = 0;
@@ -61,9 +62,7 @@ private:
     bool partition_valid_ = false;
     bool checksum_valid_ = false;
     std::string default_assets_url_;
-    lv_font_t* text_font_ = nullptr;
     srmodel_list_t* models_list_ = nullptr;
-    CustomEmojiCollection* custom_emoji_collection_ = nullptr;
     std::map<std::string, Asset> assets_;
 };
 
