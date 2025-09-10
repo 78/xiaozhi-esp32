@@ -1,15 +1,12 @@
 #ifndef ASSETS_H
 #define ASSETS_H
 
-#include "emoji_collection.h"
-
 #include <map>
 #include <string>
 #include <functional>
 
 #include <cJSON.h>
 #include <esp_partition.h>
-#include <lvgl.h>
 #include <model_path.h>
 
 
@@ -54,7 +51,6 @@ private:
     bool InitializePartition();
     uint32_t CalculateChecksum(const char* data, uint32_t length);
     bool GetAssetData(const std::string& name, void*& ptr, size_t& size);
-    lv_color_t ParseColor(const std::string& color);
 
     const esp_partition_t* partition_ = nullptr;
     esp_partition_mmap_handle_t mmap_handle_ = 0;

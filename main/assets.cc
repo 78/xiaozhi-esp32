@@ -106,17 +106,6 @@ bool Assets::InitializePartition() {
     return checksum_valid_;
 }
 
-lv_color_t Assets::ParseColor(const std::string& color) {
-    if (color.find("#") == 0) {
-        // Convert #112233 to lv_color_t
-        uint8_t r = strtol(color.substr(1, 2).c_str(), nullptr, 16);
-        uint8_t g = strtol(color.substr(3, 2).c_str(), nullptr, 16);
-        uint8_t b = strtol(color.substr(5, 2).c_str(), nullptr, 16);
-        return lv_color_make(r, g, b);
-    }
-    return lv_color_black();
-}
-
 bool Assets::Apply() {
     void* ptr = nullptr;
     size_t size = 0;
@@ -158,6 +147,7 @@ bool Assets::Apply() {
         }
     }
 
+#ifdef HAVE_LVGL
     auto& theme_manager = LvglThemeManager::GetInstance();
     auto light_theme = theme_manager.GetTheme("light");
     auto dark_theme = theme_manager.GetTheme("dark");
@@ -180,7 +170,7 @@ bool Assets::Apply() {
 
     cJSON* emoji_collection = cJSON_GetObjectItem(root, "emoji_collection");
     if (cJSON_IsArray(emoji_collection)) {
-        auto custom_emoji_collection = std::make_shared<CustomEmojiCollection>();
+        auto custom_emoji_collection = std::make_shared<EmojiCollection>();
         int emoji_count = cJSON_GetArraySize(emoji_collection);
         for (int i = 0; i < emoji_count; i++) {
             cJSON* emoji = cJSON_GetArrayItem(emoji_collection, i);
@@ -208,11 +198,11 @@ bool Assets::Apply() {
             cJSON* background_color = cJSON_GetObjectItem(light_skin, "background_color");
             cJSON* background_image = cJSON_GetObjectItem(light_skin, "background_image");
             if (cJSON_IsString(text_color)) {
-                light_theme->set_text_color(ParseColor(text_color->valuestring));
+                light_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
             }
             if (cJSON_IsString(background_color)) {
-                light_theme->set_background_color(ParseColor(background_color->valuestring));
-                light_theme->set_chat_background_color(ParseColor(background_color->valuestring));
+                light_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
+                light_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
             }
             if (cJSON_IsString(background_image)) {
                 if (!GetAssetData(background_image->valuestring, ptr, size)) {
@@ -229,11 +219,11 @@ bool Assets::Apply() {
             cJSON* background_color = cJSON_GetObjectItem(dark_skin, "background_color");
             cJSON* background_image = cJSON_GetObjectItem(dark_skin, "background_image");
             if (cJSON_IsString(text_color)) {
-                dark_theme->set_text_color(ParseColor(text_color->valuestring));
+                dark_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
             }
             if (cJSON_IsString(background_color)) {
-                dark_theme->set_background_color(ParseColor(background_color->valuestring));
-                dark_theme->set_chat_background_color(ParseColor(background_color->valuestring));
+                dark_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
+                dark_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
             }
             if (cJSON_IsString(background_image)) {
                 if (!GetAssetData(background_image->valuestring, ptr, size)) {
@@ -245,7 +235,8 @@ bool Assets::Apply() {
             }
         }
     }
-    
+#endif
+
     auto display = Board::GetInstance().GetDisplay();
     ESP_LOGI(TAG, "Refreshing display theme...");
     display->SetTheme(display->GetTheme());

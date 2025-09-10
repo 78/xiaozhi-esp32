@@ -13,6 +13,8 @@
 
 class LvglTheme : public Theme {
 public:
+    static lv_color_t ParseColor(const std::string& color);
+
     LvglTheme(const std::string& name);
 
     // Properties

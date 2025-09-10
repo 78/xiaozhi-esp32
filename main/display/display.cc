@@ -40,21 +40,17 @@ void Display::SetEmotion(const char* emotion) {
     ESP_LOGW(TAG, "SetEmotion: %s", emotion);
 }
 
-void Display::SetPreviewImage(const lv_img_dsc_t* image) {
-    // Do nothing but free the image
-    if (image != nullptr) {
-        heap_caps_free((void*)image->data);
-        heap_caps_free((void*)image);
-    }
-}
-
 void Display::SetChatMessage(const char* role, const char* content) {
     ESP_LOGW(TAG, "Role:%s", role);
     ESP_LOGW(TAG, "     %s", content);
 }
 
 void Display::SetTheme(Theme* theme) {
+    current_theme_ = theme;
+    Settings settings("display", true);
+    settings.SetString("theme", theme->name());
 }
 
 void Display::SetPowerSaveMode(bool on) {
+    ESP_LOGW(TAG, "SetPowerSaveMode: %d", on);
 }

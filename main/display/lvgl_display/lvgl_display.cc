@@ -60,9 +60,6 @@ LvglDisplay::~LvglDisplay() {
     if (battery_label_ != nullptr) {
         lv_obj_del(battery_label_);
     }
-    if (emotion_label_ != nullptr) {
-        lv_obj_del(emotion_label_);
-    }
     if( low_battery_popup_ != nullptr ) {
         lv_obj_del(low_battery_popup_);
     }
@@ -204,40 +201,12 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     esp_pm_lock_release(pm_lock_);
 }
 
-
-void LvglDisplay::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
-        return;
-    }
-    if (utf8 != nullptr) {
-        lv_label_set_text(emotion_label_, utf8);
-    } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
-    }
-}
-
 void LvglDisplay::SetPreviewImage(const lv_img_dsc_t* image) {
     // Do nothing but free the image
     if (image != nullptr) {
         heap_caps_free((void*)image->data);
         heap_caps_free((void*)image);
     }
-}
-
-void LvglDisplay::SetChatMessage(const char* role, const char* content) {
-    DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
-        return;
-    }
-    lv_label_set_text(chat_message_label_, content);
-}
-
-void LvglDisplay::SetTheme(Theme* theme) {
-    current_theme_ = theme;
-    Settings settings("display", true);
-    settings.SetString("theme", theme->name());
 }
 
 void LvglDisplay::SetPowerSaveMode(bool on) {

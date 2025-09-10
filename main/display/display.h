@@ -3,7 +3,11 @@
 
 #include "emoji_collection.h"
 
+#ifdef LVGL_VERSION_MAJOR
+#define HAVE_LVGL 1
 #include <lvgl.h>
+#endif
+
 #include <esp_timer.h>
 #include <esp_log.h>
 #include <esp_pm.h>
@@ -31,7 +35,6 @@ public:
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
-    virtual void SetPreviewImage(const lv_img_dsc_t* image);
     virtual void SetTheme(Theme* theme);
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);

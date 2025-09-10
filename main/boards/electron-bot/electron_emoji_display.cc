@@ -60,8 +60,8 @@ ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io,
 void ElectronEmojiDisplay::SetupGifContainer() {
     DisplayLockGuard lock(this);
 
-    if (emotion_label_) {
-        lv_obj_del(emotion_label_);
+    if (emoji_label_) {
+        lv_obj_del(emoji_label_);
     }
     if (chat_message_label_) {
         lv_obj_del(chat_message_label_);
@@ -78,11 +78,11 @@ void ElectronEmojiDisplay::SetupGifContainer() {
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_center(content_);
 
-    emotion_label_ = lv_label_create(content_);
-    lv_label_set_text(emotion_label_, "");
-    lv_obj_set_width(emotion_label_, 0);
-    lv_obj_set_style_border_width(emotion_label_, 0, 0);
-    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    emoji_label_ = lv_label_create(content_);
+    lv_label_set_text(emoji_label_, "");
+    lv_obj_set_width(emoji_label_, 0);
+    lv_obj_set_style_border_width(emoji_label_, 0, 0);
+    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
 
     emotion_gif_ = lv_gif_create(content_);
     int gif_size = LV_HOR_RES;

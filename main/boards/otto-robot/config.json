@@ -4,7 +4,8 @@
         {
             "name": "otto-robot",
             "sdkconfig_append": [
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m.csv\""
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m.csv\"",
+                "CONFIG_LVGL_USE_GIF=y"
             ]
         }
     ]

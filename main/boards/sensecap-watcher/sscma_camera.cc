@@ -1,6 +1,6 @@
 #include "sscma_camera.h"
 #include "mcp_server.h"
-#include "display.h"
+#include "lvgl_display.h"
 #include "board.h"
 #include "system_info.h"
 #include "config.h"
@@ -243,7 +243,7 @@ bool SscmaCamera::Capture() {
     }
 
     // 显示预览图片
-    auto display = Board::GetInstance().GetDisplay();
+    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
         display->SetPreviewImage(&preview_image_);
     }

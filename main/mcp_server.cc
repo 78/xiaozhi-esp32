@@ -15,6 +15,7 @@
 #include "board.h"
 #include "settings.h"
 #include "lvgl_theme.h"
+#include "lvgl_display.h"
 
 #define TAG "MCP"
 
@@ -77,6 +78,7 @@ void McpServer::AddCommonTools() {
             });
     }
 
+#ifdef HAVE_LVGL
     auto display = board.GetDisplay();
     if (display && display->GetTheme() != nullptr) {
         AddTool("self.screen.set_theme",
@@ -115,6 +117,7 @@ void McpServer::AddCommonTools() {
                 return camera->Explain(question);
             });
     }
+#endif
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
@@ -143,7 +146,8 @@ void McpServer::AddUserOnlyTools() {
         });
 
     // Display control
-    auto display = Board::GetInstance().GetDisplay();
+#ifdef HAVE_LVGL
+    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display) {
         AddUserOnlyTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
             PropertyList(),
@@ -199,6 +203,7 @@ void McpServer::AddUserOnlyTools() {
                 return true;
             });
     }
+#endif
 
     // Assets download url
     auto assets = Board::GetInstance().GetAssets();
