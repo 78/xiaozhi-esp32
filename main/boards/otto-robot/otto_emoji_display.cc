@@ -1,4 +1,5 @@
 #include "otto_emoji_display.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include <font_awesome.h>

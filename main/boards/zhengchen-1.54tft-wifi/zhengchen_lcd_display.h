@@ -2,6 +2,7 @@
 #define ZHENGCHEN_LCD_DISPLAY_H
 
 #include "display/lcd_display.h"
+#include "lvgl_theme.h"
 #include <esp_lvgl_port.h>
 
 class ZHENGCHEN_LcdDisplay : public SpiLcdDisplay {

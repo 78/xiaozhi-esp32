@@ -1,7 +1,7 @@
 #include "lcd_display.h"
-#include "assets/lang_config.h"
 #include "settings.h"
 #include "lvgl_theme.h"
+#include "assets/lang_config.h"
 
 #include <vector>
 #include <algorithm>
