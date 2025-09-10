@@ -327,9 +327,9 @@ void McpServer::ParseMessage(const cJSON* json) {
             if (cJSON_IsString(cursor)) {
                 cursor_str = std::string(cursor->valuestring);
             }
-            auto with_system_tools = cJSON_GetObjectItem(params, "withSystemTools");
-            if (cJSON_IsBool(with_system_tools)) {
-                list_user_only_tools = with_system_tools->valueint == 1;
+            auto with_user_tools = cJSON_GetObjectItem(params, "withUserTools");
+            if (cJSON_IsBool(with_user_tools)) {
+                list_user_only_tools = with_user_tools->valueint == 1;
             }
         }
         GetToolsList(id_int, cursor_str, list_user_only_tools);
