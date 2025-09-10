@@ -65,31 +65,35 @@ void ButtonManager::SetupButtonCallbacks() {
     // 音量上按钮回调
     volume_up_button_.OnClick([]() { 
         ESP_LOGI(TAG, "Volume up button clicked");
-        auto& app = Application::GetInstance();
-        auto& audio_service = app.GetAudioService();
         // 通过AudioService间接控制音量
+        auto& board = Board::GetInstance();
+        auto codec = board.GetAudioCodec();
+        codec->SetOutputVolume(codec->output_volume() + 10);
         ESP_LOGI(TAG, "Volume up requested");
     });
     
     volume_up_button_.OnLongPress([]() { 
         ESP_LOGI(TAG, "Volume up long pressed: set to maximum");
-        auto& app = Application::GetInstance();
-        auto& audio_service = app.GetAudioService();
+        auto& board = Board::GetInstance();
+        auto codec = board.GetAudioCodec();
+        codec->SetOutputVolume(100);
         ESP_LOGI(TAG, "Volume set to maximum requested");
     });
     
     // 音量下按钮回调
     volume_down_button_.OnClick([]() { 
         ESP_LOGI(TAG, "Volume down button clicked");
-        auto& app = Application::GetInstance();
-        auto& audio_service = app.GetAudioService();
+        auto& board = Board::GetInstance();
+        auto codec = board.GetAudioCodec();
+        codec->SetOutputVolume(codec->output_volume() - 10);
         ESP_LOGI(TAG, "Volume down requested");
     });
     
     volume_down_button_.OnLongPress([]() { 
         ESP_LOGI(TAG, "Volume down long pressed: mute");
-        auto& app = Application::GetInstance();
-        auto& audio_service = app.GetAudioService();
+        auto& board = Board::GetInstance();
+        auto codec = board.GetAudioCodec();
+        codec->SetOutputVolume(0);
         ESP_LOGI(TAG, "Volume mute requested");
     });
 }
