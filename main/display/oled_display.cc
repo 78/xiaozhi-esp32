@@ -311,3 +311,15 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
 }
 
+void OledDisplay::SetEmotion(const char* emotion) {
+    const char* utf8 = font_awesome_get_utf8(emotion);
+    DisplayLockGuard lock(this);
+    if (emotion_label_ == nullptr) {
+        return;
+    }
+    if (utf8 != nullptr) {
+        lv_label_set_text(emotion_label_, utf8);
+    } else {
+        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
+    }
+}

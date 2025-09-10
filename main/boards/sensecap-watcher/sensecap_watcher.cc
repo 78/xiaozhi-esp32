@@ -9,6 +9,7 @@
 #include "led/single_led.h"
 #include "power_save_timer.h"
 #include "sscma_camera.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include "esp_check.h"

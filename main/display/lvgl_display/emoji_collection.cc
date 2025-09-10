@@ -6,6 +6,27 @@
 
 #define TAG "EmojiCollection"
 
+void EmojiCollection::AddEmoji(const std::string& name, LvglImage* image) {
+    emoji_collection_[name] = image;
+}
+
+const LvglImage* EmojiCollection::GetEmojiImage(const char* name) {
+    auto it = emoji_collection_.find(name);
+    if (it != emoji_collection_.end()) {
+        return it->second;
+    }
+
+    ESP_LOGW(TAG, "Emoji not found: %s", name);
+    return nullptr;
+}
+
+EmojiCollection::~EmojiCollection() {
+    for (auto it = emoji_collection_.begin(); it != emoji_collection_.end(); ++it) {
+        delete it->second;
+    }
+    emoji_collection_.clear();
+}
+
 // These are declared in xiaozhi-fonts/src/font_emoji_32.c
 extern const lv_image_dsc_t emoji_1f636_32; // neutral
 extern const lv_image_dsc_t emoji_1f642_32; // happy
@@ -29,38 +50,28 @@ extern const lv_image_dsc_t emoji_1f634_32; // sleepy
 extern const lv_image_dsc_t emoji_1f61c_32; // silly
 extern const lv_image_dsc_t emoji_1f644_32; // confused
 
-const lv_img_dsc_t* Twemoji32::GetEmojiImage(const char* name) const {
-    static const std::unordered_map<std::string, const lv_img_dsc_t*> emoji_map = {
-        {"neutral", &emoji_1f636_32},
-        {"happy", &emoji_1f642_32},
-        {"laughing", &emoji_1f606_32},
-        {"funny", &emoji_1f602_32},
-        {"sad", &emoji_1f614_32},
-        {"angry", &emoji_1f620_32},
-        {"crying", &emoji_1f62d_32},
-        {"loving", &emoji_1f60d_32},
-        {"embarrassed", &emoji_1f633_32},
-        {"surprised", &emoji_1f62f_32},
-        {"shocked", &emoji_1f631_32},
-        {"thinking", &emoji_1f914_32},
-        {"winking", &emoji_1f609_32},
-        {"cool", &emoji_1f60e_32},
-        {"relaxed", &emoji_1f60c_32},
-        {"delicious", &emoji_1f924_32},
-        {"kissy", &emoji_1f618_32},
-        {"confident", &emoji_1f60f_32},
-        {"sleepy", &emoji_1f634_32},
-        {"silly", &emoji_1f61c_32},
-        {"confused", &emoji_1f644_32},
-    };
-    
-    auto it = emoji_map.find(name);
-    if (it != emoji_map.end()) {
-        return it->second;
-    }
-    
-    ESP_LOGW(TAG, "Emoji not found: %s", name);
-    return nullptr;
+Twemoji32::Twemoji32() {
+    AddEmoji("neutral", new LvglSourceImage(&emoji_1f636_32));
+    AddEmoji("happy", new LvglSourceImage(&emoji_1f642_32));
+    AddEmoji("laughing", new LvglSourceImage(&emoji_1f606_32));
+    AddEmoji("funny", new LvglSourceImage(&emoji_1f602_32));
+    AddEmoji("sad", new LvglSourceImage(&emoji_1f614_32));
+    AddEmoji("angry", new LvglSourceImage(&emoji_1f620_32));
+    AddEmoji("crying", new LvglSourceImage(&emoji_1f62d_32));
+    AddEmoji("loving", new LvglSourceImage(&emoji_1f60d_32));
+    AddEmoji("embarrassed", new LvglSourceImage(&emoji_1f633_32));
+    AddEmoji("surprised", new LvglSourceImage(&emoji_1f62f_32));
+    AddEmoji("shocked", new LvglSourceImage(&emoji_1f631_32));
+    AddEmoji("thinking", new LvglSourceImage(&emoji_1f914_32));
+    AddEmoji("winking", new LvglSourceImage(&emoji_1f609_32));
+    AddEmoji("cool", new LvglSourceImage(&emoji_1f60e_32));
+    AddEmoji("relaxed", new LvglSourceImage(&emoji_1f60c_32));
+    AddEmoji("delicious", new LvglSourceImage(&emoji_1f924_32));
+    AddEmoji("kissy", new LvglSourceImage(&emoji_1f618_32));
+    AddEmoji("confident", new LvglSourceImage(&emoji_1f60f_32));
+    AddEmoji("sleepy", new LvglSourceImage(&emoji_1f634_32));
+    AddEmoji("silly", new LvglSourceImage(&emoji_1f61c_32));
+    AddEmoji("confused", new LvglSourceImage(&emoji_1f644_32));
 }
 
 
@@ -87,58 +98,26 @@ extern const lv_image_dsc_t emoji_1f634_64; // sleepy
 extern const lv_image_dsc_t emoji_1f61c_64; // silly
 extern const lv_image_dsc_t emoji_1f644_64; // confused
 
-const lv_img_dsc_t* Twemoji64::GetEmojiImage(const char* name) const {
-    static const std::unordered_map<std::string, const lv_img_dsc_t*> emoji_map = {
-        {"neutral", &emoji_1f636_64},
-        {"happy", &emoji_1f642_64},
-        {"laughing", &emoji_1f606_64},
-        {"funny", &emoji_1f602_64},
-        {"sad", &emoji_1f614_64},
-        {"angry", &emoji_1f620_64},
-        {"crying", &emoji_1f62d_64},
-        {"loving", &emoji_1f60d_64},
-        {"embarrassed", &emoji_1f633_64},
-        {"surprised", &emoji_1f62f_64},
-        {"shocked", &emoji_1f631_64},
-        {"thinking", &emoji_1f914_64},
-        {"winking", &emoji_1f609_64},
-        {"cool", &emoji_1f60e_64},
-        {"relaxed", &emoji_1f60c_64},
-        {"delicious", &emoji_1f924_64},
-        {"kissy", &emoji_1f618_64},
-        {"confident", &emoji_1f60f_64},
-        {"sleepy", &emoji_1f634_64},
-        {"silly", &emoji_1f61c_64},
-        {"confused", &emoji_1f644_64},
-    };
-    
-    auto it = emoji_map.find(name);
-    if (it != emoji_map.end()) {
-        return it->second;
-    }
-    
-    ESP_LOGW(TAG, "Emoji not found: %s", name);
-    return nullptr;
-}
-
-
-void CustomEmojiCollection::AddEmoji(const std::string& name, LvglImage* image) {
-    emoji_collection_[name] = image;
-}
-
-const lv_img_dsc_t* CustomEmojiCollection::GetEmojiImage(const char* name) const {
-    auto it = emoji_collection_.find(name);
-    if (it != emoji_collection_.end()) {
-        return it->second->image_dsc();
-    }
-
-    ESP_LOGW(TAG, "Emoji not found: %s", name);
-    return nullptr;
-}
-
-CustomEmojiCollection::~CustomEmojiCollection() {
-    for (auto it = emoji_collection_.begin(); it != emoji_collection_.end(); ++it) {
-        delete it->second;
-    }
-    emoji_collection_.clear();
+Twemoji64::Twemoji64() {
+    AddEmoji("neutral", new LvglSourceImage(&emoji_1f636_64));
+    AddEmoji("happy", new LvglSourceImage(&emoji_1f642_64));
+    AddEmoji("laughing", new LvglSourceImage(&emoji_1f606_64));
+    AddEmoji("funny", new LvglSourceImage(&emoji_1f602_64));
+    AddEmoji("sad", new LvglSourceImage(&emoji_1f614_64));
+    AddEmoji("angry", new LvglSourceImage(&emoji_1f620_64));
+    AddEmoji("crying", new LvglSourceImage(&emoji_1f62d_64));
+    AddEmoji("loving", new LvglSourceImage(&emoji_1f60d_64));
+    AddEmoji("embarrassed", new LvglSourceImage(&emoji_1f633_64));
+    AddEmoji("surprised", new LvglSourceImage(&emoji_1f62f_64));
+    AddEmoji("shocked", new LvglSourceImage(&emoji_1f631_64));
+    AddEmoji("thinking", new LvglSourceImage(&emoji_1f914_64));
+    AddEmoji("winking", new LvglSourceImage(&emoji_1f609_64));
+    AddEmoji("cool", new LvglSourceImage(&emoji_1f60e_64));
+    AddEmoji("relaxed", new LvglSourceImage(&emoji_1f60c_64));
+    AddEmoji("delicious", new LvglSourceImage(&emoji_1f924_64));
+    AddEmoji("kissy", new LvglSourceImage(&emoji_1f618_64));
+    AddEmoji("confident", new LvglSourceImage(&emoji_1f60f_64));
+    AddEmoji("sleepy", new LvglSourceImage(&emoji_1f634_64));
+    AddEmoji("silly", new LvglSourceImage(&emoji_1f61c_64));
+    AddEmoji("confused", new LvglSourceImage(&emoji_1f644_64));
 }
