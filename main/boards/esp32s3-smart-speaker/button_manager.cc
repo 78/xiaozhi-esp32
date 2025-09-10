@@ -48,6 +48,7 @@ void ButtonManager::SetupButtonCallbacks() {
         auto& board = Board::GetInstance();
         auto codec = board.GetAudioCodec();
         codec->EnableOutput(true);
+        codec->SetOutputVolume(10);
         
         auto music = Board::GetInstance().GetMusic();
         auto song_name = "稻香";

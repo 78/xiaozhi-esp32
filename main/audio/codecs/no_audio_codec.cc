@@ -105,8 +105,8 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_MONO,
-            .slot_mask = I2S_STD_SLOT_LEFT,
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
@@ -280,25 +280,30 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
 
 int NoAudioCodec::Write(const int16_t* data, int samples) {
     std::lock_guard<std::mutex> lock(data_if_mutex_);
-    std::vector<int32_t> buffer(samples);
+    // 立体声交织输出：L,R,L,R ... （每声道32位）
+    std::vector<int32_t> buffer(samples * 2);
 
     // output_volume_: 0-100
     // volume_factor_: 0-65536
     int32_t volume_factor = pow(double(output_volume_) / 100.0, 2) * 65536;
     for (int i = 0; i < samples; i++) {
         int64_t temp = int64_t(data[i]) * volume_factor; // 使用 int64_t 进行乘法运算
+        int32_t s32;
         if (temp > INT32_MAX) {
-            buffer[i] = INT32_MAX;
+            s32 = INT32_MAX;
         } else if (temp < INT32_MIN) {
-            buffer[i] = INT32_MIN;
+            s32 = INT32_MIN;
         } else {
-            buffer[i] = static_cast<int32_t>(temp);
+            s32 = static_cast<int32_t>(temp);
         }
+        // 交织到左右声道
+        buffer[2 * i] = s32;       // Left
+        buffer[2 * i + 1] = s32;   // Right（复制）
     }
 
     size_t bytes_written;
-    ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY));
-    return bytes_written / sizeof(int32_t);
+    ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, buffer.data(), (samples * 2) * sizeof(int32_t), &bytes_written, portMAX_DELAY));
+    return bytes_written / sizeof(int32_t) / 2; // 返回每声道样本数
 }
 
 int NoAudioCodec::Read(int16_t* dest, int samples) {

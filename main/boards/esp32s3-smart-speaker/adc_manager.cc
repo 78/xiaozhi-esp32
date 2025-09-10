@@ -139,7 +139,7 @@ void AdcManager::StartAdcTask() {
         return;
     }
     
-    BaseType_t ret = xTaskCreate(AdcTask, "adc_task", 1536, this, 2, &adc_task_handle_);
+    BaseType_t ret = xTaskCreate(AdcTask, "adc_task", 4096, this, 2, &adc_task_handle_);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create ADC task");
     } else {
