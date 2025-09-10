@@ -982,7 +982,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
                     }
                 }
             } else {
-                ESP_LOGW(TAG, "child[%d] Bubble type is not found", i);
+                ESP_LOGW(TAG, "child[%lu] Bubble type is not found", i);
             }
         }
 #else

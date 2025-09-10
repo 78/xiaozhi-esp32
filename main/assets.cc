@@ -133,7 +133,7 @@ bool Assets::Apply() {
     cJSON* version = cJSON_GetObjectItem(root, "version");
     if (cJSON_IsNumber(version)) {
         if (version->valuedouble > 1) {
-            ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware", version->valuedouble);
+            ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware", version->valueint);
             return false;
         }
     }
