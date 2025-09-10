@@ -28,6 +28,7 @@ protected:
     lv_obj_t* emoji_box_ = nullptr;
     esp_timer_handle_t preview_timer_ = nullptr;
 
+    void InitializeLcdThemes();
     void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;

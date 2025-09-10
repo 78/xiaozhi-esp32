@@ -81,12 +81,12 @@ public:
         return instance;
     }
 
+    void RegisterTheme(const std::string& theme_name, LvglTheme* theme);
     LvglTheme* GetTheme(const std::string& theme_name);
 
 private:
     LvglThemeManager();
     void InitializeDefaultThemes();
 
-    LvglTheme light_theme_;
-    LvglTheme dark_theme_;
+    std::map<std::string, LvglTheme*> themes_;
 };

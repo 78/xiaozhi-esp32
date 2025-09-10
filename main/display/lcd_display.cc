@@ -16,10 +16,57 @@
 
 #define TAG "LcdDisplay"
 
+LV_FONT_DECLARE(LVGL_TEXT_FONT);
+LV_FONT_DECLARE(LVGL_ICON_FONT);
+LV_FONT_DECLARE(font_awesome_30_4);
+
+void LcdDisplay::InitializeLcdThemes() {
+    auto text_font = std::make_shared<LvglBuiltInFont>(&LVGL_TEXT_FONT);
+    auto icon_font = std::make_shared<LvglBuiltInFont>(&LVGL_ICON_FONT);
+    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_4);
+
+    // light theme
+    auto light_theme = new LvglTheme("light");
+    light_theme->set_background_color(lv_color_white());
+    light_theme->set_text_color(lv_color_black());
+    light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));
+    light_theme->set_user_bubble_color(lv_color_hex(0x95EC69));
+    light_theme->set_assistant_bubble_color(lv_color_white());
+    light_theme->set_system_bubble_color(lv_color_hex(0xE0E0E0));
+    light_theme->set_system_text_color(lv_color_hex(0x666666));
+    light_theme->set_border_color(lv_color_hex(0xE0E0E0));
+    light_theme->set_low_battery_color(lv_color_black());
+    light_theme->set_text_font(text_font);
+    light_theme->set_icon_font(icon_font);
+    light_theme->set_large_icon_font(large_icon_font);
+
+    // dark theme
+    auto dark_theme = new LvglTheme("dark");
+    dark_theme->set_background_color(lv_color_hex(0x121212));
+    dark_theme->set_text_color(lv_color_white());
+    dark_theme->set_chat_background_color(lv_color_hex(0x1E1E1E));
+    dark_theme->set_user_bubble_color(lv_color_hex(0x1A6C37));
+    dark_theme->set_assistant_bubble_color(lv_color_hex(0x333333));
+    dark_theme->set_system_bubble_color(lv_color_hex(0x2A2A2A));
+    dark_theme->set_system_text_color(lv_color_hex(0xAAAAAA));
+    dark_theme->set_border_color(lv_color_hex(0x333333));
+    dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));
+    dark_theme->set_text_font(text_font);
+    dark_theme->set_icon_font(icon_font);
+    dark_theme->set_large_icon_font(large_icon_font);
+
+    auto& theme_manager = LvglThemeManager::GetInstance();
+    theme_manager.RegisterTheme("light", light_theme);
+    theme_manager.RegisterTheme("dark", dark_theme);
+}
+
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height)
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
+
+    // Initialize LCD themes
+    InitializeLcdThemes();
 
     // Load theme from settings
     Settings settings("display", false);
