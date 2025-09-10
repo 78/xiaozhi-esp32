@@ -283,7 +283,6 @@ Esp32Music::~Esp32Music() {
 }
 
 bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
-    ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
     ESP_LOGI(TAG, "Starting to get music details for: %s", song_name.c_str());
     
     // 清空之前的下载数据
@@ -1478,6 +1477,7 @@ bool Esp32Music::SetVolume(int volume) {
 }
 
 bool Esp32Music::PlaySong() {
+    ESP_LOGI(TAG, "PlaySong called");
     return false;
 }
 

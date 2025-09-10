@@ -7,6 +7,7 @@
 #include <esp_adc/adc_cali.h>
 #include <esp_timer.h>
 #include <cmath>
+#include <board.h>
 
 #define TAG "AdcManager"
 
@@ -115,7 +116,7 @@ void AdcManager::ReadPressureSensorData() {
     // 每隔5次打印一次详细日志（便于定位问题）
     static int adc_log_counter = 0;
     adc_log_counter++;
-    if (adc_log_counter >= 100) {
+    if (adc_log_counter >= 10) {
         ESP_LOGI(TAG, "ADC read: Raw=%d", adc_value);
         adc_log_counter = 0;
     }
@@ -216,6 +217,8 @@ void AdcManager::CheckLongTimeNoMovement(int adc_value) {
             is_no_movement_detected_ = true;
             ESP_LOGW(TAG, "Long time no movement detected! Duration: %lu seconds, ADC: %d", 
                      no_movement_duration, adc_value);
+                auto music = Board::GetInstance().GetMusic();
+                music->PauseSong();
         }
     }
 }
@@ -237,6 +240,17 @@ uint32_t AdcManager::GetNoMovementDuration() const {
 }
 
 void AdcManager::TriggerMusicPlayback() {
+    ESP_LOGI(TAG, "Triggering music playback");
     // 通过Board接口获取音乐播放器并触发播放
+    auto music = Board::GetInstance().GetMusic();
+    auto song_name = "稻香";
+    auto artist_name = "";
+    if (!music->Download(song_name, artist_name)) {
+        ESP_LOGI(TAG, "获取音乐资源失败");
+        return;
+    }
+    
+    auto download_result = music->GetDownloadResult();
+    ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
 
 }
