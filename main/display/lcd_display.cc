@@ -981,7 +981,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
 
-    if (text_font->line_height >= 30) {
+    if (text_font->line_height >= 40) {
         lv_obj_set_style_text_font(mute_label_, large_icon_font, 0);
         lv_obj_set_style_text_font(battery_label_, large_icon_font, 0);
         lv_obj_set_style_text_font(network_label_, large_icon_font, 0);
