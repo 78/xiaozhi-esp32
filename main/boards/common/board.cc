@@ -12,6 +12,8 @@
 #define TAG "Board"
 
 Board::Board() {
+    music_ = nullptr;  // 先初始化为空指针
+    
     Settings settings("board", true);
     uuid_ = settings.GetString("uuid");
     if (uuid_.empty()) {

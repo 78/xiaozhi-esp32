@@ -16,6 +16,8 @@
 #include "settings.h"
 #include "lvgl_theme.h"
 #include "lvgl_display.h"
+#include "schedule_manager.h"
+#include "timer_manager.h"
 
 #define TAG "MCP"
 
@@ -125,7 +127,7 @@ void McpServer::AddCommonTools() {
 
 void McpServer::AddUserOnlyTools() {
     // System tools
-    AddUserOnlyTool("self.get_system_info",
+    AddTool("self.get_system_info",
         "Get the system information",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
@@ -133,7 +135,7 @@ void McpServer::AddUserOnlyTools() {
             return board.GetSystemInfoJson();
         });
 
-    AddUserOnlyTool("self.reboot", "Reboot the system",
+    AddTool("self.reboot", "Reboot the system",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
             std::thread([]() {
@@ -145,11 +147,84 @@ void McpServer::AddUserOnlyTools() {
             return true;
         });
 
+    // Music control (only if music player is available)
+    if (Board::GetInstance().GetMusic()) {
+        auto music = Board::GetInstance().GetMusic();
+
+        // 播放指定歌曲（带歌曲名与可选歌手名）
+        AddTool("self.music.play_song",
+            "播放指定的歌曲。当用户要求播放音乐时使用此工具，会自动获取歌曲详情并开始流式播放。\n"
+            "参数:\n"
+            "  `song_name`: 要播放的歌曲名称（必需）。\n"
+            "  `artist_name`: 要播放的歌曲艺术家名称（可选，默认为空字符串）。\n"
+            "返回:\n"
+            "  播放状态信息，不需确认，立刻播放歌曲。",
+            PropertyList({
+                Property("song_name", kPropertyTypeString),
+                Property("artist_name", kPropertyTypeString, "")
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                auto song_name = properties["song_name"].value<std::string>();
+                auto artist_name = properties["artist_name"].value<std::string>();
+                
+                if (!music->Download(song_name, artist_name)) {
+                    return "{\"success\": false, \"message\": \"获取音乐资源失败\"}";
+                }
+                auto download_result = music->GetDownloadResult();
+                ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
+                return "{\"success\": true, \"message\": \"音乐开始播放\"}";
+            });
+        AddTool("self.music.set_volume",
+            "Set music volume (0-100).",
+            PropertyList({
+                Property("volume", kPropertyTypeInteger, 0, 100)
+            }),
+            [music](const PropertyList& properties) -> ReturnValue {
+                int vol = properties["volume"].value<int>();
+                bool ok = music->SetVolume(vol);
+                return ok;
+            });
+
+
+        AddTool("self.music.play",
+            "Play current music.",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                bool ok = music->PlaySong();
+                return ok;
+            });
+
+        // 兼容更明确的命名：stop_song / pause_song / resume_song
+        AddTool("self.music.stop_song",
+            "Stop current song.",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                bool ok = music->StopSong();
+                return ok;
+            });
+
+        AddTool("self.music.pause_song",
+            "Pause current song.",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                bool ok = music->PauseSong();
+                return ok;
+            });
+
+        AddTool("self.music.resume_song",
+            "Resume current song.",
+            PropertyList(),
+            [music](const PropertyList& properties) -> ReturnValue {
+                bool ok = music->ResumeSong();
+                return ok;
+            });
+    }
+
     // Display control
 #ifdef HAVE_LVGL
-    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
+    auto display = static_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display) {
-        AddUserOnlyTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
+        AddTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
             PropertyList(),
             [display](const PropertyList& properties) -> ReturnValue {
                 cJSON *json = cJSON_CreateObject();
@@ -158,7 +233,7 @@ void McpServer::AddUserOnlyTools() {
                 return json;
             });
         
-        AddUserOnlyTool("self.screen.preview_image", "Preview an image on the screen",
+        AddTool("self.screen.preview_image", "Preview an image on the screen",
             PropertyList({
                 Property("url", kPropertyTypeString)
             }),
@@ -209,7 +284,7 @@ void McpServer::AddUserOnlyTools() {
     auto assets = Board::GetInstance().GetAssets();
     if (assets) {
         if (assets->partition_valid()) {
-            AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
+            AddTool("self.assets.set_download_url", "Set the download url for the assets",
                 PropertyList({
                     Property("url", kPropertyTypeString)
                 }),
@@ -221,6 +296,220 @@ void McpServer::AddUserOnlyTools() {
                 });
         }
     }
+
+    // 日程管理工具
+    auto& schedule_manager = ScheduleManager::GetInstance();
+    
+    AddTool("self.schedule.create_event",
+        "创建新的日程事件。支持智能分类和提醒功能。\n"
+        "参数:\n"
+        "  `title`: 事件标题（必需）\n"
+        "  `description`: 事件描述（可选）\n"
+        "  `start_time`: 开始时间戳（必需）\n"
+        "  `end_time`: 结束时间戳（可选，0表示无结束时间）\n"
+        "  `category`: 事件分类（可选，如不提供将自动分类）\n"
+        "  `is_all_day`: 是否全天事件（可选，默认false）\n"
+        "  `reminder_minutes`: 提醒时间（分钟，可选，默认15分钟）\n"
+        "返回:\n"
+        "  事件ID字符串，用于后续操作",
+        PropertyList({
+            Property("title", kPropertyTypeString),
+            Property("description", kPropertyTypeString, ""),
+            Property("start_time", kPropertyTypeInteger),
+            Property("end_time", kPropertyTypeInteger, 0),
+            Property("category", kPropertyTypeString, ""),
+            Property("is_all_day", kPropertyTypeBoolean, false),
+            Property("reminder_minutes", kPropertyTypeInteger, 15, 0, 1440)
+        }),
+        [&schedule_manager](const PropertyList& properties) -> ReturnValue {
+            auto title = properties["title"].value<std::string>();
+            auto description = properties["description"].value<std::string>();
+            time_t start_time = properties["start_time"].value<int>();
+            time_t end_time = properties["end_time"].value<int>();
+            auto category = properties["category"].value<std::string>();
+            bool is_all_day = properties["is_all_day"].value<bool>();
+            int reminder_minutes = properties["reminder_minutes"].value<int>();
+            
+            std::string event_id = schedule_manager.CreateEvent(
+                title, description, start_time, end_time, 
+                category, is_all_day, reminder_minutes);
+            
+            if (event_id.empty()) {
+                return "{\"success\": false, \"message\": \"创建事件失败\"}";
+            }
+            
+            return "{\"success\": true, \"event_id\": \"" + event_id + "\", \"message\": \"事件创建成功\"}";
+        });
+
+    AddTool("self.schedule.get_events",
+        "获取所有日程事件。\n"
+        "返回:\n"
+        "  事件列表的JSON数组",
+        PropertyList(),
+        [&schedule_manager](const PropertyList& properties) -> ReturnValue {
+            std::string json_str = schedule_manager.ExportToJson();
+            return json_str;
+        });
+
+    AddTool("self.schedule.delete_event",
+        "删除日程事件。\n"
+        "参数:\n"
+        "  `event_id`: 要删除的事件ID（必需）\n"
+        "返回:\n"
+        "  操作结果",
+        PropertyList({
+            Property("event_id", kPropertyTypeString)
+        }),
+        [&schedule_manager](const PropertyList& properties) -> ReturnValue {
+            auto event_id = properties["event_id"].value<std::string>();
+            
+            bool success = schedule_manager.DeleteEvent(event_id);
+            
+            if (success) {
+                return "{\"success\": true, \"message\": \"事件删除成功\"}";
+            } else {
+                return "{\"success\": false, \"message\": \"事件删除失败\"}";
+            }
+        });
+
+    AddTool("self.schedule.get_statistics",
+        "获取日程统计信息。\n"
+        "返回:\n"
+        "  统计信息的JSON对象",
+        PropertyList(),
+        [&schedule_manager](const PropertyList& properties) -> ReturnValue {
+            int total_events = schedule_manager.GetEventCount();
+            
+            cJSON* json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(json, "total_events", total_events);
+            cJSON_AddBoolToObject(json, "success", true);
+            
+            return json;
+        });
+
+    // 定时任务工具
+    auto& timer_manager = TimerManager::GetInstance();
+    
+    AddTool("self.timer.create_countdown",
+        "创建倒计时器。\n"
+        "参数:\n"
+        "  `name`: 计时器名称（必需）\n"
+        "  `duration_ms`: 持续时间（毫秒，必需）\n"
+        "  `description`: 描述（可选）\n"
+        "返回:\n"
+        "  计时器ID",
+        PropertyList({
+            Property("name", kPropertyTypeString),
+            Property("duration_ms", kPropertyTypeInteger, 1000, 100, 3600000),
+            Property("description", kPropertyTypeString, "")
+        }),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            auto name = properties["name"].value<std::string>();
+            uint32_t duration_ms = properties["duration_ms"].value<int>();
+            auto description = properties["description"].value<std::string>();
+            
+            std::string timer_id = timer_manager.CreateCountdownTimer(name, duration_ms, description);
+            
+            return "{\"success\": true, \"timer_id\": \"" + timer_id + "\", \"message\": \"倒计时器创建成功\"}";
+        });
+
+    AddTool("self.timer.create_delayed_task",
+        "创建延时执行MCP工具的任务。\n"
+        "参数:\n"
+        "  `name`: 任务名称（必需）\n"
+        "  `delay_ms`: 延时时间（毫秒，必需）\n"
+        "  `mcp_tool_name`: MCP工具名称（必需）\n"
+        "  `mcp_tool_args`: MCP工具参数（可选）\n"
+        "  `description`: 描述（可选）\n"
+        "返回:\n"
+        "  任务ID",
+        PropertyList({
+            Property("name", kPropertyTypeString),
+            Property("delay_ms", kPropertyTypeInteger, 1000, 100, 3600000),
+            Property("mcp_tool_name", kPropertyTypeString),
+            Property("mcp_tool_args", kPropertyTypeString, ""),
+            Property("description", kPropertyTypeString, "")
+        }),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            auto name = properties["name"].value<std::string>();
+            uint32_t delay_ms = properties["delay_ms"].value<int>();
+            auto mcp_tool_name = properties["mcp_tool_name"].value<std::string>();
+            auto mcp_tool_args = properties["mcp_tool_args"].value<std::string>();
+            auto description = properties["description"].value<std::string>();
+            
+            std::string task_id = timer_manager.CreateDelayedMcpTask(
+                name, delay_ms, mcp_tool_name, mcp_tool_args, description);
+            
+            return "{\"success\": true, \"task_id\": \"" + task_id + "\", \"message\": \"延时任务创建成功\"}";
+        });
+
+
+    AddTool("self.timer.start_task",
+        "启动定时任务。\n"
+        "参数:\n"
+        "  `task_id`: 任务ID（必需）\n"
+        "返回:\n"
+        "  操作结果",
+        PropertyList({
+            Property("task_id", kPropertyTypeString)
+        }),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            auto task_id = properties["task_id"].value<std::string>();
+            
+            bool success = timer_manager.StartTask(task_id);
+            
+            if (success) {
+                return "{\"success\": true, \"message\": \"任务启动成功\"}";
+            } else {
+                return "{\"success\": false, \"message\": \"任务启动失败\"}";
+            }
+        });
+
+    AddTool("self.timer.stop_task",
+        "停止定时任务。\n"
+        "参数:\n"
+        "  `task_id`: 任务ID（必需）\n"
+        "返回:\n"
+        "  操作结果",
+        PropertyList({
+            Property("task_id", kPropertyTypeString)
+        }),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            auto task_id = properties["task_id"].value<std::string>();
+            
+            bool success = timer_manager.StopTask(task_id);
+            
+            if (success) {
+                return "{\"success\": true, \"message\": \"任务停止成功\"}";
+            } else {
+                return "{\"success\": false, \"message\": \"任务停止失败\"}";
+            }
+        });
+
+    AddTool("self.timer.get_tasks",
+        "获取所有定时任务列表。\n"
+        "返回:\n"
+        "  任务列表",
+        PropertyList(),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            std::string json_str = timer_manager.ExportToJson();
+            return json_str;
+        });
+
+    AddTool("self.timer.get_statistics",
+        "获取定时任务统计信息。\n"
+        "返回:\n"
+        "  统计信息",
+        PropertyList(),
+        [&timer_manager](const PropertyList& properties) -> ReturnValue {
+            int total_tasks = timer_manager.GetTaskCount();
+            
+            cJSON* json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(json, "total_tasks", total_tasks);
+            cJSON_AddBoolToObject(json, "success", true);
+            
+            return json;
+        });
 }
 
 void McpServer::AddTool(McpTool* tool) {
@@ -401,6 +690,7 @@ void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_o
         }
 
         if (!list_user_only_tools && (*it)->user_only()) {
+            ESP_LOGD(TAG, "Skipping user-only tool: %s", (*it)->name().c_str());
             ++it;
             continue;
         }

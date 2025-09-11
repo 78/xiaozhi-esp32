@@ -57,6 +57,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/lvgl_image.cc"
             "display/lvgl_display/gif/lvgl_gif.cc"
             "display/lvgl_display/gif/gifdec.c"
+            "display/esplog_display.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -67,6 +68,8 @@ set(SOURCES "audio/audio_codec.cc"
             "settings.cc"
             "device_state_event.cc"
             "assets.cc"
+            "schedule_manager.cc"
+            "timer_manager.cc"
             "main.cc"
             )
 
@@ -516,6 +519,9 @@ elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(LVGL_TEXT_FONT ${FONT_PUHUI_BASIC_20_4})
     set(LVGL_ICON_FONT ${FONT_AWESOME_20_4})
     set(DEFAULT_ASSETS ${ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32})
+elseif(CONFIG_BOARD_TYPE_ESP32S3_SMART_SPEAKER)
+    set(BOARD_TYPE "esp32s3-smart-speaker")
+    set(DEFAULT_ASSETS ${ASSETS_XIAOZHI_WAKENET_ONLY})
 endif()
 
 file(GLOB BOARD_SOURCES
