@@ -1,15 +1,12 @@
 #ifndef ASSETS_H
 #define ASSETS_H
 
-#include "emoji_collection.h"
-
 #include <map>
 #include <string>
 #include <functional>
 
 #include <cJSON.h>
 #include <esp_partition.h>
-#include <lvgl.h>
 #include <model_path.h>
 
 
@@ -61,9 +58,7 @@ private:
     bool partition_valid_ = false;
     bool checksum_valid_ = false;
     std::string default_assets_url_;
-    lv_font_t* text_font_ = nullptr;
     srmodel_list_t* models_list_ = nullptr;
-    CustomEmojiCollection* custom_emoji_collection_ = nullptr;
     std::map<std::string, Asset> assets_;
 };
 

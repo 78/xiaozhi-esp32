@@ -19,12 +19,7 @@
 #include "esp_lcd_touch_gt911.h"
 #include <cstring>
 
-
 #define TAG "M5StackTab5Board"
-
-LV_FONT_DECLARE(font_puhui_basic_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
-
 
 #define AUDIO_CODEC_ES8388_ADDR ES8388_CODEC_DEFAULT_ADDR
 #define LCD_MIPI_DSI_PHY_PWR_LDO_CHAN       3  // LDO_VO3 is connected to VDD_MIPI_DPHY
@@ -72,7 +67,6 @@ public:
     }
 };
 
- 
 class M5StackTab5Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -261,8 +255,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new MipiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X,
-                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                      {&font_puhui_basic_30_4, &font_awesome_30_4});
+                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -274,11 +267,6 @@ public:
         InitializeIli9881cDisplay();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

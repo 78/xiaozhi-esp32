@@ -12,7 +12,6 @@
 
 #define TAG "AtomEchoS3R"
 
- 
 class AtomEchoS3rBaseBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -69,11 +68,6 @@ public:
         InitializeI2c();
         I2cDetect();
         InitializeButtons();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_WAKENET);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

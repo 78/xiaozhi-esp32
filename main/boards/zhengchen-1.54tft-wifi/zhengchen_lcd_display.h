@@ -2,6 +2,7 @@
 #define ZHENGCHEN_LCD_DISPLAY_H
 
 #include "display/lcd_display.h"
+#include "lvgl_theme.h"
 #include <esp_lvgl_port.h>
 
 class ZHENGCHEN_LcdDisplay : public SpiLcdDisplay {
@@ -14,10 +15,12 @@ public:
     using SpiLcdDisplay::SpiLcdDisplay;
 
     void SetupHighTempWarningPopup() {
+        auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+        auto text_font = lvgl_theme->text_font()->font();
         // 创建高温警告弹窗
         high_temp_popup_ = lv_obj_create(lv_screen_active());  // 使用当前屏幕
         lv_obj_set_scrollbar_mode(high_temp_popup_, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, style_.text_font->line_height * 2);
+        lv_obj_set_size(high_temp_popup_, LV_HOR_RES * 0.9, text_font->line_height * 2);
         lv_obj_align(high_temp_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
         lv_obj_set_style_bg_color(high_temp_popup_, lv_palette_main(LV_PALETTE_RED), 0);
         lv_obj_set_style_radius(high_temp_popup_, 10, 0);

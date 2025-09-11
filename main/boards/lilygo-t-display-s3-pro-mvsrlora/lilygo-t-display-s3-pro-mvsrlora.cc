@@ -16,9 +16,6 @@
 
 #define TAG "LilygoTDisplays3ProMVSRLoraBoard"
 
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 class Cst2xxse : public I2cDevice {
 public:
     struct TouchPoint_t {
@@ -209,8 +206,7 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
         gpio_config_t config;
         config.pin_bit_mask = BIT64(DISPLAY_BL);
@@ -247,11 +243,6 @@ public:
         InitSt7796Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec *GetAudioCodec() override {

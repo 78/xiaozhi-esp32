@@ -5,7 +5,6 @@
 
 #define TAG "LedStripControl"
 
-
 int LedStripControl::LevelToBrightness(int level) const {
     if (level < 0) level = 0;
     if (level > 8) level = 8;

@@ -20,10 +20,6 @@
 
 #define TAG "MovecallMojiESP32S3"
 
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
-
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
@@ -35,8 +31,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {&font_puhui_basic_20_4, &font_awesome_20_4}) {
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
@@ -101,8 +96,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
         display_ = new SpiLcdDisplay(io_handle, panel_handle,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -122,11 +116,6 @@ public:
         InitializeGc9a01Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual Led* GetLed() override {

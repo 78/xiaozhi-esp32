@@ -16,11 +16,6 @@
 
 #define TAG "TaijiPiS3Board"
 
-
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
-
 static const st77916_lcd_init_cmd_t lcd_init_cmds[] = {
 #ifdef CONFIG_TAIJIPAI_I2S_TYPE_STD
     {0xF0, (uint8_t[]){0x08}, 1, 0},
@@ -595,8 +590,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeMute() {
@@ -614,11 +608,6 @@ public:
         Initializest77916Display();
         InitializeMute();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

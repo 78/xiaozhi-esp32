@@ -24,9 +24,6 @@
 // 控制器初始化函数声明
 void InitializeElectronBotController();
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 class ElectronBot : public WifiBoard {
 private:
     Display* display_;
@@ -73,8 +70,7 @@ private:
 
         display_ = new ElectronEmojiDisplay(io_handle, panel_handle, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                             DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                            {&font_puhui_20_4, &font_awesome_20_4, new Twemoji64()});
+                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {

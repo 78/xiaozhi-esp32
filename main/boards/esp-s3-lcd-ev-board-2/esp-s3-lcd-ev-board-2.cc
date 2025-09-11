@@ -22,9 +22,6 @@
 
 #define TAG "ESP_S3_LCD_EV_Board_2"
 
-LV_FONT_DECLARE(font_puhui_basic_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
-
 class ESP_S3_LCD_EV_Board_2 : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -62,7 +59,6 @@ private:
         esp_lcd_panel_io_3wire_spi_config_t io_config = GC9503_PANEL_IO_3WIRE_SPI_CONFIG(line_config, 0);
         int espok = esp_lcd_new_panel_io_3wire_spi(&io_config, &panel_io);
         ESP_LOGI(TAG, "Install 3-wire SPI  panel IO:%d",espok);
-
 
         ESP_LOGI(TAG, "Install RGB LCD panel driver");
         esp_lcd_panel_handle_t panel_handle = NULL;
@@ -126,8 +122,7 @@ private:
 
         display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {&font_puhui_basic_30_4, &font_awesome_30_4});
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeCodecI2c() {
@@ -208,11 +203,6 @@ public:
         InitializeTouch();
     }
 
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64);
-        return &assets;
-    }
-
     virtual AudioCodec* GetAudioCodec() override {
         static BoxAudioCodec audio_codec(
             i2c_bus_, 
@@ -239,7 +229,6 @@ public:
         static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
-
 
 };
 

@@ -15,9 +15,6 @@
 
 #define TAG "mpython_v3"
 
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 class mpython_v3 : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -99,8 +96,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY); 
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_20_4, &font_awesome_20_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -110,11 +106,6 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         GetBacklight()->SetBrightness(100);
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     virtual Led* GetLed() override {
