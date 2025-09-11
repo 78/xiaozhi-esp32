@@ -41,16 +41,24 @@ void ButtonManager::SetupButtonCallbacks() {
     
     boot_button_.OnLongPress([]() { 
         ESP_LOGI(TAG, "BOOT long pressed: play boot tone");
-        // 使用Application的PlaySound方法播放开机音效
-        //auto& app = Application::GetInstance();
-        //app.PlaySound("activation");
-        //ESP_LOGI(TAG, "Boot tone played");
+        
+        // 确保音频输出已启用
         auto& board = Board::GetInstance();
         auto codec = board.GetAudioCodec();
+        if (!codec) {
+            ESP_LOGE(TAG, "Audio codec not available");
+            return;
+        }
+        
         codec->EnableOutput(true);
         codec->SetOutputVolume(10);
         
         auto music = Board::GetInstance().GetMusic();
+        if (!music) {
+            ESP_LOGE(TAG, "Music player not available");
+            return;
+        }
+        
         auto song_name = "稻香";
         auto artist_name = "";
         if (!music->Download(song_name, artist_name)) {
@@ -73,11 +81,23 @@ void ButtonManager::SetupButtonCallbacks() {
     });
     
     volume_up_button_.OnLongPress([]() { 
-        ESP_LOGI(TAG, "Volume up long pressed: set to maximum");
-        auto& board = Board::GetInstance();
-        auto codec = board.GetAudioCodec();
-        codec->SetOutputVolume(100);
-        ESP_LOGI(TAG, "Volume set to maximum requested");
+        ESP_LOGI(TAG, "Volume up long pressed: switching to voice interaction mode");
+        
+        // 播放进入语音交互模式的提示音
+        auto& app = Application::GetInstance();
+        app.PlaySound("success"); // 播放成功提示音
+        
+        // 暂停音乐播放
+        auto music = Board::GetInstance().GetMusic();
+        if (music && music->IsPlaying()) {
+            music->PauseSong();
+            ESP_LOGI(TAG, "Music paused for voice interaction");
+        }
+        
+        // 切换到语音交互模式
+        app.GetAudioService().EnableWakeWordDetection(true);
+        app.GetAudioService().EnableVoiceProcessing(true);
+        ESP_LOGI(TAG, "Switched to voice interaction mode - waiting for user voice input");
     });
     
     // 音量下按钮回调
@@ -90,10 +110,22 @@ void ButtonManager::SetupButtonCallbacks() {
     });
     
     volume_down_button_.OnLongPress([]() { 
-        ESP_LOGI(TAG, "Volume down long pressed: mute");
-        auto& board = Board::GetInstance();
-        auto codec = board.GetAudioCodec();
-        codec->SetOutputVolume(0);
-        ESP_LOGI(TAG, "Volume mute requested");
+        ESP_LOGI(TAG, "Volume down long pressed: stopping audio playback and voice interaction");
+        
+        // 播放停止提示音
+        auto& app = Application::GetInstance();
+        app.PlaySound("exclamation"); // 播放感叹号提示音
+        
+        // 停止音乐播放
+        auto music = Board::GetInstance().GetMusic();
+        if (music && music->IsPlaying()) {
+            music->PauseSong();
+            ESP_LOGI(TAG, "Music playback stopped");
+        }
+        
+        // 停止语音交互
+        app.GetAudioService().EnableWakeWordDetection(false);
+        app.GetAudioService().EnableVoiceProcessing(false);
+        ESP_LOGI(TAG, "Voice interaction stopped");
     });
 }

@@ -44,6 +44,7 @@ public:
     
     // 压力检测触发音乐播放
     void TriggerMusicPlayback();
+    void TriggerMusicPauseback();
 
 private:
     AdcManager() = default;
