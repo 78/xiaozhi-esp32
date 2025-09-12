@@ -137,13 +137,11 @@ void McpServer::AddUserOnlyTools() {
     AddUserOnlyTool("self.reboot", "Reboot the system",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
-            auto& app = Application::GetInstance();
-            app.Schedule([]() {
+            std::thread([this]() {
                 ESP_LOGW(TAG, "User requested reboot");
                 vTaskDelay(pdMS_TO_TICKS(1000));
-                auto& app = Application::GetInstance();
-                app.Reboot();
-            });
+                Application::GetInstance().Reboot();
+            }).detach();
             return true;
         });
 
