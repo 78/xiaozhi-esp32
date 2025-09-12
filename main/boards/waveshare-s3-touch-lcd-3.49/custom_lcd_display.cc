@@ -76,9 +76,9 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     int offsetx2 = DISPLAY_WIDTH;
     int offsety2 = offgap;
 #if (DISPLAY_ROTATION_90 == true)
-    uint16_t *map = (uint16_t *)dest_map;
+    uint16_t *map = (uint16_t*)dest_map;
 #else
-    uint16_t *map = (uint16_t *)color_map;
+    uint16_t *map = (uint16_t*)color_map;
 #endif
     xSemaphoreGive(trans_done_sem);
     

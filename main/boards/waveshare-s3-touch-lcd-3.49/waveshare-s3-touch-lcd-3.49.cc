@@ -204,8 +204,7 @@ private:
     }
 
     void GetPwrCurrentState() {
-        if(gpio_get_level(PWR_BUTTON_GPIO))
-        {
+        if(gpio_get_level(PWR_BUTTON_GPIO)) {
             is_PwrControlEn = true;
         }
     }
