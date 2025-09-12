@@ -20,68 +20,17 @@
 
 #include "board.h"
 
-
 #define TAG "CustomLcdDisplay"
-
-// Color definitions for dark theme
-#define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
-#define DARK_TEXT_COLOR             lv_color_white()           // White text
-#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
-#define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
-#define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
-#define DARK_SYSTEM_BUBBLE_COLOR    lv_color_hex(0x2A2A2A)     // Medium gray
-#define DARK_SYSTEM_TEXT_COLOR      lv_color_hex(0xAAAAAA)     // Light gray text
-#define DARK_BORDER_COLOR           lv_color_hex(0x333333)     // Dark gray border
-#define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)     // Red for dark mode
-
-// Color definitions for light theme
-#define LIGHT_BACKGROUND_COLOR       lv_color_white()           // White background
-#define LIGHT_TEXT_COLOR             lv_color_black()           // Black text
-#define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)     // Light gray background
-#define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)     // WeChat green
-#define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()           // White
-#define LIGHT_SYSTEM_BUBBLE_COLOR    lv_color_hex(0xE0E0E0)     // Light gray
-#define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
-#define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
-#define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
-
-
-// Define dark theme colors
-static const ThemeColors DARK_THEME = {
-    .background = DARK_BACKGROUND_COLOR,
-    .text = DARK_TEXT_COLOR,
-    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
-    .user_bubble = DARK_USER_BUBBLE_COLOR,
-    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
-    .system_text = DARK_SYSTEM_TEXT_COLOR,
-    .border = DARK_BORDER_COLOR,
-    .low_battery = DARK_LOW_BATTERY_COLOR
-};
-
-// Define light theme colors
-static const ThemeColors LIGHT_THEME = {
-    .background = LIGHT_BACKGROUND_COLOR,
-    .text = LIGHT_TEXT_COLOR,
-    .chat_background = LIGHT_CHAT_BACKGROUND_COLOR,
-    .user_bubble = LIGHT_USER_BUBBLE_COLOR,
-    .assistant_bubble = LIGHT_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = LIGHT_SYSTEM_BUBBLE_COLOR,
-    .system_text = LIGHT_SYSTEM_TEXT_COLOR,
-    .border = LIGHT_BORDER_COLOR,
-    .low_battery = LIGHT_LOW_BATTERY_COLOR
-};
-
-// Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
 
 static SemaphoreHandle_t trans_done_sem = NULL;
 static uint16_t *trans_buf_1;
+
+#if (DISPLAY_ROTATION_90 == true)
 static uint16_t *dest_map;
+#endif
 
 
-bool CustomLcdDisplay::lvgl_port_flush_io_ready_callback(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
-{
+bool CustomLcdDisplay::lvgl_port_flush_io_ready_callback(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx) {
     BaseType_t taskAwake = pdFALSE;
     lv_display_t *disp_drv = (lv_display_t *)user_ctx;
     assert(disp_drv != NULL);
@@ -91,52 +40,49 @@ bool CustomLcdDisplay::lvgl_port_flush_io_ready_callback(esp_lcd_panel_io_handle
     return false;
 }
 
-void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map)
-{
+void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map) {
     assert(drv != NULL);
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)lv_display_get_user_data(drv);
     assert(panel_handle != NULL);
 
     lv_draw_sw_rgb565_swap(color_map, lv_area_get_width(area) * lv_area_get_height(area));
 
-#if (EXAMPLE_Rotate_90 == 1)
+#if (DISPLAY_ROTATION_90 == true)
     lv_display_rotation_t rotation = lv_display_get_rotation(drv);
     lv_area_t rotated_area;
-    if(rotation != LV_DISPLAY_ROTATION_0)
-    {
-      lv_color_format_t cf = lv_display_get_color_format(drv);
-      /*Calculate the position of the rotated area*/
-      rotated_area = *area;
-      lv_display_rotate_area(drv, &rotated_area);
-      /*Calculate the source stride (bytes in a line) from the width of the area*/
-      uint32_t src_stride = lv_draw_buf_width_to_stride(lv_area_get_width(area), cf);
-      /*Calculate the stride of the destination (rotated) area too*/
-      uint32_t dest_stride = lv_draw_buf_width_to_stride(lv_area_get_width(&rotated_area), cf);
-      /*Have a buffer to store the rotated area and perform the rotation*/
+    if(rotation != LV_DISPLAY_ROTATION_0) {
+        lv_color_format_t cf = lv_display_get_color_format(drv);
+        /*Calculate the position of the rotated area*/
+        rotated_area = *area;
+        lv_display_rotate_area(drv, &rotated_area);
+        /*Calculate the source stride (bytes in a line) from the width of the area*/
+        uint32_t src_stride = lv_draw_buf_width_to_stride(lv_area_get_width(area), cf);
+        /*Calculate the stride of the destination (rotated) area too*/
+        uint32_t dest_stride = lv_draw_buf_width_to_stride(lv_area_get_width(&rotated_area), cf);
+        /*Have a buffer to store the rotated area and perform the rotation*/
 
-      int32_t src_w = lv_area_get_width(area);
-      int32_t src_h = lv_area_get_height(area);
-      lv_draw_sw_rotate(color_map, dest_map, src_w, src_h, src_stride, dest_stride, rotation, cf);
-      /*Use the rotated area and rotated buffer from now on*/
-      area = &rotated_area;
+        int32_t src_w = lv_area_get_width(area);
+        int32_t src_h = lv_area_get_height(area);
+        lv_draw_sw_rotate(color_map, dest_map, src_w, src_h, src_stride, dest_stride, rotation, cf);
+        /*Use the rotated area and rotated buffer from now on*/
+        area = &rotated_area;
     }
 #endif
     const int flush_coun = (LVGL_SPIRAM_BUFF_LEN / LVGL_DMA_BUFF_LEN);
-    const int offgap = (EXAMPLE_LCD_V_RES / flush_coun);
+    const int offgap = (DISPLAY_HEIGHT / flush_coun);
     const int dmalen = (LVGL_DMA_BUFF_LEN / 2);
     int offsetx1 = 0;
     int offsety1 = 0;
-    int offsetx2 = EXAMPLE_LCD_H_RES;
+    int offsetx2 = DISPLAY_WIDTH;
     int offsety2 = offgap;
-#if (EXAMPLE_Rotate_90 == 1)
+#if (DISPLAY_ROTATION_90 == true)
     uint16_t *map = (uint16_t *)dest_map;
 #else
     uint16_t *map = (uint16_t *)color_map;
 #endif
     xSemaphoreGive(trans_done_sem);
     
-    for(int i = 0; i<flush_coun; i++)
-    {
+    for(int i = 0; i<flush_coun; i++) {
         xSemaphoreTake(trans_done_sem,portMAX_DELAY);
         memcpy(trans_buf_1,map,LVGL_DMA_BUFF_LEN);
         esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2, offsety2, trans_buf_1);
@@ -173,7 +119,7 @@ CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_p
     lv_display_set_flush_cb(display_, lvgl_port_flush_callback);
     buffer_size = width_ * height_;
     buf1 = (lv_color_t *)heap_caps_aligned_alloc(1, buffer_size * color_bytes, MALLOC_CAP_SPIRAM);
-#if (EXAMPLE_Rotate_90 == 1)
+#if (DISPLAY_ROTATION_90 == true)
     dest_map = (uint16_t *)heap_caps_malloc(buffer_size * color_bytes, MALLOC_CAP_SPIRAM);
     lv_display_set_rotation(display_, LV_DISPLAY_ROTATION_90);
 #endif
@@ -195,13 +141,5 @@ CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_p
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
-    }
-
     SetupUI();
 }

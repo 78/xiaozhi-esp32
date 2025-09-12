@@ -35,11 +35,13 @@ static const axs15231b_lcd_init_cmd_t lcd_init_cmds[] = {
 class CustomBoard : public WifiBoard {
 private:
     Button boot_button_;
+    Button pwr_button_;
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     i2c_master_dev_handle_t disp_touch_dev_handle = NULL;
     lv_indev_t *touch_indev = NULL;    //touch
+    bool is_PwrControlEn = false;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -58,15 +60,14 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
     
-    void InitializeTca9554(void)
-    {
+    void InitializeTca9554(void) {
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander);
         if(ret != ESP_OK)
         ESP_LOGE(TAG, "TCA9554 create returned error");        
-        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_7, IO_EXPANDER_OUTPUT);         
+        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_7 | IO_EXPANDER_PIN_NUM_6, IO_EXPANDER_OUTPUT);         
         ESP_ERROR_CHECK(ret);
         vTaskDelay(pdMS_TO_TICKS(100));
-        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_7, 1);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_7 | IO_EXPANDER_PIN_NUM_6, 1);
         ESP_ERROR_CHECK(ret);
     }
 
@@ -128,7 +129,7 @@ private:
         esp_lcd_panel_init(panel);
 
         display_ = new CustomLcdDisplay(panel_io, panel,
-                                    EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -138,6 +139,19 @@ private:
                 ResetWifiConfiguration();
             }
             app.ToggleChatState();
+        });
+
+        pwr_button_.OnLongPress([this]() {
+            if(is_PwrControlEn) {
+                is_PwrControlEn = false;
+                esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_6, 0);
+            }
+        });
+
+        pwr_button_.OnPressUp([this]() {
+            if(!is_PwrControlEn) {
+                is_PwrControlEn = true;
+            }
         });
     }
 
@@ -155,8 +169,7 @@ private:
             i2c_bus_cfg.flags.enable_internal_pullup = 1;
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &touch_i2c_bus_));
     
-        i2c_device_config_t dev_cfg = 
-        {
+        i2c_device_config_t dev_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
             .device_address = I2C_Touch_ADDRESS,
             .scl_speed_hz = 300000,
@@ -169,8 +182,7 @@ private:
         lv_indev_set_user_data(touch_indev, disp_touch_dev_handle);
     }
 
-    static void TouchInputReadCallback(lv_indev_t * indev, lv_indev_data_t *indevData)
-    {
+    static void TouchInputReadCallback(lv_indev_t * indev, lv_indev_data_t *indevData) {
         i2c_master_dev_handle_t i2c_dev = (i2c_master_dev_handle_t)lv_indev_get_user_data(indev);
         uint8_t read_touchpad_cmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x0e,0x0, 0x0, 0x0};
         uint8_t buff[32] = {0};
@@ -179,30 +191,36 @@ private:
         uint16_t pointY;
         pointX = (((uint16_t)buff[2] & 0x0f) << 8) | (uint16_t)buff[3];
         pointY = (((uint16_t)buff[4] & 0x0f) << 8) | (uint16_t)buff[5];
-        if (buff[1]>0 && buff[1]<5)
-        {
+        if (buff[1]>0 && buff[1]<5) {
             indevData->state = LV_INDEV_STATE_PRESSED;
-            if(pointX > EXAMPLE_LCD_V_RES) pointX = EXAMPLE_LCD_V_RES;
-            if(pointY > EXAMPLE_LCD_H_RES) pointY = EXAMPLE_LCD_H_RES;
+            if(pointX > DISPLAY_WIDTH) pointX = DISPLAY_WIDTH;
+            if(pointY > DISPLAY_HEIGHT) pointY = DISPLAY_HEIGHT;
             indevData->point.x = pointY;
-            indevData->point.y = (EXAMPLE_LCD_V_RES-pointX);
+            indevData->point.y = (DISPLAY_HEIGHT-pointX);
             ESP_LOGE("Touch","(%ld,%ld)",indevData->point.x,indevData->point.y);
-        }
-        else 
-        {
+        } else {
             indevData->state = LV_INDEV_STATE_RELEASED;
+        }
+    }
+
+    void GetPwrCurrentState() {
+        if(gpio_get_level(PWR_BUTTON_GPIO))
+        {
+            is_PwrControlEn = true;
         }
     }
 
 public:
     CustomBoard() :
-        boot_button_(BOOT_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO),
+        pwr_button_(PWR_BUTTON_GPIO) {
         InitializeI2c();
         InitializeTca9554();
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
         InitializeTouch();
+        GetPwrCurrentState();
         GetBacklight()->RestoreBrightness();
     }
 
