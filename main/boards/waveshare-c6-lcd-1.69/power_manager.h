@@ -9,8 +9,6 @@
 #include "esp_adc/adc_cali_scheme.h"
 #include <math.h>
 
-#define TAG "power_manager"
-
 
 class PowerManager {
 private:
@@ -28,7 +26,7 @@ private:
         bool calibrated = false;
 
         if (!calibrated) {
-            ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+            ESP_LOGI("PowerManager", "calibration scheme version is %s", "Curve Fitting");
             adc_cali_curve_fitting_config_t cali_config = {
                 .unit_id = unit,
                 .chan = channel,
@@ -43,13 +41,13 @@ private:
 
         *out_handle = handle;
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Calibration Success");
+            ESP_LOGI("PowerManager", "Calibration Success");
         }
         else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
-            ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+            ESP_LOGW("PowerManager", "eFuse not burnt, skip software calibration");
         }
         else  {
-            ESP_LOGE(TAG, "Invalid arg or no memory");
+            ESP_LOGE("PowerManager", "Invalid arg or no memory");
         }
         return calibrated;
     }
