@@ -12,6 +12,7 @@
 
 #include "application.h"
 #include "display.h"
+#include "oled_display.h"
 #include "board.h"
 #include "settings.h"
 #include "lvgl_theme.h"
@@ -136,12 +137,36 @@ void McpServer::AddUserOnlyTools() {
     AddUserOnlyTool("self.reboot", "Reboot the system",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
-            std::thread([]() {
+            auto& app = Application::GetInstance();
+            app.Schedule([]() {
                 ESP_LOGW(TAG, "User requested reboot");
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 auto& app = Application::GetInstance();
                 app.Reboot();
-            }).detach();
+            });
+            return true;
+        });
+
+    // Firmware upgrade
+    AddUserOnlyTool("self.upgrade_firmware", "Upgrade firmware from a specific URL. This will download and install the firmware, then reboot the device.",
+        PropertyList({
+            Property("url", kPropertyTypeString, "The URL of the firmware binary file to download and install")
+        }),
+        [this](const PropertyList& properties) -> ReturnValue {
+            auto url = properties["url"].value<std::string>();
+            ESP_LOGI(TAG, "User requested firmware upgrade from URL: %s", url.c_str());
+            
+            auto& app = Application::GetInstance();
+            app.Schedule([url]() {
+                auto& app = Application::GetInstance();
+                auto ota = std::make_unique<Ota>();
+                
+                bool success = app.UpgradeFirmware(*ota, url);
+                if (!success) {
+                    ESP_LOGE(TAG, "Firmware upgrade failed");
+                }
+            });
+            
             return true;
         });
 
@@ -155,6 +180,11 @@ void McpServer::AddUserOnlyTools() {
                 cJSON *json = cJSON_CreateObject();
                 cJSON_AddNumberToObject(json, "width", display->width());
                 cJSON_AddNumberToObject(json, "height", display->height());
+                if (dynamic_cast<OledDisplay*>(display)) {
+                    cJSON_AddBoolToObject(json, "monochrome", true);
+                } else {
+                    cJSON_AddBoolToObject(json, "monochrome", false);
+                }
                 return json;
             });
         
