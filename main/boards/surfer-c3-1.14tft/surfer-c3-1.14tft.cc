@@ -18,11 +18,7 @@
 #include "power_manager.h"
 // #include <esp_sleep.h> 
 
-
 #define TAG "SURFERC3114TFT"
-
-LV_FONT_DECLARE(font_puhui_basic_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class SurferC3114TFT : public WifiBoard {
 private:
@@ -146,8 +142,7 @@ private:
         esp_lcd_panel_swap_xy(panel_, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io_, panel_,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_16_4, &font_awesome_16_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -164,11 +159,6 @@ public:
 
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_S_PUHUI_COMMON_16_4_EMOJI_32);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

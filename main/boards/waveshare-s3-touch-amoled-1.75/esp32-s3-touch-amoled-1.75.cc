@@ -26,9 +26,6 @@
 
 #define TAG "WaveshareEsp32s3TouchAMOLED1inch75"
 
-LV_FONT_DECLARE(font_puhui_basic_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
-
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
@@ -110,8 +107,7 @@ public:
                      bool mirror_y,
                      bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle,
-                        width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                        {&font_puhui_basic_30_4, &font_awesome_30_4}) {
+                        width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*  0.1, 0);
@@ -312,11 +308,6 @@ public:
         InitializeTouch();
         InitializeButtons();
         InitializeTools();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_30_4_EMOJI_64);
-        return &assets;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

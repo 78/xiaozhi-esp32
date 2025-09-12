@@ -99,7 +99,6 @@ private:
         });
     }
 
-
     void InitializeGpio(gpio_num_t gpio_num_) {
         gpio_config_t config = {
             .pin_bit_mask = (1ULL << gpio_num_),
@@ -121,11 +120,6 @@ public:
         // 上拉io48 置高电平
         InitializeGpio(GPIO_NUM_48);
         InitializeButtons();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_WAKENET);
-        return &assets;
     }
 
     virtual Led* GetLed() override {

@@ -19,10 +19,6 @@
 
 #define TAG "ZHENGCHEN_1_54TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_basic_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
-
 class ZHENGCHEN_1_54TFT_WIFI : public WifiBoard {
 private:
     Button boot_button_;
@@ -90,7 +86,6 @@ private:
             }
             app.ToggleChatState();
         });
-
 
         // 设置开机按钮的长按事件（直接进入配网模式）
         boot_button_.OnLongPress([this]() {
@@ -166,8 +161,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
 
         display_ = new ZHENGCHEN_LcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
-            {&font_puhui_basic_20_4, &font_awesome_20_4});
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         display_->SetupHighTempWarningPopup();
     }
 
@@ -186,11 +180,6 @@ public:
         InitializeSt7789Display();  
         InitializeTools();
         GetBacklight()->RestoreBrightness();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64);
-        return &assets;
     }
 
     // 获取音频编解码器

@@ -19,9 +19,6 @@
 
 #define TAG "DuChatX"
 
-LV_FONT_DECLARE(font_puhui_basic_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class DuChatX : public WifiBoard {
 private:
     Button boot_button_;
@@ -101,8 +98,7 @@ private:
         esp_lcd_panel_invert_color(panel_, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel_, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel_,DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-            {&font_puhui_basic_16_4, &font_awesome_16_4});
+        display_ = new SpiLcdDisplay(panel_io, panel_,DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -124,11 +120,6 @@ public:
         GetBacklight()->RestoreBrightness();
         InitializePowerSaveTimer();
         InitializePowerManager();
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32);
-        return &assets;
     }
 
     virtual Led *GetLed() override {

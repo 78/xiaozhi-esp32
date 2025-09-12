@@ -60,9 +60,6 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
  
 #define TAG "CompactWifiBoardLCD"
 
-LV_FONT_DECLARE(font_puhui_basic_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class CompactWifiBoardLCD : public WifiBoard {
 private:
  
@@ -114,7 +111,6 @@ private:
 #endif
         
         esp_lcd_panel_reset(panel);
- 
 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
@@ -124,12 +120,9 @@ private:
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {&font_puhui_basic_16_4, &font_awesome_16_4});
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-
- 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -156,11 +149,6 @@ public:
             GetBacklight()->RestoreBrightness();
         }
         
-    }
-
-    virtual Assets* GetAssets() override {
-        static Assets assets(ASSETS_XIAOZHI_PUHUI_COMMON_16_4_EMOJI_32);
-        return &assets;
     }
 
     virtual Led* GetLed() override {

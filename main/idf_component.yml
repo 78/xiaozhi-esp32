@@ -6,7 +6,7 @@ dependencies:
   espressif/esp_lcd_st77916: ^1.0.1
   espressif/esp_lcd_axs15231b: ^1.0.0
   espressif/esp_lcd_st7796:
-    version: 1.3.2
+    version: 1.3.4
     rules:
     - if: target not in [esp32c3]
   espressif/esp_lcd_spd2010: ==1.0.2
