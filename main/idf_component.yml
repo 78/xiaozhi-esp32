@@ -73,7 +73,8 @@ dependencies:
     version: ^0.1.8
     rules:
     - if: target in [esp32c3]
-
+  chmorgan/esp-libhelix-mp3:
+    version: "*"
   ## Required IDF version
   idf:
     version: '>=5.4.0'

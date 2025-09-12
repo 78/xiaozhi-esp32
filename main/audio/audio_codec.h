@@ -23,6 +23,7 @@ public:
     virtual void SetOutputVolume(int volume);
     virtual void EnableInput(bool enable);
     virtual void EnableOutput(bool enable);
+    virtual bool SetOutputSampleRate(int sample_rate);
 
     virtual void OutputData(std::vector<int16_t>& data);
     virtual bool InputData(std::vector<int16_t>& data);
@@ -32,6 +33,7 @@ public:
     inline bool input_reference() const { return input_reference_; }
     inline int input_sample_rate() const { return input_sample_rate_; }
     inline int output_sample_rate() const { return output_sample_rate_; }
+    inline int original_output_sample_rate() const { return original_output_sample_rate_; }
     inline int input_channels() const { return input_channels_; }
     inline int output_channels() const { return output_channels_; }
     inline int output_volume() const { return output_volume_; }
@@ -48,6 +50,7 @@ protected:
     bool output_enabled_ = false;
     int input_sample_rate_ = 0;
     int output_sample_rate_ = 0;
+    int original_output_sample_rate_ = 0;
     int input_channels_ = 1;
     int output_channels_ = 1;
     int output_volume_ = 70;

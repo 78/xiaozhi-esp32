@@ -39,6 +39,11 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+    
+    // 音乐播放相关方法
+    virtual void SetMusicInfo(const char* info) {}
+    virtual void start() {}
+    virtual void stopFft() {}
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

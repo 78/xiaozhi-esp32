@@ -1,0 +1,77 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+// ESP32-S3 智能音箱开发板配置
+
+// 音频配置
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
+
+// 扬声器I2S配置
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_47  // 扬声器Word Select
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_17  // 扬声器Bit Clock
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_15  // 扬声器数据输出
+
+// INMP441 I2S麦克风配置 (BCLK/WS/DIN)
+// 说明: INMP441 是 I2S 数字麦，需要标准 I2S 三线
+// 建议映射: BCLK=GPIO14, WS=GPIO38, DIN=GPIO16（可按需要调整）
+#define AUDIO_MIC_I2S_BCLK  GPIO_NUM_14
+#define AUDIO_MIC_I2S_WS    GPIO_NUM_38
+#define AUDIO_MIC_I2S_DIN   GPIO_NUM_16
+
+// 用户交互
+#define BUILTIN_LED_GPIO        GPIO_NUM_48
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_40
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_41
+
+// IMU传感器 (I2C接口)
+#define IMU_I2C_SDA_PIN         GPIO_NUM_21
+#define IMU_I2C_SCL_PIN         GPIO_NUM_20
+#define IMU_INT_PIN             GPIO_NUM_13
+
+// 压感传感器 (ADC接口)
+#define PRESSURE_SENSOR_ADC_CHANNEL ADC_CHANNEL_3  // GPIO4 (ADC1_CHANNEL_3)
+
+// 功能IO定义
+// LED控制
+#define LED_RING_GPIO           GPIO_NUM_6   // LED灯环控制
+#define STATUS_LED_GPIO         GPIO_NUM_10  // 状态指示灯
+
+// 无显示配置
+#define DISPLAY_SDA_PIN GPIO_NUM_NC
+#define DISPLAY_SCL_PIN GPIO_NUM_NC
+#define DISPLAY_WIDTH   0
+#define DISPLAY_HEIGHT  0
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_NC
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+// 无摄像头配置
+#define CAMERA_PIN_PWDN GPIO_NUM_NC
+#define CAMERA_PIN_RESET GPIO_NUM_NC
+#define CAMERA_PIN_XCLK GPIO_NUM_NC
+#define CAMERA_PIN_SIOD GPIO_NUM_NC
+#define CAMERA_PIN_SIOC GPIO_NUM_NC
+#define CAMERA_PIN_D0 GPIO_NUM_NC
+#define CAMERA_PIN_D1 GPIO_NUM_NC
+#define CAMERA_PIN_D2 GPIO_NUM_NC
+#define CAMERA_PIN_D3 GPIO_NUM_NC
+#define CAMERA_PIN_D4 GPIO_NUM_NC
+#define CAMERA_PIN_D5 GPIO_NUM_NC
+#define CAMERA_PIN_D6 GPIO_NUM_NC
+#define CAMERA_PIN_D7 GPIO_NUM_NC
+#define CAMERA_PIN_VSYNC GPIO_NUM_NC
+#define CAMERA_PIN_HREF GPIO_NUM_NC
+#define CAMERA_PIN_PCLK GPIO_NUM_NC
+
+// 开发板版本
+#define SMART_SPEAKER_VERSION "1.0.0"
+
+#endif // _BOARD_CONFIG_H_
