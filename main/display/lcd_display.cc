@@ -120,6 +120,9 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
+#if CONFIG_SOC_CPU_CORES_NUM > 1
+    port_cfg.task_affinity = 1;
+#endif
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
@@ -858,37 +861,35 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
-void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
     if (preview_image_ == nullptr) {
         ESP_LOGE(TAG, "Preview image is not initialized");
         return;
     }
 
-    auto old_src = (const lv_img_dsc_t*)lv_image_get_src(preview_image_);
-    if (old_src != nullptr) {
-        lv_image_set_src(preview_image_, nullptr);
-        heap_caps_free((void*)old_src->data);
-        heap_caps_free((void*)old_src);
-    }
-    
-    if (img_dsc != nullptr) {
-        // 设置图片源并显示预览图片
-        lv_image_set_src(preview_image_, img_dsc);
-        if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
-            // zoom factor 0.5
-            lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
-        }
-        // Hide emoji_box_
-        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        esp_timer_stop(preview_timer_);
-        ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
-    } else {
+    if (image == nullptr) {
         esp_timer_stop(preview_timer_);
         lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        preview_image_cached_.reset();
+        return;
     }
+
+    preview_image_cached_ = std::move(image);
+    auto img_dsc = preview_image_cached_->image_dsc();
+    // 设置图片源并显示预览图片
+    lv_image_set_src(preview_image_, img_dsc);
+    if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
+        // zoom factor 0.5
+        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+    }
+
+    // Hide emoji_box_
+    lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    esp_timer_stop(preview_timer_);
+    ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
 }
 
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {

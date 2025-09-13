@@ -187,6 +187,63 @@ void McpServer::AddUserOnlyTools() {
                 }
                 return json;
             });
+
+        AddUserOnlyTool("self.screen.snapshot", "Snapshot the screen and upload it to a specific URL",
+            PropertyList({
+                Property("url", kPropertyTypeString),
+                Property("quality", kPropertyTypeInteger, 80, 1, 100)
+            }),
+            [display](const PropertyList& properties) -> ReturnValue {
+                auto url = properties["url"].value<std::string>();
+                auto quality = properties["quality"].value<int>();
+
+                uint8_t* jpeg_output_data = nullptr;
+                size_t jpeg_output_size = 0;
+                if (!display->SnapshotToJpeg(jpeg_output_data, jpeg_output_size, quality)) {
+                    throw std::runtime_error("Failed to snapshot screen");
+                }
+
+                ESP_LOGI(TAG, "Upload snapshot %u bytes to %s", jpeg_output_size, url.c_str());
+                
+                // 构造multipart/form-data请求体
+                std::string boundary = "----ESP32_SCREEN_SNAPSHOT_BOUNDARY";
+                
+                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+                http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+                if (!http->Open("POST", url)) {
+                    free(jpeg_output_data);
+                    throw std::runtime_error("Failed to open URL: " + url);
+                }
+                {
+                    // 文件字段头部
+                    std::string file_header;
+                    file_header += "--" + boundary + "\r\n";
+                    file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"screenshot.jpg\"\r\n";
+                    file_header += "Content-Type: image/jpeg\r\n";
+                    file_header += "\r\n";
+                    http->Write(file_header.c_str(), file_header.size());
+                }
+
+                // JPEG数据
+                http->Write((const char*)jpeg_output_data, jpeg_output_size);
+                free(jpeg_output_data);
+
+                {
+                    // multipart尾部
+                    std::string multipart_footer;
+                    multipart_footer += "\r\n--" + boundary + "--\r\n";
+                    http->Write(multipart_footer.c_str(), multipart_footer.size());
+                }
+                http->Write("", 0);
+
+                if (http->GetStatusCode() != 200) {
+                    throw std::runtime_error("Unexpected status code: " + std::to_string(http->GetStatusCode()));
+                }
+                std::string result = http->ReadAll();
+                http->Close();
+                ESP_LOGI(TAG, "Snapshot screen result: %s", result.c_str());
+                return true;
+            });
         
         AddUserOnlyTool("self.screen.preview_image", "Preview an image on the screen",
             PropertyList({
@@ -199,12 +256,16 @@ void McpServer::AddUserOnlyTools() {
                 if (!http->Open("GET", url)) {
                     throw std::runtime_error("Failed to open URL: " + url);
                 }
-                if (http->GetStatusCode() != 200) {
-                    throw std::runtime_error("Unexpected status code: " + std::to_string(http->GetStatusCode()));
+                int status_code = http->GetStatusCode();
+                if (status_code != 200) {
+                    throw std::runtime_error("Unexpected status code: " + std::to_string(status_code));
                 }
 
                 size_t content_length = http->GetBodyLength();
                 char* data = (char*)heap_caps_malloc(content_length, MALLOC_CAP_8BIT);
+                if (data == nullptr) {
+                    throw std::runtime_error("Failed to allocate memory for image: " + url);
+                }
                 size_t total_read = 0;
                 while (total_read < content_length) {
                     int ret = http->Read(data + total_read, content_length - total_read);
@@ -212,24 +273,15 @@ void McpServer::AddUserOnlyTools() {
                         heap_caps_free(data);
                         throw std::runtime_error("Failed to download image: " + url);
                     }
+                    if (ret == 0) {
+                        break;
+                    }
                     total_read += ret;
                 }
                 http->Close();
 
-                auto img_dsc = (lv_img_dsc_t*)heap_caps_calloc(1, sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
-                img_dsc->data_size = content_length;
-                img_dsc->data = (uint8_t*)data;
-                if (lv_image_decoder_get_info(img_dsc, &img_dsc->header) != LV_RESULT_OK) {
-                    heap_caps_free(data);
-                    heap_caps_free(img_dsc);
-                    throw std::runtime_error("Failed to get image info");
-                }
-                ESP_LOGI(TAG, "Preview image: %s size: %d resolution: %d x %d", url.c_str(), content_length, img_dsc->header.w, img_dsc->header.h);
-
-                auto& app = Application::GetInstance();
-                app.Schedule([display, img_dsc]() {
-                    display->SetPreviewImage(img_dsc);
-                });
+                auto image = std::make_unique<LvglAllocatedImage>(data, content_length);
+                display->SetPreviewImage(std::move(image));
                 return true;
             });
     }

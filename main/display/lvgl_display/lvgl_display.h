@@ -2,6 +2,7 @@
 #define LVGL_DISPLAY_H
 
 #include "display.h"
+#include "lvgl_image.h"
 
 #include <lvgl.h>
 #include <esp_timer.h>
@@ -19,9 +20,10 @@ public:
     virtual void SetStatus(const char* status);
     virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
-    virtual void SetPreviewImage(const lv_img_dsc_t* image);
+    virtual void SetPreviewImage(std::unique_ptr<LvglImage> image);
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+    virtual bool SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_size, int quality = 80);
 
 protected:
     esp_pm_lock_handle_t pm_lock_ = nullptr;

@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <font_awesome.h>
+#include <img_converters.h>
 
 #include "lvgl_display.h"
 #include "board.h"
@@ -201,12 +202,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     esp_pm_lock_release(pm_lock_);
 }
 
-void LvglDisplay::SetPreviewImage(const lv_img_dsc_t* image) {
-    // Do nothing but free the image
-    if (image != nullptr) {
-        heap_caps_free((void*)image->data);
-        heap_caps_free((void*)image);
-    }
+void LvglDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 }
 
 void LvglDisplay::SetPowerSaveMode(bool on) {
@@ -217,4 +213,30 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
         SetChatMessage("system", "");
         SetEmotion("neutral");
     }
+}
+
+bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_data_size, int quality) {
+    DisplayLockGuard lock(this);
+
+    lv_obj_t* screen = lv_screen_active();
+    lv_draw_buf_t* draw_buffer = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
+    if (draw_buffer == nullptr) {
+        return false;
+    }
+
+    // swap bytes
+    uint16_t* data = (uint16_t*)draw_buffer->data;
+    size_t pixel_count = draw_buffer->data_size / 2;
+    for (size_t i = 0; i < pixel_count; i++) {
+        data[i] = __builtin_bswap16(data[i]);
+    }
+
+    if (!fmt2jpg(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h,
+        PIXFORMAT_RGB565, quality, &jpeg_output_data, &jpeg_output_data_size)) {
+        lv_draw_buf_destroy(draw_buffer);
+        return false;
+    }
+
+    lv_draw_buf_destroy(draw_buffer);
+    return true;
 }
