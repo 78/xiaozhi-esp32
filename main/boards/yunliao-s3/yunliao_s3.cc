@@ -1,3 +1,4 @@
+#include "lvgl_theme.h"
 #include "dual_network_board.h"
 #include "codecs/es8388_audio_codec.h"
 #include "display/lcd_display.h"
@@ -82,7 +83,6 @@ private:
         });  
         boot_button_.OnMultipleClick([this]() {
             ESP_LOGI(TAG, "Button OnThreeClick");
-            auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
                 auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
                 wifi_board.ResetWifiConfiguration();
@@ -127,7 +127,11 @@ private:
                                      DISPLAY_HEIGHT, DISPLAY_OFFSET_X,
                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
                                      DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-        display_->SetTheme("dark");
+        auto& theme_manager = LvglThemeManager::GetInstance();
+        auto theme = theme_manager.GetTheme("dark");
+        if (theme != nullptr) {
+            display_->SetTheme(theme);
+        }
     }
 
 public:
