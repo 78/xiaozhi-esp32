@@ -20,8 +20,6 @@
 
 #define TAG "MCP"
 
-#define DEFAULT_TOOLCALL_STACK_SIZE 6144
-
 McpServer::McpServer() {
 }
 
@@ -111,6 +109,9 @@ void McpServer::AddCommonTools() {
                 Property("question", kPropertyTypeString)
             }),
             [camera](const PropertyList& properties) -> ReturnValue {
+                // Lower the priority to do the camera capture
+                TaskPriorityReset priority_reset(1);
+
                 if (!camera->Capture()) {
                     throw std::runtime_error("Failed to capture photo");
                 }
@@ -137,11 +138,13 @@ void McpServer::AddUserOnlyTools() {
     AddUserOnlyTool("self.reboot", "Reboot the system",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
-            std::thread([this]() {
+            auto& app = Application::GetInstance();
+            app.Schedule([&app]() {
                 ESP_LOGW(TAG, "User requested reboot");
                 vTaskDelay(pdMS_TO_TICKS(1000));
-                Application::GetInstance().Reboot();
-            }).detach();
+
+                app.Reboot();
+            });
             return true;
         });
 
@@ -155,8 +158,7 @@ void McpServer::AddUserOnlyTools() {
             ESP_LOGI(TAG, "User requested firmware upgrade from URL: %s", url.c_str());
             
             auto& app = Application::GetInstance();
-            app.Schedule([url]() {
-                auto& app = Application::GetInstance();
+            app.Schedule([url, &app]() {
                 auto ota = std::make_unique<Ota>();
                 
                 bool success = app.UpgradeFirmware(*ota, url);
@@ -379,13 +381,7 @@ void McpServer::ParseMessage(const cJSON* json) {
             ReplyError(id_int, "Invalid arguments");
             return;
         }
-        auto stack_size = cJSON_GetObjectItem(params, "stackSize");
-        if (stack_size != nullptr && !cJSON_IsNumber(stack_size)) {
-            ESP_LOGE(TAG, "tools/call: Invalid stackSize");
-            ReplyError(id_int, "Invalid stackSize");
-            return;
-        }
-        DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments, stack_size ? stack_size->valueint : DEFAULT_TOOLCALL_STACK_SIZE);
+        DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments);
     } else {
         ESP_LOGE(TAG, "Method not implemented: %s", method_str.c_str());
         ReplyError(id_int, "Method not implemented: " + method_str);
@@ -465,7 +461,7 @@ void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_o
     ReplyResult(id, json);
 }
 
-void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size) {
+void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments) {
     auto tool_iter = std::find_if(tools_.begin(), tools_.end(), 
                                  [&tool_name](const McpTool* tool) { 
                                      return tool->name() == tool_name; 
@@ -507,15 +503,9 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
         return;
     }
 
-    // Start a task to receive data with stack size
-    esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.thread_name = "tool_call";
-    cfg.stack_size = stack_size;
-    cfg.prio = 1;
-    esp_pthread_set_cfg(&cfg);
-
-    // Use a thread to call the tool to avoid blocking the main thread
-    tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments)]() {
+    // Use main thread to call the tool
+    auto& app = Application::GetInstance();
+    app.Schedule([this, id, tool_iter, arguments = std::move(arguments)]() {
         try {
             ReplyResult(id, (*tool_iter)->Call(arguments));
         } catch (const std::exception& e) {
@@ -523,5 +513,4 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
             ReplyError(id, e.what());
         }
     });
-    tool_call_thread_.detach();
 }
