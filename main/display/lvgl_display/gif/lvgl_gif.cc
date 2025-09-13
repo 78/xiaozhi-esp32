@@ -14,6 +14,7 @@ LvglGif::LvglGif(const lv_img_dsc_t* img_dsc)
     gif_ = gd_open_gif_data(img_dsc->data);
     if (!gif_) {
         ESP_LOGE(TAG, "Failed to open GIF from image descriptor");
+        return;
     }
 
     // Setup LVGL image descriptor
