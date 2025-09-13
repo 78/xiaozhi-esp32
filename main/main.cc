@@ -4,6 +4,8 @@
 #include <nvs_flash.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "application.h"
 #include "system_info.h"
@@ -27,5 +29,10 @@ extern "C" void app_main(void)
     // Launch the application
     auto& app = Application::GetInstance();
     app.Start();
-    app.MainEventLoop();
+    
+    // Start the main event loop task with priority 3
+    xTaskCreate([](void* arg) {
+        ((Application*)arg)->MainEventLoop();
+        vTaskDelete(NULL);
+    }, "main_event_loop", 2048 * 4, &app, 3, NULL);
 }
