@@ -2,6 +2,7 @@
 #include "system_info.h"
 #include "settings.h"
 #include "display/display.h"
+#include "display/oled_display.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
@@ -152,6 +153,21 @@ std::string Board::GetSystemInfoJson() {
     json += R"("ota":{)";
     auto ota_partition = esp_ota_get_running_partition();
     json += R"("label":")" + std::string(ota_partition->label) + R"(")";
+    json += R"(},)";
+
+    // Append display info
+    auto display = GetDisplay();
+    if (display) {
+        json += R"("display":{)";
+        if (dynamic_cast<OledDisplay*>(display)) {
+            json += R"("monochrome":)" + std::string("true") + R"(,)";
+        } else {
+            json += R"("monochrome":)" + std::string("false") + R"(,)";
+        }
+        json += R"("width":)" + std::to_string(display->width()) + R"(,)";
+        json += R"("height":)" + std::to_string(display->height()) + R"(,)";
+        json.pop_back(); // Remove the last comma
+    }
     json += R"(},)";
 
     json += R"("board":)" + GetBoardJson();
