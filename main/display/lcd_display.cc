@@ -28,30 +28,30 @@ void LcdDisplay::InitializeLcdThemes() {
 
     // light theme
     auto light_theme = new LvglTheme("light");
-    light_theme->set_background_color(lv_color_white());
-    light_theme->set_text_color(lv_color_black());
-    light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_user_bubble_color(lv_color_hex(0x95EC69));
-    light_theme->set_assistant_bubble_color(lv_color_white());
-    light_theme->set_system_bubble_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_system_text_color(lv_color_hex(0x666666));
-    light_theme->set_border_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_low_battery_color(lv_color_black());
+    light_theme->set_background_color(lv_color_hex(0xFFFFFF));          //rgb(255, 255, 255)
+    light_theme->set_text_color(lv_color_hex(0x000000));                //rgb(0, 0, 0)
+    light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));     //rgb(224, 224, 224)
+    light_theme->set_user_bubble_color(lv_color_hex(0x00FF00));         //rgb(0, 128, 0)
+    light_theme->set_assistant_bubble_color(lv_color_hex(0xDDDDDD));    //rgb(221, 221, 221)
+    light_theme->set_system_bubble_color(lv_color_hex(0xFFFFFF));       //rgb(255, 255, 255)
+    light_theme->set_system_text_color(lv_color_hex(0x000000));         //rgb(0, 0, 0)
+    light_theme->set_border_color(lv_color_hex(0x000000));              //rgb(0, 0, 0)
+    light_theme->set_low_battery_color(lv_color_hex(0x000000));         //rgb(0, 0, 0)
     light_theme->set_text_font(text_font);
     light_theme->set_icon_font(icon_font);
     light_theme->set_large_icon_font(large_icon_font);
 
     // dark theme
     auto dark_theme = new LvglTheme("dark");
-    dark_theme->set_background_color(lv_color_hex(0x121212));
-    dark_theme->set_text_color(lv_color_white());
-    dark_theme->set_chat_background_color(lv_color_hex(0x1E1E1E));
-    dark_theme->set_user_bubble_color(lv_color_hex(0x1A6C37));
-    dark_theme->set_assistant_bubble_color(lv_color_hex(0x333333));
-    dark_theme->set_system_bubble_color(lv_color_hex(0x2A2A2A));
-    dark_theme->set_system_text_color(lv_color_hex(0xAAAAAA));
-    dark_theme->set_border_color(lv_color_hex(0x333333));
-    dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));
+    dark_theme->set_background_color(lv_color_hex(0x000000));           //rgb(0, 0, 0)
+    dark_theme->set_text_color(lv_color_hex(0xFFFFFF));                 //rgb(255, 255, 255)
+    dark_theme->set_chat_background_color(lv_color_hex(0x1F1F1F));      //rgb(31, 31, 31)
+    dark_theme->set_user_bubble_color(lv_color_hex(0x00FF00));          //rgb(0, 128, 0)
+    dark_theme->set_assistant_bubble_color(lv_color_hex(0x222222));     //rgb(34, 34, 34)
+    dark_theme->set_system_bubble_color(lv_color_hex(0x000000));        //rgb(0, 0, 0)
+    dark_theme->set_system_text_color(lv_color_hex(0xFFFFFF));          //rgb(255, 255, 255)
+    dark_theme->set_border_color(lv_color_hex(0xFFFFFF));               //rgb(255, 255, 255)
+    dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));          //rgb(255, 0, 0)
     dark_theme->set_text_font(text_font);
     dark_theme->set_icon_font(icon_font);
     dark_theme->set_large_icon_font(large_icon_font);
@@ -120,6 +120,9 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_priority = 1;
+#if CONFIG_SOC_CPU_CORES_NUM > 1
+    port_cfg.task_affinity = 1;
+#endif
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
@@ -451,7 +454,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 
     emoji_image_ = lv_img_create(screen);
-    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, text_font->line_height + lvgl_theme->spacing(2));
+    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, text_font->line_height + lvgl_theme->spacing(8));
 
     // Display AI logo while booting
     emoji_label_ = lv_label_create(screen);
@@ -521,8 +524,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
     lv_obj_set_scrollbar_mode(msg_bubble, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_border_width(msg_bubble, 1, 0);
-    lv_obj_set_style_border_color(msg_bubble, lvgl_theme->border_color(), 0);
+    lv_obj_set_style_border_width(msg_bubble, 0, 0);
     lv_obj_set_style_pad_all(msg_bubble, lvgl_theme->spacing(4), 0);
 
     // Create the message text
@@ -561,6 +563,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (strcmp(role, "user") == 0) {
         // User messages are right-aligned with green background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->user_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
@@ -576,6 +579,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     } else if (strcmp(role, "assistant") == 0) {
         // Assistant messages are left-aligned with white background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->assistant_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
@@ -591,6 +595,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     } else if (strcmp(role, "system") == 0) {
         // System messages are center-aligned with light gray background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->system_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->system_text_color(), 0);
         
@@ -657,84 +662,88 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     chat_message_label_ = msg_text;
 }
 
-void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
         return;
     }
+
+    if (image == nullptr) {
+        return;
+    }
     
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
-    if (img_dsc != nullptr) {
-        // Create a message bubble for image preview
-        lv_obj_t* img_bubble = lv_obj_create(content_);
-        lv_obj_set_style_radius(img_bubble, 8, 0);
-        lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_set_style_border_width(img_bubble, 1, 0);
-        lv_obj_set_style_border_color(img_bubble, lvgl_theme->border_color(), 0);
-        lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
-        
-        // Set image bubble background color (similar to system message)
-        lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(img_bubble, (void*)"image");
+    // Create a message bubble for image preview
+    lv_obj_t* img_bubble = lv_obj_create(content_);
+    lv_obj_set_style_radius(img_bubble, 8, 0);
+    lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_border_width(img_bubble, 0, 0);
+    lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
+    
+    // Set image bubble background color (similar to system message)
+    lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
+    lv_obj_set_style_bg_opa(img_bubble, LV_OPA_70, 0);
+    
+    // 设置自定义属性标记气泡类型
+    lv_obj_set_user_data(img_bubble, (void*)"image");
 
-        // Create the image object inside the bubble
-        lv_obj_t* preview_image = lv_image_create(img_bubble);
-        
-        // Calculate appropriate size for the image
-        lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
-        lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
-        
-        // Calculate zoom factor to fit within maximum dimensions
-        lv_coord_t img_width = img_dsc->header.w;
-        lv_coord_t img_height = img_dsc->header.h;
-        if (img_width == 0 || img_height == 0) {
-            img_width = max_width;
-            img_height = max_height;
-            ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
-        }
-        
-        lv_coord_t zoom_w = (max_width * 256) / img_width;
-        lv_coord_t zoom_h = (max_height * 256) / img_height;
-        lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
-        
-        // Ensure zoom doesn't exceed 256 (100%)
-        if (zoom > 256) zoom = 256;
-        
-        // Set image properties
-        lv_image_set_src(preview_image, img_dsc);
-        lv_image_set_scale(preview_image, zoom);
-        
-        // Add event handler to clean up copied data when image is deleted
-        lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
-            lv_img_dsc_t* img_dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
-            if (img_dsc != nullptr) {
-                heap_caps_free((void*)img_dsc->data);
-                heap_caps_free(img_dsc);
-            }
-        }, LV_EVENT_DELETE, (void*)img_dsc);
-        
-        // Calculate actual scaled image dimensions
-        lv_coord_t scaled_width = (img_width * zoom) / 256;
-        lv_coord_t scaled_height = (img_height * zoom) / 256;
-        
-        // Set bubble size to be 16 pixels larger than the image (8 pixels on each side)
-        lv_obj_set_width(img_bubble, scaled_width + 16);
-        lv_obj_set_height(img_bubble, scaled_height + 16);
-        
-        // Don't grow in flex layout
-        lv_obj_set_style_flex_grow(img_bubble, 0, 0);
-        
-        // Center the image within the bubble
-        lv_obj_center(preview_image);
-        
-        // Left align the image bubble like assistant messages
-        lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
-
-        // Auto-scroll to the image bubble
-        lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
+    // Create the image object inside the bubble
+    lv_obj_t* preview_image = lv_image_create(img_bubble);
+    
+    // Calculate appropriate size for the image
+    lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
+    lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
+    
+    // Calculate zoom factor to fit within maximum dimensions
+    auto img_dsc = image->image_dsc();
+    lv_coord_t img_width = img_dsc->header.w;
+    lv_coord_t img_height = img_dsc->header.h;
+    if (img_width == 0 || img_height == 0) {
+        img_width = max_width;
+        img_height = max_height;
+        ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
     }
+    
+    lv_coord_t zoom_w = (max_width * 256) / img_width;
+    lv_coord_t zoom_h = (max_height * 256) / img_height;
+    lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
+    
+    // Ensure zoom doesn't exceed 256 (100%)
+    if (zoom > 256) zoom = 256;
+    
+    // Set image properties
+    lv_image_set_src(preview_image, img_dsc);
+    lv_image_set_scale(preview_image, zoom);
+    
+    // Add event handler to clean up LvglImage when image is deleted
+    // We need to transfer ownership of the unique_ptr to the event callback
+    LvglImage* raw_image = image.release(); // 释放智能指针的所有权
+    lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
+        LvglImage* img = (LvglImage*)lv_event_get_user_data(e);
+        if (img != nullptr) {
+            delete img; // 通过删除 LvglImage 对象来正确释放内存
+        }
+    }, LV_EVENT_DELETE, (void*)raw_image);
+    
+    // Calculate actual scaled image dimensions
+    lv_coord_t scaled_width = (img_width * zoom) / 256;
+    lv_coord_t scaled_height = (img_height * zoom) / 256;
+    
+    // Set bubble size to be 16 pixels larger than the image (8 pixels on each side)
+    lv_obj_set_width(img_bubble, scaled_width + 16);
+    lv_obj_set_height(img_bubble, scaled_height + 16);
+    
+    // Don't grow in flex layout
+    lv_obj_set_style_flex_grow(img_bubble, 0, 0);
+    
+    // Center the image within the bubble
+    lv_obj_center(preview_image);
+    
+    // Left align the image bubble like assistant messages
+    lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
+
+    // Auto-scroll to the image bubble
+    lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
 }
 #else
 void LcdDisplay::SetupUI() {
@@ -858,37 +867,35 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
-void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
     if (preview_image_ == nullptr) {
         ESP_LOGE(TAG, "Preview image is not initialized");
         return;
     }
 
-    auto old_src = (const lv_img_dsc_t*)lv_image_get_src(preview_image_);
-    if (old_src != nullptr) {
-        lv_image_set_src(preview_image_, nullptr);
-        heap_caps_free((void*)old_src->data);
-        heap_caps_free((void*)old_src);
-    }
-    
-    if (img_dsc != nullptr) {
-        // 设置图片源并显示预览图片
-        lv_image_set_src(preview_image_, img_dsc);
-        if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
-            // zoom factor 0.5
-            lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
-        }
-        // Hide emoji_box_
-        lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
-        esp_timer_stop(preview_timer_);
-        ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
-    } else {
+    if (image == nullptr) {
         esp_timer_stop(preview_timer_);
         lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        preview_image_cached_.reset();
+        return;
     }
+
+    preview_image_cached_ = std::move(image);
+    auto img_dsc = preview_image_cached_->image_dsc();
+    // 设置图片源并显示预览图片
+    lv_image_set_src(preview_image_, img_dsc);
+    if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
+        // zoom factor 0.5
+        lv_image_set_scale(preview_image_, 128 * width_ / img_dsc->header.w);
+    }
+
+    // Hide emoji_box_
+    lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    esp_timer_stop(preview_timer_);
+    ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
 }
 
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
@@ -955,7 +962,8 @@ void LcdDisplay::SetEmotion(const char* emotion) {
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     // Wechat message style中，如果emotion是neutral，则不显示
-    if (strcmp(emotion, "neutral") == 0) {
+    uint32_t child_count = lv_obj_get_child_cnt(content_);
+    if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
         // Stop GIF animation if running
         if (gif_controller_) {
             gif_controller_->Stop();

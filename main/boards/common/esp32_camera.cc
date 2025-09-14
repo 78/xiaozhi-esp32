@@ -63,33 +63,26 @@ bool Esp32Camera::Capture() {
     // 显示预览图片
     auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
-        // Create a new preview image
-        auto img_dsc = (lv_img_dsc_t*)heap_caps_calloc(1, sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
-        img_dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
-        img_dsc->header.cf = LV_COLOR_FORMAT_RGB565;
-        img_dsc->header.flags = 0;
-        img_dsc->header.w = fb_->width;
-        img_dsc->header.h = fb_->height;
-        img_dsc->header.stride = fb_->width * 2;
-        img_dsc->data_size = fb_->width * fb_->height * 2;
-        img_dsc->data = (uint8_t*)heap_caps_malloc(img_dsc->data_size, MALLOC_CAP_SPIRAM);
-        if (img_dsc->data == nullptr) {
+        auto data = (uint8_t*)heap_caps_malloc(fb_->len, MALLOC_CAP_SPIRAM);
+        if (data == nullptr) {
             ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-            heap_caps_free(img_dsc);
             return false;
         }
 
         auto src = (uint16_t*)fb_->buf;
-        auto dst = (uint16_t*)img_dsc->data;
+        auto dst = (uint16_t*)data;
         size_t pixel_count = fb_->len / 2;
         for (size_t i = 0; i < pixel_count; i++) {
             // 交换每个16位字内的字节
             dst[i] = __builtin_bswap16(src[i]);
         }
-        display->SetPreviewImage(img_dsc);
+
+        auto image = std::make_unique<LvglAllocatedImage>(data, fb_->len, fb_->width, fb_->height, fb_->width * 2, LV_COLOR_FORMAT_RGB565);
+        display->SetPreviewImage(std::move(image));
     }
     return true;
 }
+
 bool Esp32Camera::SetHMirror(bool enabled) {
     sensor_t *s = esp_camera_sensor_get();
     if (s == nullptr) {
