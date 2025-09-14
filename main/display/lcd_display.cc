@@ -660,84 +660,88 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     chat_message_label_ = msg_text;
 }
 
-void LcdDisplay::SetPreviewImage(const lv_img_dsc_t* img_dsc) {
+void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
         return;
     }
+
+    if (image == nullptr) {
+        return;
+    }
     
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
-    if (img_dsc != nullptr) {
-        // Create a message bubble for image preview
-        lv_obj_t* img_bubble = lv_obj_create(content_);
-        lv_obj_set_style_radius(img_bubble, 8, 0);
-        lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_set_style_border_width(img_bubble, 1, 0);
-        lv_obj_set_style_border_color(img_bubble, lvgl_theme->border_color(), 0);
-        lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
-        
-        // Set image bubble background color (similar to system message)
-        lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(img_bubble, (void*)"image");
+    // Create a message bubble for image preview
+    lv_obj_t* img_bubble = lv_obj_create(content_);
+    lv_obj_set_style_radius(img_bubble, 8, 0);
+    lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_border_width(img_bubble, 1, 0);
+    lv_obj_set_style_border_color(img_bubble, lvgl_theme->border_color(), 0);
+    lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
+    
+    // Set image bubble background color (similar to system message)
+    lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
+    
+    // 设置自定义属性标记气泡类型
+    lv_obj_set_user_data(img_bubble, (void*)"image");
 
-        // Create the image object inside the bubble
-        lv_obj_t* preview_image = lv_image_create(img_bubble);
-        
-        // Calculate appropriate size for the image
-        lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
-        lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
-        
-        // Calculate zoom factor to fit within maximum dimensions
-        lv_coord_t img_width = img_dsc->header.w;
-        lv_coord_t img_height = img_dsc->header.h;
-        if (img_width == 0 || img_height == 0) {
-            img_width = max_width;
-            img_height = max_height;
-            ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
-        }
-        
-        lv_coord_t zoom_w = (max_width * 256) / img_width;
-        lv_coord_t zoom_h = (max_height * 256) / img_height;
-        lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
-        
-        // Ensure zoom doesn't exceed 256 (100%)
-        if (zoom > 256) zoom = 256;
-        
-        // Set image properties
-        lv_image_set_src(preview_image, img_dsc);
-        lv_image_set_scale(preview_image, zoom);
-        
-        // Add event handler to clean up copied data when image is deleted
-        lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
-            lv_img_dsc_t* img_dsc = (lv_img_dsc_t*)lv_event_get_user_data(e);
-            if (img_dsc != nullptr) {
-                heap_caps_free((void*)img_dsc->data);
-                heap_caps_free(img_dsc);
-            }
-        }, LV_EVENT_DELETE, (void*)img_dsc);
-        
-        // Calculate actual scaled image dimensions
-        lv_coord_t scaled_width = (img_width * zoom) / 256;
-        lv_coord_t scaled_height = (img_height * zoom) / 256;
-        
-        // Set bubble size to be 16 pixels larger than the image (8 pixels on each side)
-        lv_obj_set_width(img_bubble, scaled_width + 16);
-        lv_obj_set_height(img_bubble, scaled_height + 16);
-        
-        // Don't grow in flex layout
-        lv_obj_set_style_flex_grow(img_bubble, 0, 0);
-        
-        // Center the image within the bubble
-        lv_obj_center(preview_image);
-        
-        // Left align the image bubble like assistant messages
-        lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
-
-        // Auto-scroll to the image bubble
-        lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
+    // Create the image object inside the bubble
+    lv_obj_t* preview_image = lv_image_create(img_bubble);
+    
+    // Calculate appropriate size for the image
+    lv_coord_t max_width = LV_HOR_RES * 70 / 100;  // 70% of screen width
+    lv_coord_t max_height = LV_VER_RES * 50 / 100; // 50% of screen height
+    
+    // Calculate zoom factor to fit within maximum dimensions
+    auto img_dsc = image->image_dsc();
+    lv_coord_t img_width = img_dsc->header.w;
+    lv_coord_t img_height = img_dsc->header.h;
+    if (img_width == 0 || img_height == 0) {
+        img_width = max_width;
+        img_height = max_height;
+        ESP_LOGW(TAG, "Invalid image dimensions: %ld x %ld, using default dimensions: %ld x %ld", img_width, img_height, max_width, max_height);
     }
+    
+    lv_coord_t zoom_w = (max_width * 256) / img_width;
+    lv_coord_t zoom_h = (max_height * 256) / img_height;
+    lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
+    
+    // Ensure zoom doesn't exceed 256 (100%)
+    if (zoom > 256) zoom = 256;
+    
+    // Set image properties
+    lv_image_set_src(preview_image, img_dsc);
+    lv_image_set_scale(preview_image, zoom);
+    
+    // Add event handler to clean up LvglImage when image is deleted
+    // We need to transfer ownership of the unique_ptr to the event callback
+    LvglImage* raw_image = image.release(); // 释放智能指针的所有权
+    lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
+        LvglImage* img = (LvglImage*)lv_event_get_user_data(e);
+        if (img != nullptr) {
+            delete img; // 通过删除 LvglImage 对象来正确释放内存
+        }
+    }, LV_EVENT_DELETE, (void*)raw_image);
+    
+    // Calculate actual scaled image dimensions
+    lv_coord_t scaled_width = (img_width * zoom) / 256;
+    lv_coord_t scaled_height = (img_height * zoom) / 256;
+    
+    // Set bubble size to be 16 pixels larger than the image (8 pixels on each side)
+    lv_obj_set_width(img_bubble, scaled_width + 16);
+    lv_obj_set_height(img_bubble, scaled_height + 16);
+    
+    // Don't grow in flex layout
+    lv_obj_set_style_flex_grow(img_bubble, 0, 0);
+    
+    // Center the image within the bubble
+    lv_obj_center(preview_image);
+    
+    // Left align the image bubble like assistant messages
+    lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
+
+    // Auto-scroll to the image bubble
+    lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
 }
 #else
 void LcdDisplay::SetupUI() {
