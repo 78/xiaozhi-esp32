@@ -4,10 +4,10 @@
 #include "board.h"
 #include "system_info.h"
 #include "lvgl_display.h"
+#include "jpg/image_to_jpeg.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
-#include <img_converters.h>
 #include <cstring>
 
 #define TAG "Esp32Camera"
@@ -152,9 +152,10 @@ std::string Esp32Camera::Explain(const std::string& question) {
         throw std::runtime_error("Failed to create JPEG queue");
     }
 
-    // We spawn a thread to encode the image to JPEG
+    // We spawn a thread to encode the image to JPEG using optimized encoder (cost about 500ms and 8KB SRAM)
     encoder_thread_ = std::thread([this, jpeg_queue]() {
-        frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
+        image_to_jpeg_cb(fb_->buf, fb_->len, fb_->width, fb_->height, fb_->format, 80,
+            [](void* arg, size_t index, const void* data, size_t len) -> size_t {
             auto jpeg_queue = (QueueHandle_t)arg;
             JpegChunk chunk = {
                 .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
