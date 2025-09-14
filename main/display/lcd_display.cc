@@ -28,30 +28,30 @@ void LcdDisplay::InitializeLcdThemes() {
 
     // light theme
     auto light_theme = new LvglTheme("light");
-    light_theme->set_background_color(lv_color_white());
-    light_theme->set_text_color(lv_color_black());
-    light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_user_bubble_color(lv_color_hex(0x95EC69));
-    light_theme->set_assistant_bubble_color(lv_color_white());
-    light_theme->set_system_bubble_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_system_text_color(lv_color_hex(0x666666));
-    light_theme->set_border_color(lv_color_hex(0xE0E0E0));
-    light_theme->set_low_battery_color(lv_color_black());
+    light_theme->set_background_color(lv_color_hex(0xFFFFFF));          //rgb(255, 255, 255)
+    light_theme->set_text_color(lv_color_hex(0x000000));                //rgb(0, 0, 0)
+    light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));     //rgb(224, 224, 224)
+    light_theme->set_user_bubble_color(lv_color_hex(0x00FF00));         //rgb(0, 128, 0)
+    light_theme->set_assistant_bubble_color(lv_color_hex(0xDDDDDD));    //rgb(221, 221, 221)
+    light_theme->set_system_bubble_color(lv_color_hex(0xFFFFFF));       //rgb(255, 255, 255)
+    light_theme->set_system_text_color(lv_color_hex(0x000000));         //rgb(0, 0, 0)
+    light_theme->set_border_color(lv_color_hex(0x000000));              //rgb(0, 0, 0)
+    light_theme->set_low_battery_color(lv_color_hex(0x000000));         //rgb(0, 0, 0)
     light_theme->set_text_font(text_font);
     light_theme->set_icon_font(icon_font);
     light_theme->set_large_icon_font(large_icon_font);
 
     // dark theme
     auto dark_theme = new LvglTheme("dark");
-    dark_theme->set_background_color(lv_color_hex(0x121212));
-    dark_theme->set_text_color(lv_color_white());
-    dark_theme->set_chat_background_color(lv_color_hex(0x1E1E1E));
-    dark_theme->set_user_bubble_color(lv_color_hex(0x1A6C37));
-    dark_theme->set_assistant_bubble_color(lv_color_hex(0x333333));
-    dark_theme->set_system_bubble_color(lv_color_hex(0x2A2A2A));
-    dark_theme->set_system_text_color(lv_color_hex(0xAAAAAA));
-    dark_theme->set_border_color(lv_color_hex(0x333333));
-    dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));
+    dark_theme->set_background_color(lv_color_hex(0x000000));           //rgb(0, 0, 0)
+    dark_theme->set_text_color(lv_color_hex(0xFFFFFF));                 //rgb(255, 255, 255)
+    dark_theme->set_chat_background_color(lv_color_hex(0x1F1F1F));      //rgb(31, 31, 31)
+    dark_theme->set_user_bubble_color(lv_color_hex(0x00FF00));          //rgb(0, 128, 0)
+    dark_theme->set_assistant_bubble_color(lv_color_hex(0x222222));     //rgb(34, 34, 34)
+    dark_theme->set_system_bubble_color(lv_color_hex(0x000000));        //rgb(0, 0, 0)
+    dark_theme->set_system_text_color(lv_color_hex(0xFFFFFF));          //rgb(255, 255, 255)
+    dark_theme->set_border_color(lv_color_hex(0xFFFFFF));               //rgb(255, 255, 255)
+    dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));          //rgb(255, 0, 0)
     dark_theme->set_text_font(text_font);
     dark_theme->set_icon_font(icon_font);
     dark_theme->set_large_icon_font(large_icon_font);
@@ -454,7 +454,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 
     emoji_image_ = lv_img_create(screen);
-    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, text_font->line_height + lvgl_theme->spacing(2));
+    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, text_font->line_height + lvgl_theme->spacing(8));
 
     // Display AI logo while booting
     emoji_label_ = lv_label_create(screen);
@@ -524,8 +524,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
     lv_obj_set_scrollbar_mode(msg_bubble, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_border_width(msg_bubble, 1, 0);
-    lv_obj_set_style_border_color(msg_bubble, lvgl_theme->border_color(), 0);
+    lv_obj_set_style_border_width(msg_bubble, 0, 0);
     lv_obj_set_style_pad_all(msg_bubble, lvgl_theme->spacing(4), 0);
 
     // Create the message text
@@ -564,6 +563,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (strcmp(role, "user") == 0) {
         // User messages are right-aligned with green background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->user_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
@@ -579,6 +579,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     } else if (strcmp(role, "assistant") == 0) {
         // Assistant messages are left-aligned with white background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->assistant_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
@@ -594,6 +595,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     } else if (strcmp(role, "system") == 0) {
         // System messages are center-aligned with light gray background
         lv_obj_set_style_bg_color(msg_bubble, lvgl_theme->system_bubble_color(), 0);
+        lv_obj_set_style_bg_opa(msg_bubble, LV_OPA_70, 0);
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->system_text_color(), 0);
         
@@ -675,12 +677,12 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_obj_t* img_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(img_bubble, 8, 0);
     lv_obj_set_scrollbar_mode(img_bubble, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_border_width(img_bubble, 1, 0);
-    lv_obj_set_style_border_color(img_bubble, lvgl_theme->border_color(), 0);
+    lv_obj_set_style_border_width(img_bubble, 0, 0);
     lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
     
     // Set image bubble background color (similar to system message)
     lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
+    lv_obj_set_style_bg_opa(img_bubble, LV_OPA_70, 0);
     
     // 设置自定义属性标记气泡类型
     lv_obj_set_user_data(img_bubble, (void*)"image");
@@ -960,7 +962,8 @@ void LcdDisplay::SetEmotion(const char* emotion) {
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     // Wechat message style中，如果emotion是neutral，则不显示
-    if (strcmp(emotion, "neutral") == 0) {
+    uint32_t child_count = lv_obj_get_child_cnt(content_);
+    if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
         // Stop GIF animation if running
         if (gif_controller_) {
             gif_controller_->Stop();
