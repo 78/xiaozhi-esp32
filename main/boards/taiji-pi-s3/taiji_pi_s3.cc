@@ -623,7 +623,7 @@ public:
             #endif
             AUDIO_MIC_SCK_PIN,
             AUDIO_MIC_WS_PIN,
-	    #ifdef CONFIG_I2S_USE_2SLOT
+	        #ifdef CONFIG_I2S_USE_2SLOT
             AUDIO_MIC_SD_PIN,
             I2S_STD_SLOT_LEFT
             #else
