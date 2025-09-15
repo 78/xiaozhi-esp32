@@ -51,11 +51,9 @@ std::string Ota::GetCheckVersionUrl() {
 
 std::unique_ptr<Http> Ota::SetupHttp() {
     auto& board = Board::GetInstance();
-    auto app_desc = esp_app_get_description();
-
     auto network = board.GetNetwork();
     auto http = network->CreateHttp(0);
-    auto user_agent = std::string(BOARD_NAME "/") + app_desc->version;
+    auto user_agent = SystemInfo::GetUserAgent();
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
