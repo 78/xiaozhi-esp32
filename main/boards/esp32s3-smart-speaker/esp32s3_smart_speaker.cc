@@ -28,7 +28,7 @@ private:
     
     // 初始化各个管理器（Initialize内部会自动启动任务）
     AdcManager::GetInstance().Initialize();
-    ImuManager::GetInstance().Initialize();
+    // ImuManager::GetInstance().Initialize();
     ButtonManager::GetInstance().Initialize();
     GpioManager::GetInstance().Initialize();
     ToolsManager::GetInstance().Initialize();
@@ -126,14 +126,15 @@ public:
         "\"speaker\":\"NoAudioCodec\","
         "\"imu_initialized\":%s,"
         "\"pressure_sensor_initialized\":%s,"
-        "\"pressure_sensor\":{\"current_value\":%d,\"adc_channel\":%d,\"sample_count\":%u},"
+        "\"pressure_sensor\":{\"current_value\":%d,\"adc_channel_left\":%d,\"adc_channel_right\":%d,\"sample_count\":%u},"
         "\"imu_sensor\":{\"type\":\"MPU6050\",\"initialized\":%s,\"status\":\"unknown\"}"
         "}",
         SMART_SPEAKER_VERSION,
         imu_initialized ? "true" : "false",
         adc_initialized ? "true" : "false",
         pressure_value,
-        PRESSURE_SENSOR_ADC_CHANNEL,
+        PRESSURE_SENSOR_ADC_LEFT_CHANNEL,
+        PRESSURE_SENSOR_ADC_RIGHT_CHANNEL,
         (unsigned int)pressure_sample_count,
         imu_sensor_initialized ? "true" : "false"
     );

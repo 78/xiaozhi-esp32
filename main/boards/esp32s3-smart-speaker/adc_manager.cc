@@ -33,7 +33,6 @@ bool AdcManager::Initialize() {
   memset(pressure_adc_values_, 0, sizeof(pressure_adc_values_));
 
   InitializeAdc();
-  // InitializeDigitalOutput(); // 暂时注释掉DO初始化
 
   // 先设置初始化状态，再启动任务
   initialized_ = true;
@@ -41,7 +40,7 @@ bool AdcManager::Initialize() {
   // 初始化后立刻读取一次，便于快速确认链路
   int init_read_raw = -1;
   esp_err_t init_read_ret = adc_oneshot_read(
-      adc1_handle_, PRESSURE_SENSOR_ADC_CHANNEL, &init_read_raw);
+      adc1_handle_, PRESSURE_SENSOR_ADC_LEFT_CHANNEL, &init_read_raw);
   if (init_read_ret != ESP_OK) {
     ESP_LOGE(TAG, "Initial ADC read failed: %s",
              esp_err_to_name(init_read_ret));
@@ -50,7 +49,7 @@ bool AdcManager::Initialize() {
   }
 
   // 启动ADC任务
-  StartAdcTask();
+  // StartAdcTask();
 
   ESP_LOGI(TAG, "AdcManager initialized successfully");
   return true;
@@ -75,15 +74,15 @@ void AdcManager::InitializeAdc() {
       .atten = ADC_ATTEN_DB_12,
       .bitwidth = ADC_BITWIDTH_12,
   };
-  ret = adc_oneshot_config_channel(adc1_handle_, PRESSURE_SENSOR_ADC_CHANNEL,
+  ret = adc_oneshot_config_channel(adc1_handle_, PRESSURE_SENSOR_ADC_LEFT_CHANNEL,
                                    &chan_config);
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to configure ADC channel %d: %s",
-             PRESSURE_SENSOR_ADC_CHANNEL, esp_err_to_name(ret));
+             PRESSURE_SENSOR_ADC_LEFT_CHANNEL, esp_err_to_name(ret));
     return;
   }
   ESP_LOGI(TAG, "ADC channel %d configured successfully",
-           PRESSURE_SENSOR_ADC_CHANNEL);
+           PRESSURE_SENSOR_ADC_LEFT_CHANNEL);
 
   // 初始化ADC校准
   adc_cali_curve_fitting_config_t cali_config = {
@@ -109,7 +108,7 @@ void AdcManager::ReadPressureSensorData() {
 
   int adc_value;
   esp_err_t ret =
-      adc_oneshot_read(adc1_handle_, PRESSURE_SENSOR_ADC_CHANNEL, &adc_value);
+      adc_oneshot_read(adc1_handle_, PRESSURE_SENSOR_ADC_LEFT_CHANNEL, &adc_value);
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to read pressure sensor ADC: %s",

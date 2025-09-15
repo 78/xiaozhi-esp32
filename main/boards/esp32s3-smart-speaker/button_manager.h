@@ -26,6 +26,7 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    Button test_button_;
 };
 
 #endif // BUTTON_MANAGER_H

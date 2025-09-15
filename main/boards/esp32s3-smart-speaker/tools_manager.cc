@@ -1,6 +1,7 @@
 #include "tools_manager.h"
 #include "application.h"
 #include "board.h"
+#include "protocols/sleep_music_protocol.h"
 #include <esp_log.h>
 
 #define TAG "ToolsManager"
@@ -126,7 +127,7 @@ void ToolsManager::RegisterAudioTools() {
     mcp_server.AddTool(
         "self.smart_speaker.play_sound",
         "播放指定音效。sound: 音效名称(activation, welcome, upgrade, wificonfig等)",
-        PropertyList({Property("sound", kPropertyTypeString, "activation")}),
+        PropertyList({Property("sound", kPropertyTypeString, std::string("activation"))}),
         [](const PropertyList& properties) -> ReturnValue {
             auto& app = Application::GetInstance();
             std::string sound = properties["sound"].value<std::string>();
@@ -144,6 +145,39 @@ void ToolsManager::RegisterAudioTools() {
             auto& app = Application::GetInstance();
             bool voice_detected = app.IsVoiceDetected();
             return "{\"voice_detected\":" + std::string(voice_detected ? "true" : "false") + "}";
+        }
+    );
+    
+    // 睡眠音乐工具
+    mcp_server.AddTool(
+        "self.smart_speaker.start_sleep_music",
+        "启动助眠模式，持续播放助眠音乐",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            // 获取睡眠音乐协议单例
+            auto& sleep_protocol = SleepMusicProtocol::GetInstance();
+            if (sleep_protocol.IsAudioChannelOpened()) {
+                return std::string("{\"success\": true, \"message\": \"Sleep music already started\"}");
+            }
+            
+            // 启动协议
+            if (sleep_protocol.OpenAudioChannel()) {
+                return std::string("{\"success\": true, \"message\": \"Sleep music started successfully\"}");
+            } else {
+                return std::string("{\"success\": false, \"message\": \"Failed to start sleep music\"}");
+            }
+        }
+    );
+    
+    mcp_server.AddTool(
+        "self.smart_speaker.stop_sleep_music",
+        "停止助眠模式",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            // 获取睡眠音乐协议单例并停止
+            auto& sleep_protocol = SleepMusicProtocol::GetInstance();
+            sleep_protocol.CloseAudioChannel();
+            return std::string("{\"success\": true, \"message\": \"Sleep music stopped\"}");
         }
     );
     
