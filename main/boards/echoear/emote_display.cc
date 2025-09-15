@@ -303,6 +303,7 @@ bool EmoteEngine::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io,
                                  esp_lcd_panel_io_event_data_t* edata,
                                  void* user_ctx)
 {
+    gfx_emote_flush_ready((gfx_handle_t)user_ctx, true);
     return true;
 }
 
@@ -313,7 +314,6 @@ void EmoteEngine::OnFlush(gfx_handle_t handle, int x_start, int y_start,
     if (panel) {
         esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
     }
-    gfx_emote_flush_ready(handle, true);
 }
 
 // EmoteDisplay implementation
