@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "waveshare-s3-audio-board",
+            "sdkconfig_append": []
+        }
+    ]
+}

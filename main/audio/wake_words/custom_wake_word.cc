@@ -34,10 +34,15 @@ CustomWakeWord::~CustomWakeWord() {
     }
 }
 
-bool CustomWakeWord::Initialize(AudioCodec* codec) {
+bool CustomWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
     codec_ = codec;
 
-    models_ = esp_srmodel_init("model");
+    if (models_list == nullptr) {
+        models_ = esp_srmodel_init("model");
+    } else {
+        models_ = models_list;
+    }
+
     if (models_ == nullptr || models_->num == -1) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
         return false;
