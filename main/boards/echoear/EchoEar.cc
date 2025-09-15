@@ -519,12 +519,13 @@ private:
 
     void InitializeSpi()
     {
-        const spi_bus_config_t bus_config = TAIJIPI_ST77916_PANEL_BUS_QSPI_CONFIG(QSPI_PIN_NUM_LCD_PCLK,
-                                                                                  QSPI_PIN_NUM_LCD_DATA0,
-                                                                                  QSPI_PIN_NUM_LCD_DATA1,
-                                                                                  QSPI_PIN_NUM_LCD_DATA2,
-                                                                                  QSPI_PIN_NUM_LCD_DATA3,
-                                                                                  QSPI_LCD_H_RES * 80 * sizeof(uint16_t));
+        spi_bus_config_t bus_config = TAIJIPI_ST77916_PANEL_BUS_QSPI_CONFIG(QSPI_PIN_NUM_LCD_PCLK,
+                                                                            QSPI_PIN_NUM_LCD_DATA0,
+                                                                            QSPI_PIN_NUM_LCD_DATA1,
+                                                                            QSPI_PIN_NUM_LCD_DATA2,
+                                                                            QSPI_PIN_NUM_LCD_DATA3,
+                                                                            QSPI_LCD_H_RES * 80 * sizeof(uint16_t));
+        // bus_config.isr_cpu_id = ESP_INTR_CPU_AFFINITY_1;
         ESP_ERROR_CHECK(spi_bus_initialize(QSPI_LCD_HOST, &bus_config, SPI_DMA_CH_AUTO));
     }
 
@@ -562,11 +563,7 @@ private:
 
 #if USE_LVGL_DEFAULT
         display_ = new SpiLcdDisplay(panel_io, panel,
-        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-            .emoji_font = font_emoji_64_init(),
-        });
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 #else
         display_ = new anim::EmoteDisplay(panel, panel_io);
 #endif
