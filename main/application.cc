@@ -532,9 +532,6 @@ void Application::Schedule(std::function<void()> callback) {
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
-    // Raise the priority of the main event loop to avoid being interrupted by background tasks (which has priority 2)
-    vTaskPrioritySet(NULL, 3);
-
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, MAIN_EVENT_SCHEDULE |
             MAIN_EVENT_SEND_AUDIO |
@@ -746,11 +743,20 @@ bool Application::CanEnterSleepMode() {
 }
 
 void Application::SendMcpMessage(const std::string& payload) {
-    Schedule([this, payload]() {
-        if (protocol_) {
+    if (protocol_ == nullptr) {
+        return;
+    }
+
+    // Make sure you are using main thread to send MCP message
+    if (xTaskGetCurrentTaskHandle() == main_event_loop_task_handle_) {
+        ESP_LOGI(TAG, "Send MCP message in main thread");
+        protocol_->SendMcpMessage(payload);
+    } else {
+        ESP_LOGI(TAG, "Send MCP message in sub thread");
+        Schedule([this, payload = std::move(payload)]() {
             protocol_->SendMcpMessage(payload);
-        }
-    });
+        });
+    }
 }
 
 void Application::SetAecMode(AecMode mode) {

@@ -285,10 +285,9 @@ private:
     void ReplyError(int id, const std::string& message);
 
     void GetToolsList(int id, const std::string& cursor);
-    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size);
+    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
 
     std::vector<McpTool*> tools_;
-    std::thread tool_call_thread_;
 };
 
 #endif // MCP_SERVER_H

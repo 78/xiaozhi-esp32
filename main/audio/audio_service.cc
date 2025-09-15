@@ -100,11 +100,11 @@ void AudioService::Start() {
 
 #if CONFIG_USE_AUDIO_PROCESSOR
     /* Start the audio input task */
-    xTaskCreatePinnedToCore([](void* arg) {
+    xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_, 1);
+    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_);
 
     /* Start the audio output task */
     xTaskCreate([](void* arg) {
