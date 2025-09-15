@@ -5,7 +5,7 @@
 #include <functional>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "mmap_generate_emoji_normal.h"
+#include "mmap_generate_assets.h"
 #include "gfx.h"
 
 namespace anim {

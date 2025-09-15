@@ -79,7 +79,7 @@ void Application::CheckAssetsVersion() {
     }
 
     if (!assets->partition_valid()) {
-        ESP_LOGE(TAG, "Assets partition is not valid for board %s", BOARD_NAME);
+        ESP_LOGW(TAG, "Assets OTA upgrade is disabled for board %s", BOARD_NAME);
         return;
     }
     

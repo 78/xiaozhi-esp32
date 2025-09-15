@@ -10,11 +10,12 @@
 #include <freertos/task.h>
 #include <sys/time.h>
 #include <time.h>
+#include <model_path.h>
 
 #include "display/lcd_display.h"
-#include "mmap_generate_emoji_normal.h"
 #include "config.h"
 #include "gfx.h"
+#include "application.h"
 
 namespace anim {
 
@@ -29,7 +30,7 @@ static gfx_obj_t* obj_img_icon = nullptr;
 static gfx_image_dsc_t icon_img_dsc;
 
 // Track current icon to determine when to show time
-static int current_icon_type = MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN;
+static int current_icon_type = MMAP_ASSETS_ICON_BATTERY_BIN;
 
 enum class UIDisplayMode : uint8_t {
     SHOW_ANIM_TOP = 1,  // Show obj_anim_mic
@@ -60,7 +61,7 @@ static void SetUIDisplayMode(UIDisplayMode mode)
 static void clock_tm_callback(void* user_data)
 {
     // Only display time when battery icon is shown
-    if (current_icon_type == MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN) {
+    if (current_icon_type == MMAP_ASSETS_ICON_BATTERY_BIN) {
         time_t now;
         struct tm timeinfo;
         time(&now);
@@ -80,13 +81,20 @@ static void clock_tm_callback(void* user_data)
 static void InitializeAssets(mmap_assets_handle_t* assets_handle)
 {
     const mmap_assets_config_t assets_cfg = {
-        .partition_label = "assets_A",
-        .max_files = MMAP_EMOJI_NORMAL_FILES,
-        .checksum = MMAP_EMOJI_NORMAL_CHECKSUM,
+        .partition_label = "assets",
+        .max_files = MMAP_ASSETS_FILES,
+        .checksum = MMAP_ASSETS_CHECKSUM,
         .flags = {.mmap_enable = true, .full_check = true}
     };
 
     mmap_assets_new(&assets_cfg, assets_handle);
+
+    const void* model_data = mmap_assets_get_mem(*assets_handle, MMAP_ASSETS_SRMODELS_BIN);
+    auto model_list = srmodel_load(model_data);
+    if (model_list != nullptr) {
+        auto& app = Application::GetInstance();
+        app.GetAudioService().SetModelsList(model_list);
+    }
 }
 
 static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engine_handle)
@@ -111,8 +119,8 @@ static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engin
     };
 
     gfx_cfg.task.task_stack_caps = MALLOC_CAP_DEFAULT;
-    gfx_cfg.task.task_affinity = 0;
-    gfx_cfg.task.task_priority = 5;
+    gfx_cfg.task.task_affinity = 1;
+    gfx_cfg.task.task_priority = 1;
     gfx_cfg.task.task_stack = 20 * 1024;
 
     *engine_handle = gfx_emote_init(&gfx_cfg);
@@ -122,8 +130,8 @@ static void InitializeEyeAnimation(gfx_handle_t engine_handle, mmap_assets_handl
 {
     obj_anim_eye = gfx_anim_create(engine_handle);
 
-    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
-    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
+    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_ASSETS_IDLE_ONE_AAF);
+    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_ASSETS_IDLE_ONE_AAF);
 
     gfx_anim_set_src(obj_anim_eye, anim_data, anim_size);
 
@@ -138,8 +146,8 @@ static void InitializeFont(gfx_handle_t engine_handle, mmap_assets_handle_t asse
     gfx_font_t font;
     gfx_label_cfg_t font_cfg = {
         .name = "DejaVuSans.ttf",
-        .mem = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_KAITI_TTF),
-        .mem_size = static_cast<size_t>(mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_KAITI_TTF)),
+        .mem = mmap_assets_get_mem(assets_handle, MMAP_ASSETS_KAITI_TTF),
+        .mem_size = static_cast<size_t>(mmap_assets_get_size(assets_handle, MMAP_ASSETS_KAITI_TTF)),
     };
     gfx_label_new_font(engine_handle, &font_cfg, &font);
 
@@ -175,8 +183,8 @@ static void InitializeMicAnimation(gfx_handle_t engine_handle, mmap_assets_handl
     obj_anim_mic = gfx_anim_create(engine_handle);
     gfx_obj_align(obj_anim_mic, GFX_ALIGN_TOP_MID, 0, 25);
 
-    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
-    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
+    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_ASSETS_LISTEN_AAF);
+    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_ASSETS_LISTEN_AAF);
     gfx_anim_set_src(obj_anim_mic, anim_data, anim_size);
     gfx_anim_start(obj_anim_mic);
     gfx_obj_set_visible(obj_anim_mic, false);
@@ -187,7 +195,7 @@ static void InitializeIcon(gfx_handle_t engine_handle, mmap_assets_handle_t asse
     obj_img_icon = gfx_img_create(engine_handle);
     gfx_obj_align(obj_img_icon, GFX_ALIGN_TOP_MID, -100, 38);
 
-    SetupImageDescriptor(assets_handle, &icon_img_dsc, MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN);
+    SetupImageDescriptor(assets_handle, &icon_img_dsc, MMAP_ASSETS_ICON_WIFI_FAILED_BIN);
     gfx_img_set_src(obj_img_icon, static_cast<void*>(&icon_img_dsc));
 }
 
@@ -228,7 +236,7 @@ EmoteEngine::EmoteEngine(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
     InitializeMicAnimation(engine_handle_, assets_handle_);
     InitializeIcon(engine_handle_, assets_handle_);
 
-    current_icon_type = MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN;
+    current_icon_type = MMAP_ASSETS_ICON_WIFI_FAILED_BIN;
     SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
 
     gfx_timer_create(engine_handle_, clock_tm_callback, 1000, obj_label_tips);
@@ -332,26 +340,26 @@ void EmoteDisplay::SetEmotion(const char* emotion)
 
     using EmotionParam = std::tuple<int, bool, int>;
     static const std::unordered_map<std::string, EmotionParam> emotion_map = {
-        {"happy",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"laughing",    {MMAP_EMOJI_NORMAL_ENJOY_ONE_AAF,     true,  20}},
-        {"funny",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"loving",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"embarrassed", {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confident",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"delicious",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sad",         {MMAP_EMOJI_NORMAL_SAD_ONE_AAF,       true,  20}},
-        {"crying",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sleepy",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"silly",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"angry",       {MMAP_EMOJI_NORMAL_ANGRY_ONE_AAF,     true,  20}},
-        {"surprised",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"shocked",     {MMAP_EMOJI_NORMAL_SHOCKED_ONE_AAF,   true,  20}},
-        {"thinking",    {MMAP_EMOJI_NORMAL_THINKING_ONE_AAF,  true,  20}},
-        {"winking",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"relaxed",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confused",    {MMAP_EMOJI_NORMAL_DIZZY_ONE_AAF,     true,  20}},
-        {"neutral",     {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
-        {"idle",        {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
+        {"happy",       {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"laughing",    {MMAP_ASSETS_ENJOY_ONE_AAF,     true,  20}},
+        {"funny",       {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"loving",      {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"embarrassed", {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"confident",   {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"delicious",   {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"sad",         {MMAP_ASSETS_SAD_ONE_AAF,       true,  20}},
+        {"crying",      {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"sleepy",      {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"silly",       {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"angry",       {MMAP_ASSETS_ANGRY_ONE_AAF,     true,  20}},
+        {"surprised",   {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"shocked",     {MMAP_ASSETS_SHOCKED_ONE_AAF,   true,  20}},
+        {"thinking",    {MMAP_ASSETS_THINKING_ONE_AAF,  true,  20}},
+        {"winking",     {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"relaxed",     {MMAP_ASSETS_HAPPY_ONE_AAF,     true,  20}},
+        {"confused",    {MMAP_ASSETS_DIZZY_ONE_AAF,     true,  20}},
+        {"neutral",     {MMAP_ASSETS_IDLE_ONE_AAF,      false, 20}},
+        {"idle",        {MMAP_ASSETS_IDLE_ONE_AAF,      false, 20}},
     };
 
     auto it = emotion_map.find(emotion);
@@ -381,17 +389,17 @@ void EmoteDisplay::SetStatus(const char* status)
 
     if (std::strcmp(status, "聆听中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_ANIM_TOP);
-        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF, true, 20);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_MIC_BIN);
+        engine_->setEyes(MMAP_ASSETS_HAPPY_ONE_AAF, true, 20);
+        engine_->SetIcon(MMAP_ASSETS_ICON_MIC_BIN);
     } else if (std::strcmp(status, "待命") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN);
+        engine_->SetIcon(MMAP_ASSETS_ICON_BATTERY_BIN);
     } else if (std::strcmp(status, "说话中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_SPEAKER_ZZZ_BIN);
+        engine_->SetIcon(MMAP_ASSETS_ICON_SPEAKER_ZZZ_BIN);
     } else if (std::strcmp(status, "错误") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN);
+        engine_->SetIcon(MMAP_ASSETS_ICON_WIFI_FAILED_BIN);
     }
 
     engine_->Lock();

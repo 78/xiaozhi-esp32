@@ -686,20 +686,62 @@ endif()
 if(CONFIG_BOARD_TYPE_ECHOEAR)
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
+# find component esp_emote_gfx
 foreach(COMPONENT ${build_components})
     if(COMPONENT MATCHES "esp_emote_gfx" OR COMPONENT MATCHES "espressif2022__esp_emote_gfx")
         set(EMOTE_GFX_COMPONENT ${COMPONENT})
         idf_component_get_property(EMOTE_GFX_COMPONENT_PATH ${EMOTE_GFX_COMPONENT} COMPONENT_DIR)
-        set(SPIFFS_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        set(ECHOEAR_EMOJI_DIR "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
+        break()
+    endif()
+endforeach()
+# find component espressif__esp-sr
+foreach(COMPONENT ${build_components})
+    if(COMPONENT MATCHES "espressif__esp-sr")
+        set(ESP_SR_COMPONENT ${COMPONENT})
+        idf_component_get_property(ESP_SR_COMPONENT_PATH ${ESP_SR_COMPONENT} COMPONENT_DIR)
+        set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
         break()
     endif()
 endforeach()
 
+# Build srmodels.bin
+set(MVMODEL_EXE ${ESP_SR_COMPONENT_PATH}/model/movemodel.py)
+idf_build_get_property(build_dir BUILD_DIR)
+set(image_file ${build_dir}/srmodels/srmodels.bin)
+
+add_custom_command(
+    OUTPUT ${image_file}
+    COMMENT "Move and Pack models..."
+    COMMAND python ${MVMODEL_EXE} -d1 ${SDKCONFIG} -d2 ${ESP_SR_COMPONENT_PATH} -d3 ${build_dir}
+    DEPENDS ${SDKCONFIG}
+    VERBATIM)
+add_custom_target(srmodels_bin ALL DEPENDS ${image_file})
+
+# Copy srmodels.bin to build/assets/
+# Copy emoji_normal/* to build/assets/
+# Create build/assets/index.json with {"version": 1, "srmodels": "srmodels.bin"}
+set(ASSETS_DIR ${build_dir}/assets)
+
+add_custom_command(
+    OUTPUT ${ASSETS_DIR}/.prepared
+    COMMENT "Prepare ECHOEAR assets directory"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${ASSETS_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${image_file} ${ASSETS_DIR}/srmodels.bin
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${ECHOEAR_EMOJI_DIR} ${ASSETS_DIR}
+    COMMAND python -c "import os,sys,json; p=sys.argv[1]; os.makedirs(os.path.dirname(p), exist_ok=True); json.dump({'version':1,'srmodels':'srmodels.bin'}, open(p,'w'))" ${ASSETS_DIR}/index.json
+    COMMAND ${CMAKE_COMMAND} -E touch ${ASSETS_DIR}/.prepared
+    DEPENDS srmodels_bin
+    VERBATIM)
+
+add_custom_target(echoear_assets_prepare ALL DEPENDS ${ASSETS_DIR}/.prepared)
+
 spiffs_create_partition_assets(
-    assets_A
-    ${SPIFFS_DIR}
+    assets
+    ${build_dir}/assets
     FLASH_IN_PROJECT
     MMAP_FILE_SUPPORT_FORMAT ".aaf, ttf, bin"
+    DEPENDS echoear_assets_prepare
     IMPORT_INC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}
 )
 endif()

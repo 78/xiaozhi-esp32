@@ -4,7 +4,6 @@
         {
             "name": "echoear",
             "sdkconfig_append": [
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m_echoear.csv\""
             ]
         }
     ]
