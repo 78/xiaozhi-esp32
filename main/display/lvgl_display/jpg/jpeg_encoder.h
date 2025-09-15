@@ -1,4 +1,4 @@
-// jpge2_simple.h - 使用类成员变量的简单版本
+// jpeg_encoder.h - 使用类成员变量的简单版本
 // 这个版本直接在类中声明数组，要求必须在堆上创建实例
 
 #ifndef JPEG_ENCODER_H

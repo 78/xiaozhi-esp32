@@ -1,5 +1,4 @@
-// to_jpg2.cpp - 使用jpge2_simple的JPEG编码实现
-// 基于原版to_jpg.cpp，替换为使用jpge2_simple以节省SRAM
+// 基于原版to_jpg.cpp，替换为使用jpeg_encoder以节省SRAM
 // Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
 
 #include <stddef.h>

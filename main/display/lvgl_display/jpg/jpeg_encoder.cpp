@@ -1,4 +1,4 @@
-// jpge2_simple.cpp - C++ class for JPEG compression with class member arrays.
+// jpeg_encoder.cpp - C++ class for JPEG compression with class member arrays.
 // 简单版本：直接使用类成员变量，必须在堆上创建实例
 // Modified from jpge.cpp to use class member variables instead of static variables
 // Public domain, Rich Geldreich <richgel99@gmail.com>
