@@ -8,7 +8,6 @@
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
-#include <img_converters.h>
 #include <cstring>
 
 #define TAG "SscmaCamera"
