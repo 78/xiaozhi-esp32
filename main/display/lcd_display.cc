@@ -879,6 +879,9 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
         lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
         preview_image_cached_.reset();
+        if (gif_controller_) {
+            gif_controller_->Start();
+        }
         return;
     }
 
@@ -892,6 +895,9 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     }
 
     // Hide emoji_box_
+    if (gif_controller_) {
+        gif_controller_->Stop();
+    }
     lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
     esp_timer_stop(preview_timer_);
