@@ -397,11 +397,6 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeTools();
-
-        DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state) {
-            ESP_LOGD(TAG, "Device state changed from %d to %d", previous_state, current_state);
-            this->GetAudioCodec()->EnableOutput(current_state == kDeviceStateSpeaking);
-        });
     }
 
     virtual AudioCodec* GetAudioCodec() override

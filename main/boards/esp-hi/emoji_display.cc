@@ -53,6 +53,8 @@ EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
         .task = ANIM_PLAYER_INIT_CONFIG()
     };
 
+    player_cfg.task.task_priority = 1;
+    player_cfg.task.task_stack = 4096;
     player_handle_ = anim_player_init(&player_cfg);
 
     const esp_lcd_panel_io_callbacks_t cbs = {
