@@ -474,6 +474,9 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path):
     Get the emoji collection path if needed
     Returns the emoji directory path or None if no emoji collection is needed
     """
+    if not default_emoji_collection:
+        return None
+    
     emoji_path = os.path.join(xiaozhi_fonts_path, 'png', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
