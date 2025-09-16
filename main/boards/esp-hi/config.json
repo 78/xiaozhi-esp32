@@ -6,7 +6,7 @@
             "sdkconfig_append": [
                 "CONFIG_IDF_TARGET=\"esp32c3\"",
                 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m_esp-hi.csv\"",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
                 "CONFIG_BOARD_TYPE_ESP_HI=y",
                 "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=3",
                 "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=4",

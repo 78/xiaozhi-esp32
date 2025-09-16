@@ -72,28 +72,20 @@ Application::~Application() {
 void Application::CheckAssetsVersion() {
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto assets = board.GetAssets();
-    if (!assets) {
-        ESP_LOGE(TAG, "Assets is not set for board %s", BOARD_NAME);
-        return;
-    }
+    auto& assets = Assets::GetInstance();
 
-    if (!assets->partition_valid()) {
-        ESP_LOGW(TAG, "Assets OTA upgrade is disabled for board %s", BOARD_NAME);
+    if (!assets.partition_valid()) {
+        ESP_LOGW(TAG, "Assets partition is disabled for board %s", BOARD_NAME);
         return;
     }
     
     Settings settings("assets", true);
     // Check if there is a new assets need to be downloaded
     std::string download_url = settings.GetString("download_url");
-    if (!download_url.empty()) {
-        settings.EraseKey("download_url");
-    }
-    if (download_url.empty() && !assets->checksum_valid()) {
-        download_url = assets->default_assets_url();
-    }
 
     if (!download_url.empty()) {
+        settings.EraseKey("download_url");
+
         char message[256];
         snprintf(message, sizeof(message), Lang::Strings::FOUND_NEW_ASSETS, download_url.c_str());
         Alert(Lang::Strings::LOADING_ASSETS, message, "cloud_arrow_down", Lang::Sounds::OGG_UPGRADE);
@@ -104,7 +96,7 @@ void Application::CheckAssetsVersion() {
         board.SetPowerSaveMode(false);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
-        bool success = assets->Download(download_url, [display](int progress, size_t speed) -> void {
+        bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
             std::thread([display, progress, speed]() {
                 char buffer[32];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
@@ -123,7 +115,7 @@ void Application::CheckAssetsVersion() {
     }
 
     // Apply assets
-    assets->Apply();
+    assets.Apply();
     display->SetChatMessage("system", "");
     display->SetEmotion("microchip_ai");
 }
@@ -844,10 +836,8 @@ void Application::SendMcpMessage(const std::string& payload) {
 
     // Make sure you are using main thread to send MCP message
     if (xTaskGetCurrentTaskHandle() == main_event_loop_task_handle_) {
-        ESP_LOGI(TAG, "Send MCP message in main thread");
         protocol_->SendMcpMessage(payload);
     } else {
-        ESP_LOGI(TAG, "Send MCP message in sub thread");
         Schedule([this, payload = std::move(payload)]() {
             protocol_->SendMcpMessage(payload);
         });

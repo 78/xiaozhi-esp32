@@ -8,7 +8,7 @@ config OTA_URL
 
 choice
     prompt "Flash Assets"
-    default FLASH_NONE_ASSETS
+    default FLASH_DEFAULT_ASSETS
     help
         Select the assets to flash.
 
