@@ -5,12 +5,20 @@
 
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
+#include <esp_timer.h>
 
 class AdcPdmAudioCodec : public AudioCodec {
 private:
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
     gpio_num_t pa_ctrl_pin_ = GPIO_NUM_NC;
+
+    // 定时器相关成员变量
+    esp_timer_handle_t output_timer_ = nullptr;
+    static constexpr uint64_t TIMER_TIMEOUT_US = 120000; // 120ms = 120000us
+
+    // 定时器回调函数
+    static void OutputTimerCallback(void* arg);
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
