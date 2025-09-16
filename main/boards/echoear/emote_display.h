@@ -5,13 +5,13 @@
 #include <functional>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
-#include "mmap_generate_emoji_normal.h"
 #include "gfx.h"
+#include "assets.h"
 
 namespace anim {
 
 // Helper function for setting up image descriptors
-void SetupImageDescriptor(mmap_assets_handle_t assets_handle, gfx_image_dsc_t* img_dsc, int asset_id);
+void SetupImageDescriptor(gfx_image_dsc_t* img_dsc, const std::string& asset_name);
 
 class EmoteEngine;
 
@@ -23,14 +23,13 @@ public:
     EmoteEngine(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     ~EmoteEngine();
 
-    void setEyes(int aaf, bool repeat, int fps);
+    void setEyes(const std::string& asset_name, bool repeat, int fps);
     void stopEyes();
     
     void Lock();
     void Unlock();
     
-    void SetIcon(int asset_id);
-    mmap_assets_handle_t GetAssetsHandle() const { return assets_handle_; }
+    void SetIcon(const std::string& asset_name);
 
     // Callback functions (public to be accessible from static helper functions)
     static bool OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
@@ -38,7 +37,6 @@ public:
 
 private:
     gfx_handle_t engine_handle_;
-    mmap_assets_handle_t assets_handle_;
 };
 
 class EmoteDisplay : public Display {

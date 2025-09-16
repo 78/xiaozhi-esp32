@@ -287,20 +287,18 @@ void McpServer::AddUserOnlyTools() {
 #endif // HAVE_LVGL
 
     // Assets download url
-    auto assets = Board::GetInstance().GetAssets();
-    if (assets) {
-        if (assets->partition_valid()) {
-            AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
-                PropertyList({
-                    Property("url", kPropertyTypeString)
-                }),
-                [assets](const PropertyList& properties) -> ReturnValue {
-                    auto url = properties["url"].value<std::string>();
-                    Settings settings("assets", true);
-                    settings.SetString("download_url", url);
-                    return true;
-                });
-        }
+    auto& assets = Assets::GetInstance();
+    if (assets.partition_valid()) {
+        AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
+            PropertyList({
+                Property("url", kPropertyTypeString)
+            }),
+            [](const PropertyList& properties) -> ReturnValue {
+                auto url = properties["url"].value<std::string>();
+                Settings settings("assets", true);
+                settings.SetString("download_url", url);
+                return true;
+            });
     }
 }
 

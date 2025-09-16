@@ -21,13 +21,7 @@ struct mmap_assets_table {
 };
 
 
-Assets::Assets(std::string default_assets_url) {
-    if (default_assets_url.find("http") == 0) {
-        default_assets_url_ = default_assets_url;
-    } else {
-        ESP_LOGE(TAG, "The default assets url is not a http url: %s", default_assets_url.c_str());
-    }
-
+Assets::Assets() {
     // Initialize the partition
     InitializePartition();
 }

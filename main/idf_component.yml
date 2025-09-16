@@ -16,7 +16,7 @@ dependencies:
   78/esp-wifi-connect: ~2.5.2
   78/esp-opus-encoder: ~2.4.1
   78/esp-ml307: ~3.3.5
-  78/xiaozhi-fonts: ~1.5.2
+  78/xiaozhi-fonts: ~1.5.3
   espressif/led_strip: ~3.0.1
   espressif/esp_codec_dev: ~1.4.0
   espressif/esp-sr: ~2.1.5

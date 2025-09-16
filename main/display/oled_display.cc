@@ -13,8 +13,8 @@
 
 #define TAG "OledDisplay"
 
-LV_FONT_DECLARE(LVGL_TEXT_FONT);
-LV_FONT_DECLARE(LVGL_ICON_FONT);
+LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -23,8 +23,8 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     width_ = width;
     height_ = height;
 
-    auto text_font = std::make_shared<LvglBuiltInFont>(&LVGL_TEXT_FONT);
-    auto icon_font = std::make_shared<LvglBuiltInFont>(&LVGL_ICON_FONT);
+    auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
+    auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_1);
     
     auto dark_theme = new LvglTheme("dark");
