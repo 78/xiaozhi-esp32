@@ -164,43 +164,10 @@ void Application::CheckNewVersion(Ota& ota) {
         retry_delay = 10; // 重置重试延迟时间
 
         if (ota.HasNewVersion()) {
-            Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "download", Lang::Sounds::OGG_UPGRADE);
-
-            vTaskDelay(pdMS_TO_TICKS(3000));
-
-            SetDeviceState(kDeviceStateUpgrading);
-            
-            std::string message = std::string(Lang::Strings::NEW_VERSION) + ota.GetFirmwareVersion();
-            display->SetChatMessage("system", message.c_str());
-
-            board.SetPowerSaveMode(false);
-            audio_service_.Stop();
-            vTaskDelay(pdMS_TO_TICKS(1000));
-
-            bool upgrade_success = ota.StartUpgrade([display](int progress, size_t speed) {
-                std::thread([display, progress, speed]() {
-                    char buffer[32];
-                    snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-                    display->SetChatMessage("system", buffer);
-                }).detach();
-            });
-
-            if (!upgrade_success) {
-                // Upgrade failed, restart audio service and continue running
-                ESP_LOGE(TAG, "Firmware upgrade failed, restarting audio service and continuing operation...");
-                audio_service_.Start(); // Restart audio service
-                board.SetPowerSaveMode(true); // Restore power save mode
-                Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
-                vTaskDelay(pdMS_TO_TICKS(3000));
-                // Continue to normal operation (don't break, just fall through)
-            } else {
-                // Upgrade success, reboot immediately
-                ESP_LOGI(TAG, "Firmware upgrade successful, rebooting...");
-                display->SetChatMessage("system", "Upgrade successful, rebooting...");
-                vTaskDelay(pdMS_TO_TICKS(1000)); // Brief pause to show message
-                Reboot();
+            if (UpgradeFirmware(ota)) {
                 return; // This line will never be reached after reboot
             }
+            // If upgrade failed, continue to normal operation (don't break, just fall through)
         }
 
         // No new version, mark the current version as valid
@@ -393,6 +360,9 @@ void Application::Start() {
     /* Setup the display */
     auto display = board.GetDisplay();
 
+    // Print board name/version info
+    display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
@@ -409,6 +379,12 @@ void Application::Start() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
     audio_service_.SetCallbacks(callbacks);
+
+    // Start the main event loop task with priority 3
+    xTaskCreate([](void* arg) {
+        ((Application*)arg)->MainEventLoop();
+        vTaskDelete(NULL);
+    }, "main_event_loop", 2048 * 4, this, 3, &main_event_loop_task_handle_);
 
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
@@ -588,9 +564,6 @@ void Application::Schedule(std::function<void()> callback) {
 // If other tasks need to access the websocket or chat state,
 // they should use Schedule to call this function
 void Application::MainEventLoop() {
-    // Raise the priority of the main event loop to avoid being interrupted by background tasks (which has priority 2)
-    vTaskPrioritySet(NULL, 3);
-
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, MAIN_EVENT_SCHEDULE |
             MAIN_EVENT_SEND_AUDIO |
@@ -768,7 +741,62 @@ void Application::Reboot() {
     }
     protocol_.reset();
     audio_service_.Stop();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
+}
+
+bool Application::UpgradeFirmware(Ota& ota, const std::string& url) {
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    
+    // Use provided URL or get from OTA object
+    std::string upgrade_url = url.empty() ? ota.GetFirmwareUrl() : url;
+    std::string version_info = url.empty() ? ota.GetFirmwareVersion() : "(Manual upgrade)";
+    
+    // Close audio channel if it's open
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        ESP_LOGI(TAG, "Closing audio channel before firmware upgrade");
+        protocol_->CloseAudioChannel();
+    }
+    ESP_LOGI(TAG, "Starting firmware upgrade from URL: %s", upgrade_url.c_str());
+    
+    Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "download", Lang::Sounds::OGG_UPGRADE);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
+    SetDeviceState(kDeviceStateUpgrading);
+    
+    std::string message = std::string(Lang::Strings::NEW_VERSION) + version_info;
+    display->SetChatMessage("system", message.c_str());
+
+    board.SetPowerSaveMode(false);
+    audio_service_.Stop();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    bool upgrade_success = ota.StartUpgradeFromUrl(upgrade_url, [display](int progress, size_t speed) {
+        std::thread([display, progress, speed]() {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+            display->SetChatMessage("system", buffer);
+        }).detach();
+    });
+
+    if (!upgrade_success) {
+        // Upgrade failed, restart audio service and continue running
+        ESP_LOGE(TAG, "Firmware upgrade failed, restarting audio service and continuing operation...");
+        audio_service_.Start(); // Restart audio service
+        board.SetPowerSaveMode(true); // Restore power save mode
+        Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        return false;
+    } else {
+        // Upgrade success, reboot immediately
+        ESP_LOGI(TAG, "Firmware upgrade successful, rebooting...");
+        display->SetChatMessage("system", "Upgrade successful, rebooting...");
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Brief pause to show message
+        Reboot();
+        return true;
+    }
 }
 
 void Application::WakeWordInvoke(const std::string& wake_word) {
@@ -810,11 +838,20 @@ bool Application::CanEnterSleepMode() {
 }
 
 void Application::SendMcpMessage(const std::string& payload) {
-    Schedule([this, payload]() {
-        if (protocol_) {
+    if (protocol_ == nullptr) {
+        return;
+    }
+
+    // Make sure you are using main thread to send MCP message
+    if (xTaskGetCurrentTaskHandle() == main_event_loop_task_handle_) {
+        ESP_LOGI(TAG, "Send MCP message in main thread");
+        protocol_->SendMcpMessage(payload);
+    } else {
+        ESP_LOGI(TAG, "Send MCP message in sub thread");
+        Schedule([this, payload = std::move(payload)]() {
             protocol_->SendMcpMessage(payload);
-        }
-    });
+        });
+    }
 }
 
 void Application::SetAecMode(AecMode mode) {

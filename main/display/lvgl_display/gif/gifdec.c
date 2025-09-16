@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <esp_log.h>
+
+#define TAG "GIF"
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
@@ -80,13 +83,13 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     /* Header */
     f_gif_read(gif_base, sigver, 3);
     if(memcmp(sigver, "GIF", 3) != 0) {
-        LV_LOG_WARN("invalid signature");
+        ESP_LOGW(TAG, "invalid signature");
         goto fail;
     }
     /* Version */
     f_gif_read(gif_base, sigver, 3);
-    if(memcmp(sigver, "89a", 3) != 0) {
-        LV_LOG_WARN("invalid version");
+    if(memcmp(sigver, "89a", 3) != 0 && memcmp(sigver, "87a", 3) != 0) {
+        ESP_LOGW(TAG, "invalid version");
         goto fail;
     }
     /* Width x Height */
@@ -96,7 +99,7 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     f_gif_read(gif_base, &fdsz, 1);
     /* Presence of GCT */
     if(!(fdsz & 0x80)) {
-        LV_LOG_WARN("no global color table");
+        ESP_LOGW(TAG, "no global color table");
         goto fail;
     }
     /* Color Space's Depth */
@@ -110,18 +113,18 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     f_gif_read(gif_base, &aspect, 1);
     /* Create gd_GIF Structure. */
     if(0 == width || 0 == height){
-        LV_LOG_WARN("Zero size image");
+        ESP_LOGW(TAG, "Zero size image");
         goto fail;
     }
 #if LV_GIF_CACHE_DECODE_DATA
     if(0 == (INT_MAX - sizeof(gd_GIF) - LZW_CACHE_SIZE) / width / height / 5){
-        LV_LOG_WARN("Image dimensions are too large");
+        ESP_LOGW(TAG, "Image dimensions are too large");
         goto fail;
     } 
     gif = lv_malloc(sizeof(gd_GIF) + 5 * width * height + LZW_CACHE_SIZE);
 #else
     if(0 == (INT_MAX - sizeof(gd_GIF)) / width / height / 5){
-        LV_LOG_WARN("Image dimensions are too large");
+        ESP_LOGW(TAG, "Image dimensions are too large");
         goto fail;
     } 
     gif = lv_malloc(sizeof(gd_GIF) + 5 * width * height);
@@ -292,7 +295,7 @@ read_ext(gd_GIF * gif)
             read_application_ext(gif);
             break;
         default:
-            LV_LOG_WARN("unknown extension: %02X\n", label);
+            ESP_LOGW(TAG, "unknown extension: %02X\n", label);
     }
 }
 
@@ -386,7 +389,7 @@ read_image_data(gd_GIF *gif, int interlace)
         /* copy data to frame buffer */
         while (sp > p_stack) {
             if(frm_off >= frm_size){
-                LV_LOG_WARN("LZW table token overflows the frame buffer");
+                ESP_LOGW(TAG, "LZW table token overflows the frame buffer");
                 return -1;
             }
             *ptr++ = *(--sp);
@@ -593,7 +596,7 @@ read_image_data(gd_GIF * gif, int interlace)
         entry = table->entries[key];
         str_len = entry.length;
 	if(frm_off + str_len > frm_size){
-		LV_LOG_WARN("LZW table token overflows the frame buffer");
+		ESP_LOGW(TAG, "LZW table token overflows the frame buffer");
 		lv_free(table);
 		return -1;
 	}
@@ -635,7 +638,7 @@ read_image(gd_GIF * gif)
     gif->fw = read_num(gif);
     gif->fh = read_num(gif);
     if(gif->fx + (uint32_t)gif->fw > gif->width || gif->fy + (uint32_t)gif->fh > gif->height){
-        LV_LOG_WARN("Frame coordinates out of image bounds");
+        ESP_LOGW(TAG, "Frame coordinates out of image bounds");
         return -1;
     }
     f_gif_read(gif, &fisrz, 1);

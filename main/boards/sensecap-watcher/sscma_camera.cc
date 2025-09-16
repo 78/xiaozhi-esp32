@@ -1,13 +1,13 @@
 #include "sscma_camera.h"
 #include "mcp_server.h"
 #include "lvgl_display.h"
+#include "lvgl_image.h"
 #include "board.h"
 #include "system_info.h"
 #include "config.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
-#include <img_converters.h>
 #include <cstring>
 
 #define TAG "SscmaCamera"
@@ -245,7 +245,8 @@ bool SscmaCamera::Capture() {
     // 显示预览图片
     auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
-        display->SetPreviewImage(&preview_image_);
+        auto image = std::make_unique<LvglSourceImage>(&preview_image_);
+        display->SetPreviewImage(std::move(image));
     }
     return true;
 }

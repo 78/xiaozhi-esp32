@@ -20,8 +20,6 @@ private:
     lv_obj_t* side_bar_ = nullptr;
     lv_obj_t *emotion_label_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
-    const lv_font_t* text_font_ = nullptr;
-    const lv_font_t* icon_font_ = nullptr;
 
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -35,6 +33,7 @@ public:
 
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetEmotion(const char* emotion) override;
+    virtual void SetTheme(Theme* theme) override;
 };
 
 #endif // OLED_DISPLAY_H

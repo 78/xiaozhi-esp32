@@ -57,6 +57,8 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/lvgl_image.cc"
             "display/lvgl_display/gif/lvgl_gif.cc"
             "display/lvgl_display/gif/gifdec.c"
+            "display/lvgl_display/jpg/image_to_jpeg.cpp"
+            "display/lvgl_display/jpg/jpeg_encoder.cpp"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -70,7 +72,7 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -526,6 +528,11 @@ elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(LVGL_TEXT_FONT ${FONT_PUHUI_BASIC_20_4})
     set(LVGL_ICON_FONT ${FONT_AWESOME_20_4})
     set(DEFAULT_ASSETS ${ASSETS_XIAOZHI_S_PUHUI_COMMON_20_4_EMOJI_32})
+elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
+    set(BOARD_TYPE "yunliao-s3")
+    set(LVGL_TEXT_FONT ${FONT_PUHUI_BASIC_20_4})
+    set(LVGL_ICON_FONT ${FONT_AWESOME_20_4})
+    set(DEFAULT_ASSETS ${ASSETS_XIAOZHI_PUHUI_COMMON_20_4_EMOJI_64})
 endif()
 
 file(GLOB BOARD_SOURCES

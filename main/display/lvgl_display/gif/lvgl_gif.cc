@@ -14,6 +14,7 @@ LvglGif::LvglGif(const lv_img_dsc_t* img_dsc)
     gif_ = gd_open_gif_data(img_dsc->data);
     if (!gif_) {
         ESP_LOGE(TAG, "Failed to open GIF from image descriptor");
+        return;
     }
 
     // Setup LVGL image descriptor
@@ -33,7 +34,7 @@ LvglGif::LvglGif(const lv_img_dsc_t* img_dsc)
     }
 
     loaded_ = true;
-    ESP_LOGI(TAG, "GIF loaded from image descriptor: %dx%d", gif_->width, gif_->height);
+    ESP_LOGD(TAG, "GIF loaded from image descriptor: %dx%d", gif_->width, gif_->height);
 }
 
 // Destructor
@@ -72,7 +73,7 @@ void LvglGif::Start() {
         // Render first frame
         NextFrame();
         
-        ESP_LOGI(TAG, "GIF animation started");
+        ESP_LOGD(TAG, "GIF animation started");
     }
 }
 
@@ -80,7 +81,7 @@ void LvglGif::Pause() {
     if (timer_) {
         playing_ = false;
         lv_timer_pause(timer_);
-        ESP_LOGI(TAG, "GIF animation paused");
+        ESP_LOGD(TAG, "GIF animation paused");
     }
 }
 
@@ -93,7 +94,7 @@ void LvglGif::Resume() {
     if (timer_) {
         playing_ = true;
         lv_timer_resume(timer_);
-        ESP_LOGI(TAG, "GIF animation resumed");
+        ESP_LOGD(TAG, "GIF animation resumed");
     }
 }
 
@@ -106,7 +107,7 @@ void LvglGif::Stop() {
     if (gif_) {
         gd_rewind(gif_);
         NextFrame();
-        ESP_LOGI(TAG, "GIF animation stopped and rewound");
+        ESP_LOGD(TAG, "GIF animation stopped and rewound");
     }
 }
 
@@ -172,7 +173,7 @@ void LvglGif::NextFrame() {
         if (timer_) {
             lv_timer_pause(timer_);
         }
-        ESP_LOGI(TAG, "GIF animation completed");
+        ESP_LOGD(TAG, "GIF animation completed");
     }
 
     // Render current frame
