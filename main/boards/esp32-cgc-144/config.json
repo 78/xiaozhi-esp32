@@ -4,8 +4,6 @@
         {
             "name": "esp32-cgc-144",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\""
             ]
         }
     ]
