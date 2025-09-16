@@ -246,6 +246,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C or ESP32-P4-WIFI6-Touch-LCD-4C"
         depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_ESP32P4_Function_EV_Board
+        bool "ESP32-P4-Function-EV-Board"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
         depends on IDF_TARGET_ESP32S3
