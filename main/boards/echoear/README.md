@@ -27,10 +27,6 @@ idf.py menuconfig
 ### 基本配置
 - `Xiaozhi Assistant` → `Board Type` → 选择 `EchoEar`
 
-### 分区表配置
-- `Partition Table` → `Partition Table` → 选择 `Custom partition table CSV`
-- `Partition Table` → `Custom partition CSV file` → 输入 `partitions/v1/16m_echoear.csv`
-
 ### UI风格选择
 
 EchoEar 支持两种不同的UI显示风格，通过修改代码中的宏定义来选择：
