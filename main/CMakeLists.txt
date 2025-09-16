@@ -711,17 +711,24 @@ function(build_default_assets_bin)
     message(STATUS "Default assets build configured: ${GENERATED_ASSETS_BIN}")
 endfunction()
 
-# Flash assets based on configuration
-if(CONFIG_FLASH_DEFAULT_ASSETS)
-    # Build default assets based on configuration
-    build_default_assets_bin()
-    esptool_py_flash_to_partition(flash "assets" "${GENERATED_ASSETS_LOCAL_FILE}")
-    message(STATUS "Generated default assets flash configured: ${GENERATED_ASSETS_LOCAL_FILE} -> assets partition")
-elseif(CONFIG_FLASH_CUSTOM_ASSETS)
-    # Flash custom assets
-    get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
-    esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
-    message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
-elseif(CONFIG_FLASH_NONE_ASSETS)
-    message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
+
+partition_table_get_partition_info(size "--partition-name assets" "size")
+partition_table_get_partition_info(offset "--partition-name assets" "offset")
+if ("${size}" AND "${offset}")
+    # Flash assets based on configuration
+    if(CONFIG_FLASH_DEFAULT_ASSETS)
+        # Build default assets based on configuration
+        build_default_assets_bin()
+        esptool_py_flash_to_partition(flash "assets" "${GENERATED_ASSETS_LOCAL_FILE}")
+        message(STATUS "Generated default assets flash configured: ${GENERATED_ASSETS_LOCAL_FILE} -> assets partition")
+    elseif(CONFIG_FLASH_CUSTOM_ASSETS)
+        # Flash custom assets
+        get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
+        esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
+        message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
+    elseif(CONFIG_FLASH_NONE_ASSETS)
+        message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
+    endif()
+else()
+    message(STATUS "Assets partition not found, using v1 partition table")
 endif()
