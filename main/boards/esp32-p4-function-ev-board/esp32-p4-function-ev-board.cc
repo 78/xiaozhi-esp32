@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "codecs/dummy_audio_codec.h"
+#include "audio/codecs/es8311_audio_codec.h"
 // Display
 #include "display/display.h"
 #include "display/lcd_display.h"
@@ -14,6 +14,13 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
+// SD card
+#include <esp_vfs_fat.h>
+#include <sdmmc_cmd.h>
+#include <driver/sdmmc_host.h>
+#include <driver/sdspi_host.h>
+// SD power control (on-chip LDO)
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
 // MIPI-DSI / LCD vendor includes
 #include "esp_lcd_panel_ops.h"
@@ -26,7 +33,8 @@
 
 class ESP32P4FunctionEvBoard : public WifiBoard {
 private:
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;
+    i2c_master_bus_handle_t codec_i2c_bus_ = nullptr;
+    i2c_master_bus_handle_t touch_i2c_bus_ = nullptr;
     Button boot_button_;
     LcdDisplay* display_ = nullptr;
 
@@ -43,9 +51,10 @@ private:
         return ESP_OK;
     }
 
-    void InitializeCodecI2c() {
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = TP_PORT,
+    void InitializeI2cBuses() {
+        // Codec I2C bus
+        i2c_master_bus_config_t codec_cfg = {
+            .i2c_port = I2C_NUM_1,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
             .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -56,7 +65,29 @@ private:
                 .enable_internal_pullup = 1,
             },
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+        ESP_ERROR_CHECK(i2c_new_master_bus(&codec_cfg, &codec_i2c_bus_));
+
+        // Touch I2C bus (can be same controller/pins if wired so)
+        i2c_master_bus_config_t touch_cfg = {
+            .i2c_port = TOUCH_I2C_PORT,
+            .sda_io_num = TOUCH_I2C_SDA_PIN,
+            .scl_io_num = TOUCH_I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags = {
+                .enable_internal_pullup = 1,
+            },
+        };
+        // If the touch config equals codec config, reuse the codec bus
+        if (touch_cfg.i2c_port == codec_cfg.i2c_port &&
+            touch_cfg.sda_io_num == codec_cfg.sda_io_num &&
+            touch_cfg.scl_io_num == codec_cfg.scl_io_num) {
+            touch_i2c_bus_ = codec_i2c_bus_;
+        } else {
+            ESP_ERROR_CHECK(i2c_new_master_bus(&touch_cfg, &touch_i2c_bus_));
+        }
     }
 
     void InitializeLCD() {
@@ -71,7 +102,7 @@ private:
             .bus_id = 0,
             .num_data_lanes = 2,
             .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
-            .lane_bit_rate_mbps = 480,
+            .lane_bit_rate_mbps = 1000,
         };
         ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &dsi_bus));
 
@@ -86,18 +117,18 @@ private:
         // 1024x600 DPI timing; tune per actual panel if needed
         esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-            .dpi_clock_freq_mhz = 51,
+            .dpi_clock_freq_mhz = 52,
             .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
                 .v_size = DISPLAY_HEIGHT,
-                .hsync_pulse_width = 20,
-                .hsync_back_porch = 80,
-                .hsync_front_porch = 80,
-                .vsync_pulse_width = 4,
-                .vsync_back_porch = 12,
-                .vsync_front_porch = 24,
+                .hsync_pulse_width = 10,
+                .hsync_back_porch = 160,
+                .hsync_front_porch = 160,
+                .vsync_pulse_width = 1,
+                .vsync_back_porch = 23,
+                .vsync_front_porch = 12,
             },
             .flags = {
                 .use_dma2d = true,
@@ -135,23 +166,33 @@ private:
             .x_max = DISPLAY_WIDTH,
             .y_max = DISPLAY_HEIGHT,
             .rst_gpio_num = TP_PIN_NUM_TP_RST,
-            .int_gpio_num = GPIO_NUM_NC,
+            .int_gpio_num = TP_PIN_NUM_INT,
             .levels = {
                 .reset = 0,
                 .interrupt = 0,
             },
             .flags = {
-                .swap_xy = 0,
-                .mirror_x = 0,
-                .mirror_y = 0,
+                .swap_xy = DISPLAY_SWAP_XY,
+                .mirror_x = DISPLAY_MIRROR_X,
+                .mirror_y = DISPLAY_MIRROR_Y,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
-        tp_io_config.scl_speed_hz = 400 * 1000;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
-        ESP_LOGI(TAG, "Initialize GT911 touch");
-        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp));
+        tp_io_config.scl_speed_hz = 100 * 1000; // GT911 is stable at 100kHz
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(touch_i2c_bus_, &tp_io_config, &tp_io_handle));
+        ESP_LOGI(TAG, "Initialize GT911 touch at addr 0x%02X", tp_io_config.dev_addr);
+        esp_err_t tp_ret = esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp);
+        if (tp_ret != ESP_OK) {
+            ESP_LOGW(TAG, "GT911 init failed at 0x%02X, trying backup addr 0x%02X", tp_io_config.dev_addr, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP);
+            // Try backup address 0x14
+            tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+            tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
+            tp_io_config.scl_speed_hz = 100 * 1000;
+            tp_io_handle = NULL;
+            ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(touch_i2c_bus_, &tp_io_config, &tp_io_handle));
+            ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp));
+        }
         const lvgl_port_touch_cfg_t touch_cfg = {
             .disp = lv_display_get_default(),
             .handle = tp,
@@ -171,17 +212,100 @@ private:
         });
     }
 
+    void InitializeSdCard() {
+#if SDCARD_SDMMC_ENABLED
+        sd_pwr_ctrl_handle_t sd_ldo = NULL;
+        sd_pwr_ctrl_ldo_config_t ldo_cfg = { .ldo_chan_id = 4 };
+        if (sd_pwr_ctrl_new_on_chip_ldo(&ldo_cfg, &sd_ldo) == ESP_OK) {
+            ESP_LOGI(TAG, "SD LDO channel 4 enabled");
+        } else {
+            ESP_LOGW(TAG, "Failed to enable SD LDO channel 4");
+        }
+        sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+        sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+        // Map pins via GPIO matrix if needed
+        slot_config.clk = SDCARD_SDMMC_CLK_PIN;
+        slot_config.cmd = SDCARD_SDMMC_CMD_PIN;
+        slot_config.d0 = SDCARD_SDMMC_D0_PIN;
+        slot_config.width = SDCARD_SDMMC_BUS_WIDTH;
+        if (SDCARD_SDMMC_BUS_WIDTH == 4) {
+            slot_config.d1 = SDCARD_SDMMC_D1_PIN;
+            slot_config.d2 = SDCARD_SDMMC_D2_PIN;
+            slot_config.d3 = SDCARD_SDMMC_D3_PIN;
+        }
+
+        esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+            .format_if_mount_failed = false,
+            .max_files = 5,
+            .allocation_unit_size = 0,
+            .disk_status_check_enable = true,
+        };
+        sdmmc_card_t* card;
+        host.pwr_ctrl_handle = sd_ldo;
+        esp_err_t ret = esp_vfs_fat_sdmmc_mount(SDCARD_MOUNT_POINT, &host, &slot_config, &mount_config, &card);
+        if (ret == ESP_OK) {
+            sdmmc_card_print_info(stdout, card);
+            ESP_LOGI(TAG, "SD card mounted at %s (SDMMC)", SDCARD_MOUNT_POINT);
+        } else {
+            ESP_LOGW(TAG, "Failed to mount SD card (SDMMC): %s", esp_err_to_name(ret));
+        }
+#elif SDCARD_SDSPI_ENABLED
+        sd_pwr_ctrl_handle_t sd_ldo = NULL;
+        sd_pwr_ctrl_ldo_config_t ldo_cfg = { .ldo_chan_id = 4 };
+        if (sd_pwr_ctrl_new_on_chip_ldo(&ldo_cfg, &sd_ldo) == ESP_OK) {
+            ESP_LOGI(TAG, "SD LDO channel 4 enabled");
+        } else {
+            ESP_LOGW(TAG, "Failed to enable SD LDO channel 4");
+        }
+        sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+        spi_bus_config_t bus_cfg = {
+            .mosi_io_num = SDCARD_SPI_MOSI,
+            .miso_io_num = SDCARD_SPI_MISO,
+            .sclk_io_num = SDCARD_SPI_SCLK,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 4000,
+        };
+        ESP_ERROR_CHECK_WITHOUT_ABORT(spi_bus_initialize((spi_host_device_t)SDCARD_SPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO));
+        sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+        slot_config.gpio_cs = SDCARD_SPI_CS;
+        slot_config.host_id = (spi_host_device_t)SDCARD_SPI_HOST;
+
+        esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+            .format_if_mount_failed = false,
+            .max_files = 5,
+            .allocation_unit_size = 0,
+            .disk_status_check_enable = true,
+        };
+        sdmmc_card_t* card;
+        host.pwr_ctrl_handle = sd_ldo;
+        esp_err_t ret = esp_vfs_fat_sdspi_mount(SDCARD_MOUNT_POINT, &host, &slot_config, &mount_config, &card);
+        if (ret == ESP_OK) {
+            sdmmc_card_print_info(stdout, card);
+            ESP_LOGI(TAG, "SD card mounted at %s (SDSPI)", SDCARD_MOUNT_POINT);
+        } else {
+            ESP_LOGW(TAG, "Failed to mount SD card (SDSPI): %s", esp_err_to_name(ret));
+        }
+#else
+        ESP_LOGI(TAG, "SD card disabled (enable SDCARD_SDMMC_ENABLED or SDCARD_SDSPI_ENABLED)");
+#endif
+    }
+
 public:
     ESP32P4FunctionEvBoard() : boot_button_(BOOT_BUTTON_GPIO) {
-        InitializeCodecI2c();
+        InitializeI2cBuses();
         InitializeLCD();
         InitializeTouch();
+        InitializeSdCard();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static DummyAudioCodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE);
+        static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_1, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+                                            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
+                                            AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+                                            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
 

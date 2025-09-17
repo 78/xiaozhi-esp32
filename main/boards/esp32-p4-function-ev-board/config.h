@@ -25,8 +25,8 @@
 
 #define DISPLAY_WIDTH   1024
 #define DISPLAY_HEIGHT  600
-#define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y true
 #define DISPLAY_SWAP_XY false
 
 #define DISPLAY_OFFSET_X  0
@@ -51,8 +51,77 @@
 #define MIPI_DSI_PHY_PWR_LDO_CHAN          (3)
 #define MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV    (2500)
 
-// Touch (GT911) on I2C bus shared with audio codec
-#define TP_PORT             (I2C_NUM_1)
+// Touch (GT911) on a dedicated I2C bus (separate from audio codec)
+// Select touch I2C controller and pins here. Defaults keep prior routing.
+#ifndef TOUCH_I2C_PORT
+#define TOUCH_I2C_PORT      (I2C_NUM_1)
+#endif
+#ifndef TOUCH_I2C_SDA_PIN
+#define TOUCH_I2C_SDA_PIN   (AUDIO_CODEC_I2C_SDA_PIN)
+#endif
+#ifndef TOUCH_I2C_SCL_PIN
+#define TOUCH_I2C_SCL_PIN   (AUDIO_CODEC_I2C_SCL_PIN)
+#endif
 #define TP_PIN_NUM_TP_RST   (GPIO_NUM_23)
+#define TP_PIN_NUM_INT      (GPIO_NUM_22)
+
+// SD Card configuration (disabled by default)
+// Enable one of the following by setting to 1 and set pins accordingly.
+// Note: SDMMC may conflict with ESP-Hosted SDIO. If using ESP-Hosted via SDIO,
+// prefer SDSPI mode for SD card or disable hosted SDIO. Pins below follow
+// Espressif BSP for ESP32-P4 Function EV Board (v5.0.1).
+
+// SDMMC 1-bit/4-bit mode
+#ifndef SDCARD_SDMMC_ENABLED
+#define SDCARD_SDMMC_ENABLED 0
+#endif
+// SDMMC bus width: set to 1 or 4
+#ifndef SDCARD_SDMMC_BUS_WIDTH
+// Use 4-bit bus width when enabling SDMMC
+#define SDCARD_SDMMC_BUS_WIDTH 4
+#endif
+// SDMMC pin assignments (set to actual pins when enabling SDMMC)
+#ifndef SDCARD_SDMMC_CLK_PIN
+#define SDCARD_SDMMC_CLK_PIN GPIO_NUM_43  // BSP_SD_CLK
+#endif
+#ifndef SDCARD_SDMMC_CMD_PIN
+#define SDCARD_SDMMC_CMD_PIN GPIO_NUM_44  // BSP_SD_CMD
+#endif
+#ifndef SDCARD_SDMMC_D0_PIN
+#define SDCARD_SDMMC_D0_PIN  GPIO_NUM_39  // BSP_SD_D0
+#endif
+#ifndef SDCARD_SDMMC_D1_PIN
+#define SDCARD_SDMMC_D1_PIN  GPIO_NUM_40  // BSP_SD_D1
+#endif
+#ifndef SDCARD_SDMMC_D2_PIN
+#define SDCARD_SDMMC_D2_PIN  GPIO_NUM_41  // BSP_SD_D2
+#endif
+#ifndef SDCARD_SDMMC_D3_PIN
+#define SDCARD_SDMMC_D3_PIN  GPIO_NUM_42  // BSP_SD_D3
+#endif
+
+// SDSPI mode (uses SPI bus)
+#ifndef SDCARD_SDSPI_ENABLED
+#define SDCARD_SDSPI_ENABLED 1
+#endif
+#ifndef SDCARD_SPI_HOST
+#define SDCARD_SPI_HOST SPI3_HOST
+#endif
+#ifndef SDCARD_SPI_MOSI
+#define SDCARD_SPI_MOSI GPIO_NUM_44  // BSP_SD_SPI_MOSI
+#endif
+#ifndef SDCARD_SPI_MISO
+#define SDCARD_SPI_MISO GPIO_NUM_39  // BSP_SD_SPI_MISO
+#endif
+#ifndef SDCARD_SPI_SCLK
+#define SDCARD_SPI_SCLK GPIO_NUM_43  // BSP_SD_SPI_CLK
+#endif
+#ifndef SDCARD_SPI_CS
+#define SDCARD_SPI_CS   GPIO_NUM_42  // BSP_SD_SPI_CS
+#endif
+
+#ifndef SDCARD_MOUNT_POINT
+#define SDCARD_MOUNT_POINT "/sdcard"
+#endif
 
 #endif // _BOARD_CONFIG_H_
