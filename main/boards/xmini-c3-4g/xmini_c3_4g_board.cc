@@ -43,11 +43,8 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-#if CONFIG_USE_ESP_WAKE_WORD
-        sleep_timer_ = new SleepTimer(300);
-#else
+        // Wake word detection will be disabled in light sleep mode
         sleep_timer_ = new SleepTimer(30);
-#endif
         sleep_timer_->OnEnterLightSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             // Show the standby screen
