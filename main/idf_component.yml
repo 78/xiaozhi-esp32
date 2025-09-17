@@ -57,6 +57,10 @@ dependencies:
     version: '*'
     rules:
     - if: target in [esp32p4]
+  espressif/esp_lcd_ek79007:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
   espressif/esp_lcd_ili9881c:
     version: ^1.0.1
     rules:
