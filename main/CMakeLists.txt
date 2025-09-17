@@ -710,6 +710,62 @@ function(build_default_assets_bin)
 endfunction()
 
 
+# Function to get local assets file path (handles both URL and local file)
+function(get_assets_local_file assets_source assets_local_file_var)
+    # Check if it's a URL (starts with http:// or https://)
+    if(assets_source MATCHES "^https?://")
+        # It's a URL, download it
+        get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
+        set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
+        set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
+        
+        # Check if local file exists
+        if(EXISTS ${ASSETS_LOCAL_FILE})
+            message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
+        else()
+            message(STATUS "Downloading ${ASSETS_FILENAME}")
+            
+            # Clean up any existing temp file
+            if(EXISTS ${ASSETS_TEMP_FILE})
+                file(REMOVE ${ASSETS_TEMP_FILE})
+            endif()
+            
+            # Download to temporary file first
+            file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
+                 STATUS DOWNLOAD_STATUS)
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(NOT STATUS_CODE EQUAL 0)
+                # Clean up temp file on failure
+                if(EXISTS ${ASSETS_TEMP_FILE})
+                    file(REMOVE ${ASSETS_TEMP_FILE})
+                endif()
+                message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
+            endif()
+            
+            # Move temp file to final location (atomic operation)
+            file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
+            message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
+        endif()
+    else()
+        # It's a local file path
+        if(IS_ABSOLUTE "${assets_source}")
+            set(ASSETS_LOCAL_FILE "${assets_source}")
+        else()
+            set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
+        endif()
+        
+        # Check if local file exists
+        if(NOT EXISTS ${ASSETS_LOCAL_FILE})
+            message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
+        endif()
+        
+        message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
+    endif()
+    
+    set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
+endfunction()
+
+
 partition_table_get_partition_info(size "--partition-name assets" "size")
 partition_table_get_partition_info(offset "--partition-name assets" "offset")
 if ("${size}" AND "${offset}")
