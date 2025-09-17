@@ -16,12 +16,15 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
+
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
 #define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
 #define MAIN_EVENT_VAD_CHANGE (1 << 3)
 #define MAIN_EVENT_ERROR (1 << 4)
 #define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
+#define MAIN_EVENT_CLOCK_TICK (1 << 6)
+
 
 enum AecMode {
     kAecOff,
@@ -53,6 +56,7 @@ public:
     void StopListening();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
+    bool UpgradeFirmware(Ota& ota, const std::string& url = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode);
@@ -79,12 +83,28 @@ private:
     bool aborted_ = false;
     int clock_ticks_ = 0;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
+    TaskHandle_t main_event_loop_task_handle_ = nullptr;
 
     void OnWakeWordDetected();
     void CheckNewVersion(Ota& ota);
+    void CheckAssetsVersion();
     void ShowActivationCode(const std::string& code, const std::string& message);
-    void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
+};
+
+
+class TaskPriorityReset {
+public:
+    TaskPriorityReset(BaseType_t priority) {
+        original_priority_ = uxTaskPriorityGet(NULL);
+        vTaskPrioritySet(NULL, priority);
+    }
+    ~TaskPriorityReset() {
+        vTaskPrioritySet(NULL, original_priority_);
+    }
+
+private:
+    BaseType_t original_priority_;
 };
 
 #endif // _APPLICATION_H_

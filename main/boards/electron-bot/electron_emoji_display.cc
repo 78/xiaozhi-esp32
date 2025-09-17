@@ -1,4 +1,5 @@
 #include "electron_emoji_display.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include <font_awesome.h>
@@ -6,7 +7,6 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
-
 
 #define TAG "ElectronEmojiDisplay"
 
@@ -51,9 +51,8 @@ const ElectronEmojiDisplay::EmotionMap ElectronEmojiDisplay::emotion_maps_[] = {
 ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io,
                                            esp_lcd_panel_handle_t panel, int width, int height,
                                            int offset_x, int offset_y, bool mirror_x, bool mirror_y,
-                                           bool swap_xy, DisplayFonts fonts)
-    : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    fonts),
+                                           bool swap_xy)
+    : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy),
       emotion_gif_(nullptr) {
     SetupGifContainer();
 }
@@ -61,8 +60,8 @@ ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io,
 void ElectronEmojiDisplay::SetupGifContainer() {
     DisplayLockGuard lock(this);
 
-    if (emotion_label_) {
-        lv_obj_del(emotion_label_);
+    if (emoji_label_) {
+        lv_obj_del(emoji_label_);
     }
     if (chat_message_label_) {
         lv_obj_del(chat_message_label_);
@@ -79,11 +78,11 @@ void ElectronEmojiDisplay::SetupGifContainer() {
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_center(content_);
 
-    emotion_label_ = lv_label_create(content_);
-    lv_label_set_text(emotion_label_, "");
-    lv_obj_set_width(emotion_label_, 0);
-    lv_obj_set_style_border_width(emotion_label_, 0, 0);
-    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    emoji_label_ = lv_label_create(content_);
+    lv_label_set_text(emoji_label_, "");
+    lv_obj_set_width(emoji_label_, 0);
+    lv_obj_set_style_border_width(emoji_label_, 0, 0);
+    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
 
     emotion_gif_ = lv_gif_create(content_);
     int gif_size = LV_HOR_RES;
@@ -107,7 +106,11 @@ void ElectronEmojiDisplay::SetupGifContainer() {
 
     lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    LcdDisplay::SetTheme("dark");
+    auto& theme_manager = LvglThemeManager::GetInstance();
+    auto theme = theme_manager.GetTheme("dark");
+    if (theme != nullptr) {
+        LcdDisplay::SetTheme(theme);
+    }
 }
 
 void ElectronEmojiDisplay::SetEmotion(const char* emotion) {
@@ -144,27 +147,4 @@ void ElectronEmojiDisplay::SetChatMessage(const char* role, const char* content)
     lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
-}
-
-void ElectronEmojiDisplay::SetIcon(const char* icon) {
-    if (!icon) {
-        return;
-    }
-
-    DisplayLockGuard lock(this);
-
-    if (chat_message_label_ != nullptr) {
-        std::string icon_message = std::string(icon) + " ";
-
-        if (strcmp(icon, FONT_AWESOME_DOWNLOAD) == 0) {
-            icon_message += "正在升级...";
-        } else {
-            icon_message += "系统状态";
-        }
-
-        lv_label_set_text(chat_message_label_, icon_message.c_str());
-        lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
-
-        ESP_LOGI(TAG, "设置图标: %s", icon);
-    }
 }

@@ -36,6 +36,10 @@ MqttProtocol::~MqttProtocol() {
         esp_timer_stop(reconnect_timer_);
         esp_timer_delete(reconnect_timer_);
     }
+
+    udp_.reset();
+    mqtt_.reset();
+    
     if (event_group_handle_ != nullptr) {
         vEventGroupDelete(event_group_handle_);
     }

@@ -9,6 +9,7 @@
 #include "led/single_led.h"
 #include "power_save_timer.h"
 #include "sscma_camera.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
 #include "esp_check.h"
@@ -32,10 +33,6 @@
 
 #define TAG "sensecap_watcher"
 
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 class CustomLcdDisplay : public SpiLcdDisplay {
     public:
         CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
@@ -47,15 +44,14 @@ class CustomLcdDisplay : public SpiLcdDisplay {
                         bool mirror_x,
                         bool mirror_y,
                         bool swap_xy) 
-            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_30_4,
-                        .icon_font = &font_awesome_20_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
     
             DisplayLockGuard lock(this);
-            lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height * 2 + 10);
+            auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+            auto text_font = lvgl_theme->text_font()->font();
+            auto icon_font = lvgl_theme->icon_font()->font();
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
@@ -63,9 +59,9 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             // 针对圆形屏幕调整位置
             //      network  battery  mute     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5*fonts_.icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);

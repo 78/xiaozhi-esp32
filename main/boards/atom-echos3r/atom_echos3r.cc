@@ -12,7 +12,6 @@
 
 #define TAG "AtomEchoS3R"
 
- 
 class AtomEchoS3rBaseBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;

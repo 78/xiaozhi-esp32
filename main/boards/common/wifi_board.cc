@@ -41,6 +41,9 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
 
+    // 等待 1.5 秒显示开发板信息
+    vTaskDelay(pdMS_TO_TICKS(1500));
+
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();
@@ -216,7 +219,10 @@ std::string WifiBoard::GetDeviceStatusJson() {
     }
     auto display = board.GetDisplay();
     if (display && display->height() > 64) { // For LCD display only
-        cJSON_AddStringToObject(screen, "theme", display->GetTheme().c_str());
+        auto theme = display->GetTheme();
+        if (theme != nullptr) {
+            cJSON_AddStringToObject(screen, "theme", theme->name().c_str());
+        }
     }
     cJSON_AddItemToObject(root, "screen", screen);
 

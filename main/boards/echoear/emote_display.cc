@@ -10,15 +10,36 @@
 #include <freertos/task.h>
 #include <sys/time.h>
 #include <time.h>
+#include <model_path.h>
 
 #include "display/lcd_display.h"
-#include "mmap_generate_emoji_normal.h"
 #include "config.h"
 #include "gfx.h"
+#include "application.h"
 
 namespace anim {
 
 static const char* TAG = "emoji";
+
+// Asset name mapping from the old constants to file names
+static const std::unordered_map<std::string, std::string> asset_name_map = {
+    {"angry_one", "angry_one.aaf"},
+    {"dizzy_one", "dizzy_one.aaf"},
+    {"enjoy_one", "enjoy_one.aaf"},
+    {"happy_one", "happy_one.aaf"},
+    {"idle_one", "idle_one.aaf"},
+    {"listen", "listen.aaf"},
+    {"sad_one", "sad_one.aaf"},
+    {"shocked_one", "shocked_one.aaf"},
+    {"thinking_one", "thinking_one.aaf"},
+    {"icon_battery", "icon_Battery.bin"},
+    {"icon_wifi_failed", "icon_WiFi_failed.bin"},
+    {"icon_mic", "icon_mic.bin"},
+    {"icon_speaker_zzz", "icon_speaker_zzz.bin"},
+    {"icon_wifi", "icon_wifi.bin"},
+    {"srmodels", "srmodels.bin"},
+    {"kaiti", "KaiTi.ttf"}
+};
 
 // UI element management
 static gfx_obj_t* obj_label_tips = nullptr;
@@ -29,7 +50,7 @@ static gfx_obj_t* obj_img_icon = nullptr;
 static gfx_image_dsc_t icon_img_dsc;
 
 // Track current icon to determine when to show time
-static int current_icon_type = MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN;
+static std::string current_icon_type = "icon_battery";
 
 enum class UIDisplayMode : uint8_t {
     SHOW_ANIM_TOP = 1,  // Show obj_anim_mic
@@ -60,7 +81,7 @@ static void SetUIDisplayMode(UIDisplayMode mode)
 static void clock_tm_callback(void* user_data)
 {
     // Only display time when battery icon is shown
-    if (current_icon_type == MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN) {
+    if (current_icon_type == "icon_battery") {
         time_t now;
         struct tm timeinfo;
         time(&now);
@@ -77,17 +98,6 @@ static void clock_tm_callback(void* user_data)
     }
 }
 
-static void InitializeAssets(mmap_assets_handle_t* assets_handle)
-{
-    const mmap_assets_config_t assets_cfg = {
-        .partition_label = "assets_A",
-        .max_files = MMAP_EMOJI_NORMAL_FILES,
-        .checksum = MMAP_EMOJI_NORMAL_CHECKSUM,
-        .flags = {.mmap_enable = true, .full_check = true}
-    };
-
-    mmap_assets_new(&assets_cfg, assets_handle);
-}
 
 static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engine_handle)
 {
@@ -111,19 +121,24 @@ static void InitializeGraphics(esp_lcd_panel_handle_t panel, gfx_handle_t* engin
     };
 
     gfx_cfg.task.task_stack_caps = MALLOC_CAP_DEFAULT;
-    gfx_cfg.task.task_affinity = 0;
-    gfx_cfg.task.task_priority = 5;
+    gfx_cfg.task.task_affinity = 1;
+    gfx_cfg.task.task_priority = 1;
     gfx_cfg.task.task_stack = 20 * 1024;
 
     *engine_handle = gfx_emote_init(&gfx_cfg);
 }
 
-static void InitializeEyeAnimation(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
+static void InitializeEyeAnimation(gfx_handle_t engine_handle)
 {
     obj_anim_eye = gfx_anim_create(engine_handle);
 
-    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
-    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_IDLE_ONE_AAF);
+    void* anim_data = nullptr;
+    size_t anim_size = 0;
+    auto& assets = Assets::GetInstance();
+    if (!assets.GetAssetData(asset_name_map.at("idle_one"), anim_data, anim_size)) {
+        ESP_LOGE(TAG, "Failed to get idle_one animation data");
+        return;
+    }
 
     gfx_anim_set_src(obj_anim_eye, anim_data, anim_size);
 
@@ -133,13 +148,21 @@ static void InitializeEyeAnimation(gfx_handle_t engine_handle, mmap_assets_handl
     gfx_anim_start(obj_anim_eye);
 }
 
-static void InitializeFont(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
+static void InitializeFont(gfx_handle_t engine_handle)
 {
     gfx_font_t font;
+    void* font_data = nullptr;
+    size_t font_size = 0;
+    auto& assets = Assets::GetInstance();
+    if (!assets.GetAssetData(asset_name_map.at("kaiti"), font_data, font_size)) {
+        ESP_LOGE(TAG, "Failed to get kaiti font data");
+        return;
+    }
+    
     gfx_label_cfg_t font_cfg = {
         .name = "DejaVuSans.ttf",
-        .mem = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_KAITI_TTF),
-        .mem_size = static_cast<size_t>(mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_KAITI_TTF)),
+        .mem = font_data,
+        .mem_size = font_size,
     };
     gfx_label_new_font(engine_handle, &font_cfg, &font);
 
@@ -170,24 +193,30 @@ static void InitializeLabels(gfx_handle_t engine_handle)
     gfx_label_set_text_align(obj_label_time, GFX_TEXT_ALIGN_CENTER);
 }
 
-static void InitializeMicAnimation(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
+static void InitializeMicAnimation(gfx_handle_t engine_handle)
 {
     obj_anim_mic = gfx_anim_create(engine_handle);
     gfx_obj_align(obj_anim_mic, GFX_ALIGN_TOP_MID, 0, 25);
 
-    const void* anim_data = mmap_assets_get_mem(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
-    size_t anim_size = mmap_assets_get_size(assets_handle, MMAP_EMOJI_NORMAL_LISTEN_AAF);
+    void* anim_data = nullptr;
+    size_t anim_size = 0;
+    auto& assets = Assets::GetInstance();
+    if (!assets.GetAssetData(asset_name_map.at("listen"), anim_data, anim_size)) {
+        ESP_LOGE(TAG, "Failed to get listen animation data");
+        return;
+    }
+    
     gfx_anim_set_src(obj_anim_mic, anim_data, anim_size);
     gfx_anim_start(obj_anim_mic);
     gfx_obj_set_visible(obj_anim_mic, false);
 }
 
-static void InitializeIcon(gfx_handle_t engine_handle, mmap_assets_handle_t assets_handle)
+static void InitializeIcon(gfx_handle_t engine_handle)
 {
     obj_img_icon = gfx_img_create(engine_handle);
     gfx_obj_align(obj_img_icon, GFX_ALIGN_TOP_MID, -100, 38);
 
-    SetupImageDescriptor(assets_handle, &icon_img_dsc, MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN);
+    SetupImageDescriptor(&icon_img_dsc, "icon_wifi_failed");
     gfx_img_set_src(obj_img_icon, static_cast<void*>(&icon_img_dsc));
 }
 
@@ -199,12 +228,17 @@ static void RegisterCallbacks(esp_lcd_panel_io_handle_t panel_io, gfx_handle_t e
     esp_lcd_panel_io_register_event_callbacks(panel_io, &cbs, engine_handle);
 }
 
-void SetupImageDescriptor(mmap_assets_handle_t assets_handle,
-                          gfx_image_dsc_t* img_dsc,
-                          int asset_id)
+void SetupImageDescriptor(gfx_image_dsc_t* img_dsc, const std::string& asset_name)
 {
-    const void* img_data = mmap_assets_get_mem(assets_handle, asset_id);
-    size_t img_size = mmap_assets_get_size(assets_handle, asset_id);
+    auto& assets = Assets::GetInstance();
+    std::string filename = asset_name_map.at(asset_name);
+    
+    void* img_data = nullptr;
+    size_t img_size = 0;
+    if (!assets.GetAssetData(filename, img_data, img_size)) {
+        ESP_LOGE(TAG, "Failed to get asset data for %s", asset_name.c_str());
+        return;
+    }
 
     std::memcpy(&img_dsc->header, img_data, sizeof(gfx_image_header_t));
     img_dsc->data = static_cast<const uint8_t*>(img_data) + sizeof(gfx_image_header_t);
@@ -215,20 +249,19 @@ EmoteEngine::EmoteEngine(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
 {
     ESP_LOGI(TAG, "Create EmoteEngine, panel: %p, panel_io: %p", panel, panel_io);
 
-    InitializeAssets(&assets_handle_);
     InitializeGraphics(panel, &engine_handle_);
 
     gfx_emote_lock(engine_handle_);
     gfx_emote_set_bg_color(engine_handle_, GFX_COLOR_HEX(0x000000));
 
     // Initialize all UI components
-    InitializeEyeAnimation(engine_handle_, assets_handle_);
-    InitializeFont(engine_handle_, assets_handle_);
+    InitializeEyeAnimation(engine_handle_);
+    InitializeFont(engine_handle_);
     InitializeLabels(engine_handle_);
-    InitializeMicAnimation(engine_handle_, assets_handle_);
-    InitializeIcon(engine_handle_, assets_handle_);
+    InitializeMicAnimation(engine_handle_);
+    InitializeIcon(engine_handle_);
 
-    current_icon_type = MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN;
+    current_icon_type = "icon_wifi_failed";
     SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
 
     gfx_timer_create(engine_handle_, clock_tm_callback, 1000, obj_label_tips);
@@ -244,21 +277,23 @@ EmoteEngine::~EmoteEngine()
         gfx_emote_deinit(engine_handle_);
         engine_handle_ = nullptr;
     }
-
-    if (assets_handle_) {
-        mmap_assets_del(assets_handle_);
-        assets_handle_ = nullptr;
-    }
 }
 
-void EmoteEngine::setEyes(int aaf, bool repeat, int fps)
+void EmoteEngine::setEyes(const std::string& asset_name, bool repeat, int fps)
 {
     if (!engine_handle_) {
         return;
     }
 
-    const void* src_data = mmap_assets_get_mem(assets_handle_, aaf);
-    size_t src_len = mmap_assets_get_size(assets_handle_, aaf);
+    auto& assets = Assets::GetInstance();
+    std::string filename = asset_name_map.at(asset_name);
+    
+    void* src_data = nullptr;
+    size_t src_len = 0;
+    if (!assets.GetAssetData(filename, src_data, src_len)) {
+        ESP_LOGE(TAG, "Failed to get asset data for %s", asset_name.c_str());
+        return;
+    }
 
     Lock();
     gfx_anim_set_src(obj_anim_eye, src_data, src_len);
@@ -286,16 +321,16 @@ void EmoteEngine::Unlock()
     }
 }
 
-void EmoteEngine::SetIcon(int asset_id)
+void EmoteEngine::SetIcon(const std::string& asset_name)
 {
     if (!engine_handle_) {
         return;
     }
 
     Lock();
-    SetupImageDescriptor(assets_handle_, &icon_img_dsc, asset_id);
+    SetupImageDescriptor(&icon_img_dsc, asset_name);
     gfx_img_set_src(obj_img_icon, static_cast<void*>(&icon_img_dsc));
-    current_icon_type = asset_id;
+    current_icon_type = asset_name;
     Unlock();
 }
 
@@ -303,6 +338,7 @@ bool EmoteEngine::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io,
                                  esp_lcd_panel_io_event_data_t* edata,
                                  void* user_ctx)
 {
+    gfx_emote_flush_ready((gfx_handle_t)user_ctx, true);
     return true;
 }
 
@@ -313,7 +349,6 @@ void EmoteEngine::OnFlush(gfx_handle_t handle, int x_start, int y_start,
     if (panel) {
         esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
     }
-    gfx_emote_flush_ready(handle, true);
 }
 
 // EmoteDisplay implementation
@@ -330,36 +365,36 @@ void EmoteDisplay::SetEmotion(const char* emotion)
         return;
     }
 
-    using EmotionParam = std::tuple<int, bool, int>;
+    using EmotionParam = std::tuple<std::string, bool, int>;
     static const std::unordered_map<std::string, EmotionParam> emotion_map = {
-        {"happy",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"laughing",    {MMAP_EMOJI_NORMAL_ENJOY_ONE_AAF,     true,  20}},
-        {"funny",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"loving",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"embarrassed", {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confident",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"delicious",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sad",         {MMAP_EMOJI_NORMAL_SAD_ONE_AAF,       true,  20}},
-        {"crying",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"sleepy",      {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"silly",       {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"angry",       {MMAP_EMOJI_NORMAL_ANGRY_ONE_AAF,     true,  20}},
-        {"surprised",   {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"shocked",     {MMAP_EMOJI_NORMAL_SHOCKED_ONE_AAF,   true,  20}},
-        {"thinking",    {MMAP_EMOJI_NORMAL_THINKING_ONE_AAF,  true,  20}},
-        {"winking",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"relaxed",     {MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF,     true,  20}},
-        {"confused",    {MMAP_EMOJI_NORMAL_DIZZY_ONE_AAF,     true,  20}},
-        {"neutral",     {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
-        {"idle",        {MMAP_EMOJI_NORMAL_IDLE_ONE_AAF,      false, 20}},
+        {"happy",       {"happy_one",     true,  20}},
+        {"laughing",    {"enjoy_one",     true,  20}},
+        {"funny",       {"happy_one",     true,  20}},
+        {"loving",      {"happy_one",     true,  20}},
+        {"embarrassed", {"happy_one",     true,  20}},
+        {"confident",   {"happy_one",     true,  20}},
+        {"delicious",   {"happy_one",     true,  20}},
+        {"sad",         {"sad_one",       true,  20}},
+        {"crying",      {"happy_one",     true,  20}},
+        {"sleepy",      {"happy_one",     true,  20}},
+        {"silly",       {"happy_one",     true,  20}},
+        {"angry",       {"angry_one",     true,  20}},
+        {"surprised",   {"happy_one",     true,  20}},
+        {"shocked",     {"shocked_one",   true,  20}},
+        {"thinking",    {"thinking_one",  true,  20}},
+        {"winking",     {"happy_one",     true,  20}},
+        {"relaxed",     {"happy_one",     true,  20}},
+        {"confused",    {"dizzy_one",     true,  20}},
+        {"neutral",     {"idle_one",      false, 20}},
+        {"idle",        {"idle_one",      false, 20}},
     };
 
     auto it = emotion_map.find(emotion);
     if (it != emotion_map.end()) {
-        int aaf = std::get<0>(it->second);
+        std::string asset_name = std::get<0>(it->second);
         bool repeat = std::get<1>(it->second);
         int fps = std::get<2>(it->second);
-        engine_->setEyes(aaf, repeat, fps);
+        engine_->setEyes(asset_name, repeat, fps);
     }
 }
 
@@ -381,17 +416,17 @@ void EmoteDisplay::SetStatus(const char* status)
 
     if (std::strcmp(status, "聆听中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_ANIM_TOP);
-        engine_->setEyes(MMAP_EMOJI_NORMAL_HAPPY_ONE_AAF, true, 20);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_MIC_BIN);
+        engine_->setEyes("happy_one", true, 20);
+        engine_->SetIcon("icon_mic");
     } else if (std::strcmp(status, "待命") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_BATTERY_BIN);
+        engine_->SetIcon("icon_battery");
     } else if (std::strcmp(status, "说话中...") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_SPEAKER_ZZZ_BIN);
+        engine_->SetIcon("icon_speaker_zzz");
     } else if (std::strcmp(status, "错误") == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIPS);
-        engine_->SetIcon(MMAP_EMOJI_NORMAL_ICON_WIFI_FAILED_BIN);
+        engine_->SetIcon("icon_wifi_failed");
     }
 
     engine_->Lock();

@@ -19,19 +19,11 @@
 
 #define TAG "magiclick_2p4"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_32_init(),
-                    }) {
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 只需要覆盖颜色相关的样式
@@ -52,7 +44,7 @@ public:
         // 设置内容区背景色和文本颜色
         lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
         lv_obj_set_style_border_width(content_, 0, 0);
-        lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(emoji_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
     }
 };
@@ -70,7 +62,6 @@ private:
 
     esp_lcd_panel_io_handle_t panel_io = nullptr;
     esp_lcd_panel_handle_t panel = nullptr;
-
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(GPIO_NUM_48);
@@ -233,7 +224,6 @@ public:
         InitializeSpi();
         InitializeNv3023Display();
         GetBacklight()->RestoreBrightness();
-        
     }
 
     virtual Led* GetLed() override {

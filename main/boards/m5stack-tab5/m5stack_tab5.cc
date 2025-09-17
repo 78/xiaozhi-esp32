@@ -19,12 +19,7 @@
 #include "esp_lcd_touch_gt911.h"
 #include <cstring>
 
-
 #define TAG "M5StackTab5Board"
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
-
 
 #define AUDIO_CODEC_ES8388_ADDR ES8388_CODEC_DEFAULT_ADDR
 #define LCD_MIPI_DSI_PHY_PWR_LDO_CHAN       3  // LDO_VO3 is connected to VDD_MIPI_DPHY
@@ -44,8 +39,7 @@ LV_FONT_DECLARE(font_awesome_30_4);
 
 class Pi4ioe1 : public I2cDevice {
 public:
-    Pi4ioe1(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
-    {
+    Pi4ioe1(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         WriteReg(PI4IO_REG_CHIP_RESET, 0xFF);
         uint8_t data = ReadReg(PI4IO_REG_CHIP_RESET);
         WriteReg(PI4IO_REG_IO_DIR, 0b01111111);      // 0: input 1: output
@@ -60,8 +54,7 @@ public:
 
 class Pi4ioe2 : public I2cDevice {
 public:
-    Pi4ioe2(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
-    {
+    Pi4ioe2(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
         WriteReg(PI4IO_REG_CHIP_RESET, 0xFF);
         uint8_t data = ReadReg(PI4IO_REG_CHIP_RESET);
         WriteReg(PI4IO_REG_IO_DIR, 0b10111001);      // 0: input 1: output
@@ -74,7 +67,6 @@ public:
     }
 };
 
- 
 class M5StackTab5Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -84,8 +76,7 @@ private:
     Pi4ioe2* pi4ioe2_;
     esp_lcd_touch_handle_t touch_ = nullptr;
 
-    void InitializeI2c()
-    {
+    void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port          = (i2c_port_t)1,
@@ -102,8 +93,7 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
-    void I2cDetect()
-    {
+    void I2cDetect() {
         uint8_t address;
         printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
         for (int i = 0; i < 128; i += 16) {
@@ -124,15 +114,13 @@ private:
         }
     }
 
-    void InitializePi4ioe()
-    {
+    void InitializePi4ioe() {
         ESP_LOGI(TAG, "Init I/O Exapander PI4IOE");
         pi4ioe1_ = new Pi4ioe1(i2c_bus_, 0x43);
         pi4ioe2_ = new Pi4ioe2(i2c_bus_, 0x44);
     }
 
-    void InitializeButtons()
-    {
+    void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -191,8 +179,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeIli9881cDisplay()
-    {
+    void InitializeIli9881cDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel       = nullptr;
 
@@ -223,7 +210,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &panel_io));
 
         ESP_LOGI(TAG, "Install LCD driver of ili9881c");
-      esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel    = 0,
+        esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel    = 0,
                                                  .dpi_clk_src        = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
                                                  .dpi_clock_freq_mhz = 60,
                                                  .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,
@@ -268,17 +255,11 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         display_ = new MipiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X,
-                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                      {
-                                          .text_font  = &font_puhui_30_4,
-                                          .icon_font  = &font_awesome_30_4,
-                                          .emoji_font = font_emoji_64_init(),
-                                      });
+                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
-    M5StackTab5Board() : boot_button_(BOOT_BUTTON_GPIO)
-    {
+    M5StackTab5Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         I2cDetect();
         InitializePi4ioe();
@@ -288,8 +269,7 @@ public:
         GetBacklight()->RestoreBrightness();
     }
 
-    virtual AudioCodec* GetAudioCodec() override
-    {
+    virtual AudioCodec* GetAudioCodec() override {
         static Tab5AudioCodec audio_codec(i2c_bus_, 
                                         AUDIO_INPUT_SAMPLE_RATE, 
                                         AUDIO_OUTPUT_SAMPLE_RATE,
@@ -305,13 +285,11 @@ public:
         return &audio_codec;
     }
 
-    virtual Display* GetDisplay() override
-    {
+    virtual Display* GetDisplay() override {
         return display_;
     }
 
-    virtual Backlight* GetBacklight() override
-    {
+    virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }

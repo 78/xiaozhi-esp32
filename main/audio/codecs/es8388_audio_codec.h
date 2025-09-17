@@ -29,7 +29,7 @@ private:
 public:
     Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
         gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-        gpio_num_t pa_pin, uint8_t es8388_addr);
+        gpio_num_t pa_pin, uint8_t es8388_addr, bool input_reference = false);
     virtual ~Es8388AudioCodec();
 
     virtual void SetOutputVolume(int volume) override;
