@@ -487,6 +487,7 @@ choice DISPLAY_STYLE
 
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
+        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR
 endchoice
 
 config USE_ESP_WAKE_WORD

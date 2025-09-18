@@ -25,6 +25,8 @@
 #include "board.h"
 #include "gfx.h"
 
+LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+
 namespace emote {
 
 // ============================================================================
@@ -45,6 +47,7 @@ static const char* TAG = "EmoteDisplay";
 #define ICON_BATTERY             "icon_Battery"
 #define ICON_SPEAKER_ZZZ         "icon_speaker_zzz"
 #define ICON_WIFI_FAILED         "icon_WiFi_failed"
+#define ICON_WIFI_OK             "icon_wifi"
 #define ICON_LISTEN              "listen"
 
 using FlushIoReadyCallback = std::function<bool(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*)>;
@@ -62,8 +65,9 @@ static gfx_obj_t* g_obj_anim_listen = nullptr;
 static gfx_obj_t* g_obj_img_status = nullptr;
 
 // Track current icon to determine when to show time
-static std::string g_current_icon_type = ICON_BATTERY;
+static std::string g_current_icon_type = ICON_WIFI_FAILED;
 static gfx_image_dsc_t g_icon_img_dsc;
+
 
 // ============================================================================
 // Forward Declarations
@@ -242,6 +246,7 @@ static void SetupUI(const gfx_handle_t engine_handle, EmoteDisplay* const displa
     gfx_label_set_long_mode(g_obj_label_toast, GFX_LABEL_LONG_SCROLL);
     gfx_label_set_scroll_speed(g_obj_label_toast, 20);
     gfx_label_set_scroll_loop(g_obj_label_toast, true);
+    gfx_label_set_font(g_obj_label_toast, (gfx_font_t)&BUILTIN_TEXT_FONT);
 
     g_obj_label_clock = gfx_label_create(engine_handle);
     gfx_obj_align(g_obj_label_clock, GFX_ALIGN_TOP_MID, 0, 15);
@@ -249,6 +254,7 @@ static void SetupUI(const gfx_handle_t engine_handle, EmoteDisplay* const displa
     gfx_label_set_text(g_obj_label_clock, "--:--");
     gfx_label_set_color(g_obj_label_clock, GFX_COLOR_HEX(0xFFFFFF));
     gfx_label_set_text_align(g_obj_label_clock, GFX_TEXT_ALIGN_CENTER);
+    gfx_label_set_font(g_obj_label_clock, (gfx_font_t)&BUILTIN_TEXT_FONT);
 
     g_obj_anim_listen = gfx_anim_create(engine_handle);
     gfx_obj_align(g_obj_anim_listen, GFX_ALIGN_TOP_MID, 0, 5);
@@ -281,8 +287,6 @@ static void RegisterCallbacks(const esp_lcd_panel_io_handle_t panel_io, const gf
 EmoteEngine::EmoteEngine(const esp_lcd_panel_handle_t panel, const esp_lcd_panel_io_handle_t panel_io,
                          const int width, const int height, EmoteDisplay* const display)
 {
-    ESP_LOGI(TAG, "Create EmoteEngine, panel: %p, panel_io: %p", panel, panel_io);
-
     InitializeGraphics(panel, &engine_handle_, width, height);
 
     if (display) {
@@ -345,10 +349,10 @@ void EmoteEngine::SetIcon(const std::string &icon_name, EmoteDisplay* const disp
         g_icon_img_dsc.data_size = icon_data.size - sizeof(gfx_image_header_t);
 
         gfx_img_set_src(g_obj_img_status, &g_icon_img_dsc);
-        g_current_icon_type = icon_name;
     } else {
         ESP_LOGW(TAG, "SetIcon: No icon data found for %s", icon_name.c_str());
     }
+    g_current_icon_type = icon_name;
 }
 
 bool EmoteEngine::OnFlushIoReady(const esp_lcd_panel_io_handle_t panel_io,

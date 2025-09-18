@@ -69,23 +69,6 @@ Application::~Application() {
     vEventGroupDelete(event_group_);
 }
 
-bool Application::ProbeAssetsPartition() {
-    auto& assets = Assets::GetInstance();
-
-    ESP_LOGI(TAG, "ProbeAssetsPartition Assets: %p", &assets);
-
-    if (!assets.partition_valid()) {
-        ESP_LOGE(TAG, "Assets partition is not valid for board %s", BOARD_NAME);
-        return false;
-    }
-
-    // If assets partition exists and is valid, try to apply it first
-    ESP_LOGI(TAG, "Attempting to apply existing assets partition");
-    assets.Apply();
-
-    return true;
-}
-
 void Application::CheckAssetsVersion() {
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
@@ -376,10 +359,6 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
-
-#if CONFIG_USE_EMOTE_MESSAGE_STYLE
-    ProbeAssetsPartition();
-#endif
 
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {

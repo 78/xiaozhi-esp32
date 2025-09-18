@@ -108,6 +108,7 @@ bool Assets::Apply() {
         ESP_LOGE(TAG, "The index.json file is not found");
         return false;
     }
+
     cJSON* root = cJSON_ParseWithLength(static_cast<char*>(ptr), size);
     if (root == nullptr) {
         ESP_LOGE(TAG, "The index.json file is not valid");
@@ -247,7 +248,7 @@ bool Assets::Apply() {
     if (current_theme != nullptr) {
         display->SetTheme(current_theme);
     }
-    #else
+#elif defined(CONFIG_USE_EMOTE_MESSAGE_STYLE)
     auto &board = Board::GetInstance();
     auto display = board.GetDisplay();
     auto emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
@@ -295,11 +296,12 @@ bool Assets::Apply() {
                                 lack_value = lack ? cJSON_IsTrue(lack) : false;
                                 loop_value = loop ? cJSON_IsTrue(loop) : false;
                                 fps_value = fps ? fps->valueint : 0;
+
+                                emote_display->AddEmojiData(name->valuestring, ptr, size,
+                                                          static_cast<uint8_t>(fps_value),
+                                                          loop_value, lack_value);
                             }
 
-                            emote_display->AddEmojiData(name->valuestring, ptr, size,
-                                                      static_cast<uint8_t>(fps_value),
-                                                      loop_value, lack_value);
                         } else {
                             ESP_LOGE(TAG, "Emoji \"%10s\" image file %s is not found", name->valuestring, file->valuestring);
                         }
