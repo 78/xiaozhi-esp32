@@ -41,6 +41,9 @@ void WifiBoard::EnterWifiConfigMode() {
     wifi_ap.SetSsidPrefix("Xiaozhi");
     wifi_ap.Start();
 
+    // 等待 1.5 秒显示开发板信息
+    vTaskDelay(pdMS_TO_TICKS(1500));
+
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
     std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();

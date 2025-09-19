@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <font_awesome.h>
-#include <img_converters.h>
 
 #include "lvgl_display.h"
 #include "board.h"
@@ -12,6 +11,7 @@
 #include "audio_codec.h"
 #include "settings.h"
 #include "assets/lang_config.h"
+#include "jpg/image_to_jpeg.h"
 
 #define TAG "Display"
 
@@ -215,12 +215,14 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
     }
 }
 
-bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_data_size, int quality) {
+bool LvglDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
+#if CONFIG_LV_USE_SNAPSHOT
     DisplayLockGuard lock(this);
 
     lv_obj_t* screen = lv_screen_active();
     lv_draw_buf_t* draw_buffer = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
     if (draw_buffer == nullptr) {
+        ESP_LOGE(TAG, "Failed to take snapshot, draw_buffer is nullptr");
         return false;
     }
 
@@ -231,12 +233,26 @@ bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output
         data[i] = __builtin_bswap16(data[i]);
     }
 
-    if (!fmt2jpg(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h,
-        PIXFORMAT_RGB565, quality, &jpeg_output_data, &jpeg_output_data_size)) {
-        lv_draw_buf_destroy(draw_buffer);
-        return false;
+    // 清空输出字符串并使用回调版本，避免预分配大内存块
+    jpeg_data.clear();
+
+    // 🚀 使用回调版本的JPEG编码器，进一步节省内存
+    bool ret = image_to_jpeg_cb(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h, PIXFORMAT_RGB565, quality,
+        [](void *arg, size_t index, const void *data, size_t len) -> size_t {
+        std::string* output = static_cast<std::string*>(arg);
+        if (data && len > 0) {
+            output->append(static_cast<const char*>(data), len);
+        }
+        return len;
+    }, &jpeg_data);
+    if (!ret) {
+        ESP_LOGE(TAG, "Failed to convert image to JPEG");
     }
 
     lv_draw_buf_destroy(draw_buffer);
-    return true;
+    return ret;
+#else
+    ESP_LOGE(TAG, "LV_USE_SNAPSHOT is not enabled");
+    return false;
+#endif
 }
