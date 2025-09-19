@@ -16,6 +16,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "display/lvgl_display/lvgl_display.cc"
+            "display/emote_display.cc"
             "display/lvgl_display/emoji_collection.cc"
             "display/lvgl_display/lvgl_theme.cc"
             "display/lvgl_display/lvgl_font.cc"
@@ -212,11 +213,7 @@ elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
-    # Find esp_emote_gfx component for ECHOEAR extra files
-    find_component_by_pattern("esp_emote_gfx" EMOTE_GFX_COMPONENT EMOTE_GFX_COMPONENT_PATH)
-    if(EMOTE_GFX_COMPONENT_PATH)
-        set(DEFAULT_ASSETS_EXTRA_FILES "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
-    endif()
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_AUDIO_BOARD)
     set(BOARD_TYPE "waveshare-s3-audio-board")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)

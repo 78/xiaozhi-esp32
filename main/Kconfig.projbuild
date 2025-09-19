@@ -473,11 +473,22 @@ choice DISPLAY_ESP32S3_AUDIO_BOARD
         bool "ST7789, 分辨率240*320"
 endchoice
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "Enable WeChat Message Style"
-    default n
+choice DISPLAY_STYLE
+    prompt "Select display style"
+    default USE_DEFAULT_MESSAGE_STYLE
     help
-        使用微信聊天界面风格
+        Select display style for Xiaozhi device
+
+    config USE_DEFAULT_MESSAGE_STYLE
+        bool "Enable default message style"
+
+    config USE_WECHAT_MESSAGE_STYLE
+        bool "Enable WeChat Message Style"
+
+    config USE_EMOTE_MESSAGE_STYLE
+        bool "Emote animation style"
+        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR
+endchoice
 
 config USE_ESP_WAKE_WORD
     bool "Enable Wake Word Detection (without AFE)"
