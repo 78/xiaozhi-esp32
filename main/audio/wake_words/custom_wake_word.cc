@@ -108,6 +108,10 @@ bool CustomWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) 
     // 初始化 multinet (命令词识别)
     mn_name_ = esp_srmodel_filter(models_, ESP_MN_PREFIX, language_.c_str());
     if (mn_name_ == nullptr) {
+        ESP_LOGW(TAG, "Language '%s' multinet not found, falling back to any multinet model", language_.c_str());
+        mn_name_ = esp_srmodel_filter(models_, ESP_MN_PREFIX, NULL);
+    }
+    if (mn_name_ == nullptr) {
         ESP_LOGE(TAG, "Failed to initialize multinet, mn_name is nullptr");
         ESP_LOGI(TAG, "Please refer to https://pcn7cs20v8cr.feishu.cn/wiki/CpQjwQsCJiQSWSkYEvrcxcbVnwh to add custom wake word");
         return false;
