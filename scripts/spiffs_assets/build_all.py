@@ -31,7 +31,7 @@ def get_file_path(base_dir, filename):
     return os.path.join(base_dir, f"{filename}.bin" if not filename.startswith("emojis_") else filename)
 
 
-def build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_dir):
+def build_assets(wakenet_model, text_font, emoji_collection, target_board, build_dir, final_dir):
     """Build assets.bin using build.py with given parameters"""
     
     # Prepare arguments for build.py
@@ -42,14 +42,21 @@ def build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_di
         cmd.extend(["--wakenet_model", wakenet_path])
     
     if text_font != "none":
-        text_font_path = os.path.join("../../components/xiaozhi-fonts/build", f"{text_font}.bin")
+        text_font_path = os.path.join("../../components/78__xiaozhi-fonts/cbin", f"{text_font}.bin")
         cmd.extend(["--text_font", text_font_path])
     
     if emoji_collection != "none":
         emoji_path = os.path.join("../../components/xiaozhi-fonts/build", emoji_collection)
         cmd.extend(["--emoji_collection", emoji_path])
+
+    if target_board != "none":
+        res_path = os.path.join("../../managed_components/espressif2022__esp_emote_gfx/emoji_large", "")
+        cmd.extend(["--res_path", res_path])
+
+        target_board_path = os.path.join("../../main/boards/", f"{target_board}")
+        cmd.extend(["--target_board", target_board_path])
     
-    print(f"\n正在构建: {wakenet_model}-{text_font}-{emoji_collection}")
+    print(f"\n正在构建: {wakenet_model}-{text_font}-{emoji_collection}-{target_board}")
     print(f"执行命令: {' '.join(cmd)}")
     
     try:
@@ -57,7 +64,10 @@ def build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_di
         result = subprocess.run(cmd, check=True, cwd=os.path.dirname(__file__))
         
         # Generate output filename
-        output_name = f"{wakenet_model}-{text_font}-{emoji_collection}.bin"
+        if(target_board != "none"):
+            output_name = f"{wakenet_model}-{text_font}-{target_board}.bin"
+        else:
+            output_name = f"{wakenet_model}-{text_font}-{emoji_collection}.bin"
         
         # Copy generated assets.bin to final directory with new name
         src_path = os.path.join(build_dir, "assets.bin")
@@ -80,6 +90,15 @@ def build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_di
 
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='构建多个 SPIFFS assets 分区')
+    parser.add_argument('--mode',
+                       choices=['emoji_collections', 'emoji_target_boards'],
+                       default='emoji_collections',
+                       help='选择运行模式: emoji_collections 或 emoji_target_boards (默认: emoji_collections)')
+
+    args = parser.parse_args()
+    
     # Configuration
     wakenet_models = [
         "none",
@@ -100,6 +119,11 @@ def main():
         "emojis_32",
         "emojis_64",
     ]
+
+    emoji_target_boards = [
+        "esp-box-3",
+        "echoear",
+    ]
     
     # Get script directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -113,18 +137,33 @@ def main():
     ensure_dir(final_dir)
     
     print("开始构建多个 SPIFFS assets 分区...")
+    print(f"运行模式: {args.mode}")
     print(f"输出目录: {final_dir}")
     
     # Track successful builds
     successful_builds = 0
-    total_combinations = len(wakenet_models) * len(text_fonts) * len(emoji_collections)
     
-    # Build all combinations
-    for wakenet_model in wakenet_models:
-        for text_font in text_fonts:
-            for emoji_collection in emoji_collections:
-                if build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_dir):
-                    successful_builds += 1
+    if args.mode == 'emoji_collections':
+        # Calculate total combinations for emoji_collections mode
+        total_combinations = len(wakenet_models) * len(text_fonts) * len(emoji_collections)
+        
+        # Build all combinations with emoji_collections
+        for wakenet_model in wakenet_models:
+            for text_font in text_fonts:
+                for emoji_collection in emoji_collections:
+                    if build_assets(wakenet_model, text_font, emoji_collection, "none", build_dir, final_dir):
+                        successful_builds += 1
+                        
+    elif args.mode == 'emoji_target_boards':
+        # Calculate total combinations for emoji_target_boards mode
+        total_combinations = len(wakenet_models) * len(text_fonts) * len(emoji_target_boards)
+        
+        # Build all combinations with emoji_target_boards
+        for wakenet_model in wakenet_models:
+            for text_font in text_fonts:
+                for emoji_target_board in emoji_target_boards:
+                    if build_assets(wakenet_model, text_font, "none", emoji_target_board, build_dir, final_dir):
+                        successful_builds += 1
     
     print(f"\n构建完成!")
     print(f"成功构建: {successful_builds}/{total_combinations}")

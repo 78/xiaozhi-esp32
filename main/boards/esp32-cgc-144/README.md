@@ -23,18 +23,6 @@ idf.py menuconfig
 Xiaozhi Assistant -> Board Type -> ESP32 CGC 144
 ```
 
-**修改 flash 大小：**
-
-```
-Serial flasher config -> Flash size -> 4 MB
-```
-
-**修改分区表：**
-
-```
-Partition Table -> Custom partition CSV file -> partitions/v1/4m.csv
-```
-
 **编译：**
 
 ```bash

@@ -3,6 +3,7 @@
 #include "display.h"
 #include "application.h"
 #include "lvgl_theme.h"
+#include "emote_display.h"
 
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
@@ -21,13 +22,7 @@ struct mmap_assets_table {
 };
 
 
-Assets::Assets(std::string default_assets_url) {
-    if (default_assets_url.find("http") == 0) {
-        default_assets_url_ = default_assets_url;
-    } else {
-        ESP_LOGE(TAG, "The default assets url is not a http url: %s", default_assets_url.c_str());
-    }
-
+Assets::Assets() {
     // Initialize the partition
     InitializePartition();
 }
@@ -113,6 +108,7 @@ bool Assets::Apply() {
         ESP_LOGE(TAG, "The index.json file is not found");
         return false;
     }
+
     cJSON* root = cJSON_ParseWithLength(static_cast<char*>(ptr), size);
     if (root == nullptr) {
         ESP_LOGE(TAG, "The index.json file is not valid");
@@ -181,7 +177,8 @@ bool Assets::Apply() {
             if (cJSON_IsObject(emoji)) {
                 cJSON* name = cJSON_GetObjectItem(emoji, "name");
                 cJSON* file = cJSON_GetObjectItem(emoji, "file");
-                if (cJSON_IsString(name) && cJSON_IsString(file)) {
+                cJSON* eaf = cJSON_GetObjectItem(emoji, "eaf");
+                if (cJSON_IsString(name) && cJSON_IsString(file) && (NULL== eaf)) {
                     if (!GetAssetData(file->valuestring, ptr, size)) {
                         ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring, file->valuestring);
                         continue;
@@ -243,7 +240,6 @@ bool Assets::Apply() {
             }
         }
     }
-#endif
 
     auto display = Board::GetInstance().GetDisplay();
     ESP_LOGI(TAG, "Refreshing display theme...");
@@ -252,6 +248,121 @@ bool Assets::Apply() {
     if (current_theme != nullptr) {
         display->SetTheme(current_theme);
     }
+#elif defined(CONFIG_USE_EMOTE_MESSAGE_STYLE)
+    auto &board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    auto emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
+
+    cJSON* font = cJSON_GetObjectItem(root, "text_font");
+    if (cJSON_IsString(font)) {
+        std::string fonts_text_file = font->valuestring;
+        if (GetAssetData(fonts_text_file, ptr, size)) {
+            auto text_font = std::make_shared<LvglCBinFont>(ptr);
+            if (text_font->font() == nullptr) {
+                ESP_LOGE(TAG, "Failed to load fonts.bin");
+                return false;
+            }
+
+            if (emote_display) {
+                emote_display->AddTextFont(text_font);
+            }
+        } else {
+            ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
+        }
+    }
+
+    cJSON* emoji_collection = cJSON_GetObjectItem(root, "emoji_collection");
+    if (cJSON_IsArray(emoji_collection)) {
+        int emoji_count = cJSON_GetArraySize(emoji_collection);
+        if (emote_display) {
+            for (int i = 0; i < emoji_count; i++) {
+                cJSON* icon = cJSON_GetArrayItem(emoji_collection, i);
+                if (cJSON_IsObject(icon)) {
+                    cJSON* name = cJSON_GetObjectItem(icon, "name");
+                    cJSON* file = cJSON_GetObjectItem(icon, "file");
+
+                    if (cJSON_IsString(name) && cJSON_IsString(file)) {
+                        if (GetAssetData(file->valuestring, ptr, size)) {
+                            cJSON* eaf = cJSON_GetObjectItem(icon, "eaf");
+                            bool lack_value = false;
+                            bool loop_value = false;
+                            int fps_value = 0;
+
+                            if (cJSON_IsObject(eaf)) {
+                                cJSON* lack = cJSON_GetObjectItem(eaf, "lack");
+                                cJSON* loop = cJSON_GetObjectItem(eaf, "loop");
+                                cJSON* fps = cJSON_GetObjectItem(eaf, "fps");
+
+                                lack_value = lack ? cJSON_IsTrue(lack) : false;
+                                loop_value = loop ? cJSON_IsTrue(loop) : false;
+                                fps_value = fps ? fps->valueint : 0;
+
+                                emote_display->AddEmojiData(name->valuestring, ptr, size,
+                                                          static_cast<uint8_t>(fps_value),
+                                                          loop_value, lack_value);
+                            }
+
+                        } else {
+                            ESP_LOGE(TAG, "Emoji \"%10s\" image file %s is not found", name->valuestring, file->valuestring);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    cJSON* icon_collection = cJSON_GetObjectItem(root, "icon_collection");
+    if (cJSON_IsArray(icon_collection)) {
+        if (emote_display) {
+            int icon_count = cJSON_GetArraySize(icon_collection);
+            for (int i = 0; i < icon_count; i++) {
+                cJSON* icon = cJSON_GetArrayItem(icon_collection, i);
+                if (cJSON_IsObject(icon)) {
+                    cJSON* name = cJSON_GetObjectItem(icon, "name");
+                    cJSON* file = cJSON_GetObjectItem(icon, "file");
+
+                    if (cJSON_IsString(name) && cJSON_IsString(file)) {
+                        if (GetAssetData(file->valuestring, ptr, size)) {
+                            emote_display->AddIconData(name->valuestring, ptr, size);
+                        } else {
+                            ESP_LOGE(TAG, "Icon \"%10s\" image file %s is not found", name->valuestring, file->valuestring);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    cJSON* layout_json = cJSON_GetObjectItem(root, "layout");
+    if (cJSON_IsArray(layout_json)) {
+        int layout_count = cJSON_GetArraySize(layout_json);
+
+        for (int i = 0; i < layout_count; i++) {
+            cJSON* layout_item = cJSON_GetArrayItem(layout_json, i);
+            if (cJSON_IsObject(layout_item)) {
+                cJSON* name = cJSON_GetObjectItem(layout_item, "name");
+                cJSON* align = cJSON_GetObjectItem(layout_item, "align");
+                cJSON* x = cJSON_GetObjectItem(layout_item, "x");
+                cJSON* y = cJSON_GetObjectItem(layout_item, "y");
+                cJSON* width = cJSON_GetObjectItem(layout_item, "width");
+                cJSON* height = cJSON_GetObjectItem(layout_item, "height");
+
+                if (cJSON_IsString(name) && cJSON_IsString(align) && cJSON_IsNumber(x) && cJSON_IsNumber(y)) {
+                    int width_val = cJSON_IsNumber(width) ? width->valueint : 0;
+                    int height_val = cJSON_IsNumber(height) ? height->valueint : 0;
+
+                    if (emote_display) {
+                        emote_display->AddLayoutData(name->valuestring, align->valuestring,
+                                                     x->valueint, y->valueint, width_val, height_val);
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Invalid layout item %d: missing required fields", i);
+                }
+            }
+        }
+    }
+#endif
+
     cJSON_Delete(root);
     return true;
 }

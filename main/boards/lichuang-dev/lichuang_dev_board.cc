@@ -160,8 +160,8 @@ private:
     {
         esp_lcd_touch_handle_t tp;
         esp_lcd_touch_config_t tp_cfg = {
-            .x_max = DISPLAY_WIDTH,
-            .y_max = DISPLAY_HEIGHT,
+            .x_max = DISPLAY_HEIGHT,
+            .y_max = DISPLAY_WIDTH,
             .rst_gpio_num = GPIO_NUM_NC, // Shared with LCD reset
             .int_gpio_num = GPIO_NUM_NC, 
             .levels = {
