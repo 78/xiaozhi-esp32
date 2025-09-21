@@ -630,7 +630,7 @@ void Application::OnWakeWordDetected() {
 
         auto wake_word = audio_service_.GetLastWakeWord();
         ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
+#if CONFIG_SEND_WAKE_WORD_DATA
         // Encode and send the wake word data to the server
         while (auto packet = audio_service_.PopWakeWordPacket()) {
             protocol_->SendAudio(std::move(packet));
@@ -711,11 +711,7 @@ void Application::SetDeviceState(DeviceState state) {
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
                 // Only AFE wake word can be detected in speaking mode
-#if CONFIG_USE_AFE_WAKE_WORD
-                audio_service_.EnableWakeWordDetection(true);
-#else
-                audio_service_.EnableWakeWordDetection(false);
-#endif
+                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
             audio_service_.ResetDecoder();
             break;
