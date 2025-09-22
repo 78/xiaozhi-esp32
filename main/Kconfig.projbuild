@@ -374,7 +374,7 @@ choice BOARD_TYPE
         bool "小智云聊-S3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_PDI_CHATBOX_V1
-        bool "蒲蝶智能-S3-v1"
+        bool "Dandefly.AIoT"
         depends on IDF_TARGET_ESP32S3
 endchoice
 
