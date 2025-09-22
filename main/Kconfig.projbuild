@@ -233,6 +233,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32C6_Touch_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_ESP32S3_Touch_LCD_3_49
+        bool "Waveshare ESP32-S3-Touch-LCD-3.49"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
@@ -549,7 +552,7 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 \
         || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32S3_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B \
         || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
-        || BOARD_TYPE_ECHOEAR)
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_ESP32S3_Touch_LCD_3_49)
     help
         因为性能不够，不建议和微信聊天界面风格同时开启
 
