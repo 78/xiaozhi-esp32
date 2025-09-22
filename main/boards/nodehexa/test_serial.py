@@ -43,8 +43,14 @@ class NodeHexaSerialTester:
             print("串口未连接")
             return False
         
+        # 将线性索引转换为位掩码
+        if isinstance(movement_mode, int) and 0 <= movement_mode <= 12:
+            actual_mode = 1 << movement_mode
+        else:
+            actual_mode = movement_mode
+        
         command = {
-            "movementMode": movement_mode
+            "movementMode": actual_mode
         }
         
         json_command = json.dumps(command) + '\n'
@@ -201,4 +207,4 @@ def main():
         tester.disconnect()
 
 if __name__ == "__main__":
-    main() 
+    main()
