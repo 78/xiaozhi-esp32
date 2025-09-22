@@ -97,6 +97,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE
         bool "雾岸科技 ESP32-S3-Edge"
         depends on IDF_TARGET_ESP32S3 
+    config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_5
+        bool "雾岸科技 ESP32-S3-Edge-LCD1.5"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_8
+        bool "雾岸科技 ESP32-S3-Edge-LCD1.8"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_FOGSEEK_MOODLIGHT
         bool "雾岸科技 MoodLight"
         depends on IDF_TARGET_ESP32S3

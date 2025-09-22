@@ -36,4 +36,27 @@
 #define AUDIO_CODEC_PA_PIN GPIO_NUM_41                    // NS4150B功放使能引脚
 #define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR // ES8311默认I2C地址 (0x18)
 
+// LCD 屏幕相关配置
+#define DISPLAY_WIDTH 360
+#define DISPLAY_HEIGHT 360
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
+#define DISPLAY_OFFSET_X 0
+#define DISPLAY_OFFSET_Y 0
+
+#define LCD_H_RES (360)
+#define LCD_V_RES (360)
+#define LCD_BIT_PER_PIXEL (16)
+#define LCD_HOST SPI2_HOST
+
+#define LCD_BL_GPIO GPIO_NUM_1    // Backlight
+#define LCD_CS_GPIO GPIO_NUM_2    // CS
+#define LCD_SCL_GPIO GPIO_NUM_3   // SCLK
+#define LCD_RESET_GPIO GPIO_NUM_6 // RESET
+#define LCD_IO3_GPIO GPIO_NUM_7   // IO3
+#define LCD_IO2_GPIO GPIO_NUM_8   // IO2
+#define LCD_IO1_GPIO GPIO_NUM_9   // IO1
+#define LCD_IO0_GPIO GPIO_NUM_10  // IO0
+
 #endif
