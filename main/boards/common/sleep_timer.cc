@@ -70,6 +70,13 @@ void SleepTimer::CheckTimer() {
             if (on_enter_light_sleep_mode_) {
                 on_enter_light_sleep_mode_();
             }
+
+            auto& audio_service = app.GetAudioService();
+            bool is_wake_word_running = audio_service.IsWakeWordRunning();
+            if (is_wake_word_running) {
+                audio_service.EnableWakeWordDetection(false);
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
         
             app.Schedule([this, &app]() {
                 while (in_light_sleep_mode_) {
@@ -86,12 +93,17 @@ void SleepTimer::CheckTimer() {
                     lvgl_port_resume();
 
                     auto wakeup_reason = esp_sleep_get_wakeup_cause();
+                    ESP_LOGI(TAG, "Wake up from light sleep, wakeup_reason: %d", wakeup_reason);
                     if (wakeup_reason != ESP_SLEEP_WAKEUP_TIMER) {
                         break;
                     }
                 }
                 WakeUp();
             });
+
+            if (is_wake_word_running) {
+                audio_service.EnableWakeWordDetection(true);
+            }
         }
     }
     if (seconds_to_deep_sleep_ != -1 && ticks_ >= seconds_to_deep_sleep_) {

@@ -7,7 +7,7 @@
 #include "mcp_server.h"
 #include "settings.h"
 #include "config.h"
-#include "sleep_timer.h"
+#include "power_save_timer.h"
 #include "font_awesome_symbols.h"
 #include "adc_battery_monitor.h"
 
@@ -32,44 +32,33 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool press_to_talk_enabled_ = false;
-    SleepTimer* sleep_timer_ = nullptr;
+    PowerSaveTimer* power_save_timer_ = nullptr;
     AdcBatteryMonitor* adc_battery_monitor_ = nullptr;
 
     void InitializePowerManager() {
         adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_3, 100000, 100000, GPIO_NUM_12);
         adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
-                sleep_timer_->SetEnabled(false);
+                power_save_timer_->SetEnabled(false);
             } else {
-                sleep_timer_->SetEnabled(true);
+                power_save_timer_->SetEnabled(true);
             }
         });
     }
 
     void InitializePowerSaveTimer() {
 #if CONFIG_USE_ESP_WAKE_WORD
-        sleep_timer_ = new SleepTimer(600);
+        power_save_timer_ = new PowerSaveTimer(160, 300);
 #else
-        sleep_timer_ = new SleepTimer(30);
+        power_save_timer_ = new PowerSaveTimer(160, 60);
 #endif
-        sleep_timer_->OnEnterLightSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(true);
         });
-        sleep_timer_->OnExitLightSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+        power_save_timer_->OnExitSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(false);
         });
-        sleep_timer_->SetEnabled(true);
+        power_save_timer_->SetEnabled(true);
     }
 
     void InitializeCodecI2c() {
@@ -156,8 +145,8 @@ private:
             }
         });
         boot_button_.OnPressDown([this]() {
-            if (sleep_timer_) {
-                sleep_timer_->WakeUp();
+            if (power_save_timer_) {
+                power_save_timer_->WakeUp();
             }
             if (press_to_talk_enabled_) {
                 Application::GetInstance().StartListening();
@@ -241,7 +230,7 @@ public:
 
     virtual void SetPowerSaveMode(bool enabled) override {
         if (!enabled) {
-            sleep_timer_->WakeUp();
+            power_save_timer_->WakeUp();
         }
         WifiBoard::SetPowerSaveMode(enabled);
     }
