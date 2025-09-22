@@ -236,6 +236,7 @@ static void SetupUI(const gfx_handle_t engine_handle, EmoteDisplay* const displa
     g_obj_anim_eye = gfx_anim_create(engine_handle);
     gfx_obj_align(g_obj_anim_eye, GFX_ALIGN_LEFT_MID, 10, 30);
     gfx_anim_set_auto_mirror(g_obj_anim_eye, true);
+    gfx_obj_set_visible(g_obj_anim_eye, false);
 
     g_obj_label_toast = gfx_label_create(engine_handle);
     gfx_obj_align(g_obj_label_toast, GFX_ALIGN_TOP_MID, 0, 20);
@@ -290,8 +291,9 @@ EmoteEngine::EmoteEngine(const esp_lcd_panel_handle_t panel, const esp_lcd_panel
     InitializeGraphics(panel, &engine_handle_, width, height);
 
     if (display) {
-        DisplayLockGuard lock(display);
+        gfx_emote_lock(engine_handle_);
         SetupUI(engine_handle_, display);
+        gfx_emote_unlock(engine_handle_);
     }
 
     RegisterCallbacks(panel_io, engine_handle_);
@@ -322,6 +324,7 @@ void EmoteEngine::SetEyes(const std::string &emoji_name, const bool repeat, cons
         DisplayLockGuard lock(display);
         gfx_anim_set_src(g_obj_anim_eye, emoji_data.data, emoji_data.size);
         gfx_anim_set_segment(g_obj_anim_eye, 0, 0xFFFF, fps, repeat);
+        gfx_obj_set_visible(g_obj_anim_eye, true);
         gfx_anim_start(g_obj_anim_eye);
     } else {
         ESP_LOGW(TAG, "SetEyes: No emoji data found for %s", emoji_name.c_str());
