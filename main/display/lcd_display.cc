@@ -17,13 +17,13 @@
 
 #define TAG "LcdDisplay"
 
-LV_FONT_DECLARE(LVGL_TEXT_FONT);
-LV_FONT_DECLARE(LVGL_ICON_FONT);
+LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_4);
 
 void LcdDisplay::InitializeLcdThemes() {
-    auto text_font = std::make_shared<LvglBuiltInFont>(&LVGL_TEXT_FONT);
-    auto icon_font = std::make_shared<LvglBuiltInFont>(&LVGL_ICON_FONT);
+    auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
+    auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_4);
 
     // light theme
@@ -879,6 +879,9 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
         lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
         preview_image_cached_.reset();
+        if (gif_controller_) {
+            gif_controller_->Start();
+        }
         return;
     }
 
@@ -892,6 +895,9 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     }
 
     // Hide emoji_box_
+    if (gif_controller_) {
+        gif_controller_->Stop();
+    }
     lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
     esp_timer_stop(preview_timer_);

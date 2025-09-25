@@ -72,28 +72,20 @@ Application::~Application() {
 void Application::CheckAssetsVersion() {
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto assets = board.GetAssets();
-    if (!assets) {
-        ESP_LOGE(TAG, "Assets is not set for board %s", BOARD_NAME);
-        return;
-    }
+    auto& assets = Assets::GetInstance();
 
-    if (!assets->partition_valid()) {
-        ESP_LOGE(TAG, "Assets partition is not valid for board %s", BOARD_NAME);
+    if (!assets.partition_valid()) {
+        ESP_LOGW(TAG, "Assets partition is disabled for board %s", BOARD_NAME);
         return;
     }
     
     Settings settings("assets", true);
     // Check if there is a new assets need to be downloaded
     std::string download_url = settings.GetString("download_url");
-    if (!download_url.empty()) {
-        settings.EraseKey("download_url");
-    }
-    if (download_url.empty() && !assets->checksum_valid()) {
-        download_url = assets->default_assets_url();
-    }
 
     if (!download_url.empty()) {
+        settings.EraseKey("download_url");
+
         char message[256];
         snprintf(message, sizeof(message), Lang::Strings::FOUND_NEW_ASSETS, download_url.c_str());
         Alert(Lang::Strings::LOADING_ASSETS, message, "cloud_arrow_down", Lang::Sounds::OGG_UPGRADE);
@@ -104,7 +96,7 @@ void Application::CheckAssetsVersion() {
         board.SetPowerSaveMode(false);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
-        bool success = assets->Download(download_url, [display](int progress, size_t speed) -> void {
+        bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
             std::thread([display, progress, speed]() {
                 char buffer[32];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
@@ -123,7 +115,7 @@ void Application::CheckAssetsVersion() {
     }
 
     // Apply assets
-    assets->Apply();
+    assets.Apply();
     display->SetChatMessage("system", "");
     display->SetEmotion("microchip_ai");
 }
@@ -360,6 +352,9 @@ void Application::Start() {
     /* Setup the display */
     auto display = board.GetDisplay();
 
+    // Print board name/version info
+    display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
@@ -376,6 +371,12 @@ void Application::Start() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
     audio_service_.SetCallbacks(callbacks);
+
+    // Start the main event loop task with priority 3
+    xTaskCreate([](void* arg) {
+        ((Application*)arg)->MainEventLoop();
+        vTaskDelete(NULL);
+    }, "main_event_loop", 2048 * 4, this, 3, &main_event_loop_task_handle_);
 
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
@@ -540,12 +541,6 @@ void Application::Start() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     }
-
-    // Start the main event loop task with priority 3
-    xTaskCreate([](void* arg) {
-        ((Application*)arg)->MainEventLoop();
-        vTaskDelete(NULL);
-    }, "main_event_loop", 2048 * 4, this, 3, &main_event_loop_task_handle_);
 }
 
 // Add a async task to MainLoop
@@ -635,7 +630,7 @@ void Application::OnWakeWordDetected() {
 
         auto wake_word = audio_service_.GetLastWakeWord();
         ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
+#if CONFIG_SEND_WAKE_WORD_DATA
         // Encode and send the wake word data to the server
         while (auto packet = audio_service_.PopWakeWordPacket()) {
             protocol_->SendAudio(std::move(packet));
@@ -716,11 +711,7 @@ void Application::SetDeviceState(DeviceState state) {
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
                 // Only AFE wake word can be detected in speaking mode
-#if CONFIG_USE_AFE_WAKE_WORD
-                audio_service_.EnableWakeWordDetection(true);
-#else
-                audio_service_.EnableWakeWordDetection(false);
-#endif
+                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
             audio_service_.ResetDecoder();
             break;
@@ -841,10 +832,8 @@ void Application::SendMcpMessage(const std::string& payload) {
 
     // Make sure you are using main thread to send MCP message
     if (xTaskGetCurrentTaskHandle() == main_event_loop_task_handle_) {
-        ESP_LOGI(TAG, "Send MCP message in main thread");
         protocol_->SendMcpMessage(payload);
     } else {
-        ESP_LOGI(TAG, "Send MCP message in sub thread");
         Schedule([this, payload = std::move(payload)]() {
             protocol_->SendMcpMessage(payload);
         });

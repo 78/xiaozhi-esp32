@@ -1,9 +1,9 @@
 #include <cstring>
 #include "display/lcd_display.h"
 #include <esp_log.h>
-#include "mmap_generate_emoji.h"
 #include "emoji_display.h"
 #include "assets/lang_config.h"
+#include "assets.h"
 
 #include <esp_lcd_panel_io.h>
 #include <freertos/FreeRTOS.h>
@@ -14,6 +14,19 @@
 static const char *TAG = "emoji";
 
 namespace anim {
+
+// Emoji asset name mapping based on usage pattern
+static const std::unordered_map<std::string, std::string> emoji_asset_name_map = {
+    {"connecting", "connecting.aaf"},
+    {"wake", "wake.aaf"},
+    {"asking", "asking.aaf"},
+    {"happy_loop", "happy_loop.aaf"},
+    {"sad_loop", "sad_loop.aaf"},
+    {"anger_loop", "anger_loop.aaf"},
+    {"panic_loop", "panic_loop.aaf"},
+    {"blink_quick", "blink_quick.aaf"},
+    {"scorn_loop", "scorn_loop.aaf"}
+};
 
 bool EmojiPlayer::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
@@ -31,14 +44,6 @@ void EmojiPlayer::OnFlush(anim_player_handle_t handle, int x_start, int y_start,
 EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io)
 {
     ESP_LOGI(TAG, "Create EmojiPlayer, panel: %p, panel_io: %p", panel, panel_io);
-    const mmap_assets_config_t assets_cfg = {
-        .partition_label = "assets_A",
-        .max_files = MMAP_EMOJI_FILES,
-        .checksum = MMAP_EMOJI_CHECKSUM,
-        .flags = {.mmap_enable = true, .full_check = true}
-    };
-
-    mmap_assets_new(&assets_cfg, &assets_handle_);
 
     anim_player_config_t player_cfg = {
         .flush_cb = OnFlush,
@@ -48,13 +53,15 @@ EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
         .task = ANIM_PLAYER_INIT_CONFIG()
     };
 
+    player_cfg.task.task_priority = 1;
+    player_cfg.task.task_stack = 4096;
     player_handle_ = anim_player_init(&player_cfg);
 
     const esp_lcd_panel_io_callbacks_t cbs = {
         .on_color_trans_done = OnFlushIoReady,
     };
     esp_lcd_panel_io_register_event_callbacks(panel_io, &cbs, player_handle_);
-    StartPlayer(MMAP_EMOJI_CONNECTING_AAF, true, 15);
+    StartPlayer("connecting", true, 15);
 }
 
 EmojiPlayer::~EmojiPlayer()
@@ -64,26 +71,25 @@ EmojiPlayer::~EmojiPlayer()
         anim_player_deinit(player_handle_);
         player_handle_ = nullptr;
     }
-
-    if (assets_handle_) {
-        mmap_assets_del(assets_handle_);
-        assets_handle_ = NULL;
-    }
 }
 
-void EmojiPlayer::StartPlayer(int aaf, bool repeat, int fps)
+void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fps)
 {
     if (player_handle_) {
         uint32_t start, end;
-        const void *src_data;
-        size_t src_len;
+        void *src_data = nullptr;
+        size_t src_len = 0;
 
-        src_data = mmap_assets_get_mem(assets_handle_, aaf);
-        src_len = mmap_assets_get_size(assets_handle_, aaf);
+        auto& assets = Assets::GetInstance();
+        std::string filename = emoji_asset_name_map.at(asset_name);
+        if (!assets.GetAssetData(filename, src_data, src_len)) {
+            ESP_LOGE(TAG, "Failed to get asset data for %s", asset_name.c_str());
+            return;
+        }
 
         anim_player_set_src_data(player_handle_, src_data, src_len);
         anim_player_get_segment(player_handle_, &start, &end);
-        if(MMAP_EMOJI_WAKE_AAF == aaf){
+        if(asset_name == "wake"){
             start = 7;
         }
         anim_player_set_segment(player_handle_, start, end, fps, true);
@@ -114,26 +120,26 @@ void EmojiWidget::SetEmotion(const char* emotion)
         return;
     }
 
-    using Param = std::tuple<int, bool, int>;
+    using Param = std::tuple<std::string, bool, int>;
     static const std::unordered_map<std::string, Param> emotion_map = {
-        {"happy",       {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"laughing",    {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"funny",       {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"loving",      {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"embarrassed", {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"confident",   {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"delicious",   {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"sad",         {MMAP_EMOJI_SAD_LOOP_AAF,   true, 25}},
-        {"crying",      {MMAP_EMOJI_SAD_LOOP_AAF,   true, 25}},
-        {"sleepy",      {MMAP_EMOJI_SAD_LOOP_AAF,   true, 25}},
-        {"silly",       {MMAP_EMOJI_SAD_LOOP_AAF,   true, 25}},
-        {"angry",       {MMAP_EMOJI_ANGER_LOOP_AAF, true, 25}},
-        {"surprised",   {MMAP_EMOJI_PANIC_LOOP_AAF, true, 25}},
-        {"shocked",     {MMAP_EMOJI_PANIC_LOOP_AAF, true, 25}},
-        {"thinking",    {MMAP_EMOJI_HAPPY_LOOP_AAF, true, 25}},
-        {"winking",     {MMAP_EMOJI_BLINK_QUICK_AAF, true, 5}},
-        {"relaxed",     {MMAP_EMOJI_SCORN_LOOP_AAF, true, 25}},
-        {"confused",    {MMAP_EMOJI_SCORN_LOOP_AAF, true, 25}},
+        {"happy",       {"happy_loop", true, 25}},
+        {"laughing",    {"happy_loop", true, 25}},
+        {"funny",       {"happy_loop", true, 25}},
+        {"loving",      {"happy_loop", true, 25}},
+        {"embarrassed", {"happy_loop", true, 25}},
+        {"confident",   {"happy_loop", true, 25}},
+        {"delicious",   {"happy_loop", true, 25}},
+        {"sad",         {"sad_loop",   true, 25}},
+        {"crying",      {"sad_loop",   true, 25}},
+        {"sleepy",      {"sad_loop",   true, 25}},
+        {"silly",       {"sad_loop",   true, 25}},
+        {"angry",       {"anger_loop", true, 25}},
+        {"surprised",   {"panic_loop", true, 25}},
+        {"shocked",     {"panic_loop", true, 25}},
+        {"thinking",    {"happy_loop", true, 25}},
+        {"winking",     {"blink_quick", true, 5}},
+        {"relaxed",     {"scorn_loop", true, 25}},
+        {"confused",    {"scorn_loop", true, 25}},
     };
 
     auto it = emotion_map.find(emotion);
@@ -148,9 +154,9 @@ void EmojiWidget::SetStatus(const char* status)
 {
     if (player_) {
         if (strcmp(status, Lang::Strings::LISTENING) == 0) {
-            player_->StartPlayer(MMAP_EMOJI_ASKING_AAF, true, 15);
+            player_->StartPlayer("asking", true, 15);
         } else if (strcmp(status, Lang::Strings::STANDBY) == 0) {
-            player_->StartPlayer(MMAP_EMOJI_WAKE_AAF, true, 15);
+            player_->StartPlayer("wake", true, 15);
         }
     }
 }

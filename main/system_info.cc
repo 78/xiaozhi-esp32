@@ -47,6 +47,12 @@ std::string SystemInfo::GetChipModelName() {
     return std::string(CONFIG_IDF_TARGET);
 }
 
+std::string SystemInfo::GetUserAgent() {
+    auto app_desc = esp_app_get_description();
+    auto user_agent = std::string(BOARD_NAME "/") + app_desc->version;
+    return user_agent;
+}
+
 esp_err_t SystemInfo::PrintTaskCpuUsage(TickType_t xTicksToWait) {
     #define ARRAY_SIZE_OFFSET 5
     TaskStatus_t *start_array = NULL, *end_array = NULL;
