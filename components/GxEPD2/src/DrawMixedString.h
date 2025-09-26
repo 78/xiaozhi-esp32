@@ -1,4 +1,5 @@
 #include <Display_EPD_W21_spi.h>
+#include "driver_gt30l32s4w.h"
 #define GxEPD2_DISPLAY_CLASS GxEPD2_BW
 #define GxEPD2_DRIVER_CLASS GxEPD2_420_GDEY042T81 
 #ifndef EPD_CS

@@ -24,23 +24,24 @@ void EPD_W21_WriteDATA(uint8_t datas);
 #define EPD_HOST    SPI2_HOST
 
 
-    #define SPI_PIN_NUM_MOSI GPIO_NUM_23     //EPS32 DEMO
-    #define SPI_PIN_NUM_CLK  GPIO_NUM_18     //ESP32 DEMO
-    #define EPD_PIN_NUM_CS   GPIO_NUM_27     //ESP32 DEMO
-    #define EPD_PIN_NUM_DC   GPIO_NUM_14     //ESP32 DEMO
-    #define EPD_PIN_NUM_RST  GPIO_NUM_12     //ESP32 DEMO
-    #define EPD_PIN_NUM_BUSY GPIO_NUM_13     //ESP32 DEMO
-    #define GT30_PIN_NUM_CS   GPIO_NUM_15     //ESP32 DEMO
-    #define SPI_NUM_MISO   GPIO_NUM_19     //ESP32 DEMO
+    // #define SPI_PIN_NUM_MOSI GPIO_NUM_23     //EPS32 DEMO
+    // #define SPI_PIN_NUM_CLK  GPIO_NUM_18     //ESP32 DEMO
+    // #define EPD_PIN_NUM_CS   GPIO_NUM_27     //ESP32 DEMO
+    // #define EPD_PIN_NUM_DC   GPIO_NUM_14     //ESP32 DEMO
+    // #define EPD_PIN_NUM_RST  GPIO_NUM_12     //ESP32 DEMO
+    // #define EPD_PIN_NUM_BUSY GPIO_NUM_13     //ESP32 DEMO
+    // #define GT30_PIN_NUM_CS   GPIO_NUM_15     //ESP32 DEMO
+    // #define SPI_NUM_MISO   GPIO_NUM_19     //ESP32 DEMO
 
 
-    // #define SPI_PIN_NUM_MOSI GPIO_NUM_14     //EPS32S3 DEMO
-    // #define SPI_PIN_NUM_CLK  GPIO_NUM_17     //EPS32S3 DEMO
-    // #define EPD_PIN_NUM_CS   GPIO_NUM_45     //EPS32S3 DEMO
-    // #define EPD_PIN_NUM_DC   GPIO_NUM_46     //EPS32S3 DEMO
-    // #define EPD_PIN_NUM_RST  GPIO_NUM_47     //EPS32S3 DEMO
-    // #define EPD_PIN_NUM_BUSY GPIO_NUM_48     //EPS32S3 DEMO
-
+    #define SPI_PIN_NUM_MOSI GPIO_NUM_14     //EPS32S3 DEMO
+    #define SPI_PIN_NUM_CLK  GPIO_NUM_17     //EPS32S3 DEMO
+    #define EPD_PIN_NUM_CS   GPIO_NUM_45     //EPS32S3 DEMO
+    #define EPD_PIN_NUM_DC   GPIO_NUM_46     //EPS32S3 DEMO
+    #define EPD_PIN_NUM_RST  GPIO_NUM_47     //EPS32S3 DEMO
+    #define EPD_PIN_NUM_BUSY GPIO_NUM_48     //EPS32S3 DEMO
+    #define GT30_PIN_NUM_CS   GPIO_NUM_9     //ESP32S3 DEMO
+    #define SPI_NUM_MISO   GPIO_NUM_13     //ESP32S3 DEMO
 
 
 
