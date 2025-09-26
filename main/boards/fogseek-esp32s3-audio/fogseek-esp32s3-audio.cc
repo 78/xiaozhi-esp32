@@ -18,10 +18,10 @@ class FogSeekEsp32s3Audio : public WifiBoard
 {
 private:
     Button boot_button_;
-    Button pwr_button_;
+    Button ctrl_button_;
     AdcBatteryMonitor *battery_monitor_;
     bool no_dc_power_ = false;
-    bool pwr_ctrl_state_ = false;
+    bool pwr_hold_state_ = false;
     bool low_battery_warning_ = false;
     bool low_battery_shutdown_ = false;
     esp_timer_handle_t battery_check_timer_ = nullptr;
@@ -89,8 +89,8 @@ private:
                 app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 vTaskDelay(pdMS_TO_TICKS(500));
 
-                pwr_ctrl_state_ = false;
-                gpio_set_level(PWR_CTRL_GPIO, 0); // 关闭电源
+                pwr_hold_state_ = false;
+                gpio_set_level(PWR_HOLD_GPIO, 0); // 关闭电源
                 gpio_set_level(LED_RED_GPIO, 0);
                 gpio_set_level(LED_GREEN_GPIO, 0);
                 ESP_LOGI(TAG, "Device shut down due to critical battery level");
@@ -278,45 +278,45 @@ private:
         gpio_config_t pwr_conf = {};
         pwr_conf.intr_type = GPIO_INTR_DISABLE;
         pwr_conf.mode = GPIO_MODE_OUTPUT;
-        pwr_conf.pin_bit_mask = (1ULL << PWR_CTRL_GPIO);
+        pwr_conf.pin_bit_mask = (1ULL << PWR_HOLD_GPIO);
         pwr_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         pwr_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&pwr_conf);
-        gpio_set_level(PWR_CTRL_GPIO, 0); // 初始化为关机状态
+        gpio_set_level(PWR_HOLD_GPIO, 0); // 初始化为关机状态
 
         // 短按打断
-        pwr_button_.OnClick([this]()
-                            {
-                                ESP_LOGI(TAG, "Button clicked");
-                                auto &app = Application::GetInstance();
-                                app.ToggleChatState(); // 聊天状态切换（包括打断）
-                            });
+        ctrl_button_.OnClick([this]()
+                             {
+                                 ESP_LOGI(TAG, "Button clicked");
+                                 auto &app = Application::GetInstance();
+                                 app.ToggleChatState(); // 聊天状态切换（包括打断）
+                             });
 
         // 长按开关机
-        pwr_button_.OnLongPress([this]()
-                                {
+        ctrl_button_.OnLongPress([this]()
+                                 {
                                     if(!no_dc_power_) {
                                         ESP_LOGI(TAG, "DC power connected, power button ignored");
                                         return;
                                     }
                                     // 切换电源状态
-                                    if(!pwr_ctrl_state_) {
-                                        pwr_ctrl_state_ = true;
-                                        gpio_set_level(PWR_CTRL_GPIO, 1);   // 打开电源
+                                    if(!pwr_hold_state_) {
+                                        pwr_hold_state_ = true;
+                                        gpio_set_level(PWR_HOLD_GPIO, 1);   // 打开电源
                                         gpio_set_level(LED_GREEN_GPIO, 1);
                                         ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power.");
                                     } 
                                     else{
-                                        pwr_ctrl_state_ = false;
+                                        pwr_hold_state_ = false;
                                         gpio_set_level(LED_RED_GPIO, 0);
                                         gpio_set_level(LED_GREEN_GPIO, 0);
-                                        gpio_set_level(PWR_CTRL_GPIO, 0);   // 当按键再次长按，则关闭电源
+                                        gpio_set_level(PWR_HOLD_GPIO, 0);   // 当按键再次长按，则关闭电源
                                         ESP_LOGI(TAG, "Power control pin set to LOW for shutdown.");
                                     } });
     }
 
 public:
-    FogSeekEsp32s3Audio() : boot_button_(BOOT_GPIO), pwr_button_(BUTTON_GPIO)
+    FogSeekEsp32s3Audio() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeLeds();
         InitializeMCP();

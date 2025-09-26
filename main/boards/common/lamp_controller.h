@@ -20,7 +20,7 @@ public:
             .intr_type = GPIO_INTR_DISABLE,
         };
         ESP_ERROR_CHECK(gpio_config(&config));
-        gpio_set_level(gpio_num_, 0);
+        gpio_set_level(gpio_num_, 1);
 
         auto &mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.lamp.get_state", "Get the power state of the lamp", PropertyList(), [this](const PropertyList &properties) -> ReturnValue

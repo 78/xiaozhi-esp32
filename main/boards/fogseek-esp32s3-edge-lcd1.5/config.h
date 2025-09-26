@@ -3,14 +3,12 @@
 
 #include <driver/gpio.h>
 
-// boot相关配置
-#define BOOT_GPIO GPIO_NUM_0
-
 // 按钮相关配置
-#define BUTTON_GPIO GPIO_NUM_15
+#define BOOT_BUTTON_GPIO GPIO_NUM_0
+#define CTRL_BUTTON_GPIO GPIO_NUM_15
 
 // 电源相关配置
-#define PWR_CTRL_GPIO GPIO_NUM_48
+#define PWR_HOLD_GPIO GPIO_NUM_48
 #define PWR_CHARGE_DONE_GPIO GPIO_NUM_21
 #define PWR_CHARGING_GPIO GPIO_NUM_18
 #define BATTERY_ADC_GPIO GPIO_NUM_16 // 电池电压检测ADC2_CH5，使用了WiFi不能用ADC2通道
@@ -58,5 +56,8 @@
 #define LCD_IO2_GPIO GPIO_NUM_8   // IO2
 #define LCD_IO1_GPIO GPIO_NUM_9   // IO1
 #define LCD_IO0_GPIO GPIO_NUM_10  // IO0
+
+// PWM
+#define PWM_TEST_PIN GPIO_NUM_42
 
 #endif
