@@ -607,7 +607,6 @@ config RECEIVE_CUSTOM_MESSAGE
 menu TAIJIPAI_S3_CONFIG
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     choice I2S_TYPE_TAIJIPI_S3
-        depends on BOARD_TYPE_ESP32S3_Taiji_Pi
         prompt "taiji-pi-S3 I2S Type"
         default TAIJIPAI_I2S_TYPE_STD
         help
@@ -619,7 +618,7 @@ menu TAIJIPAI_S3_CONFIG
     endchoice
 
     config I2S_USE_2SLOT
-    bool "Enable Use 2 Slot"
+    bool "Enable I2S 2 Slot"
     default n
     help
         启动双声道
