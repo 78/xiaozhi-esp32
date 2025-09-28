@@ -237,7 +237,7 @@ bool LvglDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
     jpeg_data.clear();
 
     // 🚀 使用回调版本的JPEG编码器，进一步节省内存
-    bool ret = image_to_jpeg_cb(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h, PIXFORMAT_RGB565, quality,
+    bool ret = image_to_jpeg_cb((uint8_t*)draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h, V4L2_PIX_FMT_RGB565, quality,
         [](void *arg, size_t index, const void *data, size_t len) -> size_t {
         std::string* output = static_cast<std::string*>(arg);
         if (data && len > 0) {

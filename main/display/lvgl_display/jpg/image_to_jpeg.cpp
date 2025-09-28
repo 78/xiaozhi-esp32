@@ -28,12 +28,12 @@ static void *_malloc(size_t size)
     return NULL;
 }
 
-static IRAM_ATTR void convert_line_format(uint8_t * src, pixformat_t format, uint8_t * dst, size_t width, size_t in_channels, size_t line)
+static IRAM_ATTR void convert_line_format(uint8_t * src, v4l2_pix_fmt_t format, uint8_t * dst, size_t width, size_t in_channels, size_t line)
 {
     int i=0, o=0, l=0;
-    if(format == PIXFORMAT_GRAYSCALE) {
+    if(format == V4L2_PIX_FMT_GREY) {
         memcpy(dst, src + line * width, width);
-    } else if(format == PIXFORMAT_RGB888) {
+    } else if(format == V4L2_PIX_FMT_RGB24) {
         l = width * 3;
         src += l * line;
         for(i=0; i<l; i+=3) {
@@ -41,7 +41,7 @@ static IRAM_ATTR void convert_line_format(uint8_t * src, pixformat_t format, uin
             dst[o++] = src[i+1];
             dst[o++] = src[i];
         }
-    } else if(format == PIXFORMAT_RGB565) {
+    } else if(format == V4L2_PIX_FMT_RGB565) {
         l = width * 2;
         src += l * line;
         for(i=0; i<l; i+=2) {
@@ -49,7 +49,7 @@ static IRAM_ATTR void convert_line_format(uint8_t * src, pixformat_t format, uin
             dst[o++] = (src[i] & 0x07) << 5 | (src[i+1] & 0xE0) >> 3;
             dst[o++] = (src[i+1] & 0x1F) << 3;
         }
-    } else if(format == PIXFORMAT_YUV422) {
+    } else if(format == V4L2_PIX_FMT_YUV422P) {
         // YUV422转RGB的简化实现
         l = width * 2;
         src += l * line;
@@ -141,12 +141,12 @@ public:
 };
 
 // 使用优化的JPEG编码器进行图像转换，必须在堆上创建编码器
-static bool convert_image(uint8_t *src, uint16_t width, uint16_t height, pixformat_t format, uint8_t quality, jpge2_simple::output_stream *dst_stream)
+static bool convert_image(uint8_t *src, uint16_t width, uint16_t height, v4l2_pix_fmt_t format, uint8_t quality, jpge2_simple::output_stream *dst_stream)
 {
     int num_channels = 3;
     jpge2_simple::subsampling_t subsampling = jpge2_simple::H2V2;
 
-    if(format == PIXFORMAT_GRAYSCALE) {
+    if(format == V4L2_PIX_FMT_GREY) {
         num_channels = 1;
         subsampling = jpge2_simple::Y_ONLY;
     }
@@ -195,7 +195,7 @@ static bool convert_image(uint8_t *src, uint16_t width, uint16_t height, pixform
 }
 
 // 🚀 主要函数：高效的图像到JPEG转换实现，节省8KB SRAM
-bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, pixformat_t format, uint8_t quality, uint8_t ** out, size_t * out_len)
+bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format, uint8_t quality, uint8_t ** out, size_t * out_len)
 {
     ESP_LOGI(TAG, "Using optimized JPEG encoder (saves ~8KB SRAM)");
     
@@ -220,7 +220,7 @@ bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height
 }
 
 // 🚀 回调版本：使用回调函数处理JPEG数据流，适合流式传输
-bool image_to_jpeg_cb(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, pixformat_t format, uint8_t quality, jpg_out_cb cb, void *arg)
+bool image_to_jpeg_cb(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format, uint8_t quality, jpg_out_cb cb, void *arg)
 {
     callback_stream dst_stream(cb, arg);
     return convert_image(src, width, height, format, quality, &dst_stream);
