@@ -1,7 +1,6 @@
 // jpeg_encoder.h - 使用类成员变量的简单版本
 // 这个版本直接在类中声明数组，要求必须在堆上创建实例
-
-#ifndef JPEG_ENCODER_H
+#if (not defined(JPEG_ENCODER_H)) && (not defined(CONFIG_IDF_TARGET_ESP32))
 #define JPEG_ENCODER_H
 
 namespace jpge2_simple

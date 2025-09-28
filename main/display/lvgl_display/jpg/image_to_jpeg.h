@@ -1,7 +1,6 @@
 // image_to_jpeg.h - 图像到JPEG转换的高效编码接口
 // 节省约8KB SRAM的JPEG编码实现
-
-#ifndef IMAGE_TO_JPEG_H
+#if (not defined(IMAGE_TO_JPEG_H)) && (not defined(CONFIG_IDF_TARGET_ESP32))
 #define IMAGE_TO_JPEG_H
 
 #include <stdint.h>

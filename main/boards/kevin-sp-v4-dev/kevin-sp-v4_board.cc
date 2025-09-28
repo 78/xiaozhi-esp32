@@ -122,7 +122,7 @@ private:
             .i2c_config = {
                 .port = 1,
                 .scl_pin = CAMERA_PIN_SIOC,
-                .sda_pin = -1,
+                .sda_pin = GPIO_NUM_NC,
             },
             .freq = 100000,
         };

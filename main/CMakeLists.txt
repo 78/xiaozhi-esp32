@@ -589,6 +589,9 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
+                             "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
+                             "display/lvgl_display/jpg/image_to_jpeg.cpp"
+                             "display/lvgl_display/jpg/jpeg_encoder.cpp"
                              )
 endif()
 
