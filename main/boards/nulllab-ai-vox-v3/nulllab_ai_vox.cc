@@ -10,9 +10,9 @@
 #include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
+#include "dual_network_board.h"
 #include "led/single_led.h"
 #include "power_save_timer.h"
-#include "wifi_board.h"
 
 #include "../nulllab-ai-vox/power_manager.h"
 #include "ai_vox_audio_codec.h"
@@ -22,7 +22,7 @@
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class NulllabAIVox : public WifiBoard {
+class NulllabAIVox : public DualNetworkBoard {
   private:
     Button boot_button_;
     Button volume_up_button_;
@@ -139,10 +139,19 @@ class NulllabAIVox : public WifiBoard {
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto &wifi_board = static_cast<WifiBoard &>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
             }
             app.ToggleChatState();
+        });
+
+        boot_button_.OnLongPress([this]() { // 长按切换网络
+            power_save_timer_->WakeUp();
+            SwitchNetworkType();
         });
 
         volume_up_button_.OnClick([this]() {
@@ -182,7 +191,8 @@ class NulllabAIVox : public WifiBoard {
 
   public:
     NulllabAIVox()
-        : boot_button_(BOOT_BUTTON_GPIO), volume_up_button_(VOLUME_UP_BUTTON_GPIO, VOLUME_UP_BUTTON_EN_INVERT),
+        : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, DEFAULT_4G_NETWORK), boot_button_(BOOT_BUTTON_GPIO),
+          volume_up_button_(VOLUME_UP_BUTTON_GPIO, VOLUME_UP_BUTTON_EN_INVERT),
           volume_down_button_(VOLUME_DOWN_BUTTON_GPIO, VOLUME_DOWN_BUTTON_EN_INVERT) {
         InitializePowerManager();
         InitializePowerSaveTimer();
@@ -228,7 +238,7 @@ class NulllabAIVox : public WifiBoard {
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 
