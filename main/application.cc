@@ -612,6 +612,44 @@ void Application::MainEventLoop() {
     }
 }
 
+void Application::RemoteWakeup(const std::string& reason){
+    if (!protocol_) {
+        return;
+    }
+
+    if (device_state_ == kDeviceStateIdle) {
+        audio_service_.EncodeWakeWord();
+
+        if (!protocol_->IsAudioChannelOpened()) {
+            SetDeviceState(kDeviceStateConnecting);
+            if (!protocol_->OpenAudioChannel()) {
+                audio_service_.EnableWakeWordDetection(true);
+                return;
+            }
+        }
+
+    std::string wake_word = reason;
+#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
+        // Encode and send the wake word data to the server
+        while (auto packet = audio_service_.PopWakeWordPacket()) {
+            protocol_->SendAudio(std::move(packet));
+        }
+        // Set the chat state to wake word detected
+        protocol_->SendWakeWordDetected(wake_word);
+        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+#else
+        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+        // Play the pop up sound to indicate the wake word is detected
+        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+#endif
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonWakeWordDetected);
+    } else if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+    }
+   
+}
+
 void Application::OnWakeWordDetected() {
     if (!protocol_) {
         return;

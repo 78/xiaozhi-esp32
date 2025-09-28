@@ -300,6 +300,24 @@ void McpServer::AddUserOnlyTools() {
                 return true;
             });
     }
+
+    AddUserOnlyTool("self.wakeup", "Wake up module with parameters",
+    PropertyList({
+        Property("reason", kPropertyTypeString, "Reason for waking up"),
+    }),
+    [this](const PropertyList& properties) -> ReturnValue {
+        std::string reason = properties["reason"].value<std::string>();
+        ESP_LOGI(TAG, "Wakeup MCP: reason=%s", reason.c_str());
+        
+        auto display = Board::GetInstance().GetDisplay();
+        if (display) {
+            display->SetEmotion("happy");
+        }
+         auto& app = Application::GetInstance();
+    app.RemoteWakeup(reason);
+        return true;
+    }
+);
 }
 
 void McpServer::AddTool(McpTool* tool) {
