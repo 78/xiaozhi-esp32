@@ -306,23 +306,15 @@ void McpServer::AddUserOnlyTools() {
         Property("reason", kPropertyTypeString, "Reason for waking up"),
     }),
     [this](const PropertyList& properties) -> ReturnValue {
-        std::string reason = "你好小智";
-        try {
-            reason = properties["reason"].value<std::string>();
-        }
-        catch (...) {
-        }
+        std::string reason = properties["reason"].value<std::string>();
         ESP_LOGI(TAG, "Wakeup MCP: reason=%s", reason.c_str());
-        auto& app = Application::GetInstance();
+        
         auto display = Board::GetInstance().GetDisplay();
         if (display) {
             display->SetEmotion("happy");
         }
-        if (reason.empty()) {
-            app.WakeWordInvoke("你好小智");
-        } else {
-            app.WakeWordInvoke(reason);
-        }
+         auto& app = Application::GetInstance();
+    app.RemoteWakeup(reason);
         return true;
     }
 );
