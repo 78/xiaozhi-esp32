@@ -1,4 +1,6 @@
-#ifndef ESP32_CAMERA_H
+#include "sdkconfig.h"
+
+#if (not defined(ESP32_CAMERA_H)) && (not defined(CONFIG_IDF_TARGET_ESP32))
 #define ESP32_CAMERA_H
 
 #include <lvgl.h>
