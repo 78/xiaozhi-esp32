@@ -628,7 +628,7 @@ void Application::RemoteWakeup(const std::string& reason){
             }
         }
 
-    std::string wake_word = reason;
+        std::string wake_word = reason;
 #if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
         // Encode and send the wake word data to the server
         while (auto packet = audio_service_.PopWakeWordPacket()) {
@@ -646,8 +646,7 @@ void Application::RemoteWakeup(const std::string& reason){
         AbortSpeaking(kAbortReasonWakeWordDetected);
     } else if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
-    }
-   
+    }  
 }
 
 void Application::OnWakeWordDetected() {
