@@ -269,11 +269,7 @@ bool Esp32Camera::Capture() {
 
         auto dst16 = (uint16_t*)data;
         if (frame_.format == V4L2_PIX_FMT_RGB565) {
-            auto src16 = (uint16_t*)frame_.data;
-            size_t pixel_count = (size_t)w * (size_t)h;
-            for (size_t i = 0; i < pixel_count; i++) {
-                dst16[i] = __builtin_bswap16(src16[i]);
-            }
+            memcpy(dst16, frame_.data, (size_t)w * (size_t)h * 2);
         } else if (frame_.format == V4L2_PIX_FMT_RGB24) {
             const uint8_t* src = frame_.data;
             size_t pixel_count = (size_t)w * (size_t)h;
