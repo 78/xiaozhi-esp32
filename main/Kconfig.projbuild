@@ -635,6 +635,14 @@ config RECEIVE_CUSTOM_MESSAGE
 menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32
 
+    config XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+        bool "Enable Hardware JPEG Encoder"
+        default y
+        depends on SOC_JPEG_ENCODE_SUPPORTED
+        help
+            Use hardware JPEG encoder on ESP32-P4 to encode image to JPEG.
+            See https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/peripherals/jpeg.html for more details.
+
     config XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
         bool "Enable Camera Debug Mode"
         default n

@@ -6,6 +6,9 @@
 
 #include "esp_jpeg_common.h"
 #include "esp_jpeg_enc.h"
+#if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+#include "driver/jpeg_encode.h"
+#endif
 #include "image_to_jpeg.h"
 
 #define TAG "image_to_jpeg"
@@ -156,6 +159,161 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
     return rgb;
 }
 
+#if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+static jpeg_encoder_handle_t s_hw_jpeg_handle = NULL;
+
+static bool hw_jpeg_ensure_inited(void) {
+    if (s_hw_jpeg_handle) {
+        return true;
+    }
+    jpeg_encode_engine_cfg_t eng_cfg = {
+        .intr_priority = 0,
+        .timeout_ms = 100,
+    };
+    esp_err_t er = jpeg_new_encoder_engine(&eng_cfg, &s_hw_jpeg_handle);
+    if (er != ESP_OK) {
+        ESP_LOGE(TAG, "jpeg_new_encoder_engine failed: %d", (int)er);
+        s_hw_jpeg_handle = NULL;
+        return false;
+    }
+    return true;
+}
+
+static uint8_t* convert_input_to_hw_encoder_buf(const uint8_t* src, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
+                                                jpeg_enc_input_format_t* out_fmt, int* out_size) {
+    if (format == V4L2_PIX_FMT_GREY) {
+        int sz = (int)width * (int)height;
+        uint8_t* buf = (uint8_t*)malloc_psram(sz);
+        if (!buf)
+            return NULL;
+        memcpy(buf, src, sz);
+        if (out_fmt)
+            *out_fmt = JPEG_ENCODE_IN_FORMAT_GRAY;
+        if (out_size)
+            *out_size = sz;
+        return buf;
+    }
+
+    if (format == V4L2_PIX_FMT_RGB24) {
+        int sz = (int)width * (int)height * 3;
+        uint8_t* buf = (uint8_t*)malloc_psram(sz);
+        if (!buf) {
+            ESP_LOGE(TAG, "malloc_psram failed");
+            return NULL;
+        }
+        memcpy(buf, src, sz);
+        if (out_fmt)
+            *out_fmt = JPEG_ENCODE_IN_FORMAT_RGB888;
+        if (out_size)
+            *out_size = sz;
+        return buf;
+    }
+
+    if (format == V4L2_PIX_FMT_RGB565) {
+        int sz = (int)width * (int)height * 2;
+        uint8_t* buf = (uint8_t*)malloc_psram(sz);
+        if (!buf)
+            return NULL;
+        memcpy(buf, src, sz);
+        if (out_fmt)
+            *out_fmt = JPEG_ENCODE_IN_FORMAT_RGB565;
+        if (out_size)
+            *out_size = sz;
+        return buf;
+    }
+
+    if (format == V4L2_PIX_FMT_YUYV) {
+        // 硬件需要 | Y1 V Y0 U | 的“大端”格式，因此需要 bswap16
+        int sz = (int)width * (int)height * 2;
+        uint16_t* buf = (uint16_t*)malloc_psram(sz);
+        if (!buf)
+            return NULL;
+        const uint16_t* bsrc = (const uint16_t*)src;
+        for (int i = 0; i < sz / 2; i++) {
+            buf[i] = __builtin_bswap16(bsrc[i]);
+        }
+        if (out_fmt)
+            *out_fmt = JPEG_ENCODE_IN_FORMAT_YUV422;
+        if (out_size)
+            *out_size = sz;
+        return (uint8_t*)buf;
+    }
+
+    return NULL;
+}
+
+static bool encode_with_hw_jpeg(const uint8_t* src, size_t src_len, uint16_t width, uint16_t height,
+                                v4l2_pix_fmt_t format, uint8_t quality, uint8_t** jpg_out, size_t* jpg_out_len,
+                                jpg_out_cb cb, void* cb_arg) {
+    if (quality < 1)
+        quality = 1;
+    if (quality > 100)
+        quality = 100;
+
+    jpeg_enc_input_format_t enc_src_type = JPEG_ENCODE_IN_FORMAT_RGB888;
+    int enc_in_size = 0;
+    uint8_t* enc_in = convert_input_to_hw_encoder_buf(src, width, height, format, &enc_src_type, &enc_in_size);
+    if (!enc_in) {
+        ESP_LOGW(TAG, "hw jpeg: unsupported format, fallback to sw");
+        return false;
+    }
+
+    if (!hw_jpeg_ensure_inited()) {
+        free(enc_in);
+        return false;
+    }
+
+    jpeg_encode_cfg_t enc_cfg = {0};
+    enc_cfg.width = width;
+    enc_cfg.height = height;
+    enc_cfg.src_type = enc_src_type;
+    enc_cfg.image_quality = quality;
+    enc_cfg.sub_sample = (enc_src_type == JPEG_ENCODE_IN_FORMAT_GRAY) ? JPEG_DOWN_SAMPLING_GRAY : JPEG_DOWN_SAMPLING_YUV422;
+
+    size_t out_cap = (size_t)width * (size_t)height * 3 / 2 + 64 * 1024;
+    if (out_cap < 128 * 1024)
+        out_cap = 128 * 1024;
+    jpeg_encode_memory_alloc_cfg_t jpeg_enc_output_mem_cfg = { .buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER };
+    size_t out_cap_aligned = 0;
+    uint8_t* outbuf = (uint8_t*)jpeg_alloc_encoder_mem(out_cap, &jpeg_enc_output_mem_cfg, &out_cap_aligned);
+    if (!outbuf) {
+        free(enc_in);
+        ESP_LOGE(TAG, "alloc out buffer failed");
+        return false;
+    }
+
+    uint32_t out_len = 0;
+    esp_err_t er = jpeg_encoder_process(s_hw_jpeg_handle, &enc_cfg, enc_in, (uint32_t)enc_in_size, outbuf, (uint32_t)out_cap_aligned, &out_len);
+    free(enc_in);
+
+    if (er != ESP_OK) {
+        free(outbuf);
+        ESP_LOGE(TAG, "jpeg_encoder_process failed: %d", (int)er);
+        return false;
+    }
+
+    if (cb) {
+        cb(cb_arg, 0, outbuf, (size_t)out_len);
+        cb(cb_arg, 1, NULL, 0);
+        free(outbuf);
+        if (jpg_out)
+            *jpg_out = NULL;
+        if (jpg_out_len)
+            *jpg_out_len = 0;
+        return true;
+    }
+
+    if (jpg_out && jpg_out_len) {
+        *jpg_out = outbuf;
+        *jpg_out_len = (size_t)out_len;
+        return true;
+    }
+
+    free(outbuf);
+    return true;
+}
+#endif // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+
 static bool encode_with_esp_new_jpeg(const uint8_t* src, size_t src_len, uint16_t width, uint16_t height,
                                      v4l2_pix_fmt_t format, uint8_t quality, uint8_t** jpg_out, size_t* jpg_out_len,
                                      jpg_out_cb cb, void* cb_arg) {
@@ -235,10 +393,22 @@ static bool encode_with_esp_new_jpeg(const uint8_t* src, size_t src_len, uint16_
 
 bool image_to_jpeg(uint8_t* src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
                    uint8_t quality, uint8_t** out, size_t* out_len) {
+#if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+    if (encode_with_hw_jpeg(src, src_len, width, height, format, quality, out, out_len, NULL, NULL)) {
+        return true;
+    }
+    // Fallback to esp_new_jpeg
+#endif
     return encode_with_esp_new_jpeg(src, src_len, width, height, format, quality, out, out_len, NULL, NULL);
 }
 
 bool image_to_jpeg_cb(uint8_t* src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
                       uint8_t quality, jpg_out_cb cb, void* arg) {
+#if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+    if (encode_with_hw_jpeg(src, src_len, width, height, format, quality, NULL, NULL, cb, arg)) {
+        return true;
+    }
+    // Fallback to esp_new_jpeg
+#endif
     return encode_with_esp_new_jpeg(src, src_len, width, height, format, quality, NULL, NULL, cb, arg);
 }
