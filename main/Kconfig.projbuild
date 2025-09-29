@@ -86,37 +86,37 @@ choice BOARD_TYPE
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
-        bool "面包板新版接线（WiFi）"
+        bool "Bread Compact WiFi (面包板)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
-        bool "面包板新版接线（WiFi）+ LCD"
+        bool "Bread Compact WiFi + LCD (面包板)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
-        bool "面包板新版接线（WiFi）+ LCD + Camera"
+        bool "Bread Compact WiFi + LCD + Camera (面包板)"
         depends on IDF_TARGET_ESP32S3     
     config BOARD_TYPE_BREAD_COMPACT_ML307
-        bool "面包板新版接线（ML307 AT）"
+        bool "Bread Compact ML307/EC801E (面包板 4G)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_ESP32
-        bool "面包板（WiFi） ESP32 DevKit"
+        bool "Bread Compact ESP32 DevKit (面包板)"
         depends on IDF_TARGET_ESP32
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
-        bool "面包板（WiFi+ LCD） ESP32 DevKit"
+        bool "Bread Compact ESP32 DevKit + LCD (面包板)"
         depends on IDF_TARGET_ESP32
     config BOARD_TYPE_XMINI_C3_V3
-        bool "虾哥 Mini C3 V3"
+        bool "Xmini C3 V3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3_4G
-        bool "虾哥 Mini C3 4G"
+        bool "Xmini C3 4G"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3
-        bool "虾哥 Mini C3"
+        bool "Xmini C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_ESP32S3_KORVO2_V3
-        bool "ESP32S3_KORVO2_V3开发板"
+        bool "ESP32S3 KORVO2 V3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot开发板"
+        bool "ESP-SparkBot"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPOT_S3
         bool "ESP-Spot-S3"
@@ -146,10 +146,10 @@ choice BOARD_TYPE
         bool "Kevin C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_KEVIN_SP_V3_DEV
-        bool "Kevin SP V3开发板"
+        bool "Kevin SP V3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_SP_V4_DEV
-        bool "Kevin SP V4开发板"
+        bool "Kevin SP V4"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32_CGC
         bool "ESP32 CGC"
@@ -158,13 +158,13 @@ choice BOARD_TYPE
         bool "ESP32 CGC 144"
         depends on IDF_TARGET_ESP32
     config BOARD_TYPE_KEVIN_YUYING_313LCD
-        bool "鱼鹰科技3.13LCD开发板"
+        bool "鱼鹰科技 3.13LCD"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_DEV
-        bool "立创·实战派ESP32-S3开发板"
+        bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_C3_DEV
-        bool "立创·实战派ESP32-C3开发板"
+        bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
@@ -373,7 +373,7 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SURFER_C3_1_14TFT
-        bool "Surfer-C3-1-14TFT"
+        bool "Surfer-C3-1.14TFT"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_YUNLIAO_S3
         bool "小智云聊-S3"
@@ -384,8 +384,6 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
     depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
     prompt "EV_BOARD Type"
     default ESP_S3_LCD_EV_Board_1p4
-    help
-        开发板硬件版本型号选择
     config ESP_S3_LCD_EV_Board_1p4
         bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.4"
     config ESP_S3_LCD_EV_Board_1p5
@@ -397,13 +395,13 @@ choice DISPLAY_OLED_TYPE
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
-        OLED 屏幕类型选择
+        OLED Monochrome Display Type
     config OLED_SSD1306_128X32
-        bool "SSD1306, 分辨率128*32"
+        bool "SSD1306 128*32"
     config OLED_SSD1306_128X64
-        bool "SSD1306, 分辨率128*64"
+        bool "SSD1306 128*64"
     config OLED_SH1106_128X64
-        bool "SH1106, 分辨率128*64"
+        bool "SH1106 128*64"
 endchoice
 
 choice DISPLAY_LCD_TYPE
@@ -411,37 +409,37 @@ choice DISPLAY_LCD_TYPE
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
-        屏幕类型选择
+        LCD Display Type
     config LCD_ST7789_240X320
-        bool "ST7789, 分辨率240*320, IPS"
+        bool "ST7789 240*320, IPS"
     config LCD_ST7789_240X320_NO_IPS
-        bool "ST7789, 分辨率240*320, 非IPS"
+        bool "ST7789 240*320, Non-IPS"
     config LCD_ST7789_170X320
-        bool "ST7789, 分辨率170*320"
+        bool "ST7789 170*320"
     config LCD_ST7789_172X320
-        bool "ST7789, 分辨率172*320"
+        bool "ST7789 172*320"
     config LCD_ST7789_240X280
-        bool "ST7789, 分辨率240*280"
+        bool "ST7789 240*280"
     config LCD_ST7789_240X240
-        bool "ST7789, 分辨率240*240"
+        bool "ST7789 240*240"
     config LCD_ST7789_240X240_7PIN
-        bool "ST7789, 分辨率240*240, 7PIN"
+        bool "ST7789 240*240, 7PIN"
     config LCD_ST7789_240X135
-        bool "ST7789, 分辨率240*135"
+        bool "ST7789 240*135"
     config LCD_ST7735_128X160
-        bool "ST7735, 分辨率128*160"
+        bool "ST7735 128*160"
     config LCD_ST7735_128X128
-        bool "ST7735, 分辨率128*128"
+        bool "ST7735 128*128"
     config LCD_ST7796_320X480
-        bool "ST7796, 分辨率320*480 IPS"
+        bool "ST7796 320*480 IPS"
     config LCD_ST7796_320X480_NO_IPS
-        bool "ST7796, 分辨率320*480, 非IPS"
+        bool "ST7796 320*480, Non-IPS"
     config LCD_ILI9341_240X320
-        bool "ILI9341, 分辨率240*320"
+        bool "ILI9341 240*320"
     config LCD_ILI9341_240X320_NO_IPS
-        bool "ILI9341, 分辨率240*320, 非IPS"
+        bool "ILI9341 240*320, Non-IPS"
     config LCD_GC9A01_240X240
-        bool "GC9A01, 分辨率240*240, 圆屏"
+        bool "GC9A01 240*240 Circle"
     config LCD_TYPE_800_1280_10_1_INCH
         bool "Waveshare 101M-8001280-IPS-CT-K Display"
     config LCD_TYPE_800_1280_10_1_INCH_A
@@ -451,7 +449,7 @@ choice DISPLAY_LCD_TYPE
     config LCD_TYPE_720_720_4_INCH
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4C with 720*720 4inch round display"
     config LCD_CUSTOM
-        bool "自定义屏幕参数"
+        bool "Custom LCD (自定义屏幕参数)"
 endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
@@ -459,11 +457,11 @@ choice DISPLAY_ESP32S3_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
     default ESP32S3_KORVO2_V3_LCD_ST7789
     help
-        屏幕类型选择
+        LCD Display Type
     config ESP32S3_KORVO2_V3_LCD_ST7789
-        bool "ST7789, 分辨率240*280"
+        bool "ST7789 240*280"
     config ESP32S3_KORVO2_V3_LCD_ILI9341
-        bool "ILI9341, 分辨率240*320"
+        bool "ILI9341 240*320"
 endchoice
 
 choice DISPLAY_ESP32S3_AUDIO_BOARD
@@ -471,11 +469,11 @@ choice DISPLAY_ESP32S3_AUDIO_BOARD
     prompt "ESP32S3_AUDIO_BOARD LCD Type"
     default AUDIO_BOARD_LCD_JD9853
     help
-        屏幕类型选择
+        LCD Display Type
     config AUDIO_BOARD_LCD_JD9853
-        bool "JD9853, 分辨率320*172"
+        bool "JD9853 320*172"
     config AUDIO_BOARD_LCD_ST7789
-        bool "ST7789, 分辨率240*320"
+        bool "ST7789 240*320"
 endchoice
 
 choice DISPLAY_STYLE
@@ -495,40 +493,51 @@ choice DISPLAY_STYLE
         depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR
 endchoice
 
-config USE_ESP_WAKE_WORD
-    bool "Enable Wake Word Detection (without AFE)"
-    default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
+choice WAKE_WORD_TYPE
+    prompt "Wake Word Implementation Type"
+    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    default WAKE_WORD_DISABLED
     help
-        支持 ESP32 C3、ESP32 C5 与 ESP32 C6，增加ESP32支持（需要开启PSRAM）
+        Choose the type of wake word implementation to use
 
-config USE_AFE_WAKE_WORD
-    bool "Enable Wake Word Detection (AFE)"
-    default y
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
-    help
-        需要 ESP32 S3 与 PSRAM 支持
+    config WAKE_WORD_DISABLED
+        bool "Disabled"
+        help
+            Disable wake word detection
 
-config USE_CUSTOM_WAKE_WORD
-    bool "Enable Custom Wake Word Detection"
-    default n
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
-    help
-        需要 ESP32 S3 与 PSRAM 支持
-        
+    config USE_ESP_WAKE_WORD
+        bool "Wakenet model without AFE"
+        depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
+        help
+            Support ESP32 C3、ESP32 C5 与 ESP32 C6, and (ESP32 with PSRAM)
+
+    config USE_AFE_WAKE_WORD
+        bool "Wakenet model with AFE"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Support AEC if available, requires ESP32 S3 and PSRAM
+
+    config USE_CUSTOM_WAKE_WORD
+        bool "Multinet model (Custom Wake Word)"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Requires ESP32 S3 and PSRAM
+
+endchoice
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
+        Custom Wake Word, use pinyin for Chinese, separated by spaces
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
     default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        唤醒后发送给服务器的问候语 
+        Greeting sent to the server after wake word detection
 
 config CUSTOM_WAKE_WORD_THRESHOLD
     int "Custom Wake Word Threshold (%)"
@@ -536,14 +545,21 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     range 1 99
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+        Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
 
+config SEND_WAKE_WORD_DATA
+    bool "Send Wake Word Data"
+    default y
+    depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
+    help
+        Send wake word data to the server as the first message of the conversation and wait for response
+        
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
-        需要 ESP32 S3 与 PSRAM 支持
+        Requires ESP32 S3 and PSRAM
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
@@ -554,50 +570,58 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_ECHOEAR || BOARD_TYPE_ESP32S3_Touch_LCD_3_49)
     help
-        因为性能不够，不建议和微信聊天界面风格同时开启
+        To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
 config USE_SERVER_AEC
     bool "Enable Server-Side AEC (Unstable)"
     default n
     depends on USE_AUDIO_PROCESSOR
     help
-        启用服务器端 AEC，需要服务器支持
+        To work perperly, server-side AEC requires server support
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"
     default n
     help
-        启用音频调试功能，通过UDP发送音频数据
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        启用声波配网功能，使用音频信号传输 WiFi 配置数据
+        Enable audio debugger, send audio data through UDP to the host machine
 
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
-        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
+        UDP server address, format: IP:PORT, used to receive audio debugging data
+
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
     default n
     help
-        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+        Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
-choice I2S_TYPE_TAIJIPI_S3
+menu TAIJIPAI_S3_CONFIG
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
-    prompt "taiji-pi-S3 I2S Type"
-    default TAIJIPAI_I2S_TYPE_STD
+    choice I2S_TYPE_TAIJIPI_S3
+        prompt "taiji-pi-S3 I2S Type"
+        default TAIJIPAI_I2S_TYPE_STD
+        help
+            I2S 类型选择
+        config TAIJIPAI_I2S_TYPE_STD
+            bool "I2S Type STD"
+        config TAIJIPAI_I2S_TYPE_PDM
+            bool "I2S Type PDM"
+    endchoice
+
+    config I2S_USE_2SLOT
+    bool "Enable I2S 2 Slot"
+    default n
     help
-        I2S 类型选择
-    config TAIJIPAI_I2S_TYPE_STD
-        bool "I2S Type STD"
-    config TAIJIPAI_I2S_TYPE_PDM
-        bool "I2S Type PDM"
-endchoice
+        启动双声道
+endmenu
 
 endmenu
