@@ -1,8 +1,9 @@
 #include "wifi_board.h"
 #include "codecs/box_audio_codec.h"
+#include "display/display.h"
+#include "display/emote_display.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9341.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -14,9 +15,6 @@
 #include <wifi_station.h>
 
 #define TAG "EspBox3Board"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 // Init ili9341 by custom cmd
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
@@ -43,7 +41,7 @@ class EspBox3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
-    LcdDisplay* display_;
+    Display* display_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -129,17 +127,13 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
+
+#if CONFIG_USE_EMOTE_MESSAGE_STYLE
+        display_ = new emote::EmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #else
-                                        .emoji_font = font_emoji_64_init(),
+        display_ = new SpiLcdDisplay(panel_io, panel,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 #endif
-                                    });
     }
 
 public:

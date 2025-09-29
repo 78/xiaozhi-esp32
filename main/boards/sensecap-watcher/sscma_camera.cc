@@ -1,13 +1,13 @@
 #include "sscma_camera.h"
 #include "mcp_server.h"
-#include "display.h"
+#include "lvgl_display.h"
+#include "lvgl_image.h"
 #include "board.h"
 #include "system_info.h"
 #include "config.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
-#include <img_converters.h>
 #include <cstring>
 
 #define TAG "SscmaCamera"
@@ -109,9 +109,10 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     }
 
     //初始化JPEG解码
-    jpeg_dec_config_t config = { .output_type = JPEG_RAW_TYPE_RGB565_LE, .rotate = JPEG_ROTATE_0D };
-    jpeg_dec_ = jpeg_dec_open(&config);
-    if (!jpeg_dec_) {
+    jpeg_error_t err;
+    jpeg_dec_config_t config = { .output_type = JPEG_PIXEL_FORMAT_RGB565_LE, .rotate = JPEG_ROTATE_0D };
+    err = jpeg_dec_open(&config, &jpeg_dec_);
+    if ( err != JPEG_ERR_OK ) {
         ESP_LOGE(TAG, "Failed to open JPEG decoder");
         return;
     }
@@ -242,9 +243,10 @@ bool SscmaCamera::Capture() {
     }
 
     // 显示预览图片
-    auto display = Board::GetInstance().GetDisplay();
+    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
-        display->SetPreviewImage(&preview_image_);
+        auto image = std::make_unique<LvglSourceImage>(&preview_image_);
+        display->SetPreviewImage(std::move(image));
     }
     return true;
 }

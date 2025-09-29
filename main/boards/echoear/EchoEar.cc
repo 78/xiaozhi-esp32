@@ -1,11 +1,11 @@
 #include "wifi_board.h"
 #include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
+#include "display/emote_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
-#include "emote_display.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -26,10 +26,7 @@
 
 #define TAG "EchoEar"
 
-#define USE_LVGL_DEFAULT    0
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 temperature_sensor_handle_t temp_sensor = NULL;
 static const st77916_lcd_init_cmd_t vendor_specific_init_yysj[] = {
     {0xF0, (uint8_t []){0x28}, 1, 0},
@@ -389,11 +386,7 @@ private:
     Cst816s* cst816s_;
     Charge* charge_;
     Button boot_button_;
-#if USE_LVGL_DEFAULT
-    LcdDisplay* display_;
-#else
-    anim::EmoteDisplay* display_ = nullptr;
-#endif
+    Display* display_ = nullptr;
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
@@ -560,15 +553,11 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-#if USE_LVGL_DEFAULT
-        display_ = new SpiLcdDisplay(panel_io, panel,
-        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-            .emoji_font = font_emoji_64_init(),
-        });
+#if CONFIG_USE_EMOTE_MESSAGE_STYLE
+        display_ = new emote::EmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #else
-        display_ = new anim::EmoteDisplay(panel, panel_io);
+        display_ = new SpiLcdDisplay(panel_io, panel,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 #endif
         backlight_ = new PwmBacklight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         backlight_->RestoreBrightness();

@@ -3,18 +3,13 @@
 
 #define TAG "NoAudioProcessor"
 
-void NoAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
+void NoAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms, srmodel_list_t* models_list) {
     codec_ = codec;
     frame_samples_ = frame_duration_ms * 16000 / 1000;
 }
 
 void NoAudioProcessor::Feed(std::vector<int16_t>&& data) {
     if (!is_running_ || !output_callback_) {
-        return;
-    }
-
-    if (data.size() != frame_samples_) {
-        ESP_LOGE(TAG, "Feed data size is not equal to frame size, feed size: %u, frame size: %u", data.size(), frame_samples_);
         return;
     }
 

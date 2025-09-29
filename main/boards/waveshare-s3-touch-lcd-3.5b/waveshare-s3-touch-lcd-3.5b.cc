@@ -21,7 +21,6 @@
 #include "axp2101.h"
 #include "power_save_timer.h"
 
-
 #include "esp_lcd_axs15231b.h"
 
 #include "custom_lcd_display.h"
@@ -33,11 +32,6 @@
 #include "esp32_camera.h"
 
 #define TAG "waveshare_lcd_3_5b"
-
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 
 static const axs15231b_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xBB, (uint8_t[]){0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5A, 0xA5}, 8, 0},
@@ -74,8 +68,6 @@ static const axs15231b_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x2C, (uint8_t[]){0x00, 0x00, 0x00, 0x00}, 4, 0},
     {0x2a, (uint8_t[]){0x00, 0x00, 0x01, 0x3f}, 4, 0},
     {0x2b, (uint8_t[]){0x00, 0x00, 0x01, 0xdf}, 4, 0}};
-
-
 
 class Pmic : public Axp2101 {
     public:
@@ -260,8 +252,7 @@ private:
             .vendor_config = (void *)&vendor_config,
         };
         esp_lcd_new_panel_axs15231b(panel_io, &panel_config, &panel);
-         
-       
+
         esp_lcd_panel_reset(panel);
  
         esp_lcd_panel_init(panel);
@@ -271,14 +262,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new CustomLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
-        // display_ = new CustomLcdDisplay(panel_io, panel, DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT,
-        //                           DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -290,7 +274,6 @@ private:
             app.ToggleChatState();
         });
     }
-
 
     void InitializeTouch()
     {
@@ -323,7 +306,6 @@ private:
         lvgl_port_add_touch(&touch_cfg);
         ESP_LOGI(TAG, "Touch panel initialized successfully");
     }
-
 
 public:
     CustomBoard() :
@@ -364,6 +346,7 @@ public:
     virtual Camera* GetCamera() override {
         return camera_;
     }
+
 #if PMIC_ENABLE      
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;

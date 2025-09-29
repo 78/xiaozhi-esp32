@@ -27,10 +27,6 @@
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
-
 class Cst816d : public I2cDevice {
 public:
     struct TouchPoint_t {
@@ -68,7 +64,6 @@ private:
     TouchPoint_t tp_;
 };
 
-
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
@@ -80,12 +75,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
@@ -93,7 +83,6 @@ public:
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
     }
 };
-
 
 class Spotpear_ESP32_S3_1_28_BOX : public WifiBoard {
 private:
@@ -164,7 +153,6 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
-
 
     static void touchpad_timer_callback(void* arg) {
         auto& board = (Spotpear_ESP32_S3_1_28_BOX&)Board::GetInstance();
@@ -283,7 +271,6 @@ public:
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
-
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);

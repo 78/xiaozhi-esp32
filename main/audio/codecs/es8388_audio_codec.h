@@ -6,6 +6,8 @@
 #include <driver/i2c_master.h>
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
+#include <mutex>
+
 
 class Es8388AudioCodec : public AudioCodec {
 private:
@@ -17,6 +19,7 @@ private:
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
+    std::mutex data_if_mutex_;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
 
@@ -26,7 +29,7 @@ private:
 public:
     Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
         gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-        gpio_num_t pa_pin, uint8_t es8388_addr);
+        gpio_num_t pa_pin, uint8_t es8388_addr, bool input_reference = false);
     virtual ~Es8388AudioCodec();
 
     virtual void SetOutputVolume(int volume) override;
