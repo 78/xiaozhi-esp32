@@ -6,8 +6,7 @@
             "sdkconfig_append": [
                 "CONFIG_CAMERA_OV2640=y",
                 "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
-                "CONFIG_CAMERA_OV2640_DVP_RGB565_240X240_25FPS=y",
-                "CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER=y"
+                "CONFIG_CAMERA_OV2640_DVP_YUV422_240X240_25FPS=y"
             ]
         }
     ]

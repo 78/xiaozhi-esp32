@@ -29,6 +29,7 @@ private:
         uint16_t height = 0;
         v4l2_pix_fmt_t format = 0;
     } frame_;
+    v4l2_pix_fmt_t sensor_format_ = 0;
     int video_fd_ = -1;
     bool streaming_on_ = false;
     struct MmapBuffer { void *start = nullptr; size_t length = 0; };

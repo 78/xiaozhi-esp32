@@ -29,6 +29,10 @@
     fourcc[4] = '\0';                       \
     ESP_LOGI(TAG, "FOURCC: '%c%c%c%c'", fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
 
+#ifdef CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
+#pragma warning "CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is enabled, which may cause image corruption in YUV422 format!"
+#endif
+
 Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
     if (esp_video_init(&config) != ESP_OK) {
         ESP_LOGE(TAG, "esp_video_init failed");
@@ -115,6 +119,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
                 case V4L2_PIX_FMT_YUV422P:
                 case V4L2_PIX_FMT_GREY:
                     setformat.fmt.pix.pixelformat = fmtdesc.pixelformat;
+                    sensor_format_ = fmtdesc.pixelformat;
                     break;
                 default:
                     break;
@@ -127,6 +132,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         ESP_LOGE(TAG, "no supported pixel format found");
         close(video_fd_);
         video_fd_ = -1;
+        sensor_format_ = 0;
         return;
     }
 
@@ -136,12 +142,12 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         ESP_LOGE(TAG, "VIDIOC_S_FMT failed, errno=%d(%s)", errno, strerror(errno));
         close(video_fd_);
         video_fd_ = -1;
+        sensor_format_ = 0;
         return;
     }
 
     frame_.width = setformat.fmt.pix.width;
     frame_.height = setformat.fmt.pix.height;
-    frame_.format = setformat.fmt.pix.pixelformat;
 
     // 申请缓冲并mmap
     struct v4l2_requestbuffers req = {};
@@ -152,6 +158,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         ESP_LOGE(TAG, "VIDIOC_REQBUFS failed");
         close(video_fd_);
         video_fd_ = -1;
+        sensor_format_ = 0;
         return;
     }
     mmap_buffers_.resize(req.count);
@@ -164,6 +171,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
             ESP_LOGE(TAG, "VIDIOC_QUERYBUF failed");
             close(video_fd_);
             video_fd_ = -1;
+            sensor_format_ = 0;
             return;
         }
         void* start = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, video_fd_, buf.m.offset);
@@ -171,6 +179,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
             ESP_LOGE(TAG, "mmap failed");
             close(video_fd_);
             video_fd_ = -1;
+            sensor_format_ = 0;
             return;
         }
         mmap_buffers_[i].start = start;
@@ -180,6 +189,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
             ESP_LOGE(TAG, "VIDIOC_QBUF failed");
             close(video_fd_);
             video_fd_ = -1;
+            sensor_format_ = 0;
             return;
         }
     }
@@ -189,6 +199,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         ESP_LOGE(TAG, "VIDIOC_STREAMON failed");
         close(video_fd_);
         video_fd_ = -1;
+        sensor_format_ = 0;
         return;
     }
     streaming_on_ = true;
@@ -208,6 +219,7 @@ Esp32Camera::~Esp32Camera() {
         close(video_fd_);
         video_fd_ = -1;
     }
+    sensor_format_ = 0;
     esp_video_deinit();
 }
 
@@ -238,13 +250,44 @@ bool Esp32Camera::Capture() {
             if (frame_.data) {
                 heap_caps_free(frame_.data);
                 frame_.data = nullptr;
+                frame_.format = 0;
             }
             frame_.len = buf.bytesused;
-            frame_.data = (uint8_t*)heap_caps_malloc(frame_.len, MALLOC_CAP_SPIRAM);
+            frame_.data = (uint8_t*)heap_caps_malloc(frame_.len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (!frame_.data) {
                 ESP_LOGE(TAG, "alloc frame copy failed");
-            } else {
-                memcpy(frame_.data, mmap_buffers_[buf.index].start, frame_.len);
+                return false;
+            }
+
+            switch (sensor_format_) {
+                case V4L2_PIX_FMT_RGB565:
+                case V4L2_PIX_FMT_RGB24:
+                case V4L2_PIX_FMT_YUYV:
+                    memcpy(frame_.data, mmap_buffers_[buf.index].start, frame_.len);
+                    frame_.format = sensor_format_;
+                    break;
+                case V4L2_PIX_FMT_YUV422P: {
+                    // 这个格式是 422 YUYV，不是 planer
+                    // 不要打开 SWAP_PIXEL_BYTE_ORDER 选项，否则会导致图像显示异常！
+                    frame_.format = V4L2_PIX_FMT_YUYV;
+                    memcpy(frame_.data, mmap_buffers_[buf.index].start, frame_.len);
+                    break;
+                }
+                case V4L2_PIX_FMT_RGB565X: {
+                    // 大端序的 RGB565 需要转换为小端序
+                    // 目前 esp_video 的大小端都会返回格式为 RGB565，不会返回格式为 RGB565X，此 case 用于未来版本兼容
+                    auto src16 = (uint16_t*)mmap_buffers_[buf.index].start;
+                    auto dst16 = (uint16_t*)frame_.data;
+                    size_t pixel_count = (size_t)frame_.width * (size_t)frame_.height;
+                    for (size_t i = 0; i < pixel_count; i++) {
+                        dst16[i] = __builtin_bswap16(src16[i]);
+                    }
+                    frame_.format = V4L2_PIX_FMT_RGB565;
+                    break;
+                }
+                default:
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    return false;
             }
         }
         if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
@@ -260,32 +303,114 @@ bool Esp32Camera::Capture() {
         }
         uint16_t w = frame_.width;
         uint16_t h = frame_.height;
+        size_t lvgl_image_size = frame_.len;
+        size_t stride = ((w * 2) + 3) & ~3;  // 4字节对齐
+        lv_color_format_t color_format = LV_COLOR_FORMAT_RGB565;
+        uint8_t* data = nullptr;
 
-        auto data = (uint8_t*)heap_caps_malloc((size_t)w * (size_t)h * 2, MALLOC_CAP_SPIRAM);
-        if (data == nullptr) {
-            ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-            return false;
-        }
+        switch (frame_.format) {
+            case V4L2_PIX_FMT_YUYV:
+                // color_format = LV_COLOR_FORMAT_YUY2;
+                // [[fallthrough]];
+                // LV_COLOR_FORMAT_YUY2 的显示似乎有问题，暂时转换为 RGB565 显示
+            {
+                color_format = LV_COLOR_FORMAT_RGB565;
+                data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                lvgl_image_size = w * h * 2;
+                if (data == nullptr) {
+                    ESP_LOGE(TAG, "Failed to allocate memory for preview image");
+                    return false;
+                }
+                const uint8_t* src = (const uint8_t*)frame_.data;
+                size_t src_len = frame_.len;
+                size_t dst_off = 0;
 
-        auto dst16 = (uint16_t*)data;
-        if (frame_.format == V4L2_PIX_FMT_RGB565) {
-            memcpy(dst16, frame_.data, (size_t)w * (size_t)h * 2);
-        } else if (frame_.format == V4L2_PIX_FMT_RGB24) {
-            const uint8_t* src = frame_.data;
-            size_t pixel_count = (size_t)w * (size_t)h;
-            for (size_t i = 0; i < pixel_count; i++) {
-                uint8_t r = src[i * 3 + 0];
-                uint8_t g = src[i * 3 + 1];
-                uint8_t b = src[i * 3 + 2];
-                uint16_t v = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-                dst16[i] = __builtin_bswap16(v);
+                auto clamp = [](int v)->uint8_t {
+                    if (v < 0) return 0;
+                    if (v > 255) return 255;
+                    return (uint8_t)v;
+                };
+
+                // 每 4 字节处理两个像素： Y0 U Y1 V
+                for (size_t i = 0; i + 3 < src_len; i += 4) {
+                    int y0 = (int)src[i + 0];
+                    int u  = (int)src[i + 1];
+                    int y1 = (int)src[i + 2];
+                    int v  = (int)src[i + 3];
+
+                    int c0 = y0 - 16;
+                    int c1 = y1 - 16;
+                    int d  = u  - 128;
+                    int e  = v  - 128;
+
+                    // 常用整数近似转换
+                    int r0 = (298 * c0 + 409 * e + 128) >> 8;
+                    int g0 = (298 * c0 - 100 * d - 208 * e + 128) >> 8;
+                    int b0 = (298 * c0 + 516 * d + 128) >> 8;
+
+                    int r1 = (298 * c1 + 409 * e + 128) >> 8;
+                    int g1 = (298 * c1 - 100 * d - 208 * e + 128) >> 8;
+                    int b1 = (298 * c1 + 516 * d + 128) >> 8;
+
+                    uint8_t cr0 = clamp(r0);
+                    uint8_t cg0 = clamp(g0);
+                    uint8_t cb0 = clamp(b0);
+
+                    uint8_t cr1 = clamp(r1);
+                    uint8_t cg1 = clamp(g1);
+                    uint8_t cb1 = clamp(b1);
+
+                    // RGB565 打包
+                    uint16_t pix0 = (uint16_t)(((cr0 >> 3) << 11) | ((cg0 >> 2) << 5) | (cb0 >> 3));
+                    uint16_t pix1 = (uint16_t)(((cr1 >> 3) << 11) | ((cg1 >> 2) << 5) | (cb1 >> 3));
+
+                    // 小端序：低字节先写入
+                    data[dst_off++] = (uint8_t)(pix0 & 0xFF);
+                    data[dst_off++] = (uint8_t)((pix0 >> 8) & 0xFF);
+
+                    data[dst_off++] = (uint8_t)(pix1 & 0xFF);
+                    data[dst_off++] = (uint8_t)((pix1 >> 8) & 0xFF);
+                }
+                break;
             }
-        } else {
-            memset(dst16, 0, (size_t)w * (size_t)h * 2);
+            case V4L2_PIX_FMT_RGB565:
+                // 默认的 color_format 就是 LV_COLOR_FORMAT_RGB565
+                data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (data == nullptr) {
+                    ESP_LOGE(TAG, "Failed to allocate memory for preview image");
+                    return false;
+                }
+                memcpy(data, frame_.data, frame_.len);
+                lvgl_image_size = frame_.len;  // fallthrough 时兼顾 YUYV 与 RGB565
+                break;
+
+            case V4L2_PIX_FMT_RGB24: {
+                // RGB888 需要转换为 RGB565
+                color_format = LV_COLOR_FORMAT_RGB565;
+                data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                uint16_t* dst16 = (uint16_t*)data;
+                if (data == nullptr) {
+                    ESP_LOGE(TAG, "Failed to allocate memory for preview image");
+                    return false;
+                }
+                const uint8_t* src = frame_.data;
+                size_t pixel_count = (size_t)w * (size_t)h;
+                for (size_t i = 0; i < pixel_count; i++) {
+                    uint8_t r = src[i * 3 + 0];
+                    uint8_t g = src[i * 3 + 1];
+                    uint8_t b = src[i * 3 + 2];
+                    uint16_t v = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+                    dst16[i] = __builtin_bswap16(v);  // TODO: 测试这里是否需要 __builtin_bswap16
+                }
+                lvgl_image_size = w * h * 2;
+                break;
+            }
+            default:
+                ESP_LOGE(TAG, "unsupported frame format: 0x%08x", frame_.format);
+                return false;
         }
 
-        auto image =
-            std::make_unique<LvglAllocatedImage>(data, (size_t)w * (size_t)h * 2, w, h, w * 2, LV_COLOR_FORMAT_RGB565);
+        auto image = std::make_unique<LvglAllocatedImage>(data, lvgl_image_size, w, h, stride, color_format);
         display->SetPreviewImage(std::move(image));
     }
     return true;
