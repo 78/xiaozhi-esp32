@@ -53,6 +53,7 @@ private:
     int detect_duration_sec = 2; // 检测持续时间2秒，确认人员持续存在
     int detect_invoke_interval_sec = 8; // 默认15秒冷却期，避免频繁开始会话
     int detect_debounce_sec = 1; // 验证期间人员离开的去抖动时间1秒
+    int inference_en = 0; // 推理使能开关（0: 关闭, 1: 开启）
     
     sscma_client_model_t *model;
     int model_class_cnt = 0;

@@ -345,24 +345,21 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
         bool is_inference = false;
         while (true)
         {
-            if (Application::GetInstance().GetDeviceState() == kDeviceStateIdle ) {
+            if (this_->inference_en && Application::GetInstance().GetDeviceState() == kDeviceStateIdle ) {
                 if (!is_inference) {
-                    ESP_LOGI(TAG, "Start inference");
+                    ESP_LOGI(TAG, "Start inference (enable=1)");
                     sscma_client_break(this_->sscma_client_handle_);
                     sscma_client_set_model(this_->sscma_client_handle_, 4);
                     sscma_client_set_sensor(this_->sscma_client_handle_, 1, 1, true); // 设置分辨率 416X416
                     sscma_client_invoke(this_->sscma_client_handle_, -1, false, true);
                     is_inference = true;
-
-                    // 重新开始推理时，可以清除之前的检测状态，避免旧状态干扰
-                    // this_->continuous_detect_start_tm = 0;
                 }
-            } else if ( is_inference )  {
-                ESP_LOGI(TAG, "Stop inference");
+            } else if (is_inference && (!this_->inference_en || Application::GetInstance().GetDeviceState() != kDeviceStateIdle))  {
+                ESP_LOGI(TAG, "Stop inference (enable=%d state=%d)", this_->inference_en, Application::GetInstance().GetDeviceState());
                 is_inference = false;
                 sscma_client_break(this_->sscma_client_handle_);
             }
-            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
     }, "sscma_camera", 4096, this, 1, nullptr);
 
@@ -404,6 +401,7 @@ void SscmaCamera::InitializeMcpTools() {
     detect_invoke_interval_sec = settings.GetInt("interval", 8);
     detect_duration_sec = settings.GetInt("duration", 2);
     detect_target = settings.GetInt("target", 0);
+    inference_en = settings.GetInt("enable", 0);
 
     auto& mcp_server = McpServer::GetInstance();
         // 获取模型参数配置
@@ -484,6 +482,30 @@ void SscmaCamera::InitializeMcpTools() {
             }
 
             return "{\"status\": \"success\", \"message\": \"Detection configuration updated\"}";
+        });
+
+    // 推理开关获取
+    mcp_server.AddTool("self.model.enable",
+        "控制推理开关\n"
+        "  读取/设置推理是否开启; 0=关闭, 1=开启\n"
+        "可选字段: `enable`\n",
+        PropertyList({
+            Property("enable", kPropertyTypeInteger, inference_en, 0, 1)
+        }),
+        [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("model", true);
+            try {
+                const Property& enable_prop = properties["enable"];
+                int en = enable_prop.value<int>();
+                settings.SetInt("enable", en);
+                this->inference_en = en;
+                ESP_LOGI(TAG, "Set inference enable to %d", en);
+            } catch (const std::runtime_error&) {
+                // enable not provided -> treat as query
+            }
+            // 返回当前配置
+            int cur_en = settings.GetInt("enable", this->inference_en);
+            return std::string("{\"enable\":") + std::to_string(cur_en) + "}";
         });
 }
 

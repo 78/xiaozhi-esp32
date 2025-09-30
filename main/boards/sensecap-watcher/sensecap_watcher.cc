@@ -493,7 +493,7 @@ private:
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
 
-                const esp_console_cmd_t cmd6 = {
+        const esp_console_cmd_t cmd6 = {
             .command = "version",
             .help = "Read version info",
             .hint = NULL,
@@ -502,9 +502,32 @@ private:
             .func_w_context = [](void *context,int argc, char** argv) -> int {
                 auto self = static_cast<SensecapWatcher*>(context);
                 auto app_desc = esp_app_get_description();
-                printf("xiaozhi agent\n");
+                printf("type: xiaozhi agent\n");
                 printf("version: %s\n", app_desc->version);
                 printf("camera: %d\n",self->GetCamera() == nullptr ? 0 : 1);
+                const char* region = "UNKNOWN";
+                #if defined(CONFIG_LANGUAGE_ZH_CN)
+                                region = "CN";
+                #elif defined(CONFIG_LANGUAGE_EN_US)
+                                region = "US";
+                #elif defined(CONFIG_LANGUAGE_JA_JP)
+                                region = "JP";
+                #elif defined(CONFIG_LANGUAGE_ES_ES)
+                                region = "ES";
+                #elif defined(CONFIG_LANGUAGE_DE_DE)
+                                region = "DE";
+                #elif defined(CONFIG_LANGUAGE_FR_FR)
+                                region = "FR";
+                #elif defined(CONFIG_LANGUAGE_IT_IT)
+                                region = "IT";
+                #elif defined(CONFIG_LANGUAGE_PT_PT)
+                                region = "PT";
+                #elif defined(CONFIG_LANGUAGE_RU_RU)
+                                region = "RU";
+                #elif defined(CONFIG_LANGUAGE_KO_KR)
+                                region = "KR";
+                #endif
+                printf("region: %s\n", region);
                 return 0;
             },
             .context =this
