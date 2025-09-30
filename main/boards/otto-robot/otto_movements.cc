@@ -389,7 +389,7 @@ void Otto::ShakeLeg(int steps, int period, int dir) {
     int homes[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
 
     // Changes in the parameters if left leg is chosen
-    if (dir == -1) {
+    if (dir == 1) {
         shake_leg1[2] = 180 - 35;
         shake_leg1[3] = 180 - 58;
         shake_leg2[2] = 180 - 120;
