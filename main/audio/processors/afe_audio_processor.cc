@@ -10,7 +10,7 @@ AfeAudioProcessor::AfeAudioProcessor()
     event_group_ = xEventGroupCreate();
 }
 
-void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
+void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms, srmodel_list_t* models_list) {
     codec_ = codec;
     frame_samples_ = frame_duration_ms * 16000 / 1000;
 
@@ -27,7 +27,13 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         input_format.push_back('R');
     }
 
-    srmodel_list_t *models = esp_srmodel_init("model");
+    srmodel_list_t *models;
+    if (models_list == nullptr) {
+        models = esp_srmodel_init("model");
+    } else {
+        models = models_list;
+    }
+
     char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
     char* vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
     
@@ -47,8 +53,6 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         afe_config->ns_init = false;
     }
 
-    afe_config->afe_perferred_core = 1;
-    afe_config->afe_perferred_priority = 1;
     afe_config->agc_init = false;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 

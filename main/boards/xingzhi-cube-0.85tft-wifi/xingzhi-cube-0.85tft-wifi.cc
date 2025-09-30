@@ -22,10 +22,6 @@
 
 #define TAG "XINGZHI_CUBE_0_85TFT_WIFI"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
-
 static const nv3023_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xff, (uint8_t[]){0xa5}, 1, 0},
     {0x3E, (uint8_t[]){0x09}, 1, 0},
@@ -140,7 +136,6 @@ private:
         buscfg.max_transfer_sz = DISPLAY_HEIGHT * 80 *sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
-    
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -178,12 +173,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
         display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
-        {
-            .text_font = &font_puhui_16_4,
-            .icon_font = &font_awesome_16_4,
-            .emoji_font = font_emoji_32_init(),
-        });
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void Initializegpio21_45() {

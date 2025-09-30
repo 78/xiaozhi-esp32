@@ -8,7 +8,6 @@
 #include "settings.h"
 #include "config.h"
 #include "sleep_timer.h"
-#include "font_awesome_symbols.h"
 #include "adc_battery_monitor.h"
 #include "press_to_talk_mcp_tool.h"
 
@@ -20,10 +19,6 @@
 #include <esp_lcd_panel_vendor.h>
 
 #define TAG "XminiC3Board"
-
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
-
 
 class XminiC3Board : public Ml307Board {
 private:
@@ -48,11 +43,8 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-#if CONFIG_USE_ESP_WAKE_WORD
-        sleep_timer_ = new SleepTimer(300);
-#else
+        // Wake word detection will be disabled in light sleep mode
         sleep_timer_ = new SleepTimer(30);
-#endif
         sleep_timer_->OnEnterLightSleepMode([this]() {
             ESP_LOGI(TAG, "Enabling sleep mode");
             // Show the standby screen
@@ -139,8 +131,7 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
