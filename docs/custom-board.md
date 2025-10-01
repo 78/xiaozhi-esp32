@@ -21,7 +21,7 @@
 
 ### 1. 创建新的开发板目录
 
-首先在`boards/`目录下创建一个新的目录，例如`my-custom-board/`：
+首先在`boards/`目录下创建一个新的目录，命名方式应使用 `[品牌名]-[开发板类型]` 的形式，例如 `m5stack-tab5`：
 
 ```bash
 mkdir main/boards/my-custom-board
@@ -87,22 +87,49 @@ mkdir main/boards/my-custom-board
 
 #### config.json
 
-在`config.json`中定义编译配置:
+在`config.json`中定义编译配置，这个文件用于 `scripts/release.py` 脚本自动化编译：
 
 ```json
 {
-    "target": "esp32s3",  // 目标芯片型号: esp32, esp32s3, esp32c3等
+    "target": "esp32s3",  // 目标芯片型号: esp32, esp32s3, esp32c3, esp32c6, esp32p4等
     "builds": [
         {
-            "name": "my-custom-board",  // 开发板名称
+            "name": "my-custom-board",  // 开发板名称，用于生成固件包
             "sdkconfig_append": [
-                // 额外需要的编译配置
+                // 特别 Flash 大小配置
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                // 特别分区表配置
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
             ]
         }
     ]
 }
+```
+
+**配置项说明：**
+- `target`: 目标芯片型号，必须与硬件匹配
+- `name`: 编译输出的固件包名称，建议与目录名一致
+- `sdkconfig_append`: 额外的 sdkconfig 配置项数组，会追加到默认配置中
+
+**常用的 sdkconfig_append 配置：**
+```json
+// Flash 大小
+"CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y"   // 4MB Flash
+"CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y"   // 8MB Flash
+"CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"  // 16MB Flash
+
+// 分区表
+"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""  // 4MB 分区表
+"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""  // 8MB 分区表
+"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"" // 16MB 分区表
+
+// 语言配置
+"CONFIG_LANGUAGE_EN_US=y"  // 英语
+"CONFIG_LANGUAGE_ZH_CN=y"  // 简体中文
+
+// 唤醒词配置
+"CONFIG_USE_DEVICE_AEC=y"          // 启用设备端 AEC
+"CONFIG_WAKE_WORD_DISABLED=y"      // 禁用唤醒词
 ```
 
 ### 3. 编写板级初始化代码
@@ -260,7 +287,106 @@ public:
 DECLARE_BOARD(MyCustomBoard);
 ```
 
-### 4. 创建README.md
+### 4. 添加构建系统配置
+
+#### 在 Kconfig.projbuild 中添加开发板选项
+
+打开 `main/Kconfig.projbuild` 文件，在 `choice BOARD_TYPE` 部分添加新的开发板配置项：
+
+```kconfig
+choice BOARD_TYPE
+    prompt "Board Type"
+    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    help
+        Board type. 开发板类型
+    
+    # ... 其他开发板选项 ...
+    
+    config BOARD_TYPE_MY_CUSTOM_BOARD
+        bool "My Custom Board (我的自定义开发板)"
+        depends on IDF_TARGET_ESP32S3  # 根据你的目标芯片修改
+endchoice
+```
+
+**注意事项：**
+- `BOARD_TYPE_MY_CUSTOM_BOARD` 是配置项名称，需要全大写，使用下划线分隔
+- `depends on` 指定了目标芯片类型（如 `IDF_TARGET_ESP32S3`、`IDF_TARGET_ESP32C3` 等）
+- 描述文字可以使用中英文
+
+#### 在 CMakeLists.txt 中添加开发板配置
+
+打开 `main/CMakeLists.txt` 文件，在开发板类型判断部分添加新的配置：
+
+```cmake
+# 在 elseif 链中添加你的开发板配置
+elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
+    set(BOARD_TYPE "my-custom-board")  # 与目录名一致
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)  # 根据屏幕大小选择合适的字体
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)  # 可选，如果需要表情显示
+endif()
+```
+
+**字体和表情配置说明：**
+
+根据屏幕分辨率选择合适的字体大小：
+- 小屏幕（128x64 OLED）：`font_puhui_basic_14_1` / `font_awesome_14_1`
+- 中小屏幕（240x240）：`font_puhui_basic_16_4` / `font_awesome_16_4`
+- 中等屏幕（240x320）：`font_puhui_basic_20_4` / `font_awesome_20_4`
+- 大屏幕（480x320+）：`font_puhui_basic_30_4` / `font_awesome_30_4`
+
+表情集合选项：
+- `twemoji_32` - 32x32 像素表情（小屏幕）
+- `twemoji_64` - 64x64 像素表情（大屏幕）
+
+### 5. 配置和编译
+
+#### 方法一：使用 idf.py 手动配置
+
+1. **设置目标芯片**（首次配置或更换芯片时）：
+   ```bash
+   # 对于 ESP32-S3
+   idf.py set-target esp32s3
+   
+   # 对于 ESP32-C3
+   idf.py set-target esp32c3
+   
+   # 对于 ESP32
+   idf.py set-target esp32
+   ```
+
+2. **清理旧配置**：
+   ```bash
+   idf.py fullclean
+   ```
+
+3. **进入配置菜单**：
+   ```bash
+   idf.py menuconfig
+   ```
+   
+   在菜单中导航到：`Xiaozhi Assistant` -> `Board Type`，选择你的自定义开发板。
+
+4. **编译和烧录**：
+   ```bash
+   idf.py build
+   idf.py flash monitor
+   ```
+
+#### 方法二：使用 release.py 脚本（推荐）
+
+如果你的开发板目录下有 `config.json` 文件，可以使用此脚本自动完成配置和编译：
+
+```bash
+python scripts/release.py my-custom-board
+```
+
+此脚本会自动：
+- 读取 `config.json` 中的 `target` 配置并设置目标芯片
+- 应用 `sdkconfig_append` 中的编译选项
+- 完成编译并打包固件
+
+### 6. 创建README.md
 
 在README.md中说明开发板的特性、硬件要求、编译和烧录步骤：
 
