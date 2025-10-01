@@ -2,25 +2,23 @@
 
 （日本語 | [中文](README.md) | [English](README_en.md)）
 
-## 動画
+## はじめに
 
 👉 [人間：AIにカメラを装着 vs AI：その場で飼い主が3日間髪を洗っていないことを発見【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [手作りでAIガールフレンドを作る、初心者入門チュートリアル【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
 
-## イントロダクション
-
-これはエビ兄さんがオープンソースで公開しているESP32プロジェクトで、MITライセンスのもと、誰でも無料で、商用利用も可能です。
-
-このプロジェクトを通じて、AIハードウェア開発を理解し、急速に進化する大規模言語モデルを実際のハードウェアデバイスに応用できるようになることを目指しています。
-
-ご意見やご提案があれば、いつでもIssueを提出するか、QQグループ：1011329060 にご参加ください。
-
-### MCPであらゆるものを制御
-
 シャオジーAIチャットボットは音声インタラクションの入口として、Qwen / DeepSeekなどの大規模モデルのAI能力を活用し、MCPプロトコルを通じてマルチエンド制御を実現します。
 
-![MCPであらゆるものを制御](docs/mcp-based-graph.jpg)
+<img src="docs/mcp-based-graph.jpg" alt="MCPであらゆるものを制御" width="320">
+
+## バージョンノート
+
+現在のv2バージョンはv1パーティションテーブルと互換性がないため、v1からv2へOTAでアップグレードすることはできません。パーティションテーブルの詳細については、[partitions/v2/README.md](partitions/v2/README.md)をご参照ください。
+
+v1を実行しているすべてのハードウェアは、ファームウェアを手動で書き込むことでv2にアップグレードできます。
+
+v1の安定版は1.9.2です。`git checkout v1`でv1に切り替えることができます。v1ブランチは2026年2月まで継続的にメンテナンスされます。
 
 ### 実装済み機能
 
@@ -36,6 +34,7 @@
 - ESP32-C3、ESP32-S3、ESP32-P4チッププラットフォーム対応
 - デバイス側MCPによるデバイス制御（音量・明るさ調整、アクション制御など）
 - クラウド側MCPで大規模モデル能力を拡張（スマートホーム制御、PCデスクトップ操作、知識検索、メール送受信など）
+- カスタマイズ可能なウェイクワード、フォント、絵文字、チャット背景、オンラインWeb編集に対応 ([カスタムアセットジェネレーター](https://github.com/78/xiaozhi-assets-generator))
 
 ## ハードウェア
 
@@ -122,9 +121,10 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 ### 開発者ドキュメント
 
-- [カスタム開発ボードガイド](main/boards/README.md) - シャオジーAI用のカスタム開発ボード作成方法
+- [カスタム開発ボードガイド](docs/custom-board.md) - シャオジーAI用のカスタム開発ボード作成方法
 - [MCPプロトコルIoT制御使用法](docs/mcp-usage.md) - MCPプロトコルでIoTデバイスを制御する方法
 - [MCPプロトコルインタラクションフロー](docs/mcp-protocol.md) - デバイス側MCPプロトコルの実装方法
+- [MQTT + UDP ハイブリッド通信プロトコルドキュメント](docs/mqtt-udp.md)
 - [詳細なWebSocket通信プロトコルドキュメント](docs/websocket.md)
 
 ## 大規模モデル設定
@@ -145,6 +145,17 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 - [huangjunsen0406/py-xiaozhi](https://github.com/huangjunsen0406/py-xiaozhi) Pythonクライアント
 - [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client) Androidクライアント
+- [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百問科技提供のLinuxクライアント
+- [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技のBluetoothチップファームウェア
+- [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移遠提供のQuecPythonファームウェア
+
+## プロジェクトについて
+
+これはエビ兄さんがオープンソースで公開しているESP32プロジェクトで、MITライセンスのもと、誰でも無料で、商用利用も可能です。
+
+このプロジェクトを通じて、AIハードウェア開発を理解し、急速に進化する大規模言語モデルを実際のハードウェアデバイスに応用できるようになることを目指しています。
+
+ご意見やご提案があれば、いつでもIssueを提出するか、QQグループ：1011329060 にご参加ください。
 
 ## スター履歴
 
