@@ -2,25 +2,23 @@
 
 (English | [中文](README.md) | [日本語](README_ja.md))
 
-## Video
+## Introduction
 
 👉 [Human: Give AI a camera vs AI: Instantly finds out the owner hasn't washed hair for three days【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [Handcraft your AI girlfriend, beginner's guide【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
 
-## Introduction
-
-This is an open-source ESP32 project, released under the MIT license, allowing anyone to use it for free, including for commercial purposes.
-
-We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
-
-If you have any ideas or suggestions, please feel free to raise Issues or join the QQ group: 1011329060
-
-### Control Everything with MCP
-
 As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabilities of large models like Qwen / DeepSeek, and achieves multi-terminal control via the MCP protocol.
 
-![Control everything via MCP](docs/mcp-based-graph.jpg)
+<img src="docs/mcp-based-graph.jpg" alt="Control everything via MCP" width="320">
+
+## Version Notes
+
+The current v2 version is incompatible with the v1 partition table, so it is not possible to upgrade from v1 to v2 via OTA. For partition table details, see [partitions/v2/README.md](partitions/v2/README.md).
+
+All hardware running v1 can be upgraded to v2 by manually flashing the firmware.
+
+The stable version of v1 is 1.9.2. You can switch to v1 by running `git checkout v1`. The v1 branch will be maintained until February 2026.
 
 ### Features Implemented
 
@@ -36,6 +34,7 @@ As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabiliti
 - Supports ESP32-C3, ESP32-S3, ESP32-P4 chip platforms
 - Device-side MCP for device control (Speaker, LED, Servo, GPIO, etc.)
 - Cloud-side MCP to extend large model capabilities (smart home control, PC desktop operation, knowledge search, email, etc.)
+- Customizable wake words, fonts, emojis, and chat backgrounds with online web-based editing ([Custom Assets Generator](https://github.com/78/xiaozhi-assets-generator))
 
 ## Hardware
 
@@ -122,9 +121,10 @@ The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by
 
 ### Developer Documentation
 
-- [Custom Board Guide](main/boards/README.md) - Learn how to create custom boards for XiaoZhi AI
+- [Custom Board Guide](docs/custom-board.md) - Learn how to create custom boards for XiaoZhi AI
 - [MCP Protocol IoT Control Usage](docs/mcp-usage.md) - Learn how to control IoT devices via MCP protocol
 - [MCP Protocol Interaction Flow](docs/mcp-protocol.md) - Device-side MCP protocol implementation
+- [MQTT + UDP Hybrid Communication Protocol Document](docs/mqtt-udp.md)
 - [A detailed WebSocket communication protocol document](docs/websocket.md)
 
 ## Large Model Configuration
@@ -145,6 +145,21 @@ Other client projects using the XiaoZhi communication protocol:
 
 - [huangjunsen0406/py-xiaozhi](https://github.com/huangjunsen0406/py-xiaozhi) Python client
 - [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client) Android client
+- [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) Linux client by 100ask
+- [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) Bluetooth chip firmware by Sichuan
+- [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) QuecPython firmware by Quectel
+
+Custom Assets Tools:
+
+- [78/xiaozhi-assets-generator](https://github.com/78/xiaozhi-assets-generator) Custom Assets Generator (Wake words, fonts, emojis, backgrounds)
+
+## About the Project
+
+This is an open-source ESP32 project, released under the MIT license, allowing anyone to use it for free, including for commercial purposes.
+
+We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
+
+If you have any ideas or suggestions, please feel free to raise Issues or join the QQ group: 1011329060
 
 ## Star History
 
