@@ -154,6 +154,7 @@ private:
         codec->SetOutputVolume(volume);
         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
     }
+
     void MuteVol() {
         auto codec = GetAudioCodec();
         auto volume = codec->output_volume();
@@ -165,6 +166,7 @@ private:
         codec->SetOutputVolume(volume);
         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
     }
+
     void InitializeButtons() {
          button_adc_config_t adc_cfg = {};
         adc_cfg.adc_channel = ADC_CHANNEL_4; // ADC1 channel 0 is GPIO5
