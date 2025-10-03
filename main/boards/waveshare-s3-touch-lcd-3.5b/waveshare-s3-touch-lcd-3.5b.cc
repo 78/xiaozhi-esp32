@@ -177,51 +177,47 @@ private:
     }
 
     void InitializeCamera() {
-        camera_config_t config = {};
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = CAM_PIN_D0,
+                [1] = CAM_PIN_D1,
+                [2] = CAM_PIN_D2,
+                [3] = CAM_PIN_D3,
+                [4] = CAM_PIN_D4,
+                [5] = CAM_PIN_D5,
+                [6] = CAM_PIN_D6,
+                [7] = CAM_PIN_D7,
+            },
+            .vsync_io = CAM_PIN_VSYNC,
+            .de_io = CAM_PIN_HREF,
+            .pclk_io = CAM_PIN_PCLK,
+            .xclk_io = CAM_PIN_XCLK,
+        };
 
-        config.pin_pwdn = CAM_PIN_PWDN;  
-        config.pin_reset = CAM_PIN_RESET;
-        config.pin_xclk = CAM_PIN_XCLK;
-        config.pin_sccb_sda = CAM_PIN_SIOD;
-        config.pin_sccb_scl = CAM_PIN_SIOC;
-        config.sccb_i2c_port = I2C_NUM_0;
+        esp_video_init_sccb_config_t sccb_config = {
+            .init_sccb = true,
+            .i2c_config = {
+                .port = I2C_NUM_0,
+                .scl_pin = CAM_PIN_SIOC,
+                .sda_pin = CAM_PIN_SIOD,
+            },
+            .freq = 100000,
+        };
 
-        config.pin_d7 = CAM_PIN_D7;
-        config.pin_d6 = CAM_PIN_D6;
-        config.pin_d5 = CAM_PIN_D5;
-        config.pin_d4 = CAM_PIN_D4;
-        config.pin_d3 = CAM_PIN_D3;
-        config.pin_d2 = CAM_PIN_D2;
-        config.pin_d1 = CAM_PIN_D1;
-        config.pin_d0 = CAM_PIN_D0;
-        config.pin_vsync = CAM_PIN_VSYNC;
-        config.pin_href = CAM_PIN_HREF;
-        config.pin_pclk = CAM_PIN_PCLK;
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = CAM_PIN_RESET,
+            .pwdn_pin = CAM_PIN_PWDN,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = 10000000,
+        };
 
-        /* XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental) */
-        config.xclk_freq_hz = 10000000;
-        config.ledc_timer = LEDC_TIMER_1;
-        config.ledc_channel = LEDC_CHANNEL_0;
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
 
-        config.pixel_format = PIXFORMAT_RGB565;   /* YUV422,GRAYSCALE,RGB565,JPEG */
-        config.frame_size = FRAMESIZE_240X240;       /* QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates */
-
-        config.jpeg_quality = 12;                 /* 0-63, for OV series camera sensors, lower number means higher quality */
-        config.fb_count = 2;                      /* When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode */
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-
-        esp_err_t err = esp_camera_init(&config); // 测试相机是否存在
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Camera is not plugged in or not supported, error: %s", esp_err_to_name(err));
-            // 如果摄像头初始化失败，设置 camera_ 为 nullptr
-            camera_ = nullptr;
-            return;
-        }else
-        {
-            esp_camera_deinit();// 释放之前的摄像头资源,为正确初始化做准备
-            camera_ = new Esp32Camera(config);
-        }
+        camera_ = new Esp32Camera(video_config);
         
     }
 

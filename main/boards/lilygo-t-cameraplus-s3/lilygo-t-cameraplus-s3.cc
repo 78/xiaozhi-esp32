@@ -224,41 +224,56 @@ private:
     }
 
     void InitializeCamera() {
-        camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
-        config.pin_d0 = Y2_GPIO_NUM;
-        config.pin_d1 = Y3_GPIO_NUM;
-        config.pin_d2 = Y4_GPIO_NUM;
-        config.pin_d3 = Y5_GPIO_NUM;
-        config.pin_d4 = Y6_GPIO_NUM;
-        config.pin_d5 = Y7_GPIO_NUM;
-        config.pin_d6 = Y8_GPIO_NUM;
-        config.pin_d7 = Y9_GPIO_NUM;
-        config.pin_xclk = XCLK_GPIO_NUM;
-        config.pin_pclk = PCLK_GPIO_NUM;
-        config.pin_vsync = VSYNC_GPIO_NUM;
-        config.pin_href = HREF_GPIO_NUM;
-#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
-        config.pin_sccb_sda = -1;   // 这里如果写-1 表示使用已经初始化的I2C接口
-        config.pin_sccb_scl = SIOC_GPIO_NUM;
-        config.sccb_i2c_port = 0;   //  这里如果写0 默认使用I2C0
-#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
-        config.pin_sccb_sda = SIOD_GPIO_NUM;  
-        config.pin_sccb_scl = SIOC_GPIO_NUM;
-        config.sccb_i2c_port = 1; 
-#endif
-        config.pin_pwdn = PWDN_GPIO_NUM;
-        config.pin_reset = RESET_GPIO_NUM;
-        config.xclk_freq_hz = XCLK_FREQ_HZ;
-        config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_240X240;
-        config.jpeg_quality = 12;
-        config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = Y2_GPIO_NUM,
+                [1] = Y3_GPIO_NUM,
+                [2] = Y4_GPIO_NUM,
+                [3] = Y5_GPIO_NUM,
+                [4] = Y6_GPIO_NUM,
+                [5] = Y7_GPIO_NUM,
+                [6] = Y8_GPIO_NUM,
+                [7] = Y9_GPIO_NUM,
+            },
+            .vsync_io = VSYNC_GPIO_NUM,
+            .de_io = HREF_GPIO_NUM,
+            .pclk_io = PCLK_GPIO_NUM,
+            .xclk_io = XCLK_GPIO_NUM,
+        };
 
-        camera_ = new Esp32Camera(config);
+        esp_video_init_sccb_config_t sccb_config = {
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+            .init_sccb = true,
+            .i2c_config = {
+                .port = 0,
+                .scl_pin = SIOC_GPIO_NUM,
+                .sda_pin = GPIO_NUM_NC,
+            },
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+            .init_sccb = true,
+            .i2c_config = {
+                .port = 1,
+                .scl_pin = SIOC_GPIO_NUM,
+                .sda_pin = SIOD_GPIO_NUM,
+            },
+#endif
+            .freq = 100000,
+        };
+
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = RESET_GPIO_NUM,
+            .pwdn_pin = PWDN_GPIO_NUM,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = XCLK_FREQ_HZ,
+        };
+
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
         camera_->SetVFlip(1);
         camera_->SetHMirror(1);
     }

@@ -39,23 +39,23 @@
 #define DISPLAY_SPI_SCLK_HZ         (20 * 1000 * 1000)
 
 /* Camera pins */
-#define CAMERA_PIN_PWDN     -1
-#define CAMERA_PIN_RESET    -1
-#define CAMERA_PIN_XCLK     43
-#define CAMERA_PIN_SIOD     -1
-#define CAMERA_PIN_SIOC     -1
+#define CAMERA_PIN_PWDN     GPIO_NUM_NC
+#define CAMERA_PIN_RESET    GPIO_NUM_NC
+#define CAMERA_PIN_XCLK     GPIO_NUM_43
+#define CAMERA_PIN_SIOD     GPIO_NUM_NC
+#define CAMERA_PIN_SIOC     GPIO_NUM_NC
 
-#define CAMERA_PIN_D7       48
-#define CAMERA_PIN_D6       47
-#define CAMERA_PIN_D5       46
-#define CAMERA_PIN_D4       45
-#define CAMERA_PIN_D3       39
-#define CAMERA_PIN_D2       18
-#define CAMERA_PIN_D1       17
-#define CAMERA_PIN_D0       2
-#define CAMERA_PIN_VSYNC    21
-#define CAMERA_PIN_HREF     1
-#define CAMERA_PIN_PCLK     44
+#define CAMERA_PIN_D7       GPIO_NUM_48
+#define CAMERA_PIN_D6       GPIO_NUM_47
+#define CAMERA_PIN_D5       GPIO_NUM_46
+#define CAMERA_PIN_D4       GPIO_NUM_45
+#define CAMERA_PIN_D3       GPIO_NUM_39
+#define CAMERA_PIN_D2       GPIO_NUM_18
+#define CAMERA_PIN_D1       GPIO_NUM_17
+#define CAMERA_PIN_D0       GPIO_NUM_2
+#define CAMERA_PIN_VSYNC    GPIO_NUM_21
+#define CAMERA_PIN_HREF     GPIO_NUM_1
+#define CAMERA_PIN_PCLK     GPIO_NUM_44
 
 #define XCLK_FREQ_HZ 20000000
 
