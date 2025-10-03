@@ -1,0 +1,14 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "nodehexa",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_NODEHEXA=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_USE_AUDIO_PROCESSOR=y",
+                "CONFIG_IOT_PROTOCOL_MCP=y"
+            ]
+        }
+    ]
+}
