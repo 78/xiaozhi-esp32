@@ -52,11 +52,7 @@ dependencies:
     rules:
     - if: target in [esp32s3]
 
-  tny-robotics/sh1106-esp-idf:
-    version: ^1.0.0
-    rules:
-    - if: idf_version >= "5.4.0"
-
+  tny-robotics/sh1106-esp-idf: ^1.0.0
   waveshare/esp_lcd_jd9365_10_1:
     version: '*'
     rules:
