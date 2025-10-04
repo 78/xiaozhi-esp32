@@ -499,6 +499,11 @@ elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_ENGLISH_TEACHER)
+    set(BOARD_TYPE "english-teacher")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 
 file(GLOB BOARD_SOURCES
