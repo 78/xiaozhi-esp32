@@ -1,8 +1,0 @@
-{
-    "target": "esp32s3",
-    "builds": [
-        {
-            "name": "english-teacher"
-        }
-    ]
-}
