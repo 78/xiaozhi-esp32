@@ -16,6 +16,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lcd_display.cc"
             "display/oled_display.cc"
             "display/lvgl_display/lvgl_display.cc"
+            "display/emote_display.cc"
             "display/lvgl_display/emoji_collection.cc"
             "display/lvgl_display/lvgl_theme.cc"
             "display/lvgl_display/lvgl_font.cc"
@@ -212,11 +213,7 @@ elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
-    # Find esp_emote_gfx component for ECHOEAR extra files
-    find_component_by_pattern("esp_emote_gfx" EMOTE_GFX_COMPONENT EMOTE_GFX_COMPONENT_PATH)
-    if(EMOTE_GFX_COMPONENT_PATH)
-        set(DEFAULT_ASSETS_EXTRA_FILES "${EMOTE_GFX_COMPONENT_PATH}/emoji_normal")
-    endif()
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_AUDIO_BOARD)
     set(BOARD_TYPE "waveshare-s3-audio-board")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
@@ -229,6 +226,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06)
     set(BOARD_TYPE "waveshare-s3-touch-amoled-2.06")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_4B)
+    set(BOARD_TYPE "waveshare-s3-touch-lcd-4b")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
@@ -262,6 +264,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_5B)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+elseif(CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_3_49)
+    set(BOARD_TYPE "waveshare-s3-touch-lcd-3.49")
+    set(LVGL_TEXT_FONT font_puhui_basic_30_4)
+    set(LVGL_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP32C6_LCD_1_69)
     set(BOARD_TYPE "waveshare-c6-lcd-1.69")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)

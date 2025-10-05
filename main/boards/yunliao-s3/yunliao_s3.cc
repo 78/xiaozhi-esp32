@@ -145,7 +145,6 @@ public:
         power_manager_->CheckStartup();
         InitializePowerSaveTimer();
         InitializeSpi();
-        InitializeButtons();
         InitializeSt7789Display();
         power_manager_->OnChargingStatusDisChanged([this](bool is_discharging) {
             if(power_save_timer_){
@@ -158,8 +157,14 @@ public:
         });
         if(GetNetworkType() == NetworkType::WIFI){
             power_manager_->Shutdown4G();
+        }else{
+            power_manager_->Start4G();
         }
         GetBacklight()->RestoreBrightness();
+        while(gpio_get_level(BOOT_BUTTON_PIN) == 0){
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        InitializeButtons();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
