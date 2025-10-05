@@ -213,8 +213,10 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06
         bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32S3_Touch_LCD_4B
         bool "Waveshare ESP32-S3-Touch-LCD-4B"
         depends on IDF_TARGET_ESP32S3
@@ -365,6 +367,7 @@ choice BOARD_TYPE
         select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LABPLUS_MPYTHON_V3
         bool "labplus mpython_v3 board"
         depends on IDF_TARGET_ESP32S3
@@ -604,7 +607,7 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
-menu TAIJIPAI_S3_CONFIG
+menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     choice I2S_TYPE_TAIJIPI_S3
         prompt "taiji-pi-S3 I2S Type"

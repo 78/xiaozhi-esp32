@@ -50,9 +50,12 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     es8311_cfg.hw_gain.codec_dac_voltage = 3.3;
     es8311_cfg.pa_reverted = pa_inverted_;
     codec_if_ = es8311_codec_new(&es8311_cfg);
-    assert(codec_if_ != NULL);
 
-    ESP_LOGI(TAG, "Es8311AudioCodec initialized");
+    if (codec_if_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to create Es8311AudioCodec");
+    } else {
+        ESP_LOGI(TAG, "Es8311AudioCodec initialized");
+    }
 }
 
 Es8311AudioCodec::~Es8311AudioCodec() {
@@ -157,6 +160,9 @@ void Es8311AudioCodec::SetOutputVolume(int volume) {
 
 void Es8311AudioCodec::EnableInput(bool enable) {
     std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (codec_if_ == nullptr) {
+        return;
+    }
     if (enable == input_enabled_) {
         return;
     }
@@ -166,6 +172,9 @@ void Es8311AudioCodec::EnableInput(bool enable) {
 
 void Es8311AudioCodec::EnableOutput(bool enable) {
     std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (codec_if_ == nullptr) {
+        return;
+    }
     if (enable == output_enabled_) {
         return;
     }
