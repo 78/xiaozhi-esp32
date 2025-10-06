@@ -9,6 +9,13 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
+#include "ui/display_manager.h"
+#include "input/button_manager.h"
+#include "audio/audio_manager.h"
+#include "services/word_practice.h"
+#include "services/free_conversation.h"
+#include "services/scene_conversation.h"
+#include "ui/menu_manager.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -359,7 +366,19 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
+        //===================== [wj] Start =====================
+    // @Author  : Wang Jian
+    // @Date    : 2025-10-6
+    // @Reason  : initialize for EnglishTeacher code
+    // Initialize new managers/services (skeleton)
+    DisplayManager::GetInstance().Init();
+    AudioManager::GetInstance().Init();
+    WordPracticeService::GetInstance().Init();
+    FreeConversationService::GetInstance().Init();
+    SceneConversationService::GetInstance().Init();
+    MenuManager::Init();
 
+    //===================== [wj] End =====================
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_SEND_AUDIO);

@@ -38,7 +38,19 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
+# English teacher feature skeleton files
+list(APPEND SOURCES "ui/display_manager.cc"
+                     "input/button_manager.cc"
+                     "audio/audio_manager.cc"
+                     "services/word_practice.cc"
+                     "services/free_conversation.cc"
+                     "services/scene_conversation.cc"
+                     "ui/menu_manager.cc"
+                     )
+
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
+list(APPEND INCLUDE_DIRS "ui" "input" "audio" "services")
+list(APPEND INCLUDE_DIRS "ui")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
