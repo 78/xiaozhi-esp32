@@ -11,7 +11,7 @@ static const char *TAG = "EPD_DEMO";
 static gt30l32s4w_handle_t gs_handle;        /**< gt30l32s4w handle */
 
 
-DisplayClass display(
+DisplayClass display(   
     GxEPD2_DRIVER_CLASS(
         /*CS=*/ EPD_PIN_NUM_CS,
         /*DC=*/ EPD_PIN_NUM_DC,
