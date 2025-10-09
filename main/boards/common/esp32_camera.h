@@ -1,8 +1,7 @@
+#pragma once
 #include "sdkconfig.h"
 
-#if (not defined(ESP32_CAMERA_H)) && (not defined(CONFIG_IDF_TARGET_ESP32))
-#define ESP32_CAMERA_H
-
+#ifndef CONFIG_IDF_TARGET_ESP32
 #include <lvgl.h>
 #include <thread>
 #include <memory>
@@ -50,4 +49,4 @@ public:
     virtual std::string Explain(const std::string& question);
 };
 
-#endif // ESP32_CAMERA_H
+#endif // ndef CONFIG_IDF_TARGET_ESP32

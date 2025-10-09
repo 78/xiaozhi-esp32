@@ -632,6 +632,30 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
+menu "Camera Configuration"
+    depends on !IDF_TARGET_ESP32
+
+    config XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
+        bool "Enable Camera Debug Mode"
+        default n
+        help
+            Enable camera debug mode, print camera debug information to the console.
+            Only works on boards that support camera.
+
+    config XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
+        bool "Enable software camera buffer endianness swapping (USE WITH CAUTION)"
+        default n
+        depends on !CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
+        help
+            This option treats the camera buffer as a uint16_t[] array and performs byte-swapping (endianness conversion) on each element.
+            
+            Should only be modified by development board integration engineers.
+            
+            **Incorrect usage may result in incorrect image colors!**
+            
+            ATTENTION: If the option CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is available for your sensor, please use that instead.
+endmenu
+
 menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     choice I2S_TYPE_TAIJIPI_S3
