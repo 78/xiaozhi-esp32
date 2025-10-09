@@ -249,6 +249,8 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B"
+    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_7B
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-7B"
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C or ESP32-P4-WIFI6-Touch-LCD-4C"
@@ -290,7 +292,7 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3-BOX2-WIFI"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3_BOX2_4G
-        bool "正点原子DNESP32S3-BOX2-4G" 
+        bool "正点原子DNESP32S3-BOX2-4G"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3M_WIFI
         bool "正点原子DNESP32S3M-WIFI"
@@ -556,7 +558,7 @@ config SEND_WAKE_WORD_DATA
     depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
     help
         Send wake word data to the server as the first message of the conversation and wait for response
-        
+
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
@@ -569,7 +571,7 @@ config USE_DEVICE_AEC
     default n
         depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE \
         || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 \
-        || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32S3_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B \
+        || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32S3_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_7B \
         || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_ECHOEAR || BOARD_TYPE_ESP32S3_Touch_LCD_3_49)
     help
