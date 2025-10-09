@@ -229,20 +229,22 @@ esp_lcd_panel_invert_color(panel, true);
 esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
 esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-// 创建显示屏对象
+// Create a display screen object
 display_ = new SpiLcdDisplay(panel_io, panel,
 DISPLAY_WIDTH, DISPLAY_HEIGHT,
 DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
 DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 }
 
-// MCP Tools 初始化
+// Initialize MCP Tools
 void InitializeTools() {
-// 参考 MCP 文档
+// Refer to MCP documentation
 }
 
+
 public:
-// 构造函数
+// Constructor
+
 MyCustomBoard() : boot_button_(BOOT_BUTTON_GPIO) {
 InitializeI2c();
 InitializeSpi();
@@ -252,7 +254,7 @@ InitializeTools();
 GetBacklight()->SetBrightness(100);
 }
 
-// 获取音频编解码器
+// Get the audio codec
 virtual AudioCodec* GetAudioCodec() override {
 static Es8311AudioCodec audio_codec(
 codec_i2c_bus_,
@@ -269,27 +271,27 @@ AUDIO_CODEC_ES8311_ADDR);
 return &audio_codec;
 }
 
-// 获取显示屏
+// Get the display screen
 virtual Display* GetDisplay() override {
 return display_;
 }
 
-// 获取背光控制
+// Get backlight control
 virtual Backlight* GetBacklight() override {
 static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
 return &backlight;
 }
 };
 
-// 注册开发板
+// Register the development board
 DECLARE_BOARD(MyCustomBoard);
 ```
 
-### 4. 添加构建系统配置
+### 4. Add Build System Configuration
 
-#### 在 Kconfig.projbuild 中添加开发板选项
+#### Add a board option in Kconfig.projbuild
 
-打开 `main/Kconfig.projbuild` 文件，在 `choice BOARD_TYPE` 部分添加新的开发板配置项：
+Open the `main/Kconfig.projbuild` file and add a new board configuration option in the `choice BOARD_TYPE` section:
 
 ```kconfig
 choice BOARD_TYPE
@@ -297,93 +299,91 @@ prompt "Board Type"
 default BOARD_TYPE_BREAD_COMPACT_WIFI
 help
 Board type. 开发板类型
-
-# ... 其他开发板选项 ...
+# ... Other board options ...
 
 config BOARD_TYPE_MY_CUSTOM_BOARD
-bool "My Custom Board (我的自定义开发板)"
-depends on IDF_TARGET_ESP32S3  # 根据你的目标芯片修改
+bool "My Custom Board"
+depends on IDF_TARGET_ESP32S3 # Modify based on your target chip
 endchoice
 ```
 
-**注意事项：**
-- `BOARD_TYPE_MY_CUSTOM_BOARD` 是配置项名称，需要全大写，使用下划线分隔
-- `depends on` 指定了目标芯片类型（如 `IDF_TARGET_ESP32S3`、`IDF_TARGET_ESP32C3` 等）
-- 描述文字可以使用中英文
+**Notes:**
+- `BOARD_TYPE_MY_CUSTOM_BOARD` is the configuration option name, all capitalized, separated by underscores.
+- `depends on` specifies the target chip type (e.g., `IDF_TARGET_ESP32S3`, `IDF_TARGET_ESP32C3`, etc.)
+- Description text can be in both Chinese and English.
 
-#### 在 CMakeLists.txt 中添加开发板配置
+#### Add board configuration to CMakeLists.txt
 
-打开 `main/CMakeLists.txt` 文件，在开发板类型判断部分添加新的配置：
+Open `main/CMakeLists.txt` and add a new configuration to the board type determination section:
 
 ```cmake
-# 在 elseif 链中添加你的开发板配置
+# elseif Add your board configuration to the chain.
 elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
-set(BOARD_TYPE "my-custom-board")  # 与目录名一致
-set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)  # 根据屏幕大小选择合适的字体
+set(BOARD_TYPE "my-custom-board") # Match the directory name
+set(BUILTIN_TEXT_FONT font_puhui_basic_20_4) # Select the appropriate font based on the screen size
 set(BUILTIN_ICON_FONT font_awesome_20_4)
-set(DEFAULT_EMOJI_COLLECTION twemoji_64)  # 可选，如果需要表情显示
+set(DEFAULT_EMOJI_COLLECTION twemoji_64) # Optional, if emojis are required
 endif()
 ```
 
-**字体和表情配置说明：**
+**Font and emoji configuration instructions:**
 
-根据屏幕分辨率选择合适的字体大小：
-- 小屏幕（128x64 OLED）：`font_puhui_basic_14_1` / `font_awesome_14_1`
-- 中小屏幕（240x240）：`font_puhui_basic_16_4` / `font_awesome_16_4`
-- 中等屏幕（240x320）：`font_puhui_basic_20_4` / `font_awesome_20_4`
-- 大屏幕（480x320+）：`font_puhui_basic_30_4` / `font_awesome_30_4`
+Select the appropriate font size based on the screen resolution:
+- Small screen (128x64 OLED): `font_puhui_basic_14_1` / `font_awesome_14_1`
+- Small to medium screen (240x240): `font_puhui_basic_16_4` / `font_awesome_16_4`
+- Medium screens (240x320): `font_puhui_basic_20_4` / `font_awesome_20_4`
+- Large screens (480x320+): `font_puhui_basic_30_4` / `font_awesome_30_4`
 
-表情集合选项：
-- `twemoji_32` - 32x32 像素表情（小屏幕）
-- `twemoji_64` - 64x64 像素表情（大屏幕）
+Emoji collection options:
+- `twemoji_32` - 32x32 pixel emojis (small screens)
+- `twemoji_64` - 64x64 pixel emojis (large screens)
 
-### 5. 配置和编译
+### 5. Configuration and Compilation
 
-#### 方法一：使用 idf.py 手动配置
+#### Method 1: Manual Configuration using idf.py
 
-1. **设置目标芯片**（首次配置或更换芯片时）：
+1. **Set the target chip** (for initial configuration or when changing chips):
 ```bash
-# 对于 ESP32-S3
+# For ESP32-S3
 idf.py set-target esp32s3
 
-# 对于 ESP32-C3
+# For ESP32-C3
 idf.py set-target esp32c3
 
-# 对于 ESP32
+# For ESP32
 idf.py set-target esp32
 ```
 
-2. **清理旧配置**：
+2. **Clean out old configuration**:
 ```bash
 idf.py fullclean
 ```
 
-3. **进入配置菜单**：
+3. **Enter the configuration menu**:
 ```bash
 idf.py menuconfig
 ```
 
-在菜单中导航到：`Xiaozhi Assistant` -> `Board Type`，选择你的自定义开发板。
+In the menu, navigate to: `Xiaozhi Assistant` -> `Board Type` and select your custom development board.
 
-4. **编译和烧录**：
+4. **Compile and Flash**:
 ```bash
 idf.py build
 idf.py flash monitor
 ```
 
-#### 方法二：使用 release.py 脚本（推荐）
+#### Method 2: Using the release.py script (recommended)
 
-如果你的开发板目录下有 `config.json` 文件，可以使用此脚本自动完成配置和编译：
+If your development board contains a `config.json` file, you can use this script to automatically configure and compile:
 
 ```bash
 python scripts/release.py my-custom-board
 ```
 
-此脚本会自动：
-- 读取 `config.json` 中的 `target` 配置并设置目标芯片
-- 应用 `sdkconfig_append` 中的编Compile options
+This script will automatically:
+- Read the `target` configuration from `config.json` and set the target chip
+- Apply the `Compile options` from `sdkconfig_append`
 - Complete the compilation and package the firmware
-
 ### 6. Create a README.md file
 
 In the README.md file, describe the development board's features, hardware requirements, and compilation and flashing steps:
