@@ -66,7 +66,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   espressif/esp_lcd_ek79007:
-    version: 1.*
+    version: ^1.0.3
     rules:
     - if: target in [esp32p4]
   espressif/esp_hosted:
