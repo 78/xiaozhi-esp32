@@ -214,31 +214,54 @@ MCP interaction primarily revolves around the client (backend API) discovering a
 ## Interaction Diagram
 
 Below is a simplified interaction sequence diagram showing the main MCP message flow:
-... result: { tools: [...], nextCursor: ... } 
+```mermaid
+sequenceDiagram
+    participant Device as ESP32 Device
+    participant BackendAPI as 后台 API (Client)
 
-loop Optional Pagination 
-BackendAPI->>Device: MCP Get Tools List Request 
-Note over BackendAPI: method: tools/list 
-Note over BackendAPI: params: { cursor: "..." } 
-Device->>BackendAPI: MCP Get Tools List Response 
-Note over Device: result: { tools: [...], nextCursor: "" } 
-end 
+    Note over Device, BackendAPI: 建立 WebSocket / MQTT 连接
 
-BackendAPI->>Device: MCP Call Tool Request 
-Note over BackendAPI: method: tools/call 
-Note over BackendAPI: params: { name: "...", arguments: { ... } } 
+    Device->>BackendAPI: Hello Message (包含 "mcp": true)
 
-alt Tool Call Successful 
-Device->>BackendAPI: MCP Tool Call Success Response 
-Note over Device: result: { content: [...], isError: false } 
-else Tool Call Failed 
-Device->>BackendAPI: MCP Tool Call Error Response 
-Note over Device: error: { code: ..., message: ... } 
-end opt Device Notification
-Device->>BackendAPI: MCP Notification
-Note over Device: method: notifications/...
-Note over Device: params: { ... }
-end
+    BackendAPI->>Device: MCP Initialize Request
+    Note over BackendAPI: method: initialize
+    Note over BackendAPI: params: { capabilities: ... }
+
+    Device->>BackendAPI: MCP Initialize Response
+    Note over Device: result: { protocolVersion: ..., serverInfo: ... }
+
+    BackendAPI->>Device: MCP Get Tools List Request
+    Note over BackendAPI: method: tools/list
+    Note over BackendAPI: params: { cursor: "" }
+
+    Device->>BackendAPI: MCP Get Tools List Response
+    Note over Device: result: { tools: [...], nextCursor: ... }
+
+    loop Optional Pagination
+        BackendAPI->>Device: MCP Get Tools List Request
+        Note over BackendAPI: method: tools/list
+        Note over BackendAPI: params: { cursor: "..." }
+        Device->>BackendAPI: MCP Get Tools List Response
+        Note over Device: result: { tools: [...], nextCursor: "" }
+    end
+
+    BackendAPI->>Device: MCP Call Tool Request
+    Note over BackendAPI: method: tools/call
+    Note over BackendAPI: params: { name: "...", arguments: { ... } }
+
+    alt Tool Call Successful
+        Device->>BackendAPI: MCP Tool Call Success Response
+        Note over Device: result: { content: [...], isError: false }
+    else Tool Call Failed
+        Device->>BackendAPI: MCP Tool Call Error Response
+        Note over Device: error: { code: ..., message: ... }
+    end
+
+    opt Device Notification
+        Device->>BackendAPI: MCP Notification
+        Note over Device: method: notifications/...
+        Note over Device: params: { ... }
+    end
 ```
 
 This document outlines the main MCP protocol interaction flow in this project. For detailed parameter details and tool functionality, please refer to `McpServer::AddCommonTools` in `main/mcp_server.cc` and the implementation of each tool.
