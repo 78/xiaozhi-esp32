@@ -1,115 +1,117 @@
-# MCP 协议物联网控制用法说明
+# MCP Protocol IoT Control Usage Instructions
 
-> 本文档介绍如何基于 MCP 协议实现 ESP32 设备的物联网控制。详细协议流程请参考 [`mcp-protocol.md`](./mcp-protocol.md)。
+> This document describes how to implement IoT control of ESP32 devices based on the MCP protocol. For detailed protocol flow, please refer to [`mcp-protocol.md`](./mcp-protocol.md).
 
-## 简介
+## Introduction
 
-MCP（Model Context Protocol）是新一代推荐用于物联网控制的协议，通过标准 JSON-RPC 2.0 格式在后台与设备间发现和调用"工具"（Tool），实现灵活的设备控制。
+MCP (Model Context Protocol) is a next-generation, recommended protocol for IoT control. It uses the standard JSON-RPC 2.0 format to discover and call "tools" between the backend and the device, enabling flexible device control.
 
-## 典型使用流程
+## Typical Usage Flow
 
-1. 设备启动后通过基础协议（如 WebSocket/MQTT）与后台建立连接。
-2. 后台通过 MCP 协议的 `initialize` 方法初始化会话。
-3. 后台通过 `tools/list` 获取设备支持的所有工具（功能）及参数说明。
-4. 后台通过 `tools/call` 调用具体工具，实现对设备的控制。
+1. After booting, the device establishes a connection with the backend using a basic protocol (such as WebSocket/MQTT).
 
-详细协议格式与交互请见 [`mcp-protocol.md`](./mcp-protocol.md)。
+2. The backend initializes the session using the MCP protocol's `initialize` method.
 
-## 设备端工具注册方法说明
+3. The backend retrieves all supported tools (functions) and parameter descriptions for the device using `tools/list`.
 
-设备通过 `McpServer::AddTool` 方法注册可被后台调用的"工具"。其常用函数签名如下：
+4. The backend calls a specific tool using `tools/call` to control the device.
+
+For detailed protocol format and interaction, see [`mcp-protocol.md`](./mcp-protocol.md).
+
+## Device-side Tool Registration Method Description
+
+The device registers a "tool" that can be called by the backend through the `McpServer::AddTool` method. Its common function signature is as follows:
 
 ```cpp
 void AddTool(
-    const std::string& name,           // 工具名称，建议唯一且有层次感，如 self.dog.forward
-    const std::string& description,    // 工具描述，简明说明功能，便于大模型理解
-    const PropertyList& properties,    // 输入参数列表（可为空），支持类型：布尔、整数、字符串
-    std::function<ReturnValue(const PropertyList&)> callback // 工具被调用时的回调实现
+const std::string& name, // Tool name, recommended to be unique and structured, such as self.dog.forward
+const std::string& description, // Tool description, briefly describing its functionality for easier understanding in large models
+const PropertyList& properties, // Input parameter list (optional), supported types: Boolean, integer, string
+std::function<ReturnValue(const PropertyList&)> callback // Callback implementation for when the tool is called
 );
 ```
-- name：工具唯一标识，建议用"模块.功能"命名风格。
-- description：自然语言描述，便于 AI/用户理解。
-- properties：参数列表，支持类型有布尔、整数、字符串，可指定范围和默认值。
-- callback：收到调用请求时的实际执行逻辑，返回值可为 bool/int/string。
+- name: Unique identifier for the tool. "Module.Function" naming style is recommended.
+- description: Natural language description for easier understanding by the AI/user. - properties: A list of parameters. Supported types include booleans, integers, and strings. Ranges and default values ​​can be specified.
+- callback: The actual execution logic upon receiving a call request. The return value can be bool, int, or string.
 
-## 典型注册示例（以 ESP-Hi 为例）
+## Typical Registration Example (Using ESP-Hi)
 
 ```cpp
 void InitializeTools() {
-    auto& mcp_server = McpServer::GetInstance();
-    // 例1：无参数，控制机器人前进
-    mcp_server.AddTool("self.dog.forward", "机器人向前移动", PropertyList(), [this](const PropertyList&) -> ReturnValue {
-        servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
-        return true;
-    });
-    // 例2：带参数，设置灯光 RGB 颜色
-    mcp_server.AddTool("self.light.set_rgb", "设置RGB颜色", PropertyList({
-        Property("r", kPropertyTypeInteger, 0, 255),
-        Property("g", kPropertyTypeInteger, 0, 255),
-        Property("b", kPropertyTypeInteger, 0, 255)
-    }), [this](const PropertyList& properties) -> ReturnValue {
-        int r = properties["r"].value<int>();
-        int g = properties["g"].value<int>();
-        int b = properties["b"].value<int>();
-        led_on_ = true;
-        SetLedColor(r, g, b);
-        return true;
-    });
+auto& mcp_server = McpServer::GetInstance();
+// Example 1: No parameters, controlling the robot forward
+mcp_server.AddTool("self.dog.forward", "Robot moves forward", PropertyList(), [this](const PropertyList&) -> ReturnValue {
+servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
+return true;
+});
+// Example 2: With parameters, setting the light's RGB color
+mcp_server.AddTool("self.light.set_rgb", "Set RGB color", PropertyList({
+Property("r", kPropertyTypeInteger, 0, 255),
+Property("g", kPropertyTypeInteger, 0, 255),
+Property("b", kPropertyTypeInteger, 0, 255)
+}), [this](const PropertyList& properties) -> ReturnValue {
+int r = properties["r"].value<int>();
+int g = properties["g"].value<int>();
+int b = properties["b"].value<int>();
+led_on_ = true;
+SetLedColor(r, g, b);
+return true;
+});
 }
 ```
 
-## 常见工具调用 JSON-RPC 示例
+## Common Tool Call JSON-RPC Examples
 
-### 1. 获取工具列表
+### 1. Get Tool List
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "tools/list",
-  "params": { "cursor": "" },
-  "id": 1
+"jsonrpc": "2.0",
+"method": "tools/list",
+"params": { "cursor": "" },
+"id": 1
 }
 ```
 
-### 2. 控制底盘前进
+### 2. Control Chassis Forward
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "self.chassis.go_forward",
-    "arguments": {}
-  },
-  "id": 2
+"jsonrpc": "2.0",
+"method": "tools/call",
+"params": {
+"name": "self.chassis.go_forward",
+"arguments": {}
+},
+"id": 2
 }
 ```
 
-### 3. 切换灯光模式
+### 3. Switch Light Mode
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "self.chassis.switch_light_mode",
-    "arguments": { "light_mode": 3 }
-  },
-  "id": 3
+"jsonrpc": "2.0",
+"method": "tools/call",
+"params": {
+"name": "self.chassis.switch_light_mode",
+"arguments": { "light_mode": 3 }
+},
+"id": 3
 }
 ```
 
-### 4. 摄像头翻转
+### 4. Flip Camera
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "self.camera.set_camera_flipped",
-    "arguments": {}
-  },
-  "id": 4
+"jsonrpc": "2.0",
+"method": "tools/call",
+"params": {
+"name": "self.camera.set_camera_flipped",
+"arguments": {}
+},
+"id": 4
 }
 ```
 
-## 备注
-- 工具名称、参数及返回值请以设备端 `AddTool` 注册为准。
-- 推荐所有新项目统一采用 MCP 协议进行物联网控制。
-- 详细协议与进阶用法请查阅 [`mcp-protocol.md`](./mcp-protocol.md)。 
+## Notes
+- Tool names, parameters, and return values ​​should be based on the device's settings. Register with `AddTool`.
+- We recommend that all new projects adopt the MCP protocol for IoT control.
+- For detailed protocol information and advanced usage, please refer to [`mcp-protocol.md`](./mcp-protocol.md).
