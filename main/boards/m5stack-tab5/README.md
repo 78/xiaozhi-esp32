@@ -10,22 +10,36 @@
 
 * idf version: v6.0-dev
 
-1. 设置编译目标为 esp32p4
+1. 调整 idf_component.yml
 
-```shell
-idf.py set-target esp32p4 
+将
+```yaml
+  espressif/esp_video:
+    version: ==1.3.1   # for compatibility. update version may need to modify this project code.
+    rules:
+    - if: target not in [esp32]
+```
+修改为
+```yaml
+  espressif/esp_video:
+    version: '==0.7.0'
+    rules:
+    - if: target not in [esp32]
+  espressif/esp_ipa: '==0.1.0'
 ```
 
-2. 修改配置 
+2. 使用 release.py 编译
 
 ```shell
-cp main/boards/m5stack-tab5/sdkconfig.tab5 sdkconfig
+python ./scripts/release.py m5stack-tab5
 ```
+
+如需手动编译，请参考 `m5stack-tab5/config.json` 修改 menuconfig 对应选项。
 
 3. 编译烧录程序
 
 ```shell
-idf.py build flash monitor
+idf.py flash monitor
 ```
 
 > [!NOTE]
