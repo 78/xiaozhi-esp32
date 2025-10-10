@@ -82,6 +82,11 @@ dependencies:
     rules:
     - if: target in [esp32c3]
 
+  llgok/cpp_bus_driver:
+    version: 1.1.0
+    rules:
+    - if: target in [esp32p4]
+
   ## Required IDF version
   idf:
     version: '>=5.4.0'
