@@ -20,6 +20,8 @@ DisplayClass display(
     )
 );
 
+// ...existing code...
+
 
 // UTF-8 -> GB2312 表
 typedef struct {
@@ -94,7 +96,6 @@ bool utf8_to_gb2312(const char* utf8Char, uint8_t gb[2]) {
 bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y)
 {
     uint8_t buf[24] = {0};  // 16x16 → 每行2字节 × 16行 = 32字节
-    uint8_t len = 0;
     uint8_t ret;
     // 从字库读取中文点阵
     if ((ret = gt30l32s4w_read_char_12x12(handle, gbCode, buf)) != 0)
@@ -172,5 +173,57 @@ void drawBitmapMixedString(const char* utf8Str, int x, int y)
 
             utf8Str += 1;
         }
+    }
+}
+
+// C-compatible wrapper API so other TUs don't need to include GxEPD2 headers
+extern "C" {
+    void drawMixedString_init()
+    {
+        // initialize GT30 and display with sensible defaults
+        initArduino();
+        SPI.begin(SPI_PIN_NUM_CLK, SPI_NUM_MISO, SPI_PIN_NUM_MOSI);
+        pinMode(EPD_PIN_NUM_CS, OUTPUT);
+        pinMode(EPD_PIN_NUM_DC, OUTPUT);
+        pinMode(EPD_PIN_NUM_RST, OUTPUT);
+        pinMode(EPD_PIN_NUM_BUSY, INPUT);
+        pinMode(GT30_PIN_NUM_CS, OUTPUT);
+        uint8_t rt = gt30_init();
+        (void)rt;
+        display.init(115200, true, 2, false);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        display.fillScreen(GxEPD_WHITE);
+        display.setRotation(0);
+    }
+
+    void drawMixedString_fillScreen(int color)
+    {
+        display.fillScreen(color);
+    }
+
+    void drawMixedString_drawText(const char* utf8, int x, int y)
+    {
+        drawBitmapMixedString(utf8, x, y);
+    }
+
+    void drawMixedString_display(bool partial)
+    {
+        if (partial) display.display(true);
+        else display.display(false);
+    }
+
+    int drawMixedString_width()
+    {
+        return display.width();
+    }
+
+    int drawMixedString_height()
+    {
+        return display.height();
+    }
+
+    void drawMixedString_drawBitmap(int x, int y, const uint8_t* data, int w, int h, int color)
+    {
+        display.drawBitmap(x, y, data, w, h, color);
     }
 }

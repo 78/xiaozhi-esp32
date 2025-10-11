@@ -363,14 +363,23 @@ void Application::Start() {
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
 
     /* Setup the audio service */
+    //配置音频输入输出，采样频率，引脚信息等参数
     auto codec = board.GetAudioCodec();
+    //创建音频处理器AudioProcessor，注册音频输出与VAD状态回调，创建音频功率检测定时器
     audio_service_.Initialize(codec);
+    //创建音频输入任务AudioInputTask AudioOutputTask
     audio_service_.Start();
         //===================== [wj] Start =====================
     // @Author  : Wang Jian
     // @Date    : 2025-10-6
     // @Reason  : initialize for EnglishTeacher code
     // Initialize new managers/services (skeleton)
+    // WIFI和音频不同时工作，放置电压突降
+   //vTaskDelay(pdMS_TO_TICKS(1000));
+   //设置喇叭音量为10
+    codec->SetOutputVolume(10);
+
+
     DisplayManager::GetInstance().Init();
     AudioManager::GetInstance().Init();
     WordPracticeService::GetInstance().Init();
@@ -379,6 +388,8 @@ void Application::Start() {
     MenuManager::Init();
 
     //===================== [wj] End =====================
+
+    //AudioService 回调绑定（3个事件位），SetCallbacks 将这些回调注册到音频服务
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_SEND_AUDIO);
@@ -391,7 +402,7 @@ void Application::Start() {
     };
     audio_service_.SetCallbacks(callbacks);
 
-    // Start the main event loop task with priority 3
+    // Start the main event loop task with priority 3，创建主循环任务
     xTaskCreate([](void* arg) {
         ((Application*)arg)->MainEventLoop();
         vTaskDelete(NULL);
@@ -401,15 +412,23 @@ void Application::Start() {
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
 
     /* Wait for the network to be ready */
+    //如果网络列表没有数据，进入到配置模式，或者按下boot按键进入到配置模式
     board.StartNetwork();
+    
+
 
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);
 
     // Check for new assets version
+    // 从打包的资源中读取 index.json 索引文件，然后根据索引加载：
+    // 语音识别模型 (srmodels)，字体文件 (font)，表情文件 (emoji)，皮肤主题 (skin)
     CheckAssetsVersion();
 
     // Check for new firmware version or get the MQTT broker address
+    //从服务器获取设备配置信息和固件版本信息，判断是否有新版本可升级
+    //并更新配置（如 MQTT、WebSocket、时间同步等），但是并没有执行OTA的操作
+    //从服务器获取MQTT,WebSocket地址，并将地址保存到NVS中
     Ota ota;
     CheckNewVersion(ota);
 
@@ -417,10 +436,13 @@ void Application::Start() {
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
     // Add MCP common tools before initializing the protocol
+   //管理一系列工具（tools），接收并解析 JSON-RPC 消息，执行对应工具逻辑
     auto& mcp_server = McpServer::GetInstance();
+    //注册常用设备控制工具，获取设备状态、调节音量、调节亮度、切换主题、拍照
     mcp_server.AddCommonTools();
+    //注册用户专属工具（权限更高），设备重启，OTA升级等
     mcp_server.AddUserOnlyTools();
-
+    //创建Mqtt协议对象或者WebSocket协议对象
     if (ota.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota.HasWebsocketConfig()) {
@@ -429,20 +451,23 @@ void Application::Start() {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
-
+    //协议连接时清除错误
     protocol_->OnConnected([this]() {
         DismissAlert();
     });
-
+    //协议连接失败时显示错误信息
     protocol_->OnNetworkError([this](const std::string& message) {
         last_error_message_ = message;
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
+
+    //当收到来自服务器的音频包时被调用，在设备当前处于正在播放/说话状态才把包丢到解码队列，其他状态则丢弃
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (device_state_ == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
+    //设备与服务器之间的音频通道（Audio Stream 通信链路）建立成功
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
         board.SetPowerSaveMode(false);
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
@@ -450,6 +475,7 @@ void Application::Start() {
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
     });
+    //说明音频传输结束，设备恢复空闲状态
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
@@ -458,6 +484,7 @@ void Application::Start() {
             SetDeviceState(kDeviceStateIdle);
         });
     });
+    //设备收到服务器发来的 JSON 消息时被调用的回调，如 TTS、STT、LLM、系统命令等
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
@@ -484,8 +511,14 @@ void Application::Start() {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    Schedule([this, display, message = std::string(text->valuestring)]() {
-                        display->SetChatMessage("assistant", message.c_str());
+                    //===================== [wj] Start =====================
+                    // @Author  : Wang Jian
+                    // @Date    : 2025-10-7
+                    // @Reason  : route TTS sentence to DisplayManager (assistant side)
+                    // Send assistant (server TTS) sentence start to DisplayManager
+                    Schedule([this, message = std::string(text->valuestring)]() {
+                        DisplayManager::GetInstance().UpdateConversationSide(false, message, "");
+                    //===================== [wj] End =====================
                     });
                 }
             }
@@ -493,8 +526,14 @@ void Application::Start() {
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                Schedule([this, display, message = std::string(text->valuestring)]() {
-                    display->SetChatMessage("user", message.c_str());
+                //===================== [wj] Start =====================
+                    // @Author  : Wang Jian
+                    // @Date    : 2025-10-7
+                    // @Reason  : route STT result to DisplayManager (user side)
+                // Route user STT result to DisplayManager (user side)
+                Schedule([this, message = std::string(text->valuestring)]() {
+                    DisplayManager::GetInstance().UpdateConversationSide(true, message, "");
+                    //===================== [wj] End =====================
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -536,8 +575,14 @@ void Application::Start() {
             auto payload = cJSON_GetObjectItem(root, "payload");
             ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
             if (cJSON_IsObject(payload)) {
-                Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
-                    display->SetChatMessage("system", payload_str.c_str());
+                //===================== [wj] Start =====================
+                    // @Author  : Wang Jian
+                    // @Date    : 2025-10-7
+                    // @Reason  : route custom payload to DisplayManager (system side)
+                Schedule([this, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
+                    // Show custom payload on the e-paper as a system-side message
+                    DisplayManager::GetInstance().UpdateConversationSide(false, payload_str, "");
+                //===================== [wj] End =====================
                 });
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");

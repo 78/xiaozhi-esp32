@@ -69,7 +69,12 @@ void MenuManager::Init() {
         WordPracticeService::GetInstance().Next();
     });
     ButtonManager::GetInstance().RegisterScreenCallback(ScreenId::WORD_PRACTICE, ButtonId::SELECT, [](){
-        // Read word
+        // Read current word
+        WordPracticeService::GetInstance().ReadCurrent();
+    });
+    // Map PTT button for quiz action
+    ButtonManager::GetInstance().RegisterScreenCallback(ScreenId::WORD_PRACTICE, ButtonId::PTT, [](){
+        WordPracticeService::GetInstance().AskQuiz();
     });
     ButtonManager::GetInstance().RegisterScreenCallback(ScreenId::WORD_PRACTICE, ButtonId::BACK, [](){
         ButtonManager::GetInstance().SetActiveScreen(ScreenId::MAIN);
