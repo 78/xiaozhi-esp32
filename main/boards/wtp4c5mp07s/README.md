@@ -1,6 +1,10 @@
 ## Wireless-Tag WTP4C5MP07S
 
-[Wireless-Tag WTP4C5MP07S](https://shop.wireless-tag.com/products/7inch-lcd-touch-screen-1024x600-mipi-smart-displays-wtp4c5mp07s-esp32-lcd-board-used-with-esp32-p4-and-esp32-c5-dev-board)
+[Wireless-Tag WTP4C5MP07S](https://shop.wireless-tag.com/products/7inch-lcd-touch-screen-1024x600-mipi-smart-displays-wtp4c5mp07s-esp32-lcd-board-used-with-esp32-p4-and-esp32-c5-dev-board) product is a combo of
+* [Wireless-Tag WT99P4C5-S1](https://en.wireless-tag.com/product-item-66.html) ESP32-P4 development board and
+* 7 inch 1024x600 ZX7D00C1060M002A MIPI DSI LCD display
+
+<br>
 
 ## Configuration
 
@@ -21,6 +25,10 @@
 * Select PSRAM
 
         Component config -> ESP PSRAM -> PSRAM config -> Try to allocate memories of WiFi and LWIP in SPIRAM firstly -> No
+
+* Select Wi-Fi slave target
+
+        Component config -> Wi-Fi Remote -> choose slave target -> esp32c5
 
 * Select Wi-Fi buffers
 
