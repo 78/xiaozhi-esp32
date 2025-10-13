@@ -1,6 +1,8 @@
 #include "application.h"
 #include "board.h"
 #include "display.h"
+#include "lvgl_display.h"
+#include "lvgl_image.h"
 #include "system_info.h"
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
@@ -9,6 +11,7 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
+#include "boot_logo.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -351,6 +354,45 @@ void Application::Start() {
 
     /* Setup the display */
     auto display = board.GetDisplay();
+
+    // Show boot logo (only for LVGL-based displays)
+    auto lvgl_display = dynamic_cast<LvglDisplay*>(display);
+    lv_obj_t* boot_logo_obj = nullptr;
+    if (lvgl_display != nullptr) {
+        // 创建居中的开机Logo
+        {
+            DisplayLockGuard lock(lvgl_display);
+            auto screen = lv_screen_active();
+            
+            // 创建一个全屏容器来承载Logo
+            boot_logo_obj = lv_obj_create(screen);
+            lv_obj_set_size(boot_logo_obj, LV_HOR_RES, LV_VER_RES);
+            lv_obj_align(boot_logo_obj, LV_ALIGN_CENTER, 0, 0);
+            lv_obj_set_style_bg_opa(boot_logo_obj, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(boot_logo_obj, 0, 0);
+            lv_obj_set_style_radius(boot_logo_obj, 0, 0);
+            lv_obj_set_style_pad_all(boot_logo_obj, 0, 0);
+            
+            // 创建图片对象
+            lv_obj_t* img = lv_image_create(boot_logo_obj);
+            lv_image_set_src(img, &boot_logo);
+            // 居中显示，使用原始尺寸（不缩放）
+            // 调整位置：lv_obj_align(img, LV_ALIGN_CENTER, x偏移, y偏移);
+            // 正数：x向右移动，y向下移动；负数：x向左移动，y向上移动
+            lv_obj_align(img, LV_ALIGN_CENTER, 2, -12);  // 当前居中，可修改偏移值
+        }
+        
+        // 显示2秒后删除Logo
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        
+        {
+            DisplayLockGuard lock(lvgl_display);
+            if (boot_logo_obj != nullptr) {
+                lv_obj_del(boot_logo_obj);
+                boot_logo_obj = nullptr;
+            }
+        }
+    }
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
