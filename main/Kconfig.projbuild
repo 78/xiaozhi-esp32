@@ -386,6 +386,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_YUNLIAO_S3
         bool "小智云聊-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WTP4C5MP07S
+        bool "Wireless-Tag WTP4C5MP07S"
+        depends on IDF_TARGET_ESP32P4
 endchoice
 
 choice
