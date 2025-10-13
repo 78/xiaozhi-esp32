@@ -2,7 +2,7 @@
     "target": "esp32p4",
     "builds": [
         {
-            "name": "wtp4c5mp07s",
+            "name": "wireless-tag-wtp4c5mp07s",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
                 "CONFIG_SLAVE_IDF_TARGET_ESP32C5=y",
