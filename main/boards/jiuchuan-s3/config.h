@@ -38,7 +38,7 @@
 
 #define DISPLAY_WIDTH   240
 #define DISPLAY_HEIGHT  320
-#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY false
 
@@ -48,5 +48,14 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_46
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+// LCD驱动类型配置
+// 通过 Kconfig 配置: menuconfig -> 九川S3配置 -> LCD驱动类型
+// 1 = GC9301/GC9309NA
+// 2 = JD9853
+#if defined(CONFIG_JIUCHUAN_LCD_JD9853)
+    #define LCD_DRIVER_TYPE  2
+#else
+    #define LCD_DRIVER_TYPE  1  // 默认或 CONFIG_JIUCHUAN_LCD_GC9301
+#endif
 
 #endif // _BOARD_CONFIG_H_

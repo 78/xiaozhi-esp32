@@ -635,6 +635,20 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
+menu "JIUCHUAN_S3_CONFIG"
+    depends on BOARD_TYPE_JIUCHUAN
+    choice JIUCHUAN_LCD_DRIVER_TYPE
+        prompt "LCD驱动类型"
+        default JIUCHUAN_LCD_GC9301
+        help
+            选择LCD驱动类型
+        config JIUCHUAN_LCD_GC9301
+            bool "GC9301/GC9309NA"
+        config JIUCHUAN_LCD_JD9853
+            bool "JD9853"
+    endchoice
+endmenu
+
 menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     choice I2S_TYPE_TAIJIPI_S3
