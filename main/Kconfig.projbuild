@@ -28,6 +28,13 @@ config CUSTOM_ASSETS_FILE
         The custom assets file to flash.
         It can be a local file relative to the project directory or a remote url.
 
+config ENABLE_BOOT_ANIMATION
+    bool "开启启动动画"
+    default n
+    help
+        Enable boot animation (logo) on startup. 
+        If disabled, boot logo resources will not be compiled to save flash space.
+
 choice
     prompt "Default Language"
     default LANGUAGE_ZH_CN
@@ -606,6 +613,20 @@ config RECEIVE_CUSTOM_MESSAGE
     default n
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
+
+menu "JIUCHUAN_S3_CONFIG"
+    depends on BOARD_TYPE_JIUCHUAN
+    choice JIUCHUAN_LCD_DRIVER_TYPE
+        prompt "LCD驱动类型"
+        default JIUCHUAN_LCD_GC9301
+        help
+            选择LCD驱动类型
+        config JIUCHUAN_LCD_GC9301
+            bool "GC9301/GC9309NA"
+        config JIUCHUAN_LCD_JD9853
+            bool "JD9853"
+    endchoice
+endmenu
 
 menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi

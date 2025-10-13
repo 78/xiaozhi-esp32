@@ -35,11 +35,15 @@ set(SOURCES "audio/audio_codec.cc"
             "settings.cc"
             "device_state_event.cc"
             "assets.cc"
-            "assets/images/boot_logo.c"
             "main.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols" "assets/images")
+
+# Add boot logo if enabled
+if(CONFIG_ENABLE_BOOT_ANIMATION)
+    list(APPEND SOURCES "assets/images/boot_logo.c")
+endif()
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)

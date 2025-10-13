@@ -49,11 +49,13 @@
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
 // LCD驱动类型配置
-// 0 = 自动检测 (未实现)
-// 1 = 强制使用 GC9301/GC9309NA
-// 2 = 强制使用 JD9853
-#ifndef LCD_DRIVER_TYPE
-#define LCD_DRIVER_TYPE  2  // 默认使用 GC9301
+// 通过 Kconfig 配置: menuconfig -> 九川S3配置 -> LCD驱动类型
+// 1 = GC9301/GC9309NA
+// 2 = JD9853
+#if defined(CONFIG_JIUCHUAN_LCD_JD9853)
+    #define LCD_DRIVER_TYPE  2
+#else
+    #define LCD_DRIVER_TYPE  1  // 默认或 CONFIG_JIUCHUAN_LCD_GC9301
 #endif
 
 #endif // _BOARD_CONFIG_H_

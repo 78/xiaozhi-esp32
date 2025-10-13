@@ -11,7 +11,9 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
+#ifdef CONFIG_ENABLE_BOOT_ANIMATION
 #include "boot_logo.h"
+#endif
 
 #include <cstring>
 #include <esp_log.h>
@@ -355,6 +357,7 @@ void Application::Start() {
     /* Setup the display */
     auto display = board.GetDisplay();
 
+#ifdef CONFIG_ENABLE_BOOT_ANIMATION
     // Show boot logo (only for LVGL-based displays)
     auto lvgl_display = dynamic_cast<LvglDisplay*>(display);
     lv_obj_t* boot_logo_obj = nullptr;
@@ -393,6 +396,7 @@ void Application::Start() {
             }
         }
     }
+#endif
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
