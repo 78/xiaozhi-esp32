@@ -38,7 +38,7 @@
 
 #define DISPLAY_WIDTH   240
 #define DISPLAY_HEIGHT  320
-#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY false
 
@@ -48,5 +48,12 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_46
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+// LCD驱动类型配置
+// 0 = 自动检测 (未实现)
+// 1 = 强制使用 GC9301/GC9309NA
+// 2 = 强制使用 JD9853
+#ifndef LCD_DRIVER_TYPE
+#define LCD_DRIVER_TYPE  2  // 默认使用 GC9301
+#endif
 
 #endif // _BOARD_CONFIG_H_
