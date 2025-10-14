@@ -172,7 +172,7 @@ private:
             .reset_pin = CAM_PIN_RESET,   // 实际由 XL9555 控制
             .pwdn_pin = CAM_PIN_PWDN,     // 实际由 XL9555 控制
             .dvp_pin = dvp_pin_config,
-            .xclk_freq = 24000000,
+            .xclk_freq = 20000000,
         };
 
         esp_video_init_config_t video_config = {
