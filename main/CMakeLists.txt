@@ -24,7 +24,6 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/gif/lvgl_gif.cc"
             "display/lvgl_display/gif/gifdec.c"
             "display/lvgl_display/jpg/image_to_jpeg.cpp"
-            "display/lvgl_display/jpg/jpeg_encoder.cpp"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -594,6 +593,8 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
+                             "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
+                            "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              )
 endif()
 
