@@ -309,9 +309,6 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32S3_Taiji_Pi
         bool "太极小派esp32s3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Taiji_Pi_NEW
-        bool "太极小派esp32s3 新款"
-        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI
         bool "无名科技星智0.85(WIFI)"
         depends on IDF_TARGET_ESP32S3
@@ -639,7 +636,18 @@ config RECEIVE_CUSTOM_MESSAGE
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
 menu "TAIJIPAI_S3_CONFIG"
-    depends on BOARD_TYPE_ESP32S3_Taiji_Pi || BOARD_TYPE_ESP32S3_Taiji_Pi_NEW
+    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    choice I2S_TYPE_TAIJIPI_S3
+        depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+        prompt "taiji-pi-S3 I2S Type"
+        default TAIJIPAI_I2S_TYPE_STD
+        help
+            I2S 类型选择
+        config TAIJIPAI_I2S_TYPE_STD
+            bool "I2S Type STD"
+        config TAIJIPAI_I2S_TYPE_PDM
+            bool "I2S Type PDM"
+    endchoice
 
     config I2S_USE_2SLOT
     bool "Enable I2S 2 Slot"
