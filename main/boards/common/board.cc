@@ -9,10 +9,11 @@
 #include <esp_ota_ops.h>
 #include <esp_chip_info.h>
 #include <esp_random.h>
-
+#include "music_service.h"
 #define TAG "Board"
 
 Board::Board() {
+    music_ = nullptr; 
     Settings settings("board", true);
     uuid_ = settings.GetString("uuid");
     if (uuid_.empty()) {
@@ -20,6 +21,8 @@ Board::Board() {
         settings.SetString("uuid", uuid_);
     }
     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
+    music_ = new MusicService();
+    ESP_LOGI(TAG, "Music player initialized for all boards");
 }
 
 std::string Board::GenerateUuid() {
@@ -60,6 +63,10 @@ Display* Board::GetDisplay() {
 
 Camera* Board::GetCamera() {
     return nullptr;
+}
+
+Music* Board::GetMusic() {
+    return music_;
 }
 
 Led* Board::GetLed() {
@@ -175,4 +182,10 @@ std::string Board::GetSystemInfoJson() {
     // Close the JSON object
     json += R"(})";
     return json;
+}
+Board::~Board() {
+    if (music_) {
+        delete music_;
+        music_ = nullptr;
+    }
 }

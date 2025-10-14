@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "lvgl_theme.h"
 #include "lvgl_display.h"
+#include "boards/common/music_service.h"
 
 #define TAG "MCP"
 
@@ -120,7 +121,64 @@ void McpServer::AddCommonTools() {
             });
     }
 #endif
+    /*MUSIC PLAYER MP3*/
+    auto music = board.GetMusic();
+    if (music) {
+         AddTool("self.music.play_song",
+             "When the user requests to play music, this tool automatically retrieves the song details and starts streaming playback.\n"
+             "Parameters:\n"
+             "  `song_name`: The name of the song to play (required).\n"
+             "  `artist_name`: The name of the artist for the song (optional, defaults to an empty string).\n"
+             "Returns:\n"
+             "  Playback status information, no confirmation needed, starts playing the song immediately.",
+             PropertyList({
+                 Property("song_name", kPropertyTypeString),//歌曲名称（必需）
+                 Property("artist_name", kPropertyTypeString, "")//艺术家名称（可选，默认为空字符串）
+             }),
+             [music](const PropertyList& properties) -> ReturnValue {
+                 auto song_name = properties["song_name"].value<std::string>();
+                 auto artist_name = properties["artist_name"].value<std::string>();
+                 
+                 if (!music->Download(song_name, artist_name)) {
+                     return "{\"success\": false, \"message\": \"Failed to obtain music resources.\"}";
+                 }
+                 auto download_result = music->GetDownloadResult();
+                 ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
+                 return "{\"success\": true, \"message\": \"Music playback started.\"}";
+             });
+ 
+         AddTool("self.music.set_display_mode",
+             "Set the display mode when playing music. You can choose to display the spectrum or lyrics, for example, if the user says 'open spectrum' or 'show spectrum', 'open lyrics' or 'show lyrics' will set the corresponding display mode.\n"
+             "Parameters:\n"
+             "  `mode`: The display mode, optional values are 'spectrum' or 'lyrics'.\n"
+             "Returns:\n"
+             "  The result information of the setting.",
+             PropertyList({
+                 Property("mode", kPropertyTypeString)//显示模式: "spectrum" 或 "lyrics"
+             }),
+             [music](const PropertyList& properties) -> ReturnValue {
+                 auto mode_str = properties["mode"].value<std::string>();
+                 
+                 // 转换为小写以便比较
+                 std::transform(mode_str.begin(), mode_str.end(), mode_str.begin(), ::tolower);
+                 
+                 if (mode_str == "spectrum" || mode_str == "频谱") {
+                     // 设置为频谱显示模式
+                     auto esp32_music = static_cast<MusicService*>(music);
+                     esp32_music->SetDisplayMode(MusicService::DISPLAY_MODE_SPECTRUM);
+                     return "{\"success\": true, \"message\": \"Switched to spectrum display mode.\"}";
+                 } else if (mode_str == "lyrics" || mode_str == "歌词") {
+                     // 设置为歌词显示模式
+                     auto esp32_music = static_cast<MusicService*>(music);
+                     esp32_music->SetDisplayMode(MusicService::DISPLAY_MODE_LYRICS);
+                     return "{\"success\": true, \"message\": \"Switched to lyrics display mode.\"}";
+                 } else {
+                     return "{\"success\": false, \"message\": \"Invalid display mode, please use 'spectrum' or 'lyrics'\"}";
+                 }
 
+                 return "{\"success\": false, \"message\": \"Failed to set display mode\"}";
+             });
+     }
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }

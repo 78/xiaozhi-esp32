@@ -43,7 +43,7 @@ dependencies:
     version: 1.0.2
     rules:
     - if: target not in [esp32c5]
-  
+
   espressif/adc_battery_estimation: ^0.2.0
 
   # SenseCAP Watcher Board
@@ -90,3 +90,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  chmorgan/esp-libhelix-mp3: ^1.0.3

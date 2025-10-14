@@ -12,7 +12,9 @@
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
-
+#include <cstring>
+#include <cmath>
+#include <math.h>
 #include "board.h"
 
 #define TAG "LcdDisplay"
@@ -20,6 +22,66 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_4);
+#define FFT_SIZE 512
+static int current_heights[40] = {0};
+static float avg_power_spectrum[FFT_SIZE/2]={-25.0f};
+#define COLOR_BLACK   0x0000
+#define COLOR_RED     0xF800
+#define COLOR_GREEN   0x07E0
+#define COLOR_BLUE    0x001F
+#define COLOR_YELLOW  0xFFE0
+#define COLOR_CYAN    0x07FF
+#define COLOR_MAGENTA 0xF81F
+#define COLOR_WHITE   0xFFFF
+
+// Color definitions for dark theme
+#define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
+#define DARK_TEXT_COLOR             lv_color_white()           // White text
+#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
+#define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
+#define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
+#define DARK_SYSTEM_BUBBLE_COLOR    lv_color_hex(0x2A2A2A)     // Medium gray
+#define DARK_SYSTEM_TEXT_COLOR      lv_color_hex(0xAAAAAA)     // Light gray text
+#define DARK_BORDER_COLOR           lv_color_hex(0x333333)     // Dark gray border
+#define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)     // Red for dark mode
+
+// Color definitions for light theme
+#define LIGHT_BACKGROUND_COLOR       lv_color_white()           // White background
+#define LIGHT_TEXT_COLOR             lv_color_black()           // Black text
+#define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)     // Light gray background
+#define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)     // WeChat green
+#define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()           // White
+#define LIGHT_SYSTEM_BUBBLE_COLOR    lv_color_hex(0xE0E0E0)     // Light gray
+#define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
+#define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
+#define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
+
+
+// Define dark theme colors
+const ThemeColors DARK_THEME = {
+    .background = DARK_BACKGROUND_COLOR,
+    .text = DARK_TEXT_COLOR,
+    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
+    .user_bubble = DARK_USER_BUBBLE_COLOR,
+    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
+    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
+    .system_text = DARK_SYSTEM_TEXT_COLOR,
+    .border = DARK_BORDER_COLOR,
+    .low_battery = DARK_LOW_BATTERY_COLOR
+};
+
+// Define light theme colors
+const ThemeColors LIGHT_THEME = {
+    .background = LIGHT_BACKGROUND_COLOR,
+    .text = LIGHT_TEXT_COLOR,
+    .chat_background = LIGHT_CHAT_BACKGROUND_COLOR,
+    .user_bubble = LIGHT_USER_BUBBLE_COLOR,
+    .assistant_bubble = LIGHT_ASSISTANT_BUBBLE_COLOR,
+    .system_bubble = LIGHT_SYSTEM_BUBBLE_COLOR,
+    .system_text = LIGHT_SYSTEM_TEXT_COLOR,
+    .border = LIGHT_BORDER_COLOR,
+    .low_battery = LIGHT_LOW_BATTERY_COLOR
+};
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
@@ -278,6 +340,170 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     }
 
     SetupUI();
+}
+
+void LcdDisplay::SetMusicInfo(const char* song_name) {
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    // 微信模式下不显示歌名，保持原有聊天功能
+    return;
+#else
+    // 非微信模式：在表情下方显示歌名
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
+    
+    if (song_name != nullptr && strlen(song_name) > 0) {
+        std::string music_text = "";
+        music_text += song_name;
+        lv_label_set_text(chat_message_label_, music_text.c_str());
+        
+        // 确保显示 emotion_label_ 和 chat_message_label_，隐藏 preview_image_
+        if (emotion_label_ != nullptr) {
+            lv_obj_clear_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (preview_image_ != nullptr) {
+            lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        }
+    } else {
+        // 清空歌名显示
+        lv_label_set_text(chat_message_label_, "");
+    }
+#endif
+}
+
+void LcdDisplay::drawSpectrumIfReady() {
+    if (fft_data_ready) {
+        draw_spectrum(avg_power_spectrum, FFT_SIZE/2);
+        fft_data_ready = false;
+    }
+}
+void LcdDisplay::periodicUpdateTask() {
+    ESP_LOGI(TAG, "Periodic update task started");
+    
+    if(canvas_==nullptr){
+        create_canvas();
+    }
+    else{
+        ESP_LOGI(TAG, "canvas already created");
+    }
+  
+
+    auto music = Board::GetInstance().GetMusic();
+        
+    const TickType_t displayInterval = pdMS_TO_TICKS(40);  
+    const TickType_t audioProcessInterval = pdMS_TO_TICKS(15); 
+    
+    TickType_t lastDisplayTime = xTaskGetTickCount();
+    TickType_t lastAudioTime = xTaskGetTickCount();
+    
+    while (!fft_task_should_stop) {
+        
+        TickType_t currentTime = xTaskGetTickCount();
+        
+        
+        if (currentTime - lastAudioTime >= audioProcessInterval) {
+            if(music->GetAudioData() != nullptr) {
+                readAudioData();  // 快速处理，不阻塞
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            lastAudioTime = currentTime;
+        }
+        
+        // 显示刷新（30Hz）
+        if (currentTime - lastDisplayTime >= displayInterval) {
+            if (fft_data_ready) {
+                DisplayLockGuard lock(this);
+                drawSpectrumIfReady();
+                lv_area_t refresh_area;
+                refresh_area.x1 = 0;
+                refresh_area.y1 = height_-100;
+                refresh_area.x2 = canvas_width_ -1;
+                refresh_area.y2 = height_ -1; // 只刷新频谱区域
+                lv_obj_invalidate_area(canvas_, &refresh_area);
+                //lv_obj_invalidate(canvas_);
+                fft_data_ready = false;
+                lastDisplayTime = currentTime;
+            }   // 绘制操作
+           
+            
+            // 更新FPS计数
+            //FPS();
+        }
+        
+        
+        
+        vTaskDelay(pdMS_TO_TICKS(10));
+        // 短暂延迟
+        
+    }
+    
+    ESP_LOGI(TAG, "FFT display task stopped");
+    fft_task_handle = nullptr;  // 清空任务句柄
+    vTaskDelete(NULL);  // 删除当前任务
+}
+void LcdDisplay::periodicUpdateTaskWrapper(void* arg) {
+    auto self = static_cast<LcdDisplay*>(arg);
+    self->periodicUpdateTask();
+}
+void LcdDisplay::readAudioData(){
+   
+    auto music = Board::GetInstance().GetMusic();
+    
+    if(music->GetAudioData()!=nullptr){
+        
+    
+        if(audio_display_last_update<=2){
+            memcpy(audio_data,music->GetAudioData(),sizeof(int16_t)*1152);
+            for(int i=0;i<1152;i++){
+                frame_audio_data[i]+=audio_data[i];
+            }
+            audio_display_last_update++;
+            
+        }else{
+            const int HOP_SIZE = 512;
+            const int NUM_SEGMENTS = 1 + (1152 - FFT_SIZE) / HOP_SIZE;
+    
+            for (int seg = 0; seg < NUM_SEGMENTS; seg++) {
+                int start = seg * HOP_SIZE;
+                if (start + FFT_SIZE > 1152) break;
+
+        // 准备当前段数据
+                for (int i = 0; i < FFT_SIZE; i++) {
+                    int idx = start + i;
+                    //float sample =frame_audio_data[idx] / 32768.0f;
+                    float sample =frame_audio_data[idx] / 32768.0f;
+                    fft_real[i] = sample * hanning_window_float[i];
+                    fft_imag[i] = 0.0f;
+                    
+                }
+
+                compute(fft_real, fft_imag, FFT_SIZE, true);
+        
+        // 计算功率谱并累加（双边）
+                for (int i = 0; i < FFT_SIZE/2; i++) {
+                    avg_power_spectrum[i] += fft_real[i] * fft_real[i]+fft_imag[i] * fft_imag[i]; // 功率 = 幅度平方
+                }
+            }
+        
+    // 计算平均值
+            for (int i = 0; i < FFT_SIZE/2; i++) {
+                avg_power_spectrum[i] /= NUM_SEGMENTS;
+            }
+
+        audio_display_last_update=0;
+        //memcpy(spectrum_data, avg_power_spectrum, sizeof(float) * FFT_SIZE/2);
+        fft_data_ready=true;
+
+        //draw_spectrum(avg_power_spectrum, FFT_SIZE/2);
+        memset(frame_audio_data,0,sizeof(int16_t)*1152);
+
+        }
+    }else{
+            ESP_LOGI(TAG, "audio_data is nullptr");
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }   
 }
 
 LcdDisplay::~LcdDisplay() {
@@ -1110,4 +1336,382 @@ void LcdDisplay::SetTheme(Theme* theme) {
 
     // No errors occurred. Save theme to settings
     Display::SetTheme(lvgl_theme);
+}
+void LcdDisplay::clearScreen() {
+   // DisplayLockGuard lock(this);
+    // 清屏为黑色
+    //for (int i = 0; i < canvas_width_ * canvas_height_; i++) {
+    //    canvas_buffer_[i] = COLOR_BLACK;
+    //}
+    //lv_obj_invalidate(canvas_);
+    std::fill_n(canvas_buffer_, canvas_width_ * canvas_height_, COLOR_BLACK);
+
+}
+void LcdDisplay::create_canvas(){
+    DisplayLockGuard lock(this);
+    if (canvas_ != nullptr) {
+        lv_obj_del(canvas_);
+    }
+    if (canvas_buffer_ != nullptr) {
+        heap_caps_free(canvas_buffer_);
+        canvas_buffer_ = nullptr;
+    }
+
+    int status_bar_height=lv_obj_get_height(status_bar_);
+    canvas_width_=width_;
+    canvas_height_=height_-status_bar_height;
+
+    canvas_buffer_=(uint16_t*)heap_caps_malloc(canvas_width_ * canvas_height_ * sizeof(uint16_t), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+    if (canvas_buffer_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate canvas buffer");
+        return;
+    }
+    ESP_LOGI(TAG, "canvas buffer allocated successfully");  
+    canvas_ = lv_canvas_create(lv_scr_act());
+    lv_canvas_set_buffer(canvas_, canvas_buffer_, canvas_width_, canvas_height_, LV_COLOR_FORMAT_RGB565);
+    ESP_LOGI(TAG,"width: %d, height: %d", width_, height_);
+
+    
+
+    lv_obj_set_pos(canvas_, 0, status_bar_height);
+    lv_obj_set_size(canvas_, canvas_width_, canvas_height_);
+    lv_canvas_fill_bg(canvas_, lv_color_make(0, 0, 0), LV_OPA_TRANSP);
+    lv_obj_move_foreground(canvas_);
+
+    ESP_LOGI(TAG, "canvas created successfully");
+
+   
+   
+    
+     
+}
+uint16_t LcdDisplay::get_bar_color(int x_pos){
+
+    static uint16_t color_table[40];
+    static bool initialized = false;
+    
+    if (!initialized) {
+        // 生成黄绿->黄->黄红的渐变
+        for (int i = 0; i < 40; i++) {
+            if (i < 20) {
+                // 黄绿到黄：增加红色分量
+                uint8_t r = static_cast<uint8_t>((i / 19.0f) * 31);
+                color_table[i] = (r << 11) | (0x3F << 5);
+            } else {
+                // 黄到黄红：减少绿色分量
+                uint8_t g = static_cast<uint8_t>((1.0f - (i - 20) / 19.0f * 0.5f) * 63);
+                color_table[i] = (0x1F << 11) | (g << 5);
+            }
+        }
+        initialized = true;
+    }
+    
+    return color_table[x_pos];
+ }
+
+
+void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
+   
+    
+    const int bartotal=40;
+    int bar_height;
+    const int bar_max_height=canvas_height_-100;
+    const int bar_width=240/bartotal;
+    int x_pos=0;
+    int y_pos = (canvas_height_) - 1;
+
+    float magnitude[bartotal]={0};
+    float max_magnitude=0;
+
+    const float MIN_DB = -25.0f;
+    const float MAX_DB = 0.0f;
+    
+    for (int bin = 0; bin < bartotal; bin++) {
+        int start = bin * (fft_size / bartotal);
+        int end = (bin+1) * (fft_size / bartotal);
+        magnitude[bin] = 0;
+        int count=0;
+        for (int k = start; k < end; k++) {
+            magnitude[bin] += sqrt(power_spectrum[k]);
+            count++;
+        }
+        if(count>0){
+            magnitude[bin] /= count;
+        }
+      
+
+        if (magnitude[bin] > max_magnitude) max_magnitude = magnitude[bin];
+    }
+
+
+    magnitude[1]=magnitude[1]*0.6;
+    magnitude[2]=magnitude[2]*0.7;
+    magnitude[3]=magnitude[3]*0.8;
+    magnitude[4]=magnitude[4]*0.8;
+    magnitude[5]=magnitude[5]*0.9;
+    /*
+    if (bartotal >= 6) {
+        magnitude[0] *= 0.3f; // 最低频
+        magnitude[1] *= 1.1f;
+        magnitude[2] *= 1.0f;
+        magnitude[3] *= 0.9f;
+        magnitude[4] *= 0.8f;
+        magnitude[5] *= 0.7f;
+        // 更高频率保持或进一步衰减
+        for (int i = 6; i < bartotal; i++) {
+            magnitude[i] *= 0.6f;
+        }
+    }
+    */    
+
+    for (int bin = 1; bin < bartotal; bin++) {
+        
+        if (magnitude[bin] > 0.0f && max_magnitude > 0.0f) {
+            // 相对dB值：20 * log10(magnitude/ref_level)
+            magnitude[bin] = 20.0f * log10f(magnitude[bin] / max_magnitude+ 1e-10);
+        } else {
+            magnitude[bin] = MIN_DB;
+        }
+        if (magnitude[bin] > max_magnitude) max_magnitude = magnitude[bin];
+    }
+
+    clearScreen();
+    
+    for (int k = 1; k < bartotal; k++) {  // 跳过直流分量（k=0）
+        x_pos=canvas_width_/bartotal*(k-1);
+        float mag=(magnitude[k] - MIN_DB) / (MAX_DB - MIN_DB);
+        mag = std::max(0.0f, std::min(1.0f, mag));
+        bar_height=int(mag*(bar_max_height));
+        
+        int color=get_bar_color(k);
+        draw_bar(x_pos,y_pos,bar_width,bar_height, color,k-1);
+        //printf("x: %d, y: %d,\n", x_pos, bar_height);
+    }
+
+    
+}
+
+void LcdDisplay::draw_bar(int x,int y,int bar_width,int bar_height,uint16_t color,int bar_index){
+
+    const int block_space=2;
+    const int block_x_size=bar_width-block_space;
+    const int block_y_size=4;
+    
+    int blocks_per_col=(bar_height/(block_y_size+block_space));
+    int start_x=(block_x_size+block_space)/2+x;
+    
+    if(current_heights[bar_index]<bar_height) 
+    {
+        current_heights[bar_index]=bar_height;
+    }
+    else{
+        int fall_speed=2;
+        current_heights[bar_index]=current_heights[bar_index]-fall_speed;
+        if(current_heights[bar_index]>(block_y_size+block_space)) 
+        draw_block(start_x,canvas_height_-current_heights[bar_index],block_x_size,block_y_size,color,bar_index);
+
+    }
+   
+    draw_block(start_x,canvas_height_-1,block_x_size,block_y_size,color,bar_index);
+
+    for(int j=1;j<blocks_per_col;j++){
+        
+        int start_y=j*(block_y_size+block_space);
+        draw_block(start_x,canvas_height_-start_y,block_x_size,block_y_size,color,bar_index); 
+        
+    }
+    
+
+}
+
+void LcdDisplay::draw_block(int x,int y,int block_x_size,int block_y_size,uint16_t color,int bar_index){
+    
+    /*
+    for(int dy=0;dy<block_y_size;dy++){
+        for(int dx=0;dx<block_x_size;dx++){
+            canvas_buffer_[(y-dy)*canvas_width_+x+dx]=color;    
+        }   
+    }
+    */
+    for (int row = y; row > y-block_y_size;row--) {
+        // 一次绘制一行
+        uint16_t* line_start = &canvas_buffer_[row * canvas_width_ + x];
+        std::fill_n(line_start, block_x_size, color);
+    }
+}   
+void LcdDisplay::start(){
+    ESP_LOGI(TAG, "Starting LcdDisplay with periodic data updates");
+    
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // 创建周期性更新任务
+    fft_task_should_stop = false;  // 重置停止标志
+    xTaskCreate(
+        periodicUpdateTaskWrapper,
+        "display_fft",      // 任务名称
+        4096*2,             // 堆栈大小
+        this,               // 参数
+        1,                  // 优先级
+        &fft_task_handle    // 保存到成员变量
+    );
+    
+  
+}
+
+void LcdDisplay::stopFft() {
+    ESP_LOGI(TAG, "Stopping FFT display");
+    
+    // 停止FFT显示任务
+    if (fft_task_handle != nullptr) {
+        ESP_LOGI(TAG, "Stopping FFT display task");
+        fft_task_should_stop = true;  // 设置停止标志
+        
+        // 等待任务停止（最多等待1秒）
+        int wait_count = 0;
+        while (fft_task_handle != nullptr && wait_count < 100) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            wait_count++;
+        }
+        
+        if (fft_task_handle != nullptr) {
+            ESP_LOGW(TAG, "FFT task did not stop gracefully, force deleting");
+            vTaskDelete(fft_task_handle);
+            fft_task_handle = nullptr;
+        } else {
+            ESP_LOGI(TAG, "FFT display task stopped successfully");
+        }
+    }
+    
+    // 使用显示锁保护所有操作
+    DisplayLockGuard lock(this);
+    
+    // 重置FFT状态变量
+    fft_data_ready = false;
+    audio_display_last_update = 0;
+    
+    // 重置频谱条高度
+    memset(current_heights, 0, sizeof(current_heights));
+    
+    // 重置平均功率谱数据
+    for (int i = 0; i < FFT_SIZE/2; i++) {
+        avg_power_spectrum[i] = -25.0f;
+    }
+    
+    // 删除FFT画布对象，让原始UI重新显示
+    if (canvas_ != nullptr) {
+        lv_obj_del(canvas_);
+        canvas_ = nullptr;
+        ESP_LOGI(TAG, "FFT canvas deleted");
+    }
+    
+    // 释放画布缓冲区内存
+    if (canvas_buffer_ != nullptr) {
+        heap_caps_free(canvas_buffer_);
+        canvas_buffer_ = nullptr;
+        ESP_LOGI(TAG, "FFT canvas buffer freed");
+    }
+    
+    // 重置画布尺寸变量
+    canvas_width_ = 0;
+    canvas_height_ = 0;
+    
+    ESP_LOGI(TAG, "FFT display stopped, original UI restored");
+}
+
+void LcdDisplay::MyUI(){
+
+    DisplayLockGuard lock(this);
+
+    auto screen = lv_screen_active();
+    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(screen, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+
+    /* Container */
+    container_ = lv_obj_create(screen);
+    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(container_, 0, 0);
+    lv_obj_set_style_border_width(container_, 0, 0);
+    lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+    lv_obj_set_style_border_color(container_, lv_color_white(), 0);
+    
+  
+    /* Status bar */
+    status_bar_ = lv_obj_create(container_);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+    lv_obj_set_style_radius(status_bar_, 0, 0);
+    lv_obj_set_style_bg_color(status_bar_, lv_color_black(), 0);
+    lv_obj_set_style_text_color(status_bar_, lv_color_white(), 0);
+
+    /* Status bar */
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(status_bar_, 0, 0);
+    lv_obj_set_style_border_width(status_bar_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_style_pad_left(status_bar_, 2, 0);
+    lv_obj_set_style_pad_right(status_bar_, 2, 0);
+  
+    
+
+
+   
+
+}
+
+
+void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
+    // 位反转排序
+    int j = 0;
+    for (int i = 0; i < n; i++) {
+        if (j > i) {
+            std::swap(real[i], real[j]);
+            std::swap(imag[i], imag[j]);
+        }
+        
+        int m = n >> 1;
+        while (m >= 1 && j >= m) {
+            j -= m;
+            m >>= 1;
+        }
+        j += m;
+    }
+
+    // FFT计算
+    for (int s = 1; s <= (int)log2(n); s++) {
+        int m = 1 << s;
+        int m2 = m >> 1;
+        float w_real = 1.0f;
+        float w_imag = 0.0f;
+        float angle = (forward ? -2.0f : 2.0f) * M_PI / m;
+        float wm_real = cosf(angle);
+        float wm_imag = sinf(angle);
+        
+        for (int j = 0; j < m2; j++) {
+            for (int k = j; k < n; k += m) {
+                int k2 = k + m2;
+                float t_real = w_real * real[k2] - w_imag * imag[k2];
+                float t_imag = w_real * imag[k2] + w_imag * real[k2];
+                
+                real[k2] = real[k] - t_real;
+                imag[k2] = imag[k] - t_imag;
+                real[k] += t_real;
+                imag[k] += t_imag;
+            }
+            
+            float w_temp = w_real;
+            w_real = w_real * wm_real - w_imag * wm_imag;
+            w_imag = w_temp * wm_imag + w_imag * wm_real;
+        }
+    }
+    
+    // 正向变换需要缩放
+    if (forward) {
+        for (int i = 0; i < n; i++) {
+            real[i] /= n;
+            imag[i] /= n;
+        }
+    }
+    
 }
