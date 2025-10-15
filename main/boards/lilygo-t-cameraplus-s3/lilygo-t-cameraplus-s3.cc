@@ -244,12 +244,8 @@ private:
 
         esp_video_init_sccb_config_t sccb_config = {
 #ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
-            .init_sccb = true,
-            .i2c_config = {
-                .port = 0,
-                .scl_pin = SIOC_GPIO_NUM,
-                .sda_pin = GPIO_NUM_NC,
-            },
+            .init_sccb = false,
+            .i2c_handle = i2c_bus_,
 #elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
             .init_sccb = true,
             .i2c_config = {
