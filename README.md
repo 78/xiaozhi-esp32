@@ -1,19 +1,25 @@
-**NULLLAB 修改笔记：**
+## AI-VOX3 介绍
+
+硬件详细介绍请见：https://dcnmu33qx4fc.feishu.cn/docx/VXHzdBYH0ohpNAxw2ifc3P2InBe
+
+## 开发环境搭建：
+
+请直接参考虾哥官方DIY文档[IDF环境搭建](https://icnynnzcwou8.feishu.cn/wiki/JEYDwTTALi5s2zkGlFGcDiRknXf)，这里不再重复介绍，建议编译AI-VOX3之前，先编译成功虾哥官方源码，即证明环境搭建正确。
+
+**NULLLAB修改记录：**
 
 - 增加可自定义热点名称的选项 `CONFIG_CUSTOM_SSID_PREFIX="AI-VOX"`
-- 增加 NULLLAB AI-VOX v3 开发板
-- 增加 NULLLAB AI-VOX 开发版的的两个自定义开发板案例：
-  - 自定义图片表情（[nulllab-ai-vox-emoji](./main/boards/nulllab-ai-vox-emoji)）
-  - 动画眼睛表情（[nulllab-ai-vox-eyes](./main/boards/nulllab-ai-vox-eyes)）
-- NULLLAB AI-VOX v3 支持实时打断，可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
-- NULLLAB AI-VOX v3 支持双网络，默认使用 WIFI 网络，在开机后长按 BOOT 键可以切换到 4G 网络。要修改默认网络，打开 `config.h` 文件，修改 `#define DEFAULT_4G_NETWORK 0`。
+- 增加 NULLLAB AI-VOX3 开发板
+  - NULLLAB AI-VOX3 支持实时打断，可以随时打断小智说话，默认开启 `CONFIG_USE_DEVICE_AEC=y`
+  - NULLLAB AI-VOX3 支持双网络，默认使用 WIFI 网络，在开机后长按 BOOT 键可以切换到 4G 网络。要修改默认网络，打开 `config.h` 文件，修改 `#define DEFAULT_4G_NETWORK 1`。
 - 编译配置通过 idf.py menuconfig 进行设置或在开发板的 config.json 中设置（推荐）
-- 图片转换工具 [https://lvgl.io/tools/imageconverter](https://lvgl.io/tools/imageconverter)
 
-**官方推荐使用编译脚本进行编译：`python3 ./scripts/release.py nulllab-ai-vox-v3`，省去切换开发板配置。**
+**官方推荐使用编译脚本进行编译：`python ./scripts/release.py nulllab-AI-VOX3`，省去切换开发板配置。**
 案例所需要的配置都写在了 config.json 文件中，编译脚本可以自动完成配置。
 
 ---
+
+## 虾哥官方的资料
 
 # An MCP-based Chatbot | 一个基于 MCP 的聊天机器人
 
