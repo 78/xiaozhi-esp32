@@ -121,41 +121,48 @@ private:
     }
 
     void InitializeCamera() {
-        camera_config_t camera_config = {};
 
-        camera_config.pin_pwdn = SPARKBOT_CAMERA_PWDN;
-        camera_config.pin_reset = SPARKBOT_CAMERA_RESET;
-        camera_config.pin_xclk = SPARKBOT_CAMERA_XCLK;
-        camera_config.pin_pclk = SPARKBOT_CAMERA_PCLK;
-        camera_config.pin_sccb_sda = SPARKBOT_CAMERA_SIOD;
-        camera_config.pin_sccb_scl = SPARKBOT_CAMERA_SIOC;
+        // DVP pin configuration
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = SPARKBOT_CAMERA_D0,
+                [1] = SPARKBOT_CAMERA_D1,
+                [2] = SPARKBOT_CAMERA_D2,
+                [3] = SPARKBOT_CAMERA_D3,
+                [4] = SPARKBOT_CAMERA_D4,
+                [5] = SPARKBOT_CAMERA_D5,
+                [6] = SPARKBOT_CAMERA_D6,
+                [7] = SPARKBOT_CAMERA_D7,
+            },
+            .vsync_io = SPARKBOT_CAMERA_VSYNC,
+            .de_io = SPARKBOT_CAMERA_HSYNC,
+            .pclk_io = SPARKBOT_CAMERA_PCLK,
+            .xclk_io = SPARKBOT_CAMERA_XCLK,
+        };
 
-        camera_config.pin_d0 = SPARKBOT_CAMERA_D0;
-        camera_config.pin_d1 = SPARKBOT_CAMERA_D1;
-        camera_config.pin_d2 = SPARKBOT_CAMERA_D2;
-        camera_config.pin_d3 = SPARKBOT_CAMERA_D3;
-        camera_config.pin_d4 = SPARKBOT_CAMERA_D4;
-        camera_config.pin_d5 = SPARKBOT_CAMERA_D5;
-        camera_config.pin_d6 = SPARKBOT_CAMERA_D6;
-        camera_config.pin_d7 = SPARKBOT_CAMERA_D7;
+        // 复用 I2C 总线
+        esp_video_init_sccb_config_t sccb_config = {
+            .init_sccb = false,  // 不初始化新的 SCCB，使用现有的 I2C 总线
+            .i2c_handle = i2c_bus_,  // 使用现有的 I2C 总线句柄
+            .freq = 100000,  // 100kHz
+        };
 
-        camera_config.pin_vsync = SPARKBOT_CAMERA_VSYNC;
-        camera_config.pin_href = SPARKBOT_CAMERA_HSYNC;
-        camera_config.pin_pclk = SPARKBOT_CAMERA_PCLK;
-        camera_config.xclk_freq_hz = SPARKBOT_CAMERA_XCLK_FREQ;
-        camera_config.ledc_timer = SPARKBOT_LEDC_TIMER;
-        camera_config.ledc_channel = SPARKBOT_LEDC_CHANNEL;
-        camera_config.fb_location = CAMERA_FB_IN_PSRAM;
+        // DVP configuration
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = SPARKBOT_CAMERA_RESET,
+            .pwdn_pin = SPARKBOT_CAMERA_PWDN,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = SPARKBOT_CAMERA_XCLK_FREQ,
+        };
+
+        // Main video configuration
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
         
-        camera_config.sccb_i2c_port = I2C_NUM_0;
-        
-        camera_config.pixel_format = PIXFORMAT_RGB565;
-        camera_config.frame_size = FRAMESIZE_240X240;
-        camera_config.jpeg_quality = 12;
-        camera_config.fb_count = 1;
-        camera_config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-        
-        camera_ = new Esp32Camera(camera_config);
+        camera_ = new Esp32Camera(video_config);
 
         Settings settings("sparkbot", false);
         // 考虑到部分复刻使用了不可动摄像头的设计，默认启用翻转

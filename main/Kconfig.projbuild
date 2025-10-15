@@ -389,6 +389,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_XIEWAN_M1_1_3TFT_WIFI
         bool "携万科技-小智M1-1.3TFT(WIFI)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WTP4C5MP07S
+        bool "Wireless-Tag WTP4C5MP07S"
+        depends on IDF_TARGET_ESP32P4
 endchoice
 
 choice
@@ -635,6 +638,38 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
+menu "Camera Configuration"
+    depends on !IDF_TARGET_ESP32
+
+    config XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+        bool "Enable Hardware JPEG Encoder"
+        default y
+        depends on SOC_JPEG_ENCODE_SUPPORTED
+        help
+            Use hardware JPEG encoder on ESP32-P4 to encode image to JPEG.
+            See https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/peripherals/jpeg.html for more details.
+
+    config XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
+        bool "Enable Camera Debug Mode"
+        default n
+        help
+            Enable camera debug mode, print camera debug information to the console.
+            Only works on boards that support camera.
+
+    config XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
+        bool "Enable software camera buffer endianness swapping (USE WITH CAUTION)"
+        default n
+        depends on !CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
+        help
+            This option treats the camera buffer as a uint16_t[] array and performs byte-swapping (endianness conversion) on each element.
+            
+            Should only be modified by development board integration engineers.
+            
+            **Incorrect usage may result in incorrect image colors!**
+            
+            ATTENTION: If the option CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is available for your sensor, please use that instead.
+endmenu
+
 menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_ESP32S3_Taiji_Pi
     choice I2S_TYPE_TAIJIPI_S3
@@ -650,7 +685,7 @@ menu "TAIJIPAI_S3_CONFIG"
 
     config I2S_USE_2SLOT
     bool "Enable I2S 2 Slot"
-    default n
+    default y
     help
         启动双声道
 endmenu
