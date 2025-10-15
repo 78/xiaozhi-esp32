@@ -37,7 +37,6 @@ Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Quad Mode 
 
 ```
 Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> OV2640 -> Select default output format for DVP interface -> YUV422 240x240 25fps, DVP 8-bit, 20M input
-
 ```
 
 
@@ -46,5 +45,3 @@ Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Con
 ```bash
 idf.py build
 ```
-
-<a href="https://github.com/Xinyuan-LilyGO/T-CameraPlus-S3" target="_blank" title="LILYGO T-CameraPlus-S3">LILYGO T-CameraPlus-S3</a>
