@@ -17,10 +17,10 @@ dependencies:
   espressif/esp_io_expander_tca9554: ==2.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
-  78/esp-wifi-connect: ~2.6.0
+  78/esp-wifi-connect: ~2.6.1
   78/esp-opus-encoder: ~2.4.1
   78/esp-ml307: ~3.3.6
-  78/xiaozhi-fonts: ~1.5.3
+  78/xiaozhi-fonts: ~1.5.4
   espressif/led_strip: ~3.0.1
   espressif/esp_codec_dev: ~1.4.0
   espressif/esp-sr: ~2.1.5
