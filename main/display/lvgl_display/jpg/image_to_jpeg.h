@@ -1,12 +1,14 @@
 // image_to_jpeg.h - 图像到JPEG转换的高效编码接口
 // 节省约8KB SRAM的JPEG编码实现
-
-#ifndef IMAGE_TO_JPEG_H
-#define IMAGE_TO_JPEG_H
+#pragma once
+#include "sdkconfig.h"
+#ifndef CONFIG_IDF_TARGET_ESP32
 
 #include <stdint.h>
 #include <stddef.h>
-#include <esp_camera.h>  // 包含ESP32相机驱动的定义，避免重复定义pixformat_t和camera_fb_t
+#include <linux/videodev2.h>
+
+typedef uint32_t v4l2_pix_fmt_t; // see linux/videodev2.h for details
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,7 +39,7 @@ typedef size_t (*jpg_out_cb)(void *arg, size_t index, const void *data, size_t l
  * @return true 成功, false 失败
  */
 bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, 
-                   pixformat_t format, uint8_t quality, uint8_t **out, size_t *out_len);
+                   v4l2_pix_fmt_t format, uint8_t quality, uint8_t **out, size_t *out_len);
 
 /**
  * @brief 将图像格式转换为JPEG（回调版本）
@@ -59,10 +61,10 @@ bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height
  * @return true 成功, false 失败
  */
 bool image_to_jpeg_cb(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, 
-                      pixformat_t format, uint8_t quality, jpg_out_cb cb, void *arg);
+                      v4l2_pix_fmt_t format, uint8_t quality, jpg_out_cb cb, void *arg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* IMAGE_TO_JPEG_H */
+#endif // ndef CONFIG_IDF_TARGET_ESP32
