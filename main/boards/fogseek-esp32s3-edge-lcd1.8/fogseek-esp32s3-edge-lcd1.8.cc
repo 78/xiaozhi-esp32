@@ -18,6 +18,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
+#include <driver/ledc.h>
 
 #define TAG "FogSeekEsp32s3EdgeLcd18"
 
@@ -213,12 +214,13 @@ static const st77916_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x00, (uint8_t[]){}, 0, 120},
 };
 
-class FogSeekEsp32s3EdgeLcd15 : public WifiBoard
+class FogSeekEsp32s3EdgeLcd18 : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     AdcBatteryMonitor *battery_monitor_;
+    PwmBacklight *pwm_test_ = nullptr; // 添加这个成员变量来保存pwm_test指针
     bool no_dc_power_ = false;
     bool pwr_hold_state_ = false;
     bool low_battery_warning_ = false;
@@ -230,6 +232,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
+    AudioCodec *audio_codec_ = nullptr;
     Display *display_ = nullptr;
     Backlight *backlight_ = nullptr;
 
@@ -237,7 +240,8 @@ private:
     {
         bool is_charging_pin = gpio_get_level(PWR_CHARGING_GPIO) == 0;   // CHRG引脚，低电平表示正在充电
         bool is_charge_done = gpio_get_level(PWR_CHARGE_DONE_GPIO) == 0; // STDBY引脚，低电平表示充电完成
-        uint8_t battery_level = 80;                                      // 使用固定值代替ADC读取
+        // uint8_t battery_level = battery_monitor_->GetBatteryLevel();
+        uint8_t battery_level = 80; // 使用固定值代替ADC读取
 
         bool battery_detected = battery_level > 0; // 通过固定值判断电池是否存在
 
@@ -251,24 +255,24 @@ private:
         {
             // 正在充电状态（CHRG低电平，STDBY高电平）
             no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 1);
-            gpio_set_level(LED_GREEN_GPIO, 0);
+            gpio_set_level(LED_RED_GPIO, 0);
+            gpio_set_level(LED_GREEN_GPIO, 1);
             ESP_LOGI(TAG, "Battery is charging, level: %d%%", battery_level);
         }
         else if (is_charge_done)
         {
             // 充电完成状态（CHRG高电平，STDBY低电平）
             no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 0);
-            gpio_set_level(LED_GREEN_GPIO, 1);
+            gpio_set_level(LED_RED_GPIO, 1);
+            gpio_set_level(LED_GREEN_GPIO, 0);
             ESP_LOGI(TAG, "Battery charge completed, level: %d%%", battery_level);
         }
         else
         {
             // 无电池状态
             no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 0);
-            gpio_set_level(LED_GREEN_GPIO, 0);
+            gpio_set_level(LED_RED_GPIO, 1);
+            gpio_set_level(LED_GREEN_GPIO, 1);
             ESP_LOGI(TAG, "No battery detected");
         }
 
@@ -284,6 +288,7 @@ private:
     // 低电量检测逻辑
     void CheckLowBattery()
     {
+        // uint8_t battery_level = battery_monitor_->GetBatteryLevel();
         uint8_t battery_level = 80; // 使用固定值代替ADC读取
 
         if (no_dc_power_)
@@ -296,34 +301,25 @@ private:
 
                 auto &app = Application::GetInstance();
                 app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 关机
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
 
                 pwr_hold_state_ = false;
                 gpio_set_level(PWR_HOLD_GPIO, 0); // 关闭电源
-                gpio_set_level(LED_RED_GPIO, 0);
-                gpio_set_level(LED_GREEN_GPIO, 0);
+                gpio_set_level(LED_RED_GPIO, 1);
+                gpio_set_level(LED_GREEN_GPIO, 1);
                 ESP_LOGI(TAG, "Device shut down due to critical battery level");
                 return;
             }
             // 低于20%警告
             else if (battery_level < 20 && battery_level >= 10 && !low_battery_warning_)
             {
-                gpio_set_level(LED_RED_GPIO, 1);
-                gpio_set_level(LED_GREEN_GPIO, 0);
+                gpio_set_level(LED_RED_GPIO, 0);
+                gpio_set_level(LED_GREEN_GPIO, 1);
                 ESP_LOGW(TAG, "Low battery warning (%d%%)", battery_level);
                 low_battery_warning_ = true;
 
                 auto &app = Application::GetInstance();
                 app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 发送低电量警告通知
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
+
                 // 在显示屏上显示低电量警告
                 if (display_)
                 {
@@ -346,14 +342,14 @@ private:
 
     static void BatteryCheckTimerCallback(void *arg)
     {
-        FogSeekEsp32s3EdgeLcd15 *self = static_cast<FogSeekEsp32s3EdgeLcd15 *>(arg);
+        FogSeekEsp32s3EdgeLcd18 *self = static_cast<FogSeekEsp32s3EdgeLcd18 *>(arg);
         self->CheckLowBattery();
     }
 
     // 说话状态LED闪烁定时器回调
     static void SpeakingBlinkTimerCallback(void *arg)
     {
-        FogSeekEsp32s3EdgeLcd15 *self = static_cast<FogSeekEsp32s3EdgeLcd15 *>(arg);
+        FogSeekEsp32s3EdgeLcd18 *self = static_cast<FogSeekEsp32s3EdgeLcd18 *>(arg);
         self->speaking_led_state_ = !self->speaking_led_state_;
         gpio_set_level(LED_RED_GPIO, self->speaking_led_state_);
         gpio_set_level(LED_GREEN_GPIO, self->speaking_led_state_);
@@ -381,9 +377,13 @@ private:
             break;
 
         case kDeviceStateListening:
-            // 唤醒状态，两个LED同时亮起（红灯亮，绿灯灭）
-            gpio_set_level(LED_RED_GPIO, 1);
-            gpio_set_level(LED_GREEN_GPIO, 1);
+            // 唤醒状态，两个LED同时亮起
+            if (pwr_hold_state_)
+            {
+                gpio_set_level(LED_RED_GPIO, 0);
+                gpio_set_level(LED_GREEN_GPIO, 0);
+            }
+
             if (display_)
             {
                 display_->SetStatus("监听中");
@@ -394,10 +394,15 @@ private:
         case kDeviceStateSpeaking:
             // 说话状态，两个LED同时闪烁
             speaking_led_state_ = false;
-            gpio_set_level(LED_RED_GPIO, 0);
-            gpio_set_level(LED_GREEN_GPIO, 0);
-            // 启动闪烁定时器，每500ms切换一次状态
-            esp_timer_start_periodic(speaking_blink_timer_, 500 * 1000);
+            if (pwr_hold_state_)
+            {
+                gpio_set_level(LED_RED_GPIO, 1);
+                gpio_set_level(LED_GREEN_GPIO, 1);
+
+                // 启动闪烁定时器，每500ms切换一次状态
+                esp_timer_start_periodic(speaking_blink_timer_, 500 * 1000);
+            }
+
             if (display_)
             {
                 display_->SetStatus("回答中");
@@ -415,16 +420,15 @@ private:
         gpio_config_t led_conf = {};
         led_conf.intr_type = GPIO_INTR_DISABLE;
         led_conf.mode = GPIO_MODE_OUTPUT;
-        led_conf.pin_bit_mask = (1ULL << LED_GREEN_GPIO) | (1ULL << LED_RED_GPIO);
+        led_conf.pin_bit_mask = (1ULL << LED_GREEN_GPIO);
         led_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         led_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&led_conf);
-        gpio_set_level(LED_GREEN_GPIO, 0);
-        gpio_set_level(LED_RED_GPIO, 0);
+        gpio_set_level(LED_GREEN_GPIO, 1);
 
         // 创建说话状态LED闪烁定时器
         esp_timer_create_args_t timer_args = {
-            .callback = &FogSeekEsp32s3EdgeLcd15::SpeakingBlinkTimerCallback,
+            .callback = &FogSeekEsp32s3EdgeLcd18::SpeakingBlinkTimerCallback,
             .arg = this,
             .name = "speaking_blink_timer"};
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &speaking_blink_timer_));
@@ -438,6 +442,7 @@ private:
     void InitializeBatteryMonitor()
     {
         // 由于硬件设计问题，ADC引脚被占用，无法正常使用电池监控功能
+        // battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_1, 2.0f, 1.0f, PWR_CHARGE_DONE_GPIO);
         // 使用固定值(80%)来模拟电池状态
         battery_monitor_ = nullptr; // 不使用实际的电池监控器
 
@@ -459,11 +464,14 @@ private:
         charge_done_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&charge_done_conf);
 
+        // 注册充电状态变化回调
+        // battery_monitor_->OnChargingStatusChanged([this](bool is_charging)
+        //                                           { UpdateBatteryStatus(); });
         UpdateBatteryStatus(); // 初始化时立即更新LED状态
 
         // 低电量管理 - 创建电池检查定时器，每30秒检查一次
         esp_timer_create_args_t timer_args = {
-            .callback = &FogSeekEsp32s3EdgeLcd15::BatteryCheckTimerCallback,
+            .callback = &FogSeekEsp32s3EdgeLcd18::BatteryCheckTimerCallback,
             .arg = this,
             .name = "battery_check_timer"};
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &battery_check_timer_));
@@ -493,22 +501,44 @@ private:
         // 长按开关机
         ctrl_button_.OnLongPress([this]()
                                  {
-                                    if(!no_dc_power_) {
-                                        ESP_LOGI(TAG, "DC power connected, power button ignored");
-                                        return;
-                                    }
                                     // 切换电源状态
                                     if(!pwr_hold_state_) {
                                         pwr_hold_state_ = true;
-                                        gpio_set_level(PWR_HOLD_GPIO, 1);   // 打开电源
-                                        gpio_set_level(LED_GREEN_GPIO, 1);
-                                        ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power.");
+                                        gpio_set_level(PWR_HOLD_GPIO, 1);      // 打开电源
+                                        gpio_set_level(LED_GREEN_GPIO, 0);     // 打开指示灯
+                                        backlight_->RestoreBrightness();       // 打开屏幕
+                                        
+                                        // 启用音频功放
+                                        auto codec = GetAudioCodec();
+                                        if (codec) {
+                                            auto es8311_codec = static_cast<Es8311AudioCodec*>(codec);
+                                            es8311_codec->EnableAmplifier(true);
+                                        }
+                                        ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power and amplifier enabled.");
+                                        auto &app = Application::GetInstance();
+                                        app.ToggleChatState();
                                     } 
                                     else{
                                         pwr_hold_state_ = false;
-                                        gpio_set_level(LED_RED_GPIO, 0);
-                                        gpio_set_level(LED_GREEN_GPIO, 0);
-                                        gpio_set_level(PWR_HOLD_GPIO, 0);   // 当按键再次长按，则关闭电源
+                                        backlight_->SetBrightness(0);          // 关闭屏幕
+                                        
+                                        // 禁用音频功放
+                                        auto codec = GetAudioCodec();
+                                        if (codec) {
+                                            auto es8311_codec = static_cast<Es8311AudioCodec*>(codec);
+                                            es8311_codec->EnableAmplifier(false);
+                                        }
+                                        
+                                        if (!no_dc_power_)
+                                        {
+                                            UpdateBatteryStatus(); // 恢复LED灯充电状态
+                                        }
+                                        else
+                                        {
+                                            gpio_set_level(LED_RED_GPIO, 1);   // 关闭指示灯
+                                            gpio_set_level(LED_GREEN_GPIO, 1); // 关闭指示灯
+                                        }
+                                        gpio_set_level(PWR_HOLD_GPIO, 0);      // 当按键再次长按，则关闭电源
                                         ESP_LOGI(TAG, "Power control pin set to LOW for shutdown.");
                                     } });
     }
@@ -587,7 +617,7 @@ private:
 
         // 初始化背光（使用静态对象而不是动态分配）
         backlight_ = new PwmBacklight(LCD_BL_GPIO, false);
-        backlight_->RestoreBrightness(); // 打开背光并设置为默认亮度
+        backlight_->SetBrightness(0); // 初始化关闭屏幕背光
 
         // 创建SPI LCD显示对象
         display_ = new SpiLcdDisplay(
@@ -615,14 +645,14 @@ private:
     }
 
 public:
-    FogSeekEsp32s3EdgeLcd15() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEsp32s3EdgeLcd18() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializeLeds();
-        InitializeButtons();
-        InitializeDisplay();
         InitializeMCP();
+        InitializeDisplay();
         InitializeBatteryMonitor();
+        InitializeButtons();
 
         // 注册设备状态变更回调
         DeviceStateEventManager::GetInstance().RegisterStateChangeCallback(
@@ -652,13 +682,12 @@ public:
             AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN,
             AUDIO_CODEC_ES8311_ADDR,
-            true, // use_mclk
-            false // pa_inverted
-        );
+            true,
+            false);
         return &audio_codec;
     }
 
-    ~FogSeekEsp32s3EdgeLcd15()
+    ~FogSeekEsp32s3EdgeLcd18()
     {
         if (battery_check_timer_)
         {
@@ -694,4 +723,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEsp32s3EdgeLcd15);
+DECLARE_BOARD(FogSeekEsp32s3EdgeLcd18);
