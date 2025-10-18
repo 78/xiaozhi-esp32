@@ -13,6 +13,14 @@
 
 #define TAG "image_to_jpeg"
 
+// Define V4L2 pixel formats (from linux/videodev2.h)
+#define V4L2_PIX_FMT_GREY    0x59455247  /* 8  Greyscale     */
+#define V4L2_PIX_FMT_YUYV    0x56595559  /* 16  YUV 4:2:2   */
+#define V4L2_PIX_FMT_UYVY    0x59565955  /* 16  YUV 4:2:2   */
+#define V4L2_PIX_FMT_YUV422P 0x50323234  /* 16  YVU422 planar */
+#define V4L2_PIX_FMT_RGB24   0x33424752  /* 24  RGB-8-8-8   */
+#define V4L2_PIX_FMT_RGB565  0x35424752  /* 16  RGB-5-6-5   */
+
 static void* malloc_psram(size_t size) {
     void* p = malloc(size);
     if (p)
