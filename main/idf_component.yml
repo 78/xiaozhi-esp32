@@ -27,7 +27,7 @@ dependencies:
   espressif/button: ~4.1.3
   espressif/knob: ^1.0.0
   espressif/esp_video:
-    version: '==1.2.0' # for compatibility. update version may need to modify this project code.
+    version: '==1.3.1' # for compatibility. update version may need to modify this project code.
     rules:
     - if: target not in [esp32]
   espressif/esp_lcd_touch_ft5x06: ~1.0.7
