@@ -12,7 +12,7 @@
 #include "lvgl_theme.h"
 
 #include <esp_log.h>
-#include "esp_check.h"
+#include <esp_check.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_spd2010.h>
@@ -28,7 +28,7 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
-#include "esp_app_desc.h"
+#include <esp_app_desc.h>
 
 #include "assets/lang_config.h"
 
