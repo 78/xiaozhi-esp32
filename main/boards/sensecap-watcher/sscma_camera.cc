@@ -578,7 +578,19 @@ bool SscmaCamera::Capture() {
     // 显示预览图片
     auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
-        auto image = std::make_unique<LvglSourceImage>(&preview_image_);
+        uint16_t w = preview_image_.header.w;
+        uint16_t h = preview_image_.header.h;
+        size_t image_size = w * h * 2;
+        size_t stride = preview_image_.header.w * 2;
+        
+        uint8_t* data = (uint8_t*)heap_caps_malloc(image_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (data == nullptr) {
+            ESP_LOGE(TAG, "Failed to allocate memory for display image");
+            return true;
+        }
+        memcpy(data, preview_image_.data, image_size);
+        
+        auto image = std::make_unique<LvglAllocatedImage>(data, image_size, w, h, stride, LV_COLOR_FORMAT_RGB565);
         display->SetPreviewImage(std::move(image));
     }
     return true;
