@@ -502,32 +502,32 @@ private:
             .func_w_context = [](void *context,int argc, char** argv) -> int {
                 auto self = static_cast<SensecapWatcher*>(context);
                 auto app_desc = esp_app_get_description();
-                printf("type: xiaozhi agent\n");
-                printf("version: %s\n", app_desc->version);
-                printf("camera: %d\n",self->GetCamera() == nullptr ? 0 : 1);
                 const char* region = "UNKNOWN";
                 #if defined(CONFIG_LANGUAGE_ZH_CN)
-                                region = "CN";
+                    region = "CN";
                 #elif defined(CONFIG_LANGUAGE_EN_US)
-                                region = "US";
+                    region = "US";
                 #elif defined(CONFIG_LANGUAGE_JA_JP)
-                                region = "JP";
+                    region = "JP";
                 #elif defined(CONFIG_LANGUAGE_ES_ES)
-                                region = "ES";
+                    region = "ES";
                 #elif defined(CONFIG_LANGUAGE_DE_DE)
-                                region = "DE";
+                    region = "DE";
                 #elif defined(CONFIG_LANGUAGE_FR_FR)
-                                region = "FR";
+                    region = "FR";
                 #elif defined(CONFIG_LANGUAGE_IT_IT)
-                                region = "IT";
+                    region = "IT";
                 #elif defined(CONFIG_LANGUAGE_PT_PT)
-                                region = "PT";
+                    region = "PT";
                 #elif defined(CONFIG_LANGUAGE_RU_RU)
-                                region = "RU";
+                    region = "RU";
                 #elif defined(CONFIG_LANGUAGE_KO_KR)
-                                region = "KR";
+                    region = "KR";
                 #endif
-                printf("region: %s\n", region);
+                printf("{\"type\":0,\"name\":\"VER?\",\"code\":0,\"data\":{\"software\":\"%s\",\"hardware\":\"watcher xiaozhi agent\",\"camera\":%d,\"region\":\"%s\"}}\n",
+                       app_desc->version,
+                       self->GetCamera() == nullptr ? 0 : 1,
+                       region);
                 return 0;
             },
             .context =this
