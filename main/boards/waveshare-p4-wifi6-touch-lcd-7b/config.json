@@ -5,6 +5,7 @@
             "name": "waveshare-p4-wifi6-touch-lcd-7b",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_AFE_WAKE_WORD=y",
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
         }
