@@ -24,7 +24,6 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/gif/lvgl_gif.cc"
             "display/lvgl_display/gif/gifdec.c"
             "display/lvgl_display/jpg/image_to_jpeg.cpp"
-            "display/lvgl_display/jpg/jpeg_encoder.cpp"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -289,6 +288,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B)
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_7B)
+    set(BOARD_TYPE "waveshare-p4-wifi6-touch-lcd-7b")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC)
     set(BOARD_TYPE "waveshare-p4-wifi6-touch-lcd-xc")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -313,10 +317,20 @@ elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2)
+    set(BOARD_TYPE "lilygo-t-cameraplus-s3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA)
     set(BOARD_TYPE "lilygo-t-display-s3-pro-mvsrlora")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_P4)
+    set(BOARD_TYPE "lilygo-t-display-p4")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
     set(BOARD_TYPE "movecall-moji-esp32s3")
@@ -499,6 +513,11 @@ elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_WTP4C5MP07S)
+    set(BOARD_TYPE "wireless-tag-wtp4c5mp07s")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 
 file(GLOB BOARD_SOURCES
@@ -565,12 +584,68 @@ elseif(CONFIG_LANGUAGE_UK_UA)
     set(LANG_DIR "uk-UA")
 elseif(CONFIG_LANGUAGE_RO_RO)
     set(LANG_DIR "ro-RO")
+elseif(CONFIG_LANGUAGE_BG_BG)
+    set(LANG_DIR "bg-BG")
+elseif(CONFIG_LANGUAGE_CA_ES)
+    set(LANG_DIR "ca-ES")
+elseif(CONFIG_LANGUAGE_DA_DK)
+    set(LANG_DIR "da-DK")
+elseif(CONFIG_LANGUAGE_EL_GR)
+    set(LANG_DIR "el-GR")
+elseif(CONFIG_LANGUAGE_FA_IR)
+    set(LANG_DIR "fa-IR")
+elseif(CONFIG_LANGUAGE_FIL_PH)
+    set(LANG_DIR "fil-PH")
+elseif(CONFIG_LANGUAGE_HE_IL)
+    set(LANG_DIR "he-IL")
+elseif(CONFIG_LANGUAGE_HR_HR)
+    set(LANG_DIR "hr-HR")
+elseif(CONFIG_LANGUAGE_HU_HU)
+    set(LANG_DIR "hu-HU")
+elseif(CONFIG_LANGUAGE_MS_MY)
+    set(LANG_DIR "ms-MY")
+elseif(CONFIG_LANGUAGE_NB_NO)
+    set(LANG_DIR "nb-NO")
+elseif(CONFIG_LANGUAGE_NL_NL)
+    set(LANG_DIR "nl-NL")
+elseif(CONFIG_LANGUAGE_SK_SK)
+    set(LANG_DIR "sk-SK")
+elseif(CONFIG_LANGUAGE_SL_SI)
+    set(LANG_DIR "sl-SI")
+elseif(CONFIG_LANGUAGE_SV_SE)
+    set(LANG_DIR "sv-SE")
+elseif(CONFIG_LANGUAGE_SR_RS)
+    set(LANG_DIR "sr-RS")
 endif()
 
 # Define generation path
 set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
+
+# Collect current language audio files
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/*.ogg)
+
+# If not en-US, collect en-US audio files as fallback for missing files
+if(NOT LANG_DIR STREQUAL "en-US")
+    file(GLOB EN_US_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/*.ogg)
+    
+    # Extract filenames (without path) from current language
+    set(EXISTING_NAMES "")
+    foreach(SOUND_FILE ${LANG_SOUNDS})
+        get_filename_component(FILENAME ${SOUND_FILE} NAME)
+        list(APPEND EXISTING_NAMES ${FILENAME})
+    endforeach()
+    
+    # Only add en-US audio files that are missing in current language
+    foreach(EN_SOUND ${EN_US_SOUNDS})
+        get_filename_component(FILENAME ${EN_SOUND} NAME)
+        if(NOT ${FILENAME} IN_LIST EXISTING_NAMES)
+            list(APPEND LANG_SOUNDS ${EN_SOUND})
+            message(STATUS "Using en-US fallback for missing audio: ${FILENAME}")
+        endif()
+    endforeach()
+endif()
+
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
 # If target chip is ESP32, exclude specific files to avoid build errors
@@ -579,6 +654,8 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
+                             "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
+                            "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              )
 endif()
 
