@@ -1,13 +1,11 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "config.h"
 #include "power_save_timer.h"
-#include "font_awesome_symbols.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -21,19 +19,11 @@
 
 #define TAG "magiclick_c3_v2"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class GC9107Display : public SpiLcdDisplay {
 public:
     GC9107Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_32_init(),
-                    }) {
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 只需要覆盖颜色相关的样式
@@ -54,7 +44,7 @@ public:
         // 设置内容区背景色和文本颜色
         lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
         lv_obj_set_style_border_width(content_, 0, 0);
-        lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(emoji_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
     }   
 };
@@ -103,22 +93,11 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(160);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(10);
-            
-            auto codec = GetAudioCodec();
-            codec->EnableInput(false);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto codec = GetAudioCodec();
-            codec->EnableInput(true);
-            
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->SetEnabled(true);
@@ -139,6 +118,14 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+
+        // Print I2C bus info
+        if (i2c_master_probe(codec_i2c_bus_, 0x18, 1000) != ESP_OK) {
+            while (true) {
+                ESP_LOGE(TAG, "Failed to probe I2C bus, please check if you have installed the correct firmware");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
     }
 
     void InitializeButtons() {
@@ -207,25 +194,17 @@ private:
             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     magiclick_c3_v2() : boot_button_(BOOT_BUTTON_GPIO) {
-        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
-        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-
         InitializeCodecI2c();
         InitializeButtons();
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeGc9107Display();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
+
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
     }
 
     virtual Led* GetLed() override {

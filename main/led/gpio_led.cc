@@ -1,5 +1,6 @@
 #include "gpio_led.h"
 #include "application.h"
+#include "device_state.h"
 #include <esp_log.h>
 
 #define TAG "GpioLed"
@@ -220,6 +221,7 @@ void GpioLed::OnStateChanged() {
             TurnOn();
             break;
         case kDeviceStateListening:
+        case kDeviceStateAudioTesting:
             if (app.IsVoiceDetected()) {
                 SetBrightness(HIGH_BRIGHTNESS);
             } else {

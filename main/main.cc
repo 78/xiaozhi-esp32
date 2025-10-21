@@ -4,6 +4,8 @@
 #include <nvs_flash.h>
 #include <driver/gpio.h>
 #include <esp_event.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "application.h"
 #include "system_info.h"
@@ -25,5 +27,6 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Launch the application
-    Application::GetInstance().Start();
+    auto& app = Application::GetInstance();
+    app.Start();
 }

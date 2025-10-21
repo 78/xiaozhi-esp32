@@ -6,10 +6,10 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
-#include "iot/thing_manager.h"
 #include "sy6970.h"
 #include "pin_config.h"
 #include "esp32_camera.h"
+#include "ir_filter_controller.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -17,9 +17,6 @@
 #include <wifi_station.h>
 
 #define TAG "LilygoTCameraPlusS3Board"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class Cst816x : public I2cDevice {
 public:
@@ -82,16 +79,11 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(10);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -103,7 +95,7 @@ private:
     void InitI2c(){
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_config = {
-            .i2c_port = I2C_NUM_1,
+            .i2c_port = I2C_NUM_0,
             .sda_io_num = TOUCH_I2C_SDA_PIN,
             .scl_io_num = TOUCH_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -138,7 +130,7 @@ private:
         }
     }
 
-    static void touchpad_daemon(void *param) {
+    static void TouchpadDaemon(void *param) {
         vTaskDelay(pdMS_TO_TICKS(2000));
         auto &board = (LilygoTCameraPlusS3Board&)Board::GetInstance();
         auto touchpad = board.GetTouchpad();
@@ -164,7 +156,7 @@ private:
     void InitCst816d() {
         ESP_LOGI(TAG, "Init CST816x");
         cst816d_ = new Cst816x(i2c_bus_, CST816_ADDRESS);
-        xTaskCreate(touchpad_daemon, "tp", 2048, NULL, 5, NULL);
+        xTaskCreate(TouchpadDaemon, "tp", 2048, NULL, 5, NULL);
     }
 
     void InitSpi() {
@@ -212,12 +204,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                     {
-                                         .text_font = &font_puhui_16_4,
-                                         .icon_font = &font_awesome_16_4,
-                                         .emoji_font = font_emoji_32_init(),
-                                     });
+                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -237,37 +224,58 @@ private:
     }
 
     void InitializeCamera() {
-        camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;   // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2;       // LEDC timer选择  用于生成XCLK时钟 但是S3不用
-        config.pin_d0 = Y2_GPIO_NUM;
-        config.pin_d1 = Y3_GPIO_NUM;
-        config.pin_d2 = Y4_GPIO_NUM;
-        config.pin_d3 = Y5_GPIO_NUM;
-        config.pin_d4 = Y6_GPIO_NUM;
-        config.pin_d5 = Y7_GPIO_NUM;
-        config.pin_d6 = Y8_GPIO_NUM;
-        config.pin_d7 = Y9_GPIO_NUM;
-        config.pin_xclk = XCLK_GPIO_NUM;
-        config.pin_pclk = PCLK_GPIO_NUM;
-        config.pin_vsync = VSYNC_GPIO_NUM;
-        config.pin_href = HREF_GPIO_NUM;
-        config.pin_sccb_sda = -1;   // 这里如果写-1 表示使用已经初始化的I2C接口
-        config.pin_sccb_scl = SIOC_GPIO_NUM;
-        config.sccb_i2c_port = 1;   //  这里如果写1 默认使用I2C1
-        config.pin_pwdn = PWDN_GPIO_NUM;
-        config.pin_reset = RESET_GPIO_NUM;
-        config.xclk_freq_hz = XCLK_FREQ_HZ;
-        config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_240X240;
-        config.jpeg_quality = 12;
-        config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = Y2_GPIO_NUM,
+                [1] = Y3_GPIO_NUM,
+                [2] = Y4_GPIO_NUM,
+                [3] = Y5_GPIO_NUM,
+                [4] = Y6_GPIO_NUM,
+                [5] = Y7_GPIO_NUM,
+                [6] = Y8_GPIO_NUM,
+                [7] = Y9_GPIO_NUM,
+            },
+            .vsync_io = VSYNC_GPIO_NUM,
+            .de_io = HREF_GPIO_NUM,
+            .pclk_io = PCLK_GPIO_NUM,
+            .xclk_io = XCLK_GPIO_NUM,
+        };
 
-        camera_ = new Esp32Camera(config);
+        esp_video_init_sccb_config_t sccb_config = {
+#ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
+            .init_sccb = false,
+            .i2c_handle = i2c_bus_,
+#elif defined CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2
+            .init_sccb = true,
+            .i2c_config = {
+                .port = 1,
+                .scl_pin = SIOC_GPIO_NUM,
+                .sda_pin = SIOD_GPIO_NUM,
+            },
+#endif
+            .freq = 100000,
+        };
+
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = RESET_GPIO_NUM,
+            .pwdn_pin = PWDN_GPIO_NUM,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = XCLK_FREQ_HZ,
+        };
+
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
         camera_->SetVFlip(1);
         camera_->SetHMirror(1);
+    }
+
+    void InitializeTools() {
+        static IrFilterController irFilter(AP1511B_GPIO);
     }
 
 public:
@@ -281,12 +289,7 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeCamera();
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-#endif
+        InitializeTools();
         GetBacklight()->RestoreBrightness();
     }
 

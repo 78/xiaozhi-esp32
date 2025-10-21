@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "pin_config.h"
 
 #include "config.h"
-#include "iot/thing_manager.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -17,9 +16,6 @@
 #include <esp_lcd_panel_io_additions.h>
 
 #define TAG "Yuying_313lcd"
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
 
 class Yuying_313lcd : public WifiBoard {
 private:
@@ -104,13 +100,9 @@ private:
 
         display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_30_4,
-                                      .icon_font = &font_awesome_30_4,
-                                      .emoji_font = font_emoji_64_init(),
-                                  });
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
+
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -143,18 +135,10 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     Yuying_313lcd() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeIot();
         InitializeRGB_GC9503V_Display();
         GetBacklight()->RestoreBrightness();
     }

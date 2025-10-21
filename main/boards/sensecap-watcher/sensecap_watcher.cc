@@ -3,16 +3,16 @@
 #include "wifi_board.h"
 #include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "knob.h"
 #include "config.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "power_save_timer.h"
+#include "sscma_camera.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
-#include "esp_check.h"
+#include <esp_check.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_spd2010.h>
@@ -28,14 +28,11 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
+#include <esp_app_desc.h>
 
 #include "assets/lang_config.h"
 
 #define TAG "sensecap_watcher"
-
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class CustomLcdDisplay : public SpiLcdDisplay {
     public:
@@ -48,15 +45,14 @@ class CustomLcdDisplay : public SpiLcdDisplay {
                         bool mirror_x,
                         bool mirror_y,
                         bool swap_xy) 
-            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_30_4,
-                        .icon_font = &font_awesome_20_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
     
             DisplayLockGuard lock(this);
-            lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height * 2 + 10);
+            auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+            auto text_font = lvgl_theme->text_font()->font();
+            auto icon_font = lvgl_theme->icon_font()->font();
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
@@ -64,9 +60,9 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             // 针对圆形屏幕调整位置
             //      network  battery  mute     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5*fonts_.icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);
@@ -97,20 +93,16 @@ private:
     uint32_t long_press_cnt_;
     button_driver_t* btn_driver_ = nullptr;
     static SensecapWatcher* instance_;
+    SscmaCamera* camera_ = nullptr;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(10);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -288,6 +280,19 @@ private:
     }
 
     void InitializeSpi() {
+        ESP_LOGI(TAG, "Initialize SSCMA SPI bus");
+        spi_bus_config_t spi_cfg = {0};
+
+        spi_cfg.mosi_io_num = BSP_SPI2_HOST_MOSI;
+        spi_cfg.miso_io_num = BSP_SPI2_HOST_MISO;
+        spi_cfg.sclk_io_num = BSP_SPI2_HOST_SCLK;
+        spi_cfg.quadwp_io_num = -1;
+        spi_cfg.quadhd_io_num = -1;
+        spi_cfg.isr_cpu_id = ESP_INTR_CPU_AFFINITY_1;
+        spi_cfg.max_transfer_sz = 4095;
+   
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &spi_cfg, SPI_DMA_CH_AUTO));
+
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
         spi_bus_config_t qspi_cfg = {0};
@@ -350,14 +355,6 @@ private:
             area->x2 = ((x2 >> 2) << 2) + 3;
         }, LV_EVENT_INVALIDATE_AREA, NULL);
         
-    }
-
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
     uint16_t BatterygetVoltage(void) {
@@ -496,9 +493,71 @@ private:
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
 
+        const esp_console_cmd_t cmd6 = {
+            .command = "version",
+            .help = "Read version info",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                auto app_desc = esp_app_get_description();
+                const char* region = "UNKNOWN";
+                #if defined(CONFIG_LANGUAGE_ZH_CN)
+                    region = "CN";
+                #elif defined(CONFIG_LANGUAGE_EN_US)
+                    region = "US";
+                #elif defined(CONFIG_LANGUAGE_JA_JP)
+                    region = "JP";
+                #elif defined(CONFIG_LANGUAGE_ES_ES)
+                    region = "ES";
+                #elif defined(CONFIG_LANGUAGE_DE_DE)
+                    region = "DE";
+                #elif defined(CONFIG_LANGUAGE_FR_FR)
+                    region = "FR";
+                #elif defined(CONFIG_LANGUAGE_IT_IT)
+                    region = "IT";
+                #elif defined(CONFIG_LANGUAGE_PT_PT)
+                    region = "PT";
+                #elif defined(CONFIG_LANGUAGE_RU_RU)
+                    region = "RU";
+                #elif defined(CONFIG_LANGUAGE_KO_KR)
+                    region = "KR";
+                #endif
+                printf("{\"type\":0,\"name\":\"VER?\",\"code\":0,\"data\":{\"software\":\"%s\",\"hardware\":\"watcher xiaozhi agent\",\"camera\":%d,\"region\":\"%s\"}}\n",
+                       app_desc->version,
+                       self->GetCamera() == nullptr ? 0 : 1,
+                       region);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd6));
+
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
         ESP_ERROR_CHECK(esp_console_start_repl(repl));
+    }
+
+    void InitializeCamera() {
+
+        ESP_LOGI(TAG, "Initialize Camera");
+
+        // !!!NOTE: SD Card use same SPI bus as sscma client, so we need to disable SD card CS pin first
+        const gpio_config_t io_config = {
+            .pin_bit_mask = (1ULL << BSP_SD_SPI_CS),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        esp_err_t ret = gpio_config(&io_config);
+        if (ret != ESP_OK)
+            return;
+
+        gpio_set_level(BSP_SD_SPI_CS, 1);
+
+        camera_ = new SscmaCamera(io_exp_handle);
     }
 
 public:
@@ -512,8 +571,8 @@ public:
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
-        InitializeIot();
-        GetBacklight()->RestoreBrightness();
+        GetBacklight()->RestoreBrightness();  // 对于不带摄像头的版本，InitializeCamera需要3s, 所以先恢复背光亮度
+        InitializeCamera();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -572,6 +631,10 @@ public:
             IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
         }
         return true;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 };
 
