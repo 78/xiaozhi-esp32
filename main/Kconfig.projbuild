@@ -648,18 +648,34 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+menu "WiFi Configuration Method"
+    help
+        WiFi Configuration Method Selection
+    config USE_HOTSPOT_WIFI_PROVISIONING
+        bool "Hotspot"
+        default y
+        help
+            Use WiFi Hotspot to transmit WiFi configuration data
+    config USE_ACOUSTIC_WIFI_PROVISIONING
+        bool "Acoustic"
+        help
+            Use audio signal to transmit WiFi configuration data
+
+    config USE_ESP_BLUFI_WIFI_PROVISIONING
+        bool "Esp Blufi"
+        help
+            Use esp blufi protocol to transmit WiFi configuration data
+        select CONFIG_BT_ENABLED
+        select CONFIG_BT_BLE_42_FEATURES_SUPPORTED
+        select CONFIG_BT_BLE_BLUFI_ENABLE
+endmenu
+
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
         UDP server address, format: IP:PORT, used to receive audio debugging data
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
@@ -691,11 +707,11 @@ menu "Camera Configuration"
         depends on !CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
         help
             This option treats the camera buffer as a uint16_t[] array and performs byte-swapping (endianness conversion) on each element.
-            
+
             Should only be modified by development board integration engineers.
-            
+
             **Incorrect usage may result in incorrect image colors!**
-            
+
             ATTENTION: If the option CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is available for your sensor, please use that instead.
 endmenu
 
