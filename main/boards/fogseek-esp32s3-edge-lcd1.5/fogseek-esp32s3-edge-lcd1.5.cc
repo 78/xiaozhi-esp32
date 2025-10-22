@@ -52,24 +52,24 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
-    // 初始化音频功放引脚并默认关闭功放
-    void InitializeAudioAmplifier()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetAudioAmplifierState(false); // 默认关闭功放
-    }
+    // // 初始化音频功放引脚并默认关闭功放
+    // void InitializeAudioAmplifier()
+    // {
+    //     gpio_config_t io_conf;
+    //     io_conf.intr_type = GPIO_INTR_DISABLE;
+    //     io_conf.mode = GPIO_MODE_OUTPUT;
+    //     io_conf.pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN);
+    //     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    //     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    //     gpio_config(&io_conf);
+    //     SetAudioAmplifierState(false); // 默认关闭功放
+    // }
 
-    // 设置音频功放状态
-    void SetAudioAmplifierState(bool enable)
-    {
-        gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
-    }
+    // // 设置音频功放状态
+    // void SetAudioAmplifierState(bool enable)
+    // {
+    //     gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
+    // }
 
     // 初始化按键回调
     void InitializeButtonCallbacks()
@@ -96,8 +96,8 @@ private:
         power_manager_.PowerOn();
         led_controller_.SetPowerState(true);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        display_manager_.RestoreBrightness();
-        SetAudioAmplifierState(true);
+        // display_manager_.RestoreBrightness();
+        // SetAudioAmplifierState(true);
 
         // 开机自动唤醒
         auto_wake_flag_ = true;
@@ -113,8 +113,8 @@ private:
         power_manager_.PowerOff();
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        display_manager_.SetBrightness(0);
-        SetAudioAmplifierState(false);
+        // display_manager_.SetBrightness(0);
+        // SetAudioAmplifierState(false);
 
         // 重置自动唤醒标志位到默认状态
         auto_wake_flag_ = false;
@@ -143,7 +143,7 @@ private:
         if (power_manager_.IsPowerOn())
         {
             led_controller_.HandleDeviceState(current_state, power_manager_);
-            display_manager_.HandleDeviceState(current_state);
+            // display_manager_.HandleDeviceState(current_state);
 
             // 处理自动唤醒逻辑
             HandleAutoWake(current_state);
@@ -164,10 +164,10 @@ public:
     FogSeekEsp32s3EdgeLcd15() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
-        InitializeAudioAmplifier();
+        // InitializeAudioAmplifier();
         power_manager_.Initialize();
         led_controller_.InitializeLeds(power_manager_);
-        display_manager_.Initialize();
+        // display_manager_.Initialize();
         InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数
@@ -179,10 +179,10 @@ public:
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
     }
 
-    virtual Display *GetDisplay() override
-    {
-        return display_manager_.GetDisplay();
-    }
+    // virtual Display *GetDisplay() override
+    // {
+    //     return display_manager_.GetDisplay();
+    // }
 
     virtual AudioCodec *GetAudioCodec() override
     {
@@ -196,7 +196,7 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
+            AUDIO_CODEC_PA_PIN,
             AUDIO_CODEC_ES8311_ADDR,
             true,
             false);
