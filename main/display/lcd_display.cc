@@ -240,17 +240,6 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
                             bool mirror_x, bool mirror_y, bool swap_xy)
     : LcdDisplay(panel_io, panel, width, height) {
 
-    // Set the display to on
-    ESP_LOGI(TAG, "Turning display on");
-    {
-        esp_err_t __err = esp_lcd_panel_disp_on_off(panel_, true);
-        if (__err == ESP_ERR_NOT_SUPPORTED) {
-            ESP_LOGW(TAG, "Panel does not support disp_on_off; assuming ON");
-        } else {
-            ESP_ERROR_CHECK(__err);
-        }
-    }
-
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
@@ -277,7 +266,7 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
         .flags = {
             .buff_dma = true,
             .buff_spiram =false,
-            .sw_rotate = false,
+            .sw_rotate = true,
         },
     };
 
