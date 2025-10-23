@@ -1,6 +1,6 @@
-# ESP32-P4-Function-EV-Board
+# ESP-P4-Function-EV-Board
 
-Board support for ESP32-P4-Function-EV-Board. Wi‑Fi uses ESP‑Hosted via the on‑board ESP32‑C6. LCD is supported via the official MIPI‑DSI LCD adapter.
+Board support for ESP-P4-Function-EV-Board. Wi‑Fi uses ESP‑Hosted via the on‑board ESP32‑C6. LCD is supported via the official MIPI‑DSI LCD adapter.
 
 ## Features
 - Wi‑Fi: `esp_wifi_remote` + `esp_hosted` (SDIO) with ESP32‑C6 co‑processor
@@ -8,7 +8,7 @@ Board support for ESP32-P4-Function-EV-Board. Wi‑Fi uses ESP‑Hosted via the 
 - Audio: Can run with dummy codec; board includes ES8311 + PA if needed
 
 ## Configure
-In `menuconfig`: Xiaozhi Assistant -> Board Type -> ESP32-P4-Function-EV-Board
+In `menuconfig`: Xiaozhi Assistant -> Board Type -> ESP-P4-Function-EV-Board
 
 Ensure these are set (auto-set when building via config.json):
 - `CONFIG_SLAVE_IDF_TARGET_ESP32C6=y`
@@ -31,5 +31,5 @@ idf.py menuconfig
 idf.py build
 ```
 
-Tip: In menuconfig, choose Xiaozhi Assistant -> Board Type -> ESP32-P4-Function-EV-Board.
+Tip: In menuconfig, choose Xiaozhi Assistant -> Board Type -> ESP-P4-Function-EV-Board.
 If building a release via scripts, the `config.json` in this folder appends the required Hosted options.

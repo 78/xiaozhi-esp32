@@ -2,7 +2,7 @@
     "target": "esp32p4",
     "builds": [
         {
-            "name": "esp32-p4-function-ev-board",
+            "name": "esp-p4-function-ev-board",
             "sdkconfig_append": [
                 "CONFIG_SLAVE_IDF_TARGET_ESP32C6=y",
                 "CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y",
