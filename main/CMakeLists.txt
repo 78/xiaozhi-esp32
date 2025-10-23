@@ -226,8 +226,8 @@ elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_5)
     set(BOARD_TYPE "fogseek-esp32s3-edge-lcd1.5")
 elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_8)
     set(BOARD_TYPE "fogseek-esp32s3-edge-lcd1.8")
-elseif(CONFIG_BOARD_TYPE_FOGSEEK_MOODLIGHT)
-    set(BOARD_TYPE "fogseek-moodlight")
+elseif(CONFIG_BOARD_TYPE_FOGSEEK_BUBBLEPAL)
+    set(BOARD_TYPE "fogseek-bubblepal")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
