@@ -1,0 +1,15 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "DogePet-st7789-240x240",
+            "sdkconfig_append": [
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_LCD_ST7789_240X240=y"
+            ]
+        }
+    ]
+}
