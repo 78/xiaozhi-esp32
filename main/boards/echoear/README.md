@@ -29,31 +29,39 @@ idf.py menuconfig
 
 ### UI风格选择
 
-EchoEar 支持两种不同的UI显示风格，通过修改代码中的宏定义来选择：
+EchoEar 支持多种不同的 UI 显示风格，通过 menuconfig 配置选择：
 
-#### 自定义表情显示系统 (推荐)
-```c
-#define USE_LVGL_DEFAULT    0
-```
+- `Xiaozhi Assistant` → `Select display style` → 选择显示风格
+
+#### 可选风格
+
+##### 表情动画风格 (Emote animation style) - 推荐
+- **配置选项**: `USE_EMOTE_MESSAGE_STYLE`
 - **特点**: 使用自定义的 `EmoteDisplay` 表情显示系统
 - **功能**: 支持丰富的表情动画、眼睛动画、状态图标显示
 - **适用**: 智能助手场景，提供更生动的人机交互体验
-- **类**: `anim::EmoteDisplay` + `anim::EmoteEngine`
+- **类**: `emote::EmoteDisplay`
 
-#### LVGL默认显示系统
-```c
-#define USE_LVGL_DEFAULT    1
-```
-- **特点**: 使用标准LVGL图形库的显示系统
+**⚠️ 重要**: 选择此风格需要额外配置自定义资源文件：
+1. `Xiaozhi Assistant` → `Flash Assets` → 选择 `Flash Custom Assets`
+2. `Xiaozhi Assistant` → `Custom Assets File` → 填入资源文件地址：
+   ```
+   https://dl.espressif.com/AE/wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-echoear.bin
+   ```
+
+##### 默认消息风格 (Enable default message style)
+- **配置选项**: `USE_DEFAULT_MESSAGE_STYLE` (默认)
+- **特点**: 使用标准的消息显示界面
 - **功能**: 传统的文本和图标显示界面
-- **适用**: 需要标准GUI控件的应用场景
+- **适用**: 标准的对话场景
 - **类**: `SpiLcdDisplay`
 
-#### 如何修改
-1. 打开 `main/boards/echoear/EchoEar.cc` 文件
-2. 找到第29行的宏定义：`#define USE_LVGL_DEFAULT    0`
-3. 修改为想要的值（0或1）
-4. 重新编译项目
+##### 微信消息风格 (Enable WeChat Message Style)
+- **配置选项**: `USE_WECHAT_MESSAGE_STYLE`
+- **特点**: 仿微信聊天界面风格
+- **功能**: 类似微信的消息气泡显示
+- **适用**: 喜欢微信风格的用户
+- **类**: `SpiLcdDisplay`
 
 > **说明**: EchoEar 使用16MB Flash，需要使用专门的分区表配置来合理分配存储空间给应用程序、OTA更新、资源文件等。
 
