@@ -8,7 +8,8 @@
                 "CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y",
                 "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
                 "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
-                "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP=y"
+                "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP=y",
+                "CONFIG_BSP_LCD_TYPE_1024_600=y"
             ]
         }
     ]

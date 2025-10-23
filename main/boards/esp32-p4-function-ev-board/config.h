@@ -1,60 +1,11 @@
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
 
-#include <driver/gpio.h>
-#include <driver/uart.h>
+#include "bsp/esp32_p4_function_ev_board.h"  // Library for board configs and pins
 
 #define AUDIO_INPUT_SAMPLE_RATE  24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_13
-#define AUDIO_I2S_GPIO_WS GPIO_NUM_10
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_12
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_11
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_9
-
-#define AUDIO_CODEC_PA_PIN       GPIO_NUM_53
-#define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_7
-#define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_8
-#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
-
-#define BUILTIN_LED_GPIO        GPIO_NUM_NC
-#define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
-#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
-
-#define DISPLAY_WIDTH   1024
-#define DISPLAY_HEIGHT  600
-#define DISPLAY_MIRROR_X true
-#define DISPLAY_MIRROR_Y true
-#define DISPLAY_SWAP_XY false
-
-#define DISPLAY_OFFSET_X  0
-#define DISPLAY_OFFSET_Y  0
-
-// Common LCD properties
-#define LCD_BIT_PER_PIXEL          (16)
-#define PIN_NUM_LCD_RST            GPIO_NUM_27
-
-// Legacy SPI pin defines (not used for MIPI-DSI panels, kept for compatibility)
-#define DISPLAY_DC_GPIO     GPIO_NUM_43
-#define DISPLAY_CS_GPIO     GPIO_NUM_44
-#define DISPLAY_CLK_GPIO    GPIO_NUM_21
-#define DISPLAY_MOSI_GPIO   GPIO_NUM_47
-#define DISPLAY_RST_GPIO    PIN_NUM_LCD_RST
-
-
-#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_26
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
-
-#define TOUCH_I2C_SDA_PIN GPIO_NUM_6
-#define TOUCH_I2C_SCL_PIN GPIO_NUM_5
-#define TOUCH_INT_GPIO GPIO_NUM_4
-
-// MIPI DSI PHY LDO power channel (required on ESP32-P4 for DSI PHY)
-#define MIPI_DSI_PHY_PWR_LDO_CHAN          (3)
-#define MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV    (2500)
-
-
 
 #endif // _BOARD_CONFIG_H_
