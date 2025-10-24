@@ -100,7 +100,14 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+    {
+        esp_err_t __err = esp_lcd_panel_disp_on_off(panel_, true);
+        if (__err == ESP_ERR_NOT_SUPPORTED) {
+            ESP_LOGW(TAG, "Panel does not support disp_on_off; assuming ON");
+        } else {
+            ESP_ERROR_CHECK(__err);
+        }
+    }
 
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
@@ -164,6 +171,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     SetupUI();
 }
+
 
 // RGB LCD实现
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
