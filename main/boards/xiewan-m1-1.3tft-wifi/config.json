@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xiewan-m1-1.3tft-wifi",
+            "sdkconfig_append": ["CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y","CONFIG_LANGUAGE_ZH_CN=y"]
+        }
+    ]
+}
