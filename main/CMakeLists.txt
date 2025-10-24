@@ -192,6 +192,10 @@ elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_XMINI_C3_SUPERMINI)
+    set(BOARD_TYPE "xmini-c3-supermini")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
     set(BOARD_TYPE "esp32s3-korvo2-v3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
@@ -525,6 +529,17 @@ elseif(CONFIG_BOARD_TYPE_WTP4C5MP07S)
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_DOGEPET_V2)
+    # Folder name for DogePetV2 board
+    set(BOARD_TYPE "dogepeV2")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_ICON_FONT font_awesome_16_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+elseif(CONFIG_BOARD_TYPE_DOGEPET)
+    set(BOARD_TYPE "dogepet")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_ICON_FONT font_awesome_16_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 endif()
 
 file(GLOB BOARD_SOURCES
@@ -539,11 +554,19 @@ if(CONFIG_USE_AUDIO_PROCESSOR)
 else()
     list(APPEND SOURCES "audio/processors/no_audio_processor.cc")
 endif()
+# Include wake word sources only for the selected implementation and target
+# Note: WAKE_WORD_TYPE is a Kconfig choice; only one of these will be set
 if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
-    list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
-    list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    if(CONFIG_USE_AFE_WAKE_WORD)
+        list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
+    endif()
+    if(CONFIG_USE_CUSTOM_WAKE_WORD)
+        list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    endif()
 else()
-    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+    if(CONFIG_USE_ESP_WAKE_WORD)
+        list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+    endif()
 endif()
 
 # Select language directory according to Kconfig
@@ -669,7 +692,6 @@ endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
-                    WHOLE_ARCHIVE
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
