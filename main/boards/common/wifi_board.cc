@@ -16,6 +16,7 @@
 #include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
 #include "afsk_demod.h"
+#include "blufi.h"
 
 static const char *TAG = "WifiBoard";
 
@@ -35,7 +36,7 @@ std::string WifiBoard::GetBoardType() {
 void WifiBoard::EnterWifiConfigMode() {
     auto& application = Application::GetInstance();
     application.SetDeviceState(kDeviceStateWifiConfiguring);
-
+#ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
     wifi_ap.SetLanguage(Lang::CODE);
     wifi_ap.SetSsidPrefix("Xiaozhi");
@@ -50,10 +51,14 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
-    
-    // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
-
+#endif
+    // 播报配置 WiFi 的提示
+    #if CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+    auto &blufi = Blufi::GetInstance();
+    // 初始化 esp-blufi协议
+    blufi.init();
+    #endif
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
     auto codec = Board::GetInstance().GetAudioCodec();
@@ -64,7 +69,7 @@ void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
     audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
     #endif
-    
+
     // Wait forever until reset after configuration
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(10000));
