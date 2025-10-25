@@ -144,32 +144,32 @@ choice BOARD_TYPE
     config BOARD_TYPE_XMINI_C3
         bool "Xmini C3"
         depends on IDF_TARGET_ESP32C3
-    config BOARD_TYPE_ESP32S3_KORVO2_V3
-        bool "ESP32S3 KORVO2 V3"
+    config BOARD_TYPE_ESP_KORVO2_V3
+        bool "Espressif Korvo2 V3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot"
+        bool "Espressif SparkBot"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPOT_S3
-        bool "ESP-Spot-S3"
+        bool "Espressif Spot-S3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_HI
-        bool "ESP-HI"
+        bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
-    config BOARD_TYPE_ECHOEAR
-        bool "EchoEar"
-        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX_3
-        bool "ESP BOX 3"
+        bool "Espressif ESP-BOX-3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX
-        bool "ESP BOX"
+        bool "Espressif ESP-BOX"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX_LITE
-        bool "ESP BOX Lite"
+        bool "Espressif ESP-BOX-Lite"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_KEVIN_BOX_1
-        bool "Kevin Box 1"
+    config BOARD_TYPE_ESP_P4_FUNCTION_EV_BOARD
+        bool "Espressif ESP-P4-Function-EV-Board"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_ECHOEAR
+        bool "EchoEar"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_BOX_2
         bool "Kevin Box 2"
@@ -183,19 +183,19 @@ choice BOARD_TYPE
     config BOARD_TYPE_KEVIN_SP_V4_DEV
         bool "Kevin SP V4"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_CGC
-        bool "ESP32 CGC"
-        depends on IDF_TARGET_ESP32
-    config BOARD_TYPE_ESP32_CGC_144
-        bool "ESP32 CGC 144"
-        depends on IDF_TARGET_ESP32
     config BOARD_TYPE_KEVIN_YUYING_313LCD
         bool "鱼鹰科技 3.13LCD"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_LICHUANG_DEV
+    config BOARD_TYPE_CGC
+        bool "CGC"
+        depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_CGC_144
+        bool "CGC 144"
+        depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_LICHUANG_DEV_S3
         bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_LICHUANG_C3_DEV
+    config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_DF_K10
@@ -204,10 +204,10 @@ choice BOARD_TYPE
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI智能摄像头模块"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_MAGICLICK_2P4
+    config BOARD_TYPE_MAGICLICK_S3_2P4
         bool "神奇按钮 Magiclick_2.4"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_MAGICLICK_2P5
+    config BOARD_TYPE_MAGICLICK_S3_2P5
         bool "神奇按钮 Magiclick_2.5"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MAGICLICK_C3
@@ -222,76 +222,74 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_TAB5
         bool "M5Stack Tab5"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ATOMS3_ECHO_BASE
-        bool "AtomS3 + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3_ECHO_BASE
+        bool "M5Stack AtomS3 + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMS3R_ECHO_BASE
-        bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3R_ECHO_BASE
+        bool "M5Stack AtomS3R + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
-        bool "AtomS3R CAM/M12 + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE
+        bool "M5Stack AtomS3R CAM/M12 + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOM_ECHOS3R
-        bool "AtomEchoS3R"
+    config BOARD_TYPE_M5STACK_ATOM_ECHOS3R
+        bool "M5Stack AtomEchoS3R"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
-        bool "AtomMatrix + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_MATRIX_ECHO_BASE
+        bool "M5Stack AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
-    config BOARD_TYPE_ESP32S3_AUDIO_BOARD
+    config BOARD_TYPE_WAVESHARE_S3_AUDIO_BOARD
         bool "Waveshare ESP32-S3-Audio-Board"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_83
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83
         bool "Waveshare ESP32-S3-Touch-LCD-1.83"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_4B
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B
         bool "Waveshare ESP32-S3-Touch-LCD-4B"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_85
         bool "Waveshare ESP32-S3-Touch-LCD-1.85"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_46
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32C6_LCD_1_69
+    config BOARD_TYPE_WAVESHARE_C6_LCD_1_69
         bool "Waveshare ESP32-C6-LCD-1.69"
         depends on IDF_TARGET_ESP32C6
-    config BOARD_TYPE_ESP32C6_Touch_AMOLED_1_43
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
-    config BOARD_TYPE_ESP32S3_Touch_LCD_3_49
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49
         bool "Waveshare ESP32-S3-Touch-LCD-3.49"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5B
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5B
         bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32P4_NANO
+    config BOARD_TYPE_WAVESHARE_P4_NANO
         bool "Waveshare ESP32-P4-NANO"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B"
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_7B
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-7B"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C or ESP32-P4-WIFI6-Touch-LCD-4C"
-        depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ESP_P4_Function_EV_Board
-        bool "ESP-P4-Function-EV-Board"
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_TUDOUZI
         bool "土豆子"
@@ -344,29 +342,29 @@ choice BOARD_TYPE
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Taiji_Pi
+    config BOARD_TYPE_TAIJI_PI_S3
         bool "太极小派esp32s3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_0_85TFT_WIFI
         bool "无名科技星智0.85(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_0_85TFT_ML307
         bool "无名科技星智0.85(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_0_96OLED_WIFI
         bool "无名科技星智0.96(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_0_96OLED_ML307
         bool "无名科技星智0.96(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_WIFI
         bool "无名科技星智1.54(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_SENSECAP_WATCHER
-        bool "SenseCAP Watcher"
+    config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
+        bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DOIT_S3_AIBOX
         bool "四博智联AI陪伴盒子"
@@ -392,10 +390,10 @@ choice BOARD_TYPE
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "敏思科技K08(DUAL)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_S3_1_54_MUMA
+    config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_S3_1_28_BOX
+    config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3-1.28-BOX"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_OTTO_ROBOT
@@ -417,14 +415,13 @@ choice BOARD_TYPE
     config BOARD_TYPE_LABPLUS_LEDONG_V2
         bool "labplus ledong_v2 board"
         depends on IDF_TARGET_ESP32S3
-    depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SURFER_C3_1_14TFT
         bool "Surfer-C3-1.14TFT"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_YUNLIAO_S3
         bool "小智云聊-S3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_WTP4C5MP07S
+    config BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S
         bool "Wireless-Tag WTP4C5MP07S"
         depends on IDF_TARGET_ESP32P4
 endchoice
@@ -474,7 +471,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -522,7 +519,7 @@ choice DISPLAY_LCD_TYPE
 endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
-    depends on BOARD_TYPE_ESP32S3_KORVO2_V3
+    depends on BOARD_TYPE_ESP_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
     default ESP32S3_KORVO2_V3_LCD_ST7789
     help
@@ -534,7 +531,7 @@ choice DISPLAY_ESP32S3_KORVO2_V3
 endchoice
 
 choice DISPLAY_ESP32S3_AUDIO_BOARD
-    depends on BOARD_TYPE_ESP32S3_AUDIO_BOARD
+    depends on BOARD_TYPE_WAVESHARE_S3_AUDIO_BOARD
     prompt "ESP32S3_AUDIO_BOARD LCD Type"
     default AUDIO_BOARD_LCD_JD9853
     help
@@ -634,10 +631,10 @@ config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
         depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE \
-        || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_LCD_1_83\
-        || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32S3_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_7B \
-        || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
-        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_ESP32S3_Touch_LCD_3_49)
+        || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83\
+        || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
+        || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
@@ -706,7 +703,7 @@ menu "Camera Configuration"
 endmenu
 
 menu "TAIJIPAI_S3_CONFIG"
-    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
+    depends on BOARD_TYPE_TAIJI_PI_S3
     choice I2S_TYPE_TAIJIPI_S3
         prompt "taiji-pi-S3 I2S Type"
         default TAIJIPAI_I2S_TYPE_STD
