@@ -1,0 +1,32 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "esp32-c3-mini-konan",
+            "sdkconfig_append": [
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER=n",
+                "CONFIG_LVGL_USE_DRAW_SW=y",
+                "CONFIG_LVGL_USE_DRAW_VGLITE=n",
+                "CONFIG_LVGL_USE_DRAW_SDL=n",
+                "CONFIG_LVGL_USE_FREETYPE=n",
+                "CONFIG_SPIRAM=n",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"main/boards/esp32-c3-mini-konan/partitions_4mb.csv\"",
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y",
+                "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE=y",
+                "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
+                "CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y",
+                "CONFIG_BT_ENABLED=n",
+                "CONFIG_BT_BLUEDROID_ENABLED=n",
+                "CONFIG_BT_NIMBLE_ENABLED=n",
+                "CONFIG_LWIP_IPV6=n",
+                "CONFIG_LWIP_NETIF_LOOPBACK=n"
+            ]
+        }
+    ]
+}

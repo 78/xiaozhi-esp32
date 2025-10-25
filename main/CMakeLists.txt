@@ -8,6 +8,7 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/codecs/es8388_audio_codec.cc"
             "audio/codecs/es8389_audio_codec.cc"
             "audio/codecs/dummy_audio_codec.cc"
+            "audio/codecs/max98357a_inmp441_codec.cc"
             "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
@@ -190,6 +191,10 @@ elseif(CONFIG_BOARD_TYPE_XMINI_C3_4G)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_XMINI_C3)
     set(BOARD_TYPE "xmini-c3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_ESP32_C3_MINI_KONAN)
+    set(BOARD_TYPE "esp32-c3-mini-konan")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_KORVO2_V3)
@@ -655,8 +660,8 @@ endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
-# If target chip is ESP32, exclude specific files to avoid build errors
-if(CONFIG_IDF_TARGET_ESP32)
+# If target chip is ESP32 or ESP32-C3, exclude specific files to avoid build errors
+if(CONFIG_IDF_TARGET_ESP32 OR CONFIG_IDF_TARGET_ESP32C3)
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
