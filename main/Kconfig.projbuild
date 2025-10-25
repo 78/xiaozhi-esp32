@@ -424,6 +424,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S
         bool "Wireless-Tag WTP4C5MP07S"
         depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_AIPI_LITE
+        bool "AIPI-Lite"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice
