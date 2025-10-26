@@ -454,6 +454,8 @@ void Application::Start() {
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (device_state_ == kDeviceStateSpeaking) {
+                        // Clear audio buffers immediately to stop playback
+                        audio_service_.ResetDecoder();
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
@@ -708,8 +710,9 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
 
+            // Keep voice processing enabled to support voice interruption (V2V mode)
+            // Only disable wake word detection in non-realtime modes
             if (listening_mode_ != kListeningModeRealtime) {
-                audio_service_.EnableVoiceProcessing(false);
                 // Only AFE wake word can be detected in speaking mode
                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
