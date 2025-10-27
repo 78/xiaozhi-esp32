@@ -711,9 +711,14 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::SPEAKING);
 
             // Keep voice processing enabled to support voice interruption (V2V mode)
-            // Only disable wake word detection in non-realtime modes
-            if (listening_mode_ != kListeningModeRealtime) {
-                // Only AFE wake word can be detected in speaking mode
+            // In realtime mode, voice processing must stay enabled for interruption detection
+            if (listening_mode_ == kListeningModeRealtime) {
+                if (!audio_service_.IsAudioProcessorRunning()) {
+                    audio_service_.EnableVoiceProcessing(true);
+                    audio_service_.EnableWakeWordDetection(false);
+                }
+            } else {
+                // In non-realtime modes, only AFE wake word can be detected in speaking mode
                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
             audio_service_.ResetDecoder();
