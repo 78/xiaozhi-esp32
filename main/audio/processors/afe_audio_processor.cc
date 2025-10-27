@@ -6,7 +6,7 @@
 #define TAG "AfeAudioProcessor"
 
 AfeAudioProcessor::AfeAudioProcessor()
-    : afe_data_(nullptr) {
+    : afe_data_(nullptr), aec_enabled_(false), is_speaking_(false) {
     event_group_ = xEventGroupCreate();
 }
 
@@ -152,9 +152,19 @@ void AfeAudioProcessor::AudioProcessorTask() {
         if (output_callback_) {
             size_t samples = res->data_size / sizeof(int16_t);
             
-            // Only send audio when VAD detects speech (hardware VAD filtering)
-            // This reduces bandwidth and server processing load
-            if (is_speaking_) {
+            bool should_send = false;
+            
+            if (aec_enabled_) {
+                // AEC mode: Send ALL audio to server (ElevenLabs handles interruption)
+                // Hardware AEC removes speaker echo, ElevenLabs VAD detects user speech
+                should_send = true;
+            } else {
+                // VAD mode: Only send when hardware VAD detects speech
+                // This reduces bandwidth when no one is speaking
+                should_send = is_speaking_;
+            }
+            
+            if (should_send) {
                 // Add data to buffer
                 output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
                 
@@ -172,7 +182,7 @@ void AfeAudioProcessor::AudioProcessorTask() {
                     }
                 }
             } else {
-                // When not speaking, clear buffer to avoid sending stale data when speech resumes
+                // When VAD not detecting speech, clear buffer
                 output_buffer_.clear();
                 output_buffer_.reserve(frame_samples_);
             }
@@ -181,15 +191,18 @@ void AfeAudioProcessor::AudioProcessorTask() {
 }
 
 void AfeAudioProcessor::EnableDeviceAec(bool enable) {
+    aec_enabled_ = enable;
     if (enable) {
 #if CONFIG_USE_DEVICE_AEC
         afe_iface_->disable_vad(afe_data_);
         afe_iface_->enable_aec(afe_data_);
+        ESP_LOGI(TAG, "AEC enabled - sending all audio to server for ElevenLabs VAD interruption detection");
 #else
         ESP_LOGE(TAG, "Device AEC is not supported");
 #endif
     } else {
         afe_iface_->disable_aec(afe_data_);
         afe_iface_->enable_vad(afe_data_);
+        ESP_LOGI(TAG, "AEC disabled, hardware VAD enabled for bandwidth saving");
     }
 }
