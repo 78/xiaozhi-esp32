@@ -121,7 +121,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
 
     ESP_LOGD(
         TAG,
-        "VIDIOC_QUERYCAP: driver=%s, card=%s, bus_info=%s, version=0x%08x, capabilities=0x%08x, device_caps=0x%08x",
+        "VIDIOC_QUERYCAP: driver=%s, card=%s, bus_info=%s, version=0x%08lx, capabilities=0x%08lx, device_caps=0x%08lx",
         cap.driver, cap.card, cap.bus_info, cap.version, cap.capabilities, cap.device_caps);
 
     struct v4l2_format format = {};
@@ -132,7 +132,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         video_fd_ = -1;
         return;
     }
-    ESP_LOGD(TAG, "VIDIOC_G_FMT: pixelformat=0x%08x, width=%d, height=%d", format.fmt.pix.pixelformat,
+    ESP_LOGD(TAG, "VIDIOC_G_FMT: pixelformat=0x%08lx, width=%ld, height=%ld", format.fmt.pix.pixelformat,
              format.fmt.pix.width, format.fmt.pix.height);
     CAM_PRINT_FOURCC(format.fmt.pix.pixelformat);
 
@@ -163,7 +163,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         }
     };
     while (ioctl(video_fd_, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-        ESP_LOGD(TAG, "VIDIOC_ENUM_FMT: pixelformat=0x%08x, description=%s", fmtdesc.pixelformat, fmtdesc.description);
+        ESP_LOGD(TAG, "VIDIOC_ENUM_FMT: pixelformat=0x%08lx, description=%s", fmtdesc.pixelformat, fmtdesc.description);
         CAM_PRINT_FOURCC(fmtdesc.pixelformat);
         int rank = get_rank(fmtdesc.pixelformat);
         if (rank < best_rank) {
@@ -185,7 +185,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         return;
     }
 
-    ESP_LOGD(TAG, "selected pixel format: 0x%08x", setformat.fmt.pix.pixelformat);
+    ESP_LOGD(TAG, "selected pixel format: 0x%08lx", setformat.fmt.pix.pixelformat);
 
     if (ioctl(video_fd_, VIDIOC_S_FMT, &setformat) != 0) {
         ESP_LOGE(TAG, "VIDIOC_S_FMT failed, errno=%d(%s)", errno, strerror(errno));
@@ -392,7 +392,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
                     return false;
             }
         }
@@ -511,7 +511,7 @@ bool Esp32Camera::Capture() {
                 break;
             }
             default:
-                ESP_LOGE(TAG, "unsupported frame format: 0x%08x", frame_.format);
+                ESP_LOGE(TAG, "unsupported frame format: 0x%08lx", frame_.format);
                 return false;
         }
 
