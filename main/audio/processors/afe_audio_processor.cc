@@ -6,7 +6,7 @@
 #define TAG "AfeAudioProcessor"
 
 AfeAudioProcessor::AfeAudioProcessor()
-    : afe_data_(nullptr), aec_enabled_(false), is_speaking_(false) {
+    : afe_data_(nullptr), is_speaking_(false), aec_enabled_(false) {
     event_group_ = xEventGroupCreate();
 }
 
