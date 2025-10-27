@@ -12,7 +12,7 @@
 #include "lvgl_theme.h"
 
 #include <esp_log.h>
-#include "esp_check.h"
+#include <esp_check.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_spd2010.h>
@@ -28,6 +28,7 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
+#include <esp_app_desc.h>
 
 #include "assets/lang_config.h"
 
@@ -491,6 +492,47 @@ private:
             .context =this
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
+
+        const esp_console_cmd_t cmd6 = {
+            .command = "version",
+            .help = "Read version info",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                auto app_desc = esp_app_get_description();
+                const char* region = "UNKNOWN";
+                #if defined(CONFIG_LANGUAGE_ZH_CN)
+                    region = "CN";
+                #elif defined(CONFIG_LANGUAGE_EN_US)
+                    region = "US";
+                #elif defined(CONFIG_LANGUAGE_JA_JP)
+                    region = "JP";
+                #elif defined(CONFIG_LANGUAGE_ES_ES)
+                    region = "ES";
+                #elif defined(CONFIG_LANGUAGE_DE_DE)
+                    region = "DE";
+                #elif defined(CONFIG_LANGUAGE_FR_FR)
+                    region = "FR";
+                #elif defined(CONFIG_LANGUAGE_IT_IT)
+                    region = "IT";
+                #elif defined(CONFIG_LANGUAGE_PT_PT)
+                    region = "PT";
+                #elif defined(CONFIG_LANGUAGE_RU_RU)
+                    region = "RU";
+                #elif defined(CONFIG_LANGUAGE_KO_KR)
+                    region = "KR";
+                #endif
+                printf("{\"type\":0,\"name\":\"VER?\",\"code\":0,\"data\":{\"software\":\"%s\",\"hardware\":\"watcher xiaozhi agent\",\"camera\":%d,\"region\":\"%s\"}}\n",
+                       app_desc->version,
+                       self->GetCamera() == nullptr ? 0 : 1,
+                       region);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd6));
 
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
