@@ -152,21 +152,29 @@ void AfeAudioProcessor::AudioProcessorTask() {
         if (output_callback_) {
             size_t samples = res->data_size / sizeof(int16_t);
             
-            // Add data to buffer
-            output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
-            
-            // Output complete frames when buffer has enough data
-            while (output_buffer_.size() >= frame_samples_) {
-                if (output_buffer_.size() == frame_samples_) {
-                    // If buffer size equals frame size, move the entire buffer
-                    output_callback_(std::move(output_buffer_));
-                    output_buffer_.clear();
-                    output_buffer_.reserve(frame_samples_);
-                } else {
-                    // If buffer size exceeds frame size, copy one frame and remove it
-                    output_callback_(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
-                    output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
+            // Only send audio when VAD detects speech (hardware VAD filtering)
+            // This reduces bandwidth and server processing load
+            if (is_speaking_) {
+                // Add data to buffer
+                output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
+                
+                // Output complete frames when buffer has enough data
+                while (output_buffer_.size() >= frame_samples_) {
+                    if (output_buffer_.size() == frame_samples_) {
+                        // If buffer size equals frame size, move the entire buffer
+                        output_callback_(std::move(output_buffer_));
+                        output_buffer_.clear();
+                        output_buffer_.reserve(frame_samples_);
+                    } else {
+                        // If buffer size exceeds frame size, copy one frame and remove it
+                        output_callback_(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
+                        output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
+                    }
                 }
+            } else {
+                // When not speaking, clear buffer to avoid sending stale data when speech resumes
+                output_buffer_.clear();
+                output_buffer_.reserve(frame_samples_);
             }
         }
     }
