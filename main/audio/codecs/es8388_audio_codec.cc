@@ -12,6 +12,8 @@ Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
+    input_gain_ = 24;
+
     pa_pin_ = pa_pin;
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
@@ -158,7 +160,7 @@ void Es8388AudioCodec::EnableInput(bool enable) {
             uint8_t gain = (11 << 4) + 0;
             ctrl_if_->write_reg(ctrl_if_, 0x09, 1, &gain, 1);
         }else{
-            ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 24.0));
+            ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, input_gain_));
         }
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));

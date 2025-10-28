@@ -92,7 +92,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:release-v5.4
+      image: espressif/idf:release-v5.5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
