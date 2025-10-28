@@ -14,7 +14,7 @@
 #include "mcp_server.h"
 #include "lvgl.h"
 
-#define TAG "waveshare_c6_amoled_1_43"
+#define TAG "waveshare_c6_amoled_2_06"
 
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = 
 {
