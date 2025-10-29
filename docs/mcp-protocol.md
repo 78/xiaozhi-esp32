@@ -1,49 +1,51 @@
-# MCP (Model Context Protocol) 交互流程
+# Quy trình tương tác MCP (Model Context Protocol)
 
-NOTICE: AI 辅助生成, 在实现后台服务时, 请参照代码确认细节!!
+（Tiếng Việt | [中文](mcp-protocol_zh.md)）
 
-本项目中的 MCP 协议用于后台 API（MCP 客户端）与 ESP32 设备（MCP 服务器）之间的通信，以便后台能够发现和调用设备提供的功能（工具）。
+LƯU Ý: Được tạo với sự hỗ trợ của AI, khi triển khai dịch vụ backend, vui lòng tham khảo code để xác nhận chi tiết!!
 
-## 协议格式
+Giao thức MCP trong dự án này được sử dụng để giao tiếp giữa backend API (MCP client) và thiết bị ESP32 (MCP server), để backend có thể khám phá và gọi các chức năng (công cụ) mà thiết bị cung cấp.
 
-根据代码 (`main/protocols/protocol.cc`, `main/mcp_server.cc`)，MCP 消息是封装在基础通信协议（如 WebSocket 或 MQTT）的消息体中的。其内部结构遵循 [JSON-RPC 2.0](https://www.jsonrpc.org/specification) 规范。
+## Định dạng giao thức
 
-整体消息结构示例：
+Theo mã nguồn (`main/protocols/protocol.cc`, `main/mcp_server.cc`), tin nhắn MCP được đóng gói trong phần thân tin nhắn của giao thức truyền thông cơ bản (như WebSocket hoặc MQTT). Cấu trúc bên trong tuân thủ đặc tả [JSON-RPC 2.0](https://www.jsonrpc.org/specification).
+
+Ví dụ cấu trúc tin nhắn tổng thể:
 
 ```json
 {
-  "session_id": "...", // 会话 ID
-  "type": "mcp",       // 消息类型，固定为 "mcp"
-  "payload": {         // JSON-RPC 2.0 负载
+  "session_id": "...", // ID phiên làm việc
+  "type": "mcp",       // Loại tin nhắn, cố định là "mcp"
+  "payload": {         // Payload JSON-RPC 2.0
     "jsonrpc": "2.0",
-    "method": "...",   // 方法名 (如 "initialize", "tools/list", "tools/call")
-    "params": { ... }, // 方法参数 (对于 request)
-    "id": ...,         // 请求 ID (对于 request 和 response)
-    "result": { ... }, // 方法执行结果 (对于 success response)
-    "error": { ... }   // 错误信息 (对于 error response)
+    "method": "...",   // Tên phương thức (như "initialize", "tools/list", "tools/call")
+    "params": { ... }, // Tham số phương thức (cho request)
+    "id": ...,         // ID yêu cầu (cho request và response)
+    "result": { ... }, // Kết quả thực thi phương thức (cho success response)
+    "error": { ... }   // Thông tin lỗi (cho error response)
   }
 }
 ```
 
-其中，`payload` 部分是标准的 JSON-RPC 2.0 消息：
+Trong đó, phần `payload` là tin nhắn JSON-RPC 2.0 tiêu chuẩn:
 
-- `jsonrpc`: 固定的字符串 "2.0"。
-- `method`: 要调用的方法名称 (对于 Request)。
-- `params`: 方法的参数，一个结构化值，通常为对象 (对于 Request)。
-- `id`: 请求的标识符，客户端发送请求时提供，服务器响应时原样返回。用于匹配请求和响应。
-- `result`: 方法成功执行时的结果 (对于 Success Response)。
-- `error`: 方法执行失败时的错误信息 (对于 Error Response)。
+- `jsonrpc`: Chuỗi cố định "2.0".
+- `method`: Tên phương thức cần gọi (cho Request).
+- `params`: Tham số của phương thức, một giá trị có cấu trúc, thường là đối tượng (cho Request).
+- `id`: Định danh của yêu cầu, được cung cấp bởi client khi gửi yêu cầu, server trả về nguyên vẹn khi phản hồi. Dùng để ghép nối yêu cầu và phản hồi.
+- `result`: Kết quả khi phương thức thực thi thành công (cho Success Response).
+- `error`: Thông tin lỗi khi phương thức thực thi thất bại (cho Error Response).
 
-## 交互流程及发送时机
+## Quy trình tương tác và thời điểm gửi
 
-MCP 的交互主要围绕客户端（后台 API）发现和调用设备上的“工具”（Tool）进行。
+Tương tác MCP chủ yếu xoay quanh việc client (backend API) khám phá và gọi các "công cụ" (Tool) trên thiết bị.
 
-1.  **连接建立与能力通告**
+1.  **Thiết lập kết nối và thông báo khả năng**
 
-    - **时机：** 设备启动并成功连接到后台 API 后。
-    - **发送方：** 设备。
-    - **消息：** 设备发送基础协议的 "hello" 消息给后台 API，消息中包含设备支持的能力列表，例如通过支持 MCP 协议 (`"mcp": true`)。
-    - **示例 (非 MCP 负载，而是基础协议消息):**
+    - **Thời điểm:** Sau khi thiết bị khởi động và kết nối thành công với backend API.
+    - **Người gửi:** Thiết bị.
+    - **Tin nhắn:** Thiết bị gửi tin nhắn "hello" của giao thức cơ bản cho backend API, tin nhắn chứa danh sách khả năng mà thiết bị hỗ trợ, ví dụ thông qua việc hỗ trợ giao thức MCP (`"mcp": true`).
+    - **Ví dụ (không phải MCP payload, mà là tin nhắn giao thức cơ bản):**
       ```json
       {
         "type": "hello",
@@ -52,18 +54,18 @@ MCP 的交互主要围绕客户端（后台 API）发现和调用设备上的“
           "mcp": true,
           ...
         },
-        "transport": "websocket", // 或 "mqtt"
+        "transport": "websocket", // hoặc "mqtt"
         "audio_params": { ... },
-        "session_id": "..." // 设备收到服务器hello后可能设置
+        "session_id": "..." // Thiết bị có thể đặt sau khi nhận hello từ server
       }
       ```
 
-2.  **初始化 MCP 会话**
+2.  **Khởi tạo phiên làm việc MCP**
 
-    - **时机：** 后台 API 收到设备 "hello" 消息，确认设备支持 MCP 后，通常作为 MCP 会话的第一个请求发送。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `initialize`
-    - **消息 (MCP payload):**
+    - **Thời điểm:** Sau khi backend API nhận tin nhắn "hello" từ thiết bị, xác nhận thiết bị hỗ trợ MCP, thường được gửi như yêu cầu đầu tiên của phiên làm việc MCP.
+    - **Người gửi:** Backend API (client).
+    - **Phương thức:** `initialize`
+    - **Tin nhắn (MCP payload):**
 
       ```json
       {
@@ -71,159 +73,159 @@ MCP 的交互主要围绕客户端（后台 API）发现和调用设备上的“
         "method": "initialize",
         "params": {
           "capabilities": {
-            // 客户端能力，可选
+            // Khả năng của client, tùy chọn
 
-            // 摄像头视觉相关
+            // Liên quan đến thị giác camera
             "vision": {
-              "url": "...", //摄像头: 图片处理地址(必须是http地址, 不是websocket地址)
-              "token": "..." // url token
+              "url": "...", // Camera: địa chỉ xử lý hình ảnh (phải là địa chỉ http, không phải websocket)
+              "token": "..." // token url
             }
 
-            // ... 其他客户端能力
+            // ... Khả năng client khác
           }
         },
-        "id": 1 // 请求 ID
+        "id": 1 // ID yêu cầu
       }
       ```
 
-    - **设备响应时机：** 设备收到 `initialize` 请求并处理后。
-    - **设备响应消息 (MCP payload):**
+    - **Thời điểm phản hồi thiết bị:** Sau khi thiết bị nhận và xử lý yêu cầu `initialize`.
+    - **Tin nhắn phản hồi thiết bị (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
-        "id": 1, // 匹配请求 ID
+        "id": 1, // Ghép với ID yêu cầu
         "result": {
           "protocolVersion": "2024-11-05",
           "capabilities": {
-            "tools": {} // 这里的 tools 似乎不列出详细信息，需要 tools/list
+            "tools": {} // Phần tools ở đây có vẻ không liệt kê thông tin chi tiết, cần tools/list
           },
           "serverInfo": {
-            "name": "...", // 设备名称 (BOARD_NAME)
-            "version": "..." // 设备固件版本
+            "name": "...", // Tên thiết bị (BOARD_NAME)
+            "version": "..." // Phiên bản firmware thiết bị
           }
         }
       }
       ```
 
-3.  **发现设备工具列表**
+3.  **Khám phá danh sách công cụ thiết bị**
 
-    - **时机：** 后台 API 需要获取设备当前支持的具体功能（工具）列表及其调用方式时。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `tools/list`
-    - **消息 (MCP payload):**
+    - **Thời điểm:** Khi backend API cần lấy danh sách chức năng (công cụ) cụ thể mà thiết bị hiện hỗ trợ và cách gọi chúng.
+    - **Người gửi:** Backend API (client).
+    - **Phương thức:** `tools/list`
+    - **Tin nhắn (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
         "method": "tools/list",
         "params": {
-          "cursor": "" // 用于分页，首次请求为空字符串
+          "cursor": "" // Dùng cho phân trang, yêu cầu đầu tiên là chuỗi rỗng
         },
-        "id": 2 // 请求 ID
+        "id": 2 // ID yêu cầu
       }
       ```
-    - **设备响应时机：** 设备收到 `tools/list` 请求并生成工具列表后。
-    - **设备响应消息 (MCP payload):**
+    - **Thời điểm phản hồi thiết bị:** Sau khi thiết bị nhận yêu cầu `tools/list` và tạo danh sách công cụ.
+    - **Tin nhắn phản hồi thiết bị (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
-        "id": 2, // 匹配请求 ID
+        "id": 2, // Ghép với ID yêu cầu
         "result": {
-          "tools": [ // 工具对象列表
+          "tools": [ // Danh sách đối tượng công cụ
             {
               "name": "self.get_device_status",
               "description": "...",
-              "inputSchema": { ... } // 参数 schema
+              "inputSchema": { ... } // Schema tham số
             },
             {
               "name": "self.audio_speaker.set_volume",
               "description": "...",
-              "inputSchema": { ... } // 参数 schema
+              "inputSchema": { ... } // Schema tham số
             }
-            // ... 更多工具
+            // ... Nhiều công cụ khác
           ],
-          "nextCursor": "..." // 如果列表很大需要分页，这里会包含下一个请求的 cursor 值
+          "nextCursor": "..." // Nếu danh sách lớn cần phân trang, đây sẽ chứa giá trị cursor cho yêu cầu tiếp theo
         }
       }
       ```
-    - **分页处理：** 如果 `nextCursor` 字段非空，客户端需要再次发送 `tools/list` 请求，并在 `params` 中带上这个 `cursor` 值以获取下一页工具。
+    - **Xử lý phân trang:** Nếu trường `nextCursor` không rỗng, client cần gửi yêu cầu `tools/list` lần nữa với giá trị `cursor` này trong `params` để lấy trang công cụ tiếp theo.
 
-4.  **调用设备工具**
+4.  **Gọi công cụ thiết bị**
 
-    - **时机：** 后台 API 需要执行设备上的某个具体功能时。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `tools/call`
-    - **消息 (MCP payload):**
+    - **Thời điểm:** Khi backend API cần thực thi một chức năng cụ thể trên thiết bị.
+    - **Người gửi:** Backend API (client).
+    - **Phương thức:** `tools/call`
+    - **Tin nhắn (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
         "method": "tools/call",
         "params": {
-          "name": "self.audio_speaker.set_volume", // 要调用的工具名称
+          "name": "self.audio_speaker.set_volume", // Tên công cụ cần gọi
           "arguments": {
-            // 工具参数，对象格式
-            "volume": 50 // 参数名及其值
+            // Tham số công cụ, định dạng đối tượng
+            "volume": 50 // Tên tham số và giá trị
           }
         },
-        "id": 3 // 请求 ID
+        "id": 3 // ID yêu cầu
       }
       ```
-    - **设备响应时机：** 设备收到 `tools/call` 请求，执行相应的工具函数后。
-    - **设备成功响应消息 (MCP payload):**
+    - **Thời điểm phản hồi thiết bị:** Sau khi thiết bị nhận yêu cầu `tools/call` và thực thi hàm công cụ tương ứng.
+    - **Tin nhắn phản hồi thành công thiết bị (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
-        "id": 3, // 匹配请求 ID
+        "id": 3, // Ghép với ID yêu cầu
         "result": {
           "content": [
-            // 工具执行结果内容
-            { "type": "text", "text": "true" } // 示例：set_volume 返回 bool
+            // Nội dung kết quả thực thi công cụ
+            { "type": "text", "text": "true" } // Ví dụ: set_volume trả về bool
           ],
-          "isError": false // 表示成功
+          "isError": false // Biểu thị thành công
         }
       }
       ```
-    - **设备失败响应消息 (MCP payload):**
+    - **Tin nhắn phản hồi lỗi thiết bị (MCP payload):**
       ```json
       {
         "jsonrpc": "2.0",
-        "id": 3, // 匹配请求 ID
+        "id": 3, // Ghép với ID yêu cầu
         "error": {
-          "code": -32601, // JSON-RPC 错误码，例如 Method not found (-32601)
-          "message": "Unknown tool: self.non_existent_tool" // 错误描述
+          "code": -32601, // Mã lỗi JSON-RPC, ví dụ Method not found (-32601)
+          "message": "Unknown tool: self.non_existent_tool" // Mô tả lỗi
         }
       }
       ```
 
-5.  **设备主动发送消息 (Notifications)**
-    - **时机：** 设备内部发生需要通知后台 API 的事件时（例如，状态变化，虽然代码示例中没有明确的工具发送此类消息，但 `Application::SendMcpMessage` 的存在暗示了设备可能主动发送 MCP 消息）。
-    - **发送方：** 设备 (服务器)。
-    - **方法：** 可能是以 `notifications/` 开头的方法名，或者其他自定义方法。
-    - **消息 (MCP payload):** 遵循 JSON-RPC Notification 格式，没有 `id` 字段。
+5.  **Thiết bị chủ động gửi tin nhắn (Notifications)**
+    - **Thời điểm:** Khi có sự kiện bên trong thiết bị cần thông báo cho backend API (ví dụ: thay đổi trạng thái, mặc dù trong ví dụ code không có công cụ rõ ràng nào gửi loại tin nhắn này, nhưng sự tồn tại của `Application::SendMcpMessage` gợi ý rằng thiết bị có thể chủ động gửi tin nhắn MCP).
+    - **Người gửi:** Thiết bị (server).
+    - **Phương thức:** Có thể là tên phương thức bắt đầu bằng `notifications/`, hoặc phương thức tùy chỉnh khác.
+    - **Tin nhắn (MCP payload):** Tuân thủ định dạng JSON-RPC Notification, không có trường `id`.
       ```json
       {
         "jsonrpc": "2.0",
-        "method": "notifications/state_changed", // 示例方法名
+        "method": "notifications/state_changed", // Tên phương thức ví dụ
         "params": {
           "newState": "idle",
           "oldState": "connecting"
         }
-        // 没有 id 字段
+        // Không có trường id
       }
       ```
-    - **后台 API 处理：** 接收到 Notification 后，后台 API 进行相应的处理，但不回复。
+    - **Xử lý backend API:** Sau khi nhận Notification, backend API thực hiện xử lý tương ứng nhưng không phản hồi.
 
-## 交互图
+## Biểu đồ tương tác
 
-下面是一个简化的交互序列图，展示了主要的 MCP 消息流程：
+Dưới đây là biểu đồ trình tự đơn giản hóa, thể hiện quy trình tin nhắn MCP chính:
 
 ```mermaid
 sequenceDiagram
     participant Device as ESP32 Device
-    participant BackendAPI as 后台 API (Client)
+    participant BackendAPI as Backend API (Client)
 
-    Note over Device, BackendAPI: 建立 WebSocket / MQTT 连接
+    Note over Device, BackendAPI: Thiết lập kết nối WebSocket / MQTT
 
-    Device->>BackendAPI: Hello Message (包含 "mcp": true)
+    Device->>BackendAPI: Hello Message (chứa "mcp": true)
 
     BackendAPI->>Device: MCP Initialize Request
     Note over BackendAPI: method: initialize
@@ -239,7 +241,7 @@ sequenceDiagram
     Device->>BackendAPI: MCP Get Tools List Response
     Note over Device: result: { tools: [...], nextCursor: ... }
 
-    loop Optional Pagination
+    loop Phân trang tùy chọn
         BackendAPI->>Device: MCP Get Tools List Request
         Note over BackendAPI: method: tools/list
         Note over BackendAPI: params: { cursor: "..." }
@@ -251,19 +253,19 @@ sequenceDiagram
     Note over BackendAPI: method: tools/call
     Note over BackendAPI: params: { name: "...", arguments: { ... } }
 
-    alt Tool Call Successful
+    alt Gọi công cụ thành công
         Device->>BackendAPI: MCP Tool Call Success Response
         Note over Device: result: { content: [...], isError: false }
-    else Tool Call Failed
+    else Gọi công cụ thất bại
         Device->>BackendAPI: MCP Tool Call Error Response
         Note over Device: error: { code: ..., message: ... }
     end
 
-    opt Device Notification
+    opt Thông báo từ thiết bị
         Device->>BackendAPI: MCP Notification
         Note over Device: method: notifications/...
         Note over Device: params: { ... }
     end
 ```
 
-这份文档概述了该项目中 MCP 协议的主要交互流程。具体的参数细节和工具功能需要参考 `main/mcp_server.cc` 中 `McpServer::AddCommonTools` 以及各个工具的实现。
+Tài liệu này tổng quan về quy trình tương tác chính của giao thức MCP trong dự án. Chi tiết tham số cụ thể và chức năng công cụ cần tham khảo `main/mcp_server.cc` trong `McpServer::AddCommonTools` cũng như triển khai của từng công cụ.

@@ -1,49 +1,51 @@
-# MCP 协议物联网控制用法说明
+# Hướng dẫn sử dụng điều khiển IoT với giao thức MCP
 
-> 本文档介绍如何基于 MCP 协议实现 ESP32 设备的物联网控制。详细协议流程请参考 [`mcp-protocol.md`](./mcp-protocol.md)。
+（Tiếng Việt | [中文](mcp-usage_zh.md)）
 
-## 简介
+> Tài liệu này giới thiệu cách triển khai điều khiển IoT cho thiết bị ESP32 dựa trên giao thức MCP. Để biết chi tiết quy trình giao thức, vui lòng tham khảo [`mcp-protocol.md`](./mcp-protocol.md).
 
-MCP（Model Context Protocol）是新一代推荐用于物联网控制的协议，通过标准 JSON-RPC 2.0 格式在后台与设备间发现和调用"工具"（Tool），实现灵活的设备控制。
+## Giới thiệu
 
-## 典型使用流程
+MCP (Model Context Protocol) là giao thức thế hệ mới được khuyến nghị sử dụng cho điều khiển IoT, thông qua định dạng JSON-RPC 2.0 tiêu chuẩn để phát hiện và gọi các "công cụ" (Tool) giữa backend và thiết bị, thực hiện điều khiển thiết bị linh hoạt.
 
-1. 设备启动后通过基础协议（如 WebSocket/MQTT）与后台建立连接。
-2. 后台通过 MCP 协议的 `initialize` 方法初始化会话。
-3. 后台通过 `tools/list` 获取设备支持的所有工具（功能）及参数说明。
-4. 后台通过 `tools/call` 调用具体工具，实现对设备的控制。
+## Quy trình sử dụng điển hình
 
-详细协议格式与交互请见 [`mcp-protocol.md`](./mcp-protocol.md)。
+1. Sau khi thiết bị khởi động, thiết lập kết nối với backend thông qua giao thức cơ bản (như WebSocket/MQTT).
+2. Backend khởi tạo phiên làm việc thông qua phương thức `initialize` của giao thức MCP.
+3. Backend lấy tất cả công cụ (chức năng) và mô tả tham số mà thiết bị hỗ trợ thông qua `tools/list`.
+4. Backend gọi các công cụ cụ thể thông qua `tools/call` để thực hiện điều khiển thiết bị.
 
-## 设备端工具注册方法说明
+Định dạng giao thức chi tiết và tương tác xem trong [`mcp-protocol.md`](./mcp-protocol.md).
 
-设备通过 `McpServer::AddTool` 方法注册可被后台调用的"工具"。其常用函数签名如下：
+## Hướng dẫn đăng ký công cụ phía thiết bị
+
+Thiết bị đăng ký các "công cụ" có thể được gọi bởi backend thông qua phương thức `McpServer::AddTool`. Chữ ký hàm thường dùng như sau:
 
 ```cpp
 void AddTool(
-    const std::string& name,           // 工具名称，建议唯一且有层次感，如 self.dog.forward
-    const std::string& description,    // 工具描述，简明说明功能，便于大模型理解
-    const PropertyList& properties,    // 输入参数列表（可为空），支持类型：布尔、整数、字符串
-    std::function<ReturnValue(const PropertyList&)> callback // 工具被调用时的回调实现
+    const std::string& name,           // Tên công cụ, khuyến nghị duy nhất và có tính phân cấp, như self.dog.forward
+    const std::string& description,    // Mô tả công cụ, giải thích ngắn gọn chức năng để mô hình lớn dễ hiểu
+    const PropertyList& properties,    // Danh sách tham số đầu vào (có thể rỗng), hỗ trợ các kiểu: bool, int, string
+    std::function<ReturnValue(const PropertyList&)> callback // Callback triển khai khi công cụ được gọi
 );
 ```
-- name：工具唯一标识，建议用"模块.功能"命名风格。
-- description：自然语言描述，便于 AI/用户理解。
-- properties：参数列表，支持类型有布尔、整数、字符串，可指定范围和默认值。
-- callback：收到调用请求时的实际执行逻辑，返回值可为 bool/int/string。
+- name: Định danh duy nhất của công cụ, khuyến nghị sử dụng phong cách đặt tên "module.function".
+- description: Mô tả bằng ngôn ngữ tự nhiên, giúp AI/người dùng dễ hiểu.
+- properties: Danh sách tham số, hỗ trợ các kiểu bool, int, string, có thể chỉ định phạm vi và giá trị mặc định.
+- callback: Logic thực thi thực tế khi nhận được yêu cầu gọi, giá trị trả về có thể là bool/int/string.
 
-## 典型注册示例（以 ESP-Hi 为例）
+## Ví dụ đăng ký điển hình (lấy ESP-Hi làm ví dụ)
 
 ```cpp
 void InitializeTools() {
     auto& mcp_server = McpServer::GetInstance();
-    // 例1：无参数，控制机器人前进
-    mcp_server.AddTool("self.dog.forward", "机器人向前移动", PropertyList(), [this](const PropertyList&) -> ReturnValue {
+    // Ví dụ 1: Không có tham số, điều khiển robot tiến lên
+    mcp_server.AddTool("self.dog.forward", "Robot di chuyển về phía trước", PropertyList(), [this](const PropertyList&) -> ReturnValue {
         servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
         return true;
     });
-    // 例2：带参数，设置灯光 RGB 颜色
-    mcp_server.AddTool("self.light.set_rgb", "设置RGB颜色", PropertyList({
+    // Ví dụ 2: Có tham số, đặt màu RGB cho đèn LED
+    mcp_server.AddTool("self.light.set_rgb", "Đặt màu RGB", PropertyList({
         Property("r", kPropertyTypeInteger, 0, 255),
         Property("g", kPropertyTypeInteger, 0, 255),
         Property("b", kPropertyTypeInteger, 0, 255)
@@ -58,9 +60,9 @@ void InitializeTools() {
 }
 ```
 
-## 常见工具调用 JSON-RPC 示例
+## Ví dụ JSON-RPC gọi công cụ thường gặp
 
-### 1. 获取工具列表
+### 1. Lấy danh sách công cụ
 ```json
 {
   "jsonrpc": "2.0",
@@ -70,7 +72,7 @@ void InitializeTools() {
 }
 ```
 
-### 2. 控制底盘前进
+### 2. Điều khiển khung gầm tiến lên
 ```json
 {
   "jsonrpc": "2.0",
@@ -83,7 +85,7 @@ void InitializeTools() {
 }
 ```
 
-### 3. 切换灯光模式
+### 3. Chuyển đổi chế độ đèn LED
 ```json
 {
   "jsonrpc": "2.0",
@@ -96,7 +98,7 @@ void InitializeTools() {
 }
 ```
 
-### 4. 摄像头翻转
+### 4. Lật camera
 ```json
 {
   "jsonrpc": "2.0",
@@ -109,7 +111,7 @@ void InitializeTools() {
 }
 ```
 
-## 备注
-- 工具名称、参数及返回值请以设备端 `AddTool` 注册为准。
-- 推荐所有新项目统一采用 MCP 协议进行物联网控制。
-- 详细协议与进阶用法请查阅 [`mcp-protocol.md`](./mcp-protocol.md)。 
+## Ghi chú
+- Tên công cụ, tham số và giá trị trả về vui lòng theo đăng ký `AddTool` phía thiết bị.
+- Khuyến nghị tất cả dự án mới thống nhất sử dụng giao thức MCP để điều khiển IoT.
+- Giao thức chi tiết và cách sử dụng nâng cao vui lòng xem [`mcp-protocol.md`](./mcp-protocol.md).

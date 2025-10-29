@@ -1,73 +1,73 @@
-# An MCP-based Chatbot
+# Chatbot Dựa trên MCP
 
-（中文 | [English](README_en.md) | [日本語](README_ja.md)）
+（Tiếng Việt | [中文](README_zh.md) | [English](README_en.md) | [日本語](README_ja.md)）
 
-## 介绍
+## Giới thiệu
 
-👉 [人类：给 AI 装摄像头 vs AI：当场发现主人三天没洗头【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
+👉 [Con người: Lắp camera cho AI vs AI: Phát hiện ngay chủ nhân không gội đầu 3 ngày【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
-👉 [手工打造你的 AI 女友，新手入门教程【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
+👉 [Tự tay chế tạo bạn gái AI của bạn, hướng dẫn cho người mới bắt đầu【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
 
-小智 AI 聊天机器人作为一个语音交互入口，利用 Qwen / DeepSeek 等大模型的 AI 能力，通过 MCP 协议实现多端控制。
+Chatbot AI Xiaozhi như một giao diện tương tác bằng giọng nói, sử dụng khả năng AI của các mô hình lớn như Qwen / DeepSeek, thực hiện điều khiển đa thiết bị thông qua giao thức MCP.
 
-<img src="docs/mcp-based-graph.jpg" alt="通过MCP控制万物" width="320">
+<img src="docs/mcp-based-graph.jpg" alt="Điều khiển vạn vật thông qua MCP" width="320">
 
-### 版本说明
+### Thông tin phiên bản
 
-当前 v2 版本与 v1 版本分区表不兼容，所以无法从 v1 版本通过 OTA 升级到 v2 版本。分区表说明参见 [partitions/v2/README.md](partitions/v2/README.md)。
+Phiên bản v2 hiện tại không tương thích với bảng phân vùng của phiên bản v1, vì vậy không thể nâng cấp từ phiên bản v1 lên phiên bản v2 thông qua OTA. Thông tin bảng phân vùng xem tại [partitions/v2/README.md](partitions/v2/README.md).
 
-使用 v1 版本的所有硬件，可以通过手动烧录固件来升级到 v2 版本。
+Tất cả phần cứng sử dụng phiên bản v1 có thể nâng cấp lên phiên bản v2 thông qua việc nạp firmware thủ công.
 
-v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版本，该分支会持续维护到 2026 年 2 月。
+Phiên bản ổn định của v1 là 1.9.2, có thể chuyển sang phiên bản v1 thông qua `git checkout v1`, nhánh này sẽ được duy trì liên tục đến tháng 2 năm 2026.
 
-### 已实现功能
+### Tính năng đã triển khai
 
 - Wi-Fi / ML307 Cat.1 4G
-- 离线语音唤醒 [ESP-SR](https://github.com/espressif/esp-sr)
-- 支持两种通信协议（[Websocket](docs/websocket.md) 或 MQTT+UDP）
-- 采用 OPUS 音频编解码
-- 基于流式 ASR + LLM + TTS 架构的语音交互
-- 声纹识别，识别当前说话人的身份 [3D Speaker](https://github.com/modelscope/3D-Speaker)
-- OLED / LCD 显示屏，支持表情显示
-- 电量显示与电源管理
-- 支持多语言（中文、英文、日文）
-- 支持 ESP32-C3、ESP32-S3、ESP32-P4 芯片平台
-- 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
-- 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
-- 自定义唤醒词、字体、表情与聊天背景，支持网页端在线修改 ([自定义Assets生成器](https://github.com/78/xiaozhi-assets-generator))
+- Đánh thức bằng giọng nói offline [ESP-SR](https://github.com/espressif/esp-sr)
+- Hỗ trợ hai giao thức truyền thông ([Websocket](docs/websocket.md) hoặc MQTT+UDP)
+- Sử dụng codec âm thanh OPUS
+- Tương tác bằng giọng nói dựa trên kiến trúc ASR + LLM + TTS streaming
+- Nhận dạng giọng nói, xác định danh tính người nói hiện tại [3D Speaker](https://github.com/modelscope/3D-Speaker)
+- Màn hình hiển thị OLED / LCD, hỗ trợ hiển thị biểu cảm
+- Hiển thị pin và quản lý nguồn
+- Hỗ trợ đa ngôn ngữ (tiếng Trung, tiếng Anh, tiếng Nhật)
+- Hỗ trợ nền tảng chip ESP32-C3, ESP32-S3, ESP32-P4
+- Điều khiển thiết bị thông qua MCP phía thiết bị (âm lượng, đèn LED, motor, GPIO, v.v.)
+- Mở rộng khả năng mô hình lớn thông qua MCP đám mây (điều khiển nhà thông minh, thao tác desktop PC, tìm kiếm kiến thức, gửi nhận email, v.v.)
+- Tùy chỉnh từ đánh thức, phông chữ, biểu cảm và nền chat, hỗ trợ chỉnh sửa trực tuyến qua web ([Bộ tạo Assets tùy chỉnh](https://github.com/78/xiaozhi-assets-generator))
 
-## 硬件
+## Phần cứng
 
-### 面包板手工制作实践
+### Thực hành chế tạo thủ công trên breadboard
 
-详见飞书文档教程：
+Xem chi tiết trong hướng dẫn Feishu:
 
-👉 [《小智 AI 聊天机器人百科全书》](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
+👉 [《Bách khoa toàn thư Chatbot AI Xiaozhi》](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
 
-面包板效果图如下：
+Hình ảnh hiệu quả breadboard như sau:
 
-![面包板效果图](docs/v1/wiring2.jpg)
+![Hình ảnh hiệu quả breadboard](docs/v1/wiring2.jpg)
 
-### 支持 70 多个开源硬件（仅展示部分）
+### Hỗ trợ hơn 70 phần cứng mã nguồn mở (chỉ hiển thị một phần)
 
-- <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立创·实战派 ESP32-S3 开发板">立创·实战派 ESP32-S3 开发板</a>
-- <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>
+- <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="Bo mạch phát triển ESP32-S3 Thực chiến Lichuang">Bo mạch phát triển ESP32-S3 Thực chiến Lichuang</a>
+- <a href="https://github.com/espressif/esp-box" target="_blank" title="Espressif ESP32-S3-BOX3">Espressif ESP32-S3-BOX3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">M5Stack AtomS3R + Echo Base</a>
-- <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>
-- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">微雪电子 ESP32-S3-Touch-AMOLED-1.8</a>
+- <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="Nút thần kỳ 2.4">Nút thần kỳ 2.4</a>
+- <a href="https://www.waveshare.net/shop/ESP32-S3-Touch-AMOLED-1.8.htm" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">Waveshare ESP32-S3-Touch-AMOLED-1.8</a>
 - <a href="https://github.com/Xinyuan-LilyGO/T-Circle-S3" target="_blank" title="LILYGO T-Circle-S3">LILYGO T-Circle-S3</a>
-- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="虾哥 Mini C3">虾哥 Mini C3</a>
-- <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">璀璨·AI 吊坠</a>
-- <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="无名科技Nologo-星智-1.54">无名科技 Nologo-星智-1.54TFT</a>
+- <a href="https://oshwhub.com/tenclass01/xmini_c3" target="_blank" title="Xiage Mini C3">Xiage Mini C3</a>
+- <a href="https://oshwhub.com/movecall/cuican-ai-pendant-lights-up-y" target="_blank" title="Movecall CuiCan ESP32S3">Mặt dây chuyền AI CuiCan</a>
+- <a href="https://github.com/WMnologo/xingzhi-ai" target="_blank" title="Nologo Xingzhi-1.54 Công nghệ vô danh">Nologo Xingzhi-1.54TFT Công nghệ vô danh</a>
 - <a href="https://www.seeedstudio.com/SenseCAP-Watcher-W1-A-p-5979.html" target="_blank" title="SenseCAP Watcher">SenseCAP Watcher</a>
-- <a href="https://www.bilibili.com/video/BV1BHJtz6E2S/" target="_blank" title="ESP-HI 超低成本机器狗">ESP-HI 超低成本机器狗</a>
+- <a href="https://www.bilibili.com/video/BV1BHJtz6E2S/" target="_blank" title="Chó robot siêu tiết kiệm ESP-HI">Chó robot siêu tiết kiệm ESP-HI</a>
 
 <div style="display: flex; justify-content: space-between;">
-  <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="立创·实战派 ESP32-S3 开发板">
+  <a href="docs/v1/lichuang-s3.jpg" target="_blank" title="Bo mạch phát triển ESP32-S3 Thực chiến Lichuang">
     <img src="docs/v1/lichuang-s3.jpg" width="240" />
   </a>
-  <a href="docs/v1/espbox3.jpg" target="_blank" title="乐鑫 ESP32-S3-BOX3">
+  <a href="docs/v1/espbox3.jpg" target="_blank" title="Espressif ESP32-S3-BOX3">
     <img src="docs/v1/espbox3.jpg" width="240" />
   </a>
   <a href="docs/v1/m5cores3.jpg" target="_blank" title="M5Stack CoreS3">
@@ -76,93 +76,93 @@ v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版
   <a href="docs/v1/atoms3r.jpg" target="_blank" title="AtomS3R + Echo Base">
     <img src="docs/v1/atoms3r.jpg" width="240" />
   </a>
-  <a href="docs/v1/magiclick.jpg" target="_blank" title="神奇按钮 2.4">
+  <a href="docs/v1/magiclick.jpg" target="_blank" title="Nút thần kỳ 2.4">
     <img src="docs/v1/magiclick.jpg" width="240" />
   </a>
-  <a href="docs/v1/waveshare.jpg" target="_blank" title="微雪电子 ESP32-S3-Touch-AMOLED-1.8">
+  <a href="docs/v1/waveshare.jpg" target="_blank" title="Waveshare ESP32-S3-Touch-AMOLED-1.8">
     <img src="docs/v1/waveshare.jpg" width="240" />
   </a>
   <a href="docs/v1/lilygo-t-circle-s3.jpg" target="_blank" title="LILYGO T-Circle-S3">
     <img src="docs/v1/lilygo-t-circle-s3.jpg" width="240" />
   </a>
-  <a href="docs/v1/xmini-c3.jpg" target="_blank" title="虾哥 Mini C3">
+  <a href="docs/v1/xmini-c3.jpg" target="_blank" title="Xiage Mini C3">
     <img src="docs/v1/xmini-c3.jpg" width="240" />
   </a>
   <a href="docs/v1/movecall-cuican-esp32s3.jpg" target="_blank" title="CuiCan">
     <img src="docs/v1/movecall-cuican-esp32s3.jpg" width="240" />
   </a>
-  <a href="docs/v1/wmnologo_xingzhi_1.54.jpg" target="_blank" title="无名科技Nologo-星智-1.54">
+  <a href="docs/v1/wmnologo_xingzhi_1.54.jpg" target="_blank" title="Nologo Xingzhi-1.54 Công nghệ vô danh">
     <img src="docs/v1/wmnologo_xingzhi_1.54.jpg" width="240" />
   </a>
   <a href="docs/v1/sensecap_watcher.jpg" target="_blank" title="SenseCAP Watcher">
     <img src="docs/v1/sensecap_watcher.jpg" width="240" />
   </a>
-  <a href="docs/v1/esp-hi.jpg" target="_blank" title="ESP-HI 超低成本机器狗">
+  <a href="docs/v1/esp-hi.jpg" target="_blank" title="Chó robot siêu tiết kiệm ESP-HI">
     <img src="docs/v1/esp-hi.jpg" width="240" />
   </a>
 </div>
 
-## 软件
+## Phần mềm
 
-### 固件烧录
+### Nạp firmware
 
-新手第一次操作建议先不要搭建开发环境，直接使用免开发环境烧录的固件。
+Người mới bắt đầu lần đầu thao tác khuyên nên không xây dựng môi trường phát triển trước, sử dụng trực tiếp firmware nạp không cần môi trường phát triển.
 
-固件默认接入 [xiaozhi.me](https://xiaozhi.me) 官方服务器，个人用户注册账号可以免费使用 Qwen 实时模型。
+Firmware mặc định kết nối với máy chủ chính thức [xiaozhi.me](https://xiaozhi.me), người dùng cá nhân đăng ký tài khoản có thể sử dụng miễn phí mô hình thời gian thực Qwen.
 
-👉 [新手烧录固件教程](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
+👉 [Hướng dẫn nạp firmware cho người mới](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
 
-### 开发环境
+### Môi trường phát triển
 
-- Cursor 或 VSCode
-- 安装 ESP-IDF 插件，选择 SDK 版本 5.4 或以上
-- Linux 比 Windows 更好，编译速度快，也免去驱动问题的困扰
-- 本项目使用 Google C++ 代码风格，提交代码时请确保符合规范
+- Cursor hoặc VSCode
+- Cài đặt plugin ESP-IDF, chọn phiên bản SDK 5.4 trở lên
+- Linux tốt hơn Windows, tốc độ biên dịch nhanh, cũng tránh được phiền toái về vấn đề driver
+- Dự án này sử dụng style code C++ của Google, khi submit code vui lòng đảm bảo tuân thủ quy chuẩn
 
-### 开发者文档
+### Tài liệu dành cho nhà phát triển
 
-- [自定义开发板指南](docs/custom-board.md) - 学习如何为小智 AI 创建自定义开发板
-- [MCP 协议物联网控制用法说明](docs/mcp-usage.md) - 了解如何通过 MCP 协议控制物联网设备
-- [MCP 协议交互流程](docs/mcp-protocol.md) - 设备端 MCP 协议的实现方式
-- [MQTT + UDP 混合通信协议文档](docs/mqtt-udp.md)
-- [一份详细的 WebSocket 通信协议文档](docs/websocket.md)
+- [Hướng dẫn bo mạch tùy chỉnh](docs/custom-board.md) - Học cách tạo bo mạch phát triển tùy chỉnh cho Xiaozhi AI
+- [Hướng dẫn sử dụng điều khiển IoT giao thức MCP](docs/mcp-usage.md) - Hiểu cách điều khiển thiết bị IoT thông qua giao thức MCP
+- [Quy trình tương tác giao thức MCP](docs/mcp-protocol.md) - Cách triển khai giao thức MCP phía thiết bị
+- [Tài liệu giao thức truyền thông hỗn hợp MQTT + UDP](docs/mqtt-udp.md)
+- [Tài liệu chi tiết giao thức truyền thông WebSocket](docs/websocket.md)
 
-## 大模型配置
+## Cấu hình mô hình lớn
 
-如果你已经拥有一个小智 AI 聊天机器人设备，并且已接入官方服务器，可以登录 [xiaozhi.me](https://xiaozhi.me) 控制台进行配置。
+Nếu bạn đã sở hữu một thiết bị chatbot Xiaozhi AI và đã kết nối với máy chủ chính thức, có thể đăng nhập vào bảng điều khiển [xiaozhi.me](https://xiaozhi.me) để cấu hình.
 
-👉 [后台操作视频教程（旧版界面）](https://www.bilibili.com/video/BV1jUCUY2EKM/)
+👉 [Video hướng dẫn thao tác backend (giao diện cũ)](https://www.bilibili.com/video/BV1jUCUY2EKM/)
 
-## 相关开源项目
+## Các dự án mã nguồn mở liên quan
 
-在个人电脑上部署服务器，可以参考以下第三方开源的项目：
+Để triển khai máy chủ trên máy tính cá nhân, có thể tham khảo các dự án mã nguồn mở bên thứ ba sau:
 
-- [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Python 服务器
-- [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java 服务器
-- [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang 服务器
+- [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Máy chủ Python
+- [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Máy chủ Java
+- [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Máy chủ Golang
 
-使用小智通信协议的第三方客户端项目：
+Các dự án client bên thứ ba sử dụng giao thức truyền thông Xiaozhi:
 
-- [huangjunsen0406/py-xiaozhi](https://github.com/huangjunsen0406/py-xiaozhi) Python 客户端
-- [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client) Android 客户端
-- [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百问科技提供的 Linux 客户端
-- [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技的蓝牙芯片固件
-- [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移远提供的 QuecPython 固件
+- [huangjunsen0406/py-xiaozhi](https://github.com/huangjunsen0406/py-xiaozhi) Client Python
+- [TOM88812/xiaozhi-android-client](https://github.com/TOM88812/xiaozhi-android-client) Client Android
+- [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) Client Linux được cung cấp bởi 100ask Technology
+- [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) Firmware chip Bluetooth của Siche Technology
+- [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) Firmware QuecPython được cung cấp bởi Quectel
 
-## 关于项目
+## Về dự án
 
-这是一个由虾哥开源的 ESP32 项目，以 MIT 许可证发布，允许任何人免费使用，修改或用于商业用途。
+Đây là một dự án ESP32 mã nguồn mở bởi Xiage, được phát hành dưới giấy phép MIT, cho phép bất kỳ ai sử dụng miễn phí, chỉnh sửa hoặc sử dụng cho mục đích thương mại.
 
-我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
+Chúng tôi hy vọng thông qua dự án này có thể giúp mọi người hiểu về phát triển phần cứng AI, áp dụng các mô hình ngôn ngữ lớn đang phát triển nhanh chóng hiện nay vào các thiết bị phần cứng thực tế.
 
-如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：1011329060
+Nếu bạn có bất kỳ ý tưởng hoặc đề xuất nào, vui lòng tạo Issues hoặc tham gia nhóm QQ: 1011329060
 
-## Star History
+## Lịch sử Star
 
 <a href="https://star-history.com/#78/xiaozhi-esp32&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+   <img alt="Biểu đồ Lịch sử Star" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
  </picture>
 </a>
