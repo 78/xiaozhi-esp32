@@ -526,6 +526,11 @@ elseif(CONFIG_BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S)
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_SEEEDSTUDIO_S3_WIFI)
+    set(BOARD_TYPE "seeedstudio-s3-wifi")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 
 file(GLOB BOARD_SOURCES
