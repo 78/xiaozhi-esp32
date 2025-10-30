@@ -10,7 +10,6 @@
 #include "board.h"
 #include "config.h"
 #include "assets/lang_config.h"
-#include "get_at_uart.h"
 #include <esp_sleep.h>
 
 class PowerManager {
