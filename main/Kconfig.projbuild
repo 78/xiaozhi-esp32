@@ -399,13 +399,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_ROBOT
         bool "ottoRobot"
         depends on IDF_TARGET_ESP32S3
-        select LV_USE_GIF
-        select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_ELECTRON_BOT
         bool "electronBot"
         depends on IDF_TARGET_ESP32S3
-        select LV_USE_GIF
-        select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
         depends on IDF_TARGET_ESP32S3
@@ -424,6 +420,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S
         bool "Wireless-Tag WTP4C5MP07S"
         depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_AIPI_LITE
+        bool "AIPI-Lite"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice
