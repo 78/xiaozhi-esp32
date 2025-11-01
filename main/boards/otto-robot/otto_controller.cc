@@ -371,7 +371,7 @@ public:
 
         mcp_server.AddTool(
             "self.otto.set_trim",
-            "校准单个舵机位置。设置指定舵机的微调参数以调整Otto的初始站立姿态，设置将永久保存。"
+            "校准单个舵机位置。设置指定舵机的微调参数以调整机器人的初始站立姿态，设置将永久保存。"
             "servo_type: 舵机类型(left_leg/right_leg/left_foot/right_foot/left_hand/right_hand); "
             "trim_value: 微调值(-50到50度)",
             PropertyList({Property("servo_type", kPropertyTypeString, "left_leg"),
