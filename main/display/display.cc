@@ -45,6 +45,10 @@ void Display::SetChatMessage(const char* role, const char* content) {
     ESP_LOGW(TAG, "     %s", content);
 }
 
+void Display::SetMusicInfo(const char* song_name) {
+    ESP_LOGW(TAG, "SetMusicInfo: %s", song_name);
+}
+
 void Display::SetTheme(Theme* theme) {
     current_theme_ = theme;
     Settings settings("display", true);

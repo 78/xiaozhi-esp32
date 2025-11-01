@@ -12,6 +12,7 @@
 #include "backlight.h"
 #include "camera.h"
 #include "assets.h"
+#include "music.h"
 
 
 void* create_board();
@@ -29,6 +30,9 @@ protected:
     // 软件生成的设备唯一标识
     std::string uuid_;
 
+    // 音乐播放器实例
+    Music* music_;
+
 public:
     static Board& GetInstance() {
         static Board* instance = static_cast<Board*>(create_board());
@@ -44,6 +48,7 @@ public:
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();
+    virtual Music* GetMusic();
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
