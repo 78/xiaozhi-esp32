@@ -39,7 +39,7 @@ public:
         return *instance;
     }
 
-    virtual ~Board() = default;
+    virtual ~Board();// = default;
     virtual std::string GetBoardType() = 0;
     virtual std::string GetUuid() { return uuid_; }
     virtual Backlight* GetBacklight() { return nullptr; }

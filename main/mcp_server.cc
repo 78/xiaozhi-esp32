@@ -122,69 +122,69 @@ void McpServer::AddCommonTools() {
     }
 #endif
 
-    // auto music = board.GetMusic();
-    //  if (music) {
-    //      AddTool("self.music.play_song",
-    //              "Play a specified song. Use this tool when user requests to play music. It will automatically get song details and start streaming playback.\n"
-    //              "Args:\n"
-    //              "  `song_name`: The name of the song to play (required).\n"
-    //              "  `artist_name`: The artist name of the song to play (optional, defaults to empty string).\n"
-    //              "Return:\n"
-    //              "  Playback status information. No confirmation needed, plays the song immediately.",
-    //              PropertyList({
-    //                  Property("song_name", kPropertyTypeString),      // Song name (required)
-    //                  Property("artist_name", kPropertyTypeString, "") // Artist name (optional, defaults to empty string)
-    //              }),
-    //              [music](const PropertyList &properties) -> ReturnValue {
-    //                  auto song_name = properties["song_name"].value<std::string>();
-    //                  auto artist_name = properties["artist_name"].value<std::string>();
+    auto music = board.GetMusic();
+     if (music) {
+         AddTool("self.music.play_song",
+                 "Play a specified song. Use this tool when user requests to play music. It will automatically get song details and start streaming playback.\n"
+                 "Args:\n"
+                 "  `song_name`: The name of the song to play (required).\n"
+                 "  `artist_name`: The artist name of the song to play (optional, defaults to empty string).\n"
+                 "Return:\n"
+                 "  Playback status information. No confirmation needed, plays the song immediately.",
+                 PropertyList({
+                     Property("song_name", kPropertyTypeString),      // Song name (required)
+                     Property("artist_name", kPropertyTypeString, "") // Artist name (optional, defaults to empty string)
+                 }),
+                 [music](const PropertyList &properties) -> ReturnValue {
+                     auto song_name = properties["song_name"].value<std::string>();
+                     auto artist_name = properties["artist_name"].value<std::string>();
 
-    //                  if (!music->Download(song_name, artist_name))
-    //                  {
-    //                      return "{\"success\": false, \"message\": \"Failed to get music resource\"}";
-    //                  }
-    //                  auto download_result = music->GetDownloadResult();
-    //                  ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
-    //                  return "{\"success\": true, \"message\": \"Music started playing\"}";
-    //              });
+                     if (!music->Download(song_name, artist_name))
+                     {
+                         return "{\"success\": false, \"message\": \"Failed to get music resource\"}";
+                     }
+                     auto download_result = music->GetDownloadResult();
+                     ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());
+                     return "{\"success\": true, \"message\": \"Music started playing\"}";
+                 });
 
-    //      AddTool("self.music.set_display_mode",
-    //              "Set the display mode for music playback. You can choose to display spectrum or lyrics, for example when user says 'show spectrum' or 'display spectrum', 'show lyrics' or 'display lyrics', set the corresponding display mode.\n"
-    //              "Args:\n"
-    //              "  `mode`: Display mode, options are 'spectrum' or 'lyrics'.\n"
-    //              "Return:\n"
-    //              "  Setting result information.",
-    //              PropertyList({
-    //                  Property("mode", kPropertyTypeString) // Display mode: "spectrum" or "lyrics"
-    //              }),
-    //              [music](const PropertyList &properties) -> ReturnValue {
-    //                  auto mode_str = properties["mode"].value<std::string>();
+         AddTool("self.music.set_display_mode",
+                 "Set the display mode for music playback. You can choose to display spectrum or lyrics, for example when user says 'show spectrum' or 'display spectrum', 'show lyrics' or 'display lyrics', set the corresponding display mode.\n"
+                 "Args:\n"
+                 "  `mode`: Display mode, options are 'spectrum' or 'lyrics'.\n"
+                 "Return:\n"
+                 "  Setting result information.",
+                 PropertyList({
+                     Property("mode", kPropertyTypeString) // Display mode: "spectrum" or "lyrics"
+                 }),
+                 [music](const PropertyList &properties) -> ReturnValue {
+                     auto mode_str = properties["mode"].value<std::string>();
 
-    //                  // Convert to lowercase for comparison
-    //                  std::transform(mode_str.begin(), mode_str.end(), mode_str.begin(), ::tolower);
+                     // Convert to lowercase for comparison
+                     std::transform(mode_str.begin(), mode_str.end(), mode_str.begin(), ::tolower);
 
-    //                  if (mode_str == "spectrum")
-    //                  {
-    //                      // Set to spectrum display mode
-    //                      auto esp32_music = static_cast<Esp32Music *>(music);
-    //                      esp32_music->SetDisplayMode(Esp32Music::DISPLAY_MODE_SPECTRUM);
-    //                      return "{\"success\": true, \"message\": \"Switched to spectrum display mode\"}";
-    //                  }
-    //                  else if (mode_str == "lyrics")
-    //                  {
-    //                      // Set to lyrics display mode
-    //                      auto esp32_music = static_cast<Esp32Music *>(music);
-    //                      esp32_music->SetDisplayMode(Esp32Music::DISPLAY_MODE_LYRICS);
-    //                      return "{\"success\": true, \"message\": \"Switched to lyrics display mode\"}";
-    //                  }
-    //                  else
-    //                  {
-    //                      return "{\"success\": false, \"message\": \"Invalid display mode, please use 'spectrum' or 'lyrics'\"}";
-    //                  }
+                     if (mode_str == "spectrum")
+                     {
+                         // Set to spectrum display mode
+                         auto esp32_music = static_cast<Esp32Music *>(music);
+                         esp32_music->SetDisplayMode(Esp32Music::DISPLAY_MODE_SPECTRUM);
+                         return "{\"success\": true, \"message\": \"Switched to spectrum display mode\"}";
+                     }
+                     else if (mode_str == "lyrics")
+                     {
+                         // Set to lyrics display mode
+                         auto esp32_music = static_cast<Esp32Music *>(music);
+                         esp32_music->SetDisplayMode(Esp32Music::DISPLAY_MODE_LYRICS);
+                         return "{\"success\": true, \"message\": \"Switched to lyrics display mode\"}";
+                     }
+                     else
+                     {
+                         return "{\"success\": false, \"message\": \"Invalid display mode, please use 'spectrum' or 'lyrics'\"}";
+                     }
 
-    //                  return "{\"success\": false, \"message\": \"Failed to set display mode\"}";
-    //              });
-    //  }
+                     return "{\"success\": false, \"message\": \"Failed to set display mode\"}";
+                 });
+     }
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());

@@ -680,17 +680,15 @@ void Application::SetDeviceState(DeviceState state) {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
-
-    // 当从idle状态变成其他任何状态时，停止音乐播放
-    // if (previous_state == kDeviceStateIdle && state != kDeviceStateIdle) {
-    //     auto music = board.GetMusic();
-    //     if (music) {
-    //         ESP_LOGI(TAG, "Stopping music streaming due to state change: %s -> %s", 
-    //                 STATE_STRINGS[previous_state], STATE_STRINGS[state]);
-    //         music->StopStreaming();
-    //     }
-    // }
-
+    // Stop music playback when transitioning from idle state to any other state
+    if (previous_state == kDeviceStateIdle && state != kDeviceStateIdle) {
+        auto music = board.GetMusic();
+        if (music) {
+            ESP_LOGI(TAG, "Stopping music streaming due to state change: %s -> %s", 
+                    STATE_STRINGS[previous_state], STATE_STRINGS[state]);
+            music->StopStreaming();
+        }
+    }																	   
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
@@ -901,22 +899,22 @@ void Application::SetAecMode(AecMode mode) {
 }
 
 
-// 新增：接收外部音频数据（如音乐播放）
+// New: Receive external audio data (such as music playback)
 void Application::AddAudioData(AudioStreamPacket&& packet) {
     auto codec = Board::GetInstance().GetAudioCodec();
     if (device_state_ == kDeviceStateIdle && codec->output_enabled()) {
-        // packet.payload包含的是原始PCM数据（int16_t）
+        // packet.payload contains raw PCM data (int16_t)
         if (packet.payload.size() >= 2) {
             size_t num_samples = packet.payload.size() / sizeof(int16_t);
             std::vector<int16_t> pcm_data(num_samples);
             memcpy(pcm_data.data(), packet.payload.data(), packet.payload.size());
             
-            // 检查采样率是否匹配，如果不匹配则进行简单重采样
+            // Check if sample rate matches, if not, perform simple resampling
             if (packet.sample_rate != codec->output_sample_rate()) {
                 // ESP_LOGI(TAG, "Resampling music audio from %d to %d Hz", 
                 //         packet.sample_rate, codec->output_sample_rate());
                 
-                // 验证采样率参数
+                // Validate sample rate parameters
                 if (packet.sample_rate <= 0 || codec->output_sample_rate() <= 0) {
                     ESP_LOGE(TAG, "Invalid sample rates: %d -> %d", 
                             packet.sample_rate, codec->output_sample_rate());
@@ -926,26 +924,26 @@ void Application::AddAudioData(AudioStreamPacket&& packet) {
                 std::vector<int16_t> resampled;
                 
                 if (packet.sample_rate > codec->output_sample_rate()) {
-                    ESP_LOGI(TAG, "音乐播放：将采样率从 %d Hz 切换到 %d Hz", 
+                    ESP_LOGI(TAG, "Music playback: Switching sample rate from %d Hz to %d Hz", 
                         codec->output_sample_rate(), packet.sample_rate);
 
-                    // 尝试动态切换采样率
+                    // Try to dynamically switch sample rate
                     if (codec->SetOutputSampleRate(packet.sample_rate)) {
-                        ESP_LOGI(TAG, "成功切换到音乐播放采样率: %d Hz", packet.sample_rate);
+                        ESP_LOGI(TAG, "Successfully switched to music playback sample rate: %d Hz", packet.sample_rate);
                     } else {
-                        ESP_LOGW(TAG, "无法切换采样率，继续使用当前采样率: %d Hz", codec->output_sample_rate());
+                        ESP_LOGW(TAG, "Cannot switch sample rate, continue using current sample rate: %d Hz", codec->output_sample_rate());
                     }
                 } else {
-                    // 上采样：线性插值
+                    // Upsampling: linear interpolation
                     float upsample_ratio = codec->output_sample_rate() / static_cast<float>(packet.sample_rate);
                     size_t expected_size = static_cast<size_t>(pcm_data.size() * upsample_ratio + 0.5f);
                     resampled.reserve(expected_size);
                     
                     for (size_t i = 0; i < pcm_data.size(); ++i) {
-                        // 添加原始样本
+                        // Add original sample
                         resampled.push_back(pcm_data[i]);
                         
-                        // 计算需要插值的样本数
+                        // Calculate number of samples to interpolate
                         int interpolation_count = static_cast<int>(upsample_ratio) - 1;
                         if (interpolation_count > 0 && i + 1 < pcm_data.size()) {
                             int16_t current = pcm_data[i];
@@ -956,7 +954,7 @@ void Application::AddAudioData(AudioStreamPacket&& packet) {
                                 resampled.push_back(interpolated);
                             }
                         } else if (interpolation_count > 0) {
-                            // 最后一个样本，直接重复
+                            // For the last sample, simply repeat it
                             for (int j = 1; j <= interpolation_count; ++j) {
                                 resampled.push_back(pcm_data[i]);
                             }
@@ -970,12 +968,12 @@ void Application::AddAudioData(AudioStreamPacket&& packet) {
                 pcm_data = std::move(resampled);
             }
             
-            // 确保音频输出已启用
+            // Ensure audio output is enabled
             if (!codec->output_enabled()) {
                 codec->EnableOutput(true);
             }
             
-            // 发送PCM数据到音频编解码器
+            // Send PCM data to audio codec
             codec->OutputData(pcm_data);
             
             audio_service_.UpdateOutputTimestamp();

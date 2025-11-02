@@ -4,6 +4,7 @@
 #include "display/display.h"
 #include "display/oled_display.h"
 #include "assets/lang_config.h"
+#include "esp32_music.h"		
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -13,6 +14,7 @@
 #define TAG "Board"
 
 Board::Board() {
+	music_ = nullptr;								  
     Settings settings("board", true);
     uuid_ = settings.GetString("uuid");
     if (uuid_.empty()) {
@@ -20,8 +22,18 @@ Board::Board() {
         settings.SetString("uuid", uuid_);
     }
     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
+
+    music_ = new Esp32Music();
+    ESP_LOGI(TAG, "Music player initialized for all boards");						   									 
 }
 
+Board::~Board() {
+    if (music_) {
+        delete music_;
+        music_ = nullptr;
+        ESP_LOGI(TAG, "Music player destroyed");
+    }
+}				 
 std::string Board::GenerateUuid() {
     // UUID v4 需要 16 字节的随机数据
     uint8_t uuid[16];
