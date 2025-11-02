@@ -47,10 +47,6 @@
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 
-<<<<<<< HEAD
-#define OTTO_ROBOT_VERSION "2.0.4"
-=======
 #define OTTO_ROBOT_VERSION "2.0.5"
->>>>>>> dev
 
 #endif  // _BOARD_CONFIG_H_
