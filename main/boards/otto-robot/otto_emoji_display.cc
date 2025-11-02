@@ -88,7 +88,11 @@ void OttoEmojiDisplay::SetupChatLabel() {
     chat_message_label_ = lv_label_create(container_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, width_ * 0.9);                        // 限制宽度为屏幕宽度的 90%
+<<<<<<< HEAD
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);            // 设置为自动换行模式
+=======
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);            
+>>>>>>> dev
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);  // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
     SetTheme(LvglThemeManager::GetInstance().GetTheme("dark"));
