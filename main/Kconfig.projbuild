@@ -30,7 +30,7 @@ config CUSTOM_ASSETS_FILE
 
 choice
     prompt "Default Language"
-    default LANGUAGE_ZH_CN
+    default LANGUAGE_PT_PT
     help
         Select device display language
 
@@ -114,7 +114,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
