@@ -120,7 +120,7 @@ private:
                                         
                                         // 读取振幅（短键名 "a"），默认0度
                                         for (int j = 0; j < SERVO_COUNT; j++) {
-                                            amplitude[j] = 00;  // 默认振幅0度
+                                            amplitude[j] = 0;  // 默认振幅0度
                                         }
                                         cJSON* amp_item = cJSON_GetObjectItem(osc_item, "a");
                                         if (cJSON_IsObject(amp_item)) {
