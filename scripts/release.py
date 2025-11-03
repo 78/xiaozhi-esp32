@@ -164,7 +164,9 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
             continue
 
         # Process sdkconfig_append
-        sdkconfig_append = build.get("sdkconfig_append", [])
+        board_type_config = _find_board_config(board_type)
+        sdkconfig_append = [f"{board_type_config}=y"]
+        sdkconfig_append.extend(build.get("sdkconfig_append", []))
 
         print("-" * 80)
         print(f"name: {name}")
