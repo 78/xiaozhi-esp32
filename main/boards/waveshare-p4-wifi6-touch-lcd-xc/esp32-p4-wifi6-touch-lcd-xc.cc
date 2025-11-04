@@ -1,10 +1,9 @@
 #include "wifi_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "application.h"
 #include "display/lcd_display.h"
 // #include "display/no_display.h"
 #include "button.h"
-#include "iot/thing_manager.h"
 
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
@@ -19,9 +18,6 @@
 #include <esp_lvgl_port.h>
 #include "esp_lcd_touch_gt911.h"
 #define TAG "WaveshareEsp32p4xc"
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
 
 class WaveshareEsp32p4xc : public WifiBoard {
 private:
@@ -118,12 +114,7 @@ private:
         esp_lcd_panel_init(disp_panel);
 
         display_ = new MipiLcdDisplay(io, disp_panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                       DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                       {
-                                           .text_font = &font_puhui_30_4,
-                                           .icon_font = &font_awesome_30_4,
-                                           .emoji_font = font_emoji_64_init(),
-                                       });
+                                       DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
     void InitializeTouch()
     {
@@ -165,18 +156,10 @@ private:
             app.ToggleChatState(); });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto &thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     WaveshareEsp32p4xc() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
-        InitializeIot();
         InitializeLCD();
         InitializeTouch();
         InitializeButtons();

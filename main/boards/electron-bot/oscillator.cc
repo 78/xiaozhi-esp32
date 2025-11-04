@@ -6,11 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-static const char* TAG = "Oscillator";
-
 extern unsigned long IRAM_ATTR millis();
-
-static ledc_channel_t next_free_channel = LEDC_CHANNEL_0;
 
 Oscillator::Oscillator(int trim) {
     trim_ = trim;

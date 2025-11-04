@@ -3,17 +3,16 @@
 #include "wifi_board.h"
 #include "sensecap_audio_codec.h"
 #include "display/lcd_display.h"
-#include "font_awesome_symbols.h"
 #include "application.h"
 #include "knob.h"
 #include "config.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "power_save_timer.h"
 #include "sscma_camera.h"
+#include "lvgl_theme.h"
 
 #include <esp_log.h>
-#include "esp_check.h"
+#include <esp_check.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_spd2010.h>
@@ -29,14 +28,11 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
+#include <esp_app_desc.h>
 
 #include "assets/lang_config.h"
 
 #define TAG "sensecap_watcher"
-
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class CustomLcdDisplay : public SpiLcdDisplay {
     public:
@@ -49,15 +45,14 @@ class CustomLcdDisplay : public SpiLcdDisplay {
                         bool mirror_x,
                         bool mirror_y,
                         bool swap_xy) 
-            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_30_4,
-                        .icon_font = &font_awesome_20_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+            : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
     
             DisplayLockGuard lock(this);
-            lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height * 2 + 10);
+            auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+            auto text_font = lvgl_theme->text_font()->font();
+            auto icon_font = lvgl_theme->icon_font()->font();
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
@@ -65,9 +60,9 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             // 针对圆形屏幕调整位置
             //      network  battery  mute     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5*fonts_.icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5*fonts_.icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);
@@ -103,16 +98,11 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(10);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            auto display = GetDisplay();
-            display->SetChatMessage("system", "");
-            display->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -367,14 +357,6 @@ private:
         
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
     uint16_t BatterygetVoltage(void) {
         static bool initialized = false;
         static adc_oneshot_unit_handle_t adc_handle;
@@ -511,6 +493,47 @@ private:
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
 
+        const esp_console_cmd_t cmd6 = {
+            .command = "version",
+            .help = "Read version info",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                auto app_desc = esp_app_get_description();
+                const char* region = "UNKNOWN";
+                #if defined(CONFIG_LANGUAGE_ZH_CN)
+                    region = "CN";
+                #elif defined(CONFIG_LANGUAGE_EN_US)
+                    region = "US";
+                #elif defined(CONFIG_LANGUAGE_JA_JP)
+                    region = "JP";
+                #elif defined(CONFIG_LANGUAGE_ES_ES)
+                    region = "ES";
+                #elif defined(CONFIG_LANGUAGE_DE_DE)
+                    region = "DE";
+                #elif defined(CONFIG_LANGUAGE_FR_FR)
+                    region = "FR";
+                #elif defined(CONFIG_LANGUAGE_IT_IT)
+                    region = "IT";
+                #elif defined(CONFIG_LANGUAGE_PT_PT)
+                    region = "PT";
+                #elif defined(CONFIG_LANGUAGE_RU_RU)
+                    region = "RU";
+                #elif defined(CONFIG_LANGUAGE_KO_KR)
+                    region = "KR";
+                #endif
+                printf("{\"type\":0,\"name\":\"VER?\",\"code\":0,\"data\":{\"software\":\"%s\",\"hardware\":\"watcher xiaozhi agent\",\"camera\":%d,\"region\":\"%s\"}}\n",
+                       app_desc->version,
+                       self->GetCamera() == nullptr ? 0 : 1,
+                       region);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd6));
+
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));
         ESP_ERROR_CHECK(esp_console_start_repl(repl));
@@ -548,9 +571,8 @@ public:
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
+        GetBacklight()->RestoreBrightness();  // 对于不带摄像头的版本，InitializeCamera需要3s, 所以先恢复背光亮度
         InitializeCamera();
-        InitializeIot();
-        GetBacklight()->RestoreBrightness();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

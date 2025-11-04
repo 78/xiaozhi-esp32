@@ -7,11 +7,10 @@
 #include <wifi_station.h>
 
 #include "application.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "button.h"
 #include "config.h"
 #include "display/lcd_display.h"
-#include "iot/thing_manager.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "mcp_server.h"
@@ -21,9 +20,6 @@
 #include "wifi_board.h"
 
 #define TAG "OttoRobot"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 extern void InitializeOttoController();
 
@@ -79,12 +75,7 @@ private:
 
         display_ = new OttoEmojiDisplay(
             panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-            {
-                .text_font = &font_puhui_16_4,
-                .icon_font = &font_awesome_16_4,
-                .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-            });
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {

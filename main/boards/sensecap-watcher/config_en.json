@@ -1,0 +1,20 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "sensecap-watcher-en",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/32m.csv\"",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n",
+                "CONFIG_IDF_EXPERIMENTAL_FEATURES=y",
+                "CONFIG_FREERTOS_HZ=1000",
+                "CONFIG_LANGUAGE_EN_US=y",
+                "CONFIG_SR_WN_WN9_JARVIS_TTS=y",
+                "CONFIG_SR_WN_WN9_SOPHIA_TTS=y",
+                "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=n"
+            ]
+        }
+    ]
+}

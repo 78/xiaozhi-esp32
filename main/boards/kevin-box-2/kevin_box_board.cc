@@ -1,10 +1,9 @@
 #include "dual_network_board.h"
-#include "audio_codecs/box_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/oled_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
-#include "iot/thing_manager.h"
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
@@ -18,10 +17,6 @@
 #include <esp_lcd_panel_vendor.h>
 
 #define TAG "KevinBoxBoard"
-
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
-
 
 class Pmic : public Axp2101 {
 public:
@@ -50,7 +45,6 @@ public:
         WriteReg(0x50, 0x14); // set TS pin to EXTERNAL input (not temperature)
     }
 };
-
 
 class KevinBoxBoard : public DualNetworkBoard {
 private:
@@ -146,8 +140,7 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeCodecI2c() {
@@ -229,15 +222,8 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Battery"));
-    }
-
 public:
-    KevinBoxBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    KevinBoxBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -250,7 +236,6 @@ public:
 
         InitializeButtons();
         InitializePowerSaveTimer();
-        InitializeIot();
     }
 
     virtual Led* GetLed() override {

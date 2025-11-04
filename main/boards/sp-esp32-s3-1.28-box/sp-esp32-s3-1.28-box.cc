@@ -1,10 +1,9 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include <wifi_station.h>
@@ -27,10 +26,6 @@
 #include <driver/rtc_io.h>
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 
 class Cst816d : public I2cDevice {
 public:
@@ -69,7 +64,6 @@ private:
     TouchPoint_t tp_;
 };
 
-
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
@@ -81,12 +75,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
@@ -94,7 +83,6 @@ public:
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
     }
 };
-
 
 class Spotpear_ESP32_S3_1_28_BOX : public WifiBoard {
 private:
@@ -114,14 +102,11 @@ private:
 
         power_save_timer_ = new PowerSaveTimer(-1, 60, 290);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
@@ -168,7 +153,6 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
-
 
     static void touchpad_timer_callback(void* arg) {
         auto& board = (Spotpear_ESP32_S3_1_28_BOX&)Board::GetInstance();
@@ -271,13 +255,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     Spotpear_ESP32_S3_1_28_BOX() : boot_button_(BOOT_BUTTON_GPIO) {
 
@@ -292,10 +269,8 @@ public:
         InitializeSpi();
         InitializeGc9a01Display();
         InitializeButtons();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
-
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "eye_anim",
+    "align": "GFX_ALIGN_LEFT_MID",
+    "x": 10,
+    "y": 10
+  },
+  {
+    "name": "status_icon",
+    "align": "GFX_ALIGN_TOP_MID",
+    "x": -100,
+    "y": 38
+  },
+  {
+    "name": "toast_label",
+    "align": "GFX_ALIGN_TOP_MID",
+    "x": 0,
+    "y": 40,
+    "width": 160,
+    "height": 40
+  },
+  {
+    "name": "clock_label",
+    "align": "GFX_ALIGN_TOP_MID",
+    "x": 0,
+    "y": 40,
+    "width": 60,
+    "height": 50
+  },
+  {
+    "name": "listen_anim",
+    "align": "GFX_ALIGN_TOP_MID",
+    "x": 0,
+    "y": 25
+  }
+]
+  
