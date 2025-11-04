@@ -47,11 +47,7 @@ dependencies:
   espressif2022/esp_emote_gfx: ^1.1.2
   espressif/adc_mic: ^0.2.1
   espressif/esp_mmap_assets: '>=1.2'
-  txp666/otto-emoji-gif-component:
-    version: 1.0.2
-    rules:
-    - if: target not in [esp32c5]
-  
+  txp666/otto-emoji-gif-component: ^1.0.3
   espressif/adc_battery_estimation: ^0.2.0
   espressif/esp_new_jpeg: ^0.6.1
 
