@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "codecs/es8311_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -18,13 +18,63 @@
 
 #include "power_save_timer.h"
 #include "power_manager.h"
-#include "power_controller.h"
-#include "gpio_manager.h"
 #include <driver/rtc_io.h>
+#include <driver/gpio.h>
 #include <esp_sleep.h>
+#include <esp_timer.h>
 
 #define BOARD_TAG "JiuchuanDevBoard"
-#define __USER_GPIO_PWRDOWN__
+
+// 九川版AudioCodec：手动控制PA引脚（参考立创版）
+class JiuchuanAudioCodec : public BoxAudioCodec {
+private:
+    gpio_num_t pa_pin_;
+    bool pa_initialized_;
+
+public:
+    JiuchuanAudioCodec(i2c_master_bus_handle_t i2c_bus, 
+                       int input_sample_rate, int output_sample_rate,
+                       gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, 
+                       gpio_num_t dout, gpio_num_t din,
+                       gpio_num_t pa_pin, 
+                       uint8_t es8311_addr, uint8_t es7210_addr, 
+                       bool input_reference)
+        : BoxAudioCodec(i2c_bus, input_sample_rate, output_sample_rate,
+                       mclk, bclk, ws, dout, din, 
+                       GPIO_NUM_NC,  // 不让ES8311驱动控制PA引脚
+                       es8311_addr, es7210_addr, input_reference),
+          pa_pin_(pa_pin),
+          pa_initialized_(false) {
+        
+        ESP_LOGI(BOARD_TAG, "JiuchuanAudioCodec initialized (ES8311+ES7210)");
+    }
+
+    virtual void EnableOutput(bool enable) override {
+        // 延迟初始化PA引脚（第一次调用EnableOutput时才初始化）
+        if (!pa_initialized_ && pa_pin_ != GPIO_NUM_NC) {
+            gpio_reset_pin(pa_pin_);  // 先复位，清除任何之前的配置
+            
+            gpio_config_t io_conf = {};
+            io_conf.intr_type = GPIO_INTR_DISABLE;
+            io_conf.mode = GPIO_MODE_OUTPUT;
+            io_conf.pin_bit_mask = (1ULL << pa_pin_);
+            io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+            gpio_config(&io_conf);
+            
+            pa_initialized_ = true;
+            ESP_LOGI(BOARD_TAG, "PA pin GPIO%d initialized (lazy init)", pa_pin_);
+        }
+        
+        BoxAudioCodec::EnableOutput(enable);
+        
+        // 控制PA引脚
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, enable ? 1 : 0);
+            ESP_LOGI(BOARD_TAG, "PA pin GPIO%d set to %d", pa_pin_, enable ? 1 : 0);
+        }
+    }
+};
 
 // 自定义LCD显示器类，用于圆形屏幕适配
 class CustomLcdDisplay : public SpiLcdDisplay
@@ -73,7 +123,7 @@ private:
     }
     
     void InitializePowerManager() {
-        power_manager_ = new PowerManager(PWR_ADC_GPIO);
+        power_manager_ = new PowerManager(VBUS_ADC_GPIO);  // 使用VBUS检测引脚
         power_manager_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
                 power_save_timer_->SetEnabled(false);
@@ -84,34 +134,7 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        #ifndef __USER_GPIO_PWRDOWN__
-        RTC_DATA_ATTR static bool long_press_occurred = false;
-        esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-        if (cause == ESP_SLEEP_WAKEUP_EXT0) {
-            ESP_LOGI(TAG, "Wake up by EXT0");
-            const int64_t start = esp_timer_get_time();
-            ESP_LOGI(TAG, "esp_sleep_get_wakeup_cause");
-            while (gpio_get_level(PWR_BUTTON_GPIO) == 0) {
-                if (esp_timer_get_time() - start > 3000000) {
-                    long_press_occurred = true;
-                    break;
-                }
-                vTaskDelay(100 / portTICK_PERIOD_MS);
-            }
-            
-            if (long_press_occurred) {
-                ESP_LOGI(TAG, "Long press wakeup");
-                long_press_occurred = false;
-            } else {
-                ESP_LOGI(TAG, "Short press, return to sleep");
-                ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup(PWR_BUTTON_GPIO, 0));
-                ESP_ERROR_CHECK(rtc_gpio_pullup_en(PWR_BUTTON_GPIO));  // 内部上拉
-                ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(PWR_BUTTON_GPIO));
-                esp_deep_sleep_start();
-            }
-        }
-        #endif
-        //一分钟进入浅睡眠，5分钟进入深睡眠关机
+        // 一分钟进入浅睡眠，5分钟进入深睡眠关机
         power_save_timer_ = new PowerSaveTimer(-1, (60*5), -1);
         // power_save_timer_ = new PowerSaveTimer(-1, 6, 10);//test
         power_save_timer_->OnEnterSleepMode([this]() {
@@ -123,18 +146,10 @@ private:
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
-            ESP_LOGI(TAG, "Shutting down");
-            #ifndef __USER_GPIO_PWRDOWN__
-            ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup(PWR_BUTTON_GPIO, 0));
-            ESP_ERROR_CHECK(rtc_gpio_pullup_en(PWR_BUTTON_GPIO));  // 内部上拉
-            ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(PWR_BUTTON_GPIO));
-
-            esp_lcd_panel_disp_on_off(panel, false); //关闭显示
-            esp_deep_sleep_start();
-            #else
-            rtc_gpio_set_level(PWR_EN_GPIO, 0);
-            rtc_gpio_hold_dis(PWR_EN_GPIO);
-            #endif
+            ESP_LOGI(TAG, "Auto shutdown triggered by inactivity timer");
+            // 使用 PowerManager 的统一关机逻辑
+            // 会自动判断充电状态并执行相应的关机流程
+            power_manager_->Shutdown();
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -158,77 +173,82 @@ private:
     }
 
     void InitializeButtons() {
-        static bool pwrbutton_unreleased = false;
+        // 启动保护：记录开机时间，5秒内禁用关机功能
+        // 这样可以避免开机时的长按被误判为关机操作
+        static int64_t boot_time_ms = esp_timer_get_time() / 1000;
+        static const int64_t BOOT_PROTECTION_MS = 3000;  // 5秒保护期
+        
+        // 配置电源按钮 GPIO（不使用内部上下拉，依赖外部电路）
+        gpio_config_t io_conf = {
+            .pin_bit_mask = (1ULL << GPIO_NUM_3),
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        };
+        ESP_ERROR_CHECK(gpio_config(&io_conf));
 
-        if (gpio_get_level(GPIO_NUM_3) == 1) {
-            pwrbutton_unreleased = true;
-        }
-        // 配置GPIO
-        ESP_LOGI(TAG, "Configuring power button GPIO");
-        GpioManager::Config(GPIO_NUM_3, GpioManager::GpioMode::INPUT_PULLDOWN);
+        ESP_LOGI(TAG, "Power button initialized with %lld ms boot protection", BOOT_PROTECTION_MS);
 
         boot_button_.OnClick([this]() {
-            ESP_LOGI(TAG, "Boot button clicked");
             power_save_timer_->WakeUp();
         });
-
-        // 检查电源按钮初始状态
-        ESP_LOGI(TAG, "Power button initial state: %d", GpioManager::GetLevel(PWR_BUTTON_GPIO));
-
-        // 高电平有效长按关机逻辑
-        pwr_button_.OnPressDown([this]() {
-            pwrbutton_unreleased = false;
-        });
-        pwr_button_.OnLongPress([this]()
-                                {
-        ESP_LOGI(TAG, "Power button long press detected (high-active)");
-
-            if (pwrbutton_unreleased){
-                ESP_LOGI(TAG, "开机后电源键未松开,取消关机");
+        
+        pwr_button_.OnLongPress([this]() {
+            // 检查是否在启动保护期内
+            int64_t current_time_ms = esp_timer_get_time() / 1000;
+            int64_t elapsed_ms = current_time_ms - boot_time_ms;
+            
+            if (elapsed_ms < BOOT_PROTECTION_MS) {
+                ESP_LOGW(TAG, "Shutdown blocked: within boot protection period (%lld/%lld ms)", 
+                         elapsed_ms, BOOT_PROTECTION_MS);
                 return;
             }
             
-            // 高电平有效防抖确认
+            // 防抖确认：连续检测5次
             for (int i = 0; i < 5; i++) {
-                int level = GpioManager::GetLevel(PWR_BUTTON_GPIO);
-                ESP_LOGD(TAG, "Debounce check %d: GPIO%d level=%d", i+1, PWR_BUTTON_GPIO, level);
-                
-                if (level == 0) {
-                    ESP_LOGW(TAG, "Power button inactive during confirmation - abort shutdown");
+                if (gpio_get_level(PWR_BUTTON_GPIO) == 0) {
+                    ESP_LOGW(TAG, "Button released during confirmation, shutdown cancelled");
                     return;
                 }
                 vTaskDelay(100 / portTICK_PERIOD_MS);
             }
             
-            ESP_LOGI(TAG, "Confirmed power button pressed - initiating shutdown");
-            power_manager_->SetPowerState(PowerState::SHUTDOWN); });
+            ESP_LOGI(TAG, "Shutting down...");
+            
+            GetDisplay()->ShowNotification("松开按键以关机");
+            
+            power_manager_->Shutdown();
+        });
 
-        //单击切换状态
-        pwr_button_.OnClick([this]()
-                            {
-            // 获取当前应用实例和状态
+        // 单击：切换聊天状态或唤醒设备
+        pwr_button_.OnClick([this]() {
             auto &app = Application::GetInstance();
             auto current_state = app.GetDeviceState();
-
-            ESP_LOGI(TAG, "当前设备状态: %d", current_state);
             
-            if (current_state == kDeviceStateIdle) {
-                // 如果当前是待命状态，切换到聆听状态
-                ESP_LOGI(TAG, "从待命状态切换到聆听状态");
-                app.ToggleChatState(); // 切换到聆听状态
-            } else if (current_state == kDeviceStateListening) {
-                // 如果当前是聆听状态，切换到待命状态
-                ESP_LOGI(TAG, "从聆听状态切换到待命状态");
-                app.ToggleChatState(); // 切换到待命状态
-            } else if (current_state == kDeviceStateSpeaking) {
-                // 如果当前是说话状态，终止说话并切换到待命状态
-                ESP_LOGI(TAG, "从说话状态切换到待命状态");
-                app.ToggleChatState(); // 终止说话
+            if (current_state == kDeviceStateIdle || 
+                current_state == kDeviceStateListening || 
+                current_state == kDeviceStateSpeaking) {
+                app.ToggleChatState();
             } else {
-                // 其他状态下只唤醒设备
-                ESP_LOGI(TAG, "唤醒设备");
                 power_save_timer_->WakeUp();
-            } });
+            }
+        });
+
+        // 双击：切换 AEC 打断模式
+        pwr_button_.OnDoubleClick([this]() {
+            power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            
+            // 空闲状态下切换 AEC 模式
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+#if CONFIG_USE_DEVICE_AEC
+                AecMode current_mode = app.GetAecMode();
+                AecMode new_mode = (current_mode == kAecOff) ? kAecOnDeviceSide : kAecOff;
+                app.SetAecMode(new_mode);
+                ESP_LOGI(BOARD_TAG, "AEC mode: %s", new_mode == kAecOnDeviceSide ? "ON" : "OFF");
+#endif
+            }
+        });
 
         // 电源键三击：重置WiFi
         pwr_button_.OnMultipleClick([this]()
@@ -352,10 +372,9 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-
-        static Es8311AudioCodec audio_codec(
+        // 使用BoxAudioCodec：ES8311(DAC输出) + ES7210(ADC输入，4麦克风)
+        static JiuchuanAudioCodec audio_codec(
             codec_i2c_bus_, 
-            I2C_NUM_0, 
             AUDIO_INPUT_SAMPLE_RATE, 
             AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, 
@@ -364,7 +383,9 @@ public:
             AUDIO_I2S_GPIO_DOUT, 
             AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, 
-            AUDIO_CODEC_ES8311_ADDR);
+            AUDIO_CODEC_ES8311_ADDR, 
+            AUDIO_CODEC_ES7210_ADDR, 
+            AUDIO_INPUT_REFERENCE);
         return &audio_codec;
     }
 

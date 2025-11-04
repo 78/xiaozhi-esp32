@@ -3,7 +3,9 @@
     "builds": [
         {
             "name": "jiuchuan-s3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
         }
     ]
 }

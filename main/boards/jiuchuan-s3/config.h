@@ -18,13 +18,15 @@
 #define AUDIO_CODEC_I2C_SDA_PIN  GPIO_NUM_1
 #define AUDIO_CODEC_I2C_SCL_PIN  GPIO_NUM_2
 #define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
+#define AUDIO_CODEC_ES7210_ADDR  0x82  // ES7210 I2C address (0x41 << 1)
 
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_10
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define PWR_BUTTON_GPIO         GPIO_NUM_3
-#define PWR_EN_GPIO             GPIO_NUM_5
-#define PWR_ADC_GPIO            GPIO_NUM_4
+#define PWR_EN_GPIO             GPIO_NUM_15
+#define VBAT_ADC_GPIO           GPIO_NUM_4  // 电池电压监测引脚（通过分压电路）
+#define VBUS_ADC_GPIO           GPIO_NUM_5  // USB电压监测引脚（用于充电检测）
 #define PWR_BUTTON_TIME         3000000U
 
 #define WIFI_BUTTON_GPIO        GPIO_NUM_6
