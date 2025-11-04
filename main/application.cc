@@ -391,12 +391,20 @@ void Application::Start() {
 
     //AudioService 回调绑定（3个事件位），SetCallbacks 将这些回调注册到音频服务
     AudioServiceCallbacks callbacks;
+
+    //网络发送队列可用（可以把音频发出去），检测到网络层或协议的发送缓冲/窗口/连接目前可以接收更多音频包时触发
     callbacks.on_send_queue_available = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_SEND_AUDIO);
     };
+
+    //唤醒词检测到回调函数，本地唤醒词识别器（wake-word detector）检测到用户说出唤醒词时触发
     callbacks.on_wake_word_detected = [this](const std::string& wake_word) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
     };
+
+    //VAD（语音活动检测），状态变化回调函数
+    //VAD 模块检测到“开始说话”（speaking = true）或“结束说话/静音”（speaking = false）时触发
+    //VAD 能给出快速的讲话/静音边界，用于判断何时切分一句话/何时结束录音并上传。
     callbacks.on_vad_change = [this](bool speaking) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
@@ -485,11 +493,17 @@ void Application::Start() {
         });
     });
     //设备收到服务器发来的 JSON 消息时被调用的回调，如 TTS、STT、LLM、系统命令等
+    
+    //STT语音转文字，用于设备向服务器发送语音，服务器转成文字，并返回文字结果
+    //LLM大模型交互，用于设备向服务器发送文字，服务器返回大模型生成的回答
+    //TTS文字转语音，用于服务器将模型返回的文字生成语音，并将json和音频包发送给设备
     protocol_->OnIncomingJson([this, display](const cJSON* root) {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
+        //如果收到的是TTS消息，说明是服务器正在说话，服务器通过TTS合成语音，并发送给设备播放
         if (strcmp(type->valuestring, "tts") == 0) {
             auto state = cJSON_GetObjectItem(root, "state");
+        // 服务器发送给设备json文件，状态为start时，表示服务器开始说话，此时设备如果在空闲或者监听状态，切换到说话状态
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
                     aborted_ = false;
@@ -497,6 +511,7 @@ void Application::Start() {
                         SetDeviceState(kDeviceStateSpeaking);
                     }
                 });
+        // 服务器发送给设备json文件，状态为stop时，表示服务器停止说话，此时设备如果在说话状态，切换到监听或者空闲状态
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (device_state_ == kDeviceStateSpeaking) {
@@ -507,7 +522,9 @@ void Application::Start() {
                         }
                     }
                 });
+        //服务器发送给设备json文件，状态为sentence_start时，表示服务器开始说一句话，此时设备如果在说话状态，显示当前句子
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
+        //text字段是当前句子的文字内容，墨水屏需要显示当前句子，这是服务器端说话的内容
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
@@ -522,6 +539,7 @@ void Application::Start() {
                     });
                 }
             }
+        //如果收到的是STT消息，说明是服务器的语音转文字结果，服务器将用户说的话转成文字，并发送给设备，在墨水屏显示出来
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {
@@ -536,6 +554,7 @@ void Application::Start() {
                     //===================== [wj] End =====================
                 });
             }
+        //如果收到的是LLM消息，说明是服务器发送的情感变化命令，改变设备表情
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
             if (cJSON_IsString(emotion)) {
@@ -543,11 +562,13 @@ void Application::Start() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+        //如果收到的是MCP消息，说明是服务器发送的MCP命令，执行对应的工具逻辑
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             if (cJSON_IsObject(payload)) {
                 McpServer::GetInstance().ParseMessage(payload);
             }
+        //这部分处理系统层面的命令，比如“重启”、“恢复出厂”、“清理缓存”等。
         } else if (strcmp(type->valuestring, "system") == 0) {
             auto command = cJSON_GetObjectItem(root, "command");
             if (cJSON_IsString(command)) {
@@ -561,6 +582,7 @@ void Application::Start() {
                     ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
                 }
             }
+        //这是用来显示警告、提示或系统消息的，比如：网络断开；版本不兼容；设备电量低；登录失效；服务器错误。
         } else if (strcmp(type->valuestring, "alert") == 0) {
             auto status = cJSON_GetObjectItem(root, "status");
             auto message = cJSON_GetObjectItem(root, "message");
@@ -592,6 +614,7 @@ void Application::Start() {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }
     });
+    //初始化协议，建立与服务器的连接
     bool protocol_started = protocol_->Start();
 
     SystemInfo::PrintHeapStats();

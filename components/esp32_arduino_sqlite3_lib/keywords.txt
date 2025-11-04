@@ -1,0 +1,22 @@
+#######################################
+# Syntax Coloring Map SQLite3
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+sqlite3	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+sqlite3_open	KEYWORD2
+sqlite3_exec	KEYWORD2
+sqlite3_close	KEYWORD2
+callback	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
