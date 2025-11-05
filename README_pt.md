@@ -1,9 +1,12 @@
 # Um chatbot baseado em MCP
 
 (Chinês | Inglês | Japonês )
-##introduzir
+
+## introduzir
+
 👉Humanos : Instalando câmeras em IA vs. IA: Descobrindo na hora que seu dono não lavou o cabelo por três dias [bilibili]
 👉Crie sua própria namorada de IA: um guia para iniciantes [bilibili]
+
 O chatbot Xiaozhi AI funciona como um portal de interação por voz, aproveitando os recursos de IA de grandes modelos como Qwen e DeepSeek para alcançar o controle de múltiplos terminais por meio do protocolo MCP.
 
 <<<<<<< HEAD
