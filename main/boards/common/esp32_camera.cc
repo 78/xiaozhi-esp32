@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "board.h"
 #include "display.h"
+#include "esp_imgfx_color_convert.h"
 #include "esp_video_device.h"
 #include "esp_video_init.h"
 #include "jpg/image_to_jpeg.h"
@@ -19,6 +20,28 @@
 #define LOG_LOCAL_LEVEL MAX(CONFIG_LOG_DEFAULT_LEVEL, ESP_LOG_DEBUG)
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
 
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+#include "driver/ppa.h"
+#if defined(CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90)
+#define IMAGE_ROTATION_ANGLE (PPA_SRM_ROTATION_ANGLE_270)
+#elif defined(CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_270)
+#define IMAGE_ROTATION_ANGLE (PPA_SRM_ROTATION_ANGLE_90)
+#else
+#error "CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE is not set"
+#endif  // angle
+#else   // target
+#include "esp_imgfx_rotate.h"
+#if defined(CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90)
+#define IMAGE_ROTATION_ANGLE (90)
+#elif defined(CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_270)
+#define IMAGE_ROTATION_ANGLE (270)
+#else
+#error "CONFIG_XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE is not set"
+#endif  // angle
+#endif  // target
+#endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+
 #include <errno.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
@@ -28,7 +51,8 @@
 #define TAG "Esp32Camera"
 
 #if defined(CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER) || defined(CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP)
-#warning "CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER or CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP is enabled, which may cause image corruption in YUV422 format!"
+#warning \
+    "CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER or CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP is enabled, which may cause image corruption in YUV422 format!"
 #endif
 
 #if CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
@@ -40,6 +64,16 @@
     fourcc[3] = (pixelformat >> 24) & 0xFF; \
     fourcc[4] = '\0';                       \
     ESP_LOGD(TAG, "FOURCC: '%c%c%c%c'", fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
+
+// for compatibility with old esp_video version
+#ifndef MAP_FAILED
+#define MAP_FAILED nullptr
+#endif
+
+__attribute__((weak)) esp_err_t esp_video_deinit(void) {
+    return ESP_ERR_NOT_SUPPORTED;
+}
+// end of for compatibility with old esp_video version
 
 static void log_available_video_devices() {
     for (int i = 0; i < 50; i++) {
@@ -138,6 +172,10 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
 
     struct v4l2_format setformat = {};
     setformat.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+    sensor_width_ = format.fmt.pix.width;
+    sensor_height_ = format.fmt.pix.height;
+#endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     setformat.fmt.pix.width = format.fmt.pix.width;
     setformat.fmt.pix.height = format.fmt.pix.height;
 
@@ -146,8 +184,29 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
     fmtdesc.index = 0;
     uint32_t best_fmt = 0;
     int best_rank = 1 << 30;  // large number
-    // 优先级: YUV422P > RGB565 > RGB24 > GREY
-    // 注: 当前版本中 YUV422P 实际输出为 YUYV。YUYV 色彩格式在后续的处理中更节省内存空间。
+
+    // 注: 当前版本 esp_video 中 YUV422P 实际输出为 YUYV。
+#if defined(CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE) && defined(CONFIG_SOC_PPA_SUPPORTED)
+    auto get_rank = [](uint32_t fmt) -> int {
+        switch (fmt) {
+            case V4L2_PIX_FMT_RGB24:
+                return 0;
+            case V4L2_PIX_FMT_RGB565:
+                return 1;
+            case V4L2_PIX_FMT_YUV420:
+#ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+                return 2;
+#else
+                // 软件 JPEG 编码器不支持 YUV420 格式
+                [[fallthrough]];
+#endif  // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+            case V4L2_PIX_FMT_GREY:
+            case V4L2_PIX_FMT_YUV422P:
+            default:
+                return 1 << 29;  // unsupported
+        }
+    };
+#else
     auto get_rank = [](uint32_t fmt) -> int {
         switch (fmt) {
             case V4L2_PIX_FMT_YUV422P:
@@ -156,12 +215,17 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
                 return 1;
             case V4L2_PIX_FMT_RGB24:
                 return 2;
-            case V4L2_PIX_FMT_GREY:
+#ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+            case V4L2_PIX_FMT_YUV420:
                 return 3;
+#endif  // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+            case V4L2_PIX_FMT_GREY:
+                return 4;
             default:
                 return 1 << 29;  // unsupported
         }
     };
+#endif
     while (ioctl(video_fd_, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
         ESP_LOGD(TAG, "VIDIOC_ENUM_FMT: pixelformat=0x%08lx, description=%s", fmtdesc.pixelformat, fmtdesc.description);
         CAM_PRINT_FOURCC(fmtdesc.pixelformat);
@@ -195,8 +259,13 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
         return;
     }
 
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+    frame_.width = setformat.fmt.pix.height;
+    frame_.height = setformat.fmt.pix.width;
+#else
     frame_.width = setformat.fmt.pix.width;
     frame_.height = setformat.fmt.pix.height;
+#endif
 
     // 申请缓冲并mmap
     struct v4l2_requestbuffers req = {};
@@ -337,28 +406,40 @@ bool Esp32Camera::Capture() {
             frame_.data = (uint8_t*)heap_caps_malloc(frame_.len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (!frame_.data) {
                 ESP_LOGE(TAG, "alloc frame copy failed");
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
                 return false;
             }
 
-            ESP_LOGD(TAG, "frame.len = %d, frame.width = %d, frame.height = %d", frame_.len, frame_.width,
-                     frame_.height);
-            ESP_LOG_BUFFER_HEXDUMP(TAG, frame_.data, MIN(frame_.len, 256), ESP_LOG_DEBUG);
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+            ESP_LOGW(TAG, "mmap_buffers_[buf.index].length = %d, sensor_width = %d, sensor_height = %d",
+                     mmap_buffers_[buf.index].length, sensor_width_, sensor_height_);
+#else
+            ESP_LOGW(TAG, "mmap_buffers_[buf.index].length = %d, frame.width = %d, frame.height = %d",
+                     mmap_buffers_[buf.index].length, frame_.width, frame_.height);
+#endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+            ESP_LOG_BUFFER_HEXDUMP(TAG, mmap_buffers_[buf.index].start, MIN(mmap_buffers_[buf.index].length, 256),
+                                   ESP_LOG_DEBUG);
 
             switch (sensor_format_) {
                 case V4L2_PIX_FMT_RGB565:
                 case V4L2_PIX_FMT_RGB24:
                 case V4L2_PIX_FMT_YUYV:
+                case V4L2_PIX_FMT_YUV420:
+                case V4L2_PIX_FMT_GREY:
 #ifdef CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
-                    {
-                        auto src16 = (uint16_t*)mmap_buffers_[buf.index].start;
-                        auto dst16 = (uint16_t*)frame_.data;
-                        size_t count = (size_t)mmap_buffers_[buf.index].length / 2;
-                        for (size_t i = 0; i < count; i++) {
-                            dst16[i] = __builtin_bswap16(src16[i]);
-                        }
+                {
+                    auto src16 = (uint16_t*)mmap_buffers_[buf.index].start;
+                    auto dst16 = (uint16_t*)frame_.data;
+                    size_t count = (size_t)mmap_buffers_[buf.index].length / 2;
+                    for (size_t i = 0; i < count; i++) {
+                        dst16[i] = __builtin_bswap16(src16[i]);
                     }
+                }
 #else
-                    memcpy(frame_.data, mmap_buffers_[buf.index].start, frame_.len);
+                    memcpy(frame_.data, mmap_buffers_[buf.index].start,
+                           MIN(mmap_buffers_[buf.index].length, frame_.len));
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
                     frame_.format = sensor_format_;
                     break;
@@ -375,7 +456,8 @@ bool Esp32Camera::Capture() {
                         }
                     }
 #else
-                    memcpy(frame_.data, mmap_buffers_[buf.index].start, frame_.len);
+                    memcpy(frame_.data, mmap_buffers_[buf.index].start,
+                           MIN(mmap_buffers_[buf.index].length, frame_.len));
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
                     break;
                 }
@@ -392,10 +474,246 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                        ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                    }
                     return false;
             }
+
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+#ifndef CONFIG_SOC_PPA_SUPPORTED
+            uint8_t* rotate_dst =
+                (uint8_t*)heap_caps_aligned_alloc(64, frame_.len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (rotate_dst == nullptr) {
+                ESP_LOGE(TAG, "Failed to allocate memory for rotate image");
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                return false;
+            }
+            uint8_t* rotate_src = (uint8_t*)frame_.data;
+
+            esp_imgfx_rotate_cfg_t rotate_cfg = {
+                .in_res =
+                    {
+                        .width = static_cast<int16_t>(sensor_width_),
+                        .height = static_cast<int16_t>(sensor_height_),
+                    },
+                .degree = IMAGE_ROTATION_ANGLE,
+            };
+            switch (frame_.format) {
+                case V4L2_PIX_FMT_RGB565:
+                    rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE;
+                    break;
+                case V4L2_PIX_FMT_YUYV:
+                    rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE;
+                    break;
+                case V4L2_PIX_FMT_GREY:
+                    rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_Y;
+                    break;
+                case V4L2_PIX_FMT_RGB24:
+                    rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
+                    break;
+                default:
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                        ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                    }
+                    return false;
+            }
+            esp_imgfx_rotate_handle_t rotate_handle = nullptr;
+            esp_imgfx_err_t imgfx_err = esp_imgfx_rotate_open(&rotate_cfg, &rotate_handle);
+            if (imgfx_err != ESP_IMGFX_ERR_OK || rotate_handle == nullptr) {
+                ESP_LOGE(TAG, "esp_imgfx_rotate_create failed");
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                return false;
+            }
+
+            esp_imgfx_data_t rotate_input_data = {
+                .data = rotate_src,
+                .data_len = frame_.len,
+            };
+            esp_imgfx_data_t rotate_output_data = {
+                .data = rotate_dst,
+                .data_len = frame_.len,
+            };
+
+            imgfx_err = esp_imgfx_rotate_process(rotate_handle, &rotate_input_data, &rotate_output_data);
+            if (imgfx_err != ESP_IMGFX_ERR_OK) {
+                ESP_LOGE(TAG, "esp_imgfx_rotate_process failed");
+                heap_caps_free(rotate_dst);
+                rotate_dst = nullptr;
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                esp_imgfx_rotate_close(rotate_handle);
+                rotate_handle = nullptr;
+                return false;
+            }
+
+            frame_.data = rotate_dst;
+
+            heap_caps_free(rotate_src);
+            rotate_src = nullptr;
+
+            esp_imgfx_rotate_close(rotate_handle);
+            rotate_handle = nullptr;
+#else   // CONFIG_SOC_PPA_SUPPORTED
+            uint8_t* rotate_src = nullptr;
+
+            ppa_srm_color_mode_t ppa_color_mode;
+            switch (frame_.format) {
+                case V4L2_PIX_FMT_RGB565:
+                    rotate_src = (uint8_t*)frame_.data;
+                    ppa_color_mode = PPA_SRM_COLOR_MODE_RGB565;
+                    break;
+                case V4L2_PIX_FMT_RGB24:
+                    rotate_src = (uint8_t*)frame_.data;
+                    ppa_color_mode = PPA_SRM_COLOR_MODE_RGB888;
+                    break;
+                case V4L2_PIX_FMT_YUYV: {
+                    ESP_LOGW(TAG, "YUYV format is not supported for PPA rotation, using software conversion to RGB888");
+                    rotate_src = (uint8_t*)heap_caps_malloc(frame_.width * frame_.height * 3,
+                                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                    if (rotate_src == nullptr) {
+                        ESP_LOGE(TAG, "Failed to allocate memory for rotate image");
+                        if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                            ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                        }
+                        return false;
+                    }
+                    esp_imgfx_color_convert_cfg_t convert_cfg = {
+                        .in_res = {.width = static_cast<int16_t>(frame_.width),
+                                   .height = static_cast<int16_t>(frame_.height)},
+                        .in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_YUYV,
+                        .out_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888,
+                    };
+                    esp_imgfx_color_convert_handle_t convert_handle = nullptr;
+                    esp_imgfx_err_t err = esp_imgfx_color_convert_open(&convert_cfg, &convert_handle);
+                    if (err != ESP_IMGFX_ERR_OK || convert_handle == nullptr) {
+                        ESP_LOGE(TAG, "esp_imgfx_color_convert_open failed");
+                        heap_caps_free(rotate_src);
+                        rotate_src = nullptr;
+                        if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                            ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                        }
+                        return false;
+                    }
+                    esp_imgfx_data_t convert_input_data = {
+                        .data = frame_.data,
+                        .data_len = frame_.len,
+                    };
+                    esp_imgfx_data_t convert_output_data = {
+                        .data = rotate_src,
+                        .data_len = static_cast<uint32_t>(frame_.width * frame_.height * 3),
+                    };
+                    err = esp_imgfx_color_convert_process(convert_handle, &convert_input_data, &convert_output_data);
+                    if (err != ESP_IMGFX_ERR_OK) {
+                        ESP_LOGE(TAG, "esp_imgfx_color_convert_process failed");
+                        heap_caps_free(rotate_src);
+                        rotate_src = nullptr;
+                        esp_imgfx_color_convert_close(convert_handle);
+                        convert_handle = nullptr;
+                        if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                            ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                        }
+                        return false;
+                    }
+                    esp_imgfx_color_convert_close(convert_handle);
+                    convert_handle = nullptr;
+                    ppa_color_mode = PPA_SRM_COLOR_MODE_RGB888;
+                    heap_caps_free(frame_.data);
+                    frame_.data = rotate_src;
+                    frame_.len = frame_.width * frame_.height * 3;
+                    break;
+                }
+                default:
+                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08x", sensor_format_);
+                    if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                        ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                    }
+                    return false;
+            }
+
+            uint8_t* rotate_dst = (uint8_t*)heap_caps_malloc(
+                frame_.width * frame_.height * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT | MALLOC_CAP_CACHE_ALIGNED);
+            if (rotate_dst == nullptr) {
+                ESP_LOGE(TAG, "Failed to allocate memory for rotate image");
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                return false;
+            }
+
+            ppa_client_handle_t ppa_client = nullptr;
+            ppa_client_config_t client_cfg = {
+                .oper_type = PPA_OPERATION_SRM,
+                .max_pending_trans_num = 1,
+            };
+            esp_err_t err = ppa_register_client(&client_cfg, &ppa_client);
+            if (err != ESP_OK || ppa_client == nullptr) {
+                ESP_LOGE(TAG, "ppa_register_client failed: %d", (int)err);
+                heap_caps_free(rotate_dst);
+                rotate_dst = nullptr;
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                return false;
+            }
+
+            ppa_srm_rotation_angle_t ppa_angle = IMAGE_ROTATION_ANGLE;
+
+            ppa_srm_oper_config_t srm_cfg = {};
+            srm_cfg.in.buffer = (void*)rotate_src;
+            srm_cfg.in.pic_w = sensor_width_;
+            srm_cfg.in.pic_h = sensor_height_;
+            srm_cfg.in.block_w = sensor_width_;
+            srm_cfg.in.block_h = sensor_height_;
+            srm_cfg.in.block_offset_x = 0;
+            srm_cfg.in.block_offset_y = 0;
+            srm_cfg.in.srm_cm = ppa_color_mode;
+
+            srm_cfg.out.buffer = (void*)rotate_dst;
+            srm_cfg.out.buffer_size = frame_.len;
+            srm_cfg.out.pic_w = frame_.width;
+            srm_cfg.out.pic_h = frame_.height;
+            srm_cfg.out.block_offset_x = 0;
+            srm_cfg.out.block_offset_y = 0;
+            srm_cfg.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+
+            // 等比例缩放 1.0
+            srm_cfg.scale_x = 1.0f;
+            srm_cfg.scale_y = 1.0f;
+            srm_cfg.rotation_angle = ppa_angle;
+            srm_cfg.mode = PPA_TRANS_MODE_BLOCKING;
+            srm_cfg.user_data = nullptr;
+
+            err = ppa_do_scale_rotate_mirror(ppa_client, &srm_cfg);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "ppa_do_scale_rotate_mirror failed: %d", (int)err);
+                heap_caps_free(rotate_dst);
+                rotate_dst = nullptr;
+                (void)ppa_unregister_client(ppa_client);
+                if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
+                    ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
+                }
+                return false;
+            }
+
+            (void)ppa_unregister_client(ppa_client);
+
+            frame_.data = rotate_dst;
+            frame_.len = frame_.width * frame_.height * 2;
+            frame_.format = V4L2_PIX_FMT_RGB565;
+            heap_caps_free(rotate_src);
+            rotate_src = nullptr;
+#endif  // CONFIG_SOC_PPA_SUPPORTED
+#endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
         }
+
         if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
             ESP_LOGE(TAG, "VIDIOC_QBUF failed");
         }
@@ -405,6 +723,7 @@ bool Esp32Camera::Capture() {
     auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
     if (display != nullptr) {
         if (!frame_.data) {
+            ESP_LOGE(TAG, "frame.data is null");
             return false;
         }
         uint16_t w = frame_.width;
@@ -415,72 +734,55 @@ bool Esp32Camera::Capture() {
         uint8_t* data = nullptr;
 
         switch (frame_.format) {
+            // LVGL 显示 YUV 系的图像似乎都有问题，暂时转换为 RGB565 显示
             case V4L2_PIX_FMT_YUYV:
-                // color_format = LV_COLOR_FORMAT_YUY2;
-                // [[fallthrough]];
-                // LV_COLOR_FORMAT_YUY2 的显示似乎有问题，暂时转换为 RGB565 显示
-                {
-                    color_format = LV_COLOR_FORMAT_RGB565;
-                    data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                    lvgl_image_size = w * h * 2;
-                    if (data == nullptr) {
-                        ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-                        return false;
-                    }
-                    const uint8_t* src = (const uint8_t*)frame_.data;
-                    size_t src_len = frame_.len;
-                    size_t dst_off = 0;
-
-                    auto clamp = [](int v) -> uint8_t {
-                        if (v < 0) return 0;
-                        if (v > 255) return 255;
-                        return (uint8_t)v;
-                    };
-
-                    // 每 4 字节处理两个像素： Y0 U Y1 V
-                    for (size_t i = 0; i + 3 < src_len; i += 4) {
-                        int y0 = (int)src[i + 0];
-                        int u  = (int)src[i + 1];
-                        int y1 = (int)src[i + 2];
-                        int v  = (int)src[i + 3];
-
-                        int c0 = y0 - 16;
-                        int c1 = y1 - 16;
-                        int d  = u  - 128;
-                        int e  = v  - 128;
-
-                        // 常用整数近似转换
-                        int r0 = (298 * c0 + 409 * e + 128) >> 8;
-                        int g0 = (298 * c0 - 100 * d - 208 * e + 128) >> 8;
-                        int b0 = (298 * c0 + 516 * d + 128) >> 8;
-
-                        int r1 = (298 * c1 + 409 * e + 128) >> 8;
-                        int g1 = (298 * c1 - 100 * d - 208 * e + 128) >> 8;
-                        int b1 = (298 * c1 + 516 * d + 128) >> 8;
-
-                        uint8_t cr0 = clamp(r0);
-                        uint8_t cg0 = clamp(g0);
-                        uint8_t cb0 = clamp(b0);
-
-                        uint8_t cr1 = clamp(r1);
-                        uint8_t cg1 = clamp(g1);
-                        uint8_t cb1 = clamp(b1);
-
-                        // RGB565 打包
-                        uint16_t pix0 = (uint16_t)(((cr0 >> 3) << 11) | ((cg0 >> 2) << 5) | (cb0 >> 3));
-                        uint16_t pix1 = (uint16_t)(((cr1 >> 3) << 11) | ((cg1 >> 2) << 5) | (cb1 >> 3));
-
-                        // 小端序：低字节先写入
-                        data[dst_off++] = (uint8_t)(pix0 & 0xFF);
-                        data[dst_off++] = (uint8_t)((pix0 >> 8) & 0xFF);
-
-                        data[dst_off++] = (uint8_t)(pix1 & 0xFF);
-                        data[dst_off++] = (uint8_t)((pix1 >> 8) & 0xFF);
-                    }
-                    break;
+            case V4L2_PIX_FMT_YUV420:
+            case V4L2_PIX_FMT_RGB24: {
+                color_format = LV_COLOR_FORMAT_RGB565;
+                data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (data == nullptr) {
+                    ESP_LOGE(TAG, "Failed to allocate memory for preview image");
+                    return false;
                 }
+                esp_imgfx_color_convert_cfg_t convert_cfg = {
+                    .in_res = {.width = static_cast<int16_t>(frame_.width),
+                               .height = static_cast<int16_t>(frame_.height)},
+                    .in_pixel_fmt = static_cast<esp_imgfx_pixel_fmt_t>(frame_.format),
+                    .out_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE,
+                    .color_space_std = ESP_IMGFX_COLOR_SPACE_STD_BT601,
+                };
+                esp_imgfx_color_convert_handle_t convert_handle = nullptr;
+                esp_imgfx_err_t err = esp_imgfx_color_convert_open(&convert_cfg, &convert_handle);
+                if (err != ESP_IMGFX_ERR_OK || convert_handle == nullptr) {
+                    ESP_LOGE(TAG, "esp_imgfx_color_convert_open failed");
+                    heap_caps_free(data);
+                    data = nullptr;
+                    return false;
+                }
+                esp_imgfx_data_t convert_input_data = {
+                    .data = frame_.data,
+                    .data_len = frame_.len,
+                };
+                esp_imgfx_data_t convert_output_data = {
+                    .data = data,
+                    .data_len = static_cast<uint32_t>(w * h * 2),
+                };
+                err = esp_imgfx_color_convert_process(convert_handle, &convert_input_data, &convert_output_data);
+                if (err != ESP_IMGFX_ERR_OK) {
+                    ESP_LOGE(TAG, "esp_imgfx_color_convert_process failed");
+                    heap_caps_free(data);
+                    data = nullptr;
+                    esp_imgfx_color_convert_close(convert_handle);
+                    convert_handle = nullptr;
+                    return false;
+                }
+                esp_imgfx_color_convert_close(convert_handle);
+                convert_handle = nullptr;
+                lvgl_image_size = w * h * 2;
+                break;
+            }
+
             case V4L2_PIX_FMT_RGB565:
-                // 默认的 color_format 就是 LV_COLOR_FORMAT_RGB565
                 data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
                 if (data == nullptr) {
                     ESP_LOGE(TAG, "Failed to allocate memory for preview image");
@@ -490,26 +792,6 @@ bool Esp32Camera::Capture() {
                 lvgl_image_size = frame_.len;  // fallthrough 时兼顾 YUYV 与 RGB565
                 break;
 
-            case V4L2_PIX_FMT_RGB24: {
-                // RGB888 需要转换为 RGB565
-                color_format = LV_COLOR_FORMAT_RGB565;
-                data = (uint8_t*)heap_caps_malloc(w * h * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-                uint16_t* dst16 = (uint16_t*)data;
-                if (data == nullptr) {
-                    ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-                    return false;
-                }
-                const uint8_t* src = frame_.data;
-                size_t pixel_count = (size_t)w * (size_t)h;
-                for (size_t i = 0; i < pixel_count; i++) {
-                    uint8_t r = src[i * 3 + 0];
-                    uint8_t g = src[i * 3 + 1];
-                    uint8_t b = src[i * 3 + 2];
-                    dst16[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-                }
-                lvgl_image_size = w * h * 2;
-                break;
-            }
             default:
                 ESP_LOGE(TAG, "unsupported frame format: 0x%08lx", frame_.format);
                 return false;
