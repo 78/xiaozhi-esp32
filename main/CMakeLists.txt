@@ -33,6 +33,11 @@ file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
+# 添加fogseek公共文件
+file(GLOB FOGSEEK_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/fogseek_common/*.cc)
+list(APPEND SOURCES ${FOGSEEK_COMMON_SOURCES})
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/fogseek_common)
+
 # 根据 BOARD_TYPE 配置添加对应的板级文件
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
@@ -222,8 +227,12 @@ elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_AUDIO)
     set(BOARD_TYPE "fogseek-esp32s3-audio")
 elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_EDGE)
     set(BOARD_TYPE "fogseek-esp32s3-edge")
-elseif(CONFIG_BOARD_TYPE_FOGSEEK_MOODLIGHT)
-    set(BOARD_TYPE "fogseek-moodlight")
+elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_5)
+    set(BOARD_TYPE "fogseek-esp32s3-edge-lcd1.5")
+elseif(CONFIG_BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_8)
+    set(BOARD_TYPE "fogseek-esp32s3-edge-lcd1.8")
+elseif(CONFIG_BOARD_TYPE_FOGSEEK_BUBBLEPAL)
+    set(BOARD_TYPE "fogseek-bubblepal")
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc

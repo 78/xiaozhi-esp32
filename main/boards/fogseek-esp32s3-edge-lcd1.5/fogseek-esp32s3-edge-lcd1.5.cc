@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
+#include "display_manager.h"
 #include "led_controller.h"
 #include "codecs/es8311_audio_codec.h"
 #include "system_reset.h"
@@ -16,14 +17,15 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEsp32s3Edge"
+#define TAG "FogSeekEsp32s3EdgeLcd15"
 
-class FogSeekEsp32s3Edge : public WifiBoard
+class FogSeekEsp32s3EdgeLcd15 : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
+    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
@@ -70,6 +72,31 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
     }
 
+    // 初始化显示管理器
+    void InitializeDisplayManager()
+    {
+        lcd_pin_config_t lcd_pin_config = {
+            .io0_gpio = LCD_IO0_GPIO,
+            .io1_gpio = LCD_IO1_GPIO,
+            .scl_gpio = LCD_SCL_GPIO,
+            .io2_gpio = LCD_IO2_GPIO,
+            .io3_gpio = LCD_IO3_GPIO,
+            .cs_gpio = LCD_CS_GPIO,
+            .dc_gpio = LCD_DC_GPIO,
+            .reset_gpio = LCD_RESET_GPIO,
+            .im0_gpio = LCD_IM0_GPIO,
+            .im2_gpio = LCD_IM2_GPIO,
+            .bl_gpio = LCD_BL_GPIO,
+            .width = LCD_H_RES,
+            .height = LCD_V_RES,
+            .offset_x = DISPLAY_OFFSET_X,
+            .offset_y = DISPLAY_OFFSET_Y,
+            .mirror_x = DISPLAY_MIRROR_X,
+            .mirror_y = DISPLAY_MIRROR_Y,
+            .swap_xy = DISPLAY_SWAP_XY};
+        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
+    }
+
     // 初始化音频功放引脚并默认关闭功放
     void InitializeAudioAmplifier()
     {
@@ -114,6 +141,7 @@ private:
         power_manager_.PowerOn();
         led_controller_.SetPowerState(true);
         led_controller_.UpdateBatteryStatus(power_manager_);
+        display_manager_.SetBrightness(100);
         SetAudioAmplifierState(true);
 
         // 开机自动唤醒
@@ -130,6 +158,7 @@ private:
         power_manager_.PowerOff();
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
+        display_manager_.SetBrightness(0);
         SetAudioAmplifierState(false);
 
         // 重置自动唤醒标志位到默认状态
@@ -153,7 +182,7 @@ private:
                 app.PlaySound(Lang::Sounds::OGG_SUCCESS);
 
             vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
-                                            // 进入聆听状态
+            // 进入聆听状态
             app.Schedule([]()
                          {
             auto &app = Application::GetInstance();
@@ -168,6 +197,7 @@ private:
         if (power_manager_.IsPowerOn())
         {
             led_controller_.HandleDeviceState(current_state, power_manager_);
+            display_manager_.HandleDeviceState(current_state);
 
             // 处理自动唤醒逻辑
             HandleAutoWake(current_state);
@@ -184,11 +214,12 @@ private:
     }
 
 public:
-    FogSeekEsp32s3Edge() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEsp32s3EdgeLcd15() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
+        InitializeDisplayManager();
         InitializeButtonCallbacks();
         InitializeAudioAmplifier();
 
@@ -199,6 +230,11 @@ public:
         // 注册设备交互状态变更回调
         DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
+    }
+
+    virtual Display *GetDisplay() override
+    {
+        return display_manager_.GetDisplay();
     }
 
     virtual AudioCodec *GetAudioCodec() override
@@ -220,7 +256,7 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEsp32s3Edge()
+    ~FogSeekEsp32s3EdgeLcd15()
     {
         if (i2c_bus_)
         {
@@ -229,4 +265,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEsp32s3Edge);
+DECLARE_BOARD(FogSeekEsp32s3EdgeLcd15);

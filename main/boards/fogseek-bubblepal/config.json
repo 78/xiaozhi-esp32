@@ -2,10 +2,8 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "fogseek-esp32s3-edge",
+            "name": "fogseek-bubblepal",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/8m.csv\"",
                 "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y",
                 "CONFIG_OCV_SOC_MODEL_2=y"
             ]

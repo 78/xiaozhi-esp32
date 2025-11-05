@@ -31,7 +31,7 @@ dependencies:
   lvgl/lvgl: ~9.2.2
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
-  espressif2022/image_player: ==1.1.0~1
+  espressif2022/image_player: ^1.0.0
   espressif2022/esp_emote_gfx: ^1.0.0
   espressif/adc_mic: ^0.2.0
   espressif/esp_mmap_assets: '>=1.2'
