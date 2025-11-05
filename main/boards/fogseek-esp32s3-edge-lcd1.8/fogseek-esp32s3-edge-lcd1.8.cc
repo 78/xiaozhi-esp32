@@ -24,9 +24,9 @@ class FogSeekEsp32s3EdgeLcd18 : public WifiBoard
 private:
     Button boot_button_;
     Button ctrl_button_;
-    PowerManager power_manager_;
-    DisplayManager display_manager_;
-    LedController led_controller_;
+    FogSeekPowerManager power_manager_;
+    FogSeekDisplayManager display_manager_;
+    FogSeekLedController led_controller_;
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
@@ -50,6 +50,51 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+
+    // 初始化电源管理器
+    void InitializePowerManager()
+    {
+        power_pin_config_t power_pin_config = {
+            .hold_gpio = PWR_HOLD_GPIO,
+            .charging_gpio = PWR_CHARGING_GPIO,
+            .charge_done_gpio = PWR_CHARGE_DONE_GPIO,
+            .adc_gpio = BATTERY_ADC_GPIO};
+        power_manager_.Initialize(&power_pin_config);
+    }
+
+    // 初始化LED控制器
+    void InitializeLedController()
+    {
+        led_pin_config_t led_pin_config = {
+            .red_gpio = LED_RED_GPIO,
+            .green_gpio = LED_GREEN_GPIO};
+        led_controller_.InitializeLeds(power_manager_, &led_pin_config);
+    }
+
+    // 初始化显示管理器
+    void InitializeDisplayManager()
+    {
+        lcd_pin_config_t lcd_pin_config = {
+            .io0_gpio = LCD_IO0_GPIO,
+            .io1_gpio = LCD_IO1_GPIO,
+            .scl_gpio = LCD_SCL_GPIO,
+            .io2_gpio = LCD_IO2_GPIO,
+            .io3_gpio = LCD_IO3_GPIO,
+            .cs_gpio = LCD_CS_GPIO,
+            .dc_gpio = LCD_DC_GPIO,
+            .reset_gpio = LCD_RESET_GPIO,
+            .im0_gpio = LCD_IM0_GPIO,
+            .im2_gpio = LCD_IM2_GPIO,
+            .bl_gpio = LCD_BL_GPIO,
+            .width = LCD_H_RES,
+            .height = LCD_V_RES,
+            .offset_x = DISPLAY_OFFSET_X,
+            .offset_y = DISPLAY_OFFSET_Y,
+            .mirror_x = DISPLAY_MIRROR_X,
+            .mirror_y = DISPLAY_MIRROR_Y,
+            .swap_xy = DISPLAY_SWAP_XY};
+        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -129,10 +174,19 @@ private:
         // 检查是否需要自动唤醒
         if (auto_wake_flag_ && current_state == DeviceState::kDeviceStateIdle)
         {
+            auto_wake_flag_ = false; // 关闭标志位
+
             auto &app = Application::GetInstance();
-            app.WakeWordInvoke("你好小智"); // 自动唤醒
-            auto_wake_flag_ = false;        // 关闭标志位
-            ESP_LOGI(TAG, "Auto wake word invoked after initialization");
+            // USB供电需要播放音效
+            if (power_manager_.IsUsbPowered())
+                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+
+            vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
+            // 进入聆听状态
+            app.Schedule([]()
+                         {
+            auto &app = Application::GetInstance();
+            app.ToggleChatState(); });
         }
     }
 
@@ -150,11 +204,10 @@ private:
         }
     }
 
-    // 电源状态变更处理函数
-    void OnPowerStateChanged(PowerManager::PowerState state)
+    // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
+    void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
     {
-        if (!power_manager_.IsPowerOn() ||
-            Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
+        if (!power_manager_.IsPowerOn() || Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
         {
             led_controller_.UpdateBatteryStatus(power_manager_);
         }
@@ -164,17 +217,17 @@ public:
     FogSeekEsp32s3EdgeLcd18() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
-        InitializeAudioAmplifier();
-        power_manager_.Initialize();
-        led_controller_.InitializeLeds(power_manager_);
-        display_manager_.Initialize();
+        InitializePowerManager();
+        InitializeLedController();
+        InitializeDisplayManager();
         InitializeButtonCallbacks();
+        InitializeAudioAmplifier();
 
         // 设置电源状态变化回调函数
-        power_manager_.SetPowerStateCallback([this](PowerManager::PowerState state)
+        power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { OnPowerStateChanged(state); });
 
-        // 注册设备状态变更回调
+        // 注册设备交互状态变更回调
         DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
     }

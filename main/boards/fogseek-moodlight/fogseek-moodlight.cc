@@ -1,4 +1,7 @@
 #include "wifi_board.h"
+#include "config.h"
+#include "power_manager.h"
+#include "led_controller.h"
 #include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
@@ -10,6 +13,7 @@
 #include "led/gpio_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
+#include "fogseek_common/mcp_tools.h"
 #include <wifi_station.h>
 #include <esp_log.h>
 
@@ -20,142 +24,127 @@ class FogSeekMoodlight : public WifiBoard
 private:
     Button boot_button_;
     Button ctrl_button_;
-    AdcBatteryMonitor *battery_monitor_;
-    bool no_dc_power_ = false;
-    bool pwr_hold_state_ = false;
-    bool low_battery_warning_ = false;
-    bool low_battery_shutdown_ = false;
-    esp_timer_handle_t battery_check_timer_ = nullptr;
+    FogSeekPowerManager power_manager_;
+    FogSeekLedController led_controller_;
 
-    // 冷暖色灯控制
-    GpioLed *cold_light_ = nullptr;
-    GpioLed *warm_light_ = nullptr;
-    bool cold_light_state_ = false; // 添加冷灯状态变量
-    bool warm_light_state_ = false; // 添加暖灯状态变量
+    AudioCodec *audio_codec_ = nullptr;
 
-    void UpdateBatteryStatus()
+    // 添加自动唤醒标志位
+    bool auto_wake_flag_ = false;
+
+    // 初始化电源管理器
+    void InitializePowerManager()
     {
-        bool is_charging_pin = gpio_get_level(PWR_CHARGING_GPIO) == 0;   // CHRG引脚，低电平表示正在充电
-        bool is_charge_done = gpio_get_level(PWR_CHARGE_DONE_GPIO) == 0; // STDBY引脚，低电平表示充电完成
-        uint8_t battery_level = battery_monitor_->GetBatteryLevel();
-        bool battery_detected = battery_level > 0; // 通过ADC检测电池是否存在
+        power_pin_config_t power_pin_config = {
+            .hold_gpio = PWR_HOLD_GPIO,
+            .charging_gpio = PWR_CHARGING_GPIO,
+            .charge_done_gpio = PWR_CHARGE_DONE_GPIO,
+            .adc_gpio = BATTERY_ADC_GPIO};
+        power_manager_.Initialize(&power_pin_config);
+    }
 
-        if (battery_detected && !is_charging_pin && !is_charge_done)
+    // 初始化LED控制器
+    void InitializeLedController()
+    {
+        led_pin_config_t led_pin_config = {
+            .red_gpio = LED_RED_GPIO,
+            .green_gpio = LED_GREEN_GPIO,
+            .cold_light_gpio = COLD_LIGHT_GPIO,
+            .warm_light_gpio = WARM_LIGHT_GPIO};
+        led_controller_.InitializeLeds(power_manager_, &led_pin_config);
+    }
+
+    // 初始化按键回调
+    void InitializeButtonCallbacks()
+    {
+        ctrl_button_.OnClick([this]()
+                             {
+                                 auto &app = Application::GetInstance();
+                                 app.ToggleChatState(); // 切换聊天状态（打断）
+                             });
+
+        ctrl_button_.OnLongPress([this]()
+                                 {
+            // 切换电源状态
+            if (!power_manager_.IsPowerOn()) {
+                PowerOn();
+            } else {
+                PowerOff();
+            } });
+    }
+
+    // 开机流程
+    void PowerOn()
+    {
+        power_manager_.PowerOn();
+        led_controller_.SetPowerState(true);
+        led_controller_.UpdateBatteryStatus(power_manager_);
+
+        // 开机自动唤醒
+        auto_wake_flag_ = true;
+        OnDeviceStateChanged(DeviceState::kDeviceStateUnknown,
+                             Application::GetInstance().GetDeviceState());
+
+        ESP_LOGI(TAG, "Device powered on.");
+    }
+
+    // 关机流程
+    void PowerOff()
+    {
+        power_manager_.PowerOff();
+        led_controller_.SetPowerState(false);
+        led_controller_.UpdateBatteryStatus(power_manager_);
+
+        // 重置自动唤醒标志位到默认状态
+        auto_wake_flag_ = false;
+        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle);
+
+        ESP_LOGI(TAG, "Device powered off.");
+    }
+
+    // 处理自动唤醒逻辑
+    void HandleAutoWake(DeviceState current_state)
+    {
+        // 检查是否需要自动唤醒
+        if (auto_wake_flag_ && current_state == DeviceState::kDeviceStateIdle)
         {
-            // 有电池但未充电状态（CHRG高电平，STDBY高电平，无充电器）
-            no_dc_power_ = true;
-            ESP_LOGI(TAG, "Battery present but not charging, level: %d%%", battery_level);
-        }
-        else if (is_charging_pin)
-        {
-            // 正在充电状态（CHRG低电平，STDBY高电平）
-            no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 1);
-            gpio_set_level(LED_GREEN_GPIO, 0);
-            ESP_LOGI(TAG, "Battery is charging, level: %d%%", battery_level);
-        }
-        else if (is_charge_done)
-        {
-            // 充电完成状态（CHRG高电平，STDBY低电平）
-            no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 0);
-            gpio_set_level(LED_GREEN_GPIO, 1);
-            ESP_LOGI(TAG, "Battery charge completed, level: %d%%", battery_level);
-        }
-        else
-        {
-            // 无电池状态
-            no_dc_power_ = false;
-            gpio_set_level(LED_RED_GPIO, 0);
-            gpio_set_level(LED_GREEN_GPIO, 0);
-            ESP_LOGI(TAG, "No battery detected");
+            auto_wake_flag_ = false; // 关闭标志位
+
+            auto &app = Application::GetInstance();
+            // USB供电需要播放音效
+            if (power_manager_.IsUsbPowered())
+                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+
+            vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
+                                            // 进入聆听状态
+            app.Schedule([]()
+                         {
+            auto &app = Application::GetInstance();
+            app.ToggleChatState(); });
         }
     }
 
-    // 低电量检测逻辑
-    void CheckLowBattery()
+    // 设备状态变更处理函数
+    void OnDeviceStateChanged(DeviceState previous_state, DeviceState current_state)
     {
-        uint8_t battery_level = battery_monitor_->GetBatteryLevel();
-
-        if (no_dc_power_)
+        // 只有在设备开机状态下才处理LED和显示屏状态
+        if (power_manager_.IsPowerOn())
         {
-            // 低于10%自动关机，使用CONFIG_OCV_SOC_MODEL_2，最低电压是 3.305545V（对应0%电量）
-            if (battery_level < 10 && !low_battery_shutdown_)
-            {
-                ESP_LOGW(TAG, "Critical battery level (%d%%), shutting down to protect battery", battery_level);
-                low_battery_shutdown_ = true;
+            led_controller_.HandleDeviceState(current_state, power_manager_);
 
-                auto &app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 关机
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-
-                pwr_hold_state_ = false;
-                gpio_set_level(PWR_HOLD_GPIO, 0); // 关闭电源
-                gpio_set_level(LED_RED_GPIO, 0);
-                gpio_set_level(LED_GREEN_GPIO, 0);
-                ESP_LOGI(TAG, "Device shut down due to critical battery level");
-                return;
-            }
-            // 低于20%警告
-            else if (battery_level < 20 && battery_level >= 10 && !low_battery_warning_)
-            {
-                gpio_set_level(LED_RED_GPIO, 1);
-                gpio_set_level(LED_GREEN_GPIO, 0);
-                ESP_LOGW(TAG, "Low battery warning (%d%%)", battery_level);
-                low_battery_warning_ = true;
-
-                auto &app = Application::GetInstance();
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); // 发送低电量警告通知
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
-                vTaskDelay(pdMS_TO_TICKS(500));
-            }
-            // 电量恢复到20%以上时重置警告标志
-            else if (battery_level >= 20)
-            {
-                low_battery_warning_ = false;
-            }
-        }
-        else
-        {
-            // 正在充电或充电完成时重置标志
-            low_battery_warning_ = false;
-            low_battery_shutdown_ = false;
+            // 处理自动唤醒逻辑
+            HandleAutoWake(current_state);
         }
     }
 
-    static void BatteryCheckTimerCallback(void *arg)
+    // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
+    void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
     {
-        FogSeekMoodlight *self = static_cast<FogSeekMoodlight *>(arg);
-        self->CheckLowBattery();
-    }
-
-    void InitializeLeds()
-    {
-        gpio_config_t led_conf = {};
-        led_conf.intr_type = GPIO_INTR_DISABLE;
-        led_conf.mode = GPIO_MODE_OUTPUT;
-        led_conf.pin_bit_mask = (1ULL << LED_RED_GPIO) | (1ULL << LED_GREEN_GPIO);
-        led_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        led_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&led_conf);
-        gpio_set_level(LED_RED_GPIO, 0);
-        gpio_set_level(LED_GREEN_GPIO, 0);
-
-        // 初始化冷暖色灯（使用PWM控制）
-        // 为冷色灯和暖色灯分配不同的LEDC通道，避免冲突
-        cold_light_ = new GpioLed(COLD_LIGHT_GPIO, 0, LEDC_TIMER_1, LEDC_CHANNEL_0);
-        warm_light_ = new GpioLed(WARM_LIGHT_GPIO, 0, LEDC_TIMER_1, LEDC_CHANNEL_1);
-
-        // 默认关闭所有灯
-        cold_light_->TurnOff();
-        warm_light_->TurnOff();
+        if (!power_manager_.IsPowerOn() ||
+            Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
+        {
+            led_controller_.UpdateBatteryStatus(power_manager_);
+        }
     }
 
     void InitializeMCP()
@@ -163,126 +152,28 @@ private:
         // 获取MCP服务器实例
         auto &mcp_server = McpServer::GetInstance();
 
-        // 添加获取当前灯状态的工具函数
-        mcp_server.AddTool("self.light.get_status", "获取当前灯的状态", PropertyList(), [this](const PropertyList &properties) -> ReturnValue
-                           {
-            // 使用字符串拼接方式返回JSON - 项目中最标准的做法
-            std::string status = "{\"cold_light\":" + std::string(cold_light_state_ ? "true" : "false") + 
-                                ",\"warm_light\":" + std::string(warm_light_state_ ? "true" : "false") + "}";
-            return status; });
-
-        // 添加设置冷暖灯光亮度的工具函数
-        mcp_server.AddTool("self.light.set_brightness",
-                           "设置冷暖灯光的亮度，冷光和暖光可以独立调节，亮度范围为0-100，关灯为0，开灯默认为30亮度。"
-                           "根据用户情绪描述调节冷暖灯光亮度，大模型应该分析用户的话语，理解用户的情绪状态和场景描述，然后根据情绪设置合适的冷暖灯光亮度组合。",
-                           PropertyList({Property("cold_brightness", kPropertyTypeInteger, 0, 100),
-                                         Property("warm_brightness", kPropertyTypeInteger, 0, 100)}),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               // 使用operator[]而不是at()访问属性
-                               int cold_brightness = properties["cold_brightness"].value<int>();
-                               int warm_brightness = properties["warm_brightness"].value<int>();
-
-                               cold_light_->SetBrightness(cold_brightness);
-                               warm_light_->SetBrightness(warm_brightness);
-                               cold_light_->TurnOn();
-                               warm_light_->TurnOn();
-
-                               // 更新状态
-                               cold_light_state_ = cold_brightness > 0;
-                               warm_light_state_ = warm_brightness > 0;
-
-                               ESP_LOGI(TAG, "Color temperature set - Cold: %d%%, Warm: %d%%",
-                                        cold_brightness, warm_brightness);
-
-                               // 使用字符串拼接方式返回JSON - 项目中最标准的做法
-                               std::string result = "{\"success\":true"
-                                                    ",\"cold_brightness\":" +
-                                                    std::to_string(cold_brightness) +
-                                                    ",\"warm_brightness\":" + std::to_string(warm_brightness) + "}";
-                               return result;
-                           });
-    }
-
-    void InitializeBatteryMonitor()
-    {
-        // 使用通用的电池监测器处理电池电量检测
-        battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_2, 2.0f, 1.0f, PWR_CHARGE_DONE_GPIO);
-        // 初始化充电检测引脚（CHRG引脚）
-        gpio_config_t charge_conf = {};
-        charge_conf.intr_type = GPIO_INTR_DISABLE;
-        charge_conf.mode = GPIO_MODE_INPUT;
-        charge_conf.pin_bit_mask = (1ULL << PWR_CHARGING_GPIO);
-        charge_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        charge_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&charge_conf);
-
-        // 注册充电状态变化回调
-        battery_monitor_->OnChargingStatusChanged([this](bool is_charging)
-                                                  { UpdateBatteryStatus(); });
-
-        UpdateBatteryStatus(); // 初始化时立即更新LED状态
-
-        // 低电量管理 - 创建电池检查定时器，每30秒检查一次
-        esp_timer_create_args_t timer_args = {
-            .callback = &FogSeekMoodlight::BatteryCheckTimerCallback,
-            .arg = this,
-            .name = "battery_check_timer"};
-        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &battery_check_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(battery_check_timer_, 30 * 1000 * 1000)); // 每30秒检查一次
-    }
-
-    void InitializeButtons()
-    {
-        // 初始化电源控制引脚
-        gpio_config_t pwr_conf = {};
-        pwr_conf.intr_type = GPIO_INTR_DISABLE;
-        pwr_conf.mode = GPIO_MODE_OUTPUT;
-        pwr_conf.pin_bit_mask = (1ULL << PWR_HOLD_GPIO);
-        pwr_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        pwr_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&pwr_conf);
-        gpio_set_level(PWR_HOLD_GPIO, 0); // 初始化为关机状态
-
-        // 短按打断
-        ctrl_button_.OnClick([this]()
-                             {
-                                 ESP_LOGI(TAG, "Button clicked");
-                                 auto &app = Application::GetInstance();
-                                 app.ToggleChatState(); // 聊天状态切换（包括打断）
-                             });
-
-        // 长按开关机
-        ctrl_button_.OnLongPress([this]()
-                                 {
-                                    if(!no_dc_power_) {
-                                        ESP_LOGI(TAG, "DC power connected, power button ignored");
-                                        return;
-                                    }
-                                    // 切换电源状态
-                                    if(!pwr_hold_state_) {
-                                        pwr_hold_state_ = true;
-                                        gpio_set_level(PWR_HOLD_GPIO, 1);   // 打开电源
-                                        gpio_set_level(LED_RED_GPIO, 0);
-                                        gpio_set_level(LED_GREEN_GPIO, 1);
-                                        ESP_LOGI(TAG, "Power control pin set to HIGH for keeping power.");
-                                    } 
-                                    else{
-                                        pwr_hold_state_ = false;
-                                        gpio_set_level(LED_RED_GPIO, 0);
-                                        gpio_set_level(LED_GREEN_GPIO, 0);
-                                        gpio_set_level(PWR_HOLD_GPIO, 0);   // 当按键再次长按，则关闭电源
-                                        ESP_LOGI(TAG, "Power control pin set to LOW for shutdown.");
-                                    } });
+        // 初始化灯光 MCP 工具
+        InitializeLightMCP(mcp_server,
+                           led_controller_.GetColdLight(),
+                           led_controller_.GetWarmLight(),
+                           led_controller_.IsColdLightOn(),
+                           led_controller_.IsWarmLightOn());
     }
 
 public:
     FogSeekMoodlight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
-        InitializeLeds();
-        InitializeMCP();
-        InitializeBatteryMonitor();
-        InitializeButtons();
+        InitializePowerManager();
+        InitializeLedController();
+        InitializeButtonCallbacks();
+
+        // 设置电源状态变化回调函数
+        power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
+                                             { OnPowerStateChanged(state); });
+
+        // 注册设备交互状态变更回调
+        DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
+                                                                           { OnDeviceStateChanged(previous_state, current_state); });
     }
 
     virtual AudioCodec *GetAudioCodec() override

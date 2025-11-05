@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
+#include "display_manager.h"
 #include "led_controller.h"
 #include "codecs/es8311_audio_codec.h"
 #include "system_reset.h"
@@ -9,6 +10,7 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
+#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
@@ -23,9 +25,10 @@ class FogSeekBubblePal : public WifiBoard
 private:
     Button boot_button_;
     Button ctrl_button_;
-    PowerManager power_manager_;
-    LedController led_controller_;
-
+    FogSeekPowerManager power_manager_;
+    FogSeekDisplayManager display_manager_;
+    FogSeekLedController led_controller_;
+    CircularStrip *rgb_led_strip_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
 
@@ -48,6 +51,30 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+
+    // 初始化电源管理器
+    void InitializePowerManager()
+    {
+        power_pin_config_t power_pin_config = {
+            .hold_gpio = PWR_HOLD_GPIO,
+            .charging_gpio = PWR_CHARGING_GPIO,
+            .charge_done_gpio = PWR_CHARGE_DONE_GPIO,
+            .adc_gpio = BATTERY_ADC_GPIO};
+        power_manager_.Initialize(&power_pin_config);
+    }
+
+    // 初始化LED控制器
+    void InitializeLedController()
+    {
+        led_pin_config_t led_pin_config = {
+            .red_gpio = LED_RED_GPIO,
+            .green_gpio = LED_GREEN_GPIO,
+            .rgb_gpio = LED_RGB_GPIO};
+        led_controller_.InitializeLeds(power_manager_, &led_pin_config);
+
+        // 初始化RGB灯带
+        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -97,7 +124,7 @@ private:
         SetAudioAmplifierState(true);
 
         // 开启RGB灯带
-        led_controller_.TurnOnRgb();
+        rgb_led_strip_->SetAllColor({255, 0, 255});
 
         // 开机自动唤醒
         auto_wake_flag_ = true;
@@ -116,7 +143,7 @@ private:
         SetAudioAmplifierState(false);
 
         // 关闭RGB灯带
-        led_controller_.TurnOffRgb();
+        rgb_led_strip_->SetAllColor({0, 0, 0});
 
         // 重置自动唤醒标志位到默认状态
         auto_wake_flag_ = false;
@@ -131,10 +158,19 @@ private:
         // 检查是否需要自动唤醒
         if (auto_wake_flag_ && current_state == DeviceState::kDeviceStateIdle)
         {
+            auto_wake_flag_ = false; // 关闭标志位
+
             auto &app = Application::GetInstance();
-            app.WakeWordInvoke("你好小智"); // 自动唤醒
-            auto_wake_flag_ = false;        // 关闭标志位
-            ESP_LOGI(TAG, "Auto wake word invoked after initialization");
+            // USB供电需要播放音效
+            if (power_manager_.IsUsbPowered())
+                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+
+            vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
+                                            // 进入聆听状态
+            app.Schedule([]()
+                         {
+            auto &app = Application::GetInstance();
+            app.ToggleChatState(); });
         }
     }
 
@@ -151,11 +187,10 @@ private:
         }
     }
 
-    // 电源状态变更处理函数
-    void OnPowerStateChanged(PowerManager::PowerState state)
+    // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
+    void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
     {
-        if (!power_manager_.IsPowerOn() ||
-            Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
+        if (!power_manager_.IsPowerOn() || Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
         {
             led_controller_.UpdateBatteryStatus(power_manager_);
         }
@@ -165,16 +200,16 @@ public:
     FogSeekBubblePal() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
-        InitializeAudioAmplifier();
-        power_manager_.Initialize();
-        led_controller_.InitializeLeds(power_manager_);
+        InitializePowerManager();
+        InitializeLedController();
         InitializeButtonCallbacks();
+        InitializeAudioAmplifier();
 
         // 设置电源状态变化回调函数
-        power_manager_.SetPowerStateCallback([this](PowerManager::PowerState state)
+        power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { OnPowerStateChanged(state); });
 
-        // 注册设备状态变更回调
+        // 注册设备交互状态变更回调
         DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
     }
@@ -191,7 +226,7 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN,
+            GPIO_NUM_NC,
             AUDIO_CODEC_ES8311_ADDR,
             true,
             false);
@@ -203,6 +238,13 @@ public:
         if (i2c_bus_)
         {
             i2c_del_master_bus(i2c_bus_);
+        }
+
+        // 删除RGB灯带对象
+        if (rgb_led_strip_)
+        {
+            delete rgb_led_strip_;
+            rgb_led_strip_ = nullptr;
         }
     }
 };
