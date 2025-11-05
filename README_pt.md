@@ -33,7 +33,7 @@ A versão estável da v1 é 1.9.2. Você pode mudar para a versão v1 através d
 - Suporta vários idiomas (chinês, inglês, japonês)
 - Suporta plataformas de chips ESP32-C3, ESP32-S3, ESP32-P4
 - Controle de dispositivos (volume, iluminação, motor, GPIO, etc.) através do MCP do lado do dispositivo
-- 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
+- Expanda os recursos de modelos grandes (controle doméstico inteligente, operação de desktop de PC, pesquisa de conhecimento, envio e recebimento de e-mails, etc.) por meio do MCP na nuvem
 - Personalize palavras de ativação, fontes, emoticons e planos de fundo de bate-papo, suporte para modificação on-line na web ([Gerador de ativos personalizados](https://github.com/78/xiaozhi-assets-generator))
 
 ## Hardware
