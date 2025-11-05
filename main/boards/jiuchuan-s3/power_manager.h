@@ -62,9 +62,9 @@
 #define JIUCHUAN_ADC_SAMPLE_COUNT           (5)                 // ADC采样次数
 #define JIUCHUAN_ADC_SAMPLE_INTERVAL_MS     (10)                // 采样间隔 10ms
 #define JIUCHUAN_BATTERY_CHECK_INTERVAL_MS  (6000)              // 定时器周期 6秒
-#define JIUCHUAN_BATTERY_READ_INTERVAL      (1)                // 每60秒读取电池 (10*6=60s)
+#define JIUCHUAN_BATTERY_READ_INTERVAL      (1)                // 每10秒读取电池 (10*1=10s)
 #define JIUCHUAN_LOW_BATTERY_LEVEL          (20)                // 低电量阈值 20%
-#define JIUCHUAN_FULL_BATTERY_LEVEL         (100)               // 满电阈值 100%
+#define JIUCHUAN_FULL_BATTERY_LEVEL         (99)               // 满电阈值 99%
 
 #undef TAG
 #define TAG "PowerManager"
