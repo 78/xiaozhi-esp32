@@ -158,6 +158,14 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         return false;
     }
 
+    // // 如果正在说话，即kDeviceStateSpeaking状态，则返回
+    // auto& app = Application::GetInstance(); 
+    // if (app.GetDeviceState() == kDeviceStateSpeaking) {
+    //     ESP_LOGI(TAG, "Device state is speaking, ignore audio packet");
+    //     return true;
+    // }
+    
+
     std::string nonce(aes_nonce_);
     *(uint16_t*)&nonce[2] = htons(packet->payload.size());
     *(uint32_t*)&nonce[8] = htonl(packet->timestamp);

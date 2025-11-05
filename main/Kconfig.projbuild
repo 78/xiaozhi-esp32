@@ -324,6 +324,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
         bool "Movecall CuiCan 璀璨·AI吊坠"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_AI_MARTUBE_ESP32S3
+        bool "AI-Martube ESP32S3小王子"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3
         bool "正点原子DNESP32S3开发板"
         depends on IDF_TARGET_ESP32S3

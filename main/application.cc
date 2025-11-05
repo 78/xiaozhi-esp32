@@ -892,3 +892,44 @@ void Application::SetAecMode(AecMode mode) {
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
 }
+
+// 触发唤醒大模型
+void Application::InvokeWakeWord(const std::string& wake_word) {
+    ESP_LOGI(TAG,"InvokeWakeWord: %s", wake_word.c_str());
+    if (!protocol_) {
+        return;
+    }
+
+    if (device_state_ == kDeviceStateIdle) {
+        audio_service_.EncodeWakeWord();
+
+        if (!protocol_->IsAudioChannelOpened()) {
+            SetDeviceState(kDeviceStateConnecting);
+            if (!protocol_->OpenAudioChannel()) {
+                audio_service_.EnableWakeWordDetection(true);
+                return;
+            }
+        }
+
+        // auto wake_word = audio_service_.GetLastWakeWord();
+        ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+#if CONFIG_SEND_WAKE_WORD_DATA
+        // Encode and send the wake word data to the server
+        while (auto packet = audio_service_.PopWakeWordPacket()) {
+            protocol_->SendAudio(std::move(packet));
+        }
+        // Set the chat state to wake word detected
+        protocol_->SendWakeWordDetected(wake_word);
+        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+#else
+        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+        // Play the pop up sound to indicate the wake word is detected
+        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+#endif
+    } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonWakeWordDetected);
+    } else if (device_state_ == kDeviceStateActivating) {
+        SetDeviceState(kDeviceStateIdle);
+    }
+    ESP_LOGI(TAG, "InvokeWakeWord END");
+}
