@@ -29,6 +29,10 @@ private:
         v4l2_pix_fmt_t format = 0;
     } frame_;
     v4l2_pix_fmt_t sensor_format_ = 0;
+#ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+    uint16_t sensor_width_ = 0;
+    uint16_t sensor_height_ = 0;
+#endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     int video_fd_ = -1;
     bool streaming_on_ = false;
     struct MmapBuffer { void *start = nullptr; size_t length = 0; };
