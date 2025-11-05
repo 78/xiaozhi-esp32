@@ -36,7 +36,7 @@ A versão estável da v1 é 1.9.2. Você pode mudar para a versão v1 através d
 - 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
 - Personalize palavras de ativação, fontes, emoticons e planos de fundo de bate-papo, suporte para modificação on-line na web ([Gerador de ativos personalizados](https://github.com/78/xiaozhi-assets-generator))
 
-##hardware
+## Hardware
 
 ### Prática artesanal de tábua de pão
 
@@ -102,7 +102,7 @@ A renderização da placa de ensaio é a seguinte:
   </a>
 </div>
 
-##programas
+## Software
 
 ### Queima de firmware
 
