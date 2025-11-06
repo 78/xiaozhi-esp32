@@ -15,6 +15,12 @@ OttoEmojiDisplay::OttoEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_p
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
     InitializeOttoEmojis();
     SetupChatLabel();
+    SetupPreviewImage();
+}
+
+void OttoEmojiDisplay::SetupPreviewImage() {
+    DisplayLockGuard lock(this);
+    lv_obj_set_size(preview_image_, width_ , height_ );
 }
 
 void OttoEmojiDisplay::InitializeOttoEmojis() {
@@ -135,4 +141,42 @@ void OttoEmojiDisplay::SetStatus(const char* status) {
     lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(network_label_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void OttoEmojiDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
+    DisplayLockGuard lock(this);
+    if (preview_image_ == nullptr) {
+        ESP_LOGE(TAG, "Preview image is not initialized");
+        return;
+    }
+
+    if (image == nullptr) {
+        esp_timer_stop(preview_timer_);
+        lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+        preview_image_cached_.reset();
+        if (gif_controller_) {
+            gif_controller_->Start();
+        }
+        return;
+    }
+
+    preview_image_cached_ = std::move(image);
+    auto img_dsc = preview_image_cached_->image_dsc();
+    // 设置图片源并显示预览图片
+    lv_image_set_src(preview_image_, img_dsc);
+    lv_image_set_rotation(preview_image_, -900);
+    if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
+        // zoom factor 1.0
+        lv_image_set_scale(preview_image_, 256 * width_ / img_dsc->header.w);
+    }
+
+    // Hide emoji_box_
+    if (gif_controller_) {
+        gif_controller_->Stop();
+    }
+    lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    esp_timer_stop(preview_timer_);
+    ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
 }
