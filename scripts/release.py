@@ -158,10 +158,10 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
         if not name.startswith(board_type):
             raise ValueError(f"build.name {name} 必须以 {board_type} 开头")
 
-        output_path = Path("releases") / f"v{project_version}_{name}.zip"
-        if output_path.exists():
-            print(f"跳过 {name} 因为 {output_path} 已存在")
-            continue
+        # output_path = Path("releases") / f"v{project_version}_{name}.zip"
+        # if output_path.exists():
+        #     print(f"跳过 {name} 因为 {output_path} 已存在")
+        #     continue
 
         # Process sdkconfig_append
         board_type_config = _find_board_config(board_type)
