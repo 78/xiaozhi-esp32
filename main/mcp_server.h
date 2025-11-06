@@ -9,11 +9,45 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
+#include <mbedtls/base64.h>
 
 #include <cJSON.h>
 
+class ImageContent {
+private:
+    std::string encoded_data_;
+    std::string mime_type_;
+
+    static std::string Base64Encode(const std::string& data) {
+        size_t dlen = 0, olen = 0;
+        mbedtls_base64_encode((unsigned char*)nullptr, 0, &dlen, (const unsigned char*)data.data(), data.size());
+        std::string result(dlen, 0);
+        mbedtls_base64_encode((unsigned char*)result.data(), result.size(), &olen, (const unsigned char*)data.data(), data.size());
+        return result;
+    }
+
+public:
+    ImageContent(const std::string& mime_type, const std::string& data) {
+        mime_type_ = mime_type;
+        // base64 encode data
+        encoded_data_ = Base64Encode(data);
+    }
+
+    std::string to_json() const {
+        cJSON *json = cJSON_CreateObject();
+        cJSON_AddStringToObject(json, "type", "image");
+        cJSON_AddStringToObject(json, "mimeType", mime_type_.c_str());
+        cJSON_AddStringToObject(json, "data", encoded_data_.c_str());
+        char* json_str = cJSON_PrintUnformatted(json);
+        std::string result(json_str);
+        cJSON_free(json_str);
+        cJSON_Delete(json);
+        return result;
+    }
+};
+
 // 添加类型别名
-using ReturnValue = std::variant<bool, int, std::string>;
+using ReturnValue = std::variant<bool, int, std::string, cJSON*, ImageContent*>;
 
 enum PropertyType {
     kPropertyTypeBoolean,
@@ -177,6 +211,7 @@ private:
     std::string description_;
     PropertyList properties_;
     std::function<ReturnValue(const PropertyList&)> callback_;
+    bool user_only_ = false;
 
 public:
     McpTool(const std::string& name, 
@@ -188,9 +223,11 @@ public:
         properties_(properties), 
         callback_(callback) {}
 
+    void set_user_only(bool user_only) { user_only_ = user_only; }
     inline const std::string& name() const { return name_; }
     inline const std::string& description() const { return description_; }
     inline const PropertyList& properties() const { return properties_; }
+    inline bool user_only() const { return user_only_; }
 
     std::string to_json() const {
         std::vector<std::string> required = properties_.GetRequired();
@@ -214,6 +251,15 @@ public:
         }
         
         cJSON_AddItemToObject(json, "inputSchema", input_schema);
+
+        // Add audience annotation if the tool is user only (invisible to AI)
+        if (user_only_) {
+            cJSON *annotations = cJSON_CreateObject();
+            cJSON *audience = cJSON_CreateArray();
+            cJSON_AddItemToArray(audience, cJSON_CreateString("user"));
+            cJSON_AddItemToObject(annotations, "audience", audience);
+            cJSON_AddItemToObject(json, "annotations", annotations);
+        }
         
         char *json_str = cJSON_PrintUnformatted(json);
         std::string result(json_str);
@@ -228,16 +274,32 @@ public:
         // 返回结果
         cJSON* result = cJSON_CreateObject();
         cJSON* content = cJSON_CreateArray();
-        cJSON* text = cJSON_CreateObject();
-        cJSON_AddStringToObject(text, "type", "text");
-        if (std::holds_alternative<std::string>(return_value)) {
-            cJSON_AddStringToObject(text, "text", std::get<std::string>(return_value).c_str());
-        } else if (std::holds_alternative<bool>(return_value)) {
-            cJSON_AddStringToObject(text, "text", std::get<bool>(return_value) ? "true" : "false");
-        } else if (std::holds_alternative<int>(return_value)) {
-            cJSON_AddStringToObject(text, "text", std::to_string(std::get<int>(return_value)).c_str());
+
+        if (std::holds_alternative<ImageContent*>(return_value)) {
+            auto image_content = std::get<ImageContent*>(return_value);
+            cJSON* image = cJSON_CreateObject();
+            cJSON_AddStringToObject(image, "type", "image");
+            cJSON_AddStringToObject(image, "image", image_content->to_json().c_str());
+            cJSON_AddItemToArray(content, image);
+            delete image_content;
+        } else {
+            cJSON* text = cJSON_CreateObject();
+            cJSON_AddStringToObject(text, "type", "text");
+            if (std::holds_alternative<std::string>(return_value)) {
+                cJSON_AddStringToObject(text, "text", std::get<std::string>(return_value).c_str());
+            } else if (std::holds_alternative<bool>(return_value)) {
+                cJSON_AddStringToObject(text, "text", std::get<bool>(return_value) ? "true" : "false");
+            } else if (std::holds_alternative<int>(return_value)) {
+                cJSON_AddStringToObject(text, "text", std::to_string(std::get<int>(return_value)).c_str());
+            } else if (std::holds_alternative<cJSON*>(return_value)) {
+                cJSON* json = std::get<cJSON*>(return_value);
+                char* json_str = cJSON_PrintUnformatted(json);
+                cJSON_AddStringToObject(text, "text", json_str);
+                cJSON_free(json_str);
+                cJSON_Delete(json);
+            }
+            cJSON_AddItemToArray(content, text);
         }
-        cJSON_AddItemToArray(content, text);
         cJSON_AddItemToObject(result, "content", content);
         cJSON_AddBoolToObject(result, "isError", false);
 
@@ -257,8 +319,10 @@ public:
     }
 
     void AddCommonTools();
+    void AddUserOnlyTools();
     void AddTool(McpTool* tool);
     void AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
+    void AddUserOnlyTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
     void ParseMessage(const cJSON* json);
     void ParseMessage(const std::string& message);
 
@@ -271,11 +335,10 @@ private:
     void ReplyResult(int id, const std::string& result);
     void ReplyError(int id, const std::string& message);
 
-    void GetToolsList(int id, const std::string& cursor);
-    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size);
+    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools);
+    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
 
     std::vector<McpTool*> tools_;
-    std::thread tool_call_thread_;
 };
 
 #endif // MCP_SERVER_H

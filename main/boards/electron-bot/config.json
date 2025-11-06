@@ -3,8 +3,7 @@
     "builds": [
         {
             "name": "electron-bot",
-            "sdkconfig_append": [
-            ]
+            "sdkconfig_append": []
         }
     ]
 }

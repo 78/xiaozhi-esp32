@@ -6,6 +6,27 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+choice
+    prompt "Flash Assets"
+    default FLASH_DEFAULT_ASSETS
+    help
+        Select the assets to flash.
+
+    config FLASH_NONE_ASSETS
+        bool "Do not flash assets"
+    config FLASH_DEFAULT_ASSETS
+        bool "Flash Default Assets"
+    config FLASH_CUSTOM_ASSETS
+        bool "Flash Custom Assets"
+endchoice
+
+config CUSTOM_ASSETS_FILE
+    depends on FLASH_CUSTOM_ASSETS
+    string "Custom Assets File"
+    default "assets.bin"
+    help
+        The custom assets file to flash.
+        It can be a local file relative to the project directory or a remote url.
 
 choice
     prompt "Default Language"
@@ -57,6 +78,38 @@ choice
         bool "Ukrainian"
     config LANGUAGE_RO_RO
         bool "Romanian"
+    config LANGUAGE_BG_BG
+        bool "Bulgarian"
+    config LANGUAGE_CA_ES
+        bool "Catalan"
+    config LANGUAGE_DA_DK
+        bool "Danish"
+    config LANGUAGE_EL_GR
+        bool "Greek"
+    config LANGUAGE_FA_IR
+        bool "Persian"
+    config LANGUAGE_FIL_PH
+        bool "Filipino"
+    config LANGUAGE_HE_IL
+        bool "Hebrew"
+    config LANGUAGE_HR_HR
+        bool "Croatian"
+    config LANGUAGE_HU_HU
+        bool "Hungarian"
+    config LANGUAGE_MS_MY
+        bool "Malay"
+    config LANGUAGE_NB_NO
+        bool "Norwegian"
+    config LANGUAGE_NL_NL
+        bool "Dutch"
+    config LANGUAGE_SK_SK
+        bool "Slovak"
+    config LANGUAGE_SL_SI
+        bool "Slovenian"
+    config LANGUAGE_SV_SE
+        bool "Swedish"
+    config LANGUAGE_SR_RS
+        bool "Serbian"
 endchoice
 
 choice BOARD_TYPE
@@ -65,32 +118,34 @@ choice BOARD_TYPE
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
-        bool "面包板新版接线（WiFi）"
+        bool "Bread Compact WiFi (面包板)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
-        bool "面包板新版接线（WiFi）+ LCD"
+        bool "Bread Compact WiFi + LCD (面包板)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
-        bool "面包板新版接线（WiFi）+ LCD + Camera"
+        bool "Bread Compact WiFi + LCD + Camera (面包板)"
         depends on IDF_TARGET_ESP32S3     
     config BOARD_TYPE_BREAD_COMPACT_ML307
-        bool "面包板新版接线（ML307 AT）"
+        bool "Bread Compact ML307/EC801E (面包板 4G)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_ESP32
-        bool "面包板（WiFi） ESP32 DevKit"
+        bool "Bread Compact ESP32 DevKit (面包板)"
         depends on IDF_TARGET_ESP32
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
-        bool "面包板（WiFi+ LCD） ESP32 DevKit"
+        bool "Bread Compact ESP32 DevKit + LCD (面包板)"
         depends on IDF_TARGET_ESP32
     config BOARD_TYPE_XMINI_C3_V3
-        bool "虾哥 Mini C3 V3"
+        bool "Xmini C3 V3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3_4G
-        bool "虾哥 Mini C3 4G"
+        bool "Xmini C3 4G"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_XMINI_C3
-        bool "虾哥 Mini C3"
+        bool "Xmini C3"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_ESP_KORVO2_V3
+        bool "Espressif Korvo2 V3"
     config BOARD_TYPE_FOGSEEK_ESP32S3_AUDIO
         bool "雾岸科技 ESP32-S3-Audio"
         depends on IDF_TARGET_ESP32S3
@@ -113,28 +168,28 @@ choice BOARD_TYPE
         bool "ESP32S3_KORVO2_V3开发板"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
-        bool "ESP-SparkBot开发板"
+        bool "Espressif SparkBot"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPOT_S3
-        bool "ESP-Spot-S3"
+        bool "Espressif Spot-S3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_HI
-        bool "ESP-HI"
+        bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
-    config BOARD_TYPE_ECHOEAR
-        bool "EchoEar"
-        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX_3
-        bool "ESP BOX 3"
+        bool "Espressif ESP-BOX-3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX
-        bool "ESP BOX"
+        bool "Espressif ESP-BOX"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX_LITE
-        bool "ESP BOX Lite"
+        bool "Espressif ESP-BOX-Lite"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_KEVIN_BOX_1
-        bool "Kevin Box 1"
+    config BOARD_TYPE_ESP_P4_FUNCTION_EV_BOARD
+        bool "Espressif ESP-P4-Function-EV-Board"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_ECHOEAR
+        bool "EchoEar"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_BOX_2
         bool "Kevin Box 2"
@@ -143,25 +198,25 @@ choice BOARD_TYPE
         bool "Kevin C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_KEVIN_SP_V3_DEV
-        bool "Kevin SP V3开发板"
+        bool "Kevin SP V3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_SP_V4_DEV
-        bool "Kevin SP V4开发板"
+        bool "Kevin SP V4"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_CGC
-        bool "ESP32 CGC"
-        depends on IDF_TARGET_ESP32
-    config BOARD_TYPE_ESP32_CGC_144
-        bool "ESP32 CGC 144"
-        depends on IDF_TARGET_ESP32
     config BOARD_TYPE_KEVIN_YUYING_313LCD
-        bool "鱼鹰科技3.13LCD开发板"
+        bool "鱼鹰科技 3.13LCD"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_LICHUANG_DEV
-        bool "立创·实战派ESP32-S3开发板"
+    config BOARD_TYPE_CGC
+        bool "CGC"
+        depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_CGC_144
+        bool "CGC 144"
+        depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_LICHUANG_DEV_S3
+        bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_LICHUANG_C3_DEV
-        bool "立创·实战派ESP32-C3开发板"
+    config BOARD_TYPE_LICHUANG_DEV_C3
+        bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
@@ -169,10 +224,10 @@ choice BOARD_TYPE
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI智能摄像头模块"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_MAGICLICK_2P4
+    config BOARD_TYPE_MAGICLICK_S3_2P4
         bool "神奇按钮 Magiclick_2.4"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_MAGICLICK_2P5
+    config BOARD_TYPE_MAGICLICK_S3_2P5
         bool "神奇按钮 Magiclick_2.5"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MAGICLICK_C3
@@ -187,54 +242,79 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_TAB5
         bool "M5Stack Tab5"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ATOMS3_ECHO_BASE
-        bool "AtomS3 + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3_ECHO_BASE
+        bool "M5Stack AtomS3 + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMS3R_ECHO_BASE
-        bool "AtomS3R + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3R_ECHO_BASE
+        bool "M5Stack AtomS3R + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMS3R_CAM_M12_ECHO_BASE
-        bool "AtomS3R CAM/M12 + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE
+        bool "M5Stack AtomS3R CAM/M12 + Echo Base"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ATOMMATRIX_ECHO_BASE
-        bool "AtomMatrix + Echo Base"
+    config BOARD_TYPE_M5STACK_ATOM_ECHOS3R
+        bool "M5Stack AtomEchoS3R"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_ATOM_MATRIX_ECHO_BASE
+        bool "M5Stack AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_8
+    config BOARD_TYPE_WAVESHARE_S3_AUDIO_BOARD
+        bool "Waveshare ESP32-S3-Audio-Board"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
-    config BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.75"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85C
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83
+        bool "Waveshare ESP32-S3-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B
+        bool "Waveshare ESP32-S3-Touch-LCD-4B"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_85
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_85
         bool "Waveshare ESP32-S3-Touch-LCD-1.85"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_1_46
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_46
         bool "Waveshare ESP32-S3-Touch-LCD-1.46"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32C6_LCD_1_69
+    config BOARD_TYPE_WAVESHARE_C6_LCD_1_69
         bool "Waveshare ESP32-C6-LCD-1.69"
         depends on IDF_TARGET_ESP32C6
-    config BOARD_TYPE_ESP32C6_Touch_AMOLED_1_43
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
-    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_32
+        bool "Waveshare ESP32-C6-Touch-AMOLOED-1.32"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_32
+        bool "Waveshare ESP32-S3-Touch-AMOLOED-1.32"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49
+        bool "Waveshare ESP32-S3-Touch-LCD-3.49"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Touch_LCD_3_5B
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5B
         bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32P4_NANO
+    config BOARD_TYPE_WAVESHARE_P4_NANO
         bool "Waveshare ESP32-P4-NANO"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4B"
         depends on IDF_TARGET_ESP32P4
-    config BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B
+        bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-7B"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C or ESP32-P4-WIFI6-Touch-LCD-4C"
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_TUDOUZI
@@ -255,6 +335,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY
         bool "LILYGO T-Display-S3-Pro-MVSRLora_No_Battery"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_DISPLAY_P4
+        bool "LILYGO T-Display-P4"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
         bool "Movecall Moji 小智AI衍生版"
         depends on IDF_TARGET_ESP32S3
@@ -274,7 +357,7 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3-BOX2-WIFI"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3_BOX2_4G
-        bool "正点原子DNESP32S3-BOX2-4G" 
+        bool "正点原子DNESP32S3-BOX2-4G"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3M_WIFI
         bool "正点原子DNESP32S3M-WIFI"
@@ -285,29 +368,29 @@ choice BOARD_TYPE
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_Taiji_Pi
+    config BOARD_TYPE_TAIJI_PI_S3
         bool "太极小派esp32s3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_0_85TFT_WIFI
         bool "无名科技星智0.85(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_85TFT_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_0_85TFT_ML307
         bool "无名科技星智0.85(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_0_96OLED_WIFI
         bool "无名科技星智0.96(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_0_96OLED_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_0_96OLED_ML307
         bool "无名科技星智0.96(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_WIFI
+    config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_WIFI
         bool "无名科技星智1.54(WIFI)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_XINGZHI_Cube_1_54TFT_ML307
+    config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_SENSECAP_WATCHER
-        bool "SenseCAP Watcher"
+    config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
+        bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DOIT_S3_AIBOX
         bool "四博智联AI陪伴盒子"
@@ -333,42 +416,65 @@ choice BOARD_TYPE
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "敏思科技K08(DUAL)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_S3_1_54_MUMA
+    config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32_S3_1_28_BOX
+    config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3-1.28-BOX"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_OTTO_ROBOT
         bool "ottoRobot"
         depends on IDF_TARGET_ESP32S3
-        select LV_USE_GIF
-        select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_ELECTRON_BOT
         bool "electronBot"
         depends on IDF_TARGET_ESP32S3
-        select LV_USE_GIF
-        select LV_GIF_CACHE_DECODE_DATA
     config BOARD_TYPE_JIUCHUAN
         bool "九川智能"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LABPLUS_MPYTHON_V3
         bool "labplus mpython_v3 board"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LABPLUS_LEDONG_V2
         bool "labplus ledong_v2 board"
         depends on IDF_TARGET_ESP32S3
-    depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SURFER_C3_1_14TFT
-        bool "Surfer-C3-1-14TFT"
+        bool "Surfer-C3-1.14TFT"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_YUNLIAO_S3
+        bool "小智云聊-S3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S
+        bool "Wireless-Tag WTP4C5MP07S"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_AIPI_LITE
+        bool "AIPI-Lite"
+        depends on IDF_TARGET_ESP32S3
+endchoice
+
+choice
+    depends on BOARD_TYPE_LILYGO_T_DISPLAY_P4
+    prompt "Select the screen type"
+    default SCREEN_TYPE_HI8561
+        config SCREEN_TYPE_HI8561
+            bool "HI8561"
+        config SCREEN_TYPE_RM69A10
+            bool "RM69A10"
+endchoice
+
+choice
+    depends on BOARD_TYPE_LILYGO_T_DISPLAY_P4
+    prompt "Select the color format of the screen"
+    default SCREEN_PIXEL_FORMAT_RGB565
+        config SCREEN_PIXEL_FORMAT_RGB565
+            bool "RGB565"
+        config SCREEN_PIXEL_FORMAT_RGB888
+            bool "RGB888"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE
     depends on BOARD_TYPE_ESP_S3_LCD_EV_Board
     prompt "EV_BOARD Type"
     default ESP_S3_LCD_EV_Board_1p4
-    help
-        开发板硬件版本型号选择
     config ESP_S3_LCD_EV_Board_1p4
         bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.4"
     config ESP_S3_LCD_EV_Board_1p5
@@ -380,51 +486,51 @@ choice DISPLAY_OLED_TYPE
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
-        OLED 屏幕类型选择
+        OLED Monochrome Display Type
     config OLED_SSD1306_128X32
-        bool "SSD1306, 分辨率128*32"
+        bool "SSD1306 128*32"
     config OLED_SSD1306_128X64
-        bool "SSD1306, 分辨率128*64"
+        bool "SSD1306 128*64"
     config OLED_SH1106_128X64
-        bool "SH1106, 分辨率128*64"
+        bool "SH1106 128*64"
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
-        屏幕类型选择
+        LCD Display Type
     config LCD_ST7789_240X320
-        bool "ST7789, 分辨率240*320, IPS"
+        bool "ST7789 240*320, IPS"
     config LCD_ST7789_240X320_NO_IPS
-        bool "ST7789, 分辨率240*320, 非IPS"
+        bool "ST7789 240*320, Non-IPS"
     config LCD_ST7789_170X320
-        bool "ST7789, 分辨率170*320"
+        bool "ST7789 170*320"
     config LCD_ST7789_172X320
-        bool "ST7789, 分辨率172*320"
+        bool "ST7789 172*320"
     config LCD_ST7789_240X280
-        bool "ST7789, 分辨率240*280"
+        bool "ST7789 240*280"
     config LCD_ST7789_240X240
-        bool "ST7789, 分辨率240*240"
+        bool "ST7789 240*240"
     config LCD_ST7789_240X240_7PIN
-        bool "ST7789, 分辨率240*240, 7PIN"
+        bool "ST7789 240*240, 7PIN"
     config LCD_ST7789_240X135
-        bool "ST7789, 分辨率240*135"
+        bool "ST7789 240*135"
     config LCD_ST7735_128X160
-        bool "ST7735, 分辨率128*160"
+        bool "ST7735 128*160"
     config LCD_ST7735_128X128
-        bool "ST7735, 分辨率128*128"
+        bool "ST7735 128*128"
     config LCD_ST7796_320X480
-        bool "ST7796, 分辨率320*480 IPS"
+        bool "ST7796 320*480 IPS"
     config LCD_ST7796_320X480_NO_IPS
-        bool "ST7796, 分辨率320*480, 非IPS"
+        bool "ST7796 320*480, Non-IPS"
     config LCD_ILI9341_240X320
-        bool "ILI9341, 分辨率240*320"
+        bool "ILI9341 240*320"
     config LCD_ILI9341_240X320_NO_IPS
-        bool "ILI9341, 分辨率240*320, 非IPS"
+        bool "ILI9341 240*320, Non-IPS"
     config LCD_GC9A01_240X240
-        bool "GC9A01, 分辨率240*240, 圆屏"
+        bool "GC9A01 240*240 Circle"
     config LCD_TYPE_800_1280_10_1_INCH
         bool "Waveshare 101M-8001280-IPS-CT-K Display"
     config LCD_TYPE_800_1280_10_1_INCH_A
@@ -434,61 +540,95 @@ choice DISPLAY_LCD_TYPE
     config LCD_TYPE_720_720_4_INCH
         bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-4C with 720*720 4inch round display"
     config LCD_CUSTOM
-        bool "自定义屏幕参数"
+        bool "Custom LCD (自定义屏幕参数)"
 endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
-    depends on BOARD_TYPE_ESP32S3_KORVO2_V3
+    depends on BOARD_TYPE_ESP_KORVO2_V3
     prompt "ESP32S3_KORVO2_V3 LCD Type"
-    default LCD_ST7789
+    default ESP32S3_KORVO2_V3_LCD_ST7789
     help
-        屏幕类型选择
-    config LCD_ST7789
-        bool "ST7789, 分辨率240*280"
-    config LCD_ILI9341
-        bool "ILI9341, 分辨率240*320"
+        LCD Display Type
+    config ESP32S3_KORVO2_V3_LCD_ST7789
+        bool "ST7789 240*280"
+    config ESP32S3_KORVO2_V3_LCD_ILI9341
+        bool "ILI9341 240*320"
 endchoice
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "Enable WeChat Message Style"
-    default n
+choice DISPLAY_ESP32S3_AUDIO_BOARD
+    depends on BOARD_TYPE_WAVESHARE_S3_AUDIO_BOARD
+    prompt "ESP32S3_AUDIO_BOARD LCD Type"
+    default AUDIO_BOARD_LCD_JD9853
     help
-        使用微信聊天界面风格
+        LCD Display Type
+    config AUDIO_BOARD_LCD_JD9853
+        bool "JD9853 320*172"
+    config AUDIO_BOARD_LCD_ST7789
+        bool "ST7789 240*320"
+endchoice
 
-config USE_ESP_WAKE_WORD
-    bool "Enable Wake Word Detection (without AFE)"
-    default n
-    depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
+choice DISPLAY_STYLE
+    prompt "Select display style"
+    default USE_DEFAULT_MESSAGE_STYLE
     help
-        支持 ESP32 C3、ESP32 C5 与 ESP32 C6，增加ESP32支持（需要开启PSRAM）
+        Select display style for Xiaozhi device
 
-config USE_AFE_WAKE_WORD
-    bool "Enable Wake Word Detection (AFE)"
-    default y
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
-    help
-        需要 ESP32 S3 与 PSRAM 支持
+    config USE_DEFAULT_MESSAGE_STYLE
+        bool "Enable default message style"
 
-config USE_CUSTOM_WAKE_WORD
-    bool "Enable Custom Wake Word Detection"
-    default n
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
+    config USE_WECHAT_MESSAGE_STYLE
+        bool "Enable WeChat Message Style"
+
+    config USE_EMOTE_MESSAGE_STYLE
+        bool "Emote animation style"
+        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3
+endchoice
+
+choice WAKE_WORD_TYPE
+    prompt "Wake Word Implementation Type"
+    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    default WAKE_WORD_DISABLED
     help
-        需要 ESP32 S3 与 PSRAM 支持
-        
+        Choose the type of wake word implementation to use
+
+    config WAKE_WORD_DISABLED
+        bool "Disabled"
+        help
+            Disable wake word detection
+
+    config USE_ESP_WAKE_WORD
+        bool "Wakenet model without AFE"
+        depends on IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C5 || IDF_TARGET_ESP32C6 || (IDF_TARGET_ESP32 && SPIRAM)
+        help
+            Support ESP32 C3、ESP32 C5 与 ESP32 C6, and (ESP32 with PSRAM)
+
+    config USE_AFE_WAKE_WORD
+        bool "Wakenet model with AFE"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Support AEC if available, requires ESP32 S3 and PSRAM
+
+    config USE_CUSTOM_WAKE_WORD
+        bool "Multinet model (Custom Wake Word)"
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        help
+            Requires ESP32 S3 and PSRAM
+
+endchoice
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词，中文用拼音表示，每个字之间用空格隔开
+        Custom Wake Word, use pinyin for Chinese, separated by spaces
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
     default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        唤醒后发送给服务器的问候语 
+        Greeting sent to the server after wake word detection
 
 config CUSTOM_WAKE_WORD_THRESHOLD
     int "Custom Wake Word Threshold (%)"
@@ -496,64 +636,140 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     range 1 99
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词阈值，范围1-99，越小越敏感，默认10
+        Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
+
+config SEND_WAKE_WORD_DATA
+    bool "Send Wake Word Data"
+    default y
+    depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
+    help
+        Send wake word data to the server as the first message of the conversation and wait for response
 
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
-        需要 ESP32 S3 与 PSRAM 支持
+        Requires ESP32 S3 and PSRAM
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n
-        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3 || BOARD_TYPE_ESP32S3_Touch_AMOLED_1_75 || BOARD_TYPE_ESP32S3_Touch_AMOLED_2_06 || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_4B || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2)
+        depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE \
+        || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83\
+        || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
+        || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49)
     help
-        因为性能不够，不建议和微信聊天界面风格同时开启
+        To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
 config USE_SERVER_AEC
     bool "Enable Server-Side AEC (Unstable)"
     default n
     depends on USE_AUDIO_PROCESSOR
     help
-        启用服务器端 AEC，需要服务器支持
+        To work perperly, server-side AEC requires server support
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"
     default n
     help
-        启用音频调试功能，通过UDP发送音频数据
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        启用声波配网功能，使用音频信号传输 WiFi 配置数据
+        Enable audio debugger, send audio data through UDP to the host machine
 
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
-        UDP服务器地址，格式: IP:PORT，用于接收音频调试数据
+        UDP server address, format: IP:PORT, used to receive audio debugging data
+
+config USE_ACOUSTIC_WIFI_PROVISIONING
+    bool "Enable Acoustic WiFi Provisioning"
+    default n
+    help
+        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
     default n
     help
-        启用接收自定义消息功能，允许设备接收来自服务器的自定义消息（最好通过 MQTT 协议）
+        Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
-choice I2S_TYPE_TAIJIPI_S3
-    depends on BOARD_TYPE_ESP32S3_Taiji_Pi
-    prompt "taiji-pi-S3 I2S Type"
-    default TAIJIPAI_I2S_TYPE_STD
+menu "Camera Configuration"
+    depends on !IDF_TARGET_ESP32
+
+    comment "Warning: Please read the help text before modifying these settings."
+
+    config XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+        bool "Enable Hardware JPEG Encoder"
+        default y
+        depends on SOC_JPEG_ENCODE_SUPPORTED
+        help
+            Use hardware JPEG encoder on ESP32-P4 to encode image to JPEG.
+            See https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/peripherals/jpeg.html for more details.
+
+    config XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
+        bool "Enable Camera Debug Mode"
+        default n
+        help
+            Enable camera debug mode, print camera debug information to the console.
+            Only works on boards that support camera.
+
+    config XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
+        bool "Enable software camera buffer endianness swapping (USE WITH CAUTION)"
+        default n
+        depends on !CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
+        help
+            This option treats the camera buffer as a uint16_t[] array and performs byte-swapping (endianness conversion) on each element.
+
+            Should only be modified by development board integration engineers.
+
+            **Incorrect usage may result in incorrect image colors!**
+
+            ATTENTION: If the option CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is available for your sensor, please use that instead.
+
+    menuconfig XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+        bool "Enable Camera Image Rotation"
+        default n
+        help
+            Enable camera image rotation, rotate the camera image to the correct orientation.
+            - On ESP32-P4, rotation is handled by PPA hardware.
+            - On other chips, rotation is done in software with performance cost.
+            - For 180° rotation, use HFlip + VFlip instead of this option.
+
+    if XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+        choice XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE
+            prompt "Camera Image Rotation Angle (clockwise)"
+            default XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90
+            help
+                Camera image rotation angle.
+            config XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90
+                bool "90°"
+            config XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_270
+                bool "270°"
+            comment "For 180° rotation, use HFlip + VFlip instead of this option"
+        endchoice
+    endif
+endmenu
+
+menu "TAIJIPAI_S3_CONFIG"
+    depends on BOARD_TYPE_TAIJI_PI_S3
+    choice I2S_TYPE_TAIJIPI_S3
+        prompt "taiji-pi-S3 I2S Type"
+        default TAIJIPAI_I2S_TYPE_STD
+        help
+            I2S 类型选择
+        config TAIJIPAI_I2S_TYPE_STD
+            bool "I2S Type STD"
+        config TAIJIPAI_I2S_TYPE_PDM
+            bool "I2S Type PDM"
+    endchoice
+
+    config I2S_USE_2SLOT
+    bool "Enable I2S 2 Slot"
+    default y
     help
-        I2S 类型选择
-    config TAIJIPAI_I2S_TYPE_STD
-        bool "I2S Type STD"
-    config TAIJIPAI_I2S_TYPE_PDM
-        bool "I2S Type PDM"
-endchoice
+        启动双声道
+endmenu
 
 endmenu

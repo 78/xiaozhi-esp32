@@ -170,6 +170,9 @@ def upload_dir_to_oss(source_dir, target_dir):
     bucket = oss2.Bucket(auth, os.environ['OSS_ENDPOINT'], os.environ['OSS_BUCKET_NAME'])
     for filename in os.listdir(source_dir):
         oss_key = os.path.join(target_dir, filename)
+        # check if is file
+        if not os.path.isfile(os.path.join(source_dir, filename)):
+            continue
         print('uploading', oss_key)
         bucket.put_object(oss_key, open(os.path.join(source_dir, filename), 'rb'))
 
