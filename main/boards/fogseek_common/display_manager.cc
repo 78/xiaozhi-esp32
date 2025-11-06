@@ -1,5 +1,4 @@
 #include "display_manager.h"
-#include "display.h"
 #include "device_state.h"
 #include <esp_log.h>
 #include <driver/spi_master.h>
@@ -8,10 +7,6 @@
 #include "display/lcd_display.h"
 #include "assets/lang_config.h"
 #include <memory>
-
-// 声明可用的字体
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 #define TAG "FogSeekDisplayManager"
 
@@ -556,7 +551,7 @@ FogSeekDisplayManager::~FogSeekDisplayManager()
 
 void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config_t *pin_config)
 {
-    // 根据屏幕类型选择初始化命令
+    // 1. 根据屏幕类型选择初始化命令
     const st77916_lcd_init_cmd_t *init_cmds = nullptr;
     uint16_t init_cmds_size = 0;
 
@@ -565,12 +560,12 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
     case LCD_TYPE_WLK_1_8_INCH:
     {
         // 配置IM0和IM2引脚用于QSPI模式选择
-        gpio_config_t io_conf = {};
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << pin_config->im0_gpio) | (1ULL << pin_config->im2_gpio);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        gpio_config_t io_conf = {
+            .pin_bit_mask = (1ULL << pin_config->im0_gpio) | (1ULL << pin_config->im2_gpio),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        };
         gpio_config(&io_conf);
 
         // 设置IM0=1, IM2=0选择QSPI模式
@@ -580,9 +575,8 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
         init_cmds = lcd_init_cmds_wlk_1_8_inch;
         init_cmds_size = sizeof(lcd_init_cmds_wlk_1_8_inch) / sizeof(st77916_lcd_init_cmd_t);
         ESP_LOGI(TAG, "Initializing WLK 1.8 inch LCD");
+        break;
     }
-    break;
-
     case LCD_TYPE_JYC_1_5_INCH:
         init_cmds = lcd_init_cmds_jyc_1_5_inch;
         init_cmds_size = sizeof(lcd_init_cmds_jyc_1_5_inch) / sizeof(st77916_lcd_init_cmd_t);
@@ -600,23 +594,23 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
         return; // 提前返回，避免后续操作
     }
 
-    // 等待引脚电平稳定
+    // 2. 等待引脚电平稳定
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    // 使用标准ESP-IDF配置初始化SPI总线
-    spi_bus_config_t bus_config = {};
-    bus_config.data0_io_num = (gpio_num_t)pin_config->io0_gpio;
-    bus_config.data1_io_num = (gpio_num_t)pin_config->io1_gpio;
-    bus_config.sclk_io_num = (gpio_num_t)pin_config->scl_gpio;
-    bus_config.data2_io_num = (gpio_num_t)pin_config->io2_gpio;
-    bus_config.data3_io_num = (gpio_num_t)pin_config->io3_gpio;
-    bus_config.max_transfer_sz = 4096;
-    bus_config.flags = SPICOMMON_BUSFLAG_QUAD;
-    bus_config.intr_flags = 0;
+    // 3. 使用标准ESP-IDF配置初始化SPI总线
+    spi_bus_config_t bus_config = {
+        .data0_io_num = (gpio_num_t)pin_config->io0_gpio,
+        .data1_io_num = (gpio_num_t)pin_config->io1_gpio,
+        .sclk_io_num = (gpio_num_t)pin_config->scl_gpio,
+        .data2_io_num = (gpio_num_t)pin_config->io2_gpio,
+        .data3_io_num = (gpio_num_t)pin_config->io3_gpio,
+        .max_transfer_sz = 4096,
+        .flags = SPICOMMON_BUSFLAG_QUAD,
+    };
 
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &bus_config, SPI_DMA_CH_AUTO));
 
-    // 使用ESP-IDF标准宏配置QSPI接口IO
+    // 4. 使用ESP-IDF标准宏配置QSPI接口IO
     esp_lcd_panel_io_spi_config_t io_config = ST77916_PANEL_IO_QSPI_CONFIG(
         (gpio_num_t)pin_config->cs_gpio,
         NULL,
@@ -624,41 +618,41 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
 
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &panel_io_));
 
-    // ST77916面板配置
-    st77916_vendor_config_t vendor_config = {};
-    vendor_config.init_cmds = init_cmds;
-    vendor_config.init_cmds_size = init_cmds_size;
-    vendor_config.flags.use_qspi_interface = 1;
+    // 5. ST77916面板配置
+    st77916_vendor_config_t vendor_config = {
+        .init_cmds = init_cmds,
+        .init_cmds_size = init_cmds_size,
+        .flags = {
+            .use_qspi_interface = 1,
+        },
+    };
 
-    esp_lcd_panel_dev_config_t panel_config = {};
-    panel_config.reset_gpio_num = (gpio_num_t)pin_config->reset_gpio;
-    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-    panel_config.bits_per_pixel = 16;
-    panel_config.flags.reset_active_high = 0;
-    panel_config.vendor_config = &vendor_config;
+    esp_lcd_panel_dev_config_t panel_config = {
+        .reset_gpio_num = (gpio_num_t)pin_config->reset_gpio,
+        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        .bits_per_pixel = 16,
+        .vendor_config = &vendor_config,
+    };
 
-    // 创建ST77916面板
+    // 6. 创建ST77916面板
     ESP_ERROR_CHECK(esp_lcd_new_panel_st77916(panel_io_, &panel_config, &panel_));
 
-    // 重置并初始化面板
+    // 7. 重置并初始化面板
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-
-    // 增加复位和初始化之间的延时
-    vTaskDelay(pdMS_TO_TICKS(100));
-
+    vTaskDelay(pdMS_TO_TICKS(100)); // 增加延时
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
 
-    // 开启显示
+    // 8. 开启显示
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-    // 初始化背光
+    // 9. 初始化背光
     backlight_ = std::make_unique<PwmBacklight>((gpio_num_t)pin_config->bl_gpio, false);
     if (backlight_)
     {
         backlight_->SetBrightness(0);
     }
 
-    // 创建SPI LCD显示对象，使用传入的配置参数
+    // 10. 创建SPI LCD显示对象
     display_ = new (std::nothrow) SpiLcdDisplay(
         panel_io_,
         panel_,
@@ -668,16 +662,7 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
         pin_config->offset_y,
         pin_config->mirror_x,
         pin_config->mirror_y,
-        pin_config->swap_xy,
-        {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-            .emoji_font = font_emoji_32_init(),
-#else
-            .emoji_font = font_emoji_64_init(),
-#endif
-        });
+        pin_config->swap_xy);
 
     if (!display_)
     {
@@ -685,7 +670,7 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
         return;
     }
 
-    // 延时以确保显示和LVGL完全初始化
+    // 11. 延时以确保显示和LVGL完全初始化
     vTaskDelay(pdMS_TO_TICKS(200));
 }
 
