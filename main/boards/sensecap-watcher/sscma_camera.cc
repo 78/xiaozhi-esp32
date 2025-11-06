@@ -98,7 +98,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                            break;
                         }
                     }
-                    
+                    free(boxes);
                 } else if (sscma_utils_fetch_classes_from_reply(reply, &classes, &class_count) == ESP_OK && class_count > 0) {
                     // 尝试获取分类数据（分类模型）
                     for (int i = 0; i < class_count; i++) {
@@ -110,6 +110,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                            obj_cnt++;
                         }
                     }
+                    free(classes);
                 } else if (sscma_utils_fetch_points_from_reply(reply, &points, &point_count) == ESP_OK && point_count > 0) {
                      // 尝试获取关键点数据（姿态估计模型）
                     for (int i = 0; i < point_count; i++) {
@@ -121,6 +122,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
                            obj_cnt++;
                         }
                     }
+                    free(points);
                 }
 
                 // 如果需要开始冷却期，现在开始计时
@@ -307,7 +309,7 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
 
     preview_image_.header.stride = preview_image_.header.w * 2;
     preview_image_.data_size = preview_image_.header.w * preview_image_.header.h * 2;
-    preview_image_.data = (uint8_t*)heap_caps_malloc(preview_image_.data_size, MALLOC_CAP_SPIRAM);
+    preview_image_.data =(uint8_t*)jpeg_calloc_align(preview_image_.data_size, 16);
     if (preview_image_.data == nullptr) {
         ESP_LOGE(TAG, "Failed to allocate memory for preview image");
         return;
@@ -582,7 +584,7 @@ bool SscmaCamera::Capture() {
         uint16_t h = preview_image_.header.h;
         size_t image_size = w * h * 2;
         size_t stride = preview_image_.header.w * 2;
-        
+
         uint8_t* data = (uint8_t*)heap_caps_malloc(image_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (data == nullptr) {
             ESP_LOGE(TAG, "Failed to allocate memory for display image");
