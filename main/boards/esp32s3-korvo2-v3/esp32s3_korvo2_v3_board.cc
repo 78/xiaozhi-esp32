@@ -5,6 +5,7 @@
 #include "button.h"
 #include "config.h"
 #include "i2c_device.h"
+#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -16,9 +17,16 @@
 #include "esp32_camera.h"
 
 #define TAG "esp32s3_korvo2_v3"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+/* ADC Buttons */
+typedef enum {
+    BSP_ADC_BUTTON_REC,
+    BSP_ADC_BUTTON_VOL_MUTE,
+    BSP_ADC_BUTTON_PLAY,
+    BSP_ADC_BUTTON_SET,
+    BSP_ADC_BUTTON_VOL_DOWN,
+    BSP_ADC_BUTTON_VOL_UP,
+    BSP_ADC_BUTTON_NUM
+} bsp_adc_button_t;
 
 // Init ili9341 by custom cmd
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
@@ -41,10 +49,13 @@ static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
     {0, (uint8_t []){0}, 0xff, 0},
 };
 
-
 class Esp32S3Korvo2V3Board : public WifiBoard {
 private:
     Button boot_button_;
+    Button* adc_button_[BSP_ADC_BUTTON_NUM];
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    adc_oneshot_unit_handle_t bsp_adc_handle = NULL;
+#endif
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
     esp_io_expander_handle_t io_expander_ = NULL;
@@ -131,7 +142,103 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
+    void ChangeVol(int val) {
+        auto codec = GetAudioCodec();
+        auto volume = codec->output_volume() + val;
+        if (volume > 100) {
+            volume = 100;
+        }
+        if (volume < 0) {
+            volume = 0;
+        }
+        codec->SetOutputVolume(volume);
+        GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+    }
+
+    void MuteVol() {
+        auto codec = GetAudioCodec();
+        auto volume = codec->output_volume();
+        if (volume > 1) {
+            volume = 0;
+        } else  {
+            volume = 50;
+        }
+        codec->SetOutputVolume(volume);
+        GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+    }
+
     void InitializeButtons() {
+         button_adc_config_t adc_cfg = {};
+        adc_cfg.adc_channel = ADC_CHANNEL_4; // ADC1 channel 0 is GPIO5
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        const adc_oneshot_unit_init_cfg_t init_config1 = {
+            .unit_id = ADC_UNIT_1,
+        };
+        adc_oneshot_new_unit(&init_config1, &bsp_adc_handle);
+        adc_cfg.adc_handle = &bsp_adc_handle;
+#endif
+        adc_cfg.button_index = BSP_ADC_BUTTON_REC;
+        adc_cfg.min = 2310; // middle is 2410mV
+        adc_cfg.max = 2510;
+        adc_button_[0] = new AdcButton(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_VOL_MUTE;
+        adc_cfg.min = 1880; // middle is 1980mV
+        adc_cfg.max = 2080;
+        adc_button_[1] = new AdcButton(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_PLAY;
+        adc_cfg.min = 1550; // middle is 1650mV
+        adc_cfg.max = 1750;
+        adc_button_[2] = new AdcButton(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_SET;
+        adc_cfg.min = 1015; // middle is 1115mV
+        adc_cfg.max = 1215;
+        adc_button_[3] = new AdcButton(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_VOL_DOWN;
+        adc_cfg.min = 720; // middle is 820mV
+        adc_cfg.max = 920;
+        adc_button_[4] = new AdcButton(adc_cfg);
+
+        adc_cfg.button_index = BSP_ADC_BUTTON_VOL_UP;
+        adc_cfg.min = 280; // middle is 380mV
+        adc_cfg.max = 480;
+        adc_button_[5] = new AdcButton(adc_cfg);
+
+        auto volume_up_button = adc_button_[BSP_ADC_BUTTON_VOL_UP];
+        volume_up_button->OnClick([this]() {ChangeVol(10);});
+        volume_up_button->OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+        });
+
+        auto volume_down_button = adc_button_[BSP_ADC_BUTTON_VOL_DOWN];
+        volume_down_button->OnClick([this]() {ChangeVol(-10);});
+        volume_down_button->OnLongPress([this]() {
+            GetAudioCodec()->SetOutputVolume(0);
+            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+        });
+
+        auto volume_mute_button = adc_button_[BSP_ADC_BUTTON_VOL_MUTE];
+        volume_mute_button->OnClick([this]() {MuteVol();});
+
+        auto play_button = adc_button_[BSP_ADC_BUTTON_PLAY];
+        play_button->OnClick([this]() {
+             ESP_LOGI(TAG, " TODO %s:%d\n", __func__, __LINE__);
+        });
+
+        auto set_button = adc_button_[BSP_ADC_BUTTON_SET];
+        set_button->OnClick([this]() {
+             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+        });
+
+        auto rec_button = adc_button_[BSP_ADC_BUTTON_REC];
+        rec_button->OnClick([this]() {
+             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+        });
+        boot_button_.OnClick([this]() {});
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -189,12 +296,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, false));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeSt7789Display() {
@@ -227,46 +329,47 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                     {
-                                         .text_font = &font_puhui_20_4,
-                                         .icon_font = &font_awesome_20_4,
-                                         .emoji_font = font_emoji_64_init(),
-                                     });
+                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeCamera() {
-        // Open camera power
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = CAMERA_PIN_D0,
+                [1] = CAMERA_PIN_D1,
+                [2] = CAMERA_PIN_D2,
+                [3] = CAMERA_PIN_D3,
+                [4] = CAMERA_PIN_D4,
+                [5] = CAMERA_PIN_D5,
+                [6] = CAMERA_PIN_D6,
+                [7] = CAMERA_PIN_D7,
+            },
+            .vsync_io = CAMERA_PIN_VSYNC,
+            .de_io = CAMERA_PIN_HREF,
+            .pclk_io = CAMERA_PIN_PCLK,
+            .xclk_io = CAMERA_PIN_XCLK,
+        };
 
-        camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
-        config.pin_d0 = CAMERA_PIN_D0;
-        config.pin_d1 = CAMERA_PIN_D1;
-        config.pin_d2 = CAMERA_PIN_D2;
-        config.pin_d3 = CAMERA_PIN_D3;
-        config.pin_d4 = CAMERA_PIN_D4;
-        config.pin_d5 = CAMERA_PIN_D5;
-        config.pin_d6 = CAMERA_PIN_D6;
-        config.pin_d7 = CAMERA_PIN_D7;
-        config.pin_xclk = CAMERA_PIN_XCLK;
-        config.pin_pclk = CAMERA_PIN_PCLK;
-        config.pin_vsync = CAMERA_PIN_VSYNC;
-        config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = -1;   // 这里写-1 表示使用已经初始化的I2C接口
-        config.pin_sccb_scl = CAMERA_PIN_SIOC;
-        config.sccb_i2c_port = 1;
-        config.pin_pwdn = CAMERA_PIN_PWDN;
-        config.pin_reset = CAMERA_PIN_RESET;
-        config.xclk_freq_hz = XCLK_FREQ_HZ;
-        config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_VGA;
-        config.jpeg_quality = 12;
-        config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        esp_video_init_sccb_config_t sccb_config = {
+            .init_sccb = false,
+            .i2c_handle = i2c_bus_,
+            .freq = 100000,
+        };
 
-        camera_ = new Esp32Camera(config);
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = CAMERA_PIN_RESET,
+            .pwdn_pin = CAMERA_PIN_PWDN,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = XCLK_FREQ_HZ,
+        };
+
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
     }
 
 public:
