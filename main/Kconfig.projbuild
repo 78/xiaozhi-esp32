@@ -270,6 +270,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_32
+        bool "Waveshare ESP32-C6-Touch-AMOLOED-1.32"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_32
+        bool "Waveshare ESP32-S3-Touch-AMOLOED-1.32"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49
         bool "Waveshare ESP32-S3-Touch-LCD-3.49"
         depends on IDF_TARGET_ESP32S3
@@ -678,6 +684,8 @@ config RECEIVE_CUSTOM_MESSAGE
 menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32
 
+    comment "Warning: Please read the help text before modifying these settings."
+
     config XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
         bool "Enable Hardware JPEG Encoder"
         default y
@@ -699,12 +707,35 @@ menu "Camera Configuration"
         depends on !CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER
         help
             This option treats the camera buffer as a uint16_t[] array and performs byte-swapping (endianness conversion) on each element.
-            
+
             Should only be modified by development board integration engineers.
-            
+
             **Incorrect usage may result in incorrect image colors!**
-            
+
             ATTENTION: If the option CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER is available for your sensor, please use that instead.
+
+    menuconfig XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+        bool "Enable Camera Image Rotation"
+        default n
+        help
+            Enable camera image rotation, rotate the camera image to the correct orientation.
+            - On ESP32-P4, rotation is handled by PPA hardware.
+            - On other chips, rotation is done in software with performance cost.
+            - For 180° rotation, use HFlip + VFlip instead of this option.
+
+    if XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
+        choice XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE
+            prompt "Camera Image Rotation Angle (clockwise)"
+            default XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90
+            help
+                Camera image rotation angle.
+            config XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_90
+                bool "90°"
+            config XIAOZHI_CAMERA_IMAGE_ROTATION_ANGLE_270
+                bool "270°"
+            comment "For 180° rotation, use HFlip + VFlip instead of this option"
+        endchoice
+    endif
 endmenu
 
 menu "TAIJIPAI_S3_CONFIG"
