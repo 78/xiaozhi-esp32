@@ -369,7 +369,8 @@ void Application::Start() {
 
     // Check for new firmware version or get the MQTT broker address
     Ota ota;
-    CheckNewVersion(ota);
+    // 针对本地开发测试，关闭版本更新检查
+    // CheckNewVersion(ota);
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
