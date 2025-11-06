@@ -146,6 +146,26 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_ESP_KORVO2_V3
         bool "Espressif Korvo2 V3"
+    config BOARD_TYPE_FOGSEEK_ESP32S3_AUDIO
+        bool "雾岸科技 ESP32-S3-Audio"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE
+        bool "雾岸科技 ESP32-S3-Edge"
+        depends on IDF_TARGET_ESP32S3 
+    config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_5
+        bool "雾岸科技 ESP32-S3-Edge-LCD1.5"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_ESP32S3_EDGE_LCD1_8
+        bool "雾岸科技 ESP32-S3-Edge-LCD1.8"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_BUBBLEPAL
+        bool "雾岸科技 BubblePal"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_MOODLIGHT
+        bool "雾岸科技 MoodLight"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP32S3_KORVO2_V3
+        bool "ESP32S3_KORVO2_V3开发板"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
         bool "Espressif SparkBot"
