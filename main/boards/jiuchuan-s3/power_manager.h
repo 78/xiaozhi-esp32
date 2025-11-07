@@ -367,98 +367,50 @@ private:
     
     /**
      * @brief 处理关机流程
-     * 
-     * 九川板电源控制原理（实测确认）：
-     * 
-     * 不充电时：
-     * - GPIO15=0 → 电池供电断开 → 系统完全断电
-     * - 按键 → 硬件电路拉高 GPIO15 → 重新上电
-     * 
-     * 充电时：
-     * - GPIO15=0 → 电池供电断开，但 VBUS 仍供电 → 系统未断电！
-     * - 需要保持 GPIO15=1 + 深度睡眠 + ext0 唤醒
-     * 
-     * 步骤：
-     * 1. 检查充电状态
-     * 2. 充电：深度睡眠 + 唤醒；不充电：断电
+     *
+     * - 统一采用“深度睡眠”关机方案：
+     * - 无论是否在充电，都保持 GPIO15(PWR_EN)=1，防止电源掉电
+     * - 配置 GPIO3(ext0) 作为唤醒源，按键高电平即可唤醒
+     * - 进入深度睡眠后由 RTC 域维持，拔 / 插 USB 不会重新启动
      */
     void HandleShutdown() {
-        // 检查充电状态
-        bool charging = false;
-        adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &charging);
-        ESP_LOGI(TAG, "关机流程: %s", charging ? "充电中(深度睡眠)" : "未充电(断电)");
-        
-        if (charging) {
-            // 充电模式：VBUS 供电，进入深度睡眠并配置唤醒
-            
-            // 配置 GPIO3 为 RTC GPIO（ext0 唤醒必需）
-            ESP_ERROR_CHECK(rtc_gpio_init(PWR_BUTTON_GPIO));
-            ESP_ERROR_CHECK(rtc_gpio_set_direction(PWR_BUTTON_GPIO, RTC_GPIO_MODE_INPUT_ONLY));
-            ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(PWR_BUTTON_GPIO));
-            ESP_ERROR_CHECK(rtc_gpio_pullup_dis(PWR_BUTTON_GPIO));
-            
-            // 配置 ext0 唤醒：GPIO3 高电平唤醒
-            ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup(PWR_BUTTON_GPIO, 1));
-            
-            // 保持 GPIO15=1（电源使能），防止深度睡眠时状态丢失
-            rtc_gpio_hold_en(PWR_EN_GPIO);
-            
-            // 等待按键释放，避免立即唤醒
+        // 统一进入深度睡眠（无论是否充电）
+        // 配置 GPIO3 为 RTC GPIO（ext0 唤醒必需）
+        ESP_ERROR_CHECK(rtc_gpio_init(PWR_BUTTON_GPIO));
+        ESP_ERROR_CHECK(rtc_gpio_set_direction(PWR_BUTTON_GPIO, RTC_GPIO_MODE_INPUT_ONLY));
+        ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(PWR_BUTTON_GPIO));
+        ESP_ERROR_CHECK(rtc_gpio_pullup_dis(PWR_BUTTON_GPIO));
+
+        // 配置 ext0 唤醒：GPIO3 高电平唤醒
+        ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup(PWR_BUTTON_GPIO, 1));
+
+        // 等待按键释放，避免立即唤醒
+        vTaskDelay(pdMS_TO_TICKS(100));
+        int wait_count = 0;
+        while (gpio_get_level(PWR_BUTTON_GPIO) == 1 && wait_count < 50) {
             vTaskDelay(pdMS_TO_TICKS(100));
-            int wait_count = 0;
-            while (gpio_get_level(PWR_BUTTON_GPIO) == 1 && wait_count < 50) {
-                vTaskDelay(pdMS_TO_TICKS(100));
-                wait_count++;
-            }
-            
-            if (gpio_get_level(PWR_BUTTON_GPIO) == 0) {
-                ESP_LOGI(TAG, "电源键已释放，进入深度睡眠");
-            } else {
-                ESP_LOGW(TAG, "等待超时，强制进入睡眠");
-            }
-            
-            // 额外延迟去抖动
-            vTaskDelay(pdMS_TO_TICKS(200));
-            
-            // 最终检查 GPIO 状态
-            if (rtc_gpio_get_level(PWR_BUTTON_GPIO) != 0) {
-                ESP_LOGW(TAG, "警告: GPIO3 仍为 HIGH，可能立即唤醒");
-            }
-            
-            esp_deep_sleep_start();
-            
-        } else {
-            // 不充电模式：电池供电，完全断电
-            
-            ESP_LOGI(TAG, "未充电模式关机，等待按键释放...");
-            
-            // 关键：必须等待按键释放！
-            // 原因：按键按下时（GPIO3=HIGH），硬件电路会持续拉高 GPIO15
-            // 如果直接设置 GPIO15=0，硬件会立即将其拉回 HIGH，导致重新上电
-            vTaskDelay(pdMS_TO_TICKS(100));
-            int wait_count = 0;
-            while (gpio_get_level(PWR_BUTTON_GPIO) == 1 && wait_count < 50) {
-                vTaskDelay(pdMS_TO_TICKS(100));
-                wait_count++;
-            }
-            
-            if (gpio_get_level(PWR_BUTTON_GPIO) == 0) {
-                ESP_LOGI(TAG, "按键已释放，执行断电");
-            } else {
-                ESP_LOGW(TAG, "等待超时（5秒），强制断电");
-            }
-            
-            // 额外延迟确保按键完全释放
-            vTaskDelay(pdMS_TO_TICKS(200));
-            
-            rtc_gpio_set_level(PWR_EN_GPIO, 0);
-            rtc_gpio_hold_dis(PWR_EN_GPIO);
-            
-            ESP_LOGI(TAG, "系统完全断电（电池模式）");
-            
-            // 理论上执行到这里时已经断电
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            wait_count++;
         }
+
+        if (gpio_get_level(PWR_BUTTON_GPIO) == 0) {
+            ESP_LOGI(TAG, "电源键已释放，进入深度睡眠");
+        } else {
+            ESP_LOGW(TAG, "等待超时，强制进入睡眠");
+        }
+
+        // 额外延迟去抖动
+        vTaskDelay(pdMS_TO_TICKS(200));
+
+        // 保持 PWR_EN=1，防止深度睡眠时状态丢失
+        rtc_gpio_set_level(PWR_EN_GPIO, 1);
+        rtc_gpio_hold_en(PWR_EN_GPIO);
+
+        // 最终检查 GPIO 状态
+        if (rtc_gpio_get_level(PWR_BUTTON_GPIO) != 0) {
+            ESP_LOGW(TAG, "警告: GPIO3 仍为 HIGH，可能立即唤醒");
+        }
+
+        esp_deep_sleep_start();
     }
 
 public:
