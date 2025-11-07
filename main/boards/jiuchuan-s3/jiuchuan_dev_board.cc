@@ -364,6 +364,14 @@ public:
         InitializeDisplay();
         GetBacklight()->RestoreBrightness();
 
+    #if CONFIG_USE_DEVICE_AEC
+        auto& app = Application::GetInstance();
+        if (app.GetAecMode() != kAecOff) {
+            // Ensure Jiuchuan boots with AEC disabled; user can re-enable via button
+            app.SetAecMode(kAecOff, false);
+        }
+    #endif
+
     }
 
     virtual Led* GetLed() override {
