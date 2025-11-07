@@ -49,4 +49,8 @@
 
 #define DISPLAY_SPI_SCLK_HZ     (40 * 1000 * 1000)
 
+// 电量检测相关引脚定义
+#define BATTERY_ADC_PIN         GPIO_NUM_1  // 电池电压检测ADC引脚
+#define BATTERY_CHARGING_PIN    GPIO_NUM_41 // 充电状态检测引脚
+
 #endif // _BOARD_CONFIG_H_
