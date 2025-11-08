@@ -8,7 +8,7 @@ Board support for ESP-P4-Function-EV-Board. Wi‑Fi uses ESP‑Hosted via the on
 - Audio: ES8311 codec with speaker and microphone support
 - Touch: GT911 capacitive touch controller
 - SD Card: MicroSD card support (MMC mode)
-- Camera: MIPI-CSI camera interface (OV5647, SC2336 sensors supported)
+- Camera: MIPI-CSI camera interface with fallback DVP configuration (OV5647, SC2336 sensors supported)
 - USB: USB host/device support
 - SPIFFS: Built-in flash filesystem support
 - Fonts: Custom font support with Unicode characters (Vietnamese, Chinese, etc.)
