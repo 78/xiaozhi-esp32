@@ -127,22 +127,20 @@ void McpServer::AddCommonTools() {
     auto music = board.GetMusic();
     if (music) {
         AddTool(
-            "self.music.play_song",
-            "Play a specified song. Use this tool when the user requests to play "
-            "music. It will automatically fetch song details and start streaming "
-            "playback.\n"
+            "self.music.play_song_with_id",
+            "Play a song by song_id. MUST search first and confirm with user before "
+            "using. Requires song_id from search results, NOT song name.\n"
             "Parameters:\n"
-            "  `query`: The name of the song to play (required).\n"
+            "  `song_id`: Song ID from search results (required). Must be confirmed, Example: ZW78DIEO, UG89Y7RT, etc. Do NOT make up or guess.\n"
             "Returns:\n"
-            "  Playback status information. No confirmation needed, plays the song "
-            "immediately.",
+            "  Playback status. Plays immediately.", 
             PropertyList({
-                Property("query", kPropertyTypeString) // Song name (required)
+                Property("song_id", kPropertyTypeString) // Song ID (required)
             }),
             [music](const PropertyList& properties) -> ReturnValue {
-                auto query = properties["query"].value<std::string>();
+                auto song_id = properties["song_id"].value<std::string>();
 
-                if (!music->Download(query, "")) {
+                if (!music->Download(song_id)) {
                     return "{\"success\": false, \"message\": \"Failed to fetch music "
                            "resource\"}";
                 }

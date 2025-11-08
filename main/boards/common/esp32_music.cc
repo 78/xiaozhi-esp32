@@ -179,8 +179,8 @@ void Esp32Music::StopThreadSafely(std::thread& thread, std::atomic<bool>& flag,
     }
 }
 
-bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
-    ESP_LOGI(TAG, "Starting to get music details for: %s", song_name.c_str());
+bool Esp32Music::Download(const std::string& song_id) {
+    ESP_LOGI(TAG, "Starting to get music details for song_id: %s", song_id.c_str());
     
     auto network = Board::GetInstance().GetNetwork();
     if (!network) {
@@ -191,7 +191,6 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
     const std::string base_streaming_url = "http://music.iotforce.io.vn:8080";
     
     last_downloaded_data_.clear();
-    current_song_name_ = song_name;
     
     // Use loop instead of recursion to avoid stack overflow
     const int max_processing_retries = 3;
@@ -201,7 +200,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
             vTaskDelay(pdMS_TO_TICKS(3000));
         }
         
-        std::string full_url = base_streaming_url + "/stream_pcm?query=" + url_encode(song_name);
+        std::string full_url = base_streaming_url + "/v2/stream_pcm?song_id=" + url_encode(song_id);
         ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());
         
         int status_code = -1;
@@ -247,10 +246,13 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
         if (cJSON_IsString(title)) ESP_LOGI(TAG, "Title: %s", title->valuestring);
         if (cJSON_IsString(message)) ESP_LOGI(TAG, "Message: %s", message->valuestring);
         
-        // Update current song name with the title from response
+        // Update current song name with the title from response, or fallback to song_id
         if (cJSON_IsString(title) && title->valuestring && strlen(title->valuestring) > 0) {
             current_song_name_ = title->valuestring;
             ESP_LOGI(TAG, "Updated song name from response: %s", current_song_name_.c_str());
+        } else {
+            current_song_name_ = song_id; // Fallback to song_id if no title
+            ESP_LOGI(TAG, "No title in response, using song_id: %s", current_song_name_.c_str());
         }
         
         bool result = false;
@@ -258,7 +260,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
         
         if (cJSON_IsString(status)) {
             std::string status_str = status->valuestring;
-            if (!HandleMusicStatus(status_str, song_name, artist_name)) {
+            if (!HandleMusicStatus(status_str)) {
                 cJSON_Delete(response_json);
                 return false;
             }
@@ -274,16 +276,24 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
             }
         }
         
+        // Get song name from response for display
+        std::string song_name_for_display = current_song_name_;
+        if (cJSON_IsString(title) && title->valuestring && strlen(title->valuestring) > 0) {
+            song_name_for_display = title->valuestring;
+        } else {
+            song_name_for_display = song_id; // Fallback to song_id if no title
+        }
+        
         if (cJSON_IsString(audio_url) && audio_url->valuestring && strlen(audio_url->valuestring) > 0) {
-            result = ProcessAudioUrl(audio_url->valuestring, song_name);
+            result = ProcessAudioUrl(audio_url->valuestring, song_name_for_display);
             
             if (result && cJSON_IsString(lyric_url) && lyric_url->valuestring && strlen(lyric_url->valuestring) > 0) {
-                ProcessLyricUrl(lyric_url->valuestring, song_name);
+                ProcessLyricUrl(lyric_url->valuestring, song_name_for_display);
             } else if (result) {
                 ESP_LOGW(TAG, "No lyric URL found for this song");
             }
         } else {
-            ESP_LOGE(TAG, "Audio URL not found or empty for song: %s", song_name.c_str());
+            ESP_LOGE(TAG, "Audio URL not found or empty for song_id: %s", song_id.c_str());
         }
         
         cJSON_Delete(response_json);
@@ -317,9 +327,9 @@ bool Esp32Music::FetchMusicMetadata(const std::string& url, int& status_code) {
     return true;
 }
 
-bool Esp32Music::HandleMusicStatus(const std::string& status, const std::string& song_name, const std::string& artist_name) {
+bool Esp32Music::HandleMusicStatus(const std::string& status) {
     if (status != "success") {
-        ESP_LOGE(TAG, "Server error processing song: %s", song_name.c_str());
+        ESP_LOGE(TAG, "Server error processing song");
         return false;
     }
 
@@ -472,6 +482,16 @@ bool Esp32Music::StopStreaming() {
     // Use helper function to stop threads safely with shorter timeout
     StopThreadSafely(download_thread_, is_downloading_, "download", 500);
     StopThreadSafely(play_thread_, is_playing_, "playback", 500);
+    
+    // Clear audio buffer to free memory
+    ClearAudioBuffer();
+    
+    // Free final_pcm_data_fft if allocated
+    if (final_pcm_data_fft != nullptr) {
+        heap_caps_free(final_pcm_data_fft);
+        final_pcm_data_fft = nullptr;
+        ESP_LOGI(TAG, "Freed final_pcm_data_fft memory in StopStreaming");
+    }
     
     // After threads completely finish, only stop FFT display in spectrum mode
     if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
@@ -922,6 +942,19 @@ void Esp32Music::PlayAudioStream() {
         
     // Perform basic cleanup when playback ends
     ESP_LOGI(TAG, "Audio stream playback finished, total played: %zu bytes", total_played);
+    
+    // Release mp3_input_buffer back to pool
+    if (mp3_input_buffer) {
+        chunk_pool_.release(std::move(mp3_input_buffer));
+        ESP_LOGI(TAG, "Released MP3 input buffer to pool");
+    }
+    
+    // Free final_pcm_data_fft if allocated
+    if (final_pcm_data_fft != nullptr) {
+        heap_caps_free(final_pcm_data_fft);
+        final_pcm_data_fft = nullptr;
+        ESP_LOGI(TAG, "Freed final_pcm_data_fft memory");
+    }
     
     // Schedule state change to Listening when music ends naturally
     ESP_LOGI(TAG, "Music playback finished, scheduling state change to Listening");

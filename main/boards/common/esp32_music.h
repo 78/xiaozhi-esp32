@@ -152,7 +152,7 @@ private:
     
     // Download helper methods
     bool FetchMusicMetadata(const std::string& url, int& status_code);
-    bool HandleMusicStatus(const std::string& status, const std::string& song_name, const std::string& artist_name);
+    bool HandleMusicStatus(const std::string& status);
     bool ProcessAudioUrl(const std::string& audio_url, const std::string& song_name);
     void ProcessLyricUrl(const std::string& lyric_url, const std::string& song_name);
     
@@ -168,7 +168,7 @@ public:
     Esp32Music();
     ~Esp32Music();
 
-    virtual bool Download(const std::string& song_name, const std::string& artist_name) override;
+    virtual bool Download(const std::string& song_id) override;
   
     virtual std::string GetDownloadResult() override;
     
