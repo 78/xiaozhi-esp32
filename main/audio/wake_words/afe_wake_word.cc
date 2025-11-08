@@ -2,6 +2,8 @@
 #include "audio_service.h"
 
 #include <esp_log.h>
+#include <esp_heap_caps.h>
+#include <cstring>
 #include <sstream>
 
 #define DETECTION_RUNNING_EVENT 1
@@ -106,10 +108,30 @@ void AfeWakeWord::Stop() {
 }
 
 void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
-    if (afe_data_ == nullptr) {
+    if (afe_data_ == nullptr || data.empty()) {
         return;
     }
-    afe_iface_->feed(afe_data_, data.data());
+    
+    // Always ensure 4-byte alignment for AFE ring buffer
+    // std::vector doesn't guarantee alignment, so we always copy to aligned buffer
+    size_t data_size_bytes = data.size() * sizeof(int16_t);
+    
+    // Allocate aligned buffer (4-byte alignment, round up to multiple of 4)
+    size_t aligned_size = (data_size_bytes + 3) & ~3;  // Round up to multiple of 4
+    int16_t* aligned_data = static_cast<int16_t*>(heap_caps_aligned_alloc(4, aligned_size, MALLOC_CAP_INTERNAL));
+    if (aligned_data == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate aligned buffer for AFE feed (size: %zu)", aligned_size);
+        return;
+    }
+    
+    // Copy data to aligned buffer
+    memcpy(aligned_data, data.data(), data_size_bytes);
+    
+    // Feed aligned data to AFE
+    afe_iface_->feed(afe_data_, aligned_data);
+    
+    // Free aligned buffer
+    heap_caps_free(aligned_data);
 }
 
 size_t AfeWakeWord::GetFeedSize() {
