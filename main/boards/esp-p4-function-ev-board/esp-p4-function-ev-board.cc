@@ -116,7 +116,7 @@ private:
     {
         ESP_LOGI(TAG, "Initializing font support");
         // Font initialization is handled by the Assets system
-        // The board supports loading  fonts from assets partition
+        // The board supports loading fonts from assets partition
         // Verify that fonts are properly loaded by checking theme
         auto& theme_manager = LvglThemeManager::GetInstance();
         auto current_theme = theme_manager.GetTheme("light");
