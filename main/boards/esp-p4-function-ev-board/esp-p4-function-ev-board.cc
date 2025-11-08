@@ -3,6 +3,7 @@
 // Display
 #include "display/display.h"
 #include "display/lcd_display.h"
+#include "lvgl_theme.h"
 // Backlight
 // PwmBacklight is declared in backlight headers pulled by display/lcd_display includes via lvgl stack
 
@@ -88,6 +89,47 @@ private:
         ESP_ERROR_CHECK(bsp_touch_new(NULL, &tp_));
     }
 
+    void InitializeSdCard()
+    {
+        ESP_LOGI(TAG, "Initializing SD card");
+        esp_err_t ret = bsp_sdcard_mount();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to mount SD card: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGI(TAG, "SD card mounted successfully");
+        }
+    }
+
+    void InitializeCamera()
+    {
+        ESP_LOGI(TAG, "Initializing camera");
+        bsp_camera_cfg_t camera_cfg = {0};
+        esp_err_t ret = bsp_camera_start(&camera_cfg);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize camera: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGI(TAG, "Camera initialized successfully");
+        }
+    }
+
+    void InitializeFonts()
+    {
+        ESP_LOGI(TAG, "Initializing font support");
+        // Font initialization is handled by the Assets system
+        // The board supports loading  fonts from assets partition
+        // Verify that fonts are properly loaded by checking theme
+        auto& theme_manager = LvglThemeManager::GetInstance();
+        auto current_theme = theme_manager.GetTheme("light");
+        if (current_theme != nullptr) {
+            auto text_font = current_theme->text_font();
+            if (text_font != nullptr && text_font->font() != nullptr) {
+                ESP_LOGI(TAG, "Custom font loaded successfully: line_height=%d", text_font->font()->line_height);
+            } else {
+                ESP_LOGW(TAG, "Custom font not loaded, using built-in font");
+            }
+        }
+    }
+
 public:
 
     ESP32P4FunctionEvBoard() : boot_button_(0)
@@ -97,6 +139,9 @@ public:
         InitializeLCD();
         InitializeButtons();
         InitializeTouch();
+        InitializeSdCard();
+        InitializeCamera();
+        InitializeFonts();
         GetBacklight()->RestoreBrightness();
     }
 
@@ -105,6 +150,8 @@ public:
         // Clean up display pointer
         delete display_;
         display_ = nullptr;
+        // Unmount SD card
+        bsp_sdcard_unmount();
         // If other resources need cleanup, add here
     }
 
