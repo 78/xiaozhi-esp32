@@ -1,3 +1,11 @@
+//--------------------------------------------------------------
+//-- Oscillator.pde
+//-- Generate sinusoidal oscillations in the servos
+//--------------------------------------------------------------
+//-- (c) Juan Gonzalez-Gomez (Obijuan), Dec 2011
+//-- (c) txp666 for esp32, 202503
+//-- GPL license
+//--------------------------------------------------------------
 #ifndef __OSCILLATOR_H__
 #define __OSCILLATOR_H__
 

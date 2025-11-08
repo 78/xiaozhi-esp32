@@ -27,7 +27,7 @@ Xiaozhi Assistant -> Board Type -> SenseCAP Watcher
 There are some additional configuration options for the watcher. Please select them in menuconfig:
 
 ```
-CONFIG_BOARD_TYPE_SENSECAP_WATCHER=y
+CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER=y
 CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/32m.csv"
 CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y
