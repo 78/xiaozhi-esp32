@@ -17,6 +17,7 @@
 #include <inttypes.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
+#include <soc/clk_tree_defs.h>
 // SD card
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
@@ -64,7 +65,7 @@ private:
         bsp_display_config_t config = {
             .hdmi_resolution = BSP_HDMI_RES_NONE,
             .dsi_bus = {
-                .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
+                .phy_clk_src = (mipi_dsi_phy_clock_source_t)SOC_MOD_CLK_PLL_F20M,
                 .lane_bit_rate_mbps = 1000,
             },
         };
