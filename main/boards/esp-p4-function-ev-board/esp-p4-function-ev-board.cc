@@ -163,7 +163,7 @@ private:
     {
         ESP_LOGI(TAG, "Initializing font support");
         // Font initialization is handled by the Assets system
-        // The board supports loading  fonts from assets partition
+        // The board supports loading fonts from assets partition
         // Verify that fonts are properly loaded by checking theme
         auto& theme_manager = LvglThemeManager::GetInstance();
         auto current_theme = theme_manager.GetTheme("light");
@@ -198,7 +198,10 @@ public:
         delete display_;
         display_ = nullptr;
         // Unmount SD card
-        bsp_sdcard_unmount();
+        esp_err_t ret = bsp_sdcard_unmount();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to unmount SD card: %s", esp_err_to_name(ret));
+        }
         // If other resources need cleanup, add here
     }
 
