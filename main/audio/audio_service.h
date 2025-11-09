@@ -108,6 +108,7 @@ public:
     void PlaySound(const std::string_view& sound);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
+    void UpdateOutputTimestamp();
     void SetModelsList(srmodel_list_t* models_list);
 
 private:
