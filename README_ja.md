@@ -122,6 +122,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 ### 開発者ドキュメント
 
 - [カスタム開発ボードガイド](docs/custom-board.md) - シャオジーAI用のカスタム開発ボード作成方法
+- [ダークテーマ設定](docs/dark-theme.md) - ダークテーマの設定と使用方法
 - [MCPプロトコルIoT制御使用法](docs/mcp-usage.md) - MCPプロトコルでIoTデバイスを制御する方法
 - [MCPプロトコルインタラクションフロー](docs/mcp-protocol.md) - デバイス側MCPプロトコルの実装方法
 - [MQTT + UDP ハイブリッド通信プロトコルドキュメント](docs/mqtt-udp.md)

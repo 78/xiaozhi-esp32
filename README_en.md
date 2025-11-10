@@ -122,6 +122,7 @@ The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by
 ### Developer Documentation
 
 - [Custom Board Guide](docs/custom-board.md) - Learn how to create custom boards for XiaoZhi AI
+- [Dark Theme Configuration](docs/dark-theme.md) - Learn how to configure and use dark theme
 - [MCP Protocol IoT Control Usage](docs/mcp-usage.md) - Learn how to control IoT devices via MCP protocol
 - [MCP Protocol Interaction Flow](docs/mcp-protocol.md) - Device-side MCP protocol implementation
 - [MQTT + UDP Hybrid Communication Protocol Document](docs/mqtt-udp.md)
