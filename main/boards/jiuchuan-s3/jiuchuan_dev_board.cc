@@ -216,6 +216,19 @@ private:
             ESP_LOGI(TAG, "Shutting down...");
             
             GetDisplay()->ShowNotification("松开按键以关机");
+
+            // 关闭显示输出并让 LCD 控制器进入睡眠，彻底清除残影
+            if (panel) {
+                esp_err_t err = ESP_OK;
+                err = esp_lcd_panel_disp_on_off(panel, false);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to turn off panel display: %s", esp_err_to_name(err));
+                }
+                err = esp_lcd_panel_disp_sleep(panel, true);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to enter panel sleep: %s", esp_err_to_name(err));
+                }
+            }
             
             power_manager_->Shutdown();
         });
