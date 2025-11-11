@@ -13,5 +13,5 @@ idf-target
 ## step3: set board type
 idf-menu
 ## step4: build
-默认编译：idf-build，但不会读取board的config.json配置文件
+默认编译：idf-build，但许多board的配置需要从Xiaozhi Assistant中选择，而且不会读取board的config.json配置文件，
 针对不同board的编译命令：python3 scripts/release.py atk-dnesp32s3（执行之前记得删除release/*.zip，否则配置仍然不生效）

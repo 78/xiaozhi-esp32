@@ -4,7 +4,22 @@
         {
             "name": "atk-dnesp32s3",
             "sdkconfig_append": [
-                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y"
+                "### use wechat message style ###",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+                "### custom Partition Table ###",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m_custom_wakeword.csv\"",
+                "CONFIG_PARTITION_TABLE_FILENAME=\"partitions/v1/16m_custom_wakeword.csv\"",
+                "### Xiaozhi Assistant: enable custom wake word ###",
+                "CONFIG_USE_AFE_WAKE_WORD=n",
+                "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+                "CONFIG_CUSTOM_WAKE_WORD=\"ni hao xiao li\"",
+                "CONFIG_CUSTOM_WAKE_WORD_DISPLAY=\"你好小力\"",
+                "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20",
+                "### disable Multiple Wake Words ###",
+                "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=n",
+                "### enable Multiple Net ###",
+                "CONFIG_SR_MN_CN_NONE=n",
+                "CONFIG_SR_MN_CN_MULTINET6_QUANT=y"
             ]
         }
     ]
