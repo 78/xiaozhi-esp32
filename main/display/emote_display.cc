@@ -474,25 +474,26 @@ void EmoteDisplay::UpdateStatusBar(bool update_all)
     if (!engine_) {
         return;
     }
-
-    // Only display time when battery icon is shown
-    DisplayLockGuard lock(this);
-    if (g_current_icon_type == ICON_BATTERY) {
-        time_t now;
-        struct tm timeinfo;
-        time(&now);
-
-        setenv("TZ", "GMT+0", 1);
-        tzset();
-        localtime_r(&now, &timeinfo);
-
-        char time_str[6];
-        snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-
+    #ifndef CONFIG_ENABLE_IDLE_SCREEN
+        // Only display time when battery icon is shown
         DisplayLockGuard lock(this);
-        gfx_label_set_text(g_obj_label_clock, time_str);
-        SetUIDisplayMode(UIDisplayMode::SHOW_TIME, this);
-    }
+        if (g_current_icon_type == ICON_BATTERY) {
+            time_t now;
+            struct tm timeinfo;
+            time(&now);
+
+            setenv("TZ", "GMT+0", 1);
+            tzset();
+            localtime_r(&now, &timeinfo);
+
+            char time_str[6];
+            snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+
+            DisplayLockGuard lock(this);
+            gfx_label_set_text(g_obj_label_clock, time_str);
+            SetUIDisplayMode(UIDisplayMode::SHOW_TIME, this);
+        }
+    #endif
 }
 
 void EmoteDisplay::SetPowerSaveMode(bool on)

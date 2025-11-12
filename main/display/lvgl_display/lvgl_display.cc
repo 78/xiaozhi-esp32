@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdlib>
 #include <cstring>
+#include <time.h>
 #include <font_awesome.h>
 
 #include "lvgl_display.h"
@@ -120,7 +121,8 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         }
     }
 
-    // Update time
+    // Update time (only when idle screen is disabled)
+#ifndef CONFIG_ENABLE_IDLE_SCREEN
     if (app.GetDeviceState() == kDeviceStateIdle) {
         if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
             // Set status to clock "HH:MM"
@@ -136,6 +138,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             }
         }
     }
+#endif
 
     esp_pm_lock_acquire(pm_lock_);
     // 更新电池图标

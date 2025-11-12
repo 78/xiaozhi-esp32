@@ -541,6 +541,13 @@ void Application::Start() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     }
+
+#ifdef CONFIG_ENABLE_IDLE_SCREEN
+    // 初始化并启动待机界面（固定 10 秒超时，与状态栏时间显示一致）
+    idle_screen_ = std::make_unique<IdleScreen>(display);
+    idle_screen_->Start();
+    ESP_LOGI(TAG, "Idle screen initialized");
+#endif
 }
 
 // Add a async task to MainLoop
@@ -672,6 +679,15 @@ void Application::SetDeviceState(DeviceState state) {
     auto previous_state = device_state_;
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
+
+        
+    #ifdef CONFIG_ENABLE_IDLE_SCREEN
+        // 自动重置待机计时器（参考状态栏时间显示的实现）
+        // 任何状态变化都视为用户活动
+        if (idle_screen_) {
+            idle_screen_->ResetTimer();
+        }
+    #endif
 
     // Send the state change event
     DeviceStateEventManager::GetInstance().PostStateChangeEvent(previous_state, state);

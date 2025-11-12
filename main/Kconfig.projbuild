@@ -28,6 +28,13 @@ config CUSTOM_ASSETS_FILE
         The custom assets file to flash.
         It can be a local file relative to the project directory or a remote url.
 
+config ENABLE_IDLE_SCREEN
+    bool "开启待机界面"
+    default y
+    help
+        nable idle screen with clock display after 10 seconds of inactivity.
+        The idle screen shows time, date and weekday.
+
 choice
     prompt "Default Language"
     default LANGUAGE_ZH_CN

@@ -15,6 +15,9 @@
 #include "ota.h"
 #include "audio_service.h"
 #include "device_state_event.h"
+#ifdef CONFIG_ENABLE_IDLE_SCREEN
+#include "idle_screen.h"
+#endif
 
 
 #define MAIN_EVENT_SCHEDULE (1 << 0)
@@ -78,6 +81,9 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+#ifdef CONFIG_ENABLE_IDLE_SCREEN
+    std::unique_ptr<IdleScreen> idle_screen_;
+#endif
 
     bool has_server_time_ = false;
     bool aborted_ = false;

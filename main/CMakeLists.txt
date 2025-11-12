@@ -40,6 +40,13 @@ set(SOURCES "audio/audio_codec.cc"
 
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
 
+# Add idle screen logo if enabled
+if(CONFIG_ENABLE_IDLE_SCREEN)
+    list(APPEND SOURCES "assets/images/_tomatotimers_RGB565A8_500x220.c"
+                        "display/idle_screen.cc"
+                        )
+endif()
+
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
