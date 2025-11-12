@@ -267,6 +267,16 @@ void AudioService::AudioOutputTask() {
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
         audio_queue_cv_.notify_all();
+        
+        // Log warning if playback queue is getting too low (potential stuttering indicator)
+        if (audio_playback_queue_.size() < 2) {
+            ESP_LOGW(TAG, "AudioOutputTask: Playback queue getting low! remaining=%zu/%d, potential audio gap",
+                     audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
+        }
+        
+        ESP_LOGD(TAG, "AudioOutputTask: Playing audio, pcm_samples=%zu, ts=%" PRIu32 ", playback_queue_remaining=%zu",
+                 task->pcm.size(), task->timestamp, audio_playback_queue_.size());
+        
         lock.unlock();
 
         if (!codec_->output_enabled()) {
@@ -309,6 +319,17 @@ void AudioService::OpusCodecTask() {
             auto packet = std::move(audio_decode_queue_.front());
             audio_decode_queue_.pop_front();
             audio_queue_cv_.notify_all();
+            
+            // Log warning if decode queue is getting too full (potential stuttering indicator)
+            if (audio_decode_queue_.size() > MAX_DECODE_PACKETS_IN_QUEUE * 0.8) {
+                ESP_LOGW(TAG, "OpusCodecTask: Decode queue getting full! remaining=%zu/%d, potential stuttering risk",
+                         audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE);
+            }
+            
+            ESP_LOGD(TAG, "OpusCodecTask: Processing packet from decode queue, remaining=%zu, sr=%d, fd=%d, ts=%" PRIu32 ", payload=%zu bytes",
+                     audio_decode_queue_.size(), packet->sample_rate, packet->frame_duration, 
+                     packet->timestamp, packet->payload.size());
+            
             lock.unlock();
 
             auto task = std::make_unique<AudioTask>();
@@ -399,7 +420,7 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
         if (timestamp_queue_.size() <= MAX_TIMESTAMPS_IN_QUEUE) {
             task->timestamp = timestamp_queue_.front();
         } else {
-            ESP_LOGW(TAG, "Timestamp queue (%u) is full, dropping timestamp", timestamp_queue_.size());
+            ESP_LOGW(TAG, "Timestamp queue (%zu) is full, dropping timestamp", timestamp_queue_.size());
         }
         timestamp_queue_.pop_front();
     }
@@ -412,6 +433,9 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
     if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
+        ESP_LOGW(TAG, "Decode queue full! size=%zu/%d, dropping packet (sr=%d, ts=%" PRIu32 ")",
+                 audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE,
+                 packet->sample_rate, packet->timestamp);
         if (wait) {
             audio_queue_cv_.wait(lock, [this]() { return audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE; });
         } else {
@@ -420,6 +444,8 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
     }
     audio_decode_queue_.push_back(std::move(packet));
     audio_queue_cv_.notify_all();
+    
+    ESP_LOGD(TAG, "Packet pushed to decode queue, new size: %zu", audio_decode_queue_.size());
     return true;
 }
 
@@ -647,6 +673,7 @@ void AudioService::CheckAndUpdateAudioPowerState() {
     if (!codec_->input_enabled() && !codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
     }
+
 }
 
 void AudioService::SetModelsList(srmodel_list_t* models_list) {
