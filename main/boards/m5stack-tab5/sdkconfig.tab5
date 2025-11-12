@@ -750,7 +750,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Xiaozhi Assistant
 #
-CONFIG_OTA_URL="https://api.tenclass.net/xiaozhi/ota/"
+CONFIG_OTA_URL="https://xrobo.qiniuapi.com/v1/ota/"
 CONFIG_LANGUAGE_ZH_CN=y
 # CONFIG_LANGUAGE_ZH_TW is not set
 # CONFIG_LANGUAGE_EN_US is not set
