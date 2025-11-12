@@ -1,20 +1,22 @@
 /**
  * @file power_manager.h
  * @brief 九川开发板电源管理模块
- * 
+ *
  * 功能：
  * 1. 双 ADC 通道监控（GPIO4=电池电压，GPIO5=USB电压）
  * 2. 电池电量估算（基于 OCV-SOC 模型）
  * 3. 充电状态检测（通过 VBUS 电压判断）
- * 4. 低电量警告
- * 5. 关机流程管理
- * 
+ * 4. 电池充满检测（通过 LGS4056HEP DONE引脚）
+ * 5. 低电量警告
+ * 6. 关机流程管理
+ *
  * 硬件连接：
  * - GPIO4 (ADC1_CH3): 电池电压检测（通过 200kΩ/100kΩ 分压）
  * - GPIO5 (ADC1_CH4): USB电压检测（通过 200kΩ/100kΩ 分压）
  * - GPIO15: 电源使能控制
  * - GPIO3: 电源按键检测
- * 
+ * - GPIO16: LGS4056HEP DONE引脚（电池充满检测，低电平=充满）
+ *
  * @author Jiuchuan Dev Team
  * @date 2025
  */
@@ -61,10 +63,9 @@
 // 运行参数配置
 #define JIUCHUAN_ADC_SAMPLE_COUNT           (5)                 // ADC采样次数
 #define JIUCHUAN_ADC_SAMPLE_INTERVAL_MS     (10)                // 采样间隔 10ms
-#define JIUCHUAN_BATTERY_CHECK_INTERVAL_MS  (6000)              // 定时器周期 6秒
-#define JIUCHUAN_BATTERY_READ_INTERVAL      (1)                // 每10秒读取电池 (10*1=10s)
+#define JIUCHUAN_BATTERY_CHECK_INTERVAL_MS  (2000)              // 定时器周期 2秒（优化：从6秒改为2秒）
+#define JIUCHUAN_BATTERY_READ_INTERVAL      (3)                 // 每6秒读取电池 (2*3=6s)
 #define JIUCHUAN_LOW_BATTERY_LEVEL          (20)                // 低电量阈值 20%
-#define JIUCHUAN_FULL_BATTERY_LEVEL         (99)               // 满电阈值 99%
 
 #undef TAG
 #define TAG "PowerManager"
@@ -93,8 +94,11 @@ private:
     
     // 状态变量
     gpio_num_t charging_pin_;                                   // 充电检测引脚
+    gpio_num_t battery_full_pin_;                               // 电池充满检测引脚(DONE)
     int32_t battery_level_;                                     // 电池电量 (0-100%)
     bool is_charging_;                                          // 充电状态
+    bool is_battery_full_;                                      // 电池充满状态
+    volatile bool battery_full_event_;                          // 中断事件标志（volatile确保可见性）
     bool is_low_battery_;                                       // 低电量标志
     bool is_empty_battery_;                                     // 电量耗尽标志
     int ticks_;                                                 // 定时器计数
@@ -110,39 +114,86 @@ private:
     // ------------------------------------------------------------------------
     // 私有辅助方法
     // ------------------------------------------------------------------------
-    
+
+    /**
+     * @brief DONE引脚中断处理函数（静态方法）
+     *
+     * 仅在下降沿触发（高→低），表示电池刚充满
+     * - 充电中：DONE = 高电平
+     * - 充满时：DONE = 低电平（触发此中断）
+     * - 拔掉充电器：DONE = 高电平（不触发中断，避免误触）
+     *
+     * 注意：在ISR中只设置标志位，实际处理在定时器回调中进行
+     */
+    static void IRAM_ATTR DonePinIsrHandler(void* arg) {
+        PowerManager* self = static_cast<PowerManager*>(arg);
+        // 设置事件标志，通知主任务处理
+        self->battery_full_event_ = true;
+    }
+
+    /**
+     * @brief 更新电池充满状态
+     *
+     * 读取DONE引脚当前状态并更新is_battery_full_
+     */
+    void UpdateBatteryFullStatus() {
+        if (battery_full_pin_ != GPIO_NUM_NC) {
+            int done_level = gpio_get_level(battery_full_pin_);
+            bool new_battery_full = (done_level == 0);  // 低电平表示充满
+
+            // 如果充满状态发生变化，输出日志
+            if (new_battery_full != is_battery_full_) {
+                is_battery_full_ = new_battery_full;
+                ESP_LOGI(TAG, "电池充满状态变化: %s (DONE引脚=%d)",
+                        is_battery_full_ ? "已充满" : "未充满", done_level);
+            }
+        }
+    }
+
     /**
      * @brief 检查电池状态（定时器回调）
-     * 
-     * 每 6 秒调用一次：
-     * - 检测充电状态变化 → 立即读取电池
-     * - 每 60 秒读取一次电池电量
+     *
+     * 每 2 秒调用一次：
+     * - 检查中断事件标志 → 立即处理充满事件
+     * - 检测充电状态变化 → 立即读取电池并触发回调通知界面
+     * - 每 6 秒读取一次电池电量
      */
     void CheckBatteryStatus() {
-        // 1. 获取充电状态
+        // 1. 检查中断事件标志（充满事件）
+        if (battery_full_event_) {
+            battery_full_event_ = false;  // 清除标志
+            UpdateBatteryFullStatus();
+            ReadBatteryData();  // 立即读取电池数据
+            ESP_LOGI(TAG, "检测到充满中断事件，立即更新状态");
+        }
+
+        // 2. 定期更新电池充满状态（防止遗漏）
+        UpdateBatteryFullStatus();
+
+        // 3. 获取充电状态（VBUS连接检测）
         bool new_charging_status = false;
         esp_err_t ret = adc_battery_estimation_get_charging_state(
             adc_battery_estimation_handle_, &new_charging_status);
-        
-        // 2. 如果电量已满，逻辑上不再显示充电
-        if (new_charging_status && battery_level_ >= JIUCHUAN_FULL_BATTERY_LEVEL) {
+
+        // 4. 如果DONE引脚显示已充满，则不再显示充电中
+        if (new_charging_status && is_battery_full_) {
             new_charging_status = false;
         }
-        
-        // 3. 充电状态变化：立即读取并通知
+
+        // 5. 充电状态变化：立即读取并通知
         if (ret == ESP_OK && new_charging_status != is_charging_) {
             is_charging_ = new_charging_status;
             ESP_LOGI(TAG, "充电状态变化: %s", is_charging_ ? "充电中" : "未充电");
-            
+
             if (on_charging_status_changed_) {
                 on_charging_status_changed_(is_charging_);
             }
-            
+
             ReadBatteryData();  // 充电状态变化时立即读取
             return;
         }
-        
-        // 4. 定期读取电池电量（每 60 秒）
+
+        // 6. 定期读取电池电量（每 6 秒）
         ticks_++;
         if (ticks_ % kBatteryReadInterval == 0) {
             ReadBatteryData();
@@ -202,16 +253,17 @@ private:
         // ---- 步骤 4: 获取充电状态并输出日志 ----
         bool charging = false;
         adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &charging);
-        
-        // 满电时不显示充电
-        if (battery_level_ >= JIUCHUAN_FULL_BATTERY_LEVEL && charging) {
+
+        // 根据is_battery_full_状态决定显示（统一由UpdateBatteryFullStatus更新）
+        if (charging && is_battery_full_) {
             charging = false;
         }
-        
-        ESP_LOGI(TAG, "电池: %.2fV, %.1f%% %s", 
-                 actual_battery_voltage, 
+
+        ESP_LOGI(TAG, "电池: %.2fV, %.1f%% %s%s",
+                 actual_battery_voltage,
                  battery_capacity,
-                 charging ? "[充电中]" : "");
+                 charging ? "[充电中]" : "",
+                 is_battery_full_ ? " [已充满]" : "");
     }
     
     /**
@@ -349,19 +401,50 @@ private:
         esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
         ESP_LOGD(TAG, "Wakeup cause: %d %s", wakeup_reason,
                  wakeup_reason == ESP_SLEEP_WAKEUP_EXT0 ? "(ext0)" : "");
-        
+
         // 初始化电源使能 GPIO (GPIO15)
         rtc_gpio_init(PWR_EN_GPIO);
         rtc_gpio_set_direction(PWR_EN_GPIO, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_hold_dis(PWR_EN_GPIO);  // 释放可能存在的 hold
         rtc_gpio_set_level(PWR_EN_GPIO, 1);
-        
+
+        // 初始化电池充满检测引脚 (GPIO16 - LGS4056HEP DONE)
+        if (battery_full_pin_ != GPIO_NUM_NC) {
+            gpio_config_t io_conf = {};
+            io_conf.pin_bit_mask = (1ULL << battery_full_pin_);
+            io_conf.mode = GPIO_MODE_INPUT;
+            io_conf.pull_up_en = GPIO_PULLUP_ENABLE;    // 使能内部上拉，DONE为开漏输出
+            io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            io_conf.intr_type = GPIO_INTR_NEGEDGE;      // 仅下降沿触发中断(充电中→充满)
+            ESP_ERROR_CHECK(gpio_config(&io_conf));
+
+            // 安全安装GPIO中断服务（可能已被其他模块安装）
+            esp_err_t isr_ret = gpio_install_isr_service(0);
+            if (isr_ret == ESP_ERR_INVALID_STATE) {
+                ESP_LOGD(TAG, "GPIO ISR服务已安装，跳过");
+            } else if (isr_ret != ESP_OK) {
+                ESP_LOGE(TAG, "安装GPIO ISR服务失败: %s", esp_err_to_name(isr_ret));
+                return;
+            }
+
+            // 添加中断处理函数
+            ESP_ERROR_CHECK(gpio_isr_handler_add(battery_full_pin_, DonePinIsrHandler, this));
+
+            // 读取初始状态
+            int initial_level = gpio_get_level(battery_full_pin_);
+            is_battery_full_ = (initial_level == 0);
+
+            ESP_LOGI(TAG, "电池充满检测引脚 GPIO%d 初始化完成 (当前状态: %s, 下降沿中断)",
+                     battery_full_pin_,
+                     is_battery_full_ ? "已充满" : "未充满");
+        }
+
         // 如果从深度睡眠唤醒，解除 GPIO3 的 RTC GPIO 模式，恢复为普通 GPIO
         // 这样按钮驱动才能正常工作
         if (rtc_gpio_is_valid_gpio(GPIO_NUM_3)) {
             rtc_gpio_deinit(GPIO_NUM_3);
         }
-        
+
         ESP_LOGI(TAG, "电源控制初始化完成");
     }
     
@@ -423,14 +506,17 @@ public:
      * 
      * @param pin 充电检测引脚（兼容参数，实际使用 ADC 检测）
      */
-    PowerManager(gpio_num_t pin) 
+    PowerManager(gpio_num_t pin)
         : timer_handle_(nullptr)
         , adc_handle_(nullptr)
         , adc_cali_handle_(nullptr)
         , adc_battery_estimation_handle_(nullptr)
         , charging_pin_(pin)
+        , battery_full_pin_(BATTERY_FULL_PIN)
         , battery_level_(100)
         , is_charging_(false)
+        , is_battery_full_(false)
+        , battery_full_event_(false)
         , is_low_battery_(false)
         , is_empty_battery_(false)
         , ticks_(0) {
@@ -470,22 +556,27 @@ public:
      * 释放所有资源
      */
     ~PowerManager() {
+        // 移除GPIO中断处理
+        if (battery_full_pin_ != GPIO_NUM_NC) {
+            gpio_isr_handler_remove(battery_full_pin_);
+        }
+
         // 停止并删除定时器
         if (timer_handle_) {
             esp_timer_stop(timer_handle_);
             esp_timer_delete(timer_handle_);
         }
-        
+
         // 销毁电池估算句柄
         if (adc_battery_estimation_handle_) {
             adc_battery_estimation_destroy(adc_battery_estimation_handle_);
         }
-        
+
         // 释放 ADC 校准句柄
         if (adc_cali_handle_) {
             adc_cali_delete_scheme_curve_fitting(adc_cali_handle_);
         }
-        
+
         // 释放共享 ADC 句柄
         if (adc_handle_) {
             adc_oneshot_del_unit(adc_handle_);
@@ -498,12 +589,13 @@ public:
     
     /**
      * @brief 判断是否正在充电
-     * 
+     *
      * @return true: 充电中, false: 未充电
-     * @note 电量满时返回 false（用于界面显示）
+     * @note 根据DONE引脚判断：充满时返回 false（用于界面显示）
      */
     bool IsCharging() {
-        if (battery_level_ >= JIUCHUAN_FULL_BATTERY_LEVEL) {
+        // 如果DONE引脚显示已充满，则不显示充电中
+        if (is_battery_full_) {
             return false;
         }
         return is_charging_;

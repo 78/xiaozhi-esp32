@@ -27,6 +27,7 @@
 #define PWR_EN_GPIO             GPIO_NUM_15
 #define VBAT_ADC_GPIO           GPIO_NUM_4  // 电池电压监测引脚（通过分压电路）
 #define VBUS_ADC_GPIO           GPIO_NUM_5  // USB电压监测引脚（用于充电检测）
+#define BATTERY_FULL_PIN        GPIO_NUM_16 // LGS4056HEP DONE引脚（电池充满检测，低电平=充满）
 #define PWR_BUTTON_TIME         3000000U
 
 #define WIFI_BUTTON_GPIO        GPIO_NUM_6

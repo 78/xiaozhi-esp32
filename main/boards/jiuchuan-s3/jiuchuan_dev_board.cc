@@ -130,6 +130,7 @@ private:
             } else {
                 power_save_timer_->SetEnabled(true);
             }
+            GetDisplay()->UpdateStatusBar(true);
         });
     }
 
