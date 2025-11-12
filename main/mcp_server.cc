@@ -300,6 +300,85 @@ void McpServer::AddUserOnlyTools() {
                 return true;
             });
     }
+
+    // HTTP request tool for cloud registration and general API calls
+    AddUserOnlyTool("self.http.request",
+        "Make HTTP requests to cloud services or APIs. Supports GET, POST, PUT, DELETE methods with optional headers and body.",
+        PropertyList({
+            Property("url", kPropertyTypeString),
+            Property("method", kPropertyTypeString, "GET"),
+            Property("headers", kPropertyTypeString, ""),
+            Property("body", kPropertyTypeString, ""),
+            Property("timeout", kPropertyTypeInteger, 30, 1, 300)
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto url = properties["url"].value<std::string>();
+            auto method = properties["method"].value<std::string>();
+            auto headers_str = properties["headers"].value<std::string>();
+            auto body = properties["body"].value<std::string>();
+            auto timeout = properties["timeout"].value<int>();
+
+            // Validate HTTP method
+            std::string method_upper = method;
+            std::transform(method_upper.begin(), method_upper.end(), method_upper.begin(), ::toupper);
+            if (method_upper != "GET" && method_upper != "POST" && method_upper != "PUT" && method_upper != "DELETE") {
+                throw std::runtime_error("Unsupported HTTP method: " + method);
+            }
+
+            ESP_LOGI(TAG, "HTTP %s request to: %s", method_upper.c_str(), url.c_str());
+
+            try {
+                auto http = Board::GetInstance().GetNetwork()->CreateHttp(timeout);
+                
+                // Parse and set headers if provided
+                if (!headers_str.empty()) {
+                    cJSON* headers_json = cJSON_Parse(headers_str.c_str());
+                    if (headers_json && cJSON_IsObject(headers_json)) {
+                        cJSON* current = nullptr;
+                        cJSON_ArrayForEach(current, headers_json) {
+                            if (cJSON_IsString(current)) {
+                                http->SetHeader(current->string, current->valuestring);
+                            }
+                        }
+                        cJSON_Delete(headers_json);
+                    } else {
+                        ESP_LOGW(TAG, "Invalid headers JSON format, using default headers");
+                    }
+                }
+
+                // Open connection
+                if (!http->Open(method_upper.c_str(), url)) {
+                    throw std::runtime_error("Failed to open URL: " + url);
+                }
+
+                // Write body if provided and method supports it
+                if (!body.empty() && (method_upper == "POST" || method_upper == "PUT")) {
+                    http->Write(body.c_str(), body.length());
+                }
+                http->Write("", 0); // End of request
+
+                int status_code = http->GetStatusCode();
+                std::string response_body = http->ReadAll();
+                http->Close();
+
+                ESP_LOGI(TAG, "HTTP request completed with status: %d", status_code);
+
+                // Create response JSON
+                cJSON* response_json = cJSON_CreateObject();
+                cJSON_AddNumberToObject(response_json, "status_code", status_code);
+                cJSON_AddStringToObject(response_json, "body", response_body.c_str());
+                
+                // Add success flag
+                bool success = (status_code >= 200 && status_code < 300);
+                cJSON_AddBoolToObject(response_json, "success", success);
+
+                return response_json;
+
+            } catch (const std::exception& e) {
+                ESP_LOGE(TAG, "HTTP request failed: %s", e.what());
+                throw std::runtime_error("HTTP request failed: " + std::string(e.what()));
+            }
+        });
 }
 
 void McpServer::AddTool(McpTool* tool) {
