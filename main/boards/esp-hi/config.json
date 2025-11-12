@@ -1,0 +1,33 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "esp-hi",
+            "sdkconfig_append": [
+                "CONFIG_IDF_TARGET=\"esp32c3\"",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
+                "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=3",
+                "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=4",
+                "CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n",
+                "CONFIG_ESP_WIFI_RX_BA_WIN=4",
+                "CONFIG_ESP_WIFI_ENABLE_WPA3_SAE=n",
+                "CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM=0",
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_ESP_MAIN_TASK_STACK_SIZE=7168",
+                "CONFIG_FREERTOS_HZ=1000",
+                "CONFIG_FREERTOS_IDLE_TASK_STACKSIZE=768",
+                "CONFIG_LWIP_MAX_SOCKETS=10",
+                "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=16",
+                "CONFIG_LWIP_IPV6=n",
+                "CONFIG_LWIP_TCPIP_TASK_STACK_SIZE=2048",
+                "CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y",
+                "CONFIG_NEWLIB_NANO_FORMAT=y",
+                "CONFIG_ESP_CONSOLE_NONE=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y"
+            ]
+        }
+    ]
+}

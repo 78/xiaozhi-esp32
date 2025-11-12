@@ -1,0 +1,14 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-box-3",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_USE_EMOTE_MESSAGE_STYLE=y",
+                "CONFIG_FLASH_CUSTOM_ASSETS=y",
+                "CONFIG_CUSTOM_ASSETS_FILE=\"https://dl.espressif.com/AE/wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-esp-box-3.bin\""
+            ]
+        }
+    ]
+}

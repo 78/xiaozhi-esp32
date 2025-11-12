@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "movecall-moji-esp32s3",
+            "sdkconfig_append": []
+        }
+    ]
+}

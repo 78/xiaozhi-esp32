@@ -1,0 +1,14 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "mixgo-nova",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_LCD_ST7735_128X160=y"
+            ]
+        }
+    ]
+}

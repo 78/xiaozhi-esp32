@@ -1,0 +1,14 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "lichuang-c3-dev",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        }
+    ]
+}

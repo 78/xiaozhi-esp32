@@ -1,0 +1,10 @@
+{
+    "target": "esp32",
+    "builds": [
+        {
+            "name": "atommatrix-echo-base",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}

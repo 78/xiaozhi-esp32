@@ -1,0 +1,11 @@
+{
+    "target": "esp32",
+    "builds": [
+        {
+            "name": "esp32-cgc",
+            "sdkconfig_append": [
+                "CONFIG_LCD_ST7735_128X128=y"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "atoms3-echo-base",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM=n",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
+            ]
+        }
+    ]
+}

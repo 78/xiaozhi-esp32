@@ -1,0 +1,10 @@
+{
+    "target": "esp32",
+    "builds": [
+        {
+            "name": "esp32-cgc-144",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}

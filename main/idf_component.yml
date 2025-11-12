@@ -1,0 +1,101 @@
+## IDF Component Manager Manifest File
+dependencies:
+  waveshare/esp_lcd_sh8601: 1.0.2
+  espressif/esp_lcd_ili9341: ==1.2.0
+  espressif/esp_lcd_gc9a01: ==2.0.1
+  espressif/esp_lcd_st77916: ^1.0.1
+  espressif/esp_lcd_axs15231b: ^1.0.0
+ 
+  espressif/esp_lcd_st7701:
+    version: ^1.1.4
+    rules:
+    - if: target in [esp32s3, esp32p4]
+  espressif/esp_lcd_st7796:
+    version: 1.3.5
+    rules:
+    - if: target in [esp32, esp32s2, esp32s3, esp32p4]
+  espressif/esp_lcd_spd2010: ==1.0.2
+  espressif/esp_io_expander_tca9554: ==2.0.0
+  espressif/esp_lcd_panel_io_additions: ^1.0.1
+  78/esp_lcd_nv3023: ~1.0.0
+  78/esp-wifi-connect: ~2.6.1
+  78/esp-opus-encoder: ~2.4.1
+  78/esp-ml307: ~3.3.7
+  78/xiaozhi-fonts: ~1.5.4
+  espressif/led_strip: ~3.0.1
+  espressif/esp_codec_dev: ~1.5
+  espressif/esp-sr: ~2.2.0
+  espressif/button: ~4.1.3
+  espressif/knob: ^1.0.0
+  espressif/esp_video:
+    version: '==1.3.1' # for compatibility. update version may need to modify this project code.
+    rules:
+    - if: target not in [esp32]
+  espressif/esp_image_effects:
+    version: ^1.0.1
+    rules:
+    - if: target not in [esp32]
+  espressif/esp_lcd_touch_ft5x06: ~1.0.7
+  espressif/esp_lcd_touch_gt911: ^1
+  espressif/esp_lcd_touch_gt1151: ^1
+  waveshare/esp_lcd_touch_cst9217: ^1.0.3
+  espressif/esp_lcd_touch_cst816s: ^1.0.6
+  lvgl/lvgl: ~9.3.0
+  esp_lvgl_port: ~2.6.0
+  espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
+  espressif2022/image_player: ^1.1.1
+  espressif2022/esp_emote_gfx: ^1.1.2
+  espressif/adc_mic: ^0.2.1
+  espressif/esp_mmap_assets: '>=1.2'
+  txp666/otto-emoji-gif-component: ^1.0.3
+  espressif/adc_battery_estimation: ^0.2.0
+  espressif/esp_new_jpeg: ^0.6.1
+
+  # SenseCAP Watcher Board
+  wvirgil123/sscma_client:
+    version: 1.0.2
+    rules:
+    - if: target in [esp32s3]
+
+  tny-robotics/sh1106-esp-idf: ^1.0.0
+  waveshare/esp_lcd_jd9365_10_1:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
+  waveshare/esp_lcd_st7703:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp32_p4_function_ev_board:
+    version: "^5.0.3"
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp_lcd_ili9881c:
+    version: ^1.0.1
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp_lcd_ek79007:
+    version: ^1.0.3
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp_hosted:
+    version: 2.0.17
+    rules:
+    - if: target in [esp32h2, esp32p4]
+  espressif/esp_wifi_remote:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
+  espfriends/servo_dog_ctrl:
+    version: ^0.1.8
+    rules:
+    - if: target in [esp32c3]
+
+  llgok/cpp_bus_driver:
+    version: 1.1.0
+    rules:
+    - if: target in [esp32p4]
+
+  ## Required IDF version
+  idf:
+    version: '>=5.4.0'
