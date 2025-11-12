@@ -421,7 +421,8 @@ void Application::Start() {
     });
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (device_state_ == kDeviceStateSpeaking) {
-            audio_service_.PushPacketToDecodeQueue(std::move(packet));
+            // 传入 true 参数是为了保证在高负载情况下，音频数据包不会丢失，确保音频播放的流畅性和完整性。
+            audio_service_.PushPacketToDecodeQueue(std::move(packet), true);
         }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
