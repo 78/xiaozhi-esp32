@@ -13,6 +13,7 @@
 #include "camera.h"
 #include "assets.h"
 #include "music.h"
+#include "radio.h"
 
 
 void* create_board();
@@ -32,6 +33,9 @@ protected:
 
     // 音乐播放器实例
     Music* music_;
+    
+    // 电台播放器实例
+    Radio* radio_;
 
 public:
     static Board& GetInstance() {
@@ -49,6 +53,7 @@ public:
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();
     virtual Music* GetMusic();
+    virtual Radio* GetRadio();
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;
