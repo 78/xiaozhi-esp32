@@ -1,8 +1,8 @@
 #ifndef __CUSTOM_LCD_DISPLAY_H__
 #define __CUSTOM_LCD_DISPLAY_H__
 
+#include <driver/gpio.h>
 #include "lcd_display.h"
-#include "driver/gpio.h"
 
 /* Display color */
 typedef enum {
@@ -34,7 +34,7 @@ public:
     void EPD_Clear();   /* 清空屏幕 */
     void EPD_Display(); /* 刷buffer到墨水屏 */
     
-    /*局部刷新*/
+    /*快速刷新*/
     void EPD_DisplayPartBaseImage();
     void EPD_Init_Partial();
     void EPD_DisplayPart();
