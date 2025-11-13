@@ -171,9 +171,6 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_KORVO2_V3
         bool "Espressif Korvo2 V3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ESP32S3_KORVO2_V3
-        bool "ESP32S3_KORVO2_V3开发板"
-        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
         bool "Espressif SparkBot"
         depends on IDF_TARGET_ESP32S3
