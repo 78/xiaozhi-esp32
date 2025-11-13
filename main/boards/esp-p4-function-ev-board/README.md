@@ -5,7 +5,13 @@ Board support for ESP-P4-Function-EV-Board. Wi‑Fi uses ESP‑Hosted via the on
 ## Features
 - Wi‑Fi: `esp_wifi_remote` + `esp_hosted` (SDIO) with ESP32‑C6 co‑processor
 - Display: 7" MIPI‑DSI LCD (1024×600) via adapter; can also run headless
-- Audio: Can run with dummy codec; board includes ES8311 + PA if needed
+- Audio: ES8311 codec with speaker and microphone support
+- Touch: GT911 capacitive touch controller
+- SD Card: MicroSD card support (MMC mode)
+- Camera: MIPI-CSI camera interface with fallback DVP configuration (OV5647, SC2336 sensors supported)
+- USB: USB host/device support
+- SPIFFS: Built-in flash filesystem support
+- Fonts: Custom font support with Unicode characters (Vietnamese, Chinese, etc.)
 
 ## Configure
 In `menuconfig`: Xiaozhi Assistant -> Board Type -> ESP-P4-Function-EV-Board
