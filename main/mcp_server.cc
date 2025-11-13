@@ -190,7 +190,17 @@ void McpServer::AddCommonTools() {
     auto radio = board.GetRadio();
     if (radio) {
         AddTool("self.radio.play_station",
-                "Play a radio station by name. Use this tool when user requests to play radio or listen to a specific station.\n"
+                "Play a radio station by name. Use this tool when user requests to play radio or listen to a specific station."
+                "VOV mộc means VOV1 channel."
+                "VOV mốc means VOV1 channel."
+                "VOV mốt means VOV1 channel."
+                "VOV mậu means VOV1 channel."
+                "VOV máu means VOV1 channel."
+                "VOV màu means VOV1 channel."
+                "VOV một means VOV1 channel."
+                "VOV mút means VOV1 channel."
+                "VOV mót means VOV1 channel."
+                "VOV mục means VOV1 channel.\n"
                 "Args:\n"
                 "  `station_name`: The name of the radio station to play (e.g., 'VOV1', 'BBC', 'NPR').\n"
                 "Return:\n"
@@ -216,10 +226,11 @@ void McpServer::AddCommonTools() {
                 "Return:\n"
                 "  Playback status information. Starts playing the radio stream immediately.",
                 PropertyList({
-                    Property("url", kPropertyTypeString),        // Stream URL (required)
-                    Property("name", kPropertyTypeString, "")    // Station name (optional)
+                    Property("url", kPropertyTypeString),     // Stream URL (required)
+                    Property("name", kPropertyTypeString, "") // Station name (optional)
                 }),
-                [radio](const PropertyList &properties) -> ReturnValue {
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
                     auto url = properties["url"].value<std::string>();
                     auto name = properties["name"].value<std::string>();
 

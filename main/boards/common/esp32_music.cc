@@ -16,56 +16,56 @@
 #include <chrono>
 #include <sstream>
 #include <algorithm>
-#include <cctype>  // 为isdigit函数
-#include <thread>   // 为线程ID比较
+#include <cctype>  // For isdigit function
+#include <thread>   // For thread ID comparison
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 #define TAG "Esp32Music"
 
-// ========== 简单的ESP32认证函数 ==========
+// ========== Simple ESP32 Authentication Function ==========
 
 /**
- * @brief 获取设备MAC地址
- * @return MAC地址字符串
+ * @brief Get device MAC address
+ * @return MAC address string
  */
 static std::string get_device_mac() {
     return SystemInfo::GetMacAddress();
 }
 
 /**
- * @brief 获取设备芯片ID
- * @return 芯片ID字符串
+ * @brief Get device chip ID
+ * @return Chip ID string
  */
 static std::string get_device_chip_id() {
-    // 使用MAC地址作为芯片ID，去除冒号分隔符
+    // Use MAC address as chip ID, remove colon separators
     std::string mac = SystemInfo::GetMacAddress();
-    // 去除所有冒号
+    // Remove all colons
     mac.erase(std::remove(mac.begin(), mac.end(), ':'), mac.end());
     return mac;
 }
 
 /**
- * @brief 生成动态密钥
- * @param timestamp 时间戳
- * @return 动态密钥字符串
+ * @brief Generate dynamic key
+ * @param timestamp Timestamp
+ * @return Dynamic key string
  */
 static std::string generate_dynamic_key(int64_t timestamp) {
-    // 密钥（请修改为与服务端一致）
+    // Secret key (please modify to match the server)
     const std::string secret_key = "your-esp32-secret-key-2024";
     
-    // 获取设备信息
+    // Get device information
     std::string mac = get_device_mac();
     std::string chip_id = get_device_chip_id();
     
-    // 组合数据：MAC:芯片ID:时间戳:密钥
+    // Combine data: MAC:Chip ID:Timestamp:Secret Key
     std::string data = mac + ":" + chip_id + ":" + std::to_string(timestamp) + ":" + secret_key;
     
-    // SHA256哈希
+    // SHA256 hash
     unsigned char hash[32];
     mbedtls_sha256((unsigned char*)data.c_str(), data.length(), hash, 0);
     
-    // 转换为十六进制字符串（前16字节）
+    // Convert to hexadecimal string (first 16 bytes)
     std::string key;
     for (int i = 0; i < 16; i++) {
         char hex[3];
@@ -77,21 +77,21 @@ static std::string generate_dynamic_key(int64_t timestamp) {
 }
 
 /**
- * @brief 为HTTP请求添加认证头
- * @param http HTTP客户端指针
+ * @brief Add authentication headers to HTTP request
+ * @param http HTTP client pointer
  */
 static void add_auth_headers(Http* http) {
-    // 获取当前时间戳
-    int64_t timestamp = esp_timer_get_time() / 1000000;  // 转换为秒
+    // Get current timestamp
+    int64_t timestamp = esp_timer_get_time() / 1000000;  // Convert to seconds
     
-    // 生成动态密钥
+    // Generate dynamic key
     std::string dynamic_key = generate_dynamic_key(timestamp);
     
-    // 获取设备信息
+    // Get device information
     std::string mac = get_device_mac();
     std::string chip_id = get_device_chip_id();
     
-    // 添加认证头
+    // Add authentication headers
     if (http) {
         http->SetHeader("X-MAC-Address", mac);
         http->SetHeader("X-Chip-ID", chip_id);
@@ -103,7 +103,7 @@ static void add_auth_headers(Http* http) {
     }
 }
 
-// URL编码函数
+// URL encoding function
 static std::string url_encode(const std::string& str) {
     std::string encoded;
     char hex[4];
@@ -117,7 +117,7 @@ static std::string url_encode(const std::string& str) {
             c == '-' || c == '_' || c == '.' || c == '~') {
             encoded += c;
         } else if (c == ' ') {
-            encoded += '+';  // 空格编码为'+'或'%20'
+            encoded += '+';  // Space encoded as '+' or '%20'
         } else {
             snprintf(hex, sizeof(hex), "%%%02X", c);
             encoded += hex;
@@ -126,7 +126,7 @@ static std::string url_encode(const std::string& str) {
     return encoded;
 }
 
-// 在文件开头添加一个辅助函数，统一处理URL构建
+// Add a helper function at the beginning of the file to handle URL construction
 static std::string buildUrlWithParams(const std::string& base_url, const std::string& path, const std::string& query) {
     std::string result_url = base_url + path + "?";
     size_t pos = 0;
@@ -147,7 +147,7 @@ static std::string buildUrlWithParams(const std::string& base_url, const std::st
         pos = amp_pos + 1;
     }
     
-    // 处理最后一个参数
+    // Process the last parameter
     std::string last_param = query.substr(pos);
     size_t eq_pos = last_param.find("=");
     
@@ -165,7 +165,7 @@ static std::string buildUrlWithParams(const std::string& base_url, const std::st
 Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), current_song_name_(),
                          song_name_displayed_(false), current_lyric_url_(), lyrics_(), 
                          current_lyric_index_(-1), lyric_thread_(), is_lyric_running_(false),
-                         display_mode_(DISPLAY_MODE_LYRICS), is_playing_(false), is_downloading_(false), 
+                         display_mode_(DISPLAY_MODE_SPECTRUM), is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
                          mp3_decoder_initialized_(false) {
@@ -176,23 +176,23 @@ Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), curren
 Esp32Music::~Esp32Music() {
     ESP_LOGI(TAG, "Destroying music player - stopping all operations");
     
-    // 停止所有操作
+    // Stop all operations
     is_downloading_ = false;
     is_playing_ = false;
     is_lyric_running_ = false;
     
-    // 通知所有等待的线程
+    // Notify all waiting threads
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
     }
     
-    // 等待下载线程结束，设置5秒超时
+    // Wait for download thread to finish with 5-second timeout
     if (download_thread_.joinable()) {
         ESP_LOGI(TAG, "Waiting for download thread to finish (timeout: 5s)");
         auto start_time = std::chrono::steady_clock::now();
         
-        // 等待线程结束
+        // Wait for thread to finish
         bool thread_finished = false;
         while (!thread_finished) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -204,21 +204,21 @@ Esp32Music::~Esp32Music() {
                 break;
             }
             
-            // 再次设置停止标志，确保线程能够检测到
+            // Set stop flag again to ensure thread can detect it
             is_downloading_ = false;
             
-            // 通知条件变量
+            // Notify condition variable
             {
                 std::lock_guard<std::mutex> lock(buffer_mutex_);
                 buffer_cv_.notify_all();
             }
             
-            // 检查线程是否已经结束
+            // Check if the thread has already finished
             if (!download_thread_.joinable()) {
                 thread_finished = true;
             }
             
-            // 定期打印等待信息
+            // Periodically print waiting information
             if (elapsed > 0 && elapsed % 1 == 0) {
                 ESP_LOGI(TAG, "Still waiting for download thread to finish... (%ds)", (int)elapsed);
             }
@@ -230,7 +230,7 @@ Esp32Music::~Esp32Music() {
         ESP_LOGI(TAG, "Download thread finished");
     }
     
-    // 等待播放线程结束，设置3秒超时
+    // Wait for the playback thread to finish, with a 3-second timeout
     if (play_thread_.joinable()) {
         ESP_LOGI(TAG, "Waiting for playback thread to finish (timeout: 3s)");
         auto start_time = std::chrono::steady_clock::now();
@@ -246,16 +246,16 @@ Esp32Music::~Esp32Music() {
                 break;
             }
             
-            // 再次设置停止标志
+            // Set the stop flag again
             is_playing_ = false;
             
-            // 通知条件变量
+            // Notify the condition variable
             {
                 std::lock_guard<std::mutex> lock(buffer_mutex_);
                 buffer_cv_.notify_all();
             }
             
-            // 检查线程是否已经结束
+            // Check if the thread has already finished
             if (!play_thread_.joinable()) {
                 thread_finished = true;
             }
@@ -267,14 +267,14 @@ Esp32Music::~Esp32Music() {
         ESP_LOGI(TAG, "Playback thread finished");
     }
     
-    // 等待歌词线程结束
+    // Wait for the lyric thread to finish
     if (lyric_thread_.joinable()) {
         ESP_LOGI(TAG, "Waiting for lyric thread to finish");
         lyric_thread_.join();
         ESP_LOGI(TAG, "Lyric thread finished");
     }
     
-    // 清理缓冲区和MP3解码器
+    // Clear the buffer and MP3 decoder
     ClearAudioBuffer();
     CleanupMp3Decoder();
     
@@ -282,39 +282,38 @@ Esp32Music::~Esp32Music() {
 }
 
 bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
-    ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
     ESP_LOGI(TAG, "Starting to get music details for: %s", song_name.c_str());
     
-    // 清空之前的下载数据
+    // Clear previous download data
     last_downloaded_data_.clear();
     
-    // 保存歌名用于后续显示
+    // Save the song name for later display
     current_song_name_ = song_name;
     
-    // 第一步：请求stream_pcm接口获取音频信息
+    // Step 1: Request the stream_pcm API to retrieve audio information
     std::string base_url = "http://www.xiaozhishop.xyz:5005";
     std::string full_url = base_url + "/stream_pcm?song=" + url_encode(song_name) + "&artist=" + url_encode(artist_name);
     
     ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());
     
-    // 使用Board提供的HTTP客户端
+    // Use the HTTP client provided by the Board
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
     
-    // 设置基本请求头
+    // Set basic request headers
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "application/json");
     
-    // 添加ESP32认证头
+    // Add ESP32 authentication headers
     add_auth_headers(http.get());
     
-    // 打开GET连接
+    // Open GET connection
     if (!http->Open("GET", full_url)) {
         ESP_LOGE(TAG, "Failed to connect to music API");
         return false;
     }
     
-    // 检查响应状态码
+    // Check the response status code
     int status_code = http->GetStatusCode();
     if (status_code != 200) {
         ESP_LOGE(TAG, "HTTP GET failed with status code: %d", status_code);
@@ -322,7 +321,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
         return false;
     }
     
-    // 读取响应数据
+    // Read the response data
     last_downloaded_data_ = http->ReadAll();
     http->Close();
     
@@ -370,7 +369,6 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
                     current_music_url_ = base_url + audio_path;
                 }
                 
-                ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
                 ESP_LOGI(TAG, "Starting streaming playback for: %s", song_name.c_str());
                 song_name_displayed_ = false;  // 重置歌名显示标志
                 StartStreaming(current_music_url_);
@@ -496,7 +494,7 @@ bool Esp32Music::StopStreaming() {
         ESP_LOGW(TAG, "No streaming in progress to stop");
         return true;
     }
-    
+
     ESP_LOGI(TAG, "Stopping music streaming - current state: downloading=%d, playing=%d", 
             is_downloading_.load(), is_playing_.load());
 
@@ -703,6 +701,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     
     http->Close();
     is_downloading_ = false;
+    ClearAudioBuffer();  // 清理剩余缓冲区数据
     
     // 通知播放线程下载完成
     {
@@ -744,7 +743,6 @@ void Esp32Music::PlayAudioStream() {
         });
     }
     
-    ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
     ESP_LOGI(TAG, "Starting playback with buffer size: %d", buffer_size_);
     
     size_t total_played = 0;
@@ -1071,12 +1069,12 @@ void Esp32Music::ResetSampleRate() {
     auto codec = board.GetAudioCodec();
     if (codec && codec->original_output_sample_rate() > 0 && 
         codec->output_sample_rate() != codec->original_output_sample_rate()) {
-        ESP_LOGI(TAG, "重置采样率：从 %d Hz 重置到原始值 %d Hz", 
+        ESP_LOGI(TAG, "Resetting sample rate: %d Hz -> %d Hz", 
                 codec->output_sample_rate(), codec->original_output_sample_rate());
         if (codec->SetOutputSampleRate(-1)) {  // -1 表示重置到原始值
-            ESP_LOGI(TAG, "成功重置采样率到原始值: %d Hz", codec->output_sample_rate());
+            ESP_LOGI(TAG, "Sample rate reset to original value: %d Hz", codec->output_sample_rate());
         } else {
-            ESP_LOGW(TAG, "无法重置采样率到原始值");
+            ESP_LOGW(TAG, "Failed to reset sample rate to original value");
         }
     }
 }

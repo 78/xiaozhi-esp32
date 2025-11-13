@@ -173,15 +173,29 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
         return PlayUrl(it->second.url, it->second.name);
     }
     
-    // Nếu không tìm thấy, thử tìm theo tên không phân biệt hoa thường
-    std::string lower_station = station_name;
-    std::transform(lower_station.begin(), lower_station.end(), lower_station.begin(), ::tolower);
+    // Xử lý phát âm lỗi của VOV1 - nhiều cách phát âm khác nhau
+    std::string lower_input = station_name;
+    std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
     
+    // VOV1 phonetic alternatives - các cách phát âm thường bị lỗi
+    if (lower_input.find("vov") != std::string::npos) {
+        // Kiểm tra các cách phát âm lỗi phổ biến của VOV1
+        if (lower_input.find("mộc") != std::string::npos || lower_input.find("mốc") != std::string::npos ||
+            lower_input.find("mốt") != std::string::npos || lower_input.find("máu") != std::string::npos ||
+            lower_input.find("một") != std::string::npos || lower_input.find("mút") != std::string::npos ||
+            lower_input.find("mót") != std::string::npos || lower_input.find("mục") != std::string::npos ||
+            lower_input.find("1") != std::string::npos || lower_input.find("một") != std::string::npos) {
+            ESP_LOGI(TAG, "Detected VOV1 phonetic variant: '%s' -> VOV1", station_name.c_str());
+            return PlayUrl(radio_stations_["VOV1"].url, radio_stations_["VOV1"].name);
+        }
+    }
+    
+    // Nếu không tìm thấy, thử tìm theo tên không phân biệt hoa thường
     for (const auto& station : radio_stations_) {
         std::string lower_key = station.first;
         std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
         
-        if (lower_key.find(lower_station) != std::string::npos || 
+        if (lower_key.find(lower_input) != std::string::npos || 
             station.second.name.find(station_name) != std::string::npos) {
             return PlayUrl(station.second.url, station.second.name);
         }
@@ -426,6 +440,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     
     http->Close();
     is_downloading_ = false;
+    ClearAudioBuffer();
     
     // 通知播放线程下载完成
     {
@@ -656,7 +671,22 @@ void Esp32Radio::PlayRadioStream() {
                         final_sample_count = total_samples;
                     }
                     
-                    // Create AudioStreamPacket
+                    // Amplify audio by 200% for better radio volume
+                    std::vector<int16_t> amplified_buffer(final_sample_count);
+                    const float amplification_factor = 3.0f; // 200% volume boost (triple volume)
+                    
+                    for (int i = 0; i < final_sample_count; ++i) {
+                        int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);
+                        // Clamp to prevent overflow
+                        if (amplified_sample > INT16_MAX) {
+                            amplified_sample = INT16_MAX;
+                        } else if (amplified_sample < INT16_MIN) {
+                            amplified_sample = INT16_MIN;
+                        }
+                        amplified_buffer[i] = (int16_t)amplified_sample;
+                    }
+                    
+                    // Create AudioStreamPacket with amplified audio
                     AudioStreamPacket packet;
                     packet.sample_rate = aac_info_.sample_rate;
                     packet.frame_duration = 60;
@@ -664,15 +694,15 @@ void Esp32Radio::PlayRadioStream() {
                     
                     size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
                     packet.payload.resize(pcm_size_bytes);
-                    memcpy(packet.payload.data(), final_pcm_data, pcm_size_bytes);
+                    memcpy(packet.payload.data(), amplified_buffer.data(), pcm_size_bytes);
                     
-                    // Save for FFT display
+                    // Save amplified audio for FFT display
                     if (final_pcm_data_fft == nullptr) {
                         final_pcm_data_fft = (int16_t*)heap_caps_malloc(
                             final_sample_count * sizeof(int16_t), MALLOC_CAP_SPIRAM);
                     }
                     if (final_pcm_data_fft) {
-                        memcpy(final_pcm_data_fft, final_pcm_data, pcm_size_bytes);
+                        memcpy(final_pcm_data_fft, amplified_buffer.data(), pcm_size_bytes);
                     }
                     
                     app.AddAudioData(std::move(packet));
