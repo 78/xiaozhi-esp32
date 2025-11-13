@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
-#include "display_manager.h"
 #include "led_controller.h"
 #include "codecs/es8311_audio_codec.h"
 #include "system_reset.h"
@@ -10,7 +9,6 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
-#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
@@ -18,17 +16,16 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekBubblePal"
+#define TAG "FogSeekEdge"
 
-class FogSeekBubblePal : public WifiBoard
+class FogSeekEdge : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
-    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-    CircularStrip *rgb_led_strip_ = nullptr;
+
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
 
@@ -69,12 +66,8 @@ private:
     {
         led_pin_config_t led_pin_config = {
             .red_gpio = LED_RED_GPIO,
-            .green_gpio = LED_GREEN_GPIO,
-            .rgb_gpio = LED_RGB_GPIO};
+            .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
-
-        // 初始化RGB灯带
-        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -123,9 +116,6 @@ private:
         led_controller_.UpdateBatteryStatus(power_manager_);
         SetAudioAmplifierState(true);
 
-        // 开启RGB灯带
-        rgb_led_strip_->SetAllColor({255, 0, 255});
-
         // 开机自动唤醒
         auto_wake_flag_ = true;
         OnDeviceStateChanged(DeviceState::kDeviceStateUnknown,
@@ -141,9 +131,6 @@ private:
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
         SetAudioAmplifierState(false);
-
-        // 关闭RGB灯带
-        rgb_led_strip_->SetAllColor({0, 0, 0});
 
         // 重置自动唤醒标志位到默认状态
         auto_wake_flag_ = false;
@@ -197,7 +184,7 @@ private:
     }
 
 public:
-    FogSeekBubblePal() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdge() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -233,20 +220,13 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekBubblePal()
+    ~FogSeekEdge()
     {
         if (i2c_bus_)
         {
             i2c_del_master_bus(i2c_bus_);
         }
-
-        // 删除RGB灯带对象
-        if (rgb_led_strip_)
-        {
-            delete rgb_led_strip_;
-            rgb_led_strip_ = nullptr;
-        }
     }
 };
 
-DECLARE_BOARD(FogSeekBubblePal);
+DECLARE_BOARD(FogSeekEdge);

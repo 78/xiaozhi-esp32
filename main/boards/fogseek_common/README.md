@@ -47,14 +47,14 @@ fogseek_common/
 
 例如：
 ```cpp
-#include "power_manager.h"
-#include "led_controller.h"
+#include "fogseek_common/power_manager.h"
+#include "fogseek_common/led_controller.h"
 
 class FogSeekBoard : public WifiBoard
 {
 private:
-    PowerManager power_manager_;
-    LedController led_controller_;
+    FogSeekPowerManager power_manager_;
+    FogSeekLedController led_controller_;
     // ...
 };
 ```

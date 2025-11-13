@@ -1,8 +1,6 @@
 ## 产品简介
 
-雾岸科技AUS3板是高度集成麦克风与扬声器的核心板，板载LDO供电，可以帮助AI与DIY爱好者快速开发属于自己的智能硬件。
-
-<img src="../../../docs/v1/fogseek-esp32s3-audio.jpg" alt="fogseek-esp32s3-audio" style="zoom: 25%;" />
+小雅是一款高度集成麦克风与扬声器的核心板，专为小雅AI积木项目定制，板载LDO供电，可以帮助AI与DIY爱好者快速开发属于自己的智能硬件。
 
 ### 特殊引脚定义
 
@@ -30,7 +28,7 @@
 推荐使用以下命令一键构建固件，该方式会自动应用所有板子特定配置：
 
 ```bash
-python scripts/release.py fogseek-esp32s3-audio
+python scripts/release.py fogseek-audio-xiaoya
 ```
 
 此命令会自动完成以下操作：
@@ -59,7 +57,7 @@ idf.py menuconfig
 
 3. **在 menuconfig 中选择：**
 ```
-Xiaozhi Assistant -> Board Type -> 雾岸科技 ESP32-S3-Audio 
+Xiaozhi Assistant -> Board Type -> 小雅小雅
 ```
 
 4. **编译：**
@@ -67,7 +65,3 @@ Xiaozhi Assistant -> Board Type -> 雾岸科技 ESP32-S3-Audio
 ```bash
 idf.py build
 ```
-
-## TODO
-
-由于是核心板，目前只实现了基础语音功能，应有自定义引脚与外设功能，后续预计开发灵活配置功能，兼容绝大部分外设。

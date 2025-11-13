@@ -6,27 +6,23 @@
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
-#include "config.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
-#include "led/gpio_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
-#include "fogseek_common/mcp_tools.h"
 #include <wifi_station.h>
 #include <esp_log.h>
 
-#define TAG "FogSeekMoodlight"
+#define TAG "FogSeekAudio"
 
-class FogSeekMoodlight : public WifiBoard
+class FogSeekAudio : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
     FogSeekLedController led_controller_;
-
     AudioCodec *audio_codec_ = nullptr;
 
     // 添加自动唤醒标志位
@@ -48,9 +44,7 @@ private:
     {
         led_pin_config_t led_pin_config = {
             .red_gpio = LED_RED_GPIO,
-            .green_gpio = LED_GREEN_GPIO,
-            .cold_light_gpio = COLD_LIGHT_GPIO,
-            .warm_light_gpio = WARM_LIGHT_GPIO};
+            .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
     }
 
@@ -140,28 +134,14 @@ private:
     // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
     void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
     {
-        if (!power_manager_.IsPowerOn() ||
-            Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
+        if (!power_manager_.IsPowerOn() || Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
         {
             led_controller_.UpdateBatteryStatus(power_manager_);
         }
     }
 
-    void InitializeMCP()
-    {
-        // 获取MCP服务器实例
-        auto &mcp_server = McpServer::GetInstance();
-
-        // 初始化灯光 MCP 工具
-        InitializeLightMCP(mcp_server,
-                           led_controller_.GetColdLight(),
-                           led_controller_.GetWarmLight(),
-                           led_controller_.IsColdLightOn(),
-                           led_controller_.IsWarmLightOn());
-    }
-
 public:
-    FogSeekMoodlight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekAudio() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializePowerManager();
         InitializeLedController();
@@ -183,19 +163,9 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekMoodlight()
+    ~FogSeekAudio()
     {
-        if (battery_check_timer_)
-        {
-            esp_timer_stop(battery_check_timer_);
-            esp_timer_delete(battery_check_timer_);
-        }
-
-        if (battery_monitor_)
-        {
-            delete battery_monitor_;
-        }
     }
 };
 
-DECLARE_BOARD(FogSeekMoodlight);
+DECLARE_BOARD(FogSeekAudio);

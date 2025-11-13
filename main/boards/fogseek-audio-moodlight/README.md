@@ -1,6 +1,6 @@
 ## 产品简介
 
-FogSeek品牌情绪灯是一款智能氛围灯，具有以下特点：
+雾岸科技 MoodLight 是一款智能氛围灯，具有以下特点：
 
 ## 主要功能
 
@@ -9,7 +9,6 @@ FogSeek品牌情绪灯是一款智能氛围灯，具有以下特点：
 3. **音频处理**：支持语音交互功能
 4. **电池管理**：内置电池充电管理功能
 5. **WiFi连接**：支持WiFi网络连接
-
 
 ## 硬件特性
 
@@ -36,7 +35,7 @@ FogSeek品牌情绪灯是一款智能氛围灯，具有以下特点：
 推荐使用以下命令一键构建固件，该方式会自动应用所有板子特定配置：
 
 ```bash
-python scripts/release.py fogseek-moodlight
+python scripts/release.py fogseek-audio-moodlight
 ```
 
 此命令会自动完成以下操作：
@@ -65,7 +64,7 @@ idf.py menuconfig
 
 3. **在 menuconfig 中选择：**
 ```
-Xiaozhi Assistant -> Board Type -> 雾岸科技 ESP32-S3-Audio 
+Xiaozhi Assistant -> Board Type -> 雾岸科技 MoodLight
 ```
 
 4. **编译：**
@@ -73,3 +72,11 @@ Xiaozhi Assistant -> Board Type -> 雾岸科技 ESP32-S3-Audio
 ```bash
 idf.py build
 ```
+
+## 应用场景
+
+这款开发板适用于以下应用场景：
+- 智能家居氛围灯
+- 情绪调节照明设备
+- 语音控制照明系统
+- 个性化装饰灯
