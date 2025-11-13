@@ -51,6 +51,7 @@ dependencies:
   txp666/otto-emoji-gif-component: ^1.0.3
   espressif/adc_battery_estimation: ^0.2.0
   espressif/esp_new_jpeg: ^0.6.1
+  espressif/esp_audio_codec: ^2.3.0
 
   # SenseCAP Watcher Board
   wvirgil123/sscma_client:
