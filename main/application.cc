@@ -688,6 +688,12 @@ void Application::SetDeviceState(DeviceState state) {
                     STATE_STRINGS[previous_state], STATE_STRINGS[state]);
             music->StopStreaming();
         }
+        auto radio = board.GetRadio();
+        if (radio) {
+            ESP_LOGI(TAG, "Stopping radio streaming due to state change: %s -> %s", 
+                    STATE_STRINGS[previous_state], STATE_STRINGS[state]);
+            radio->Stop();
+        }
     }																	   
     switch (state) {
         case kDeviceStateUnknown:

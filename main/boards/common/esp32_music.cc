@@ -492,6 +492,11 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
 
 // 停止流式播放
 bool Esp32Music::StopStreaming() {
+    if (!is_playing_ && !is_downloading_) {
+        ESP_LOGW(TAG, "No streaming in progress to stop");
+        return true;
+    }
+    
     ESP_LOGI(TAG, "Stopping music streaming - current state: downloading=%d, playing=%d", 
             is_downloading_.load(), is_playing_.load());
 

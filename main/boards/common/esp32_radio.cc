@@ -10,6 +10,7 @@
 #include <esp_heap_caps.h>
 #include <esp_pthread.h>
 #include <esp_timer.h>
+#include <mbedtls/sha256.h>
 #include <cstring>
 #include <chrono>
 #include <sstream>
@@ -21,18 +22,93 @@
 
 #define TAG "Esp32Radio"
 
+/**
+ * @brief 获取设备MAC地址
+ * @return MAC地址字符串
+ */
+static std::string get_device_mac() {
+    return SystemInfo::GetMacAddress();
+}
+
+/**
+ * @brief 获取设备芯片ID
+ * @return 芯片ID字符串
+ */
+static std::string get_device_chip_id() {
+    // 使用MAC地址作为芯片ID，去除冒号分隔符
+    std::string mac = SystemInfo::GetMacAddress();
+    // 去除所有冒号
+    mac.erase(std::remove(mac.begin(), mac.end(), ':'), mac.end());
+    return mac;
+}
+
+/**
+ * @brief 生成动态密钥
+ * @param timestamp 时间戳
+ * @return 动态密钥字符串
+ */
+static std::string generate_dynamic_key(int64_t timestamp) {
+    // 密钥（请修改为与服务端一致）
+    const std::string secret_key = "your-esp32-secret-key-2024";
+    
+    // 获取设备信息
+    std::string mac = get_device_mac();
+    std::string chip_id = get_device_chip_id();
+    
+    // 组合数据：MAC:芯片ID:时间戳:密钥
+    std::string data = mac + ":" + chip_id + ":" + std::to_string(timestamp) + ":" + secret_key;
+    
+    // SHA256哈希
+    unsigned char hash[32];
+    mbedtls_sha256((unsigned char*)data.c_str(), data.length(), hash, 0);
+    
+    // 转换为十六进制字符串（前16字节）
+    std::string key;
+    for (int i = 0; i < 16; i++) {
+        char hex[3];
+        snprintf(hex, sizeof(hex), "%02X", hash[i]);
+        key += hex;
+    }
+    
+    return key;
+}
+
+/**
+ * @brief 为HTTP请求添加认证头
+ * @param http HTTP客户端指针
+ */
+static void add_auth_headers(Http* http) {
+    // 获取当前时间戳
+    int64_t timestamp = esp_timer_get_time() / 1000000;  // 转换为秒
+    
+    // 生成动态密钥
+    std::string dynamic_key = generate_dynamic_key(timestamp);
+    
+    // 获取设备信息
+    std::string mac = get_device_mac();
+    std::string chip_id = get_device_chip_id();
+    
+    // 添加认证头
+    if (http) {
+        http->SetHeader("X-MAC-Address", mac);
+        http->SetHeader("X-Chip-ID", chip_id);
+        http->SetHeader("X-Timestamp", std::to_string(timestamp));
+        http->SetHeader("X-Dynamic-Key", dynamic_key);
+        
+        ESP_LOGI(TAG, "Added auth headers - MAC: %s, ChipID: %s, Timestamp: %lld", 
+                 mac.c_str(), chip_id.c_str(), timestamp);
+    }
+}
+
 Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
                          station_name_displayed_(false), radio_stations_(),
-                         display_mode_(DISPLAY_MODE_SPECTRUM), is_playing_(false), is_downloading_(false), 
+                         display_mode_(DISPLAY_MODE_INFO), is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
-                         buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
-                         mp3_decoder_initialized_(false), aac_decoder_(nullptr), aac_info_(),
-                         aac_decoder_initialized_(false), aac_info_ready_(false), aac_out_buffer_(),
-                         is_radio_mode_(false), format_detected_(false) {
-    ESP_LOGI(TAG, "Radio player initialized with dual decoder support (MP3 + AAC)");
+                         buffer_cv_(), buffer_size_(0), aac_decoder_(nullptr), aac_info_(),
+                         aac_decoder_initialized_(false), aac_info_ready_(false), aac_out_buffer_() {
+    ESP_LOGI(TAG, "VOV Radio player initialized with AAC decoder support");
     InitializeRadioStations();
-    InitializeMp3Decoder();
-    // AAC decoder will be initialized on-demand for radio streams
+    // AAC decoder will be initialized on-demand
 }
 
 Esp32Radio::~Esp32Radio() {
@@ -62,16 +138,15 @@ Esp32Radio::~Esp32Radio() {
         ESP_LOGI(TAG, "Playback thread finished");
     }
     
-    // 清理缓冲区和解码器
+    // 清理缓冲区和 AAC 解码器
     ClearAudioBuffer();
-    CleanupMp3Decoder();
     CleanupAacDecoder();
     
     ESP_LOGI(TAG, "Radio player destroyed successfully");
 }
 
 void Esp32Radio::InitializeRadioStations() {
-    // Vietnamese VOV radio stations - AAC+ format (now supported!)
+    // Vietnamese VOV radio stations - AAC+ format only
     // These streams return Content-Type: audio/aacp and require AAC decoder
     radio_stations_["VOV1"] = RadioStation("VOV 1 - Đài Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-1", "Kênh thông tin tổng hợp", "News/Talk");
     radio_stations_["VOV2"] = RadioStation("VOV 2 - Âm thanh Việt Nam", "https://stream.vovmedia.vn/vov-2", "Kênh văn hóa - văn nghệ", "Culture/Music");  
@@ -79,27 +154,14 @@ void Esp32Radio::InitializeRadioStations() {
     radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese");
     radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic");
     radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông TP.HCM", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic");
-    
-    // Additional VOV stations
     radio_stations_["VOV_ENGLISH"] = RadioStation("VOV Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International");
     radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional");
+    radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional");
+    radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional");
+    radio_stations_["VOV_DONGBAC"] = RadioStation("VOV Đông Bắc", "https://stream.vovmedia.vn/vov4db", "Kênh vùng Đông Bắc", "Regional");
+    radio_stations_["VOV_TAYNGUYEN"] = RadioStation("VOV Tây Nguyên", "https://stream.vovmedia.vn/vov4tn", "Kênh vùng Tây Nguyên", "Regional");
     
-    // Vietnamese FM stations - Try direct streams first, may be MP3 or AAC
-    radio_stations_["SAIGONRADIO"] = RadioStation("Saigon Radio 99.9FM", "http://113.161.6.157:8888/stream", "Đài phát thanh Sài Gòn", "Music");
-    radio_stations_["FMVN"] = RadioStation("FM Việt Nam", "http://27.71.232.10:8000/stream", "FM Vietnam", "Music");
-    
-    // International stations - Đã test hoạt động
-    radio_stations_["TESTMP3"] = RadioStation("SomaFM Groove Salad", "http://ice1.somafm.com/groovesalad-256-mp3", "Ambient Electronic", "Ambient");
-    radio_stations_["JAZZRADIO"] = RadioStation("Jazz Radio", "http://jazz-wr11.ice.infomaniak.ch/jazz-wr11-128.mp3", "Jazz Music", "Jazz");
-    radio_stations_["BBC"] = RadioStation("BBC World Service", "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service", "BBC World Service English", "News/International");
-    radio_stations_["CHILLOUT"] = RadioStation("Chillout Radio", "http://5.39.71.159:8488/stream", "Chillout Music", "Chillout");
-    
-    // Proven working backup stations
-    radio_stations_["SOMAGROOVE"] = RadioStation("SomaFM Groove", "http://ice1.somafm.com/groovesalad-256-mp3", "Groove Salad Ambient", "Ambient");
-    radio_stations_["SOMADRONE"] = RadioStation("SomaFM Drone", "http://ice1.somafm.com/dronezone-256-mp3", "Drone Zone Ambient", "Ambient");
-    radio_stations_["SOMABEAT"] = RadioStation("SomaFM Beat", "http://ice1.somafm.com/beatblender-128-mp3", "Beat Blender", "Electronic");
-    
-    ESP_LOGI(TAG, "Initialized %d radio stations (MP3 + AAC format support)", radio_stations_.size());
+    ESP_LOGI(TAG, "Initialized %d VOV radio stations (AAC format only)", radio_stations_.size());
 }
 
 bool Esp32Radio::PlayStation(const std::string& station_name) {
@@ -108,23 +170,7 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
     // Tìm station trong danh sách
     auto it = radio_stations_.find(station_name);
     if (it != radio_stations_.end()) {
-        bool success = PlayUrl(it->second.url, it->second.name);
-        
-        // Nếu VOV station fail, thử fallback sang station khác
-        if (!success && station_name.find("VOV") != std::string::npos) {
-            ESP_LOGW(TAG, "VOV station failed, trying fallback options");
-            
-            // Thử các backup stations
-            if (station_name == "VOV1") {
-                return PlayUrl("http://ice1.somafm.com/groovesalad-256-mp3", "SomaFM (VOV1 Fallback)");
-            } else if (station_name == "VOV2") {
-                return PlayUrl("http://jazz-wr11.ice.infomaniak.ch/jazz-wr11-128.mp3", "Jazz Radio (VOV2 Fallback)");
-            } else if (station_name == "VOV3") {
-                return PlayUrl("http://5.39.71.159:8488/stream", "Chillout Radio (VOV3 Fallback)");
-            }
-        }
-        
-        return success;
+        return PlayUrl(it->second.url, it->second.name);
     }
     
     // Nếu không tìm thấy, thử tìm theo tên không phân biệt hoa thường
@@ -163,10 +209,8 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
     current_station_name_ = station_name.empty() ? "Custom Radio" : station_name;
     station_name_displayed_ = false;
     
-    // 清空缓冲区和重置格式检测
+    // 清空缓冲区
     ClearAudioBuffer();
-    format_detected_ = false;  // Reset format detection for new stream
-    is_radio_mode_.store(false);  // Default to MP3, will be updated by format detection
     
     // 配置线程栈大小
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
@@ -188,6 +232,11 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
 }
 
 bool Esp32Radio::Stop() {
+    if (!is_playing_ && !is_downloading_) {
+        ESP_LOGW(TAG, "No streaming in progress to stop");
+        return true;
+    }
+
     ESP_LOGI(TAG, "Stopping radio streaming - current state: downloading=%d, playing=%d", 
             is_downloading_.load(), is_playing_.load());
 
@@ -260,11 +309,12 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
     
-    // 设置基本请求头 - Headers cho cả HTTP và HTTPS
-    http->SetHeader("User-Agent", "ESP32-Radio-Player/1.0");
+    http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "*/*");
-    http->SetHeader("Icy-MetaData", "1");  // 请求流媒体元数据
-    http->SetHeader("Connection", "keep-alive");  // Tối ưu cho stream
+    http->SetHeader("Range", "bytes=0-");  // 支持断点续传
+
+    // 添加ESP32认证头
+    add_auth_headers(http.get());
     
     // Ghi log để debug HTTPS vs HTTP
     bool is_https = (radio_url.find("https://") == 0);
@@ -278,7 +328,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
         auto& board = Board::GetInstance();
         auto display = board.GetDisplay();
         if (display) {
-            display->SetMusicInfo("❌ Lỗi kết nối radio");
+            display->SetMusicInfo("Lỗi kết nối radio");
         }
         return;
     }
@@ -311,16 +361,6 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
         int bytes_read = http->Read(buffer, chunk_size);
         if (bytes_read < 0) {
             ESP_LOGE(TAG, "Failed to read radio data: error code %d", bytes_read);
-            
-            // Nếu là HTTPS và gặp SSL error, thông báo cho user
-            if (radio_url.find("https://") == 0) {
-                ESP_LOGE(TAG, "SSL/TLS error detected with HTTPS stream");
-                auto& board = Board::GetInstance();
-                auto display = board.GetDisplay();
-                if (display) {
-                    display->SetMusicInfo("❌ HTTPS stream lỗi SSL");
-                }
-            }
             break;
         }
         if (bytes_read == 0) {
@@ -329,54 +369,28 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
             vTaskDelay(pdMS_TO_TICKS(1000));  // 等待1秒后继续
             continue;
         }
+
+        if (bytes_read < 16) {
+            ESP_LOGI(TAG, "Data chunk too small: %d bytes", bytes_read);
+        }
         
-        // Enhanced format detection with dual decoder support
-        if (!format_detected_ && total_downloaded == 0 && bytes_read >= 4) {
+        // VOV streams use AAC+ format - log format detection
+        if (total_downloaded == 0 && bytes_read >= 4) {
             if (memcmp(buffer, "ID3", 3) == 0) {
-                ESP_LOGI(TAG, "✅ Detected MP3 stream with ID3 tag");
-                is_radio_mode_.store(false);  // MP3 format
-                format_detected_ = true;
+                ESP_LOGI(TAG, "Detected MP3 file with ID3 tag");
             } else if (buffer[0] == 0xFF && (buffer[1] & 0xE0) == 0xE0) {
-                ESP_LOGI(TAG, "✅ Detected MP3 stream header");
-                is_radio_mode_.store(false);  // MP3 format
-                format_detected_ = true;
-            } else if ((buffer[0] == 0xFF && (buffer[1] & 0xF0) == 0xF0) || 
-                       memcmp(buffer, "ADTS", 4) == 0) {
-                ESP_LOGI(TAG, "✅ Detected AAC/ADTS stream - Using AAC decoder");
-                ESP_LOGI(TAG, "VOV streams use audio/aacp (AAC+) format - now supported!");
-                is_radio_mode_.store(true);   // AAC format - radio mode
-                format_detected_ = true;
-            } else if (memcmp(buffer, "#EXT", 4) == 0 || memcmp(buffer, "#EXT-X", 6) == 0) {
-                ESP_LOGE(TAG, "❌ Detected HLS/M3U8 playlist, this URL is not a direct stream");
-                ESP_LOGE(TAG, "Content preview: %.100s", buffer);
-                break;  // Dừng download vì không phải direct stream
-            } else if (memcmp(buffer, "<?xml", 5) == 0 || memcmp(buffer, "<html", 5) == 0) {
-                ESP_LOGE(TAG, "❌ Detected HTML/XML content, not an audio stream");
-                ESP_LOGE(TAG, "Content preview: %.100s", buffer);
-                break;
+                ESP_LOGI(TAG, "Detected MP3 file header");
+            } else if (memcmp(buffer, "RIFF", 4) == 0) {
+                ESP_LOGI(TAG, "Detected WAV file");
+            } else if (memcmp(buffer, "fLaC", 4) == 0) {
+                ESP_LOGI(TAG, "Detected FLAC file");
+            } else if (memcmp(buffer, "OggS", 4) == 0) {
+                ESP_LOGI(TAG, "Detected OGG file");
             } else {
-                ESP_LOGW(TAG, "⚠️  Unknown stream format, first 16 bytes:");
-                for (int i = 0; i < std::min(16, bytes_read); i++) {
-                    printf("%02X ", (unsigned char)buffer[i]);
-                }
-                printf("\n");
-                // In dưới dạng text nếu có thể
-                ESP_LOGW(TAG, "As text: %.50s", buffer);
-                
-                // Heuristic: VOV URLs likely AAC, others likely MP3
-                if (radio_url.find("vovmedia.vn") != std::string::npos) {
-                    ESP_LOGW(TAG, "VOV domain detected, assuming AAC format");
-                    is_radio_mode_.store(true);
-                } else {
-                    ESP_LOGW(TAG, "Non-VOV domain, attempting MP3 decode");
-                    is_radio_mode_.store(false);
-                }
-                format_detected_ = true;
+                ESP_LOGI(TAG, "Unknown audio format, first 4 bytes: %02X %02X %02X %02X", 
+                        (unsigned char)buffer[0], (unsigned char)buffer[1], 
+                        (unsigned char)buffer[2], (unsigned char)buffer[3]);
             }
-            
-            // Log detected format
-            ESP_LOGI(TAG, "Stream format: %s decoder will be used", 
-                    is_radio_mode_.load() ? "AAC" : "MP3");
         }
         
         // 创建音频数据块
@@ -423,7 +437,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
 }
 
 void Esp32Radio::PlayRadioStream() {
-    ESP_LOGI(TAG, "Starting radio stream playback with dual decoder support");
+    ESP_LOGI(TAG, "Starting VOV radio stream playback with AAC decoder");
     
     auto codec = Board::GetInstance().GetAudioCodec();
     if (!codec) {
@@ -446,33 +460,11 @@ void Esp32Radio::PlayRadioStream() {
         }
     }
     
-    // Wait for format detection
-    while (is_playing_ && !format_detected_) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-        ESP_LOGD(TAG, "Waiting for format detection...");
-    }
-    
-    if (!is_playing_) {
-        ESP_LOGI(TAG, "Playback stopped during format detection");
+    // Initialize AAC decoder
+    if (!InitializeAacDecoder()) {
+        ESP_LOGE(TAG, "Failed to initialize AAC decoder for VOV streams");
+        is_playing_ = false;
         return;
-    }
-    
-    bool radio_mode = is_radio_mode_.load();
-    ESP_LOGI(TAG, "Format detected: %s decoder will be used", radio_mode ? "AAC" : "MP3");
-    
-    // Initialize appropriate decoder
-    if (radio_mode) {
-        if (!InitializeAacDecoder()) {
-            ESP_LOGE(TAG, "Failed to initialize AAC decoder for radio mode");
-            is_playing_ = false;
-            return;
-        }
-    } else {
-        if (!mp3_decoder_initialized_) {
-            ESP_LOGE(TAG, "MP3 decoder not initialized");
-            is_playing_ = false;
-            return;
-        }
     }
     
     // 等待缓冲区有足够数据开始播放
@@ -497,9 +489,6 @@ void Esp32Radio::PlayRadioStream() {
         is_playing_ = false;
         return;
     }
-    
-    // 标记是否已经处理过ID3标签 (chỉ cho MP3)
-    bool id3_processed = false;
     
     while (is_playing_) {
         // 检查设备状态，只有在空闲状态才播放电台
@@ -528,7 +517,7 @@ void Esp32Radio::PlayRadioStream() {
             auto& board = Board::GetInstance();
             auto display = board.GetDisplay();
             if (display) {
-                std::string formatted_station_name = "📻 " + current_station_name_;
+                std::string formatted_station_name = "《" + current_station_name_ + "》播放中...";
                 display->SetMusicInfo(formatted_station_name.c_str());
                 ESP_LOGI(TAG, "Displaying radio station: %s", formatted_station_name.c_str());
                 station_name_displayed_ = true;
@@ -588,24 +577,14 @@ void Esp32Radio::PlayRadioStream() {
                 bytes_left += copy_size;
                 read_ptr = input_buffer;
                 
-                // 检查并跳过ID3标签 (chỉ cho MP3)
-                if (!radio_mode && !id3_processed && bytes_left >= 10) {
-                    size_t id3_skip = SkipId3Tag(read_ptr, bytes_left);
-                    if (id3_skip > 0) {
-                        read_ptr += id3_skip;
-                        bytes_left -= id3_skip;
-                        ESP_LOGI(TAG, "Skipped ID3 tag: %u bytes", (unsigned int)id3_skip);
-                    }
-                    id3_processed = true;
-                }
+                // AAC streams don't need ID3 tag processing
                 
                 // 释放chunk内存
                 heap_caps_free(chunk.data);
             }
         }
         
-        // DUAL DECODER LOGIC - AAC for radio, MP3 for music
-        if (radio_mode) {
+        // AAC DECODER for VOV streams
             // === AAC DECODER PATH ===
             if (bytes_left <= 0) {
                 continue; // Need more data
@@ -633,15 +612,8 @@ void Esp32Radio::PlayRadioStream() {
                 }
                 if (dec_ret != ESP_AUDIO_ERR_OK) {
                     ESP_LOGE(TAG, "AAC decode error: %d", dec_ret);
-                    // Skip some bytes and continue
-                    if (raw.len > 1) {
-                        raw.buffer++;
-                        raw.len--;
-                    } else {
-                        bytes_left = 0;
-                        break;
-                    }
-                    continue;
+                    is_playing_ = false;
+                    break;
                 }
                 
                 if (out_frame.decoded_size > 0) {
@@ -725,100 +697,7 @@ void Esp32Radio::PlayRadioStream() {
                 ESP_LOGI(TAG, "AAC radio stream ended");
                 break;
             }
-            
-        } else {
-            // === MP3 DECODER PATH ===
-            if (bytes_left < 512) {
-                ESP_LOGD(TAG, "Not enough data for MP3 decode: %d bytes", bytes_left);
-                continue;
-            }
-            
-            // Find MP3 sync word
-            int sync_offset = MP3FindSyncWord(read_ptr, bytes_left);
-            if (sync_offset < 0) {
-                ESP_LOGW(TAG, "No MP3 sync word found in %d bytes, clearing buffer", bytes_left);
-                bytes_left = 0;
-                continue;
-            }
-            
-            // Skip to sync position
-            if (sync_offset > 0) {
-                ESP_LOGD(TAG, "Found MP3 sync at offset %d", sync_offset);
-                read_ptr += sync_offset;
-                bytes_left -= sync_offset;
-            }
-            
-            // Decode MP3 frame
-            int16_t pcm_buffer[2304];
-            int decode_result = MP3Decode(mp3_decoder_, &read_ptr, &bytes_left, pcm_buffer, 0);
-            
-            if (decode_result == 0) {
-                // Decode success
-                MP3GetLastFrameInfo(mp3_decoder_, &mp3_frame_info_);
-                
-                if (mp3_frame_info_.samprate == 0 || mp3_frame_info_.nChans == 0) {
-                    ESP_LOGW(TAG, "Invalid MP3 frame info: rate=%d, channels=%d", 
-                            mp3_frame_info_.samprate, mp3_frame_info_.nChans);
-                    continue;
-                }
-                
-                if (mp3_frame_info_.outputSamps > 0) {
-                    int16_t* final_pcm_data = pcm_buffer;
-                    int final_sample_count = mp3_frame_info_.outputSamps;
-                    std::vector<int16_t> mono_buffer;
-                    
-                    // Convert stereo to mono if needed
-                    if (mp3_frame_info_.nChans == 2) {
-                        int mono_samples = mp3_frame_info_.outputSamps / 2;
-                        mono_buffer.resize(mono_samples);
-                        
-                        for (int i = 0; i < mono_samples; ++i) {
-                            int left = pcm_buffer[i * 2];
-                            int right = pcm_buffer[i * 2 + 1];
-                            mono_buffer[i] = (int16_t)((left + right) / 2);
-                        }
-                        
-                        final_pcm_data = mono_buffer.data();
-                        final_sample_count = mono_samples;
-                    }
-                    
-                    // Create AudioStreamPacket
-                    AudioStreamPacket packet;
-                    packet.sample_rate = mp3_frame_info_.samprate;
-                    packet.frame_duration = 60;
-                    packet.timestamp = 0;
-                    
-                    size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
-                    packet.payload.resize(pcm_size_bytes);
-                    memcpy(packet.payload.data(), final_pcm_data, pcm_size_bytes);
 
-                    // Save for FFT display
-                    if (final_pcm_data_fft == nullptr) {
-                        final_pcm_data_fft = (int16_t*)heap_caps_malloc(
-                            final_sample_count * sizeof(int16_t), MALLOC_CAP_SPIRAM);
-                    }
-                    if (final_pcm_data_fft) {
-                        memcpy(final_pcm_data_fft, final_pcm_data, pcm_size_bytes);
-                    }
-                    
-                    app.AddAudioData(std::move(packet));
-                    total_played += pcm_size_bytes;
-                    
-                    if (total_played % (128 * 1024) == 0) {
-                        ESP_LOGI(TAG, "MP3: Played %d bytes, buffer size: %d", total_played, buffer_size_);
-                    }
-                }
-            } else {
-                // MP3 decode failed
-                ESP_LOGW(TAG, "MP3 decode failed with error: %d", decode_result);
-                if (bytes_left > 1) {
-                    read_ptr++;
-                    bytes_left--;
-                } else {
-                    bytes_left = 0;
-                }
-            }
-        } // End of MP3/AAC decoder if-else
     }
     
     // 清理
@@ -826,10 +705,8 @@ void Esp32Radio::PlayRadioStream() {
         heap_caps_free(input_buffer);
     }
     
-    // Cleanup AAC decoder if it was initialized for this stream
-    if (radio_mode) {
-        CleanupAacDecoder();
-    }
+    // Cleanup AAC decoder
+    CleanupAacDecoder();
     
     ESP_LOGI(TAG, "Radio stream playback finished, total played: %d bytes", total_played);
     is_playing_ = false;
@@ -860,27 +737,7 @@ void Esp32Radio::ClearAudioBuffer() {
     ESP_LOGI(TAG, "Radio audio buffer cleared");
 }
 
-bool Esp32Radio::InitializeMp3Decoder() {
-    mp3_decoder_ = MP3InitDecoder();
-    if (mp3_decoder_ == nullptr) {
-        ESP_LOGE(TAG, "Failed to initialize MP3 decoder");
-        mp3_decoder_initialized_ = false;
-        return false;
-    }
-    
-    mp3_decoder_initialized_ = true;
-    ESP_LOGI(TAG, "MP3 decoder initialized successfully");
-    return true;
-}
 
-void Esp32Radio::CleanupMp3Decoder() {
-    if (mp3_decoder_ != nullptr) {
-        MP3FreeDecoder(mp3_decoder_);
-        mp3_decoder_ = nullptr;
-    }
-    mp3_decoder_initialized_ = false;
-    ESP_LOGI(TAG, "MP3 decoder cleaned up");
-}
 
 void Esp32Radio::ResetSampleRate() {
     auto& board = Board::GetInstance();

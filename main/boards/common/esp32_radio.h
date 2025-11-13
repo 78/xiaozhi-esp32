@@ -12,13 +12,7 @@
 
 #include "radio.h"
 
-// Dual audio decoder support: MP3 for music and AAC for radio streams
-// MP3 decoder for general music files and compatible radio streams
-extern "C" {
-#include "mp3dec.h"
-}
-
-// AAC Simple Decoder for radio streaming (especially VOV streams)
+// AAC Simple Decoder for VOV radio streams
 // VOV URLs return audio/aacp format which requires AAC decoder
 extern "C" {
 #include "esp_audio_simple_dec_default.h"
@@ -75,29 +69,18 @@ private:
     static constexpr size_t MAX_BUFFER_SIZE = 256 * 1024;  // 256KB缓冲区
     static constexpr size_t MIN_BUFFER_SIZE = 32 * 1024;   // 32KB最小播放缓冲
     
-    // MP3解码器相关
-    HMP3Decoder mp3_decoder_;
-    MP3FrameInfo mp3_frame_info_;
-    bool mp3_decoder_initialized_;
-    
-    // AAC Simple Decoder for radio streams
+    // AAC Simple Decoder for VOV radio streams
     esp_audio_simple_dec_handle_t aac_decoder_;
     esp_audio_simple_dec_info_t aac_info_;
     bool aac_decoder_initialized_;
     bool aac_info_ready_;
     std::vector<uint8_t> aac_out_buffer_;
     
-    // Stream format detection
-    std::atomic<bool> is_radio_mode_;  // true cho radio streams (AAC), false cho music (MP3)
-    bool format_detected_;
-    
     // 私有方法
     void InitializeRadioStations();
     void DownloadRadioStream(const std::string& radio_url);
     void PlayRadioStream();
     void ClearAudioBuffer();
-    bool InitializeMp3Decoder();
-    void CleanupMp3Decoder();
     bool InitializeAacDecoder();
     void CleanupAacDecoder();
     void ResetSampleRate();
