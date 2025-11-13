@@ -421,8 +421,7 @@ void Application::Start() {
     });
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (device_state_ == kDeviceStateSpeaking) {
-            // 传入 true 参数是为了保证在高负载情况下，音频数据包不会丢失，确保音频播放的流畅性和完整性。
-            audio_service_.PushPacketToDecodeQueue(std::move(packet), true);
+            audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
@@ -453,7 +452,25 @@ void Application::Start() {
                     }
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
-                Schedule([this]() {
+                //是否中断播放 is_aborted: 0 否 1是
+                auto is_aborted = cJSON_GetObjectItem(root, "is_aborted");
+                bool is_aborted_bool = false;
+                if (cJSON_IsBool(is_aborted)) {
+                    is_aborted_bool = is_aborted->valueint != 0;
+                }
+              
+                
+                Schedule([this, is_aborted_bool]() {
+
+                    //是否中断播放 //默认会清空队列
+                    if (!is_aborted_bool) {
+                        //等待播放完成
+                        while (!audio_service_.isPlaybackQueueEmpty() ) {
+                            vTaskDelay(pdMS_TO_TICKS(10));
+                        }
+                    }
+
+
                     if (device_state_ == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
