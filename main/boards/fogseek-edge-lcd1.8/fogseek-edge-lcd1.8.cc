@@ -3,7 +3,7 @@
 #include "power_manager.h"
 #include "display_manager.h"
 #include "led_controller.h"
-#include "codecs/es8311_audio_codec.h"
+#include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -17,9 +17,9 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEsp32s3EdgeLcd15"
+#define TAG "FogSeekEdgeLcd18"
 
-class FogSeekEsp32s3EdgeLcd15 : public WifiBoard
+class FogSeekEdgeLcd18 : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -127,12 +127,12 @@ private:
 
         ctrl_button_.OnLongPress([this]()
                                  {
-            // 切换电源状态
-            if (!power_manager_.IsPowerOn()) {
-                PowerOn();
-            } else {
-                PowerOff();
-            } });
+                                     // 切换电源状态
+                                     if (!power_manager_.IsPowerOn()) {
+                                     PowerOn();
+                                     } else {
+                                     PowerOff();
+                                     } });
     }
 
     // 开机流程
@@ -186,7 +186,7 @@ private:
             app.Schedule([]()
                          {
             auto &app = Application::GetInstance();
-            app.ToggleChatState(); });
+    app.ToggleChatState(); });
         }
     }
 
@@ -214,7 +214,7 @@ private:
     }
 
 public:
-    FogSeekEsp32s3EdgeLcd15() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdgeLcd18() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -256,7 +256,7 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEsp32s3EdgeLcd15()
+    ~FogSeekEdgeLcd18()
     {
         if (i2c_bus_)
         {
@@ -265,4 +265,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEsp32s3EdgeLcd15);
+DECLARE_BOARD(FogSeekEdgeLcd18);
