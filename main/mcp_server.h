@@ -63,28 +63,58 @@ private:
     bool has_default_value_;
     std::optional<int> min_value_;  // 新增：整数最小值
     std::optional<int> max_value_;  // 新增：整数最大值
+    // 新增：字段描述（向后兼容，默认空）
+    std::string description_;
 
 public:
     // Required field constructor
     Property(const std::string& name, PropertyType type)
-        : name_(name), type_(type), has_default_value_(false) {}
+        : name_(name), type_(type), has_default_value_(false), description_("") {}
 
     // Optional field constructor with default value
     template<typename T>
     Property(const std::string& name, PropertyType type, const T& default_value)
-        : name_(name), type_(type), has_default_value_(true) {
+        : name_(name), type_(type), has_default_value_(true), description_("") {
+        value_ = default_value;
+    }
+
+    // --- 新增：带 description 的构造重载（向后兼容）
+    Property(const std::string& name, PropertyType type, const std::string& description)
+        : name_(name), type_(type), has_default_value_(false), description_(description) {}
+
+    template<typename T>
+    Property(const std::string& name, PropertyType type, const std::string& description, const T& default_value)
+        : name_(name), type_(type), has_default_value_(true), description_(description) {
         value_ = default_value;
     }
 
     Property(const std::string& name, PropertyType type, int min_value, int max_value)
-        : name_(name), type_(type), has_default_value_(false), min_value_(min_value), max_value_(max_value) {
+        : name_(name), type_(type), has_default_value_(false), min_value_(min_value), max_value_(max_value), description_("") {
+        if (type != kPropertyTypeInteger) {
+            throw std::invalid_argument("Range limits only apply to integer properties");
+        }
+    }
+
+    Property(const std::string& name, PropertyType type, int min_value, int max_value, const std::string& description)
+        : name_(name), type_(type), has_default_value_(false), min_value_(min_value), max_value_(max_value), description_(description) {
         if (type != kPropertyTypeInteger) {
             throw std::invalid_argument("Range limits only apply to integer properties");
         }
     }
 
     Property(const std::string& name, PropertyType type, int default_value, int min_value, int max_value)
-        : name_(name), type_(type), has_default_value_(true), min_value_(min_value), max_value_(max_value) {
+        : name_(name), type_(type), has_default_value_(true), min_value_(min_value), max_value_(max_value), description_("") {
+        if (type != kPropertyTypeInteger) {
+            throw std::invalid_argument("Range limits only apply to integer properties");
+        }
+        if (default_value < min_value || default_value > max_value) {
+            throw std::invalid_argument("Default value must be within the specified range");
+        }
+        value_ = default_value;
+    }
+
+    Property(const std::string& name, PropertyType type, int default_value, int min_value, int max_value, const std::string& description)
+        : name_(name), type_(type), has_default_value_(true), min_value_(min_value), max_value_(max_value), description_(description) {
         if (type != kPropertyTypeInteger) {
             throw std::invalid_argument("Range limits only apply to integer properties");
         }
@@ -95,6 +125,7 @@ public:
     }
 
     inline const std::string& name() const { return name_; }
+    inline const std::string& description() const { return description_; }
     inline PropertyType type() const { return type_; }
     inline bool has_default_value() const { return has_default_value_; }
     inline bool has_range() const { return min_value_.has_value() && max_value_.has_value(); }
@@ -144,6 +175,11 @@ public:
             if (has_default_value_) {
                 cJSON_AddStringToObject(json, "default", value<std::string>().c_str());
             }
+        }
+        
+        // 如果有描述，则输出 description 字段（向后兼容：老工具 description_ 为空）
+        if (!description_.empty()) {
+            cJSON_AddStringToObject(json, "description", description_.c_str());
         }
         
         char *json_str = cJSON_PrintUnformatted(json);
