@@ -469,14 +469,14 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     // Clear the buffer
     ClearAudioBuffer();
     
-    // Configure thread stack size to avoid stack overflowtranslate to english
+    // Configure thread stack size to avoid stack overflow
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
     cfg.stack_size = 8192;  // 8KB stack size
     cfg.prio = 5;           // Medium priority
     cfg.thread_name = "audio_stream";
     esp_pthread_set_cfg(&cfg);
     
-    // 开始下载线程
+    // Start the download thread
     is_downloading_ = true;
     download_thread_ = std::thread(&Esp32Music::DownloadAudioStream, this, music_url);
     
@@ -600,6 +600,8 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "*/*");
     http->SetHeader("Range", "bytes=0-");  // Support range requests
+    http->SetHeader("Connection", "keep-alive");  // Giữ kết nối ổn định
+    http->SetHeader("Cache-Control", "no-cache"); // Tránh cache cũ
     
     // Add ESP32 authentication headers
     add_auth_headers(http.get());
@@ -760,6 +762,16 @@ void Esp32Music::PlayAudioStream() {
     
     // Flag to indicate if ID3 tags have been processed
     bool id3_processed = false;
+
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    int16_t* pcm_buffer = new int16_t[2304];  // Max PCM samples per MP3 frame
+    if (!pcm_buffer) {
+        ESP_LOGE(TAG, "Failed to allocate PCM buffer");
+        heap_caps_free(mp3_input_buffer);
+        is_playing_ = false;
+        return;
+    }
     
     while (is_playing_) {
         // Check device state, only play music in idle state
@@ -786,8 +798,6 @@ void Esp32Music::PlayAudioStream() {
         
         // Device state check passed, display the current song name
         if (!song_name_displayed_ && !current_song_name_.empty()) {
-            auto& board = Board::GetInstance();
-            auto display = board.GetDisplay();
             if (display) {
                 // Format song name as "《Song Name》Playing..."
                 std::string formatted_song_name = "《" + current_song_name_ + "》Playing...";
@@ -882,7 +892,6 @@ void Esp32Music::PlayAudioStream() {
         }
         
         // Decode MP3 frame
-        int16_t pcm_buffer[2304];
         int decode_result = MP3Decode(mp3_decoder_, &read_ptr, &bytes_left, pcm_buffer, 0);
         
         if (decode_result == 0) {
@@ -957,20 +966,16 @@ void Esp32Music::PlayAudioStream() {
                 packet.payload.resize(pcm_size_bytes);
                 memcpy(packet.payload.data(), final_pcm_data, pcm_size_bytes);
 
-                // For FFT display, keep a copy of the final PCM data
-                if (final_pcm_data_fft == nullptr) {
-                    final_pcm_data_fft = (int16_t*)heap_caps_malloc(
-                        final_sample_count * sizeof(int16_t),
-                        MALLOC_CAP_SPIRAM
-                    );
+                if (display) {
+                    if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+                        // Create or update FFT audio data buffer
+                        final_pcm_data_fft = display->createAudioDataBuffer(pcm_size_bytes);
+
+                        // Push PCM data to FFT buffer
+                        display->updateAudioDataBuffer(final_pcm_data, pcm_size_bytes);
+                    }
                 }
-                // Copy PCM data for FFT display
-                memcpy(
-                    final_pcm_data_fft,
-                    final_pcm_data,
-                    final_sample_count * sizeof(int16_t)
-                );
-                
+
                 ESP_LOGD(TAG, "Sending %d PCM samples (%d bytes, rate=%d, channels=%d->1) to Application", 
                         final_sample_count, pcm_size_bytes, mp3_frame_info_.samprate, mp3_frame_info_.nChans);
                 
@@ -998,6 +1003,9 @@ void Esp32Music::PlayAudioStream() {
         }
     }
     
+    // Free PCM buffer
+    delete[] pcm_buffer;
+
     // Cleanup
     if (mp3_input_buffer) {
         heap_caps_free(mp3_input_buffer);
@@ -1012,10 +1020,9 @@ void Esp32Music::PlayAudioStream() {
     
     // Stop FFT display only in spectrum mode
     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        auto& board = Board::GetInstance();
-        auto display = board.GetDisplay();
         if (display) {
             display->stopFft();
+            display->releaseAudioDataBuffer();
             ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
         }
     } else {

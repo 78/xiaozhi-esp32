@@ -135,6 +135,8 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     width_ = width;
     height_ = height;
 
+    final_pcm_data_fft = nullptr;
+
     // Initialize LCD themes
     InitializeLcdThemes();
 
@@ -1342,7 +1344,7 @@ void LcdDisplay::periodicUpdateTask() {
     }
   
 
-    auto music = Board::GetInstance().GetMusic();
+    // auto music = Board::GetInstance().GetMusic();
         
     const TickType_t displayInterval = pdMS_TO_TICKS(40);  
     const TickType_t audioProcessInterval = pdMS_TO_TICKS(15); 
@@ -1356,7 +1358,7 @@ void LcdDisplay::periodicUpdateTask() {
         
         
         if (currentTime - lastAudioTime >= audioProcessInterval) {
-            if(music->GetAudioData() != nullptr) {
+            if(final_pcm_data_fft != nullptr) {
                 readAudioData();  // 快速处理，不阻塞
             } else {
                 vTaskDelay(pdMS_TO_TICKS(100));
@@ -1516,15 +1518,32 @@ void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
 
 }
 
+int16_t* LcdDisplay::createAudioDataBuffer(size_t sample_count) {
+    if (final_pcm_data_fft == nullptr) {
+        final_pcm_data_fft = (int16_t *)heap_caps_malloc( sample_count, MALLOC_CAP_SPIRAM);
+    }
+    return final_pcm_data_fft;
+}
+
+void LcdDisplay::updateAudioDataBuffer(int16_t* data, size_t sample_count) {
+    // Copy PCM data for FFT display
+    memcpy( final_pcm_data_fft, data, sample_count);
+}
+
+void LcdDisplay::releaseAudioDataBuffer(int16_t* buffer) {
+    if (final_pcm_data_fft != nullptr) {
+        heap_caps_free(final_pcm_data_fft);
+        final_pcm_data_fft = nullptr;
+    }
+}
+
 void LcdDisplay::readAudioData(){
    
-    auto music = Board::GetInstance().GetMusic();
+    // auto music = Board::GetInstance().GetMusic();
     
-    if(music->GetAudioData()!=nullptr){
-        
-    
+    if(final_pcm_data_fft!=nullptr){
         if(audio_display_last_update<=2){
-            memcpy(audio_data,music->GetAudioData(),sizeof(int16_t)*1152);
+            memcpy(audio_data,final_pcm_data_fft,sizeof(int16_t)*1152);
             for(int i=0;i<1152;i++){
                 frame_audio_data[i]+=audio_data[i];
             }

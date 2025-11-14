@@ -40,9 +40,14 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+
+    // For FFT display
     virtual void start() {}
-    virtual void clearScreen() {}  // 清除FFT显示，默认为空实现
-    virtual void stopFft() {}      // 停止FFT显示，默认为空实现
+    virtual void clearScreen() {}  // Clear the FFT display, default is an empty implementation
+    virtual void stopFft() {}      // Stop FFT display, default is an empty implementation
+    virtual void updateAudioDataBuffer(int16_t* data, size_t sample_count) {};
+    virtual int16_t* createAudioDataBuffer(size_t sample_count) { return nullptr; };
+    virtual void releaseAudioDataBuffer(int16_t* buffer = nullptr) {};
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

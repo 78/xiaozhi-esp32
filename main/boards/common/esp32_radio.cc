@@ -504,6 +504,9 @@ void Esp32Radio::PlayRadioStream() {
         is_playing_ = false;
         return;
     }
+
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
     
     while (is_playing_) {
         // Check device state, only play radio when idle
@@ -529,8 +532,6 @@ void Esp32Radio::PlayRadioStream() {
         
         // Display radio station name
         if (!station_name_displayed_ && !current_station_name_.empty()) {
-            auto& board = Board::GetInstance();
-            auto display = board.GetDisplay();
             if (display) {
                 std::string formatted_station_name = "《" + current_station_name_ + "》Playing...";
                 display->SetMusicInfo(formatted_station_name.c_str());
@@ -695,16 +696,17 @@ void Esp32Radio::PlayRadioStream() {
                 size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
                 packet.payload.resize(pcm_size_bytes);
                 memcpy(packet.payload.data(), amplified_buffer.data(), pcm_size_bytes);
-                
-                // Save amplified audio for FFT display
-                if (final_pcm_data_fft == nullptr) {
-                    final_pcm_data_fft = (int16_t*)heap_caps_malloc(
-                        final_sample_count * sizeof(int16_t), MALLOC_CAP_SPIRAM);
+
+                if (display) {
+                    if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+                        // Create or update FFT audio data buffer
+                        final_pcm_data_fft = display->createAudioDataBuffer(pcm_size_bytes);
+
+                        // Copy amplified data to FFT buffer
+                        display->updateAudioDataBuffer(amplified_buffer.data(), pcm_size_bytes);
+                    }
                 }
-                if (final_pcm_data_fft) {
-                    memcpy(final_pcm_data_fft, amplified_buffer.data(), pcm_size_bytes);
-                }
-                
+
                 app.AddAudioData(std::move(packet));
                 total_played += pcm_size_bytes;
                 
@@ -742,10 +744,9 @@ void Esp32Radio::PlayRadioStream() {
     
     // Stop FFT display
     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        auto& board = Board::GetInstance();
-        auto display = board.GetDisplay();
         if (display) {
             display->stopFft();
+            display->releaseAudioDataBuffer();
             ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
         }
     }
