@@ -1,40 +1,89 @@
 #include "wifi_board.h"
+#include "display/lcd_display.h"
+#include "esp_lcd_sh8601.h"
+
+#include "codecs/box_audio_codec.h"
 #include "application.h"
 #include "button.h"
+#include "led/single_led.h"
+#include "mcp_server.h"
 #include "config.h"
-#include "codecs/box_audio_codec.h"
+#include "power_save_timer.h"
+#include "axp2101.h"
+#include "i2c_device.h"
+#include <wifi_station.h>
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include <driver/spi_common.h>
-#include <wifi_station.h>
-#include "esp_lcd_sh8601.h"
-#include "display/lcd_display.h"
-#include "mcp_server.h"
-#include "lvgl.h"
+#include <driver/spi_master.h>
+#include "settings.h"
 
-#define TAG "waveshare_c6_amoled_2_06"
+#include <esp_lvgl_port.h>
+#include <lvgl.h>
 
-static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = 
-{
-    {0x11, (uint8_t []){0x00}, 0, 80},   
+#define TAG "WaveshareEsp32c6TouchAMOLED2inch06"
+
+class Pmic : public Axp2101 {
+public:
+    Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
+        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteReg(0x27, 0x10);  // hold 4s to power off
+
+        // Disable All DCs but DC1
+        WriteReg(0x80, 0x01);
+        // Disable All LDOs
+        WriteReg(0x90, 0x00);
+        WriteReg(0x91, 0x00);
+
+        // Set DC1 to 3.3V
+        WriteReg(0x82, (3300 - 1500) / 100);
+
+        // Set ALDO1 to 3.3V
+        WriteReg(0x92, (3300 - 500) / 100);
+        WriteReg(0x93, (3300 - 500) / 100);
+
+        // Enable ALDO1(MIC)
+        WriteReg(0x90, 0x03);
+
+        WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+
+        WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
+        WriteReg(0x62, 0x0A); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
+    }
+};
+
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
+#define LCD_OPCODE_READ_CMD (0x03ULL)
+#define LCD_OPCODE_WRITE_COLOR (0x32ULL)
+
+static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
+    // set display to qspi mode
+    {0x11, (uint8_t []){0x00}, 0, 120},
     {0xC4, (uint8_t []){0x80}, 1, 0},
-    {0x53, (uint8_t []){0x20}, 1, 1},
-    {0x63, (uint8_t []){0xFF}, 1, 1},
-    {0x51, (uint8_t []){0x00}, 1, 1},
+    {0x44, (uint8_t []){0x01, 0xD1}, 2, 0},
+    {0x35, (uint8_t []){0x00}, 1, 0},
+    {0x53, (uint8_t []){0x20}, 1, 10},
+    {0x63, (uint8_t []){0xFF}, 1, 10},
+    {0x51, (uint8_t []){0x00}, 1, 10},
+    {0x2A, (uint8_t []){0x00,0x16,0x01,0xAF}, 4, 0},
+    {0x2B, (uint8_t []){0x00,0x00,0x01,0xF5}, 4, 0},
     {0x29, (uint8_t []){0x00}, 0, 10},
     {0x51, (uint8_t []){0xFF}, 1, 0},
 };
 
+// 在waveshare_amoled_2_06类之前添加新的显示类
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
-    static void MyDrawEventCb(lv_event_t *e) {
-        lv_area_t *area = (lv_area_t *)lv_event_get_param(e);   
+    static void rounder_event_cb(lv_event_t* e) {
+        lv_area_t* area = (lv_area_t* )lv_event_get_param(e);
         uint16_t x1 = area->x1;
-        uint16_t x2 = area->x2; 
+        uint16_t x2 = area->x2;
+
         uint16_t y1 = area->y1;
-        uint16_t y2 = area->y2; 
+        uint16_t y2 = area->y2;
+
         // round the start of coordinate down to the nearest 2M number
         area->x1 = (x1 >> 1) << 1;
         area->y1 = (y1 >> 1) << 1;
@@ -44,43 +93,71 @@ public:
     }
 
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle,
-                    esp_lcd_panel_handle_t panel_handle,
-                    int width,
-                    int height,
-                    int offset_x,
-                    int offset_y,
-                    bool mirror_x,
-                    bool mirror_y,
-                    bool swap_xy)
+                     esp_lcd_panel_handle_t panel_handle,
+                     int width,
+                     int height,
+                     int offset_x,
+                     int offset_y,
+                     bool mirror_x,
+                     bool mirror_y,
+                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
+                        width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*  0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*  0.1, 0);
-        lv_display_add_event_cb(display_, MyDrawEventCb, LV_EVENT_INVALIDATE_AREA, NULL);
+        lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
 };
 
-class CustomBoard : public WifiBoard {
+class CustomBacklight : public Backlight {
+public:
+    CustomBacklight(esp_lcd_panel_io_handle_t panel_io) : Backlight(), panel_io_(panel_io) {}
+
+protected:
+    esp_lcd_panel_io_handle_t panel_io_;
+
+    virtual void SetBrightnessImpl(uint8_t brightness) override {
+        auto display = Board::GetInstance().GetDisplay();
+        DisplayLockGuard lock(display);
+        uint8_t data[1] = {((uint8_t)((255*  brightness) / 100))};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+        esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, &data, sizeof(data));
+    }
+};
+
+class WaveshareEsp32c6TouchAMOLED2inch06 : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
+    Pmic* pmic_ = nullptr;
     Button boot_button_;
-    Button pwr_button_;
-    esp_lcd_panel_handle_t panel_handle = NULL;
-    esp_lcd_panel_io_handle_t io_handle = NULL;
     CustomLcdDisplay* display_;
-    uint8_t pwr_flag = 0;
+    CustomBacklight* backlight_;
+    PowerSaveTimer* power_save_timer_;
 
-    void InitializeI2c() {
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(true);
+            GetBacklight()->SetBrightness(20); });
+        power_save_timer_->OnExitSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(false);
+            GetBacklight()->RestoreBrightness(); });
+        power_save_timer_->OnShutdownRequest([this](){ 
+            pmic_->PowerOff(); });
+        power_save_timer_->SetEnabled(true);
+    }
+
+    void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)0,
+            .i2c_port = I2C_NUM_0,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
             .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
             .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
             .flags = {
                 .enable_internal_pullup = 1,
             },
@@ -88,108 +165,100 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
+    void InitializeAxp2101() {
+        ESP_LOGI(TAG, "Init AXP2101");
+        pmic_ = new Pmic(i2c_bus_, 0x34);
+    }
+
     void InitializeSpi() {
-        spi_bus_config_t buscfg = {            
-            .data0_io_num = LCD_D0,             
-            .data1_io_num = LCD_D1, 
-            .sclk_io_num = LCD_PCLK,            
-            .data2_io_num = LCD_D2,             
-            .data3_io_num = LCD_D3,             
-            .max_transfer_sz = EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * sizeof(uint16_t),
-        };
+        spi_bus_config_t buscfg = {};
+        buscfg.sclk_io_num = EXAMPLE_PIN_NUM_LCD_PCLK;
+        buscfg.data0_io_num = EXAMPLE_PIN_NUM_LCD_DATA0;
+        buscfg.data1_io_num = EXAMPLE_PIN_NUM_LCD_DATA1;
+        buscfg.data2_io_num = EXAMPLE_PIN_NUM_LCD_DATA2;
+        buscfg.data3_io_num = EXAMPLE_PIN_NUM_LCD_DATA3;
+        buscfg.max_transfer_sz = DISPLAY_WIDTH*  DISPLAY_HEIGHT*  sizeof(uint16_t);
+        buscfg.flags = SPICOMMON_BUSFLAG_QUAD;
         ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeLcdDisplay() {
-        const esp_lcd_panel_io_spi_config_t io_config = {
-            .cs_gpio_num = LCD_CS,          
-            .dc_gpio_num = -1,          
-            .spi_mode = 0,              
-            .pclk_hz = 40 * 1000 * 1000,
-            .trans_queue_depth = 4,     
-            .on_color_trans_done = NULL,  
-            .user_ctx = NULL,         
-            .lcd_cmd_bits = 32,         
-            .lcd_param_bits = 8,        
-            .flags = {                  
-                .quad_mode = true,      
-            },                          
-        };
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &io_handle));
-        sh8601_vendor_config_t vendor_config = {
-            .init_cmds = lcd_init_cmds,             // Uncomment these line if use custom initialization commands
-            .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(lcd_init_cmds[0]), // sizeof(axs15231b_lcd_init_cmd_t),
-            .flags = 
-            {
-                .use_qspi_interface = 1,
-            },
-        };
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = LCD_RST,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,     // Implemented by LCD command `36h`
-            .bits_per_pixel = 16,                           // Implemented by LCD command `3Ah` (16/18)
-            .vendor_config = &vendor_config,
-        };
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(io_handle, &panel_config, &panel_handle));
-        esp_lcd_panel_set_gap(panel_handle,0x16,0);
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
-        ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
-        display_ = new CustomLcdDisplay(io_handle, panel_handle,
-        EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-    }
-
-    void InitializeButtons() { //接入锂电池时,可长按PWR开机/关机
+    void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
+            app.ToggleChatState();
         });
 
-        boot_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-
-        boot_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
-
-        pwr_button_.OnPressUp([this]() {
-            if(pwr_flag == 0)
-            {
-                pwr_flag = 1;
+#if CONFIG_USE_DEVICE_AEC
+        boot_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
             }
         });
+#endif
     }
 
-    void InitializeTools()
-    {
-        auto& mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.disp.setbacklight", "设置屏幕亮度", PropertyList({
-            Property("level", kPropertyTypeInteger, 0, 255)
-        }), [this](const PropertyList& properties) -> ReturnValue {
-            int level = properties["level"].value<int>();
-            ESP_LOGI("setbacklight","%d",level);
-            SetDispbacklight(level);
-            return true;
-        });
+    void InitializeSH8601Display() {
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+
+        // 液晶屏控制IO初始化
+        ESP_LOGD(TAG, "Install panel IO");
+        esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
+            EXAMPLE_PIN_NUM_LCD_CS,
+            nullptr,
+            nullptr);
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
+
+        // 初始化液晶屏驱动芯片
+        ESP_LOGD(TAG, "Install LCD driver");
+        const sh8601_vendor_config_t vendor_config = {
+            .init_cmds = &vendor_specific_init[0],
+            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(sh8601_lcd_init_cmd_t),
+            .flags = {
+                .use_qspi_interface = 1,
+            }};
+
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = EXAMPLE_PIN_NUM_LCD_RST;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        panel_config.vendor_config = (void* )&vendor_config;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
+        esp_lcd_panel_set_gap(panel, 0x16, 0);
+        esp_lcd_panel_reset(panel);
+        esp_lcd_panel_init(panel);
+        esp_lcd_panel_invert_color(panel, false);
+        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        esp_lcd_panel_disp_on_off(panel, true);
+        display_ = new CustomLcdDisplay(panel_io, panel,
+                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        backlight_ = new CustomBacklight(panel_io);
+        backlight_->RestoreBrightness();
     }
 
-    void SetDispbacklight(uint8_t backlight) {
-        uint32_t lcd_cmd = 0x51;
-        lcd_cmd &= 0xff;
-        lcd_cmd <<= 8;
-        lcd_cmd |= 0x02 << 24;
-        uint8_t param = backlight;
-        esp_lcd_panel_io_tx_param(io_handle, lcd_cmd, &param,1);
+    // 初始化工具
+    void InitializeTools() {
+        auto &mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.system.reconfigure_wifi",
+            "Reboot the device and enter WiFi configuration mode.\n"
+            "**CAUTION** You must ask the user to confirm this action.",
+            PropertyList(), [this](const PropertyList& properties) {
+                ResetWifiConfiguration();
+                return true;
+            });
     }
 
 public:
-    CustomBoard() :
-        boot_button_(BOOT_BUTTON_GPIO),pwr_button_(PWR_BUTTON_GPIO) {
-        InitializeI2c();
+    WaveshareEsp32c6TouchAMOLED2inch06() : boot_button_(BOOT_BUTTON_GPIO) {
+        InitializePowerSaveTimer();
+        InitializeCodecI2c();
+        InitializeAxp2101();
         InitializeSpi();
-        InitializeLcdDisplay();
+        InitializeSH8601Display();
         InitializeButtons();
         InitializeTools();
     }
@@ -215,6 +284,31 @@ public:
         return display_;
     }
 
+    virtual Backlight* GetBacklight() override {
+        return backlight_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override {
+        static bool last_discharging = false;
+        charging = pmic_->IsCharging();
+        discharging = pmic_->IsDischarging();
+        if (discharging != last_discharging)
+        {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+
+        level = pmic_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled)
+        {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
+    }
 };
 
-DECLARE_BOARD(CustomBoard);
+DECLARE_BOARD(WaveshareEsp32c6TouchAMOLED2inch06);
