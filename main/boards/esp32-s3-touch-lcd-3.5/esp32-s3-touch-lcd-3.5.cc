@@ -193,13 +193,9 @@ private:
         };
 
         esp_video_init_sccb_config_t sccb_config = {
-            .init_sccb = true,
-            .i2c_config = {
-                .port = I2C_NUM_0,
-                .scl_pin = CAM_PIN_SIOC,
-                .sda_pin = CAM_PIN_SIOD,
-            },
-            .freq = 100000,
+            .init_sccb = false,  // 不初始化新的 SCCB，使用现有的 I2C 总线
+            .i2c_handle = i2c_bus_,  // 使用现有的 I2C 总线句柄
+            .freq = 100000,  // 100kHz
         };
 
         esp_video_init_dvp_config_t dvp_config = {
@@ -207,7 +203,7 @@ private:
             .reset_pin = CAM_PIN_RESET,
             .pwdn_pin = CAM_PIN_PWDN,
             .dvp_pin = dvp_pin_config,
-            .xclk_freq = 10000000,
+            .xclk_freq = 12000000,
         };
 
         esp_video_init_config_t video_config = {

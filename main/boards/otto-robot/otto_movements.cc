@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "freertos/idf_additions.h"
 #include "oscillator.h"
 
 static const char* TAG = "OttoMovements";
@@ -198,6 +199,39 @@ void Otto::Execute(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int peri
     vTaskDelay(pdMS_TO_TICKS(10));
 }
 
+//---------------------------------------------------------
+//-- Execute2: 使用绝对角度作为振荡中心
+//--  Parameters:
+//--    amplitude: 振幅数组（每个舵机的振荡幅度）
+//--    center_angle: 绝对角度数组（0-180度），作为振荡中心位置
+//--    period: 周期（毫秒）
+//--    phase_diff: 相位差数组（弧度）
+//--    steps: 步数/周期数（可为小数）
+//---------------------------------------------------------
+void Otto::Execute2(int amplitude[SERVO_COUNT], int center_angle[SERVO_COUNT], int period,
+                    double phase_diff[SERVO_COUNT], float steps = 1.0) {
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+
+    // 将绝对角度转换为offset（offset = center_angle - 90）
+    int offset[SERVO_COUNT];
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        offset[i] = center_angle[i] - 90;
+    }
+
+    int cycles = (int)steps;
+
+    //-- Execute complete cycles
+    if (cycles >= 1)
+        for (int i = 0; i < cycles; i++)
+            OscillateServos(amplitude, offset, period, phase_diff);
+
+    //-- Execute the final not complete cycle
+    OscillateServos(amplitude, offset, period, phase_diff, (float)steps - cycles);
+    vTaskDelay(pdMS_TO_TICKS(10));
+}
+
 ///////////////////////////////////////////////////////////////////
 //-- HOME = Otto at rest position -------------------------------//
 ///////////////////////////////////////////////////////////////////
@@ -224,7 +258,7 @@ void Otto::Home(bool hands_down) {
             }
         }
 
-        MoveServos(500, homes);
+        MoveServos(700, homes);
         is_otto_resting_ = true;
     }
 
@@ -389,7 +423,7 @@ void Otto::ShakeLeg(int steps, int period, int dir) {
     int homes[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
 
     // Changes in the parameters if left leg is chosen
-    if (dir == 1) {
+    if (dir == LEFT) {
         shake_leg1[2] = 180 - 35;
         shake_leg1[3] = 180 - 58;
         shake_leg2[2] = 180 - 120;
@@ -418,6 +452,14 @@ void Otto::ShakeLeg(int steps, int period, int dir) {
     }
 
     vTaskDelay(pdMS_TO_TICKS(period));
+}
+
+//---------------------------------------------------------
+//-- Otto movement: Sit (坐下)
+//---------------------------------------------------------
+void Otto::Sit() {
+    int target[SERVO_COUNT] = {120, 60, 0, 180, 45, 135};
+    MoveServos(600, target);
 }
 
 //---------------------------------------------------------
@@ -589,6 +631,29 @@ void Otto::Flapping(float steps, int period, int height, int dir) {
 }
 
 //---------------------------------------------------------
+//-- Otto gait: WhirlwindLeg (旋风腿)
+//--   Parameters:
+//--     steps: Number of steps
+//--     period: Period (建议100-800毫秒)
+//--     amplitude: amplitude (Values between 20 - 40)
+//---------------------------------------------------------
+void Otto::WhirlwindLeg(float steps, int period, int amplitude) {
+
+
+    int target[SERVO_COUNT] = {90, 90, 180, 90, 45, 20};
+    MoveServos(100, target);
+    target[RIGHT_FOOT] = 160;
+    MoveServos(500, target);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    int C[SERVO_COUNT] = {90, 90, 180, 160, 45, 20};
+    int A[SERVO_COUNT] = {amplitude, 0, 0, 0, amplitude, 0};
+    double phase_diff[SERVO_COUNT] = {DEG2RAD(20), 0, 0, 0, DEG2RAD(20), 0};
+    Execute2(A, C, period, phase_diff, steps);
+
+}
+
+//---------------------------------------------------------
 //-- 手部动作: 举手
 //--  Parameters:
 //--    period: 动作时间
@@ -599,16 +664,15 @@ void Otto::HandsUp(int period, int dir) {
         return;
     }
 
-    int initial[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
     int target[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
 
     if (dir == 0) {
         target[LEFT_HAND] = 170;
         target[RIGHT_HAND] = 10;
-    } else if (dir == 1) {
+    } else if (dir == LEFT) {
         target[LEFT_HAND] = 170;
         target[RIGHT_HAND] = servo_[RIGHT_HAND].GetPosition();
-    } else if (dir == -1) {
+    } else if (dir == RIGHT) {
         target[RIGHT_HAND] = 10;
         target[LEFT_HAND] = servo_[LEFT_HAND].GetPosition();
     }
@@ -629,9 +693,9 @@ void Otto::HandsDown(int period, int dir) {
 
     int target[SERVO_COUNT] = {90, 90, 90, 90, HAND_HOME_POSITION, 180 - HAND_HOME_POSITION};
 
-    if (dir == 1) {
+    if (dir == LEFT) {
         target[RIGHT_HAND] = servo_[RIGHT_HAND].GetPosition();
-    } else if (dir == -1) {
+    } else if (dir == RIGHT) {
         target[LEFT_HAND] = servo_[LEFT_HAND].GetPosition();
     }
 
@@ -639,111 +703,248 @@ void Otto::HandsDown(int period, int dir) {
 }
 
 //---------------------------------------------------------
-//-- 手部动作: 挥手
+//--  手部动作: 挥手
 //--  Parameters:
-//--    period: 动作周期
-//--    dir: 方向 LEFT/RIGHT/BOTH
+//--  dir: 方向 LEFT/RIGHT/BOTH
 //---------------------------------------------------------
-void Otto::HandWave(int period, int dir) {
+void Otto::HandWave(int dir) {
+    if (!has_hands_) {
+        return;
+    }
+    if (dir == LEFT) {
+        int center_angle[SERVO_COUNT] = {90, 90, 90, 90, 160, 135};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 20, 0};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), 0};
+        Execute2(A, center_angle, 300, phase_diff, 5);
+    }
+    else if (dir == RIGHT) {
+        int center_angle[SERVO_COUNT] = {90, 90, 90, 90, 45, 20};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 0, 20};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, DEG2RAD(90)};
+        Execute2(A, center_angle, 300, phase_diff, 5);
+    }
+    else {
+        int center_angle[SERVO_COUNT] = {90, 90, 90, 90, 160, 20};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 20, 20};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(90)};
+        Execute2(A, center_angle, 300, phase_diff, 5);
+    }
+}
+
+
+//---------------------------------------------------------
+//-- 手部动作: 大风车
+//--  Parameters:
+//--    steps: 动作次数
+//--    period: 动作周期（毫秒）
+//--    amplitude: 振荡幅度（度）
+//---------------------------------------------------------
+void Otto::Windmill(float steps, int period, int amplitude) {
     if (!has_hands_) {
         return;
     }
 
-    if (dir == BOTH) {
-        HandWaveBoth(period);
-        return;
-    }
-
-    int servo_index = (dir == LEFT) ? LEFT_HAND : RIGHT_HAND;
-
-    int current_positions[SERVO_COUNT];
-    for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-            current_positions[i] = servo_[i].GetPosition();
-        } else {
-            current_positions[i] = 90;
-        }
-    }
-
-    int position;
-    if (servo_index == LEFT_HAND) {
-        position = 170;
-    } else {
-        position = 10;
-    }
-
-    current_positions[servo_index] = position;
-    MoveServos(300, current_positions);
-    vTaskDelay(pdMS_TO_TICKS(300));
-
-    // 左右摆动5次
-    for (int i = 0; i < 5; i++) {
-        if (servo_index == LEFT_HAND) {
-            current_positions[servo_index] = position - 30;
-            MoveServos(period / 10, current_positions);
-            vTaskDelay(pdMS_TO_TICKS(period / 10));
-            current_positions[servo_index] = position + 30;
-            MoveServos(period / 10, current_positions);
-        } else {
-            current_positions[servo_index] = position + 30;
-            MoveServos(period / 10, current_positions);
-            vTaskDelay(pdMS_TO_TICKS(period / 10));
-            current_positions[servo_index] = position - 30;
-            MoveServos(period / 10, current_positions);
-        }
-        vTaskDelay(pdMS_TO_TICKS(period / 10));
-    }
-
-    if (servo_index == LEFT_HAND) {
-        current_positions[servo_index] = HAND_HOME_POSITION;
-    } else {
-        current_positions[servo_index] = 180 - HAND_HOME_POSITION;
-    }
-    MoveServos(300, current_positions);
+    int center_angle[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+    int A[SERVO_COUNT] = {0, 0, 0, 0, amplitude, amplitude};
+    double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(90)};
+    Execute2(A, center_angle, period, phase_diff, steps);
 }
 
 //---------------------------------------------------------
-//-- 手部动作: 双手同时挥手
+//-- 手部动作: 起飞
 //--  Parameters:
-//--    period: 动作周期
+//--    steps: 动作次数
+//--    period: 动作周期（毫秒），数值越小速度越快
+//--    amplitude: 振荡幅度（度）
 //---------------------------------------------------------
-void Otto::HandWaveBoth(int period) {
+void Otto::Takeoff(float steps, int period, int amplitude) {
     if (!has_hands_) {
         return;
     }
 
-    int current_positions[SERVO_COUNT];
-    for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-            current_positions[i] = servo_[i].GetPosition();
-        } else {
-            current_positions[i] = 90;
-        }
+    Home(true);
+
+    int center_angle[SERVO_COUNT] = {90, 90, 90, 90, 90, 90};
+    int A[SERVO_COUNT] = {0, 0, 0, 0, amplitude, amplitude};
+    double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(-90)};
+    Execute2(A, center_angle, period, phase_diff, steps);
+}
+
+//---------------------------------------------------------
+//-- 手部动作: 健身
+//--  Parameters:
+//--    steps: 动作次数
+//--    period: 动作周期（毫秒）
+//--    amplitude: 振荡幅度（度）
+//---------------------------------------------------------
+void Otto::Fitness(float steps, int period, int amplitude) {
+    if (!has_hands_) {
+        return;
+    }
+    int target[SERVO_COUNT] = {90, 90, 90, 0, 160, 135};
+    MoveServos(100, target);
+    target[LEFT_FOOT] = 20;
+    MoveServos(400, target);
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    int C[SERVO_COUNT] = {90, 90, 20, 90, 160, 135};
+    int A[SERVO_COUNT] = {0, 0, 0, 0, 0, amplitude};
+    double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+    Execute2(A, C, period, phase_diff, steps);
+
+}
+
+//---------------------------------------------------------
+//-- 手部动作: 打招呼
+//--  Parameters:
+//--    dir: 方向 LEFT=左手, RIGHT=右手
+//--    steps: 动作次数
+//---------------------------------------------------------
+void Otto::Greeting(int dir, float steps) {
+    if (!has_hands_) {
+        return;
+    }
+    if (dir == LEFT) {
+        int target[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+        MoveServos(400, target);
+        int C[SERVO_COUNT] = {90, 90, 150, 150, 160, 135};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 20, 0};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+        Execute2(A, C, 300, phase_diff, steps);
+    }
+    else if (dir == RIGHT) {
+        int target[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+        MoveServos(400, target);
+        int C[SERVO_COUNT] = {90, 90, 30, 30, 45, 20};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 0, 20};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+        Execute2(A, C, 300, phase_diff, steps);
     }
 
-    int left_position = 170;
-    int right_position = 10;
+}
 
-    current_positions[LEFT_HAND] = left_position;
-    current_positions[RIGHT_HAND] = right_position;
-    MoveServos(300, current_positions);
-
-    // 左右摆动5次
-    for (int i = 0; i < 5; i++) {
-        // 波浪向左
-        current_positions[LEFT_HAND] = left_position - 30;
-        current_positions[RIGHT_HAND] = right_position + 30;
-        MoveServos(period / 10, current_positions);
-
-        // 波浪向右
-        current_positions[LEFT_HAND] = left_position + 30;
-        current_positions[RIGHT_HAND] = right_position - 30;
-        MoveServos(period / 10, current_positions);
+//---------------------------------------------------------
+//-- 手部动作: 害羞
+//--  Parameters:
+//--    dir: 方向 LEFT=左手, RIGHT=右手
+//--    steps: 动作次数
+//---------------------------------------------------------
+void Otto::Shy(int dir, float steps) {
+    if (!has_hands_) {
+        return;
     }
 
-    current_positions[LEFT_HAND] = HAND_HOME_POSITION;
-    current_positions[RIGHT_HAND] = 180 - HAND_HOME_POSITION;
-    MoveServos(300, current_positions);
+    if (dir == LEFT) {
+        int target[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+        MoveServos(400, target);
+        int C[SERVO_COUNT] = {90, 90, 150, 150, 45, 135};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 20, 20};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(-90)};
+        Execute2(A, C, 300, phase_diff, steps);
+    }
+    else if (dir == RIGHT) {
+        int target[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+        MoveServos(400, target);
+        int C[SERVO_COUNT] = {90, 90, 30, 30, 45, 135};
+        int A[SERVO_COUNT] = {0, 0, 0, 0, 0, 20};
+        double phase_diff[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(-90)};
+        Execute2(A, C, 300, phase_diff, steps);
+    }
+}
+
+//---------------------------------------------------------
+//-- 手部动作: 广播体操
+//---------------------------------------------------------
+void Otto::RadioCalisthenics() {
+    if (!has_hands_) {
+        return;
+    }
+
+    const int period = 1000; 
+    const float steps = 8.0; 
+
+    int C1[SERVO_COUNT] = {90, 90, 90, 90, 145, 45};
+    int A1[SERVO_COUNT] = {0, 0, 0, 0, 45, 45};
+    double phase_diff1[SERVO_COUNT] = {0, 0, 0, 0, DEG2RAD(90), DEG2RAD(-90)};
+    Execute2(A1, C1, period, phase_diff1, steps);
+
+    int C2[SERVO_COUNT] = {90, 90, 115, 65, 90, 90};
+    int A2[SERVO_COUNT] = {0, 0, 25, 25, 0, 0};
+    double phase_diff2[SERVO_COUNT] = {0, 0, DEG2RAD(90), DEG2RAD(-90), 0, 0};
+    Execute2(A2, C2, period, phase_diff2, steps);
+    
+    int C3[SERVO_COUNT] = {90, 90, 130, 130, 90, 90};
+    int A3[SERVO_COUNT] = {0, 0, 0, 0, 20, 0};
+    double phase_diff3[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+    Execute2(A3, C3, period, phase_diff3, steps);
+
+    int C4[SERVO_COUNT] = {90, 90, 50, 50, 90, 90};
+    int A4[SERVO_COUNT] = {0, 0, 0, 0, 0, 20};
+    double phase_diff4[SERVO_COUNT] = {0, 0, 0, 0, 0, 0};
+    Execute2(A4, C4, period, phase_diff4, steps);
+}
+
+//---------------------------------------------------------
+//-- 手部动作: 爱的魔力转圈圈
+//---------------------------------------------------------
+void Otto::MagicCircle() {
+    if (!has_hands_) {
+        return;
+    }
+
+    int A[SERVO_COUNT] = {30, 30, 30, 30, 50, 50};
+    int O[SERVO_COUNT] = {0, 0, 5, -5, 0, 0};
+    double phase_diff[SERVO_COUNT] = {0, 0, DEG2RAD(-90), DEG2RAD(-90), DEG2RAD(-90) , DEG2RAD(90)};
+
+    Execute(A, O, 700, phase_diff, 40);
+}
+
+//---------------------------------------------------------
+//-- 展示动作：串联多个动作展示
+//---------------------------------------------------------
+void Otto::Showcase() {
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+
+    // 1. 往前走3步
+    Walk(3, 1000, FORWARD, 50);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // 2. 挥挥手
+    if (has_hands_) {
+        HandWave(LEFT);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // 3. 跳舞（使用广播体操）
+    if (has_hands_) {
+        RadioCalisthenics();
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // 4. 太空步
+    Moonwalker(3, 900, 25, LEFT);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // 5. 摇摆
+    Swing(3, 1000, 30);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // 6. 起飞
+    if (has_hands_) {
+        Takeoff(5, 300, 40);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // 7. 健身
+    if (has_hands_) {
+        Fitness(5, 1000, 25);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // 8. 往后走3步
+    Walk(3, 1000, BACKWARD, 50);
 }
 
 void Otto::EnableServoLimit(int diff_limit) {

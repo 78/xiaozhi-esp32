@@ -3,9 +3,7 @@
     "builds": [
         {
             "name": "electron-bot",
-            "sdkconfig_append": [
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m.csv\""
-            ]
+            "sdkconfig_append": []
         }
     ]
 }
