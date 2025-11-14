@@ -474,7 +474,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    //ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
