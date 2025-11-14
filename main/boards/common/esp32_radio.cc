@@ -367,7 +367,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     ESP_LOGI(TAG, "Started downloading radio stream, status: %d", status_code);
     
     // Read audio data in chunks
-    const size_t chunk_size = 4096;  // 4KB每块
+    const size_t chunk_size = 4096;  // 4KB per chunk
     char buffer[chunk_size];
     size_t total_downloaded = 0;
     
@@ -672,9 +672,9 @@ void Esp32Radio::PlayRadioStream() {
                     final_sample_count = total_samples;
                 }
                 
-                // Amplify audio by 200% for better radio volume
+                // Amplify audio by 310% for better radio volume
                 std::vector<int16_t> amplified_buffer(final_sample_count);
-                const float amplification_factor = 3.0f; // 200% volume boost (triple volume)
+                const float amplification_factor = 4.1f; // 310% volume boost (quadruple volume)
                 
                 for (int i = 0; i < final_sample_count; ++i) {
                     int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);
