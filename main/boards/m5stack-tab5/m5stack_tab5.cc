@@ -198,7 +198,6 @@ private:
         esp_lcd_dsi_bus_config_t bus_config = {
             .bus_id = 0,
             .num_data_lanes = 2,
-            .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
             .lane_bit_rate_mbps = 900, // 900MHz
         };
         ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus));
@@ -283,7 +282,6 @@ private:
         /* create MIPI DSI bus first, it will initialize the DSI PHY as well */
         bus_config.bus_id = 0;
         bus_config.num_data_lanes = 2;  // ST7123 uses 2 data lanes
-        bus_config.phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT;
         bus_config.lane_bit_rate_mbps = 965;  // ST7123 lane bitrate
         ret = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
         if (ret != ESP_OK) {
