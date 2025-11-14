@@ -15,8 +15,6 @@
 #define TAG "Board"
 
 Board::Board() {
-	music_ = nullptr;
-	radio_ = nullptr;
     Settings settings("board", true);
     uuid_ = settings.GetString("uuid");
     if (uuid_.empty()) {
@@ -24,38 +22,22 @@ Board::Board() {
         settings.SetString("uuid", uuid_);
     }
     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
-
-    music_ = new Esp32Music();
-    ESP_LOGI(TAG, "Music player initialized for all boards");
-    
-    radio_ = new Esp32Radio();
-    ESP_LOGI(TAG, "Radio player initialized for all boards");
 }
 
 Board::~Board() {
-    if (music_) {
-        delete music_;
-        music_ = nullptr;
-        ESP_LOGI(TAG, "Music player destroyed");
-    }
-    if (radio_) {
-        delete radio_;
-        radio_ = nullptr;
-        ESP_LOGI(TAG, "Radio player destroyed");
-    }
 }				 
 std::string Board::GenerateUuid() {
-    // UUID v4 需要 16 字节的随机数据
+    // UUID v4 requires 16 bytes of random data
     uint8_t uuid[16];
     
-    // 使用 ESP32 的硬件随机数生成器
+    // Use ESP32's hardware random number generator
     esp_fill_random(uuid, sizeof(uuid));
     
-    // 设置版本 (版本 4) 和变体位
-    uuid[6] = (uuid[6] & 0x0F) | 0x40;    // 版本 4
-    uuid[8] = (uuid[8] & 0x3F) | 0x80;    // 变体 1
+    // Set version (version 4) and variant bits
+    uuid[6] = (uuid[6] & 0x0F) | 0x40;    // Version 4
+    uuid[8] = (uuid[8] & 0x3F) | 0x80;    // Variant 1
     
-    // 将字节转换为标准的 UUID 字符串格式
+    // Convert bytes to standard UUID string format
     char uuid_str[37];
     snprintf(uuid_str, sizeof(uuid_str),
         "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
@@ -85,11 +67,13 @@ Camera* Board::GetCamera() {
 }
 
 Music* Board::GetMusic() {
-    return music_;
+    static Esp32Music music;
+    return &music;
 }
 
 Radio* Board::GetRadio() {
-    return radio_;
+    static Esp32Radio radio;
+    return &radio;
 }
 
 Led* Board::GetLed() {

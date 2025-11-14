@@ -35,7 +35,7 @@ McpServer::~McpServer() {
 void McpServer::AddCommonTools() {
     // *Important* To speed up the response time, we add the common tools to the beginning of
     // the tools list to utilize the prompt cache.
-    // **重要** 为了提升响应速度，我们把常用的工具放在前面，利用 prompt cache 的特性。
+    // **Important** To improve response speed, we place commonly used tools at the beginning to leverage the prompt cache feature.
 
     // Backup the original tools list and restore it after adding the common tools.
     auto original_tools = std::move(tools_);

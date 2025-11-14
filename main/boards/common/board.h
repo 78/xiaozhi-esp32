@@ -21,21 +21,15 @@ class AudioCodec;
 class Display;
 class Board {
 private:
-    Board(const Board&) = delete; // 禁用拷贝构造函数
-    Board& operator=(const Board&) = delete; // 禁用赋值操作
+    Board(const Board&) = delete; // Disable copy constructor
+    Board& operator=(const Board&) = delete; // Disable assignment operator
 
 protected:
     Board();
     std::string GenerateUuid();
 
-    // 软件生成的设备唯一标识
+    // Software-generated unique device identifier
     std::string uuid_;
-
-    // 音乐播放器实例
-    Music* music_;
-    
-    // 电台播放器实例
-    Radio* radio_;
 
 public:
     static Board& GetInstance() {

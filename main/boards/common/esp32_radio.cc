@@ -23,46 +23,46 @@
 #define TAG "Esp32Radio"
 
 /**
- * @brief 获取设备MAC地址
- * @return MAC地址字符串
+ * @brief Get the device MAC address
+ * @return MAC address as a string
  */
 static std::string get_device_mac() {
     return SystemInfo::GetMacAddress();
 }
 
 /**
- * @brief 获取设备芯片ID
- * @return 芯片ID字符串
+ * @brief Get the device chip ID
+ * @return Chip ID as a string
  */
 static std::string get_device_chip_id() {
-    // 使用MAC地址作为芯片ID，去除冒号分隔符
+    // Use the MAC address as the chip ID, removing colon separators
     std::string mac = SystemInfo::GetMacAddress();
-    // 去除所有冒号
+    // Remove all colons
     mac.erase(std::remove(mac.begin(), mac.end(), ':'), mac.end());
     return mac;
 }
 
 /**
- * @brief 生成动态密钥
- * @param timestamp 时间戳
- * @return 动态密钥字符串
+ * @brief Generate a dynamic key
+ * @param timestamp Timestamp
+ * @return Dynamic key string
  */
 static std::string generate_dynamic_key(int64_t timestamp) {
-    // 密钥（请修改为与服务端一致）
+    // Secret key (please ensure it matches the server-side key)
     const std::string secret_key = "your-esp32-secret-key-2024";
     
-    // 获取设备信息
+    // Retrieve device information
     std::string mac = get_device_mac();
     std::string chip_id = get_device_chip_id();
     
-    // 组合数据：MAC:芯片ID:时间戳:密钥
+    // Combine data: MAC:ChipID:Timestamp:SecretKey
     std::string data = mac + ":" + chip_id + ":" + std::to_string(timestamp) + ":" + secret_key;
     
-    // SHA256哈希
+    // SHA256 hash
     unsigned char hash[32];
     mbedtls_sha256((unsigned char*)data.c_str(), data.length(), hash, 0);
     
-    // 转换为十六进制字符串（前16字节）
+    // Convert to hexadecimal string (first 16 bytes)
     std::string key;
     for (int i = 0; i < 16; i++) {
         char hex[3];
@@ -74,21 +74,21 @@ static std::string generate_dynamic_key(int64_t timestamp) {
 }
 
 /**
- * @brief 为HTTP请求添加认证头
- * @param http HTTP客户端指针
+ * @brief Add authentication headers to the HTTP request
+ * @param http Pointer to the HTTP client
  */
 static void add_auth_headers(Http* http) {
-    // 获取当前时间戳
-    int64_t timestamp = esp_timer_get_time() / 1000000;  // 转换为秒
+    // Get the current timestamp
+    int64_t timestamp = esp_timer_get_time() / 1000000;  // Convert to seconds
     
-    // 生成动态密钥
+    // Generate a dynamic key
     std::string dynamic_key = generate_dynamic_key(timestamp);
     
-    // 获取设备信息
+    // Retrieve device information
     std::string mac = get_device_mac();
     std::string chip_id = get_device_chip_id();
     
-    // 添加认证头
+    // Add authentication headers
     if (http) {
         http->SetHeader("X-MAC-Address", mac);
         http->SetHeader("X-Chip-ID", chip_id);
@@ -102,7 +102,7 @@ static void add_auth_headers(Http* http) {
 
 Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
                          station_name_displayed_(false), radio_stations_(),
-                         display_mode_(DISPLAY_MODE_INFO), is_playing_(false), is_downloading_(false), 
+                         display_mode_(DISPLAY_MODE_SPECTRUM), is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), aac_decoder_(nullptr), aac_info_(),
                          aac_decoder_initialized_(false), aac_info_ready_(false), aac_out_buffer_() {
@@ -114,31 +114,31 @@ Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
 Esp32Radio::~Esp32Radio() {
     ESP_LOGI(TAG, "Destroying radio player - stopping all operations");
     
-    // 停止所有操作
+    // Stop all operations
     is_downloading_ = false;
     is_playing_ = false;
     
-    // 通知所有等待的线程
+    // Notify all waiting threads
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
     }
     
-    // 等待下载线程结束
+    // Wait for the download thread to finish
     if (download_thread_.joinable()) {
         ESP_LOGI(TAG, "Waiting for download thread to finish");
         download_thread_.join();
         ESP_LOGI(TAG, "Download thread finished");
     }
     
-    // 等待播放线程结束
+    // Wait for the playback thread to finish
     if (play_thread_.joinable()) {
         ESP_LOGI(TAG, "Waiting for playback thread to finish");
         play_thread_.join();
         ESP_LOGI(TAG, "Playback thread finished");
     }
     
-    // 清理缓冲区和 AAC 解码器
+    // Clear the buffer and clean up the AAC decoder
     ClearAudioBuffer();
     CleanupAacDecoder();
     
@@ -167,19 +167,19 @@ void Esp32Radio::InitializeRadioStations() {
 bool Esp32Radio::PlayStation(const std::string& station_name) {
     ESP_LOGI(TAG, "Request to play radio station: %s", station_name.c_str());
     
-    // Tìm station trong danh sách
+    // Find the station in the list
     auto it = radio_stations_.find(station_name);
     if (it != radio_stations_.end()) {
         return PlayUrl(it->second.url, it->second.name);
     }
     
-    // Xử lý phát âm lỗi của VOV1 - nhiều cách phát âm khác nhau
+    // Handle mispronunciations of VOV1 - various phonetic variations
     std::string lower_input = station_name;
     std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
     
-    // VOV1 phonetic alternatives - các cách phát âm thường bị lỗi
+    // VOV1 phonetic alternatives - common mispronunciations
     if (lower_input.find("vov") != std::string::npos) {
-        // Kiểm tra các cách phát âm lỗi phổ biến của VOV1
+        // Check common mispronunciations of VOV1
         if (lower_input.find("mộc") != std::string::npos || lower_input.find("mốc") != std::string::npos ||
             lower_input.find("mốt") != std::string::npos || lower_input.find("máu") != std::string::npos ||
             lower_input.find("một") != std::string::npos || lower_input.find("mút") != std::string::npos ||
@@ -190,7 +190,7 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
         }
     }
     
-    // Nếu không tìm thấy, thử tìm theo tên không phân biệt hoa thường
+    // If not found, try searching by name case-insensitively
     for (const auto& station : radio_stations_) {
         std::string lower_key = station.first;
         std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
@@ -215,29 +215,29 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
              station_name.empty() ? "Custom URL" : station_name.c_str(), 
              radio_url.c_str());
     
-    // 停止之前的播放
+    // Stop previous playback
     Stop();
     
-    // 设置当前电台信息
+    // Set current station information
     current_station_url_ = radio_url;
     current_station_name_ = station_name.empty() ? "Custom Radio" : station_name;
     station_name_displayed_ = false;
     
-    // 清空缓冲区
+    // Clear the buffer
     ClearAudioBuffer();
     
-    // 配置线程栈大小
+    // Configure thread stack size
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.stack_size = 8192;  // 8KB栈大小
-    cfg.prio = 5;           // 中等优先级
+    cfg.stack_size = 8192;  // 8KB stack size
+    cfg.prio = 5;           // Medium priority
     cfg.thread_name = "radio_stream";
     esp_pthread_set_cfg(&cfg);
     
-    // 开始下载线程
+    // Start download thread
     is_downloading_ = true;
     download_thread_ = std::thread(&Esp32Radio::DownloadRadioStream, this, radio_url);
     
-    // 开始播放线程
+    // Start playback thread
     is_playing_ = true;
     play_thread_ = std::thread(&Esp32Radio::PlayRadioStream, this);
     
@@ -254,34 +254,34 @@ bool Esp32Radio::Stop() {
     ESP_LOGI(TAG, "Stopping radio streaming - current state: downloading=%d, playing=%d", 
             is_downloading_.load(), is_playing_.load());
 
-    // 重置采样率到原始值
+    // Reset the sample rate to the original value
     ResetSampleRate();
     
-    // 检查是否有流式播放正在进行
+    // Check if there is any streaming in progress
     if (!is_playing_ && !is_downloading_) {
         ESP_LOGW(TAG, "No radio streaming in progress");
         return true;
     }
     
-    // 停止下载和播放标志
+    // Stop download and playback flags
     is_downloading_ = false;
     is_playing_ = false;
     
-    // 清空电台名显示
+    // Clear the station name display
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
     if (display) {
-        display->SetMusicInfo("");  // 清空显示
+        display->SetMusicInfo("");  // Clear the display
         ESP_LOGI(TAG, "Cleared radio station display");
     }
     
-    // 通知所有等待的线程
+    // Notify all waiting threads
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
     }
     
-    // 等待线程结束
+    // Wait for threads to finish
     if (download_thread_.joinable()) {
         download_thread_.join();
         ESP_LOGI(TAG, "Download thread joined in Stop");
@@ -292,7 +292,7 @@ bool Esp32Radio::Stop() {
         ESP_LOGI(TAG, "Play thread joined in Stop");
     }
     
-    // 停止FFT显示
+    // Stop FFT display
     if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
         display->stopFft();
         ESP_LOGI(TAG, "Stopped FFT display in Stop (spectrum mode)");
@@ -313,7 +313,7 @@ std::vector<std::string> Esp32Radio::GetStationList() const {
 void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     ESP_LOGD(TAG, "Starting radio stream download from: %s", radio_url.c_str());
     
-    // 验证URL有效性
+    // Validate URL format
     if (radio_url.empty() || radio_url.find("http") != 0) {
         ESP_LOGE(TAG, "Invalid URL format: %s", radio_url.c_str());
         is_downloading_ = false;
@@ -325,12 +325,12 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "*/*");
-    http->SetHeader("Range", "bytes=0-");  // 支持断点续传
+    http->SetHeader("Range", "bytes=0-");  // Support range requests
 
-    // 添加ESP32认证头
+    // Add ESP32 authentication headers
     add_auth_headers(http.get());
     
-    // Ghi log để debug HTTPS vs HTTP
+    // Log for debugging HTTPS vs HTTP
     bool is_https = (radio_url.find("https://") == 0);
     ESP_LOGI(TAG, "Connecting to %s stream: %s", is_https ? "HTTPS" : "HTTP", radio_url.c_str());
     
@@ -338,18 +338,18 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
         ESP_LOGE(TAG, "Failed to connect to radio stream URL: %s", radio_url.c_str());
         is_downloading_ = false;
         
-        // Thông báo cho user về lỗi kết nối
+        // Notify user about connection error
         auto& board = Board::GetInstance();
         auto display = board.GetDisplay();
         if (display) {
-            display->SetMusicInfo("Lỗi kết nối radio");
+            display->SetMusicInfo("Radio connection error");
         }
         return;
     }
     
     int status_code = http->GetStatusCode();
     
-    // Xử lý redirect status codes - Http class không hỗ trợ GetHeader()
+    // Handle redirect status codes - Http class does not support GetHeader()
     if (status_code >= 300 && status_code < 400) {
         ESP_LOGW(TAG, "HTTP %d redirect detected but cannot follow (no GetHeader method)", status_code);
         http->Close();
@@ -366,7 +366,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     
     ESP_LOGI(TAG, "Started downloading radio stream, status: %d", status_code);
     
-    // 分块读取音频数据
+    // Read audio data in chunks
     const size_t chunk_size = 4096;  // 4KB每块
     char buffer[chunk_size];
     size_t total_downloaded = 0;
@@ -379,8 +379,8 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
         }
         if (bytes_read == 0) {
             ESP_LOGI(TAG, "Radio stream ended, total: %d bytes", total_downloaded);
-            // 对于直播流，这通常意味着连接中断，尝试重连
-            vTaskDelay(pdMS_TO_TICKS(1000));  // 等待1秒后继续
+            // For live streams, this usually means the connection was interrupted, attempt to reconnect
+            vTaskDelay(pdMS_TO_TICKS(1000));  // Wait 1 second before continuing
             continue;
         }
 
@@ -407,7 +407,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
             }
         }
         
-        // 创建音频数据块
+        // Create audio data chunk
         uint8_t* chunk_data = (uint8_t*)heap_caps_malloc(bytes_read, MALLOC_CAP_SPIRAM);
         if (!chunk_data) {
             ESP_LOGE(TAG, "Failed to allocate memory for radio chunk");
@@ -415,7 +415,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
         }
         memcpy(chunk_data, buffer, bytes_read);
         
-        // 等待缓冲区有空间
+        // Wait for buffer space
         {
             std::unique_lock<std::mutex> lock(buffer_mutex_);
             buffer_cv_.wait(lock, [this] { return buffer_size_ < MAX_BUFFER_SIZE || !is_downloading_; });
@@ -425,10 +425,10 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
                 buffer_size_ += bytes_read;
                 total_downloaded += bytes_read;
                 
-                // 通知播放线程有新数据
+                // Notify playback thread of new data
                 buffer_cv_.notify_one();
                 
-                if (total_downloaded % (256 * 1024) == 0) {  // 每256KB打印一次进度
+                if (total_downloaded % (256 * 1024) == 0) {  // Log progress every 256KB
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
             } else {
@@ -442,7 +442,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     is_downloading_ = false;
     ClearAudioBuffer();
     
-    // 通知播放线程下载完成
+    // Notify the playback thread that the download is complete
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
@@ -461,10 +461,10 @@ void Esp32Radio::PlayRadioStream() {
         return;
     }
     
-    // Đợi và thử enable audio output
+    // Wait and try to enable audio output
     if (!codec->output_enabled()) {
         ESP_LOGW(TAG, "Audio codec output not enabled, trying to enable...");
-        vTaskDelay(pdMS_TO_TICKS(500));  // Đợi 500ms
+        vTaskDelay(pdMS_TO_TICKS(500));  // Wait 500ms
         
         if (!codec->output_enabled()) {
             ESP_LOGE(TAG, "Failed to enable audio codec output for radio");
@@ -482,7 +482,7 @@ void Esp32Radio::PlayRadioStream() {
         return;
     }
     
-    // 等待缓冲区有足够数据开始播放
+    // Wait for the buffer to have enough data to start playback
     {
         std::unique_lock<std::mutex> lock(buffer_mutex_);
         buffer_cv_.wait(lock, [this] { 
@@ -497,7 +497,7 @@ void Esp32Radio::PlayRadioStream() {
     int bytes_left = 0;
     uint8_t* read_ptr = nullptr;
     
-    // 分配输入缓冲区 (cho cả MP3 và AAC)
+    // Allocate input buffer (for both MP3 and AAC)
     input_buffer = (uint8_t*)heap_caps_malloc(8192, MALLOC_CAP_SPIRAM);
     if (!input_buffer) {
         ESP_LOGE(TAG, "Failed to allocate input buffer");
@@ -506,7 +506,7 @@ void Esp32Radio::PlayRadioStream() {
     }
     
     while (is_playing_) {
-        // 检查设备状态，只有在空闲状态才播放电台
+        // Check device state, only play radio when idle
         auto& app = Application::GetInstance();
         DeviceState current_state = app.GetDeviceState();
         
@@ -517,8 +517,8 @@ void Esp32Radio::PlayRadioStream() {
             if (current_state == kDeviceStateListening) {
                 ESP_LOGI(TAG, "Device is in listening state, switching to idle state for radio playback");
             }
-            // 切换状态
-            app.ToggleChatState(); // 变成待机状态
+            // Switch state
+            app.ToggleChatState(); // Change to idle state
             vTaskDelay(pdMS_TO_TICKS(300));
             continue;
         } else if (current_state != kDeviceStateIdle) {
@@ -527,18 +527,18 @@ void Esp32Radio::PlayRadioStream() {
             continue;
         }
         
-        // 显示电台名称
+        // Display radio station name
         if (!station_name_displayed_ && !current_station_name_.empty()) {
             auto& board = Board::GetInstance();
             auto display = board.GetDisplay();
             if (display) {
-                std::string formatted_station_name = "《" + current_station_name_ + "》播放中...";
+                std::string formatted_station_name = "《" + current_station_name_ + "》Playing...";
                 display->SetMusicInfo(formatted_station_name.c_str());
                 ESP_LOGI(TAG, "Displaying radio station: %s", formatted_station_name.c_str());
                 station_name_displayed_ = true;
             }
 
-            // 根据显示模式启动相应的显示功能
+            // Start appropriate display functionality based on display mode
             if (display) {
                 if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
                     display->start();
@@ -549,11 +549,11 @@ void Esp32Radio::PlayRadioStream() {
             }
         }
         
-        // 如果需要更多音频数据，从缓冲区读取
+        // If more audio data is needed, read from the buffer
         if (bytes_left < 4096) {
             RadioAudioChunk chunk;
             
-            // 从缓冲区获取音频数据
+            // Retrieve audio data from the buffer
             {
                 std::unique_lock<std::mutex> lock(buffer_mutex_);
                 if (audio_buffer_.empty()) {
@@ -561,7 +561,7 @@ void Esp32Radio::PlayRadioStream() {
                         ESP_LOGI(TAG, "Radio stream ended, total played: %d bytes", total_played);
                         break;
                     }
-                    // 等待新数据
+                    // Wait for new data
                     buffer_cv_.wait(lock, [this] { return !audio_buffer_.empty() || !is_downloading_; });
                     if (audio_buffer_.empty()) {
                         continue;
@@ -572,165 +572,164 @@ void Esp32Radio::PlayRadioStream() {
                 audio_buffer_.pop();
                 buffer_size_ -= chunk.size;
                 
-                // 通知下载线程缓冲区有空间
+                // Notify download thread that buffer has space
                 buffer_cv_.notify_one();
             }
             
-            // 将新数据添加到输入缓冲区
+            // Add new data to the input buffer
             if (chunk.data && chunk.size > 0) {
-                // 移动剩余数据到缓冲区开头
+                // Move remaining data to the beginning of the buffer
                 if (bytes_left > 0 && read_ptr != input_buffer) {
                     memmove(input_buffer, read_ptr, bytes_left);
                 }
                 
-                // 检查缓冲区空间
+                // Check buffer space
                 size_t space_available = 8192 - bytes_left;
                 size_t copy_size = std::min(chunk.size, space_available);
                 
-                // 复制新数据
+                // Copy new data
                 memcpy(input_buffer + bytes_left, chunk.data, copy_size);
                 bytes_left += copy_size;
                 read_ptr = input_buffer;
                 
                 // AAC streams don't need ID3 tag processing
                 
-                // 释放chunk内存
+                // Free chunk memory
                 heap_caps_free(chunk.data);
             }
         }
         
         // AAC DECODER for VOV streams
-            // === AAC DECODER PATH ===
-            if (bytes_left <= 0) {
-                continue; // Need more data
+        // === AAC DECODER PATH ===
+        if (bytes_left <= 0) {
+            continue; // Need more data
+        }
+        
+        bool input_eos = (!is_downloading_ && audio_buffer_.empty());
+        
+        esp_audio_simple_dec_raw_t raw = {};
+        raw.buffer = read_ptr;
+        raw.len = bytes_left;
+        raw.eos = input_eos;
+        
+        esp_audio_simple_dec_out_t out_frame = {};
+        out_frame.buffer = aac_out_buffer_.data();
+        out_frame.len = aac_out_buffer_.size();
+        
+        while (raw.len > 0 && is_playing_) {
+            esp_audio_err_t dec_ret = esp_audio_simple_dec_process(aac_decoder_, &raw, &out_frame);
+            if (dec_ret == ESP_AUDIO_ERR_BUFF_NOT_ENOUGH) {
+                // Output buffer not enough, expand and retry
+                aac_out_buffer_.resize(out_frame.needed_size);
+                out_frame.buffer = aac_out_buffer_.data();
+                out_frame.len = out_frame.needed_size;
+                continue;
             }
-            
-            bool input_eos = (!is_downloading_ && audio_buffer_.empty());
-            
-            esp_audio_simple_dec_raw_t raw = {};
-            raw.buffer = read_ptr;
-            raw.len = bytes_left;
-            raw.eos = input_eos;
-            
-            esp_audio_simple_dec_out_t out_frame = {};
-            out_frame.buffer = aac_out_buffer_.data();
-            out_frame.len = aac_out_buffer_.size();
-            
-            while (raw.len > 0 && is_playing_) {
-                esp_audio_err_t dec_ret = esp_audio_simple_dec_process(aac_decoder_, &raw, &out_frame);
-                if (dec_ret == ESP_AUDIO_ERR_BUFF_NOT_ENOUGH) {
-                    // Output buffer not enough, expand and retry
-                    aac_out_buffer_.resize(out_frame.needed_size);
-                    out_frame.buffer = aac_out_buffer_.data();
-                    out_frame.len = out_frame.needed_size;
-                    continue;
-                }
-                if (dec_ret != ESP_AUDIO_ERR_OK) {
-                    ESP_LOGE(TAG, "AAC decode error: %d", dec_ret);
-                    is_playing_ = false;
-                    break;
-                }
-                
-                if (out_frame.decoded_size > 0) {
-                    // First decode -> get stream info
-                    if (!aac_info_ready_) {
-                        esp_audio_simple_dec_get_info(aac_decoder_, &aac_info_);
-                        aac_info_ready_ = true;
-                        ESP_LOGI(TAG, "AAC stream info: %d Hz, %d bits, %d ch",
-                                aac_info_.sample_rate, aac_info_.bits_per_sample, aac_info_.channel);
-                    }
-                    
-                    int bits_per_sample = (aac_info_.bits_per_sample > 0) ? aac_info_.bits_per_sample : 16;
-                    int bytes_per_sample = bits_per_sample / 8;
-                    int channels = (aac_info_.channel > 0) ? aac_info_.channel : 2;
-                    
-                    int total_samples = out_frame.decoded_size / bytes_per_sample;
-                    int samples_per_channel = (channels > 0) ? (total_samples / channels) : total_samples;
-                    
-                    int16_t* pcm_in = reinterpret_cast<int16_t*>(out_frame.buffer);
-                    std::vector<int16_t> mono_buffer;
-                    int16_t* final_pcm_data = nullptr;
-                    int final_sample_count = 0;
-                    
-                    if (channels == 2) {
-                        // Downmix stereo -> mono
-                        mono_buffer.resize(samples_per_channel);
-                        for (int i = 0; i < samples_per_channel; ++i) {
-                            int left = pcm_in[i * 2];
-                            int right = pcm_in[i * 2 + 1];
-                            mono_buffer[i] = (int16_t)((left + right) / 2);
-                        }
-                        final_pcm_data = mono_buffer.data();
-                        final_sample_count = samples_per_channel;
-                    } else if (channels == 1) {
-                        final_pcm_data = pcm_in;
-                        final_sample_count = total_samples;
-                    } else {
-                        // Unknown channels: treat as mono
-                        final_pcm_data = pcm_in;
-                        final_sample_count = total_samples;
-                    }
-                    
-                    // Amplify audio by 200% for better radio volume
-                    std::vector<int16_t> amplified_buffer(final_sample_count);
-                    const float amplification_factor = 3.0f; // 200% volume boost (triple volume)
-                    
-                    for (int i = 0; i < final_sample_count; ++i) {
-                        int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);
-                        // Clamp to prevent overflow
-                        if (amplified_sample > INT16_MAX) {
-                            amplified_sample = INT16_MAX;
-                        } else if (amplified_sample < INT16_MIN) {
-                            amplified_sample = INT16_MIN;
-                        }
-                        amplified_buffer[i] = (int16_t)amplified_sample;
-                    }
-                    
-                    // Create AudioStreamPacket with amplified audio
-                    AudioStreamPacket packet;
-                    packet.sample_rate = aac_info_.sample_rate;
-                    packet.frame_duration = 60;
-                    packet.timestamp = 0;
-                    
-                    size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
-                    packet.payload.resize(pcm_size_bytes);
-                    memcpy(packet.payload.data(), amplified_buffer.data(), pcm_size_bytes);
-                    
-                    // Save amplified audio for FFT display
-                    if (final_pcm_data_fft == nullptr) {
-                        final_pcm_data_fft = (int16_t*)heap_caps_malloc(
-                            final_sample_count * sizeof(int16_t), MALLOC_CAP_SPIRAM);
-                    }
-                    if (final_pcm_data_fft) {
-                        memcpy(final_pcm_data_fft, amplified_buffer.data(), pcm_size_bytes);
-                    }
-                    
-                    app.AddAudioData(std::move(packet));
-                    total_played += pcm_size_bytes;
-                    
-                    if (total_played % (128 * 1024) == 0) {
-                        ESP_LOGI(TAG, "AAC: Played %d bytes, buffer size: %d", total_played, buffer_size_);
-                    }
-                }
-                
-                // Update input pointer based on consumed bytes
-                raw.len -= raw.consumed;
-                raw.buffer += raw.consumed;
-            }
-            
-            // Update read_ptr and bytes_left for main loop
-            bytes_left = raw.len;
-            read_ptr = const_cast<uint8_t*>(raw.buffer);
-            
-            // Check for end of stream
-            if (input_eos && bytes_left == 0) {
-                ESP_LOGI(TAG, "AAC radio stream ended");
+            if (dec_ret != ESP_AUDIO_ERR_OK) {
+                ESP_LOGE(TAG, "AAC decode error: %d", dec_ret);
+                is_playing_ = false;
                 break;
             }
-
+            
+            if (out_frame.decoded_size > 0) {
+                // First decode -> get stream info
+                if (!aac_info_ready_) {
+                    esp_audio_simple_dec_get_info(aac_decoder_, &aac_info_);
+                    aac_info_ready_ = true;
+                    ESP_LOGI(TAG, "AAC stream info: %d Hz, %d bits, %d ch",
+                            aac_info_.sample_rate, aac_info_.bits_per_sample, aac_info_.channel);
+                }
+                
+                int bits_per_sample = (aac_info_.bits_per_sample > 0) ? aac_info_.bits_per_sample : 16;
+                int bytes_per_sample = bits_per_sample / 8;
+                int channels = (aac_info_.channel > 0) ? aac_info_.channel : 2;
+                
+                int total_samples = out_frame.decoded_size / bytes_per_sample;
+                int samples_per_channel = (channels > 0) ? (total_samples / channels) : total_samples;
+                
+                int16_t* pcm_in = reinterpret_cast<int16_t*>(out_frame.buffer);
+                std::vector<int16_t> mono_buffer;
+                int16_t* final_pcm_data = nullptr;
+                int final_sample_count = 0;
+                
+                if (channels == 2) {
+                    // Downmix stereo -> mono
+                    mono_buffer.resize(samples_per_channel);
+                    for (int i = 0; i < samples_per_channel; ++i) {
+                        int left = pcm_in[i * 2];
+                        int right = pcm_in[i * 2 + 1];
+                        mono_buffer[i] = (int16_t)((left + right) / 2);
+                    }
+                    final_pcm_data = mono_buffer.data();
+                    final_sample_count = samples_per_channel;
+                } else if (channels == 1) {
+                    final_pcm_data = pcm_in;
+                    final_sample_count = total_samples;
+                } else {
+                    // Unknown channels: treat as mono
+                    final_pcm_data = pcm_in;
+                    final_sample_count = total_samples;
+                }
+                
+                // Amplify audio by 200% for better radio volume
+                std::vector<int16_t> amplified_buffer(final_sample_count);
+                const float amplification_factor = 3.0f; // 200% volume boost (triple volume)
+                
+                for (int i = 0; i < final_sample_count; ++i) {
+                    int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);
+                    // Clamp to prevent overflow
+                    if (amplified_sample > INT16_MAX) {
+                        amplified_sample = INT16_MAX;
+                    } else if (amplified_sample < INT16_MIN) {
+                        amplified_sample = INT16_MIN;
+                    }
+                    amplified_buffer[i] = (int16_t)amplified_sample;
+                }
+                
+                // Create AudioStreamPacket with amplified audio
+                AudioStreamPacket packet;
+                packet.sample_rate = aac_info_.sample_rate;
+                packet.frame_duration = 60;
+                packet.timestamp = 0;
+                
+                size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
+                packet.payload.resize(pcm_size_bytes);
+                memcpy(packet.payload.data(), amplified_buffer.data(), pcm_size_bytes);
+                
+                // Save amplified audio for FFT display
+                if (final_pcm_data_fft == nullptr) {
+                    final_pcm_data_fft = (int16_t*)heap_caps_malloc(
+                        final_sample_count * sizeof(int16_t), MALLOC_CAP_SPIRAM);
+                }
+                if (final_pcm_data_fft) {
+                    memcpy(final_pcm_data_fft, amplified_buffer.data(), pcm_size_bytes);
+                }
+                
+                app.AddAudioData(std::move(packet));
+                total_played += pcm_size_bytes;
+                
+                if (total_played % (128 * 1024) == 0) {
+                    ESP_LOGI(TAG, "AAC: Played %d bytes, buffer size: %d", total_played, buffer_size_);
+                }
+            }
+            
+            // Update input pointer based on consumed bytes
+            raw.len -= raw.consumed;
+            raw.buffer += raw.consumed;
+        }
+        
+        // Update read_ptr and bytes_left for main loop
+        bytes_left = raw.len;
+        read_ptr = const_cast<uint8_t*>(raw.buffer);
+        
+        // Check for end of stream
+        if (input_eos && bytes_left == 0) {
+            ESP_LOGI(TAG, "AAC radio stream ended");
+            break;
+        }
     }
     
-    // 清理
+    // Cleanup
     if (input_buffer) {
         heap_caps_free(input_buffer);
     }
@@ -741,7 +740,7 @@ void Esp32Radio::PlayRadioStream() {
     ESP_LOGI(TAG, "Radio stream playback finished, total played: %d bytes", total_played);
     is_playing_ = false;
     
-    // 停止FFT显示
+    // Stop FFT display
     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
         auto& board = Board::GetInstance();
         auto display = board.GetDisplay();
@@ -774,12 +773,12 @@ void Esp32Radio::ResetSampleRate() {
     auto codec = board.GetAudioCodec();
     if (codec && codec->original_output_sample_rate() > 0 && 
         codec->output_sample_rate() != codec->original_output_sample_rate()) {
-        ESP_LOGI(TAG, "重置采样率：从 %d Hz 重置到原始值 %d Hz", 
+        ESP_LOGI(TAG, "Resetting sample rate: from %d Hz back to original value %d Hz", 
                 codec->output_sample_rate(), codec->original_output_sample_rate());
         if (codec->SetOutputSampleRate(-1)) {
-            ESP_LOGI(TAG, "成功重置采样率到原始值: %d Hz", codec->output_sample_rate());
+            ESP_LOGI(TAG, "Successfully reset sample rate to original value: %d Hz", codec->output_sample_rate());
         } else {
-            ESP_LOGW(TAG, "无法重置采样率到原始值");
+            ESP_LOGW(TAG, "Failed to reset sample rate to original value");
         }
     }
 }
@@ -789,21 +788,21 @@ size_t Esp32Radio::SkipId3Tag(uint8_t* data, size_t size) {
         return 0;
     }
     
-    // 检查ID3v2标签头 "ID3"
+    // Check for ID3v2 tag header "ID3"
     if (memcmp(data, "ID3", 3) != 0) {
         return 0;
     }
     
-    // 计算标签大小（synchsafe integer格式）
+    // Calculate tag size (synchsafe integer format)
     uint32_t tag_size = ((uint32_t)(data[6] & 0x7F) << 21) |
                         ((uint32_t)(data[7] & 0x7F) << 14) |
                         ((uint32_t)(data[8] & 0x7F) << 7)  |
                         ((uint32_t)(data[9] & 0x7F));
     
-    // ID3v2头部(10字节) + 标签内容
+    // ID3v2 header (10 bytes) + tag content
     size_t total_skip = 10 + tag_size;
     
-    // 确保不超过可用数据大小
+    // Ensure it does not exceed the available data size
     if (total_skip > size) {
         total_skip = size;
     }
