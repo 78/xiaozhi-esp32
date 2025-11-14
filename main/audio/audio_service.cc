@@ -442,10 +442,12 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
             return false;
         }
     }
+    ESP_LOGD(TAG, "Packet pushed to decode queue, new size: %zu, sr=%d, ts=%d, size=%d" PRIu32 "",
+             audio_decode_queue_.size(), packet->sample_rate, packet->timestamp, packet->payload.size());
     audio_decode_queue_.push_back(std::move(packet));
     audio_queue_cv_.notify_all();
     
-    ESP_LOGD(TAG, "Packet pushed to decode queue, new size: %zu", audio_decode_queue_.size());
+
     return true;
 }
 
