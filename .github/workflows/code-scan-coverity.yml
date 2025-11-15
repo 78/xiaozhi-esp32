@@ -1,0 +1,43 @@
+name: "security-coverity-scan"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "main/**"
+      - ".github/workflows/code-scan-coverity.yml"
+
+permissions: # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+env:
+  XIAOZHI_VERSION: "2.0.4"
+
+jobs:
+  coverity-cpp-code-scan:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.5
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+      - name: Checkout Github code
+        uses: actions/checkout@v5
+
+      - name: Install missing tools for Coverity scan
+        run: |
+          apt-get update
+          apt-get install -y file
+
+      - name: Coverity scan with build command
+        uses: vapier/coverity-scan-action@v1
+        with:
+          project: esp32-xiaozhi
+          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+          version: ${{ env.XIAOZHI_VERSION }}
+          command: bash -c "source $IDF_PATH/export.sh && python scripts/release.py jiuchuan-s3 --name jiuchuan-s3"

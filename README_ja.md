@@ -165,4 +165,11 @@ Feishuドキュメントチュートリアルをご覧ください：
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
  </picture>
-</a> 
+</a>
+
+## Coverity scan
+
+<a href="https://scan.coverity.com/projects/esp32-xiaozhi">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/32587/badge.svg"/>
+</a>
