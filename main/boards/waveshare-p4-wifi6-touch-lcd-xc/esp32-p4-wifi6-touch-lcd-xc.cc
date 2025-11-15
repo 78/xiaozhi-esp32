@@ -63,7 +63,11 @@ private:
         esp_lcd_panel_handle_t disp_panel = NULL;
 
         esp_lcd_dsi_bus_handle_t mipi_dsi_bus = NULL;
-        esp_lcd_dsi_bus_config_t bus_config = JD9365_PANEL_BUS_DSI_2CH_CONFIG();
+        esp_lcd_dsi_bus_config_t bus_config = {
+            .bus_id = 0,
+            .num_data_lanes = 2,
+            .lane_bit_rate_mbps = 1500,
+        };
         esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
 
         ESP_LOGI(TAG, "Install MIPI DSI LCD control panel");
