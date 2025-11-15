@@ -26,14 +26,19 @@ AdcBatteryMonitor::AdcBatteryMonitor(adc_unit_t adc_unit, adc_channel_t adc_chan
         .upper_resistor = upper_resistor,
         .lower_resistor = lower_resistor
     };
-    adc_cfg.charging_detect_cb = [](void *user_data) -> bool {
-        AdcBatteryMonitor *self = (AdcBatteryMonitor *)user_data;
-        if(self->charging_pin_ == GPIO_NUM_NC)
-            return false;
-        else
+
+    // 在ADC配置部分进行条件设置
+    if (charging_pin_ != GPIO_NUM_NC) {
+        adc_cfg.charging_detect_cb = [](void *user_data) -> bool {
+            AdcBatteryMonitor *self = (AdcBatteryMonitor *)user_data;
             return gpio_get_level(self->charging_pin_) == 1;
-    };
-    adc_cfg.charging_detect_user_data = this;
+        };
+        adc_cfg.charging_detect_user_data = this;
+    } else {
+        // 不设置回调，让adc_battery_estimation库使用软件估算
+        adc_cfg.charging_detect_cb = nullptr;
+        adc_cfg.charging_detect_user_data = nullptr;
+    }
     adc_battery_estimation_handle_ = adc_battery_estimation_create(&adc_cfg);
 
     // Initialize timer
@@ -61,24 +66,21 @@ AdcBatteryMonitor::~AdcBatteryMonitor() {
 }
 
 bool AdcBatteryMonitor::IsCharging() {
-    // 如果没有充电检测引脚，直接返回false
-    if (charging_pin_ == GPIO_NUM_NC) {
-        return false;
+    // 优先使用adc_battery_estimation库的功能
+    if (adc_battery_estimation_handle_ != nullptr) {
+        bool is_charging = false;
+        esp_err_t err = adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &is_charging);
+        if (err == ESP_OK) {
+            return is_charging;
+        }
     }
     
-    // 如果句柄无效，回退到直接读取GPIO
-    if (adc_battery_estimation_handle_ == nullptr) {
+    // 回退到GPIO读取或返回默认值
+    if (charging_pin_ != GPIO_NUM_NC) {
         return gpio_get_level(charging_pin_) == 1;
     }
     
-    // 尝试通过adc_battery_estimation获取状态
-    bool is_charging = false;
-    esp_err_t err = adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &is_charging);
-    if (err != ESP_OK) {
-        // 如果调用失败，回退到直接读取GPIO引脚状态
-        return gpio_get_level(charging_pin_) == 1;
-    }
-    return is_charging;
+    return false;
 }
 
 bool AdcBatteryMonitor::IsDischarging() {
@@ -104,11 +106,6 @@ void AdcBatteryMonitor::OnChargingStatusChanged(std::function<void(bool)> callba
 }
 
 void AdcBatteryMonitor::CheckBatteryStatus() {
-    // 避免在GPIO_NUM_NC情况下进行检查
-    if (charging_pin_ == GPIO_NUM_NC) {
-        return;
-    }
-    
     bool new_charging_status = IsCharging();
     if (new_charging_status != is_charging_) {
         is_charging_ = new_charging_status;
