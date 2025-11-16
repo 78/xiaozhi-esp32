@@ -712,7 +712,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     } else {
         ESP_LOGI(TAG, "Audio stream download stopped by user, total downloaded: %d bytes", total_downloaded);
     }
-    ClearAudioBuffer();
+    
     is_downloading_ = false;
     
     // Notify playback thread that download is complete
@@ -727,6 +727,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
 // Stream audio data
 void Esp32Music::PlayAudioStream() {
     ESP_LOGI(TAG, "Starting audio stream playback");
+    size_t total_played_bytes = 0;
     
     // Initialize time tracking variables
     current_play_time_ms_ = 0;
@@ -854,6 +855,7 @@ void Esp32Music::PlayAudioStream() {
                 chunk = audio_buffer_.front();
                 audio_buffer_.pop();
                 buffer_size_ -= chunk.size;
+                total_played_bytes += chunk.size;
                 
                 // Notify download thread that buffer has space
                 buffer_cv_.notify_one();
@@ -1021,11 +1023,12 @@ void Esp32Music::PlayAudioStream() {
     delete[] pcm_buffer;
 
     if (is_playing_) {
-        ESP_LOGI(TAG, "Audio stream playback finished successfully, total played: %d bytes", total_played);
+        ESP_LOGI(TAG, "Audio stream playback finished successfully, total played: %d bytes", total_played_bytes);
+        ClearAudioBuffer();
         // Reset the sample rate to the original value
         ResetSampleRate();
     } else {
-        ESP_LOGI(TAG, "Audio stream playback stopped by user, total played: %d bytes", total_played);
+        ESP_LOGI(TAG, "Audio stream playback stopped by user, total played: %d bytes", total_played_bytes);
     }
 
     // Cleanup
@@ -1034,7 +1037,7 @@ void Esp32Music::PlayAudioStream() {
     }
     
     // Perform basic cleanup at the end of playback, but do not call StopStreaming to avoid thread self-waiting
-    ESP_LOGI(TAG, "Audio stream playback finished, total played: %d bytes", total_played);
+    ESP_LOGI(TAG, "Audio stream playback finished, total played: %d bytes", total_played_bytes);
     ESP_LOGI(TAG, "Performing basic cleanup from play thread");
     
     // Stop playback flag

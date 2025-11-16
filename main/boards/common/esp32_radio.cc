@@ -419,7 +419,6 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     }
 
     is_downloading_ = false;
-    ClearAudioBuffer();  // Clear remaining buffer data
     
     // Notify the playback thread that the download is complete
     {
@@ -708,6 +707,7 @@ void Esp32Radio::PlayRadioStream() {
     
     if (is_downloading_) {
         ESP_LOGI(TAG, "Radio stream playback finished successfully");
+        ClearAudioBuffer();  // Clear remaining buffer data
         // Reset the sample rate to the original value
         ResetSampleRate();
     } else {
