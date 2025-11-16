@@ -155,7 +155,7 @@ void Esp32Radio::InitializeRadioStations() {
     radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese", 4.3f);
     radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic", 5.0f);
     radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông Hồ Chí Minh", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic", 5.2f);
-    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International", 1.5f);
+    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International", 1.0f);
     radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông mekong", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional", 4.6f);
     radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional", 4.4f);
     radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional", 4.7f);
