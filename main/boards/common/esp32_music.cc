@@ -628,6 +628,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     const size_t chunk_size = 4096;  // 4KB per chunk
     char* buffer = new char[chunk_size];
     size_t total_downloaded = 0;
+    size_t total_print_bytes = 0;
     
     while (is_downloading_ && is_playing_) {
         int bytes_read = http->Read(buffer, chunk_size);
@@ -690,11 +691,13 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
                 audio_buffer_.push(AudioChunk(chunk_data, bytes_read));
                 buffer_size_ += bytes_read;
                 total_downloaded += bytes_read;
+                total_print_bytes += bytes_read;
                 
                 // Notify playback thread of new data
                 buffer_cv_.notify_one();
                 
-                if (total_downloaded % (128 * 1024) == 0) {  // Log progress every 128KB
+                if (total_print_bytes % (128 * 1024) == 0) {  // Log progress every 128KB
+                    total_print_bytes = 0;
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
             } else {
@@ -762,6 +765,7 @@ void Esp32Music::PlayAudioStream() {
     ESP_LOGI(TAG, "Starting playback with buffer size: %d", buffer_size_);
     
     size_t total_played_bytes = 0;
+    size_t total_print_bytes = 0;
     uint8_t* mp3_input_buffer = nullptr;
     int bytes_left = 0;
     uint8_t* read_ptr = nullptr;
@@ -855,6 +859,7 @@ void Esp32Music::PlayAudioStream() {
                 audio_buffer_.pop();
                 buffer_size_ -= chunk.size;
                 total_played_bytes += chunk.size;
+                total_print_bytes += chunk.size;
                 
                 // Notify download thread that buffer has space
                 buffer_cv_.notify_one();
@@ -998,7 +1003,8 @@ void Esp32Music::PlayAudioStream() {
                 app.AddAudioData(std::move(packet));
                 
                 // Log playback progress
-                if (total_played_bytes % (128 * 1024) == 0) {
+                if (total_print_bytes % (128 * 1024) == 0) {
+                    total_print_bytes = 0;
                     ESP_LOGI(TAG, "Played %d bytes, buffer size: %d", total_played_bytes, buffer_size_);
                 }
             }
