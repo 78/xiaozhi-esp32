@@ -153,8 +153,8 @@ void Esp32Radio::InitializeRadioStations() {
     radio_stations_["VOV3"] = RadioStation("VOV 3 - Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-3", "Kênh thông tin - giải trí", "Entertainment");
     radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese");
     radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic");
-    radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông TP.HCM", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic");
-    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International");
+    radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông Hồ Chí Minh", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic");
+    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International");
     radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional");
     radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional");
     radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional");
@@ -167,17 +167,42 @@ void Esp32Radio::InitializeRadioStations() {
 bool Esp32Radio::PlayStation(const std::string& station_name) {
     ESP_LOGI(TAG, "Request to play radio station: %s", station_name.c_str());
     
-    // Find the station in the list
-    auto it = radio_stations_.find(station_name);
-    if (it != radio_stations_.end()) {
-        return PlayUrl(it->second.url, it->second.name);
-    }
-    
-    // Handle mispronunciations of VOV1 - various phonetic variations
+    // Convert input to lowercase for case-insensitive search
     std::string lower_input = station_name;
     std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
     
-    // VOV1 phonetic alternatives - common mispronunciations
+    // First, try to find by RadioStation.name (display name) - case insensitive partial match
+    for (const auto& station : radio_stations_) {
+        std::string lower_station_name = station.second.name;
+        std::transform(lower_station_name.begin(), lower_station_name.end(), lower_station_name.begin(), ::tolower);
+        
+        // Check if input matches any part of the station display name
+        if (lower_station_name.find(lower_input) != std::string::npos || 
+            lower_input.find(lower_station_name) != std::string::npos) {
+            ESP_LOGI(TAG, "Found station by display name: '%s' -> %s", station_name.c_str(), station.second.name.c_str());
+            return PlayUrl(station.second.url, station.second.name);
+        }
+    }
+    
+    // Second, try to find by station key (VOV1, VOV2, etc.) - exact match
+    auto it = radio_stations_.find(station_name);
+    if (it != radio_stations_.end()) {
+        ESP_LOGI(TAG, "Found station by key: '%s' -> %s", station_name.c_str(), it->second.name.c_str());
+        return PlayUrl(it->second.url, it->second.name);
+    }
+    
+    // Third, try to find by station key - case insensitive
+    for (const auto& station : radio_stations_) {
+        std::string lower_key = station.first;
+        std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
+        
+        if (lower_key == lower_input) {
+            ESP_LOGI(TAG, "Found station by key (case insensitive): '%s' -> %s", station_name.c_str(), station.second.name.c_str());
+            return PlayUrl(station.second.url, station.second.name);
+        }
+    }
+    
+    // Handle mispronunciations of VOV1 - various phonetic variations
     if (lower_input.find("vov") != std::string::npos) {
         // Check common mispronunciations of VOV1
         if (lower_input.find("mộc") != std::string::npos || lower_input.find("mốc") != std::string::npos ||
@@ -190,14 +215,19 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
         }
     }
     
-    // If not found, try searching by name case-insensitively
-    for (const auto& station : radio_stations_) {
-        std::string lower_key = station.first;
-        std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
-        
-        if (lower_key.find(lower_input) != std::string::npos || 
-            station.second.name.find(station_name) != std::string::npos) {
-            return PlayUrl(station.second.url, station.second.name);
+    // Last resort: try partial matching with keywords from station names
+    std::vector<std::string> keywords = {"tiếng nói", "việt nam", "giao thông", "mê kông", "miền trung", "tây bắc", "đông bắc", "tây nguyên"};
+    for (const std::string& keyword : keywords) {
+        if (lower_input.find(keyword) != std::string::npos) {
+            for (const auto& station : radio_stations_) {
+                std::string lower_station_name = station.second.name;
+                std::transform(lower_station_name.begin(), lower_station_name.end(), lower_station_name.begin(), ::tolower);
+                
+                if (lower_station_name.find(keyword) != std::string::npos) {
+                    ESP_LOGI(TAG, "Found station by keyword '%s': '%s' -> %s", keyword.c_str(), station_name.c_str(), station.second.name.c_str());
+                    return PlayUrl(station.second.url, station.second.name);
+                }
+            }
         }
     }
     
@@ -672,9 +702,9 @@ void Esp32Radio::PlayRadioStream() {
                     final_sample_count = total_samples;
                 }
                 
-                // Amplify audio by 310% for better radio volume
+                // Amplify audio by 350% for better radio volume
                 std::vector<int16_t> amplified_buffer(final_sample_count);
-                const float amplification_factor = 4.1f; // 310% volume boost (quadruple volume)
+                const float amplification_factor = 4.5f; // 350% volume boost (4.5x volume)
                 
                 for (int i = 0; i < final_sample_count; ++i) {
                     int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);
