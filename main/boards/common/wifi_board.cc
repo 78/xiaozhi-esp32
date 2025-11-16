@@ -104,6 +104,10 @@ void WifiBoard::StartNetwork() {
         std::string notification = Lang::Strings::CONNECTED_TO;
         notification += ssid;
         display->ShowNotification(notification.c_str(), 30000);
+        
+        // Debug log: Print IP address when WiFi connected
+        std::string ip_address = WifiStation::GetInstance().GetIpAddress();
+        ESP_LOGI(TAG, "WiFi connected successfully - SSID: %s, IP Address: %s", ssid.c_str(), ip_address.c_str());
     });
     wifi_station.Start();
 

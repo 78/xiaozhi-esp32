@@ -76,7 +76,6 @@ namespace audio_wifi_config
                 // If complete data was received, extract WiFi credentials
                 if (data_buffer.decoded_text.has_value()) {
                     ESP_LOGI(kLogTag, "Received text data: %s", data_buffer.decoded_text->c_str());
-                    display->SetChatMessage("system", data_buffer.decoded_text->c_str());
                     
                     // Split SSID and password by newline character
                     std::string wifi_ssid, wifi_password;
@@ -84,6 +83,8 @@ namespace audio_wifi_config
                     if (newline_position != std::string::npos) {
                         wifi_ssid = data_buffer.decoded_text->substr(0, newline_position);
                         wifi_password = data_buffer.decoded_text->substr(newline_position + 1);
+                        std::string wifi_ssid_display = "Kết nối thành công WiFi \"" + wifi_ssid + "\"";
+                        display->SetChatMessage("system", wifi_ssid_display.c_str());
                         ESP_LOGI(kLogTag, "WiFi SSID: %s, Password: %s", wifi_ssid.c_str(), wifi_password.c_str());
                     } else {
                         ESP_LOGE(kLogTag, "Invalid data format, no newline character found");

@@ -19,6 +19,8 @@
 #include "lvgl_display.h"
 #include "esp32_music.h"
 #include "esp32_radio.h"
+#include "wifi_station.h"
+#include "system_info.h"
 
 #define TAG "MCP"
 
@@ -52,6 +54,32 @@ void McpServer::AddCommonTools() {
         PropertyList(),
         [&board](const PropertyList& properties) -> ReturnValue {
             return board.GetDeviceStatusJson();
+        });
+
+    AddTool("self.network.get_ip_address",
+        "Get the current IP address of the device when connected to WiFi network.\n"
+        "Use this tool when user asks about network connection, IP address, or network configuration.\n"
+        "Returns the current IP address, SSID, and connection status.",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto& wifi_station = WifiStation::GetInstance();
+            
+            cJSON* json = cJSON_CreateObject();
+            cJSON_AddBoolToObject(json, "connected", wifi_station.IsConnected());
+            
+            if (wifi_station.IsConnected()) {
+                cJSON_AddStringToObject(json, "ip_address", wifi_station.GetIpAddress().c_str());
+                cJSON_AddStringToObject(json, "ssid", wifi_station.GetSsid().c_str());
+                cJSON_AddNumberToObject(json, "rssi", wifi_station.GetRssi());
+                cJSON_AddNumberToObject(json, "channel", wifi_station.GetChannel());
+                cJSON_AddStringToObject(json, "mac_address", SystemInfo::GetMacAddress().c_str());
+                cJSON_AddStringToObject(json, "status", "connected");
+            } else {
+                cJSON_AddStringToObject(json, "status", "disconnected");
+                cJSON_AddStringToObject(json, "message", "Device is not connected to WiFi");
+            }
+            
+            return json;
         });
 
     AddTool("self.audio_speaker.set_volume", 
@@ -191,16 +219,7 @@ void McpServer::AddCommonTools() {
     if (radio) {
         AddTool("self.radio.play_station",
                 "Play a radio station by name. Use this tool when user requests to play radio or listen to a specific station."
-                "VOV mộc means VOV1 channel."
-                "VOV mốc means VOV1 channel."
-                "VOV mốt means VOV1 channel."
-                "VOV mậu means VOV1 channel."
-                "VOV máu means VOV1 channel."
-                "VOV màu means VOV1 channel."
-                "VOV một means VOV1 channel."
-                "VOV mút means VOV1 channel."
-                "VOV mót means VOV1 channel."
-                "VOV mục means VOV1 channel.\n"
+                "VOV mộc/mốc/mốt/mậu/máu/một/mút/mót/mục means VOV1 channel.\n"
                 "Args:\n"
                 "  `station_name`: The name of the radio station to play (e.g., 'VOV1', 'BBC', 'NPR').\n"
                 "Return:\n"
