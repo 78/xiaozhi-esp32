@@ -696,7 +696,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
                 // Notify playback thread of new data
                 buffer_cv_.notify_one();
                 
-                if (total_print_bytes % (128 * 1024) == 0) {  // Log progress every 128KB
+                if (total_print_bytes >= (128 * 1024)) {  // Log progress every 128KB
                     total_print_bytes = 0;
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
@@ -1003,7 +1003,7 @@ void Esp32Music::PlayAudioStream() {
                 app.AddAudioData(std::move(packet));
                 
                 // Log playback progress
-                if (total_print_bytes % (128 * 1024) == 0) {
+                if (total_print_bytes >= (128 * 1024)) {
                     total_print_bytes = 0;
                     ESP_LOGI(TAG, "Played %d bytes, buffer size: %d", total_played_bytes, buffer_size_);
                 }

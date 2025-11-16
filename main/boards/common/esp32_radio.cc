@@ -401,7 +401,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
                 // Notify playback thread of new data
                 buffer_cv_.notify_one();
                 
-                if (total_print_bytes % (128 * 1024) == 0) {  // Log progress every 128KB
+                if (total_print_bytes >= (128 * 1024)) {  // Log progress every 128KB
                     total_print_bytes = 0;
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
@@ -684,7 +684,7 @@ void Esp32Radio::PlayRadioStream() {
 
                 app.AddAudioData(std::move(packet));
                 
-                if (total_print_bytes % (128 * 1024) == 0) {
+                if (total_print_bytes >= (128 * 1024)) {
                     total_print_bytes = 0;
                     ESP_LOGI(TAG, "AAC: Played %d bytes, buffer size: %d", total_played_bytes, buffer_size_);
                 }
