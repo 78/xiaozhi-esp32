@@ -626,7 +626,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
     
     // Read audio data in chunks
     const size_t chunk_size = 4096;  // 4KB per chunk
-    char buffer[chunk_size];
+    char* buffer = new char[chunk_size];
     size_t total_downloaded = 0;
     
     while (is_downloading_ && is_playing_) {
@@ -703,10 +703,17 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
             }
         }
     }
+    delete[] buffer;
     
     http->Close();
+
+    if (is_downloading_) {
+        ESP_LOGI(TAG, "Audio stream download finished successfully, total downloaded: %d bytes", total_downloaded);
+    } else {
+        ESP_LOGI(TAG, "Audio stream download stopped by user, total downloaded: %d bytes", total_downloaded);
+    }
+    ClearAudioBuffer();
     is_downloading_ = false;
-    ClearAudioBuffer();  // Clear remaining buffer data
     
     // Notify playback thread that download is complete
     {
@@ -727,10 +734,15 @@ void Esp32Music::PlayAudioStream() {
     total_frames_decoded_ = 0;
     
     auto codec = Board::GetInstance().GetAudioCodec();
-    if (!codec || !codec->output_enabled()) {
+    if (!codec) {
         ESP_LOGE(TAG, "Audio codec not available or not enabled");
         is_playing_ = false;
         return;
+    }
+
+    // Ensure audio output is enabled
+    if (!codec->output_enabled()) {
+        codec->EnableOutput(true);
     }
     
     if (!mp3_decoder_initialized_) {
@@ -1007,6 +1019,14 @@ void Esp32Music::PlayAudioStream() {
     
     // Free PCM buffer
     delete[] pcm_buffer;
+
+    if (is_playing_) {
+        ESP_LOGI(TAG, "Audio stream playback finished successfully, total played: %d bytes", total_played);
+        // Reset the sample rate to the original value
+        ResetSampleRate();
+    } else {
+        ESP_LOGI(TAG, "Audio stream playback stopped by user, total played: %d bytes", total_played);
+    }
 
     // Cleanup
     if (mp3_input_buffer) {

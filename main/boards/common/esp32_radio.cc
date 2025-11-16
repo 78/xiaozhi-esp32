@@ -339,7 +339,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     
     // Read audio data in chunks
     const size_t chunk_size = 4096;  // 4KB per chunk
-    char buffer[chunk_size];
+    char* buffer = new char[chunk_size];
     size_t total_downloaded = 0;
     
     while (is_downloading_ && is_playing_) {
@@ -408,10 +408,18 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
             }
         }
     }
+    delete[] buffer;
     
     http->Close();
+
+    if (is_downloading_) {
+        ESP_LOGI(TAG, "Radio stream download completed");
+    } else {
+        ESP_LOGI(TAG, "Radio stream download stopped by user");
+    }
+
     is_downloading_ = false;
-    ClearAudioBuffer();
+    ClearAudioBuffer();  // Clear remaining buffer data
     
     // Notify the playback thread that the download is complete
     {
@@ -431,19 +439,10 @@ void Esp32Radio::PlayRadioStream() {
         is_playing_ = false;
         return;
     }
-    
-    // Wait and try to enable audio output
+
+    // Ensure audio output is enabled
     if (!codec->output_enabled()) {
-        ESP_LOGW(TAG, "Audio codec output not enabled, trying to enable...");
-        vTaskDelay(pdMS_TO_TICKS(500));  // Wait 500ms
-        
-        if (!codec->output_enabled()) {
-            ESP_LOGE(TAG, "Failed to enable audio codec output for radio");
-            is_playing_ = false;
-            return;
-        } else {
-            ESP_LOGI(TAG, "Audio codec output enabled successfully for radio");
-        }
+        codec->EnableOutput(true);
     }
     
     // Initialize AAC decoder
@@ -707,9 +706,17 @@ void Esp32Radio::PlayRadioStream() {
         heap_caps_free(input_buffer);
     }
     
+    if (is_downloading_) {
+        ESP_LOGI(TAG, "Radio stream playback finished successfully");
+        // Reset the sample rate to the original value
+        ResetSampleRate();
+    } else {
+        ESP_LOGI(TAG, "Radio stream playback stopped by user");
+    }
+    
     // Cleanup AAC decoder
     CleanupAacDecoder();
-    
+
     ESP_LOGI(TAG, "Radio stream playback finished, total played: %d bytes", total_played);
     is_playing_ = false;
     
