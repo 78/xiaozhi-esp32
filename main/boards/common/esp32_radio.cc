@@ -461,7 +461,7 @@ void Esp32Radio::PlayRadioStream() {
     
     ESP_LOGI(TAG, "Starting radio playback with buffer size: %d", buffer_size_);
     
-    size_t total_played = 0;
+    size_t total_played_bytes = 0;
     uint8_t* input_buffer = nullptr;
     int bytes_left = 0;
     uint8_t* read_ptr = nullptr;
@@ -528,7 +528,7 @@ void Esp32Radio::PlayRadioStream() {
                 std::unique_lock<std::mutex> lock(buffer_mutex_);
                 if (audio_buffer_.empty()) {
                     if (!is_downloading_) {
-                        ESP_LOGI(TAG, "Radio stream ended, total played: %d bytes", total_played);
+                        ESP_LOGI(TAG, "Radio stream ended, total played: %d bytes", total_played_bytes);
                         break;
                     }
                     // Wait for new data
@@ -541,6 +541,7 @@ void Esp32Radio::PlayRadioStream() {
                 chunk = audio_buffer_.front();
                 audio_buffer_.pop();
                 buffer_size_ -= chunk.size;
+                total_played_bytes += chunk.size;
                 
                 // Notify download thread that buffer has space
                 buffer_cv_.notify_one();
@@ -677,10 +678,9 @@ void Esp32Radio::PlayRadioStream() {
                 }
 
                 app.AddAudioData(std::move(packet));
-                total_played += pcm_size_bytes;
                 
-                if (total_played % (128 * 1024) == 0) {
-                    ESP_LOGI(TAG, "AAC: Played %d bytes, buffer size: %d", total_played, buffer_size_);
+                if (total_played_bytes % (128 * 1024) == 0) {
+                    ESP_LOGI(TAG, "AAC: Played %d bytes, buffer size: %d", total_played_bytes, buffer_size_);
                 }
             }
             
@@ -717,7 +717,7 @@ void Esp32Radio::PlayRadioStream() {
     // Cleanup AAC decoder
     CleanupAacDecoder();
 
-    ESP_LOGI(TAG, "Radio stream playback finished, total played: %d bytes", total_played);
+    ESP_LOGI(TAG, "Radio stream playback finished, total played: %d bytes", total_played_bytes);
     is_playing_ = false;
     
     // Stop FFT display
