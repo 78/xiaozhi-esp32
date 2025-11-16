@@ -1240,7 +1240,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     Display::SetTheme(lvgl_theme);
 }
 
-void LcdDisplay::start() {
+void LcdDisplay::StartFFT() {
     ESP_LOGI(TAG, "Starting LcdDisplay with periodic data updates");
     
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -1257,7 +1257,7 @@ void LcdDisplay::start() {
     );
 }
 
-void LcdDisplay::stopFft() {
+void LcdDisplay::StopFFT() {
     ESP_LOGI(TAG, "Stopping FFT display");
     
     // Stop the FFT display task
@@ -1327,6 +1327,10 @@ void LcdDisplay::periodicUpdateTask() {
     
     if (canvas_ == nullptr) {
         create_canvas(lv_obj_get_height(status_bar_));
+        // Clear the canvas 
+        lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+        lv_obj_invalidate(canvas_);
+        vTaskDelay(pdMS_TO_TICKS(100));
     } else {
         ESP_LOGI(TAG, "Canvas already created");
     }
@@ -1407,7 +1411,6 @@ void LcdDisplay::create_canvas(int32_t status_bar_height) {
     lv_obj_set_size(canvas_, canvas_width_, canvas_height_);
     lv_canvas_fill_bg(canvas_, lv_color_make(0, 0, 0), LV_OPA_TRANSP);
     lv_obj_move_foreground(canvas_);
-
     ESP_LOGI(TAG, "canvas created successfully");  
 }
 
@@ -1483,19 +1486,19 @@ void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
 
 }
 
-int16_t* LcdDisplay::createAudioDataBuffer(size_t sample_count) {
+int16_t* LcdDisplay::MakeAudioBuffFFT(size_t sample_count) {
     if (final_pcm_data_fft == nullptr) {
         final_pcm_data_fft = (int16_t *)heap_caps_malloc( sample_count, MALLOC_CAP_SPIRAM);
     }
     return final_pcm_data_fft;
 }
 
-void LcdDisplay::updateAudioDataBuffer(int16_t* data, size_t sample_count) {
+void LcdDisplay::ReedAudioDataFFT(int16_t* data, size_t sample_count) {
     // Copy PCM data for FFT display
     memcpy( final_pcm_data_fft, data, sample_count);
 }
 
-void LcdDisplay::releaseAudioDataBuffer(int16_t* buffer) {
+void LcdDisplay::ReleaseAudioBuffFFT(int16_t* buffer) {
     if (final_pcm_data_fft != nullptr) {
         heap_caps_free(final_pcm_data_fft);
         final_pcm_data_fft = nullptr;
@@ -1683,7 +1686,7 @@ void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
     ESP_LOGI(TAG, "QR code pixel size: %d", pixel_size);
 
     create_canvas(lv_obj_get_height(status_bar_));
-    lv_canvas_fill_bg(canvas_, lv_color_make(0xFF, 0xFF, 0xFF), LV_OPA_TRANSP);
+    lv_canvas_fill_bg(canvas_, lv_color_make(0xFF, 0xFF, 0xFF), LV_OPA_COVER);
     // Initialize layer for drawing
     lv_layer_t layer;
     lv_canvas_init_layer(canvas_, &layer);
@@ -1720,7 +1723,7 @@ void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
     int32_t text_pos_y = canvas_height_ - 20;
     text_pos_y =  canvas_height_ - qr_pos_y + (qr_pos_y - th) / 2;
     ESP_LOGI(TAG, "Canvas w: %d, h: %d, text y pos: %d", canvas_width_, canvas_height_, text_pos_y);
-    lv_area_t coords_text = {qr_pos_x, text_pos_y, canvas_width_, canvas_height_};
+    lv_area_t coords_text = {qr_pos_x, text_pos_y, canvas_width_ -1, canvas_height_ - 1};
     lv_draw_label(&layer, &label_dsc, &coords_text);
 
     // lv_draw_label_dsc_t label_dsc;

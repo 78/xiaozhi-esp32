@@ -99,11 +99,11 @@ public:
     virtual void SetTheme(Theme* theme) override;
 
     // FFT display methods
-    virtual void stopFft() override;
-    virtual void start() override;
-    virtual void updateAudioDataBuffer(int16_t* data, size_t sample_count) override;
-    virtual int16_t* createAudioDataBuffer(size_t sample_count) override;
-    virtual void releaseAudioDataBuffer(int16_t* buffer = nullptr) override;
+    virtual void StopFFT() override;
+    virtual void StartFFT() override;
+    virtual void ReedAudioDataFFT(int16_t* data, size_t sample_count) override;
+    virtual int16_t* MakeAudioBuffFFT(size_t sample_count) override;
+    virtual void ReleaseAudioBuffFFT(int16_t* buffer = nullptr) override;
 
     // QR code display methods
     virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) override;

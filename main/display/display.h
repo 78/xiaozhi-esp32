@@ -42,11 +42,11 @@ public:
     virtual void SetPowerSaveMode(bool on);
 
     // For FFT display
-    virtual void start() {}
-    virtual void stopFft() {}      // Stop FFT display, default is an empty implementation
-    virtual void updateAudioDataBuffer(int16_t* data, size_t sample_count) {};
-    virtual int16_t* createAudioDataBuffer(size_t sample_count) { return nullptr; };
-    virtual void releaseAudioDataBuffer(int16_t* buffer = nullptr) {};
+    virtual void StartFFT() {}
+    virtual void StopFFT() {}
+    virtual void ReedAudioDataFFT(int16_t* data, size_t sample_count) {};
+    virtual int16_t* MakeAudioBuffFFT(size_t sample_count) { return nullptr; };
+    virtual void ReleaseAudioBuffFFT(int16_t* buffer = nullptr) {};
 
     // For QR code display
     virtual void ClearQRCode() {}

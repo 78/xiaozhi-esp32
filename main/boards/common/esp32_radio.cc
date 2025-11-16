@@ -22,84 +22,6 @@
 
 #define TAG "Esp32Radio"
 
-/**
- * @brief Get the device MAC address
- * @return MAC address as a string
- */
-static std::string get_device_mac() {
-    return SystemInfo::GetMacAddress();
-}
-
-/**
- * @brief Get the device chip ID
- * @return Chip ID as a string
- */
-static std::string get_device_chip_id() {
-    // Use the MAC address as the chip ID, removing colon separators
-    std::string mac = SystemInfo::GetMacAddress();
-    // Remove all colons
-    mac.erase(std::remove(mac.begin(), mac.end(), ':'), mac.end());
-    return mac;
-}
-
-/**
- * @brief Generate a dynamic key
- * @param timestamp Timestamp
- * @return Dynamic key string
- */
-static std::string generate_dynamic_key(int64_t timestamp) {
-    // Secret key (please ensure it matches the server-side key)
-    const std::string secret_key = "your-esp32-secret-key-2024";
-    
-    // Retrieve device information
-    std::string mac = get_device_mac();
-    std::string chip_id = get_device_chip_id();
-    
-    // Combine data: MAC:ChipID:Timestamp:SecretKey
-    std::string data = mac + ":" + chip_id + ":" + std::to_string(timestamp) + ":" + secret_key;
-    
-    // SHA256 hash
-    unsigned char hash[32];
-    mbedtls_sha256((unsigned char*)data.c_str(), data.length(), hash, 0);
-    
-    // Convert to hexadecimal string (first 16 bytes)
-    std::string key;
-    for (int i = 0; i < 16; i++) {
-        char hex[3];
-        snprintf(hex, sizeof(hex), "%02X", hash[i]);
-        key += hex;
-    }
-    
-    return key;
-}
-
-/**
- * @brief Add authentication headers to the HTTP request
- * @param http Pointer to the HTTP client
- */
-static void add_auth_headers(Http* http) {
-    // Get the current timestamp
-    int64_t timestamp = esp_timer_get_time() / 1000000;  // Convert to seconds
-    
-    // Generate a dynamic key
-    std::string dynamic_key = generate_dynamic_key(timestamp);
-    
-    // Retrieve device information
-    std::string mac = get_device_mac();
-    std::string chip_id = get_device_chip_id();
-    
-    // Add authentication headers
-    if (http) {
-        http->SetHeader("X-MAC-Address", mac);
-        http->SetHeader("X-Chip-ID", chip_id);
-        http->SetHeader("X-Timestamp", std::to_string(timestamp));
-        http->SetHeader("X-Dynamic-Key", dynamic_key);
-        
-        ESP_LOGI(TAG, "Added auth headers - MAC: %s, ChipID: %s, Timestamp: %lld", 
-                 mac.c_str(), chip_id.c_str(), timestamp);
-    }
-}
-
 Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
                          station_name_displayed_(false), current_station_volume_(4.5f), radio_stations_(),
                          display_mode_(DISPLAY_MODE_SPECTRUM), is_playing_(false), is_downloading_(false), 
@@ -343,7 +265,7 @@ bool Esp32Radio::Stop() {
     
     // Stop FFT display
     if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        display->stopFft();
+        display->StopFFT();
         ESP_LOGI(TAG, "Stopped FFT display in Stop (spectrum mode)");
     }
     
@@ -377,7 +299,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     http->SetHeader("Range", "bytes=0-");  // Support range requests
 
     // Add ESP32 authentication headers
-    add_auth_headers(http.get());
+    // add_auth_headers(http.get());
     
     // Log for debugging HTTPS vs HTTP
     bool is_https = (radio_url.find("https://") == 0);
@@ -591,8 +513,8 @@ void Esp32Radio::PlayRadioStream() {
             // Start appropriate display functionality based on display mode
             if (display) {
                 if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-                    display->start();
-                    ESP_LOGI(TAG, "Display start() called for spectrum visualization");
+                    display->StartFFT();
+                    ESP_LOGI(TAG, "Display StartFFT() called for spectrum visualization");
                 } else {
                     ESP_LOGI(TAG, "Info display mode active, FFT visualization disabled");
                 }
@@ -749,10 +671,10 @@ void Esp32Radio::PlayRadioStream() {
                 if (display) {
                     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
                         // Create or update FFT audio data buffer
-                        final_pcm_data_fft = display->createAudioDataBuffer(pcm_size_bytes);
+                        final_pcm_data_fft = display->MakeAudioBuffFFT(pcm_size_bytes);
 
                         // Copy amplified data to FFT buffer
-                        display->updateAudioDataBuffer(amplified_buffer.data(), pcm_size_bytes);
+                        display->ReedAudioDataFFT(amplified_buffer.data(), pcm_size_bytes);
                     }
                 }
 
@@ -794,8 +716,8 @@ void Esp32Radio::PlayRadioStream() {
     // Stop FFT display
     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
         if (display) {
-            display->stopFft();
-            display->releaseAudioDataBuffer();
+            display->StopFFT();
+            display->ReleaseAudioBuffFFT();
             ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
         }
     }

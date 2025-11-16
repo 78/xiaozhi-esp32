@@ -574,7 +574,7 @@ bool Esp32Music::StopStreaming() {
     
     // After threads have fully stopped, stop FFT display only in spectrum mode
     if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        display->stopFft();
+        display->StopFFT();
         ESP_LOGI(TAG, "Stopped FFT display in StopStreaming (spectrum mode)");
     } else if (display) {
         ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop in StopStreaming");
@@ -811,8 +811,8 @@ void Esp32Music::PlayAudioStream() {
             // Start the appropriate display function based on the display mode
             if (display) {
                 if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-                    display->start();
-                    ESP_LOGI(TAG, "Display start() called for spectrum visualization");
+                    display->StartFFT();
+                    ESP_LOGI(TAG, "Display StartFFT() called for spectrum visualization");
                 } else {
                     ESP_LOGI(TAG, "Lyrics display mode active, FFT visualization disabled");
                 }
@@ -971,10 +971,10 @@ void Esp32Music::PlayAudioStream() {
                 if (display) {
                     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
                         // Create or update FFT audio data buffer
-                        final_pcm_data_fft = display->createAudioDataBuffer(pcm_size_bytes);
+                        final_pcm_data_fft = display->MakeAudioBuffFFT(pcm_size_bytes);
 
                         // Push PCM data to FFT buffer
-                        display->updateAudioDataBuffer(final_pcm_data, pcm_size_bytes);
+                        display->ReedAudioDataFFT(final_pcm_data, pcm_size_bytes);
                     }
                 }
 
@@ -1023,8 +1023,8 @@ void Esp32Music::PlayAudioStream() {
     // Stop FFT display only in spectrum mode
     if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
         if (display) {
-            display->stopFft();
-            display->releaseAudioDataBuffer();
+            display->StopFFT();
+            display->ReleaseAudioBuffFFT();
             ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
         }
     } else {
