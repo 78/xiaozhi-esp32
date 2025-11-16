@@ -399,7 +399,7 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
                 // Notify playback thread of new data
                 buffer_cv_.notify_one();
                 
-                if (total_downloaded % (256 * 1024) == 0) {  // Log progress every 256KB
+                if (total_downloaded % (128 * 1024) == 0) {  // Log progress every 128KB
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
             } else {
