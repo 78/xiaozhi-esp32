@@ -43,7 +43,6 @@ public:
 
     // For FFT display
     virtual void start() {}
-    virtual void clearScreen() {}  // Clear the FFT display, default is an empty implementation
     virtual void stopFft() {}      // Stop FFT display, default is an empty implementation
     virtual void updateAudioDataBuffer(int16_t* data, size_t sample_count) {};
     virtual int16_t* createAudioDataBuffer(size_t sample_count) { return nullptr; };

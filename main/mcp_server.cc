@@ -57,9 +57,9 @@ void McpServer::AddCommonTools() {
             return board.GetDeviceStatusJson();
         });
 
-    AddTool("self.network.get_ip_address",
-        "Get the new IP address of the device when connected to WiFi network.\n"
-        "Use this tool when user asks about network connection, IP address, or network configuration.\n"
+    AddTool("self.network.ip2qrcode",
+        "Print the QR code of the IP address connected to WiFi network.\n"
+        "Use this tool when user asks about network connection, IP address and print QR code.\n"
         "Returns the new IP address, SSID, and connection status. Also displays IP address as QR code on LCD screen.",
         PropertyList(),
         [&board](const PropertyList& properties) -> ReturnValue {

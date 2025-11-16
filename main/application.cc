@@ -246,9 +246,6 @@ void Application::DismissAlert() {
 }
 
 void Application::ToggleChatState() {
-    auto display = Board::GetInstance().GetDisplay();
-    display->ClearQRCode();
-
     if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
         return;
@@ -697,6 +694,8 @@ void Application::SetDeviceState(DeviceState state) {
                     STATE_STRINGS[previous_state], STATE_STRINGS[state]);
             radio->Stop();
         }
+        display->ClearQRCode();
+
     }																	   
     switch (state) {
         case kDeviceStateUnknown:

@@ -263,7 +263,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     SetupUI();
 }
 
-// RGB LCD实现
+// RGB LCD implementation
 RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                            int width, int height, int offset_x, int offset_y,
                            bool mirror_x, bool mirror_y, bool swap_xy)
@@ -568,10 +568,10 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         return;
     }
     
-    // 检查消息数量是否超过限制
+    // Check if the number of messages exceeds the limit
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (child_count >= MAX_MESSAGES) {
-        // 删除最早的消息（第一个子对象）
+        // Delete the oldest message (first child object)
         lv_obj_t* first_child = lv_obj_get_child(content_, 0);
         lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
         if (first_child != nullptr) {
@@ -583,30 +583,30 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         }
     }
     
-    // 折叠系统消息（如果是系统消息，检查最后一个消息是否也是系统消息）
+    // Collapse system messages (if the message is a system message, check if the last message is also a system message)
     if (strcmp(role, "system") == 0) {
         if (child_count > 0) {
-            // 获取最后一个消息容器
+            // Get the last message container
             lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
             if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
-                // 获取容器内的气泡
+                // Get the bubble inside the container
                 lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
                 if (last_bubble != nullptr) {
-                    // 检查气泡类型是否为系统消息
+                    // Check if the bubble type is a system message
                     void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
                     if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
-                        // 如果最后一个消息也是系统消息，则删除它
+                        // If the last message is also a system message, delete it
                         lv_obj_del(last_container);
                     }
                 }
             }
         }
     } else {
-        // 隐藏居中显示的 AI logo
+        // Hide the centered AI logo
         lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
     }
 
-    //避免出现空的消息框
+    // Avoid creating an empty message bubble
     if(strlen(content) == 0) {
         return;
     }
@@ -625,31 +625,31 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_t* msg_text = lv_label_create(msg_bubble);
     lv_label_set_text(msg_text, content);
     
-    // 计算文本实际宽度
+    // Calculate the actual text width
     lv_coord_t text_width = lv_txt_get_width(content, strlen(content), text_font, 0);
 
-    // 计算气泡宽度
-    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
+    // Calculate the bubble width
+    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 85% of screen width
     lv_coord_t min_width = 20;  
     lv_coord_t bubble_width;
     
-    // 确保文本宽度不小于最小宽度
+    // Ensure the text width is not less than the minimum width
     if (text_width < min_width) {
         text_width = min_width;
     }
 
-    // 如果文本宽度小于最大宽度，使用文本宽度
+    // If the text width is less than the maximum width, use the text width
     if (text_width < max_width) {
         bubble_width = text_width; 
     } else {
         bubble_width = max_width;
     }
     
-    // 设置消息文本的宽度
-    lv_obj_set_width(msg_text, bubble_width);  // 减去padding
+    // Set the width of the message text
+    lv_obj_set_width(msg_text, bubble_width);  // Subtract padding
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
 
-    // 设置气泡宽度
+    // Set the bubble width
     lv_obj_set_width(msg_bubble, bubble_width);
     lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
 
@@ -661,7 +661,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
-        // 设置自定义属性标记气泡类型
+        // Set custom property to mark the bubble type
         lv_obj_set_user_data(msg_bubble, (void*)"user");
         
         // Set appropriate width for content
@@ -677,7 +677,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->text_color(), 0);
         
-        // 设置自定义属性标记气泡类型
+        // Set custom property to mark the bubble type
         lv_obj_set_user_data(msg_bubble, (void*)"assistant");
         
         // Set appropriate width for content
@@ -693,7 +693,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Set text color for contrast
         lv_obj_set_style_text_color(msg_text, lvgl_theme->system_text_color(), 0);
         
-        // 设置自定义属性标记气泡类型
+        // Set custom property to mark the bubble type
         lv_obj_set_user_data(msg_bubble, (void*)"system");
         
         // Set appropriate width for content
@@ -725,23 +725,23 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         // Auto-scroll to this container
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
     } else if (strcmp(role, "system") == 0) {
-        // 为系统消息创建全宽容器以确保居中对齐
+        // Create a full-width container for system messages to ensure center alignment
         lv_obj_t* container = lv_obj_create(content_);
         lv_obj_set_width(container, LV_HOR_RES);
         lv_obj_set_height(container, LV_SIZE_CONTENT);
         
-        // 使容器透明且无边框
+        // Make container transparent and borderless
         lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(container, 0, 0);
         lv_obj_set_style_pad_all(container, 0, 0);
         
-        // 将消息气泡移入此容器
+        // Move the message bubble into this container
         lv_obj_set_parent(msg_bubble, container);
         
-        // 将气泡居中对齐在容器中
+        // Center align the bubble in the container
         lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
         
-        // 自动滚动底部
+        // Auto-scroll to the bottom
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
     } else {
         // For assistant messages
@@ -774,11 +774,11 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_obj_set_style_border_width(img_bubble, 0, 0);
     lv_obj_set_style_pad_all(img_bubble, lvgl_theme->spacing(4), 0);
     
-    // Set image bubble background color (similar to system message)
+    // Set the background color of the image bubble (similar to assistant messages)
     lv_obj_set_style_bg_color(img_bubble, lvgl_theme->assistant_bubble_color(), 0);
     lv_obj_set_style_bg_opa(img_bubble, LV_OPA_70, 0);
     
-    // 设置自定义属性标记气泡类型
+    // Set custom property to mark the bubble type
     lv_obj_set_user_data(img_bubble, (void*)"image");
 
     // Create the image object inside the bubble
@@ -809,13 +809,13 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_image_set_src(preview_image, img_dsc);
     lv_image_set_scale(preview_image, zoom);
     
-    // Add event handler to clean up LvglImage when image is deleted
-    // We need to transfer ownership of the unique_ptr to the event callback
-    LvglImage* raw_image = image.release(); // 释放智能指针的所有权
+    // Add event handler to clean up LvglImage when the image is deleted
+    // Transfer ownership of the unique_ptr to the event callback
+    LvglImage* raw_image = image.release(); // Release ownership of the smart pointer
     lv_obj_add_event_cb(preview_image, [](lv_event_t* e) {
         LvglImage* img = (LvglImage*)lv_event_get_user_data(e);
         if (img != nullptr) {
-            delete img; // 通过删除 LvglImage 对象来正确释放内存
+            delete img; // Properly release memory by deleting the LvglImage object
         }
     }, LV_EVENT_DELETE, (void*)raw_image);
     
@@ -827,13 +827,13 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_obj_set_width(img_bubble, scaled_width + 16);
     lv_obj_set_height(img_bubble, scaled_height + 16);
     
-    // Don't grow in flex layout
+    // Prevent flex layout from growing
     lv_obj_set_style_flex_grow(img_bubble, 0, 0);
     
     // Center the image within the bubble
     lv_obj_center(preview_image);
     
-    // Left align the image bubble like assistant messages
+    // Align the image bubble to the left, like assistant messages
     lv_obj_align(img_bubble, LV_ALIGN_LEFT_MID, 0, 0);
 
     // Auto-scroll to the image bubble
@@ -887,8 +887,8 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_border_width(content_, 0, 0);
     lv_obj_set_style_bg_color(content_, lvgl_theme->chat_background_color(), 0);
 
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // Vertical layout (top to bottom)
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // Center-align child objects, evenly spaced
 
     emoji_box_ = lv_obj_create(content_);
     lv_obj_set_size(emoji_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -912,9 +912,9 @@ void LcdDisplay::SetupUI() {
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, width_ * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    lv_obj_set_width(chat_message_label_, width_ * 0.9); // Limit width to 90% of screen width
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // Set to word-wrap mode
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // Set text alignment to center
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
 
     /* Status bar */
@@ -981,7 +981,7 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 
     preview_image_cached_ = std::move(image);
     auto img_dsc = preview_image_cached_->image_dsc();
-    // 设置图片源并显示预览图片
+    // Set the image source and display the preview image
     lv_image_set_src(preview_image_, img_dsc);
     if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
         // zoom factor 0.5
@@ -1061,7 +1061,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // Wechat message style中，如果emotion是neutral，则不显示
+    // In WeChat message style, if the emotion is neutral, do not display it
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
         // Stop GIF animation if running
@@ -1078,10 +1078,10 @@ void LcdDisplay::SetEmotion(const char* emotion) {
 
 void LcdDisplay::SetMusicInfo(const char* song_name) {
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // 微信模式下不显示歌名，保持原有聊天功能
+    // In WeChat mode, do not display the song name, keep the original chat functionality
     return;
 #else
-    // 非微信模式：在表情下方显示歌名
+    // Non-WeChat mode: display the song name below the emoji
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
         return;
@@ -1092,7 +1092,7 @@ void LcdDisplay::SetMusicInfo(const char* song_name) {
         music_text += song_name;
         lv_label_set_text(chat_message_label_, music_text.c_str());
         
-        // 确保显示 emoji_label_ 和 chat_message_label_，隐藏 preview_image_
+        // Ensure emoji_label_ and chat_message_label_ are visible, and preview_image_ is hidden
         if (emoji_label_ != nullptr) {
             lv_obj_clear_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
         }
@@ -1100,7 +1100,7 @@ void LcdDisplay::SetMusicInfo(const char* song_name) {
             lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
         }
     } else {
-        // 清空歌名显示
+        // Clear the song name display
         lv_label_set_text(chat_message_label_, "");
     }
 #endif
@@ -1166,33 +1166,33 @@ void LcdDisplay::SetTheme(Theme* theme) {
         
         lv_obj_t* bubble = nullptr;
         
-        // 检查这个对象是容器还是气泡
-        // 如果是容器（用户或系统消息），则获取其子对象作为气泡
-        // 如果是气泡（助手消息），则直接使用
+        // Check if this object is a container or a bubble
+        // If it's a container (user or system message), get its child as the bubble
+        // If it's a bubble (assistant message), use it directly
         if (lv_obj_get_child_cnt(obj) > 0) {
-            // 可能是容器，检查它是否为用户或系统消息容器
-            // 用户和系统消息容器是透明的
+            // Possibly a container, check if it's a user or system message container
+            // User and system message containers are transparent
             lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, 0);
             if (bg_opa == LV_OPA_TRANSP) {
-                // 这是用户或系统消息的容器
+                // This is a user or system message container
                 bubble = lv_obj_get_child(obj, 0);
             } else {
-                // 这可能是助手消息的气泡自身
+                // This might be the assistant message bubble itself
                 bubble = obj;
             }
         } else {
-            // 没有子元素，可能是其他UI元素，跳过
+            // No children, possibly other UI elements, skip
             continue;
         }
         
         if (bubble == nullptr) continue;
         
-        // 使用保存的用户数据来识别气泡类型
+        // Use saved user data to identify bubble type
         void* bubble_type_ptr = lv_obj_get_user_data(bubble);
         if (bubble_type_ptr != nullptr) {
             const char* bubble_type = static_cast<const char*>(bubble_type_ptr);
             
-            // 根据气泡类型应用正确的颜色
+            // Apply the correct color based on bubble type
             if (strcmp(bubble_type, "user") == 0) {
                 lv_obj_set_style_bg_color(bubble, lvgl_theme->user_bubble_color(), 0);
             } else if (strcmp(bubble_type, "assistant") == 0) {
@@ -1210,7 +1210,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
             if (lv_obj_get_child_cnt(bubble) > 0) {
                 lv_obj_t* text = lv_obj_get_child(bubble, 0);
                 if (text != nullptr) {
-                    // 根据气泡类型设置文本颜色
+                    // Set text color based on bubble type
                     if (strcmp(bubble_type, "system") == 0) {
                         lv_obj_set_style_text_color(text, lvgl_theme->system_text_color(), 0);
                     } else {
@@ -1240,45 +1240,32 @@ void LcdDisplay::SetTheme(Theme* theme) {
     Display::SetTheme(lvgl_theme);
 }
 
-void LcdDisplay::clearScreen() {
-   // DisplayLockGuard lock(this);
-    // 清屏为黑色
-    //for (int i = 0; i < canvas_width_ * canvas_height_; i++) {
-    //    canvas_buffer_[i] = COLOR_BLACK;
-    //}
-    //lv_obj_invalidate(canvas_);
-    std::fill_n(canvas_buffer_, canvas_width_ * canvas_height_, COLOR_BLACK);
-
-}
-
 void LcdDisplay::start() {
     ESP_LOGI(TAG, "Starting LcdDisplay with periodic data updates");
     
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    // 创建周期性更新任务
-    fft_task_should_stop = false;  // 重置停止标志
+    // Create a periodic update task
+    fft_task_should_stop = false;  // Reset the stop flag
     xTaskCreate(
         periodicUpdateTaskWrapper,
-        "display_fft",      // 任务名称
-        4096*2,             // 堆栈大小
-        this,               // 参数
-        1,                  // 优先级
-        &fft_task_handle    // 保存到成员变量
+        "display_fft",      // Task name
+        4096*2,             // Stack size
+        this,               // Parameter
+        1,                  // Priority
+        &fft_task_handle    // Save to member variable
     );
-    
-  
 }
 
 void LcdDisplay::stopFft() {
     ESP_LOGI(TAG, "Stopping FFT display");
     
-    // 停止FFT显示任务
+    // Stop the FFT display task
     if (fft_task_handle != nullptr) {
         ESP_LOGI(TAG, "Stopping FFT display task");
-        fft_task_should_stop = true;  // 设置停止标志
+        fft_task_should_stop = true;  // Set the stop flag
         
-        // 等待任务停止（最多等待1秒）
+        // Wait for the task to stop (wait up to 1 second)
         int wait_count = 0;
         while (fft_task_handle != nullptr && wait_count < 100) {
             vTaskDelay(pdMS_TO_TICKS(10));
@@ -1294,17 +1281,17 @@ void LcdDisplay::stopFft() {
         }
     }
     
-    // 使用显示锁保护所有操作
+    // Use the display lock to protect all operations
     DisplayLockGuard lock(this);
     
-    // 重置FFT状态变量
+    // Reset FFT state variables
     fft_data_ready = false;
     audio_display_last_update = 0;
     
-    // 重置频谱条高度
+    // Reset the heights of the spectrum bars
     memset(current_heights, 0, sizeof(current_heights));
     
-    // 重置平均功率谱数据
+    // Reset the average power spectrum data
     for (int i = 0; i < FFT_SIZE/2; i++) {
         avg_power_spectrum[i] = -25.0f;
     }
@@ -1316,14 +1303,14 @@ void LcdDisplay::stopFft() {
         ESP_LOGI(TAG, "FFT canvas deleted");
     }
     
-    // 释放画布缓冲区内存
+    // Free the canvas buffer memory
     if (canvas_buffer_ != nullptr) {
         heap_caps_free(canvas_buffer_);
         canvas_buffer_ = nullptr;
         ESP_LOGI(TAG, "FFT canvas buffer freed");
     }
     
-    // 重置画布尺寸变量
+    // Reset canvas dimension variables
     canvas_width_ = 0;
     canvas_height_ = 0;
     
@@ -1338,18 +1325,14 @@ void LcdDisplay::periodicUpdateTaskWrapper(void* arg) {
 void LcdDisplay::periodicUpdateTask() {
     ESP_LOGI(TAG, "Periodic update task started");
     
-    if(canvas_==nullptr){
+    if (canvas_ == nullptr) {
         create_canvas(lv_obj_get_height(status_bar_));
-    }
-    else{
-        ESP_LOGI(TAG, "canvas already created");
+    } else {
+        ESP_LOGI(TAG, "Canvas already created");
     }
   
-
-    // auto music = Board::GetInstance().GetMusic();
-        
-    const TickType_t displayInterval = pdMS_TO_TICKS(40);  
-    const TickType_t audioProcessInterval = pdMS_TO_TICKS(15); 
+    const TickType_t displayInterval = pdMS_TO_TICKS(40);  // Display refresh interval (40ms)
+    const TickType_t audioProcessInterval = pdMS_TO_TICKS(15); // Audio processing interval (15ms)
     
     TickType_t lastDisplayTime = xTaskGetTickCount();
     TickType_t lastAudioTime = xTaskGetTickCount();
@@ -1358,47 +1341,38 @@ void LcdDisplay::periodicUpdateTask() {
         
         TickType_t currentTime = xTaskGetTickCount();
         
-        
+        // Process audio data at regular intervals
         if (currentTime - lastAudioTime >= audioProcessInterval) {
-            if(final_pcm_data_fft != nullptr) {
-                readAudioData();  // 快速处理，不阻塞
+            if (final_pcm_data_fft != nullptr) {
+                processAudioData();  // Quick processing, non-blocking
             } else {
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
             lastAudioTime = currentTime;
         }
         
-        // 显示刷新（30Hz）
+        // Display refresh (30Hz)
         if (currentTime - lastDisplayTime >= displayInterval) {
             if (fft_data_ready) {
                 DisplayLockGuard lock(this);
                 drawSpectrumIfReady();
                 lv_area_t refresh_area;
                 refresh_area.x1 = 0;
-                refresh_area.y1 = height_-100;
-                refresh_area.x2 = canvas_width_ -1;
-                refresh_area.y2 = height_ -1; // 只刷新频谱区域
+                refresh_area.y1 = height_ - 100;
+                refresh_area.x2 = canvas_width_ - 1;
+                refresh_area.y2 = height_ - 1; // Only refresh the spectrum area
                 lv_obj_invalidate_area(canvas_, &refresh_area);
-                //lv_obj_invalidate(canvas_);
                 fft_data_ready = false;
                 lastDisplayTime = currentTime;
-            }   // 绘制操作
-           
-            
-            // 更新FPS计数
-            //FPS();
+            }
         }
-        
-        
-        
-        vTaskDelay(pdMS_TO_TICKS(10));
-        // 短暂延迟
-        
+
+        vTaskDelay(pdMS_TO_TICKS(10)); // Short delay
     }
     
     ESP_LOGI(TAG, "FFT display task stopped");
-    fft_task_handle = nullptr;  // 清空任务句柄
-    vTaskDelete(NULL);  // 删除当前任务
+    fft_task_handle = nullptr;  // Clear the task handle
+    vTaskDelete(NULL);  // Delete the current task
 }
 
 void LcdDisplay::create_canvas(int32_t status_bar_height) {
@@ -1481,25 +1455,11 @@ void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
     magnitude[3]=magnitude[3]*0.8;
     magnitude[4]=magnitude[4]*0.8;
     magnitude[5]=magnitude[5]*0.9;
-    /*
-    if (bartotal >= 6) {
-        magnitude[0] *= 0.3f; // 最低频
-        magnitude[1] *= 1.1f;
-        magnitude[2] *= 1.0f;
-        magnitude[3] *= 0.9f;
-        magnitude[4] *= 0.8f;
-        magnitude[5] *= 0.7f;
-        // 更高频率保持或进一步衰减
-        for (int i = 6; i < bartotal; i++) {
-            magnitude[i] *= 0.6f;
-        }
-    }
-    */    
 
     for (int bin = 1; bin < bartotal; bin++) {
         
         if (magnitude[bin] > 0.0f && max_magnitude > 0.0f) {
-            // 相对dB值：20 * log10(magnitude/ref_level)
+            // Relative dB value: 20 * log10(magnitude/ref_level)
             magnitude[bin] = 20.0f * log10f(magnitude[bin] / max_magnitude+ 1e-10);
         } else {
             magnitude[bin] = MIN_DB;
@@ -1507,9 +1467,10 @@ void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
         if (magnitude[bin] > max_magnitude) max_magnitude = magnitude[bin];
     }
 
-    clearScreen();
+    std::fill_n(canvas_buffer_, canvas_width_ * canvas_height_, COLOR_BLACK);
     
-    for (int k = 1; k < bartotal; k++) {  // 跳过直流分量（k=0）
+    // Skip the DC component (k=0)
+    for (int k = 1; k < bartotal; k++) {
         x_pos=canvas_width_/bartotal*(k-1);
         float mag=(magnitude[k] - MIN_DB) / (MAX_DB - MIN_DB);
         mag = std::max(0.0f, std::min(1.0f, mag));
@@ -1541,61 +1502,51 @@ void LcdDisplay::releaseAudioDataBuffer(int16_t* buffer) {
     }
 }
 
-void LcdDisplay::readAudioData(){
-   
-    // auto music = Board::GetInstance().GetMusic();
-    
-    if(final_pcm_data_fft!=nullptr){
-        if(audio_display_last_update<=2){
-            memcpy(audio_data,final_pcm_data_fft,sizeof(int16_t)*1152);
-            for(int i=0;i<1152;i++){
-                frame_audio_data[i]+=audio_data[i];
+void LcdDisplay::processAudioData() {
+    if(final_pcm_data_fft != nullptr) {
+        if(audio_display_last_update <= 2) {
+            memcpy(audio_data, final_pcm_data_fft, sizeof(int16_t) * 1152);
+            for(int i = 0; i < 1152; i++) {
+                frame_audio_data[i] += audio_data[i];
             }
             audio_display_last_update++;
-            
-        }else{
+        } else {
             const int HOP_SIZE = 512;
             const int NUM_SEGMENTS = 1 + (1152 - FFT_SIZE) / HOP_SIZE;
-    
+
             for (int seg = 0; seg < NUM_SEGMENTS; seg++) {
                 int start = seg * HOP_SIZE;
                 if (start + FFT_SIZE > 1152) break;
 
-        // 准备当前段数据
+                // Prepare the current segment data
                 for (int i = 0; i < FFT_SIZE; i++) {
                     int idx = start + i;
-                    //float sample =frame_audio_data[idx] / 32768.0f;
-                    float sample =frame_audio_data[idx] / 32768.0f;
+                    float sample = frame_audio_data[idx] / 32768.0f;
                     fft_real[i] = sample * hanning_window_float[i];
                     fft_imag[i] = 0.0f;
-                    
                 }
 
                 compute(fft_real, fft_imag, FFT_SIZE, true);
-        
-        // 计算功率谱并累加（双边）
-                for (int i = 0; i < FFT_SIZE/2; i++) {
-                    avg_power_spectrum[i] += fft_real[i] * fft_real[i]+fft_imag[i] * fft_imag[i]; // 功率 = 幅度平方
+
+                // Calculate and accumulate the power spectrum (double-sided)
+                for (int i = 0; i < FFT_SIZE / 2; i++) {
+                    avg_power_spectrum[i] += fft_real[i] * fft_real[i] + fft_imag[i] * fft_imag[i]; // Power = amplitude squared
                 }
             }
-        
-    // 计算平均值
-            for (int i = 0; i < FFT_SIZE/2; i++) {
+
+            // Compute the average
+            for (int i = 0; i < FFT_SIZE / 2; i++) {
                 avg_power_spectrum[i] /= NUM_SEGMENTS;
             }
 
-        audio_display_last_update=0;
-        //memcpy(spectrum_data, avg_power_spectrum, sizeof(float) * FFT_SIZE/2);
-        fft_data_ready=true;
-
-        //draw_spectrum(avg_power_spectrum, FFT_SIZE/2);
-        memset(frame_audio_data,0,sizeof(int16_t)*1152);
-
+            audio_display_last_update = 0;
+            fft_data_ready = true;
+            memset(frame_audio_data, 0, sizeof(int16_t) * 1152);
         }
-    }else{
-            ESP_LOGI(TAG, "audio_data is nullptr");
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }   
+    } else {
+        ESP_LOGI(TAG, "audio_data is nullptr");
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
 }
 
 void LcdDisplay::draw_bar(int x,int y,int bar_width,int bar_height,uint16_t color,int bar_index){
@@ -1631,14 +1582,14 @@ void LcdDisplay::draw_bar(int x,int y,int bar_width,int bar_height,uint16_t colo
 
 void LcdDisplay::draw_block(int x,int y,int block_x_size,int block_y_size,uint16_t color,int bar_index){
     for (int row = y; row > y-block_y_size;row--) {
-        // 一次绘制一行
+        // Draw one row at a time
         uint16_t* line_start = &canvas_buffer_[row * canvas_width_ + x];
         std::fill_n(line_start, block_x_size, color);
     }
 }
 
 void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
-    // 位反转排序
+    // Bit-reversal permutation
     int j = 0;
     for (int i = 0; i < n; i++) {
         if (j > i) {
@@ -1654,7 +1605,7 @@ void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
         j += m;
     }
 
-    // FFT计算
+    // FFT computation
     for (int s = 1; s <= (int)log2(n); s++) {
         int m = 1 << s;
         int m2 = m >> 1;
@@ -1682,14 +1633,13 @@ void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
         }
     }
     
-    // 正向变换需要缩放
+    // Scale for forward transform
     if (forward) {
         for (int i = 0; i < n; i++) {
             real[i] /= n;
             imag[i] /= n;
         }
     }
-    
 }
 
 uint16_t LcdDisplay::get_bar_color(int x_pos){
@@ -1698,14 +1648,14 @@ uint16_t LcdDisplay::get_bar_color(int x_pos){
     static bool initialized = false;
     
     if (!initialized) {
-        // 生成黄绿->黄->黄红的渐变
+        // Generate gradient from yellow-green -> yellow -> yellow-red
         for (int i = 0; i < 40; i++) {
             if (i < 20) {
-                // 黄绿到黄：增加红色分量
+                // Yellow-green to yellow: increase red component
                 uint8_t r = static_cast<uint8_t>((i / 19.0f) * 31);
                 color_table[i] = (r << 11) | (0x3F << 5);
             } else {
-                // 黄到黄红：减少绿色分量
+                // Yellow to yellow-red: decrease green component
                 uint8_t g = static_cast<uint8_t>((1.0f - (i - 20) / 19.0f * 0.5f) * 63);
                 color_table[i] = (0x1F << 11) | (g << 5);
             }
@@ -1792,14 +1742,27 @@ void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
     // Finish layer
     lv_canvas_finish_layer(canvas_, &layer);
     ESP_LOGI(TAG, "QR code drawn on canvas");
+    qr_code_displayed_ = true;
 }
 
 void LcdDisplay::ClearQRCode() {
+    if (!qr_code_displayed_) {
+        return;
+    }
+
+    qr_code_displayed_ = false;
     DisplayLockGuard lock(this);
     if (canvas_ != nullptr) {
         ESP_LOGI(TAG, "Clearing QR code from canvas");
         lv_obj_del(canvas_);
         canvas_ = nullptr;
+    }
+
+    // Free the canvas buffer memory
+    if (canvas_buffer_ != nullptr) {
+        heap_caps_free(canvas_buffer_);
+        canvas_buffer_ = nullptr;
+        ESP_LOGI(TAG, "FFT canvas buffer freed");
     }
 }
 
