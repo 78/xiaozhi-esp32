@@ -49,6 +49,11 @@ public:
     virtual int16_t* createAudioDataBuffer(size_t sample_count) { return nullptr; };
     virtual void releaseAudioDataBuffer(int16_t* buffer = nullptr) {};
 
+    // For QR code display
+    virtual void ClearQRCode() {}
+    virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) {}
+    virtual void SetIpAddress(const std::string& ip_address) {}
+
     inline int width() const { return width_; }
     inline int height() const { return height_; }
 

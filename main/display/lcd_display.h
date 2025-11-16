@@ -44,6 +44,7 @@ protected:
     lv_obj_t* chat_message_label_ = nullptr;
     esp_timer_handle_t preview_timer_ = nullptr;
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
+    std::string ip_address_;
 
     void InitializeLcdThemes();
     void SetupUI();
@@ -63,7 +64,7 @@ protected:
     // LVGL variables
     lv_obj_t* canvas_ = nullptr;
     uint16_t* canvas_buffer_ = nullptr;
-    void create_canvas();
+    void create_canvas(int32_t status_bar_height = 0);
     uint16_t get_bar_color(int x_pos);
     void draw_spectrum(float *power_spectrum, int fft_size);
     void draw_bar(int x, int y, int bar_width, int bar_height, uint16_t color, int bar_index);
@@ -103,6 +104,9 @@ public:
     virtual void SetMusicInfo(const char* song_name) override;
     virtual void SetChatMessage(const char* role, const char* content) override; 
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
+    virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) override;
+    virtual void ClearQRCode() override;
+    virtual void SetIpAddress(const std::string& ip_address) override;
 
     // Add theme switching function
     virtual void SetTheme(Theme* theme) override;

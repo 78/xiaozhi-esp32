@@ -23,6 +23,8 @@
 
 #define TAG "Esp32Music"
 
+#define MUSIC_URL "http://103.143.207.89:5005" // "http://www.xiaozhishop.xyz:5005"
+
 // ========== Simple ESP32 Authentication Function ==========
 
 /**
@@ -292,7 +294,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
     
     // Step 1: Request the stream_pcm API to retrieve audio information
     // std::string base_url = "http://www.xiaozhishop.xyz:5005";
-    std::string base_url = "http://103.143.207.89:5005";
+    std::string base_url = MUSIC_URL;
     std::string full_url = base_url + "/stream_pcm?song=" + url_encode(song_name) + "&artist=" + url_encode(artist_name);
     
     ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());

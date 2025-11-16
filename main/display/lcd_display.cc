@@ -1,3 +1,4 @@
+// managed_components\lvgl__lvgl\examples\widgets\canvas\lv_example_canvas_1.c
 #include "lcd_display.h"
 #include "gif/lvgl_gif.h"
 #include "settings.h"
@@ -14,6 +15,7 @@
 #include <cstring>
 #include <cmath>
 #include <math.h>
+#include <qrcode.h>
 
 #include "board.h"
 
@@ -1307,7 +1309,7 @@ void LcdDisplay::stopFft() {
         avg_power_spectrum[i] = -25.0f;
     }
     
-    // 删除FFT画布对象，让原始UI重新显示
+    // Delete the FFT canvas object to restore the original UI
     if (canvas_ != nullptr) {
         lv_obj_del(canvas_);
         canvas_ = nullptr;
@@ -1337,7 +1339,7 @@ void LcdDisplay::periodicUpdateTask() {
     ESP_LOGI(TAG, "Periodic update task started");
     
     if(canvas_==nullptr){
-        create_canvas();
+        create_canvas(lv_obj_get_height(status_bar_));
     }
     else{
         ESP_LOGI(TAG, "canvas already created");
@@ -1399,7 +1401,7 @@ void LcdDisplay::periodicUpdateTask() {
     vTaskDelete(NULL);  // 删除当前任务
 }
 
-void LcdDisplay::create_canvas() {
+void LcdDisplay::create_canvas(int32_t status_bar_height) {
     DisplayLockGuard lock(this);
     if (canvas_ != nullptr) {
         lv_obj_del(canvas_);
@@ -1409,9 +1411,11 @@ void LcdDisplay::create_canvas() {
         canvas_buffer_ = nullptr;
     }
 
-    int status_bar_height=lv_obj_get_height(status_bar_);
+    // int status_bar_height=lv_obj_get_height(status_bar_);
+    ESP_LOGI(TAG, "Status bar height: %d", status_bar_height);
     canvas_width_=width_;
     canvas_height_=height_-status_bar_height;
+    ESP_LOGI(TAG, "Creating canvas with width: %d, height: %d", canvas_width_, canvas_height_);
 
     canvas_buffer_=(uint16_t*)heap_caps_malloc(canvas_width_ * canvas_height_ * sizeof(uint16_t), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
     if (canvas_buffer_ == nullptr) {
@@ -1710,4 +1714,96 @@ uint16_t LcdDisplay::get_bar_color(int x_pos){
     }
     
     return color_table[x_pos];
- }
+}
+
+void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr || qrcode == nullptr) {
+        return;
+    }
+
+    // Get QR code size
+    int qr_size = esp_qrcode_get_size(qrcode);
+    ESP_LOGI(TAG, "QR code size: %d, text: %s", qr_size, text != nullptr ? text : "123456789");
+
+    // Calculate display size (scale QR code to fit screen)
+    int max_size = (width_ < height_ ? width_ : height_) * 70 / 100;
+    int pixel_size = max_size / qr_size;
+    if (pixel_size < 2) pixel_size = 2; // Minimum 2 pixels per module
+    ESP_LOGI(TAG, "QR code pixel size: %d", pixel_size);
+
+    create_canvas(lv_obj_get_height(status_bar_));
+    lv_canvas_fill_bg(canvas_, lv_color_make(0xFF, 0xFF, 0xFF), LV_OPA_TRANSP);
+    // Initialize layer for drawing
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas_, &layer);
+    
+    // Setup rect descriptor for QR code modules
+    lv_draw_rect_dsc_t rect_dsc;
+    lv_draw_rect_dsc_init(&rect_dsc);
+    rect_dsc.bg_color = lv_color_black();
+    rect_dsc.bg_opa = LV_OPA_COVER;
+    
+    // Draw QR code modules
+    int qr_pos_x = (canvas_width_ - qr_size * pixel_size) / 2;
+    int qr_pos_y = (canvas_height_ - qr_size * pixel_size) / 2;
+    for (int y = 0; y < qr_size; y++) {
+        for (int x = 0; x < qr_size; x++) {
+            if (esp_qrcode_get_module(qrcode, x, y)) {
+                // Draw black module
+                lv_area_t coords_rect;
+                coords_rect.x1 = x * pixel_size + qr_pos_x;
+                coords_rect.y1 = y * pixel_size + qr_pos_y;
+                coords_rect.x2 = (x + 1) * pixel_size - 1 + qr_pos_x;
+                coords_rect.y2 = (y + 1) * pixel_size - 1 + qr_pos_y;
+                
+                lv_draw_rect(&layer, &rect_dsc, &coords_rect);
+            }
+        }
+    }
+
+    lv_draw_label_dsc_t label_dsc;
+    lv_draw_label_dsc_init(&label_dsc);
+    label_dsc.color = lv_palette_main(LV_PALETTE_ORANGE);
+    label_dsc.text = text != nullptr ? text : ip_address_.c_str();
+    int th = lv_font_get_line_height(label_dsc.font);
+    int32_t text_pos_y = canvas_height_ - 20;
+    text_pos_y =  canvas_height_ - qr_pos_y + (qr_pos_y - th) / 2;
+    ESP_LOGI(TAG, "Canvas w: %d, h: %d, text y pos: %d", canvas_width_, canvas_height_, text_pos_y);
+    lv_area_t coords_text = {qr_pos_x, text_pos_y, canvas_width_, canvas_height_};
+    lv_draw_label(&layer, &label_dsc, &coords_text);
+
+    // lv_draw_label_dsc_t label_dsc;
+    // lv_draw_label_dsc_init(&label_dsc);
+    // label_dsc.align = LV_TEXT_ALIGN_CENTER;
+    // label_dsc.text = text != nullptr ? text : ip_address_.c_str();
+    // ESP_LOGI(TAG, "Drawing text: %s", label_dsc.text);
+    // label_dsc.color = lv_palette_main(LV_PALETTE_ORANGE);
+
+    // int canvas_w = lv_obj_get_width(canvas_);
+    // int canvas_h = lv_obj_get_height(canvas_);
+    // int th = lv_font_get_line_height(label_dsc.font);
+    // int32_t text_pos_y =  canvas_h - qr_pos_y + (qr_pos_y - th) / 2;
+    // ESP_LOGI(TAG, "Canvas w: %d, h: %d, text y pos: %d", canvas_w, canvas_h, text_pos_y);
+    // // lv_area_t coords_text = { 0, (canvas_h - 20), canvas_w, canvas_h};
+    // lv_area_t coords_text = { 0, (canvas_height_ - 20), canvas_width_, canvas_height_};
+    // lv_draw_label(&layer, &label_dsc, &coords_text);
+    
+    // Finish layer
+    lv_canvas_finish_layer(canvas_, &layer);
+    ESP_LOGI(TAG, "QR code drawn on canvas");
+}
+
+void LcdDisplay::ClearQRCode() {
+    DisplayLockGuard lock(this);
+    if (canvas_ != nullptr) {
+        ESP_LOGI(TAG, "Clearing QR code from canvas");
+        lv_obj_del(canvas_);
+        canvas_ = nullptr;
+    }
+}
+
+void LcdDisplay::SetIpAddress(const std::string& ip_address) {
+    ip_address_ = ip_address;
+    ESP_LOGI(TAG, "IP address set to: %s", ip_address_.c_str());
+}
