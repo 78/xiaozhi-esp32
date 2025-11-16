@@ -101,7 +101,7 @@ static void add_auth_headers(Http* http) {
 }
 
 Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
-                         station_name_displayed_(false), radio_stations_(),
+                         station_name_displayed_(false), current_station_volume_(4.5f), radio_stations_(),
                          display_mode_(DISPLAY_MODE_SPECTRUM), is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), aac_decoder_(nullptr), aac_info_(),
@@ -148,18 +148,19 @@ Esp32Radio::~Esp32Radio() {
 void Esp32Radio::InitializeRadioStations() {
     // Vietnamese VOV radio stations - AAC+ format only
     // These streams return Content-Type: audio/aacp and require AAC decoder
-    radio_stations_["VOV1"] = RadioStation("VOV 1 - Đài Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-1", "Kênh thông tin tổng hợp", "News/Talk");
-    radio_stations_["VOV2"] = RadioStation("VOV 2 - Âm thanh Việt Nam", "https://stream.vovmedia.vn/vov-2", "Kênh văn hóa - văn nghệ", "Culture/Music");  
-    radio_stations_["VOV3"] = RadioStation("VOV 3 - Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-3", "Kênh thông tin - giải trí", "Entertainment");
-    radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese");
-    radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic");
-    radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông Hồ Chí Minh", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic");
-    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International");
-    radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional");
-    radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional");
-    radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional");
-    radio_stations_["VOV_DONGBAC"] = RadioStation("VOV Đông Bắc", "https://stream.vovmedia.vn/vov4db", "Kênh vùng Đông Bắc", "Regional");
-    radio_stations_["VOV_TAYNGUYEN"] = RadioStation("VOV Tây Nguyên", "https://stream.vovmedia.vn/vov4tn", "Kênh vùng Tây Nguyên", "Regional");
+    // Volume values: 1.0 = 100%, 2.0 = 200%, etc.
+    radio_stations_["VOV1"] = RadioStation("VOV 1 - Đài Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-1", "Kênh thông tin tổng hợp", "News/Talk", 4.5f);
+    radio_stations_["VOV2"] = RadioStation("VOV 2 - Âm thanh Việt Nam", "https://stream.vovmedia.vn/vov-2", "Kênh văn hóa - văn nghệ", "Culture/Music", 4.0f);  
+    radio_stations_["VOV3"] = RadioStation("VOV 3 - Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-3", "Kênh thông tin - giải trí", "Entertainment", 4.2f);
+    radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese", 4.3f);
+    radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic", 5.0f);
+    radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông Hồ Chí Minh", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic", 5.2f);
+    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International", 1.5f);
+    radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông mekong", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional", 4.6f);
+    radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional", 4.4f);
+    radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional", 4.7f);
+    radio_stations_["VOV_DONGBAC"] = RadioStation("VOV Đông Bắc", "https://stream.vovmedia.vn/vov4db", "Kênh vùng Đông Bắc", "Regional", 4.1f);
+    radio_stations_["VOV_TAYNGUYEN"] = RadioStation("VOV Tây Nguyên", "https://stream.vovmedia.vn/vov4tn", "Kênh vùng Tây Nguyên", "Regional", 4.8f);
     
     ESP_LOGI(TAG, "Initialized %d VOV radio stations (AAC format only)", radio_stations_.size());
 }
@@ -179,7 +180,8 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
         // Check if input matches any part of the station display name
         if (lower_station_name.find(lower_input) != std::string::npos || 
             lower_input.find(lower_station_name) != std::string::npos) {
-            ESP_LOGI(TAG, "Found station by display name: '%s' -> %s", station_name.c_str(), station.second.name.c_str());
+            ESP_LOGI(TAG, "Found station by display name: '%s' -> %s (volume: %.1fx)", station_name.c_str(), station.second.name.c_str(), station.second.volume);
+            current_station_volume_ = station.second.volume;
             return PlayUrl(station.second.url, station.second.name);
         }
     }
@@ -187,7 +189,8 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
     // Second, try to find by station key (VOV1, VOV2, etc.) - exact match
     auto it = radio_stations_.find(station_name);
     if (it != radio_stations_.end()) {
-        ESP_LOGI(TAG, "Found station by key: '%s' -> %s", station_name.c_str(), it->second.name.c_str());
+        ESP_LOGI(TAG, "Found station by key: '%s' -> %s (volume: %.1fx)", station_name.c_str(), it->second.name.c_str(), it->second.volume);
+        current_station_volume_ = it->second.volume;
         return PlayUrl(it->second.url, it->second.name);
     }
     
@@ -197,9 +200,18 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
         std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), ::tolower);
         
         if (lower_key == lower_input) {
-            ESP_LOGI(TAG, "Found station by key (case insensitive): '%s' -> %s", station_name.c_str(), station.second.name.c_str());
+            ESP_LOGI(TAG, "Found station by key (case insensitive): '%s' -> %s (volume: %.1fx)", station_name.c_str(), station.second.name.c_str(), station.second.volume);
+            current_station_volume_ = station.second.volume;
             return PlayUrl(station.second.url, station.second.name);
         }
+    }
+    
+    // Handle specific regional stations with common search terms
+    if (lower_input.find("tây nguyên") != std::string::npos || lower_input.find("tay nguyen") != std::string::npos ||
+        lower_input.find("nguyên") != std::string::npos || lower_input.find("nguyen") != std::string::npos) {
+        ESP_LOGI(TAG, "Detected Tây Nguyên variant: '%s' -> VOV_TAYNGUYEN (volume: %.1fx)", station_name.c_str(), radio_stations_["VOV_TAYNGUYEN"].volume);
+        current_station_volume_ = radio_stations_["VOV_TAYNGUYEN"].volume;
+        return PlayUrl(radio_stations_["VOV_TAYNGUYEN"].url, radio_stations_["VOV_TAYNGUYEN"].name);
     }
     
     // Handle mispronunciations of VOV1 - various phonetic variations
@@ -210,13 +222,14 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
             lower_input.find("một") != std::string::npos || lower_input.find("mút") != std::string::npos ||
             lower_input.find("mót") != std::string::npos || lower_input.find("mục") != std::string::npos ||
             lower_input.find("1") != std::string::npos || lower_input.find("một") != std::string::npos) {
-            ESP_LOGI(TAG, "Detected VOV1 phonetic variant: '%s' -> VOV1", station_name.c_str());
+            ESP_LOGI(TAG, "Detected VOV1 phonetic variant: '%s' -> VOV1 (volume: %.1fx)", station_name.c_str(), radio_stations_["VOV1"].volume);
+            current_station_volume_ = radio_stations_["VOV1"].volume;
             return PlayUrl(radio_stations_["VOV1"].url, radio_stations_["VOV1"].name);
         }
     }
     
     // Last resort: try partial matching with keywords from station names
-    std::vector<std::string> keywords = {"tiếng nói", "việt nam", "giao thông", "mê kông", "miền trung", "tây bắc", "đông bắc", "tây nguyên"};
+    std::vector<std::string> keywords = {"tiếng nói", "việt nam", "giao thông", "mê kông", "miền trung", "tây bắc", "đông bắc", "tây nguyên", "tay nguyen", "nguyên", "nguyen"};
     for (const std::string& keyword : keywords) {
         if (lower_input.find(keyword) != std::string::npos) {
             for (const auto& station : radio_stations_) {
@@ -224,7 +237,8 @@ bool Esp32Radio::PlayStation(const std::string& station_name) {
                 std::transform(lower_station_name.begin(), lower_station_name.end(), lower_station_name.begin(), ::tolower);
                 
                 if (lower_station_name.find(keyword) != std::string::npos) {
-                    ESP_LOGI(TAG, "Found station by keyword '%s': '%s' -> %s", keyword.c_str(), station_name.c_str(), station.second.name.c_str());
+                    ESP_LOGI(TAG, "Found station by keyword '%s': '%s' -> %s (volume: %.1fx)", keyword.c_str(), station_name.c_str(), station.second.name.c_str(), station.second.volume);
+                    current_station_volume_ = station.second.volume;
                     return PlayUrl(station.second.url, station.second.name);
                 }
             }
@@ -252,6 +266,11 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
     current_station_url_ = radio_url;
     current_station_name_ = station_name.empty() ? "Custom Radio" : station_name;
     station_name_displayed_ = false;
+    
+    // If current_station_volume_ wasn't set by PlayStation(), use default volume
+    if (current_station_volume_ <= 0.0f) {
+        current_station_volume_ = 4.5f;  // Default volume for custom URLs
+    }
     
     // Clear the buffer
     ClearAudioBuffer();
@@ -702,9 +721,9 @@ void Esp32Radio::PlayRadioStream() {
                     final_sample_count = total_samples;
                 }
                 
-                // Amplify audio by 350% for better radio volume
+                // Amplify audio using station-specific volume setting
                 std::vector<int16_t> amplified_buffer(final_sample_count);
-                const float amplification_factor = 4.5f; // 350% volume boost (4.5x volume)
+                const float amplification_factor = current_station_volume_; // Station-specific volume
                 
                 for (int i = 0; i < final_sample_count; ++i) {
                     int32_t amplified_sample = (int32_t)(final_pcm_data[i] * amplification_factor);

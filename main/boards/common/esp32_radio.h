@@ -33,10 +33,11 @@ struct RadioStation {
     std::string url;         // Streaming URL
     std::string description; // Description
     std::string genre;       // Genre
+    float volume;            // Volume amplification factor (default 1.0 = 100%)
     
-    RadioStation() {}
-    RadioStation(const std::string& n, const std::string& u, const std::string& d = "", const std::string& g = "")
-        : name(n), url(u), description(d), genre(g) {}
+    RadioStation() : volume(1.0f) {}
+    RadioStation(const std::string& n, const std::string& u, const std::string& d = "", const std::string& g = "", float v = 1.0f)
+        : name(n), url(u), description(d), genre(g), volume(v) {}
 };
 
 class Esp32Radio : public Radio {
@@ -51,6 +52,7 @@ private:
     std::string current_station_name_;
     std::string current_station_url_;
     bool station_name_displayed_;
+    float current_station_volume_;  // Current station's volume amplification factor
     
     // Predefined radio station list
     std::map<std::string, RadioStation> radio_stations_;
