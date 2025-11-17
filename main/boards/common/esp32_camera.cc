@@ -1,19 +1,21 @@
-#include "esp32_camera.h"
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <unistd.h>
-#include "board.h"
-#include "display.h"
+
 #include "esp_imgfx_color_convert.h"
 #include "esp_video_device.h"
 #include "esp_video_init.h"
-#include "jpg/image_to_jpeg.h"
 #include "linux/videodev2.h"
+
+#include "esp32_camera.h"
+#include "board.h"
+#include "display.h"
 #include "lvgl_display.h"
 #include "mcp_server.h"
 #include "system_info.h"
+#include "jpg/image_to_jpeg.h"
 
 #ifdef CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
 #undef LOG_LOCAL_LEVEL
@@ -193,12 +195,9 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
                 return 0;
             case V4L2_PIX_FMT_RGB565:
                 return 1;
-            case V4L2_PIX_FMT_YUV420:
 #ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+case V4L2_PIX_FMT_YUV420: // 软件 JPEG 编码器不支持 YUV420 格式
                 return 2;
-#else
-                // 软件 JPEG 编码器不支持 YUV420 格式
-                [[fallthrough]];
 #endif  // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
             case V4L2_PIX_FMT_GREY:
             case V4L2_PIX_FMT_YUV422P:
