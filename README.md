@@ -70,6 +70,7 @@ cd linx-esp32
 ```bash
 get_idf              # 激活 ESP-IDF 环境
 idf.py set-target esp32s3  # 设置目标芯片
+idf.py menuconfig    # 配置项目 (选择版框)
 idf.py build         # 编译固件
 idf.py flash monitor # 烧录并监控
 ```

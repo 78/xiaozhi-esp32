@@ -270,11 +270,11 @@ void AudioService::AudioOutputTask() {
         
         // Log warning if playback queue is getting too low (potential stuttering indicator)
         if (audio_playback_queue_.size() < 2) {
-            ESP_LOGW(TAG, "AudioOutputTask: Playback queue getting low! remaining=%zu/%d, potential audio gap",
+            ESP_LOGW(TAG, "AudioOutputTask: Playback queue getting low! remaining=%d/%d, potential audio gap",
                      audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
         }
         
-        ESP_LOGD(TAG, "AudioOutputTask: Playing audio, pcm_samples=%zu, ts=%" PRIu32 ", playback_queue_remaining=%zu",
+        ESP_LOGW(TAG, "AudioOutputTask: Playing audio, pcm_samples=%d, ts=%" PRIu32 ", playback_queue_remaining=%d",
                  task->pcm.size(), task->timestamp, audio_playback_queue_.size());
         
         lock.unlock();
@@ -322,11 +322,11 @@ void AudioService::OpusCodecTask() {
             
             // Log warning if decode queue is getting too full (potential stuttering indicator)
             if (audio_decode_queue_.size() > MAX_DECODE_PACKETS_IN_QUEUE * 0.8) {
-                ESP_LOGW(TAG, "OpusCodecTask: Decode queue getting full! remaining=%zu/%d, potential stuttering risk",
+                ESP_LOGW(TAG, "OpusCodecTask: Decode queue getting full! remaining=%d/%d, potential stuttering risk",
                          audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE);
             }
             
-            ESP_LOGD(TAG, "OpusCodecTask: Processing packet from decode queue, remaining=%zu, sr=%d, fd=%d, ts=%" PRIu32 ", payload=%zu bytes",
+            ESP_LOGW(TAG, "OpusCodecTask: Processing packet from decode queue, remaining=%d, sr=%d, fd=%d, ts=%" PRIu32 ", payload=%d bytes",
                      audio_decode_queue_.size(), packet->sample_rate, packet->frame_duration, 
                      packet->timestamp, packet->payload.size());
             
@@ -420,7 +420,7 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
         if (timestamp_queue_.size() <= MAX_TIMESTAMPS_IN_QUEUE) {
             task->timestamp = timestamp_queue_.front();
         } else {
-            ESP_LOGW(TAG, "Timestamp queue (%zu) is full, dropping timestamp", timestamp_queue_.size());
+            ESP_LOGW(TAG, "Timestamp queue (%d) is full, dropping timestamp", timestamp_queue_.size());
         }
         timestamp_queue_.pop_front();
     }
@@ -433,7 +433,7 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
     if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
-        ESP_LOGW(TAG, "Decode queue full! size=%zu/%d, dropping packet (sr=%d, ts=%" PRIu32 ")",
+        ESP_LOGW(TAG, "Decode queue full! size=%d/%d, dropping packet (sr=%d, ts=%" PRIu32 ")",
                  audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE,
                  packet->sample_rate, packet->timestamp);
         if (wait) {
@@ -442,7 +442,7 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
             return false;
         }
     }
-    ESP_LOGD(TAG, "Packet pushed to decode queue, new size: %zu, sr=%d, ts=%" PRIu32 ", size=%d",
+    ESP_LOGW(TAG, "Packet pushed to decode queue, new size: %d, sr=%d, ts=%" PRIu32 ", size=%d",
          audio_decode_queue_.size(), packet->sample_rate, packet->timestamp, packet->payload.size());
     audio_decode_queue_.push_back(std::move(packet));
     audio_queue_cv_.notify_all();
@@ -485,7 +485,7 @@ void AudioService::EnableWakeWordDetection(bool enable) {
         return;
     }
 
-    ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
+    ESP_LOGW(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!wake_word_initialized_) {
             if (!wake_word_->Initialize(codec_, models_list_)) {
@@ -503,7 +503,7 @@ void AudioService::EnableWakeWordDetection(bool enable) {
 }
 
 void AudioService::EnableVoiceProcessing(bool enable) {
-    ESP_LOGD(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
+    ESP_LOGW(TAG, "%s voice processing", enable ? "Enabling" : "Disabling");
     if (enable) {
         if (!audio_processor_initialized_) {
             audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_);
