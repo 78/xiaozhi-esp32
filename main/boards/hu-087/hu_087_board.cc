@@ -16,9 +16,9 @@
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
 
-#define TAG "Esp32S3Hu087Board"
+#define TAG "Hu087Board"
 
-class Esp32S3Hu087Board : public WifiBoard
+class Hu087Board : public WifiBoard
 {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
@@ -130,7 +130,7 @@ private:
     }
 
 public:
-    Esp32S3Hu087Board() : touch_button_(TOUCH_BUTTON_GPIO)
+    Hu087Board() : touch_button_(TOUCH_BUTTON_GPIO)
     {
         InitializeDisplayI2c();
         InitializeSsd1306Display();
@@ -151,4 +151,4 @@ public:
     }
 };
 
-DECLARE_BOARD(Esp32S3Hu087Board);
+DECLARE_BOARD(Hu087Board);

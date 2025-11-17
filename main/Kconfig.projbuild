@@ -436,7 +436,7 @@ choice BOARD_TYPE
         bool "AIPI-Lite"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_HU_087
-        bool "ESP32-S3-HU-087"
+        bool "HU-087"
         depends on IDF_TARGET_ESP32S3
 endchoice
 
