@@ -84,6 +84,9 @@ protected:
     // Qr code handling methods
     bool qr_code_displayed_ = false;
 
+    // Rotate and offset settings
+    void SetRotationAndOffset(lv_display_rotation_t rotation, int offset_x, int offset_y);
+
 protected:
     // Add protected constructor
     LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height);
@@ -109,6 +112,9 @@ public:
     virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) override;
     virtual void ClearQRCode() override;
     virtual void SetIpAddress(const std::string& ip_address) override;
+
+    // Rotate lcd display
+    virtual bool SetRotationAndOffset(int rotation_degree) override;
 };
 
 // SPI LCD Display

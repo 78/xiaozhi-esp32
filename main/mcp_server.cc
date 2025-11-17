@@ -157,6 +157,20 @@ void McpServer::AddCommonTools() {
                 }
                 return false;
             });
+            
+        // Rotation display tool
+        AddTool("self.screen.set_rotation",
+            "Set the rotation of the screen display. The rotation can be 0, 90, 180, or 270 degrees.",
+            PropertyList({
+                Property("rotation_degree", kPropertyTypeInteger, 0, 270)
+            }),
+            [display](const PropertyList& properties) -> ReturnValue {
+                int rotation_degree = properties["rotation_degree"].value<int>();
+                if (rotation_degree == 0 || rotation_degree == 90 || rotation_degree == 180 || rotation_degree == 270) {
+                    return display->SetRotationAndOffset(rotation_degree);
+                }
+                return false;
+            });  
     }
 
     auto camera = board.GetCamera();

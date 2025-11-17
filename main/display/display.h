@@ -53,6 +53,9 @@ public:
     virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) {}
     virtual void SetIpAddress(const std::string& ip_address) {}
 
+    // For rotation display
+    virtual bool SetRotationAndOffset(int rotation_degree) { return false; }
+
     inline int width() const { return width_; }
     inline int height() const { return height_; }
 

@@ -1773,3 +1773,30 @@ void LcdDisplay::SetIpAddress(const std::string& ip_address) {
     ip_address_ = ip_address;
     ESP_LOGI(TAG, "IP address set to: %s", ip_address_.c_str());
 }
+
+void LcdDisplay::SetRotationAndOffset(lv_display_rotation_t rotation, int offset_x, int offset_y) {
+    DisplayLockGuard lock(this);
+    lv_display_set_rotation(display_, rotation);
+    lv_display_set_offset(display_, offset_x, offset_y);
+}
+
+bool LcdDisplay::SetRotationAndOffset(int rotation_degree) {
+    switch (rotation_degree) {
+        case 0:
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_0, 0, 0);
+            break;
+        case 90:
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_90, abs(height_ - width_), 0);
+            break;
+        case 180:
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_180, 0, abs(height_ - width_));
+            break;
+        case 270:
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_270, 0, 0);
+            break;
+        default:
+            ESP_LOGW(TAG, "Unsupported rotation degree: %d", rotation_degree);
+            return false;
+    }
+    return true;
+}
