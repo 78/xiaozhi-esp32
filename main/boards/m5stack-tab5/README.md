@@ -4,15 +4,11 @@
 
 ## 快速体验
 
-下载编译好的 [固件](https://pan.baidu.com/s/1dgbUQtMyVLSCSBJLHARpwQ?pwd=1234) 提取码: 1234 
-
-```shell
-esptool.py --chip esp32p4 -p /dev/ttyACM0 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 16MB 0x00 tab5_xiaozhi_v1_addr0.bin 
-```
+到 [M5Burner](https://docs.m5stack.com/zh_CN/uiflow/m5burner/intro) 选择 Tab5 搜索小智下载固件
 
 ## 基础使用
 
-* idf version: v5.5-dev
+* idf version: v6.0-dev
 
 1. 设置编译目标为 esp32p4
 
