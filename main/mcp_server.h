@@ -66,6 +66,9 @@ private:
     // 新增：字段描述（向后兼容，默认空）
     std::string description_;
 
+    std::vector<std::string> enum_strings_;
+    std::vector<int> enum_ints_;
+
 public:
     // Required field constructor
     Property(const std::string& name, PropertyType type)
@@ -124,6 +127,28 @@ public:
         value_ = default_value;
     }
 
+    // ================= 统一的 Enum 支持 =================
+    
+    // 为字符串类型设置 enum 列表
+    Property& SetEnum(const std::vector<std::string>& enums) {
+        if (type_ != kPropertyTypeString) {
+            throw std::invalid_argument("SetEnum can only be applied to string properties");
+        }
+        enum_strings_ = enums;
+        return *this;
+    }
+
+    // 为整数类型设置 enum 列表
+    Property& SetEnum(const std::vector<int>& enums) {
+        if (type_ != kPropertyTypeInteger) {
+            throw std::invalid_argument("SetEnum can only be applied to integer properties");
+        }
+        enum_ints_ = enums;
+        return *this;
+    }
+
+    // ==========================================
+
     inline const std::string& name() const { return name_; }
     inline const std::string& description() const { return description_; }
     inline PropertyType type() const { return type_; }
@@ -170,10 +195,28 @@ public:
             if (max_value_.has_value()) {
                 cJSON_AddNumberToObject(json, "maximum", max_value_.value());
             }
+
+            // 如果设置了 integer enum，则输出 enum（整型）
+            if (!enum_ints_.empty()) {
+                cJSON* arr = cJSON_CreateArray();
+                for (int v : enum_ints_) {
+                    cJSON_AddItemToArray(arr, cJSON_CreateNumber(v));
+                }
+                cJSON_AddItemToObject(json, "enum", arr);
+            }
         } else if (type_ == kPropertyTypeString) {
             cJSON_AddStringToObject(json, "type", "string");
             if (has_default_value_) {
                 cJSON_AddStringToObject(json, "default", value<std::string>().c_str());
+            }
+
+            // 如果设置了 string enum，则输出 enum（字符串）
+            if (!enum_strings_.empty()) {
+                cJSON* arr = cJSON_CreateArray();
+                for (const auto& s : enum_strings_) {
+                    cJSON_AddItemToArray(arr, cJSON_CreateString(s.c_str()));
+                }
+                cJSON_AddItemToObject(json, "enum", arr);
             }
         }
         
