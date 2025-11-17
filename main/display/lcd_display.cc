@@ -138,6 +138,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     height_ = height;
 
     final_pcm_data_fft = nullptr;
+    rotation_degree_ = 0;
 
     // Initialize LCD themes
     InitializeLcdThemes();
@@ -959,6 +960,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    Settings settings("display", false);
+    int rotation_degree = settings.GetInt("rotation_degree", 0);
+    if (rotation_degree != 0) {
+        SetRotation(rotation_degree, false);
+    }
 }
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
@@ -1780,16 +1787,20 @@ void LcdDisplay::SetRotationAndOffset(lv_display_rotation_t rotation, int offset
     lv_display_set_offset(display_, offset_x, offset_y);
 }
 
-bool LcdDisplay::SetRotationAndOffset(int rotation_degree) {
+bool LcdDisplay::SetRotation(int rotation_degree, bool save_setting) {
+    if (rotation_degree_ == rotation_degree) {
+        return true; // No change needed
+    }
+    rotation_degree_ = rotation_degree;
     switch (rotation_degree) {
         case 0:
             SetRotationAndOffset(LV_DISPLAY_ROTATION_0, 0, 0);
             break;
         case 90:
-            SetRotationAndOffset(LV_DISPLAY_ROTATION_90, abs(height_ - width_), 0);
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_90, (height_ == width_) ? 80 : 0, 0);
             break;
         case 180:
-            SetRotationAndOffset(LV_DISPLAY_ROTATION_180, 0, abs(height_ - width_));
+            SetRotationAndOffset(LV_DISPLAY_ROTATION_180, 0, (height_ == width_) ? 80 : 0);
             break;
         case 270:
             SetRotationAndOffset(LV_DISPLAY_ROTATION_270, 0, 0);
@@ -1798,5 +1809,11 @@ bool LcdDisplay::SetRotationAndOffset(int rotation_degree) {
             ESP_LOGW(TAG, "Unsupported rotation degree: %d", rotation_degree);
             return false;
     }
+
+    if (!save_setting) {
+        return true;
+    }
+    Settings settings("display", true);
+    settings.SetInt("rotation_degree", rotation_degree);
     return true;
 }

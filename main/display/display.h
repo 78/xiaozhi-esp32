@@ -54,7 +54,7 @@ public:
     virtual void SetIpAddress(const std::string& ip_address) {}
 
     // For rotation display
-    virtual bool SetRotationAndOffset(int rotation_degree) { return false; }
+    virtual bool SetRotation(int rotation_degree, bool save_setting) { return false; }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

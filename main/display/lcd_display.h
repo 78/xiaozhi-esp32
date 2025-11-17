@@ -85,6 +85,7 @@ protected:
     bool qr_code_displayed_ = false;
 
     // Rotate and offset settings
+    int rotation_degree_ = 0;
     void SetRotationAndOffset(lv_display_rotation_t rotation, int offset_x, int offset_y);
 
 protected:
@@ -114,7 +115,7 @@ public:
     virtual void SetIpAddress(const std::string& ip_address) override;
 
     // Rotate lcd display
-    virtual bool SetRotationAndOffset(int rotation_degree) override;
+    virtual bool SetRotation(int rotation_degree, bool save_setting) override;
 };
 
 // SPI LCD Display

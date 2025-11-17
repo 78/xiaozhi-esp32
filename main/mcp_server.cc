@@ -167,7 +167,7 @@ void McpServer::AddCommonTools() {
             [display](const PropertyList& properties) -> ReturnValue {
                 int rotation_degree = properties["rotation_degree"].value<int>();
                 if (rotation_degree == 0 || rotation_degree == 90 || rotation_degree == 180 || rotation_degree == 270) {
-                    return display->SetRotationAndOffset(rotation_degree);
+                    return display->SetRotation(rotation_degree, true);
                 }
                 return false;
             });  
