@@ -109,13 +109,14 @@ private:
     void InitializeButtons()
     {
 
-        touch_button_.OnPressDown([this]()
-                                  {
-            if (Application::GetInstance().GetDeviceState() == kDeviceStateListening) {
-                Application::GetInstance().StopListening();
-            }else{
-                Application::GetInstance().StartListening();
-            } });
+        touch_button_.OnClick([this]() {
+            auto &app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
+        });
+
 
         touch_button_.OnLongPress([this]()
                                   {
@@ -140,7 +141,7 @@ public:
     virtual AudioCodec *GetAudioCodec() override
     {
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                                               AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, I2S_STD_SLOT_RIGHT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN, I2S_STD_SLOT_LEFT);
+                                               AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, I2S_STD_SLOT_RIGHT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN, I2S_STD_SLOT_RIGHT);
         return &audio_codec;
     }
 
