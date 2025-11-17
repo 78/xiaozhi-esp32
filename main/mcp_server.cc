@@ -160,7 +160,7 @@ void McpServer::AddCommonTools() {
             
         // Rotation display tool
         AddTool("self.screen.set_rotation",
-            "Set the rotation of the screen display. The rotation can be 0, 90, 180, or 270 degrees.",
+            "Set the rotation of the screen display. The rotation can be 0, 90 or left, 180 of flip, 270 or right degrees.",
             PropertyList({
                 Property("rotation_degree", kPropertyTypeInteger, 0, 270)
             }),
