@@ -55,22 +55,15 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     auto http = network->CreateHttp(0);
     auto user_agent = SystemInfo::GetUserAgent();
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
-    ESP_LOGI(TAG, "Activation-Version: %s", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    ESP_LOGI(TAG, "Device-Id: %s", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
-    ESP_LOGI(TAG, "Client-Id: %s", board.GetUuid().c_str());
     if (has_serial_number_) {
         http->SetHeader("Serial-Number", serial_number_.c_str());
-        ESP_LOGI(TAG, "Serial-Number: %s", serial_number_.c_str());
         ESP_LOGI(TAG, "Setup HTTP, User-Agent: %s, Serial-Number: %s", user_agent.c_str(), serial_number_.c_str());
     }
     http->SetHeader("User-Agent", user_agent);
-    ESP_LOGI(TAG, "User-Agent: %s", user_agent.c_str());
     http->SetHeader("Accept-Language", Lang::CODE);
-    ESP_LOGI(TAG, "Accept-Language: %s", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
-    ESP_LOGI(TAG, "Content-Type: application/json");
 
     return http;
 }
@@ -79,7 +72,6 @@ std::unique_ptr<Http> Ota::SetupHttp() {
  * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
 
 Header for check version request:
-    Current version     : 2.0.4
     Activation-Version  : 1
     Device-Id           : 90:70:69:19:9d:00
     Client-Id           : 15040d5c-6f08-4244-9062-b467dab3f290
@@ -97,7 +89,7 @@ Body for check version request data:
   "flash_size": 16777216,
   "minimum_free_heap_size": "8377212",
   "mac_address": "90:70:69:...",
-  "uuid": "15040d5c-6f08-4244-9062-...",
+  "uuid": "15040d5c-6f08-4244-9062-....",
   "chip_model_name": "esp32s3",
   "chip_info": {
     "model": 9,
@@ -224,7 +216,7 @@ bool Ota::CheckVersion(std::string& url) {
 
     std::string data = board.GetSystemInfoJson();
     ESP_LOGI(TAG, "Check version URL: %s", url.c_str());
-    ESP_LOGI(TAG, "Check version request data: %s", data.c_str());
+    // ESP_LOGI(TAG, "Check version request data: %s", data.c_str());
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 
@@ -354,6 +346,12 @@ bool Ota::CheckVersion(std::string& url) {
         if (cJSON_IsString(url)) {
             firmware_url_ = url->valuestring;
         }
+        cJSON *size = cJSON_GetObjectItem(firmware, "size");
+        firmware_size_ = 0;
+        if (cJSON_IsNumber(size)) {
+            firmware_size_ = size->valueint;
+            ESP_LOGI(TAG, "Firmware size from server: %d bytes", firmware_size_);
+        }
 
         if (cJSON_IsString(version) && cJSON_IsString(url)) {
             // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
@@ -417,6 +415,9 @@ bool Ota::Upgrade(const std::string& firmware_url) {
 
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
+    auto user_agent = SystemInfo::GetUserAgent();
+    http->SetHeader("User-Agent", user_agent);
+    http->SetHeader("Content-Type", "*/*");
     if (!http->Open("GET", firmware_url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         return false;
@@ -430,8 +431,16 @@ bool Ota::Upgrade(const std::string& firmware_url) {
     size_t content_length = http->GetBodyLength();
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
-        return false;
+        if (firmware_size_ > 0) {
+            content_length = firmware_size_;
+        } else {
+            esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+            const esp_partition_t *partition = esp_partition_get(it);
+            content_length = partition->size;
+        }
+        // return false;
     }
+    ESP_LOGI(TAG, "Firmware size: %u bytes", content_length);
 
     char buffer[512];
     size_t total_read = 0, recent_read = 0;
