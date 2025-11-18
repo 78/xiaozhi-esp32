@@ -78,13 +78,14 @@ std::unique_ptr<Http> Ota::SetupHttp() {
 /*
  * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
 
-I (6335) Ota: Current version: 2.0.4
-I (6335) Ota: Activation-Version: 1
-I (6335) Ota: Device-Id: 90:70:69:19:9d:00
-I (6335) Ota: Client-Id: 15040d5c-6f08-4244-9062-b467dab3f290
-I (6345) Ota: User-Agent: xingzhi-cube-1.54tft-wifi/2.0.4
-I (6355) Ota: Accept-Language: vi-VN
-I (6355) Ota: Content-Type: application/json
+Header for check version request:
+    Current version     : 2.0.4
+    Activation-Version  : 1
+    Device-Id           : 90:70:69:19:9d:00
+    Client-Id           : 15040d5c-6f08-4244-9062-b467dab3f290
+    User-Agent          : xingzhi-cube-1.54tft-wifi/2.0.4
+    Accept-Language     : vi-VN
+    Content-Type        : application/json
 
 Check version URL: https://api.tenclass.net/xiaozhi/ota/
 Method: POST
@@ -95,8 +96,8 @@ Body for check version request data:
   "language": "vi-VN",
   "flash_size": 16777216,
   "minimum_free_heap_size": "8377212",
-  "mac_address": "90:70:69:19:9d:00",
-  "uuid": "15040d5c-6f08-4244-9062-b467dab3f290",
+  "mac_address": "90:70:69:...",
+  "uuid": "15040d5c-6f08-4244-9062-...",
   "chip_model_name": "esp32s3",
   "chip_info": {
     "model": 9,
@@ -109,7 +110,7 @@ Body for check version request data:
     "version": "2.0.4",
     "compile_time": "Nov 16 2025T11:28:08Z",
     "idf_version": "v5.5.1",
-    "elf_sha256": "d62e9efb413a4fba304f77d431d970886ff83e28a94dea962fd0db932546cc01"
+    "elf_sha256": "d62e9efb413a4fba304f77d431d970886ff83e28a94dea96..."
   },
   "partition_table": [
     {
@@ -178,9 +179,9 @@ Server response:
 {
     "mqtt": {
         "endpoint": "mqtt.xiaozhi.me",
-        "client_id": "GID_test@@@90_70_69_19_9d_00@@@15040d5c-6f08-4244-9062-b467dab3f290",
-        "username": "eyJpcCI6IjE3MS4yNDAuMjU0LjExNiJ9",
-        "password": "2wKM7rd6bgXz9oRj24QsOs/EI9Y7QFa+oB1V39FMRSo=",
+        "client_id": "GID_test@@@90_70_69_19_9d_00@@@15040d5c-6f08-4244-9062-...",
+        "username": "eyJpcCI6IjE3MS4yNDAu...",
+        "password": "2wKM7rd6bgXz9oRj24QsOs/EI9Y7QF...",
         "publish_topic": "device-server",
         "subscribe_topic": "null"
     },
@@ -241,7 +242,7 @@ bool Ota::CheckVersion(std::string& url) {
     data = http->ReadAll();
     http->Close();
 
-    // Response: { "firmware": { "version": "1.0.0", "url": "http://" } }
+    // Response: { "firmware": { "version": "1.0.0", "url": "http://", "force": 0 } }
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
     
@@ -368,6 +369,11 @@ bool Ota::CheckVersion(std::string& url) {
                 has_new_version_ = true;
             }
         }
+        // For testing purposes
+        // firmware_version_ = "2.0.4";
+        // firmware_url_ = "https://cdn.jsdelivr.net/gh/TienHuyIoT/esp_web_flasher@master/ota_bin/xingzhi-cube-1.54tft-wifi.bin";
+        // has_new_version_ = true;
+
     } else {
         ESP_LOGW(TAG, "No firmware section found!");
     }
