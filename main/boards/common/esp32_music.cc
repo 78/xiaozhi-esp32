@@ -23,7 +23,7 @@
 
 #define TAG "Esp32Music"
 
-#define MUSIC_URL "http://103.143.207.89:5005" // "http://www.xiaozhishop.xyz:5005"
+#define MUSIC_URL "http://www.xiaozhishop.xyz:5005"
 
 // ========== Simple ESP32 Authentication Function ==========
 
