@@ -237,7 +237,9 @@ bool Ota::CheckVersion(std::string& url) {
     // Response: { "firmware": { "version": "1.0.0", "url": "http://", "force": 0 } }
     // Parse the JSON response and check if the version is newer
     // If it is, set has_new_version_ to true and store the new version and URL
-    
+    if (url != CONFIG_OTA_URL) {
+        ESP_LOGI(TAG, "JSON response  %s", data.c_str());
+    }
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
@@ -365,6 +367,11 @@ bool Ota::CheckVersion(std::string& url) {
             cJSON *force = cJSON_GetObjectItem(firmware, "force");
             if (cJSON_IsNumber(force) && force->valueint == 1) {
                 has_new_version_ = true;
+            }
+
+            if (firmware_url_.length() == 0) {
+                ESP_LOGE(TAG, "Firmware URL is empty");
+                has_new_version_ = false;
             }
         }
         // For testing purposes
