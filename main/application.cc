@@ -294,36 +294,39 @@ void Application::ToggleChatState() {
 }
 
 void Application::StartListening() {
-    if (device_state_ == kDeviceStateActivating) {
-        SetDeviceState(kDeviceStateIdle);
-        return;
-    } else if (device_state_ == kDeviceStateWifiConfiguring) {
-        audio_service_.EnableAudioTesting(true);
-        SetDeviceState(kDeviceStateAudioTesting);
-        return;
-    }
-
     if (!protocol_) {
         ESP_LOGE(TAG, "Protocol not initialized");
         return;
     }
-    
-    if (device_state_ == kDeviceStateIdle) {
-        Schedule([this]() {
-            if (!protocol_->IsAudioChannelOpened()) {
-                SetDeviceState(kDeviceStateConnecting);
-                if (!protocol_->OpenAudioChannel()) {
-                    return;
-                }
-            }
 
-            SetListeningMode(kListeningModeManualStop);
-        });
-    } else if (device_state_ == kDeviceStateSpeaking) {
-        Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
-            SetListeningMode(kListeningModeManualStop);
-        });
+    switch (device_state_) {
+        case kDeviceStateActivating:
+            SetDeviceState(kDeviceStateIdle);
+            return;
+        case kDeviceStateWifiConfiguring:
+            audio_service_.EnableAudioTesting(true);
+            SetDeviceState(kDeviceStateAudioTesting);
+            return;
+        case kDeviceStateIdle:
+            Schedule([this]() {
+                if (!protocol_->IsAudioChannelOpened()) {
+                    SetDeviceState(kDeviceStateConnecting);
+                    if (!protocol_->OpenAudioChannel()) {
+                        return;
+                    }
+                }
+
+                SetListeningMode(kListeningModeManualStop);
+            });
+            break;
+        case kDeviceStateSpeaking:
+            Schedule([this]() {
+                AbortSpeaking(kAbortReasonNone);
+                SetListeningMode(kListeningModeManualStop);
+            });
+            break;
+        default:
+            break;
     }
 }
 
