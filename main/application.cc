@@ -249,43 +249,47 @@ void Application::DismissAlert() {
 }
 
 void Application::ToggleChatState() {
-    if (device_state_ == kDeviceStateActivating) {
-        SetDeviceState(kDeviceStateIdle);
-        return;
-    } else if (device_state_ == kDeviceStateWifiConfiguring) {
-        audio_service_.EnableAudioTesting(true);
-        SetDeviceState(kDeviceStateAudioTesting);
-        return;
-    } else if (device_state_ == kDeviceStateAudioTesting) {
-        audio_service_.EnableAudioTesting(false);
-        SetDeviceState(kDeviceStateWifiConfiguring);
-        return;
-    }
-
     if (!protocol_) {
         ESP_LOGE(TAG, "Protocol not initialized");
         return;
     }
 
-    if (device_state_ == kDeviceStateIdle) {
-        Schedule([this]() {
-            if (!protocol_->IsAudioChannelOpened()) {
-                SetDeviceState(kDeviceStateConnecting);
-                if (!protocol_->OpenAudioChannel()) {
-                    return;
+    switch (device_state_) {
+        case kDeviceStateActivating:
+            SetDeviceState(kDeviceStateIdle);
+            break;
+        case kDeviceStateWifiConfiguring:
+            audio_service_.EnableAudioTesting(true);
+            SetDeviceState(kDeviceStateAudioTesting);
+            break;
+        case kDeviceStateAudioTesting:
+            audio_service_.EnableAudioTesting(false);
+            SetDeviceState(kDeviceStateWifiConfiguring);
+            break;
+        case kDeviceStateIdle:
+            Schedule([this]() {
+                if (!protocol_->IsAudioChannelOpened()) {
+                    SetDeviceState(kDeviceStateConnecting);
+                    if (!protocol_->OpenAudioChannel()) {
+                        return;
+                    }
                 }
-            }
 
-            SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-        });
-    } else if (device_state_ == kDeviceStateSpeaking) {
-        Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
-        });
-    } else if (device_state_ == kDeviceStateListening) {
-        Schedule([this]() {
-            protocol_->CloseAudioChannel();
-        });
+                SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+            });
+            break;
+        case kDeviceStateSpeaking:
+            Schedule([this]() {
+                AbortSpeaking(kAbortReasonNone);
+            });
+            break;
+        case kDeviceStateListening:
+            Schedule([this]() {
+                protocol_->CloseAudioChannel();
+            });
+            break;
+        default:
+            break;
     }
 }
 
