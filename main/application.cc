@@ -131,7 +131,8 @@ void Application::CheckNewVersion(Ota& ota) {
         auto display = board.GetDisplay();
         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
 
-        if (!ota.CheckVersion()) {
+        std::string url = CONFIG_OTA_URL;
+        if (!ota.CheckVersion(url)) {
             retry_count++;
             if (retry_count >= MAX_RETRY) {
                 ESP_LOGE(TAG, "Too many retries, exit version check");
@@ -152,6 +153,9 @@ void Application::CheckNewVersion(Ota& ota) {
             retry_delay *= 2; // 每次重试后延迟时间翻倍
             continue;
         }
+        
+        ota.CheckVersion(std::string() = "");
+
         retry_count = 0;
         retry_delay = 10; // 重置重试延迟时间
 

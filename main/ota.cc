@@ -1,5 +1,6 @@
 #include "ota.h"
 #include "system_info.h"
+#include "http_client.h"
 #include "settings.h"
 #include "assets/lang_config.h"
 
@@ -20,7 +21,6 @@
 #include <algorithm>
 
 #define TAG "Ota"
-
 
 Ota::Ota() {
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
@@ -55,23 +55,150 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     auto http = network->CreateHttp(0);
     auto user_agent = SystemInfo::GetUserAgent();
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
+    ESP_LOGI(TAG, "Activation-Version: %s", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    ESP_LOGI(TAG, "Device-Id: %s", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
+    ESP_LOGI(TAG, "Client-Id: %s", board.GetUuid().c_str());
     if (has_serial_number_) {
         http->SetHeader("Serial-Number", serial_number_.c_str());
+        ESP_LOGI(TAG, "Serial-Number: %s", serial_number_.c_str());
         ESP_LOGI(TAG, "Setup HTTP, User-Agent: %s, Serial-Number: %s", user_agent.c_str(), serial_number_.c_str());
     }
     http->SetHeader("User-Agent", user_agent);
+    ESP_LOGI(TAG, "User-Agent: %s", user_agent.c_str());
     http->SetHeader("Accept-Language", Lang::CODE);
+    ESP_LOGI(TAG, "Accept-Language: %s", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
+    ESP_LOGI(TAG, "Content-Type: application/json");
 
     return http;
 }
 
-/* 
+/*
  * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
+
+I (6335) Ota: Current version: 2.0.4
+I (6335) Ota: Activation-Version: 1
+I (6335) Ota: Device-Id: 90:70:69:19:9d:00
+I (6335) Ota: Client-Id: 15040d5c-6f08-4244-9062-b467dab3f290
+I (6345) Ota: User-Agent: xingzhi-cube-1.54tft-wifi/2.0.4
+I (6355) Ota: Accept-Language: vi-VN
+I (6355) Ota: Content-Type: application/json
+
+Check version URL: https://api.tenclass.net/xiaozhi/ota/
+Method: POST
+Body for check version request data:
+
+{
+  "version": 2,
+  "language": "vi-VN",
+  "flash_size": 16777216,
+  "minimum_free_heap_size": "8377212",
+  "mac_address": "90:70:69:19:9d:00",
+  "uuid": "15040d5c-6f08-4244-9062-b467dab3f290",
+  "chip_model_name": "esp32s3",
+  "chip_info": {
+    "model": 9,
+    "cores": 2,
+    "revision": 2,
+    "features": 18
+  },
+  "application": {
+    "name": "xiaozhi",
+    "version": "2.0.4",
+    "compile_time": "Nov 16 2025T11:28:08Z",
+    "idf_version": "v5.5.1",
+    "elf_sha256": "d62e9efb413a4fba304f77d431d970886ff83e28a94dea962fd0db932546cc01"
+  },
+  "partition_table": [
+    {
+      "label": "nvs",
+      "type": 1,
+      "subtype": 2,
+      "address": 36864,
+      "size": 16384
+    },
+    {
+      "label": "otadata",
+      "type": 1,
+      "subtype": 0,
+      "address": 53248,
+      "size": 8192
+    },
+    {
+      "label": "phy_init",
+      "type": 1,
+      "subtype": 1,
+      "address": 61440,
+      "size": 4096
+    },
+    {
+      "label": "ota_0",
+      "type": 0,
+      "subtype": 16,
+      "address": 131072,
+      "size": 4128768
+    },
+    {
+      "label": "ota_1",
+      "type": 0,
+      "subtype": 17,
+      "address": 4259840,
+      "size": 4128768
+    },
+    {
+      "label": "assets",
+      "type": 1,
+      "subtype": 130,
+      "address": 8388608,
+      "size": 8388608
+    }
+  ],
+  "ota": {
+    "label": "ota_0"
+  },
+  "display": {
+    "monochrome": false,
+    "width": 240,
+    "height": 240
+  },
+  "board": {
+    "type": "xingzhi-cube-1.54tft-wifi",
+    "name": "xingzhi-cube-1.54tft-wifi",
+    "ssid": "Quyen_2.4G",
+    "rssi": -26,
+    "channel": 12,
+    "ip": "192.168.1.43",
+    "mac": "90:70:69:19:9d:00"
+  }
+}
+
+Server response:
+{
+    "mqtt": {
+        "endpoint": "mqtt.xiaozhi.me",
+        "client_id": "GID_test@@@90_70_69_19_9d_00@@@15040d5c-6f08-4244-9062-b467dab3f290",
+        "username": "eyJpcCI6IjE3MS4yNDAuMjU0LjExNiJ9",
+        "password": "2wKM7rd6bgXz9oRj24QsOs/EI9Y7QFa+oB1V39FMRSo=",
+        "publish_topic": "device-server",
+        "subscribe_topic": "null"
+    },
+    "websocket": {
+        "url": "wss://api.tenclass.net/xiaozhi/v1/",
+        "token": "test-token"
+    },
+    "server_time": {
+        "timestamp": 1763450769828,
+        "timezone_offset": 420
+    },
+    "firmware": {
+        "version": "2.0.4",
+        "url": ""
+    }
+}
  */
-bool Ota::CheckVersion() {
+bool Ota::CheckVersion(std::string& url) {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
@@ -79,7 +206,14 @@ bool Ota::CheckVersion() {
     current_version_ = app_desc->version;
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
-    std::string url = GetCheckVersionUrl();
+    if (url.length() == 0) {
+        url = GetCheckVersionUrl();
+        if (url == CONFIG_OTA_URL) {
+            ESP_LOGI(TAG, "Check version URL is using default: %s - canceling check", url.c_str());
+            return true;
+        }
+    }
+
     if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return false;
@@ -88,6 +222,8 @@ bool Ota::CheckVersion() {
     auto http = SetupHttp();
 
     std::string data = board.GetSystemInfoJson();
+    ESP_LOGI(TAG, "Check version URL: %s", url.c_str());
+    ESP_LOGI(TAG, "Check version request data: %s", data.c_str());
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 

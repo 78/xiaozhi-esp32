@@ -12,7 +12,7 @@ public:
     Ota();
     ~Ota();
 
-    bool CheckVersion();
+    bool CheckVersion(std::string& url);
     esp_err_t Activate();
     bool HasActivationChallenge() { return has_activation_challenge_; }
     bool HasNewVersion() { return has_new_version_; }
