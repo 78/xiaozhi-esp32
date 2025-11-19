@@ -158,7 +158,7 @@ private:
         esp_video_init_csi_config_t base_csi_config = {
             .sccb_config = {
                 .init_sccb = false,
-                .i2c_handle = codec_i2c_bus_,
+                .i2c_handle = i2c_bus_,
                 .freq = 400000,
             },
             .reset_pin = GPIO_NUM_NC,
