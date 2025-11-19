@@ -33,4 +33,7 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_13
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+#define SECONDS_TO_SLEEP_MODE   (60U * 5U)  // 5 minutes
+#define SECONDS_TO_SHUTDOWN     (60U * 60U * 12U) // 12 hours
+
 #endif // _BOARD_CONFIG_H_
