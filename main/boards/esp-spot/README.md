@@ -1,4 +1,4 @@
-# ESP-Spot S3
+# ESP-Spot
 
 ## 简介
 
@@ -10,15 +10,17 @@
 
 ESP-Spot 是 ESP Friends 开源的一款智能语音交互盒子，内置麦克风、扬声器、IMU 惯性传感器，可使用电池供电。ESP-Spot 不带屏幕，带有一个 RGB 指示灯和两个按钮。硬件详情可查看[立创开源项目](https://oshwhub.com/esp-college/esp-spot)。
 
-ESP-Spot 开源项目采用 ESP32-S3-WROOM-1-N16R8 模组。如在复刻时使用了其他大小的 Flash，需修改对应的参数。
+ESP-Spot 开源项目采用 ESP32-S3-WROOM-1-N16R8 模组或 ESP32-C5-WROOM-1-N8R8。如在复刻时使用了其他大小的 Flash，需修改对应的参数。
 
 
 ## 配置、编译命令
 
-**配置编译目标为 ESP32S3**
+**配置编译目标**
 
 ```bash
-idf.py set-target esp32s3
+idf.py set-target esp32s3 # Spot S3
+# or
+idf.py set-target esp32c5 # Spot C5
 ```
 
 **打开 menuconfig 并配置**
@@ -29,7 +31,7 @@ idf.py menuconfig
 
 分别配置如下选项：
 
-- `Xiaozhi Assistant` → `Board Type` → 选择 `ESP-Spot-S3`
+- `Xiaozhi Assistant` → `Board Type` → 选择 `ESP-Spot-S3` / `ESP-Spot-C5`
 
 按 `S` 保存，按 `Q` 退出。
 
@@ -53,3 +55,9 @@ idf.py flash
 > 3. 按住 <kbd>BOOT</kbd> 同时插回 PCB 版，注意不要颠倒；
 > 
 > 此时， ESP-Spot 应当已进入下载模式。在烧录完成后，可能需要重新插拔 PCB 板。
+
+## 低功耗
+
+ESP-Spot 支持 Deep Sleep 低功耗模式。
+
+当处于 idle 状态 10 分钟后，ESP-Spot 会自动进入 Deep Sleep 模式，按 Key 键或摇晃 ESP-Spot 即可唤醒。
