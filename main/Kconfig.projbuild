@@ -240,6 +240,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_ATOM_MATRIX_ECHO_BASE
         bool "M5Stack AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_LCD_1_83
+        bool "Waveshare ESP32-C6-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_TOUCH_LCD_3_5
+        bool "Waveshare ESP32-Touch-LCD-3.5"
+        depends on IDF_TARGET_ESP32
     config BOARD_TYPE_WAVESHARE_S3_AUDIO_BOARD
         bool "Waveshare ESP32-S3-Audio-Board"
         depends on IDF_TARGET_ESP32S3
