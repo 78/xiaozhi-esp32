@@ -99,6 +99,11 @@ dependencies:
     rules:
     - if: target in [esp32p4]
 
+  espressif/bmi270_sensor:
+    version: ^0.1.0
+    rules:
+    - if: target in [esp32s3, esp32c5]
+
   ## Required IDF version
   idf:
     version: '>=5.4.0'
