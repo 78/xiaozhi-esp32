@@ -2,9 +2,9 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "otto-robot",
+            "name": "waveshare-c6-touch-amoled-2.06",
             "sdkconfig_append": [
-                "CONFIG_HTTPD_WS_SUPPORT=y"
+                "CONFIG_USE_ESP_WAKE_WORD=y"
             ]
         }
     ]
