@@ -44,6 +44,7 @@ public:
     // 控制LED状态
     void SetLedState(bool red, bool green);
     void SetPowerState(bool is_on) { is_power_on_ = is_on; }
+    void SetPrePowerOnState(bool is_pre_power_on) { is_pre_power_on_ = is_pre_power_on; }
 
     // 闪烁控制
     void StartBlink(int interval_ms, bool red, bool green);
@@ -62,10 +63,10 @@ public:
     void SetWarmLightBrightness(int brightness);
     bool IsColdLightOn() const { return cold_light_state_; }
     bool IsWarmLightOn() const { return warm_light_state_; }
-    
+
     // 添加获取冷暖灯实例的方法，用于MCP工具初始化
-    GpioLed* GetColdLight() const { return cold_light_; }
-    GpioLed* GetWarmLight() const { return warm_light_; }
+    GpioLed *GetColdLight() const { return cold_light_; }
+    GpioLed *GetWarmLight() const { return warm_light_; }
 
     // 定时器回调函数
     static void BlinkTimerCallback(void *arg);
@@ -77,6 +78,7 @@ protected:
     bool red_led_state_ = false;
     bool green_led_state_ = false;
     bool is_power_on_ = false;
+    bool is_pre_power_on_ = false; // 预开机状态标志位
 
     // 闪烁控制参数
     int blink_interval_ms_ = 0; // 闪烁间隔（毫秒）

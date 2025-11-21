@@ -11,7 +11,10 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
+#include "display.h"
 #include <wifi_station.h>
+#include <wifi_configuration_ap.h>
+#include <ssid_manager.h>
 #include <esp_log.h>
 
 #define TAG "FogSeekAudioXiaoYa"
@@ -51,6 +54,15 @@ private:
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
+        ctrl_button_.OnPressDown([this]()
+                                 {
+                                     led_controller_.SetPrePowerOnState(true); // 按键按下时设置预开机标志位
+                                 });
+        ctrl_button_.OnPressUp([this]()
+                               {
+                                   led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
+                               });
+
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
@@ -143,9 +155,9 @@ private:
 public:
     FogSeekAudioXiaoYa() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
+        InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
-        InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
@@ -161,6 +173,70 @@ public:
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                                               AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
         return &audio_codec;
+    }
+
+    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
+    virtual void StartNetwork() override
+    {
+        // User can press BOOT button while starting to enter WiFi configuration mode
+        if (wifi_config_mode_)
+        {
+            EnterWifiConfigMode();
+            return;
+        }
+
+        // If no WiFi SSID is configured, enter WiFi configuration mode
+        auto &ssid_manager = SsidManager::GetInstance();
+        auto ssid_list = ssid_manager.GetSsidList();
+        if (ssid_list.empty())
+        {
+            wifi_config_mode_ = true;
+            EnterWifiConfigMode();
+            return;
+        }
+
+        // For normal operation, use the parent class's logic
+        WifiBoard::StartNetwork();
+    }
+
+    // 重新实现EnterWifiConfigMode方法，将热点名称前缀设置为"Xiaoya"
+    void EnterWifiConfigMode()
+    {
+        auto &application = Application::GetInstance();
+        application.SetDeviceState(kDeviceStateWifiConfiguring);
+
+        auto &wifi_ap = WifiConfigurationAp::GetInstance();
+        wifi_ap.SetLanguage(Lang::CODE);
+        wifi_ap.SetSsidPrefix("Xiaoya");
+        wifi_ap.Start();
+
+        // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
+        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
+        hint += wifi_ap.GetSsid();
+        hint += Lang::Strings::ACCESS_VIA_BROWSER;
+        hint += wifi_ap.GetWebServerUrl();
+        hint += "\n\n";
+
+        // 播报配置 WiFi 的提示
+        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG_XIAOYA);
+
+#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
+        auto display = Board::GetInstance().GetDisplay();
+        auto codec = Board::GetInstance().GetAudioCodec();
+        int channel = 1;
+        if (codec)
+        {
+            channel = codec->input_channels();
+        }
+        ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
+        audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
+#endif
+
+        // Wait forever until reset after configuration
+        while (true)
+        {
+            vTaskDelay(pdMS_TO_TICKS(10000));
+        }
     }
 
     ~FogSeekAudioXiaoYa()

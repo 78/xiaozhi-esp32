@@ -180,12 +180,12 @@ void FogSeekLedController::HandleDeviceState(DeviceState current_state, FogSeekP
     }
 }
 
-// 根据电池/电源状态更新LED
+// 根据电源状态更新LED
 void FogSeekLedController::UpdateBatteryStatus(FogSeekPowerManager &power_manager)
 {
-    if ((power_manager.IsBatteryPowered()) && !is_power_on_)
+    // 针对电池供电的设计，短按系统会上电进入初始化，未达到长按逻辑不能亮灯，防止用户松手而掉电，长按开机再正常判断LED灯逻辑
+    if ((power_manager.IsBatteryPowered()) && is_pre_power_on_ && !is_power_on_)
     {
-        // 针对电池供电的设计，短按会初始化但不亮灯，长按开机再正常判断LED灯逻辑
         SetLedState(false, false);
         return;
     }

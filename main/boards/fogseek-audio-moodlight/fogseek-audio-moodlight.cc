@@ -57,6 +57,15 @@ private:
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
+        ctrl_button_.OnPressDown([this]()
+                                 {
+                                     led_controller_.SetPrePowerOnState(true); // 按键按下时设置预开机标志位
+                                 });
+        ctrl_button_.OnPressUp([this]()
+                               {
+                                   led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
+                               });
+
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
@@ -163,9 +172,9 @@ private:
 public:
     FogSeekAudioMoodlight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
+        InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
-        InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)

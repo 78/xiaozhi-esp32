@@ -75,7 +75,6 @@
      {                                                    \
          .bus_id = 0,                                     \
          .num_data_lanes = 2,                             \
-         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,     \
          .lane_bit_rate_mbps = 1000,                      \
      }
  

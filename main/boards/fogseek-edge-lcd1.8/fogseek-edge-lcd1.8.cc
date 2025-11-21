@@ -119,6 +119,15 @@ private:
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
+        ctrl_button_.OnPressDown([this]()
+                                 {
+                                     led_controller_.SetPrePowerOnState(true); // 按键按下时设置预开机标志位
+                                 });
+        ctrl_button_.OnPressUp([this]()
+                               {
+                                   led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
+                               });
+
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
@@ -217,10 +226,10 @@ public:
     FogSeekEdgeLcd18() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
+        InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
         InitializeDisplayManager();
-        InitializeButtonCallbacks();
         InitializeAudioAmplifier();
 
         // 设置电源状态变化回调函数
@@ -239,7 +248,7 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8311AudioCodec audio_codec(
+        static Es8389AudioCodec audio_codec(
             i2c_bus_,
             (i2c_port_t)0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -250,9 +259,8 @@ public:
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC,
-            AUDIO_CODEC_ES8311_ADDR,
-            true,
-            false);
+            AUDIO_CODEC_ES8389_ADDR,
+            true);
         return &audio_codec;
     }
 

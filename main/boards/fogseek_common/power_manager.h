@@ -12,7 +12,7 @@ typedef struct
     int hold_gpio;
     int charging_gpio;
     int charge_done_gpio;
-    int adc_gpio;  // 添加ADC引脚
+    int adc_gpio; // 添加ADC引脚
 } power_pin_config_t;
 
 class FogSeekPowerManager
@@ -62,21 +62,21 @@ public:
 
 private:
     // 私有成员变量
-    static const char *TAG;                                    // 日志标签
-    bool pwr_hold_state_ = false;                              // 电源保持状态
-    PowerState power_state_ = PowerState::NO_POWER;            // 电源状态
-    bool low_battery_warning_ = false;                         // 低电量警告标志
-    bool low_battery_shutdown_ = false;                        // 低电量关机标志
-    uint8_t battery_level_ = 0;                                // 电池电量百分比
-    esp_timer_handle_t battery_check_timer_ = nullptr;         // 电池检查定时器
-    AdcBatteryMonitor *battery_monitor_ = nullptr;             // 电池监控器
-    PowerStateCallback power_state_callback_ = nullptr;        // 电源状态回调函数
-    power_pin_config_t pin_config_ = {};                       // 引脚配置
+    static const char *TAG;                             // 日志标签
+    bool pwr_hold_state_ = false;                       // 电源保持状态
+    PowerState power_state_ = PowerState::NO_POWER;     // 电源状态
+    bool low_battery_warning_ = false;                  // 低电量警告标志
+    bool low_battery_shutdown_ = false;                 // 低电量关机标志
+    uint8_t battery_level_ = 0;                         // 电池电量百分比
+    esp_timer_handle_t battery_check_timer_ = nullptr;  // 电池检查定时器
+    AdcBatteryMonitor *battery_monitor_ = nullptr;      // 电池监控器
+    PowerStateCallback power_state_callback_ = nullptr; // 电源状态回调函数
+    power_pin_config_t pin_config_ = {};                // 引脚配置
 
     // 私有方法
-    void UpdatePowerState();                                   // 更新电源状态
-    void CheckLowBattery();                                    // 低电量检查
-    static void BatteryCheckTimerCallback(void *arg);          // 电池检查定时器回调
+    void UpdatePowerState();                              // 更新电源状态
+    void CheckLowBattery();                               // 低电量检查
+    static void PowerStateUpdateTimerCallback(void *arg); // 电源状态更新定时器回调
 };
 
 #endif

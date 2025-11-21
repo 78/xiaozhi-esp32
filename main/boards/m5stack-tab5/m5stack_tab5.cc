@@ -7,6 +7,9 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "esp32_camera.h"
+#include "esp_video_init.h"
+#include "esp_cam_sensor_xclk.h"
 
 #include <esp_log.h>
 #include "esp_check.h"
@@ -87,6 +90,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
+    Esp32Camera* camera_ = nullptr;
     Pi4ioe1* pi4ioe1_;
     Pi4ioe2* pi4ioe2_;
     esp_lcd_touch_handle_t touch_ = nullptr;
@@ -198,7 +202,6 @@ private:
         esp_lcd_dsi_bus_config_t bus_config = {
             .bus_id = 0,
             .num_data_lanes = 2,
-            .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
             .lane_bit_rate_mbps = 900, // 900MHz
         };
         ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus));
@@ -283,7 +286,6 @@ private:
         /* create MIPI DSI bus first, it will initialize the DSI PHY as well */
         bus_config.bus_id = 0;
         bus_config.num_data_lanes = 2;  // ST7123 uses 2 data lanes
-        bus_config.phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT;
         bus_config.lane_bit_rate_mbps = 965;  // ST7123 lane bitrate
         ret = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
         if (ret != ESP_OK) {
@@ -424,12 +426,53 @@ private:
         }
     }
 
+    void InitializeCamera() {
+        esp_cam_sensor_xclk_handle_t xclk_handle = NULL;
+        esp_cam_sensor_xclk_config_t cam_xclk_config = {};
+
+#if CONFIG_CAMERA_XCLK_USE_ESP_CLOCK_ROUTER
+        if (esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &xclk_handle) == ESP_OK) {
+            cam_xclk_config.esp_clock_router_cfg.xclk_pin = CAMERA_MCLK;
+            cam_xclk_config.esp_clock_router_cfg.xclk_freq_hz = 12000000; // 12MHz
+            (void)esp_cam_sensor_xclk_start(xclk_handle, &cam_xclk_config);
+        }
+#elif CONFIG_CAMERA_XCLK_USE_LEDC
+        if (esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_LEDC, &xclk_handle) == ESP_OK) {
+            cam_xclk_config.ledc_cfg.timer = LEDC_TIMER_0;
+            cam_xclk_config.ledc_cfg.clk_cfg = LEDC_AUTO_CLK;
+            cam_xclk_config.ledc_cfg.channel = LEDC_CHANNEL_0;
+            cam_xclk_config.ledc_cfg.xclk_freq_hz = 12000000; // 12MHz
+            cam_xclk_config.ledc_cfg.xclk_pin = CAMERA_MCLK;
+            (void)esp_cam_sensor_xclk_start(xclk_handle, &cam_xclk_config);
+        }
+#endif
+
+        esp_video_init_sccb_config_t sccb_config = {
+            .init_sccb = false,
+            .i2c_handle = i2c_bus_,
+            .freq = 400000,
+        };
+
+        esp_video_init_csi_config_t csi_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = GPIO_NUM_NC,
+            .pwdn_pin = GPIO_NUM_NC,
+        };
+
+        esp_video_init_config_t video_config = {
+            .csi = &csi_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
+    }
+
 public:
     M5StackTab5Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         I2cDetect();
         InitializePi4ioe();
         InitializeDisplay();  // Auto-detect and initialize display + touch
+        InitializeCamera();
         InitializeButtons();
         SetChargeQcEn(true);
         SetChargeEn(true);
@@ -456,6 +499,10 @@ public:
 
     virtual Display* GetDisplay() override {
         return display_;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 
     virtual Backlight* GetBacklight() override {
