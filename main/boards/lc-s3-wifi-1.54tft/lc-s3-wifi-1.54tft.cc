@@ -142,13 +142,7 @@ private:
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_disp_on_off(panel, true);
-        // display_ = new SpiLcdDisplay(panel_io, panel,
-        //                             DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-        //                             {
-        //                                 .text_font = &font_puhui_20_4,
-        //                                 .icon_font = &font_awesome_20_4,
-        //                                 .emoji_font = font_emoji_64_init(),
-        //                             });
+
         display_ = new SpiLcdDisplay(
             panel_io,
             panel,
@@ -173,6 +167,7 @@ private:
         gpio_config(&io_conf); // 应用配置
         gpio_set_level(RELAY_LED,0);
     }
+
     // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {
         auto& mcp_server = McpServer::GetInstance();
@@ -192,11 +187,6 @@ private:
             led_on_ = false;
             return true;
         });
-        // thing_manager.AddThing(iot::CreateThing("Speaker"));
-        // thing_manager.AddThing(iot::CreateThing("Screen"));
-        // thing_manager.AddThing(iot::CreateThing("Battery"));
-        // thing_manager.AddThing(iot::CreateThing("Relay"));
-        //在此扩展IOT设备
     }
 
 public:
