@@ -4,7 +4,8 @@
         {
             "name": "fogseek-audio-xiaoya",
             "sdkconfig_append": [
-                "CONFIG_SR_WN_WN9_XIAOYAXIAOYA_TTS2=y"
+                "CONFIG_SR_WN_WN9_XIAOYAXIAOYA_TTS2=y",
+                "CONFIG_OTA_URL=\"https://api.aiyainfo.com:8002/xiaoya/ota/\""
             ]
         }
     ]

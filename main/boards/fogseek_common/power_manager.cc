@@ -81,13 +81,13 @@ void FogSeekPowerManager::Initialize(const power_pin_config_t *pin_config)
     // 更新初始电源状态
     UpdatePowerState();
 
-    // 创建电池检查定时器
+    // 创建电源状态更新定时器
     esp_timer_create_args_t timer_args = {
-        .callback = &FogSeekPowerManager::BatteryCheckTimerCallback,
+        .callback = &FogSeekPowerManager::PowerStateUpdateTimerCallback,
         .arg = this,
-        .name = "battery_check_timer"};
+        .name = "power_state_update_timer"};
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &battery_check_timer_));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(battery_check_timer_, 30 * 1000 * 1000)); // 每30秒检查一次
+    ESP_ERROR_CHECK(esp_timer_start_periodic(battery_check_timer_, 5 * 1000 * 1000)); // 每5秒检查一次
 }
 
 // 开机
@@ -120,7 +120,7 @@ void FogSeekPowerManager::UpdatePowerState()
 
     bool is_charging = gpio_get_level((gpio_num_t)pin_config_.charging_gpio) == 0;
     bool is_charge_done = gpio_get_level((gpio_num_t)pin_config_.charge_done_gpio) == 0;
-    bool battery_detected = battery_level_ > 5; // 简单的电池检测方法
+    bool battery_detected = battery_level_ > 20; // 简单的电池检测方法
 
     PowerState previous_state = power_state_; // 保存之前的状态
 
@@ -163,7 +163,7 @@ void FogSeekPowerManager::UpdatePowerState()
     ESP_LOGD(TAG, "Battery level: %d%%, Power state: %d", battery_level_, static_cast<int>(power_state_));
 }
 
-// 检查低电量
+// 检查低电量，更新电源状态
 void FogSeekPowerManager::CheckLowBattery()
 {
     // 读取最新的电池电量
@@ -214,14 +214,12 @@ void FogSeekPowerManager::CheckLowBattery()
         low_battery_warning_ = false;
         low_battery_shutdown_ = false;
     }
-
-    // 更新电源状态
-    UpdatePowerState();
 }
 
-// 电池检查定时器回调函数
-void FogSeekPowerManager::BatteryCheckTimerCallback(void *arg)
+// 电源状态更新定时器回调函数
+void FogSeekPowerManager::PowerStateUpdateTimerCallback(void *arg)
 {
     FogSeekPowerManager *self = static_cast<FogSeekPowerManager *>(arg);
-    self->CheckLowBattery();
+    self->CheckLowBattery();  // 检查低电量
+    self->UpdatePowerState(); // 更新电源状态
 }
