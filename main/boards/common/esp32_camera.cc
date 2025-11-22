@@ -1,5 +1,6 @@
 #include "esp32_camera.h"
 #include <fcntl.h>
+#include <inttypes.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/param.h>
@@ -474,7 +475,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08" PRIx32, (uint32_t)sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -516,7 +517,7 @@ bool Esp32Camera::Capture() {
                     rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
                     break;
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08" PRIx32, (uint32_t)sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -631,7 +632,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08" PRIx32, (uint32_t)sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
