@@ -24,6 +24,7 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/gif/lvgl_gif.cc"
             "display/lvgl_display/gif/gifdec.c"
             "display/lvgl_display/jpg/image_to_jpeg.cpp"
+            "display/lvgl_display/jpg/jpeg_to_image.c"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -199,7 +200,9 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
-    set(BOARD_TYPE "esp-spot-s3")
+    set(BOARD_TYPE "esp-spot")
+elseif(CONFIG_BOARD_TYPE_ESP_SPOT_C5)
+    set(BOARD_TYPE "esp-spot")
 elseif(CONFIG_BOARD_TYPE_ESP_HI)
     set(BOARD_TYPE "esp-hi")
     # Set ESP_HI emoji directory for DEFAULT_ASSETS_EXTRA_FILES
@@ -687,7 +690,8 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
                              "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
-                            "display/lvgl_display/jpg/image_to_jpeg.cpp"
+                             "display/lvgl_display/jpg/image_to_jpeg.cpp"
+                             "display/lvgl_display/jpg/jpeg_to_image.c"
                              )
 endif()
 
