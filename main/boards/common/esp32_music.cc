@@ -24,7 +24,8 @@
 #define TAG "Esp32Music"
 
 // For local server testing, you should change to your own server address
-#define MUSIC_URL "http://103.143.207.89:5005"
+// #define MUSIC_URL "http://103.143.207.89:5005"
+#define MUSIC_URL "http://171.244.143.175:5006"
 
 // ========== Simple ESP32 Authentication Function ==========
 
