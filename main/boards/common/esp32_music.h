@@ -106,6 +106,7 @@ public:
     // Display mode control methods
     void SetDisplayMode(DisplayMode mode);
     DisplayMode GetDisplayMode() const { return display_mode_.load(); }
+    std::string GetCheckMusicServerUrl();
 };
 
 #endif // ESP32_MUSIC_H

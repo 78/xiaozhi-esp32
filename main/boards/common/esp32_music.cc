@@ -5,6 +5,7 @@
 #include "application.h"
 #include "protocols/protocol.h"
 #include "display/display.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -23,9 +24,10 @@
 
 #define TAG "Esp32Music"
 
+// std::string base_url = "http://www.xiaozhishop.xyz:5005";
+// Example: http://www.xiaozhishop.xyz:5005/stream_pcm?song=Con%20mua%20bang%20gia&artist=Bang%20Kieu
 // For local server testing, you should change to your own server address
-// #define MUSIC_URL "http://103.143.207.89:5005"
-#define MUSIC_URL "http://171.244.143.175:5006"
+#define DEFAULT_MUSIC_URL "http://www.xiaozhishop.xyz:5005"
 
 // ========== Simple ESP32 Authentication Function ==========
 
@@ -295,9 +297,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
     current_song_name_ = song_name;
     
     // Step 1: Request the stream_pcm API to retrieve audio information
-    // std::string base_url = "http://www.xiaozhishop.xyz:5005";
-    // Example: http://www.xiaozhishop.xyz:5005/stream_pcm?song=Con%20mua%20bang%20gia&artist=Bang%20Kieu
-    std::string base_url = MUSIC_URL;
+    std::string base_url = GetCheckMusicServerUrl();
     std::string full_url = base_url + "/stream_pcm?song=" + url_encode(song_name) + "&artist=" + url_encode(artist_name);
     
     ESP_LOGI(TAG, "Request URL: %s", full_url.c_str());
@@ -1480,4 +1480,13 @@ void Esp32Music::SetDisplayMode(DisplayMode mode) {
     ESP_LOGI(TAG, "Display mode changed from %s to %s", 
             (old_mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS",
             (mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS");
+}
+
+std::string Esp32Music::GetCheckMusicServerUrl() {
+    Settings settings("wifi", false);
+    std::string url = settings.GetString("music_url");
+    if (url.empty()) {
+        url = DEFAULT_MUSIC_URL;
+    }
+    return url;
 }
