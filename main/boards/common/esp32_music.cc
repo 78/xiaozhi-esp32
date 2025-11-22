@@ -1020,15 +1020,26 @@ void Esp32Music::CleanupMp3Decoder() {
 void Esp32Music::ResetSampleRate() {
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
-    if (codec && codec->original_output_sample_rate() > 0 && 
-        codec->output_sample_rate() != codec->original_output_sample_rate()) {
+    if (!codec) {
+        ESP_LOGW(TAG, "Audio codec not available, cannot reset sample rate");
+        return;
+    }
+    
+    int original_rate = codec->original_output_sample_rate();
+    int current_rate = codec->output_sample_rate();
+    
+    if (original_rate > 0 && current_rate != original_rate) {
         ESP_LOGI(TAG, "Resetting sample rate: from %d Hz to original value %d Hz", 
-                codec->output_sample_rate(), codec->original_output_sample_rate());
+                current_rate, original_rate);
         if (codec->SetOutputSampleRate(-1)) {  // -1 means reset to original value
             ESP_LOGI(TAG, "Successfully reset sample rate to original value: %d Hz", codec->output_sample_rate());
         } else {
             ESP_LOGW(TAG, "Unable to reset sample rate to original value");
         }
+    } else if (original_rate == 0) {
+        ESP_LOGW(TAG, "Original sample rate not set, cannot reset (current: %d Hz)", current_rate);
+    } else {
+        ESP_LOGD(TAG, "Sample rate already at original value: %d Hz", current_rate);
     }
 }
 
@@ -1407,6 +1418,9 @@ void Esp32Music::SetDisplayMode(DisplayMode mode) {
 
 void Esp32Music::SetIdleStateAfterMusic() {
     vTaskDelay(pdMS_TO_TICKS(100));
+    
+    // Reset sample rate to original value for TTS playback
+    ResetSampleRate();
     
     app_.SetDeviceState(kDeviceStateIdle);
     
