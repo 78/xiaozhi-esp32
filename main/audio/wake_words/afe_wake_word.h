@@ -37,9 +37,9 @@ public:
 
 private:
     srmodel_list_t *models_ = nullptr;
-    const esp_afe_sr_iface_t *afe_iface_ = nullptr;
-    esp_afe_sr_data_t *afe_data_ = nullptr;
-    char *wakenet_model_ = NULL;
+    const esp_afe_sr_iface_t* afe_iface_ = nullptr;
+    esp_afe_sr_data_t* afe_data_ = nullptr;
+    char* wakenet_model_ = NULL;
     std::vector<std::string> wake_words_;
     EventGroupHandle_t event_group_;
     std::function<void(const std::string &wake_word)> wake_word_detected_callback_;

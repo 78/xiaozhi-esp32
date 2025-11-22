@@ -31,9 +31,9 @@ public:
 
 private:
     EventGroupHandle_t event_group_ = nullptr;
-    const esp_afe_sr_iface_t *afe_iface_ = nullptr;
-    esp_afe_sr_data_t *afe_data_ = nullptr;
-    std::function<void(std::vector<int16_t> &&data)> output_callback_;
+    const esp_afe_sr_iface_t* afe_iface_ = nullptr;
+    esp_afe_sr_data_t* afe_data_ = nullptr;
+    std::function<void(std::vector<int16_t>&& data)> output_callback_;
     std::function<void(bool speaking)> vad_state_change_callback_;
     AudioCodec *codec_ = nullptr;
     int frame_samples_ = 0;

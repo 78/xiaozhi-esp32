@@ -53,10 +53,10 @@ void WifiBoard::EnterWifiConfigMode()
     wifi_ap.SetSsidPrefix("IoTForce");
     wifi_ap.Start();
 
-    // 等待 1.5 秒显示开发板信息
+    // Wait 1.5 seconds to display board information
     vTaskDelay(pdMS_TO_TICKS(1500));
 
-    // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
+    // Display WiFi configuration AP SSID and web server URL
     std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
     hint += wifi_ap.GetSsid();
     hint += Lang::Strings::ACCESS_VIA_BROWSER;
@@ -234,9 +234,9 @@ void WifiBoard::ResetWifiConfiguration()
 std::string WifiBoard::GetDeviceStatusJson()
 {
     /*
-     * 返回设备状态JSON
-     *
-     * 返回的JSON结构如下：
+     * Return device status JSON
+     * 
+     * The returned JSON structure is as follows:
      * {
      *     "audio_speaker": {
      *         "volume": 70
