@@ -56,7 +56,7 @@ protected:
     void periodicUpdateTask();
     static void periodicUpdateTaskWrapper(void* arg);
     int16_t* final_pcm_data_fft = nullptr;
-    int16_t* audio_data = nullptr;
+    int16_t* audio_data_ = nullptr;
     int16_t* frame_audio_data = nullptr;
     uint32_t last_fft_update = 0;
     bool fft_data_ready = false;
@@ -105,7 +105,7 @@ public:
     // FFT display methods
     virtual void StopFFT() override;
     virtual void StartFFT() override;
-    virtual void ReedAudioDataFFT(int16_t* data, size_t sample_count) override;
+    virtual void FeedAudioDataFFT(int16_t* data, size_t sample_count) override;
     virtual int16_t* MakeAudioBuffFFT(size_t sample_count) override;
     virtual void ReleaseAudioBuffFFT(int16_t* buffer = nullptr) override;
 

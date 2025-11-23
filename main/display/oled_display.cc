@@ -10,18 +10,86 @@
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
 #include <font_awesome.h>
+#include <vector>
+#include <cmath>
+#include <cstring>
+#include <math.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define SPEC_BAR_COUNT 16
+#define SPEC_BAR_WIDTH 6
+#define SPEC_BAR_GAP 2
 #define TAG "OledDisplay"
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
 
+void OledDisplay::SetupSpectrumUI() {
+    DisplayLockGuard lock(this);
+    if (spectrum_container_ != nullptr) {
+        ESP_LOGW(TAG, "Spectrum UI already set up");
+        return;
+    }
+
+    auto screen = lv_screen_active();
+    spectrum_container_ = lv_obj_create(screen);
+    if (spectrum_container_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to create spectrum container");
+        return;
+    }
+    lv_obj_set_size(spectrum_container_, LV_HOR_RES, LV_VER_RES - 16); 
+    lv_obj_align(spectrum_container_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    
+    lv_obj_set_style_border_width(spectrum_container_, 0, 0);       // Không viền
+    lv_obj_set_style_radius(spectrum_container_, 0, 0);             // Không bo tròn
+    lv_obj_set_style_bg_color(spectrum_container_, lv_color_white(), 0); // Nền đen
+    lv_obj_set_style_bg_opa(spectrum_container_, LV_OPA_COVER, 0);   // Phủ kín
+    
+    lv_obj_set_style_pad_all(spectrum_container_, 0, 0);
+    lv_obj_set_style_pad_column(spectrum_container_, 1, 0); 
+    
+    lv_obj_set_flex_flow(spectrum_container_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(spectrum_container_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    
+    lv_obj_add_flag(spectrum_container_, LV_OBJ_FLAG_HIDDEN); // Mặc định ẩn
+
+    spectrum_bars_.clear();
+    for (int i = 0; i < SPEC_BAR_COUNT; i++) {
+        lv_obj_t* bar = lv_bar_create(spectrum_container_);
+        lv_obj_set_size(bar, SPEC_BAR_WIDTH, LV_VER_RES - 16); 
+        
+        lv_bar_set_range(bar, 0, 100); // Giá trị từ 0% đến 100%
+        lv_bar_set_value(bar, 0, LV_ANIM_OFF);
+        lv_obj_set_style_bg_color(bar, lv_color_white(), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN); // Đảm bảo phủ kín
+        
+        lv_obj_set_style_bg_color(bar, lv_color_black(), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_INDICATOR); // Đảm bảo phủ kín
+        
+        lv_obj_set_style_radius(bar, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(bar, 0, LV_PART_INDICATOR);
+
+        spectrum_bars_.push_back(bar);
+    }
+    ESP_LOGI(TAG, "Spectrum UI setup completed with %d bars", SPEC_BAR_COUNT);
+}
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
     int width, int height, bool mirror_x, bool mirror_y)
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
+    
+    final_pcm_data_fft = nullptr;
+    audio_data_ = nullptr;
+    frame_audio_data = nullptr;
+    fft_real = nullptr;
+    fft_imag = nullptr;
+    hanning_window_float = nullptr;
+    spectrum_container_ = nullptr;
 
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
@@ -76,11 +144,37 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
         return;
     }
 
+    fft_real = (float*)heap_caps_malloc(OLED_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+    fft_imag = (float*)heap_caps_malloc(OLED_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+    hanning_window_float = (float*)heap_caps_malloc(OLED_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+
+    for (int i = 0; i < OLED_FFT_SIZE; i++) {
+        hanning_window_float[i] = 0.5 * (1.0 - cos(2.0 * M_PI * i / (OLED_FFT_SIZE - 1)));
+    }
+    
+    audio_data_=(int16_t*)heap_caps_malloc(sizeof(int16_t)*1152, MALLOC_CAP_SPIRAM);
+    if(audio_data_!=nullptr){
+        ESP_LOGI(TAG, "audio_data_ allocated");
+        memset(audio_data_,0,sizeof(int16_t)*1152);
+    } else {
+        ESP_LOGE(TAG, "Failed to allocate audio_data_");
+    }
+    frame_audio_data=(int16_t*)heap_caps_malloc(sizeof(int16_t)*1152, MALLOC_CAP_SPIRAM);
+    if(frame_audio_data!=nullptr){
+        ESP_LOGI(TAG, "frame_audio_data allocated");
+        memset(frame_audio_data,0,sizeof(int16_t)*1152);
+    } else {
+        ESP_LOGE(TAG, "Failed to allocate frame_audio_data");
+    }
+    ESP_LOGI(TAG,"Initialize fft_input, audio_data_, frame_audio_data, spectrum_data");
+    
+
     if (height_ == 64) {
         SetupUI_128x64();
     } else {
         SetupUI_128x32();
     }
+    SetupSpectrumUI();
 }
 
 OledDisplay::~OledDisplay() {
@@ -248,6 +342,284 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void OledDisplay::periodicUpdateTaskWrapper(void* arg) {
+    auto self = static_cast<OledDisplay*>(arg);
+    self->periodicUpdateTask();
+}
+
+void OledDisplay::periodicUpdateTask() {
+    ESP_LOGI(TAG, "FFT Task Started");
+
+    const TickType_t displayInterval = pdMS_TO_TICKS(40);  // Display refresh interval (40ms)
+    const TickType_t audioProcessInterval = pdMS_TO_TICKS(15); // Audio processing interval (15ms)
+    
+    TickType_t lastDisplayTime = xTaskGetTickCount();
+    TickType_t lastAudioTime = xTaskGetTickCount();
+    
+    while (!fft_task_should_stop) {
+        TickType_t currentTime = xTaskGetTickCount();
+        
+        // Process audio data at regular intervals
+        if (currentTime - lastAudioTime >= audioProcessInterval) {
+            if (final_pcm_data_fft != nullptr) {
+                processAudioData();  // Quick processing, non-blocking
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            lastAudioTime = currentTime;
+        }
+
+        // Cập nhật màn hình (30ms một lần ~ 30FPS)
+        if (currentTime - lastDisplayTime >= displayInterval) {
+            if (fft_data_ready) {
+                DisplayLockGuard lock(this);
+                DrawOledSpectrum(); // Vẽ lên màn hình
+                fft_data_ready = false;
+                lastDisplayTime = currentTime;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    ESP_LOGI(TAG, "FFT display task stopped");
+    fft_task_handle = nullptr;  // Clear the task handle
+    vTaskDelete(NULL);
+}
+
+void OledDisplay::DrawOledSpectrum() {
+    if (spectrum_container_ == nullptr) {
+        ESP_LOGW(TAG, "spectrum_container_ is nullptr");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        return;
+    }
+
+    if (lv_obj_has_flag(spectrum_container_, LV_OBJ_FLAG_HIDDEN)) {
+        ESP_LOGI(TAG, "Showing spectrum container");
+         lv_obj_remove_flag(spectrum_container_, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    int samples_per_bar = (OLED_FFT_SIZE / 2) / SPEC_BAR_COUNT; 
+    std::string debug_vals = "";
+
+    for (int i = 0; i < SPEC_BAR_COUNT; i++) {
+        float sum = 0;
+        int count = 0;
+        
+        int start_idx = i * samples_per_bar;
+        if (start_idx < 2) start_idx = 2; // Bỏ qua 2 mẫu tần số thấp
+
+        for (int j = 0; j < samples_per_bar; j++) {
+            if ((start_idx + j) < (OLED_FFT_SIZE/2)) {
+                sum += avg_power_spectrum[start_idx + j];
+                count++;
+            }
+        }
+        
+        float val = 0;
+        if (count > 0) val = sum / count;
+
+        int bar_val = 0;
+        if (val > 0.000001f) { 
+            float db = 10.0f * log10f(val);
+            
+            float min_db = -55.0f; // Giảm xuống (từ -50) để bắt được tín hiệu yếu hơn
+            float max_db = 5.0f;   // Giảm xuống (từ 10) để cột sóng dễ đạt đỉnh hơn
+            
+            float percent = (db - min_db) / (max_db - min_db);
+            if (percent < 0) percent = 0;
+            if (percent > 1) percent = 1;
+            
+            bar_val = (int)(percent * 100.0f);
+        }
+
+        // Hiệu ứng rơi từ từ
+        int old_val = lv_bar_get_value(spectrum_bars_[i]);
+        if (bar_val < old_val) {
+             bar_val = old_val - 4; 
+             if (bar_val < 0) bar_val = 0;
+        } else {
+            // Hiệu ứng tăng nhanh (để sóng phản ứng tức thì)
+            bar_val = std::max(bar_val, old_val);
+        }
+
+
+        if (i < 4) debug_vals += std::to_string(bar_val) + " ";
+
+        if (i < spectrum_bars_.size()) {
+            lv_bar_set_value(spectrum_bars_[i], bar_val, LV_ANIM_OFF);
+        }
+    }
+    
+    static int log_limit = 0;
+    if (log_limit++ > 20) {
+        ESP_LOGI("SpectrumDebug", "DB Val: %s", debug_vals.c_str());
+        log_limit = 0;
+    }
+}
+
+int16_t* OledDisplay::MakeAudioBuffFFT(size_t sample_count) {
+    if (final_pcm_data_fft == nullptr) {
+        final_pcm_data_fft = (int16_t *)heap_caps_malloc(sample_count, MALLOC_CAP_SPIRAM);
+    }
+    return final_pcm_data_fft;
+}
+/*
+void OledDisplay::FeedAudioDataFFT(int16_t* data, size_t sample_count) {
+    if (final_pcm_data_fft != nullptr) {
+        memcpy(final_pcm_data_fft, data, sample_count);
+    }
+}
+*/
+void OledDisplay::FeedAudioDataFFT(int16_t* data, size_t sample_count) {
+    if (final_pcm_data_fft != nullptr) {
+        memcpy(final_pcm_data_fft, data, sample_count);
+        
+        // Thêm đoạn log debug này (nhớ xóa sau khi chạy được)
+        static int debug_count = 0;
+        if (debug_count++ > 100) {
+            ESP_LOGI(TAG, "Dang nhan du lieu audio: %d bytes", sample_count);
+            debug_count = 0;
+        }
+    } else {
+        // Nếu buffer chưa được tạo, báo lỗi
+        static int err_count = 0;
+        if (err_count++ > 100) {
+            ESP_LOGE(TAG, "Loi: final_pcm_data_fft la NULL!");
+            err_count = 0;
+        }
+    }
+}
+void OledDisplay::StartFFT() {
+    if (fft_task_handle != nullptr) return;
+    fft_task_should_stop = false;
+    xTaskCreate(periodicUpdateTaskWrapper, "oled_fft", 4096 * 2, this, 1, &fft_task_handle);
+}
+
+void OledDisplay::StopFFT() {
+    ESP_LOGI(TAG, "Stopping FFT display");
+    // Stop the FFT display task
+    if (fft_task_handle != nullptr) {
+        ESP_LOGI(TAG, "Stopping FFT display task");
+        fft_task_should_stop = true;  // Set the stop flag
+        
+        // Wait for the task to stop (wait up to 1 second)
+        int wait_count = 0;
+        while (fft_task_handle != nullptr && wait_count < 100) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            wait_count++;
+        }
+        
+        if (fft_task_handle != nullptr) {
+            ESP_LOGW(TAG, "FFT task did not stop gracefully, force deleting");
+            vTaskDelete(fft_task_handle);
+            fft_task_handle = nullptr;
+        } else {
+            ESP_LOGI(TAG, "FFT display task stopped successfully");
+        }
+    }
+    // Reset FFT state variables
+    fft_data_ready = false;
+    audio_display_last_update = 0;
+    
+    // Ẩn spectrum đi khi dừng
+    DisplayLockGuard lock(this);
+    if (spectrum_container_) {
+        ESP_LOGI(TAG, "Hiding spectrum container");
+        lv_obj_add_flag(spectrum_container_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void OledDisplay::ReleaseAudioBuffFFT(int16_t* buffer) {
+    if (final_pcm_data_fft != nullptr) {
+        heap_caps_free(final_pcm_data_fft);
+        final_pcm_data_fft = nullptr;
+    }
+}
+
+void OledDisplay::processAudioData() {
+    // Logic xử lý buffer âm thanh -> FFT (rút gọn từ bản gốc)
+    if (final_pcm_data_fft == nullptr) {
+        ESP_LOGI(TAG, "audio_data_ is nullptr");
+        vTaskDelay(pdMS_TO_TICKS(500));
+        return;
+    }
+
+    if (audio_display_last_update <= 2) {
+        if (audio_data_ == nullptr) {
+            ESP_LOGI(TAG, "audio_data_ buffer is nullptr");
+            vTaskDelay(pdMS_TO_TICKS(500));
+            return;
+        }
+        memcpy(audio_data_, final_pcm_data_fft, sizeof(int16_t) * 1152);
+        for (int i = 0; i < 1152; i++) frame_audio_data[i] += audio_data_[i];
+        audio_display_last_update++;
+    } else {
+        // Thực hiện FFT
+        const int HOP_SIZE = OLED_FFT_SIZE; // Tinh chỉnh theo OLED_FFT_SIZE
+        int num_segments = (1152 - OLED_FFT_SIZE) / HOP_SIZE;
+        if (num_segments < 1) num_segments = 1;
+
+        // Reset mảng spectrum
+        memset(avg_power_spectrum, 0, sizeof(avg_power_spectrum));
+
+        for (int seg = 0; seg < num_segments; seg++) {
+            int start = seg * HOP_SIZE;
+            for (int i = 0; i < OLED_FFT_SIZE; i++) {
+                float sample = frame_audio_data[start + i] / 32768.0f;
+                fft_real[i] = sample * hanning_window_float[i];
+                fft_imag[i] = 0.0f;
+            }
+            compute(fft_real, fft_imag, OLED_FFT_SIZE, true);
+            
+            for (int i = 0; i < OLED_FFT_SIZE / 2; i++) {
+                avg_power_spectrum[i] += (fft_real[i] * fft_real[i] + fft_imag[i] * fft_imag[i]);
+            }
+        }
+        
+        audio_display_last_update = 0;
+        fft_data_ready = true;
+        memset(frame_audio_data, 0, sizeof(int16_t) * 1152);
+    }
+}
+
+void OledDisplay::compute(float* real, float* imag, int n, bool forward) {
+    // Hàm FFT tiêu chuẩn (Cooley-Tukey) - Copy y nguyên
+    int j = 0;
+    for (int i = 0; i < n; i++) {
+        if (j > i) {
+            std::swap(real[i], real[j]);
+            std::swap(imag[i], imag[j]);
+        }
+        int m = n >> 1;
+        while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+        j += m;
+    }
+    for (int s = 1; s <= (int)log2(n); s++) {
+        int m = 1 << s;
+        int m2 = m >> 1;
+        float w_real = 1.0f, w_imag = 0.0f;
+        float angle = (forward ? -2.0f : 2.0f) * M_PI / m;
+        float wm_real = cosf(angle);
+        float wm_imag = sinf(angle);
+        for (int j2 = 0; j2 < m2; j2++) {
+            for (int k = j2; k < n; k += m) {
+                int k2 = k + m2;
+                float t_real = w_real * real[k2] - w_imag * imag[k2];
+                float t_imag = w_real * imag[k2] + w_imag * real[k2];
+                real[k2] = real[k] - t_real;
+                imag[k2] = imag[k] - t_imag;
+                real[k] += t_real;
+                imag[k] += t_imag;
+            }
+            float w_temp = w_real;
+            w_real = w_real * wm_real - w_imag * wm_imag;
+            w_imag = w_temp * wm_imag + w_imag * wm_real;
+        }
+    }
+    if (forward) {
+        for (int i = 0; i < n; i++) { real[i] /= n; imag[i] /= n; }
+    }
 }
 
 void OledDisplay::SetupUI_128x32() {

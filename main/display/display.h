@@ -44,7 +44,7 @@ public:
     // For FFT display
     virtual void StartFFT() {}
     virtual void StopFFT() {}
-    virtual void ReedAudioDataFFT(int16_t* data, size_t sample_count) {};
+    virtual void FeedAudioDataFFT(int16_t* data, size_t sample_count) {};
     virtual int16_t* MakeAudioBuffFFT(size_t sample_count) { return nullptr; };
     virtual void ReleaseAudioBuffFFT(int16_t* buffer = nullptr) {};
 

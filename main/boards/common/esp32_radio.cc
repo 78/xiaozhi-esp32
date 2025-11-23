@@ -678,7 +678,7 @@ void Esp32Radio::PlayRadioStream() {
                         final_pcm_data_fft = display->MakeAudioBuffFFT(pcm_size_bytes);
 
                         // Copy amplified data to FFT buffer
-                        display->ReedAudioDataFFT(amplified_buffer.data(), pcm_size_bytes);
+                        display->FeedAudioDataFFT(amplified_buffer.data(), pcm_size_bytes);
                     }
                 }
 

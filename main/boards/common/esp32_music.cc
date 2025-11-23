@@ -995,7 +995,7 @@ void Esp32Music::PlayAudioStream() {
                         final_pcm_data_fft = display->MakeAudioBuffFFT(pcm_size_bytes);
 
                         // Push PCM data to FFT buffer
-                        display->ReedAudioDataFFT(final_pcm_data, pcm_size_bytes);
+                        display->FeedAudioDataFFT(final_pcm_data, pcm_size_bytes);
                     }
                 }
 

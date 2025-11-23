@@ -25,9 +25,10 @@
 #define TAG "LcdDisplay"
 
 //Declare theme color
-#define FFT_SIZE 512
-static int current_heights[40] = {0};
-static float avg_power_spectrum[FFT_SIZE/2]={-25.0f};
+#define BAR_COL_NUM  40
+#define LCD_FFT_SIZE 512
+static int current_heights[BAR_COL_NUM] = {0};
+static float avg_power_spectrum[LCD_FFT_SIZE/2]={-25.0f};
 
 #define COLOR_BLACK   0x0000
 #define COLOR_RED     0xF800
@@ -243,24 +244,24 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 	
-    fft_real = (float*)heap_caps_malloc(FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
-    fft_imag = (float*)heap_caps_malloc(FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
-    hanning_window_float = (float*)heap_caps_malloc(FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+    fft_real = (float*)heap_caps_malloc(LCD_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+    fft_imag = (float*)heap_caps_malloc(LCD_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
+    hanning_window_float = (float*)heap_caps_malloc(LCD_FFT_SIZE * sizeof(float), MALLOC_CAP_SPIRAM);
 
-    for (int i = 0; i < FFT_SIZE; i++) {
-        hanning_window_float[i] = 0.5 * (1.0 - cos(2.0 * M_PI * i / (FFT_SIZE - 1)));
+    for (int i = 0; i < LCD_FFT_SIZE; i++) {
+        hanning_window_float[i] = 0.5 * (1.0 - cos(2.0 * M_PI * i / (LCD_FFT_SIZE - 1)));
     }
     
-    if(audio_data==nullptr){
-        audio_data=(int16_t*)heap_caps_malloc(sizeof(int16_t)*1152, MALLOC_CAP_SPIRAM);
-        memset(audio_data,0,sizeof(int16_t)*1152);
+    if(audio_data_==nullptr){
+        audio_data_=(int16_t*)heap_caps_malloc(sizeof(int16_t)*1152, MALLOC_CAP_SPIRAM);
+        memset(audio_data_,0,sizeof(int16_t)*1152);
     }
     if(frame_audio_data==nullptr){
         frame_audio_data=(int16_t*)heap_caps_malloc(sizeof(int16_t)*1152, MALLOC_CAP_SPIRAM);
         memset(frame_audio_data,0,sizeof(int16_t)*1152);
     }
     
-    ESP_LOGI(TAG,"Initialize fft_input, audio_data, frame_audio_data, spectrum_data");
+    ESP_LOGI(TAG,"Initialize fft_input, audio_data_, frame_audio_data, spectrum_data");
     SetupUI();
 }
 
@@ -1299,7 +1300,7 @@ void LcdDisplay::StopFFT() {
     memset(current_heights, 0, sizeof(current_heights));
     
     // Reset the average power spectrum data
-    for (int i = 0; i < FFT_SIZE/2; i++) {
+    for (int i = 0; i < LCD_FFT_SIZE/2; i++) {
         avg_power_spectrum[i] = -25.0f;
     }
     
@@ -1423,13 +1424,13 @@ void LcdDisplay::create_canvas(int32_t status_bar_height) {
 
 void LcdDisplay::drawSpectrumIfReady() {
     if (fft_data_ready) {
-        draw_spectrum(avg_power_spectrum, FFT_SIZE/2);
+        draw_spectrum(avg_power_spectrum, LCD_FFT_SIZE/2);
         fft_data_ready = false;
     }
 }
 
 void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
-    const int bartotal=40;
+    const int bartotal=BAR_COL_NUM;
     int bar_height;
     const int bar_max_height=canvas_height_ - 50;
     const int bar_width=canvas_width_/bartotal;
@@ -1500,7 +1501,7 @@ int16_t* LcdDisplay::MakeAudioBuffFFT(size_t sample_count) {
     return final_pcm_data_fft;
 }
 
-void LcdDisplay::ReedAudioDataFFT(int16_t* data, size_t sample_count) {
+void LcdDisplay::FeedAudioDataFFT(int16_t* data, size_t sample_count) {
     // Copy PCM data for FFT display
     memcpy( final_pcm_data_fft, data, sample_count);
 }
@@ -1515,37 +1516,37 @@ void LcdDisplay::ReleaseAudioBuffFFT(int16_t* buffer) {
 void LcdDisplay::processAudioData() {
     if(final_pcm_data_fft != nullptr) {
         if(audio_display_last_update <= 2) {
-            memcpy(audio_data, final_pcm_data_fft, sizeof(int16_t) * 1152);
+            memcpy(audio_data_, final_pcm_data_fft, sizeof(int16_t) * 1152);
             for(int i = 0; i < 1152; i++) {
-                frame_audio_data[i] += audio_data[i];
+                frame_audio_data[i] += audio_data_[i];
             }
             audio_display_last_update++;
         } else {
-            const int HOP_SIZE = 512;
-            const int NUM_SEGMENTS = 1 + (1152 - FFT_SIZE) / HOP_SIZE;
+            const int HOP_SIZE = LCD_FFT_SIZE;
+            const int NUM_SEGMENTS = 1 + (1152 - LCD_FFT_SIZE) / HOP_SIZE;
 
             for (int seg = 0; seg < NUM_SEGMENTS; seg++) {
                 int start = seg * HOP_SIZE;
-                if (start + FFT_SIZE > 1152) break;
+                if (start + LCD_FFT_SIZE > 1152) break;
 
                 // Prepare the current segment data
-                for (int i = 0; i < FFT_SIZE; i++) {
+                for (int i = 0; i < LCD_FFT_SIZE; i++) {
                     int idx = start + i;
                     float sample = frame_audio_data[idx] / 32768.0f;
                     fft_real[i] = sample * hanning_window_float[i];
                     fft_imag[i] = 0.0f;
                 }
 
-                compute(fft_real, fft_imag, FFT_SIZE, true);
+                compute(fft_real, fft_imag, LCD_FFT_SIZE, true);
 
                 // Calculate and accumulate the power spectrum (double-sided)
-                for (int i = 0; i < FFT_SIZE / 2; i++) {
+                for (int i = 0; i < LCD_FFT_SIZE / 2; i++) {
                     avg_power_spectrum[i] += fft_real[i] * fft_real[i] + fft_imag[i] * fft_imag[i]; // Power = amplitude squared
                 }
             }
 
             // Compute the average
-            for (int i = 0; i < FFT_SIZE / 2; i++) {
+            for (int i = 0; i < LCD_FFT_SIZE / 2; i++) {
                 avg_power_spectrum[i] /= NUM_SEGMENTS;
             }
 
@@ -1554,7 +1555,7 @@ void LcdDisplay::processAudioData() {
             memset(frame_audio_data, 0, sizeof(int16_t) * 1152);
         }
     } else {
-        ESP_LOGI(TAG, "audio_data is nullptr");
+        ESP_LOGI(TAG, "audio_data_ is nullptr");
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -1654,13 +1655,13 @@ void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
 
 uint16_t LcdDisplay::get_bar_color(int x_pos){
 
-    static uint16_t color_table[40];
+    static uint16_t color_table[BAR_COL_NUM];
     static bool initialized = false;
     
     if (!initialized) {
         // Generate gradient from yellow-green -> yellow -> yellow-red
-        for (int i = 0; i < 40; i++) {
-            if (i < 20) {
+        for (int i = 0; i < BAR_COL_NUM; i++) {
+            if (i < BAR_COL_NUM/2) {
                 // Yellow-green to yellow: increase red component
                 uint8_t r = static_cast<uint8_t>((i / 19.0f) * 31);
                 color_table[i] = (r << 11) | (0x3F << 5);
