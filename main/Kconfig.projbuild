@@ -406,6 +406,11 @@ choice BOARD_TYPE
         bool "ottoRobot"
         depends on IDF_TARGET_ESP32S3
         select HTTPD_WS_SUPPORT
+        select PARTITION_TABLE_CUSTOM
+    config PARTITION_TABLE_CUSTOM_FILENAME
+        default "partitions/v2/16m_otto_robot.csv"
+        depends on BOARD_TYPE_OTTO_ROBOT
+        string "OttoRobot partition table: 16m_otto_robot.csv"
     config BOARD_TYPE_ELECTRON_BOT
         bool "electronBot"
         depends on IDF_TARGET_ESP32S3
