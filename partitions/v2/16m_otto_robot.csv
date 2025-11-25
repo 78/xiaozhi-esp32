@@ -1,0 +1,11 @@
+# ESP-IDF Partition Table
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,    0x4000,
+otadata,  data, ota,     0xd000,    0x2000,
+phy_init, data, phy,     0xf000,    0x1000,
+ota_0,    app,  ota_0,   0x20000,   0x480000,
+ota_1,    app,  ota_1,   0x4A0000,  0x480000,
+assets,   data, spiffs,  0x920000,  0x6E0000
+# Partition created by https://github.com/TienHuyIoT
+# App 4.5M(0x480000)
+# Assets: ~7M
