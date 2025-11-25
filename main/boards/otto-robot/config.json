@@ -4,6 +4,7 @@
         {
             "name": "otto-robot",
             "sdkconfig_append": [
+            	"CONFIG_HTTPD_WS_SUPPORT=y",
                 "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m_otto_robot.csv\""
             ]

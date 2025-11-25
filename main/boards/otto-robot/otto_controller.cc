@@ -15,6 +15,7 @@
 #include "otto_movements.h"
 #include "sdkconfig.h"
 #include "settings.h"
+#include <wifi_station.h>
 
 #define TAG "OttoController"
 
@@ -818,6 +819,17 @@ public:
                                    ",\"charging\":" + (charging ? "true" : "false") + "}";
                                return status;
                            });
+                           
+        mcp_server.AddTool("self.otto.get_ip", "获取机器人WiFi IP地址", PropertyList(),
+                           [](const PropertyList& properties) -> ReturnValue {
+                               auto& wifi_station = WifiStation::GetInstance();
+                               std::string ip = wifi_station.GetIpAddress();
+                               if (ip.empty()) {
+                                   return "{\"ip\":\"\",\"connected\":false}";
+                               }
+                               std::string status = "{\"ip\":\"" + ip + "\",\"connected\":true}";
+                               return status;
+                           });                           
 
         ESP_LOGI(TAG, "MCP工具注册完成");
     }
