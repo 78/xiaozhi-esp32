@@ -6,11 +6,12 @@
 #define TAG "EraIotClient"
 
 // E-Ra API configuration constants
-static const char *ERA_AUTH_TOKEN = "__your_auth_token__";
-static const char *ERA_BASE_URL = "__your_base_url__";
-static const char *ERA_CONFIG_ID = "__your_config_id_";
-static const char *ERA_ACTION_ON_KEY = "__your_action_on_key__";
-static const char *ERA_ACTION_OFF_KEY = "__your_action_off_key__";
+
+static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
+static const char *ERA_BASE_URL = "https://backend.eoh.io";
+static const char *ERA_CONFIG_ID = "146756";
+static const char *ERA_ACTION_ON_KEY = "63d31df1-4030-41b8-b32e-273d23873f13";
+static const char *ERA_ACTION_OFF_KEY = "54feda84-f623-4580-9aa9-ff175b8a1bb1";
 
 EraIotClient::EraIotClient() : initialized_(false)
 {

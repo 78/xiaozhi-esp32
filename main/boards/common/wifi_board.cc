@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "era_iot_client.h"
 
 #include "display.h"
 #include "application.h"
@@ -328,6 +329,33 @@ std::string WifiBoard::GetDeviceStatusJson()
         auto chip = cJSON_CreateObject();
         cJSON_AddNumberToObject(chip, "temperature", esp32temp);
         cJSON_AddItemToObject(root, "chip", chip);
+    }
+
+    // Era IoT
+    auto GetEraClient = []() -> EraIotClient &
+    {
+        static EraIotClient era_client;
+        static bool era_initialized = false;
+        if (!era_initialized)
+        {
+            era_client.Initialize("", "");
+            era_initialized = true;
+        }
+        return era_client;
+    };
+    auto &era_client = GetEraClient();
+    if (era_client.IsInitialized())
+    {
+        auto iot = cJSON_CreateObject();
+        std::string current_value = era_client.GetCurrentValue("146756");
+        if (!current_value.empty())
+        {
+            cJSON_AddStringToObject(iot, "current_value", current_value.c_str());
+            // Interpret the value (0=ON, 1=OFF)
+            std::string status = (current_value == "0") ? "ON" : "OFF";
+            cJSON_AddStringToObject(iot, "device_status", status.c_str());
+        }
+        cJSON_AddItemToObject(root, "iot", iot);
     }
 
     auto json_str = cJSON_PrintUnformatted(root);
