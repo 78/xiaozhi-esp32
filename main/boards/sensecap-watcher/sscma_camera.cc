@@ -444,16 +444,17 @@ void SscmaCamera::InitializeMcpTools() {
     detect_invoke_interval_sec = settings.GetInt("interval", 8);
     detect_duration_sec = settings.GetInt("duration", 2);
     detect_target = settings.GetInt("target", 0);
-    inference_en =1; //settings.GetInt("enable", 0);
+    inference_en = settings.GetInt("enable", 0);
 
     auto& mcp_server = McpServer::GetInstance();
         // 获取模型参数配置
     mcp_server.AddTool("self.model.param_get",
-        "获取模型参数配置\n"
-        "  `threshold`: 检测置信度阈值 (0-100, 默认 75);\n"
-        "  `interval`: 对话结束后的冷却时间，防止频繁打断 (默认 8 秒);\n"
-        "  `duration`: 检测持续时间 (默认 2 秒);\n"
-        "  `target`: 检测目标 (默认 0);",
+        "获取当前视觉模型检测的参数配置信息。\n"
+        "返回结果包含：\n"
+        "  `threshold`: 检测置信度阈值 (0-100)，低于此值的检测结果将被忽略；\n"
+        "  `interval`: 触发对话后的冷却时间(秒)，防止频繁打断；\n"
+        "  `duration`: 持续检测确认时间(秒)；\n"
+        "  `target`: 当前关注的检测目标索引。",
         PropertyList(),
         [this](const PropertyList& properties) -> ReturnValue {
             Settings settings("model", false);
@@ -472,25 +473,28 @@ void SscmaCamera::InitializeMcpTools() {
     
     // 设置模型参数配置
     mcp_server.AddTool("self.model.param_set",
-        "模型参数设置\n"
-        "  `threshold`: 检测置信度阈值 (单位百分比, 默认 75);"
-        "  `interval`: 对话结束后的冷却时间，防止频繁打断 (单位秒，默认 8 秒);"
-        "  `duration`: 检测持续时间 (单位秒，默认 2 秒);"
-        "  `target`: 检测目标 (默认 0);",
+        "配置视觉模型检测参数。当用户希望调整检测灵敏度、频率或特定目标时使用。\n"
+        "参数(均为可选，未提供的参数将保持当前设置不变)：\n"
+        "  `threshold`: 置信度阈值 (0-100)。提高此值可减少误报，但可能漏检；\n"
+        "  `interval`: 冷却时间(秒)。设置对话结束后多久内不再触发检测；\n"
+        "  `duration`: 持续检测时间(秒)。\n"
+        "  `target`: 设置检测目标的索引 ID。",
         PropertyList({
-            Property("threshold", kPropertyTypeInteger, 75, 0, 100),
-            Property("interval", kPropertyTypeInteger, 8, 1, 60),
-            Property("duration", kPropertyTypeInteger, 2, 1, 60),
-            Property("target", kPropertyTypeInteger, 0, 0, this->model_class_cnt > 0 ? this->model_class_cnt - 1 : 0)
+            Property("threshold", kPropertyTypeInteger, -1, -1, 100),
+            Property("interval", kPropertyTypeInteger, -1, -1, 60),
+            Property("duration", kPropertyTypeInteger, -1, -1, 60),
+            Property("target", kPropertyTypeInteger, -1, -1, this->model_class_cnt > 0 ? this->model_class_cnt - 1 : 255)
         }),
         [this](const PropertyList& properties) -> ReturnValue {
             Settings settings("model", true);
             try {
                 const Property& threshold_prop = properties["threshold"];
                 int threshold = threshold_prop.value<int>();
-                settings.SetInt("threshold", threshold);
-                this->detect_threshold = threshold;
-                ESP_LOGI(TAG, "Set detection threshold to %d", threshold);
+                if (threshold != -1) {
+                    settings.SetInt("threshold", threshold);
+                    this->detect_threshold = threshold;
+                    ESP_LOGI(TAG, "Set detection threshold to %d", threshold);
+                }
             } catch (const std::runtime_error&) {
                 // threshold parameter not provided, skip
             }
@@ -498,9 +502,11 @@ void SscmaCamera::InitializeMcpTools() {
             try {
                 const Property& interval_prop = properties["interval"];
                 int interval = interval_prop.value<int>();
-                settings.SetInt("interval", interval);
-                this->detect_invoke_interval_sec = interval;
-                ESP_LOGI(TAG, "Set detection interval to %d", interval);
+                if (interval != -1) {
+                    settings.SetInt("interval", interval);
+                    this->detect_invoke_interval_sec = interval;
+                    ESP_LOGI(TAG, "Set detection interval to %d", interval);
+                }
             } catch (const std::runtime_error&) {
                 // interval parameter not provided, skip
             }
@@ -508,8 +514,10 @@ void SscmaCamera::InitializeMcpTools() {
             try {
                 const Property& duration_prop = properties["duration"];
                 int duration = duration_prop.value<int>();
-                settings.SetInt("duration", duration);
-                this->detect_duration_sec = duration;
+                if (duration != -1) {
+                    settings.SetInt("duration", duration);
+                    this->detect_duration_sec = duration;
+                }
             } catch (const std::runtime_error&) {
                 // duration parameter not provided, skip
             }
@@ -517,9 +525,11 @@ void SscmaCamera::InitializeMcpTools() {
             try {
                 const Property& target_prop = properties["target"];
                 int target = target_prop.value<int>();
-                settings.SetInt("target", target);
-                this->detect_target = target;
-                ESP_LOGI(TAG, "Set detection target to %d", target);
+                if (target != -1) {
+                    settings.SetInt("target", target);
+                    this->detect_target = target;
+                    ESP_LOGI(TAG, "Set detection target to %d", target);
+                }
             } catch (const std::runtime_error&) {
                 // target_type parameter not provided, skip
             }
@@ -529,9 +539,10 @@ void SscmaCamera::InitializeMcpTools() {
 
     // 推理开关获取
     mcp_server.AddTool("self.model.enable",
-        "控制推理开关\n"
-        "  读取/设置推理是否开启; 0=关闭, 1=开启\n"
-        "可选字段: `enable`\n",
+        "控制视觉推理(摄像头检测)功能的开启与关闭，或查询当前状态。\n"
+        "当用户指令涉及'开启/关闭推理'、'开始/停止检测'时使用。\n"
+        "参数：\n"
+        "  `enable`: (可选) 整数。1=开启推理，0=关闭推理。若省略则返回当前开关状态。",
         PropertyList({
             Property("enable", kPropertyTypeInteger, inference_en, 0, 1)
         }),
