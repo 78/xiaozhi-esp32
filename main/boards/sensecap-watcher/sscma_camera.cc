@@ -11,10 +11,31 @@
 #include <esp_heap_caps.h>
 #include <cstring>
 #include "application.h"
+#include "sscma_client_commands.h"
 
 #define TAG "SscmaCamera"
 
 #define IMG_JPEG_BUF_SIZE   48 * 1024
+
+static bool __himax_keepalive_check(sscma_client_handle_t client)
+{
+    esp_err_t ret = ESP_OK;
+    sscma_client_reply_t reply = {0};
+    int retry = 3;
+    while(retry--) {
+        ret = sscma_client_request(client, CMD_PREFIX CMD_AT_ID CMD_QUERY CMD_SUFFIX, &reply, true, pdMS_TO_TICKS(2000));
+        if (reply.payload != NULL) {
+            sscma_client_reply_clear(&reply);
+        }
+        if( ret != ESP_OK ) {
+            ESP_LOGE(TAG, "Himax keepalive check failed: %d", ret);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
 
 SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     sscma_client_io_spi_config_t spi_io_config = {0};
@@ -239,6 +260,10 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     };
     callback.on_connect = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
         ESP_LOGI(TAG, "SSCMA client connected");
+        SscmaCamera* self = static_cast<SscmaCamera*>(user_ctx);
+        if (self) {
+            self->sscma_restarted_ = true;
+        }
     };
 
     callback.on_log = [](sscma_client_handle_t client, const sscma_client_reply_t *reply, void *user_ctx) {
@@ -345,8 +370,24 @@ SscmaCamera::SscmaCamera(esp_io_expander_handle_t io_exp_handle) {
     xTaskCreate([](void* arg) {
         auto this_ = (SscmaCamera*)arg;
         bool is_inference = false;
+        int64_t last_keepalive_time = esp_timer_get_time();
         while (true)
         {
+            if (this_->sscma_restarted_) {
+                ESP_LOGI(TAG, "SSCMA restarted detected");
+                this_->sscma_restarted_ = false;
+                is_inference = false;
+            }
+
+            if (esp_timer_get_time() - last_keepalive_time > 10 * 1000000) {
+                last_keepalive_time = esp_timer_get_time();
+                if (!__himax_keepalive_check(this_->sscma_client_handle_)) {
+                    ESP_LOGE(TAG, "restart himax");
+                    sscma_client_reset(this_->sscma_client_handle_);
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+            }
+
             if (this_->inference_en && Application::GetInstance().GetDeviceState() == kDeviceStateIdle ) {
                 if (!is_inference) {
                     ESP_LOGI(TAG, "Start inference (enable=1)");
@@ -403,7 +444,7 @@ void SscmaCamera::InitializeMcpTools() {
     detect_invoke_interval_sec = settings.GetInt("interval", 8);
     detect_duration_sec = settings.GetInt("duration", 2);
     detect_target = settings.GetInt("target", 0);
-    inference_en = settings.GetInt("enable", 0);
+    inference_en =1; //settings.GetInt("enable", 0);
 
     auto& mcp_server = McpServer::GetInstance();
         // 获取模型参数配置
@@ -531,8 +572,8 @@ bool SscmaCamera::Capture() {
         return false;
     }
     ESP_LOGI(TAG, "Capturing image...");
-    // himax 有缓存数据,需要拍两张照片, 只获取最新的照片即可.
-    if (sscma_client_sample(sscma_client_handle_, 2) ) {
+    // himax 可能有缓存数据, 只获取最新的照片即可.
+    if (sscma_client_sample(sscma_client_handle_, 1) ) {
         ESP_LOGE(TAG, "Failed to capture image from SSCMA client");
         return false;
     }
