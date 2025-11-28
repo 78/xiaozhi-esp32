@@ -62,7 +62,25 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto password = settings.GetString("password");
     int keepalive_interval = settings.GetInt("keepalive", 240);
     publish_topic_ = settings.GetString("publish_topic");
+    //======================= [wj] Start =====================
+    // If no MQTT settings are present in NVS, fall back to user-provided defaults
+    // (Note: storing credentials in code is insecure; consider setting NVS at runtime)
+    if (endpoint.empty()) {
+        endpoint = "xiaozhi.2naive.space";
+        ESP_LOGI(TAG, "No MQTT endpoint in settings, using default: %s", endpoint.c_str());
+    }
+    if (username.empty()) {
+        username = "admin";
+        ESP_LOGI(TAG, "No MQTT username in settings, using default username");
+    }
+    if (password.empty()) {
+        password = "2c9Kc5Qm0zeohI";
+        ESP_LOGI(TAG, "No MQTT password in settings, using default password (hidden)");
+    }
 
+      ESP_LOGI(TAG, "Effective MQTT endpoint: '%s'", endpoint.c_str());
+    //======================= [wj] End =====================
+  
     if (endpoint.empty()) {
         ESP_LOGW(TAG, "MQTT endpoint is not specified");
         if (report_error) {

@@ -1,0 +1,36 @@
+name: Arduino Library CI
+
+on: [pull_request, push, repository_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+      with:
+         repository: adafruit/ci-arduino
+         path: ci
+
+    - name: pre-install
+      run: bash ci/actions_install.sh
+
+    - name: extra libraries
+      run: |
+        git clone --quiet https://github.com/adafruit/Adafruit_ILI9341.git /home/runner/Arduino/libraries/Adafruit_ILI9341
+
+    - name: test platforms
+      run: python3 ci/build_platform.py main_platforms
+
+    - name: clang
+      run: python3 ci/run-clang-format.py -e "ci/*" -e "bin/*" -r . 
+
+    - name: doxygen
+      env:
+        GH_REPO_TOKEN: ${{ secrets.GH_REPO_TOKEN }}
+        PRETTYNAME : "Adafruit GFX Library"
+      run: bash ci/doxy_gen_and_deploy.sh

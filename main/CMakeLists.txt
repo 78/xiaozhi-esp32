@@ -38,7 +38,20 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
+# English teacher feature skeleton files
+list(APPEND SOURCES "ui/display_manager.cc"
+                     "input/button_manager.cc"
+                     "audio/audio_manager.cc"
+                     "ui/epd_renderer.cc"
+                     "services/word_practice.cc"
+                     "services/free_conversation.cc"
+                     "services/scene_conversation.cc"
+                     "ui/menu_manager.cc"
+                     )
+
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
+list(APPEND INCLUDE_DIRS "ui" "input" "audio" "services")
+list(APPEND INCLUDE_DIRS "ui")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -499,12 +512,19 @@ elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+ elseif(CONFIG_BOARD_TYPE_English_Teacher)
+    set(BOARD_TYPE "EnglishTeacher")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
 endif()
 
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
 )
+message(STATUS "BOARD_TYPE=${BOARD_TYPE}")
+message(STATUS "Board sources: ${BOARD_SOURCES}")
+
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 # Select audio processor according to Kconfig

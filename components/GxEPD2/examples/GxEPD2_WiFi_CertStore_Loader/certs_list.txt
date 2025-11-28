@@ -1,0 +1,178 @@
+Microsoft Windows [Version 10.0.19045.2193]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\ZinggJ>cd C:\ZinggJ\ESP8266\BearSSL_CertStore
+
+C:\ZinggJ\ESP8266\BearSSL_CertStore>path C:\Users\ZinggJ\AppData\Local\Arduino15\packages\esp8266\tools\python3\3.7.2-post1;C:\Users\ZinggJ\AppData\Local\Arduino15\packages\esp8266\tools\xtensa-lx106-elf-gcc\3.0.4-gcc10.3-1757bed\xtensa-lx106-elf\bin;%PATH%
+
+C:\ZinggJ\ESP8266\BearSSL_CertStore>python3 certs-from-mozilla.py
+AC Camerfirma, S.A.:AC Camerfirma SA CIF A82743287:http://www.chambersign.org -> data/ca_000.der
+AC Camerfirma, S.A.:AC Camerfirma S.A.: -> data/ca_001.der
+AC Camerfirma, S.A.:AC Camerfirma S.A.: -> data/ca_002.der
+Actalis:Actalis S.p.A./03358520967: -> data/ca_003.der
+Amazon Trust Services:Amazon: -> data/ca_004.der
+Amazon Trust Services:Amazon: -> data/ca_005.der
+Amazon Trust Services:Amazon: -> data/ca_006.der
+Amazon Trust Services:Amazon: -> data/ca_007.der
+Amazon Trust Services:Starfield Technologies, Inc.: -> data/ca_008.der
+Asseco Data Systems S.A. (previously Unizeto Certum):Unizeto Sp. z o.o.: -> data/ca_009.der
+Asseco Data Systems S.A. (previously Unizeto Certum):Asseco Data Systems S.A.:Certum Certification Authority -> data/ca_010.der
+Asseco Data Systems S.A. (previously Unizeto Certum):Unizeto Technologies S.A.:Certum Certification Authority -> data/ca_011.der
+Asseco Data Systems S.A. (previously Unizeto Certum):Unizeto Technologies S.A.:Certum Certification Authority -> data/ca_012.der
+Asseco Data Systems S.A. (previously Unizeto Certum):Asseco Data Systems S.A.:Certum Certification Authority -> data/ca_013.der
+Atos:Atos: -> data/ca_014.der
+Autoridad de Certificacion Firmaprofesional:: -> data/ca_015.der
+Autoridad de Certificacion Firmaprofesional:: -> data/ca_016.der
+Autoridad de Certificación (ANF AC):ANF Autoridad de Certificacion:ANF CA Raiz -> data/ca_017.der
+Buypass:Buypass AS-983163327: -> data/ca_018.der
+Buypass:Buypass AS-983163327: -> data/ca_019.der
+Certainly LLC:Certainly: -> data/ca_020.der
+Certainly LLC:Certainly: -> data/ca_021.der
+certSIGN:certSIGN:certSIGN ROOT CA -> data/ca_022.der
+certSIGN:CERTSIGN SA:certSIGN ROOT CA G2 -> data/ca_023.der
+China Financial Certification Authority (CFCA):China Financial Certification Authority: -> data/ca_024.der
+Chunghwa Telecom:Chunghwa Telecom Co., Ltd.:ePKI Root Certification Authority -> data/ca_025.der
+Chunghwa Telecom:Chunghwa Telecom Co., Ltd.: -> data/ca_026.der
+Consorci Administració Oberta de Catalunya (Consorci AOC, CATCert):Agencia Catalana de Certificacio (NIF Q-0801176-I):Serveis Publics de Certificacio, Vegeu https://www.catcert.net/verarrel (c)03, Jerarquia Entitats de Certificacio Catalanes -> data/ca_027.der
+Cybertrust Japan / JCSI:Japan Certification Services, Inc.: -> data/ca_028.der
+D-Trust:D-Trust GmbH: -> data/ca_029.der
+D-Trust:D-Trust GmbH: -> data/ca_030.der
+D-Trust:D-Trust GmbH: -> data/ca_031.der
+D-Trust:D-Trust GmbH: -> data/ca_032.der
+D-Trust:D-Trust GmbH: -> data/ca_033.der
+Deutsche Telekom Security GmbH:T-Systems Enterprise Services GmbH:T-Systems Trust Center -> data/ca_034.der
+Deutsche Telekom Security GmbH:T-Systems Enterprise Services GmbH:T-Systems Trust Center -> data/ca_035.der
+Dhimyotis / Certigna:Dhimyotis: -> data/ca_036.der
+Dhimyotis / Certigna:Dhimyotis:0002 48146308100036 -> data/ca_037.der
+DigiCert:Baltimore:CyberTrust -> data/ca_038.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_039.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_040.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_041.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_042.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_043.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_044.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_045.der
+DigiCert:DigiCert, Inc.: -> data/ca_046.der
+DigiCert:DigiCert, Inc.: -> data/ca_047.der
+DigiCert:DigiCert, Inc.: -> data/ca_048.der
+DigiCert:DigiCert, Inc.: -> data/ca_049.der
+DigiCert:DigiCert Inc:www.digicert.com -> data/ca_050.der
+DigiCert:Symantec Corporation:Symantec Trust Network -> data/ca_051.der
+DigiCert:Symantec Corporation:Symantec Trust Network -> data/ca_052.der
+DigiCert:VeriSign, Inc.:VeriSign Trust Network, (c) 1999 VeriSign, Inc. - For authorized use only -> data/ca_053.der
+DigiCert:VeriSign, Inc.:VeriSign Trust Network, (c) 1999 VeriSign, Inc. - For authorized use only -> data/ca_054.der
+DigitalSign - Certificadora Digital, S.A:DigitalSign Certificadora Digital: -> data/ca_055.der
+DigitalSign - Certificadora Digital, S.A:DigitalSign Certificadora Digital: -> data/ca_056.der
+Disig, a.s.:Disig a.s.: -> data/ca_057.der
+e-commerce monitoring GmbH:e-commerce monitoring GmbH: -> data/ca_058.der
+E-Tugra:E-Tuğra EBG Bilişim Teknolojileri ve Hizmetleri A.Ş.:E-Tugra Sertifikasyon Merkezi -> data/ca_059.der
+E-Tugra:E-Tugra EBG A.S.:E-Tugra Trust Center -> data/ca_060.der
+E-Tugra:E-Tugra EBG A.S.:E-Tugra Trust Center -> data/ca_061.der
+eMudhra Technologies Limited:eMudhra Inc:emSign PKI -> data/ca_062.der
+eMudhra Technologies Limited:eMudhra Technologies Limited:emSign PKI -> data/ca_063.der
+eMudhra Technologies Limited:eMudhra Inc:emSign PKI -> data/ca_064.der
+eMudhra Technologies Limited:eMudhra Technologies Limited:emSign PKI -> data/ca_065.der
+Entrust:AffirmTrust: -> data/ca_066.der
+Entrust:AffirmTrust: -> data/ca_067.der
+Entrust:AffirmTrust: -> data/ca_068.der
+Entrust:AffirmTrust: -> data/ca_069.der
+Entrust:Entrust, Inc.:www.entrust.net/CPS is incorporated by reference, (c) 2006 Entrust, Inc. -> data/ca_070.der
+Entrust:Entrust, Inc.:See www.entrust.net/legal-terms, (c) 2012 Entrust, Inc. - for authorized use only -> data/ca_071.der
+Entrust:Entrust, Inc.:See www.entrust.net/legal-terms, (c) 2009 Entrust, Inc. - for authorized use only -> data/ca_072.der
+Entrust:Entrust, Inc.:See www.entrust.net/legal-terms, (c) 2015 Entrust, Inc. - for authorized use only -> data/ca_073.der
+Entrust:Entrust.net:www.entrust.net/CPS_2048 incorp. by ref. (limits liab.), (c) 1999 Entrust.net Limited -> data/ca_074.der
+Global Digital Cybersecurity Authority Co., Ltd. (Formerly Guang Dong Certificate Authority (GDCA)):GUANG DONG CERTIFICATE AUTHORITY CO.,LTD.: -> data/ca_075.der
+GlobalSign nv-sa:GlobalSign:GlobalSign Root CA - R3 -> data/ca_076.der
+GlobalSign nv-sa:GlobalSign:GlobalSign ECC Root CA - R5 -> data/ca_077.der
+GlobalSign nv-sa:GlobalSign:GlobalSign Root CA - R6 -> data/ca_078.der
+GlobalSign nv-sa:GlobalSign nv-sa:Root CA -> data/ca_079.der
+GlobalSign nv-sa:GlobalSign nv-sa: -> data/ca_080.der
+GlobalSign nv-sa:GlobalSign nv-sa: -> data/ca_081.der
+GlobalSign nv-sa:GlobalSign nv-sa: -> data/ca_082.der
+GlobalSign nv-sa:GlobalSign nv-sa: -> data/ca_083.der
+GoDaddy:The Go Daddy Group, Inc.:Go Daddy Class 2 Certification Authority -> data/ca_084.der
+GoDaddy:GoDaddy.com, Inc.: -> data/ca_085.der
+GoDaddy:Starfield Technologies, Inc.:Starfield Class 2 Certification Authority -> data/ca_086.der
+GoDaddy:Starfield Technologies, Inc.: -> data/ca_087.der
+Google Trust Services LLC:GlobalSign:GlobalSign ECC Root CA - R4 -> data/ca_088.der
+Google Trust Services LLC:GlobalSign:GlobalSign ECC Root CA - R4 -> data/ca_089.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_090.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_091.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_092.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_093.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_094.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_095.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_096.der
+Google Trust Services LLC:Google Trust Services LLC: -> data/ca_097.der
+Government of Hong Kong (SAR), Hongkong Post, Certizen:Hongkong Post: -> data/ca_098.der
+Government of Hong Kong (SAR), Hongkong Post, Certizen:Hongkong Post: -> data/ca_099.der
+Government of Spain, Autoritat de Certificació de la Comunitat Valenciana (ACCV):ACCV:PKIACCV -> data/ca_100.der
+Government of Spain, Fábrica Nacional de Moneda y Timbre (FNMT):FNMT-RCM:Ceres -> data/ca_101.der
+Government of Spain, Fábrica Nacional de Moneda y Timbre (FNMT):FNMT-RCM:AC RAIZ FNMT-RCM -> data/ca_102.der
+Government of The Netherlands, PKIoverheid (Logius):Staat der Nederlanden: -> data/ca_103.der
+Government of The Netherlands, PKIoverheid (Logius):Staat der Nederlanden: -> data/ca_104.der
+Government of Tunisia, Agence National de Certification Electronique / National Digital Certification Agency (ANCE/NDCA):Agence Nationale de Certification Electronique: -> data/ca_105.der
+Government of Turkey, Kamu Sertifikasyon Merkezi (Kamu SM):Turkiye Bilimsel ve Teknolojik Arastirma Kurumu - TUBITAK:Kamu Sertifikasyon Merkezi - Kamu SM -> data/ca_106.der
+HARICA:Hellenic Academic and Research Institutions CA: -> data/ca_107.der
+HARICA:Hellenic Academic and Research Institutions CA: -> data/ca_108.der
+HARICA:Hellenic Academic and Research Institutions CA: -> data/ca_109.der
+HARICA:Hellenic Academic and Research Institutions CA: -> data/ca_110.der
+HARICA:Hellenic Academic and Research Institutions Cert. Authority: -> data/ca_111.der
+HARICA:Hellenic Academic and Research Institutions Cert. Authority: -> data/ca_112.der
+IdenTrust Services, LLC:IdenTrust: -> data/ca_113.der
+IdenTrust Services, LLC:IdenTrust: -> data/ca_114.der
+Internet Security Research Group:Internet Security Research Group: -> data/ca_115.der
+Internet Security Research Group:Internet Security Research Group: -> data/ca_116.der
+iTrusChina Co., Ltd.:iTrusChina Co.,Ltd.: -> data/ca_117.der
+iTrusChina Co., Ltd.:iTrusChina Co.,Ltd.: -> data/ca_118.der
+Izenpe S.A.:IZENPE S.A.: -> data/ca_119.der
+Krajowa Izba Rozliczeniowa S.A. (KIR):Krajowa Izba Rozliczeniowa S.A.: -> data/ca_120.der
+Microsec Ltd.:Microsec Ltd.: -> data/ca_121.der
+Microsec Ltd.:Microsec Ltd.: -> data/ca_122.der
+Microsoft Corporation:Microsoft Corporation: -> data/ca_123.der
+Microsoft Corporation:Microsoft Corporation: -> data/ca_124.der
+NAVER Cloud:NAVER BUSINESS PLATFORM Corp.: -> data/ca_125.der
+Netlock:NetLock Kft.:Tanúsítványkiadók (Certification Services) -> data/ca_126.der
+Network Solutions:Network Solutions L.L.C.: -> data/ca_127.der
+OISTE:WISeKey:Copyright (c) 2005, OISTE Foundation Endorsed -> data/ca_128.der
+OISTE:WISeKey:OISTE Foundation Endorsed -> data/ca_129.der
+OISTE:WISeKey:OISTE Foundation Endorsed -> data/ca_130.der
+QuoVadis:QuoVadis Limited: -> data/ca_131.der
+QuoVadis:QuoVadis Limited: -> data/ca_132.der
+QuoVadis:QuoVadis Limited: -> data/ca_133.der
+QuoVadis:QuoVadis Limited: -> data/ca_134.der
+QuoVadis:QuoVadis Limited: -> data/ca_135.der
+SECOM Trust Systems CO., LTD.:SECOM Trust.net:Security Communication RootCA1 -> data/ca_136.der
+SECOM Trust Systems CO., LTD.:SECOM Trust Systems CO.,LTD.: -> data/ca_137.der
+SECOM Trust Systems CO., LTD.:SECOM Trust Systems CO.,LTD.:Security Communication RootCA2 -> data/ca_138.der
+SECOM Trust Systems CO., LTD.:SECOM Trust Systems CO.,LTD.: -> data/ca_139.der
+Sectigo:Comodo CA Limited: -> data/ca_140.der
+Sectigo:COMODO CA Limited: -> data/ca_141.der
+Sectigo:COMODO CA Limited: -> data/ca_142.der
+Sectigo:COMODO CA Limited: -> data/ca_143.der
+Sectigo:The USERTRUST Network: -> data/ca_144.der
+Sectigo:The USERTRUST Network: -> data/ca_145.der
+SecureTrust:SecureTrust Corporation: -> data/ca_146.der
+SecureTrust:SecureTrust Corporation: -> data/ca_147.der
+SecureTrust:Trustwave Holdings, Inc.: -> data/ca_148.der
+SecureTrust:Trustwave Holdings, Inc.: -> data/ca_149.der
+SecureTrust:Trustwave Holdings, Inc.: -> data/ca_150.der
+SecureTrust:XRamp Security Services Inc:www.xrampsecurity.com -> data/ca_151.der
+Shanghai Electronic Certification Authority Co., Ltd.:UniTrust: -> data/ca_152.der
+Shanghai Electronic Certification Authority Co., Ltd.:UniTrust: -> data/ca_153.der
+SSL.com:SSL Corporation: -> data/ca_154.der
+SSL.com:SSL Corporation: -> data/ca_155.der
+SSL.com:SSL Corporation: -> data/ca_156.der
+SSL.com:SSL Corporation: -> data/ca_157.der
+SwissSign AG:SwissSign AG: -> data/ca_158.der
+SwissSign AG:SwissSign AG: -> data/ca_159.der
+SwissSign AG:SwissSign AG: -> data/ca_160.der
+Taiwan-CA Inc. (TWCA):TAIWAN-CA:Root CA -> data/ca_161.der
+Taiwan-CA Inc. (TWCA):TAIWAN-CA:Root CA -> data/ca_162.der
+Telia Company:Telia Finland Oyj: -> data/ca_163.der
+Telia Company:TeliaSonera: -> data/ca_164.der
+TrustCor Systems:TrustCor Systems S. de R.L.:TrustCor Certificate Authority -> data/ca_165.der
+TrustCor Systems:TrustCor Systems S. de R.L.:TrustCor Certificate Authority -> data/ca_166.der
+ar: creating data/certs.ar
+
+C:\ZinggJ\ESP8266\BearSSL_CertStore>

@@ -1,5 +1,5 @@
 tmp/
-components/
+# components/
 managed_components/
 build/
 .vscode/
@@ -16,3 +16,4 @@ main/mmap_generate_emoji.h
 *.pyc
 *.bin
 mmap_generate_*.h
+*:Zone*
