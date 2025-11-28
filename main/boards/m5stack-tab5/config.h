@@ -28,6 +28,12 @@
 #define VOLUME_DOWN_BUTTON_GPIO  GPIO_NUM_NC
 
 /* ---------------------------------------------------------------- */
+// 摄像头相关参数配置
+#define CAMERA_SCL  GPIO_NUM_32
+#define CAMERA_SDA  GPIO_NUM_31
+#define CAMERA_MCLK GPIO_NUM_36
+
+/* ---------------------------------------------------------------- */
 // 显示屏相关参数配置
 #define DISPLAY_WIDTH    720
 #define DISPLAY_HEIGHT   1280
