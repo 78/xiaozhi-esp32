@@ -1,4 +1,11 @@
 #include "gpio_led.h"
+// Try to include board config.h if available (for PWM configuration)
+// This allows board-specific PWM settings to override defaults
+#ifdef __has_include
+    #if __has_include("config.h")
+        #include "config.h"
+    #endif
+#endif
 #include "application.h"
 #include "device_state.h"
 #include <esp_log.h>
@@ -21,7 +28,30 @@
 #define LEDC_LS_MODE           LEDC_LOW_SPEED_MODE
 #define LEDC_LS_CH0_CHANNEL    LEDC_CHANNEL_0
 
-#define LEDC_DUTY              (8191)
+// 如果board定义了PWM配置，则使用；否则使用默认值
+#ifndef PWM_LED_RESOLUTION
+#define PWM_LED_RESOLUTION LEDC_TIMER_13_BIT
+#endif
+
+#ifndef PWM_LED_FREQUENCY
+#define PWM_LED_FREQUENCY 4000
+#endif
+
+// 根据分辨率计算最大占空比值
+#if PWM_LED_RESOLUTION == LEDC_TIMER_13_BIT
+#define LEDC_DUTY              (8191)  // 2^13 - 1
+#elif PWM_LED_RESOLUTION == LEDC_TIMER_10_BIT
+#define LEDC_DUTY              (1023)  // 2^10 - 1
+#elif PWM_LED_RESOLUTION == LEDC_TIMER_8_BIT
+#define LEDC_DUTY              (255)   // 2^8 - 1
+#elif PWM_LED_RESOLUTION == LEDC_TIMER_12_BIT
+#define LEDC_DUTY              (4095)  // 2^12 - 1
+#elif PWM_LED_RESOLUTION == LEDC_TIMER_14_BIT
+#define LEDC_DUTY              (16383) // 2^14 - 1
+#else
+#define LEDC_DUTY              (8191)  // 默认13位
+#endif
+
 #define LEDC_FADE_TIME    (1000)
 // GPIO_LED
 
@@ -42,8 +72,8 @@ GpioLed::GpioLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, led
      * that will be used by LED Controller
      */
     ledc_timer_config_t ledc_timer = {};
-    ledc_timer.duty_resolution = LEDC_TIMER_13_BIT;  // resolution of PWM duty
-    ledc_timer.freq_hz = 4000;                      // frequency of PWM signal
+    ledc_timer.duty_resolution = PWM_LED_RESOLUTION;  // resolution of PWM duty (from config or default)
+    ledc_timer.freq_hz = PWM_LED_FREQUENCY;          // frequency of PWM signal (from config or default)
     ledc_timer.speed_mode = LEDC_LS_MODE;           // timer mode
     ledc_timer.timer_num = timer_num;               // timer index
     ledc_timer.clk_cfg = LEDC_AUTO_CLK;              // Auto select the source clock

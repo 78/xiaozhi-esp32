@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>网络配置 - 小王子智能音箱</title>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="referrer no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <style type="text/css">
+        :root {
+            --primary-color: #6a5acd; /* 紫罗兰色主色调 */
+            --secondary-color: #f8b195; /* 暖粉色辅助色 */
+            --light-bg: #fff9f5; /* 浅色背景 */
+            --text-color: #333333; /* 文本颜色 */
+            --border-radius: 12px; /* 统一圆角 */
+            --shadow: 0 4px 12px rgba(0,0,0,0.08); /* 统一阴影 */
+        }
+        
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--light-bg);
+            color: var(--text-color);
+            padding-bottom: 40px;
+        }
+        
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 0 0 24px 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 500;
+        }
+        
+        .header p {
+            margin: 5px 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 15px;
+            background-color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .logo::after {
+            content: "👑";
+            font-size: 30px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: #555;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(106, 90, 205, 0.1);
+        }
+        
+        input[type="submit"] {
+            background-color: var(--primary-color);
+            color: #fff;
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 14px;
+            cursor: pointer;
+            font-size: 17px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow);
+        }
+        
+        input[type="submit"]:hover {
+            background-color: #5a4cb0;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+        }
+        
+        input[type="submit"]:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+        }
+        
+        .section-title {
+            font-size: 18px;
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        #ap_list {
+            margin-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 15px;
+        }
+        
+        #ap_list p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        #ap_list a {
+            display: block;
+            padding: 10px 12px;
+            margin-top: 8px;
+            color: var(--text-color);
+            text-decoration: none;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            transition: all 0.2s ease;
+        }
+        
+        #ap_list a:hover {
+            background-color: #f0edff;
+            color: var(--primary-color);
+            transform: translateX(3px);
+        }
+
+        .language-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+        
+        .language-switch select {
+            padding: 6px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 14px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath fill='white' d='M10.293 0.293a1 1 0 0 1 0 1.414L6.707 5.414a1 1 0 0 1-1.414 0L1.707 1.707a1 1 0 0 1 1.414-1.414L6 4.586l3.586-3.586a1 1 0 0 1 1.414 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 25px;
+        }
+        
+        .language-switch select option {
+            color: var(--text-color);
+            background-color: white;
+        }
+
+        #saved_list_container {
+            margin-bottom: 25px;
+        }
+        
+        #saved_list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        #saved_list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        #saved_list button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 5px;
+            opacity: 0.7;
+            transition: all 0.2s ease;
+        }
+        
+        #saved_list button:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #fee;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        /* 提示框样式 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            min-width: 200px;
+            text-align: center;
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        
+        .footer-note {
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            margin-top: 30px;
+            padding: 0 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo"></div>
+        <h1 data-lang="title">小王子智能音箱 - 网络配置</h1>
+        <p>请连接到您的WiFi网络</p>
+    </div>
+    
+    <div class="language-switch">
+        <select id="language" onchange="changeLanguage()">
+            <option value="en-US">English</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+            <option value="ja-JP">日本語</option>
+        </select>
+    </div>
+    
+    <div class="container">
+        <div id="wifi-tab" class="card">
+            <form action="/submit" method="post" onsubmit="submitForm(event)">
+                <div id="saved_list_container" style="display: none;">
+                    <h3 class="section-title" data-lang="saved_wifi">已保存的 WiFi</h3>
+                    <ul id="saved_list">
+                        <li>
+                            <span>SSID</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="section-title" data-lang="new_wifi">连接新的 WiFi</h3>
+                    <p class="error" id="error"></p>
+                    
+                    <div class="form-group">
+                        <label for="ssid">SSID:</label>
+                        <input type="text" id="ssid" name="ssid" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password" data-lang="password">密码:</label>
+                        <input type="password" id="password" name="password">
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 25px;">
+                        <input type="submit" value="连接" id="button" data-lang-value="connect">
+                    </div>
+                    
+                    <div id="ap_list"></div>
+                </div>
+            </form>
+        </div>
+        
+        <p class="footer-note">
+            小王子智能音箱仅支持2.4GHz WiFi网络
+        </p>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="text/javascript">
+        const button = document.getElementById('button');
+        const error = document.getElementById('error');
+        const ssid = document.getElementById('ssid');
+
+        // 语言翻译保持不变
+        const translations = {
+            'zh-CN': {
+                title: '小王子智能音箱 - 网络配置',
+                saved_wifi: '已保存的 Wi-Fi',
+                new_wifi: '连接新的 Wi-Fi',
+                password: '密码:',
+                connect: '连接',
+                select_wifi: '从下面列表选择 2.4G Wi-Fi:',
+            },
+            'zh-TW': {
+                title: '小王子智能音箱 - 網路設定',
+                saved_wifi: '已儲存的 Wi-Fi',
+                new_wifi: '連接新的 Wi-Fi',
+                password: '密碼:',
+                connect: '連接',
+                select_wifi: '從下方列表選擇 2.4G Wi-Fi:',
+            },
+            'en-US': {
+                title: 'Little Prince Speaker - Network Setup',
+                saved_wifi: 'Saved Wi-Fi',
+                new_wifi: 'Connect to New Wi-Fi',
+                password: 'Password:',
+                connect: 'Connect',
+                select_wifi: 'Select 2.4G Wi-Fi from the list below:',
+            },
+            'ja-JP': {
+                title: 'リトルプリンススピーカー - ネットワーク設定',
+                saved_wifi: '保存済みのWi-Fi',
+                new_wifi: '新しいWi-Fiに接続',
+                password: 'パスワード:',
+                connect: '接続',
+                select_wifi: '以下のリストから2.4G Wi-Fiを選択してください:',
+            }
+        };
+
+        // 所有JavaScript逻辑保持不变
+        function changeLanguage() {
+            const lang = document.getElementById('language').value;
+            if (!translations[lang]) {
+                console.warn(`不支持的语言: ${lang}，默认使用中文`);
+                document.getElementById('language').value = 'zh-CN';
+                return changeLanguage();
+            }
+            document.title = translations[lang].title;
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                const key = element.getAttribute('data-lang');
+                element.textContent = translations[lang][key];
+            });
+            document.querySelectorAll('[data-lang-value]').forEach(element => {
+                const key = element.getAttribute('data-lang-value');
+                element.value = translations[lang][key];
+            });
+            const apList = document.getElementById('ap_list');
+            if (apList.firstChild) {
+                apList.firstChild.textContent = translations[lang].select_wifi;
+            }
+            localStorage.setItem('preferred_language', lang);
+        }
+
+        function renderSavedList(data) {
+            const savedListContainer = document.getElementById('saved_list_container');
+            const savedList = document.getElementById('saved_list');
+            savedList.innerHTML = '';
+            data.forEach((ssid, index) => {
+                const li = document.createElement('li');
+                let html = `<span>${ssid}</span>`;
+                if (index > 0) {
+                    html += ` <span>
+                        <button type="button" onclick="setDefaultItem(this, ${index})">⬆️</button>
+                        <button type="button" onclick="deleteItem(this, ${index})">❌</button>
+                    </span>`;
+                } else {
+                    html += ` <span><button type="button" onclick="deleteItem(this, ${index})">❌</button></span>`;
+                }
+                li.innerHTML = html;
+                savedList.appendChild(li);
+            });
+            if (data.length > 0) {
+                savedListContainer.style.display = 'block';
+            } else {
+                savedListContainer.style.display = 'none';
+            }
+        }
+
+        function deleteItem(item, index) {
+            item.disabled = true;
+            fetch('/saved/delete?index=' + index)
+                .then(response => response.json())
+                .then(data => {
+                    loadSavedList();
+                });
+        }
+
+        function setDefaultItem(item, index) {
+            item.disabled = true;
+            fetch('/saved/set_default?index=' + index)
+                .then(response => response.json())
+                .then(data => {
+                    loadSavedList();
+                });
+        }
+
+        function loadSavedList() {
+            fetch('/saved/list')
+                .then(response => response.json())
+                .then(data => {
+                    renderSavedList(data);
+                });
+        }
+
+        function loadAPList() {
+            if (button.disabled) {
+                return;
+            }
+
+            fetch('/scan')
+                .then(response => response.json())
+                .then(data => {
+                    const lang = document.getElementById('language').value;
+                    const apList = document.getElementById('ap_list');
+                    apList.innerHTML = '<p>' + translations[lang].select_wifi + '</p>';
+                    data.forEach(ap => {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.textContent = ap.ssid + ' (' + ap.rssi + ' dBm)';
+                        if (ap.authmode === 0) {
+                            link.textContent += ' 🌐';
+                        } else {
+                            link.textContent += ' 🔒';
+                        }
+                        link.addEventListener('click', () => {
+                            ssid.value = ap.ssid;
+                        });
+                        apList.appendChild(link);
+                    });
+                    setTimeout(loadAPList, 5000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const langParam = urlParams.get('lang');
+            const browserLang = navigator.language || navigator.userLanguage;
+            
+            const languageMap = {
+                'zh': 'zh-CN',
+                'zh-CN': 'zh-CN',
+                'zh-TW': 'zh-TW',
+                'zh-HK': 'zh-TW',
+                'ja': 'ja-JP',
+                'ja-JP': 'ja-JP',
+                'en': 'en-US',
+                'en-US': 'en-US',
+                'en-GB': 'en-US',
+                'en-CA': 'en-US',
+                'en-AU': 'en-US'
+            };
+            
+            const getSupportedLanguage = (lang) => {
+                if (languageMap[lang]) {
+                    return languageMap[lang];
+                }
+                const mainLang = lang.split('-')[0];
+                if (languageMap[mainLang]) {
+                    return languageMap[mainLang];
+                }
+                return 'en-US';
+            };
+            
+            const savedLang = langParam || 
+                             localStorage.getItem('preferred_language') || 
+                             getSupportedLanguage(browserLang);
+            
+            document.getElementById('language').value = savedLang;
+            changeLanguage();
+            loadSavedList();
+            loadAPList();
+        });
+
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                loadSavedList();
+            }
+        });
+
+        async function submitForm(event) {
+            event.preventDefault();
+            button.disabled = true;
+            error.textContent = '';
+
+            const ssidValue = ssid.value;
+            const passwordValue = document.getElementById('password').value;
+
+            const payload = {
+                ssid: ssidValue,
+                password: passwordValue
+            };
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '连接失败');
+                }
+
+                button.disabled = false;
+                window.location.href = '/done.html';
+            } catch (err) {
+                error.textContent = err.message;
+                button.disabled = false;
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

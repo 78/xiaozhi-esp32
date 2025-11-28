@@ -47,9 +47,25 @@ void AudioCodec::Start() {
     ESP_LOGI(TAG, "Audio codec started");
 }
 
+
 void AudioCodec::SetOutputVolume(int volume) {
-    output_volume_ = volume;
-    ESP_LOGI(TAG, "Set output volume to %d", output_volume_);
+    int requested = volume;
+
+    // 输入校验：钳制到 0–100
+    if (volume < 0) {
+        ESP_LOGW(TAG, "Requested volume %d out of range (<0), clamped to 0", requested);
+        volume = 0;
+    } else if (volume > 100) {
+        ESP_LOGW(TAG, "Requested volume %d out of range (>100), clamped to 100", requested);
+        volume = 100;
+    }
+
+    // 线性映射到 30–80：0→30, 100→80
+    int mapped = 30 + (volume * 50) / 100;
+
+    ESP_LOGI(TAG, "Set output volume: requested=%d, clamped=%d, effective=%d", requested, volume, mapped);
+
+    output_volume_ = mapped;
     
     Settings settings("audio", true);
     settings.SetInt("output_volume", output_volume_);

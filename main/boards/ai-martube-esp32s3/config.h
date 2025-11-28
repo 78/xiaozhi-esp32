@@ -18,23 +18,30 @@
 #define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_42
 #define AUDIO_CODEC_ES8388_ADDR ES8388_CODEC_DEFAULT_ADDR
 
-// IO-40 功放使能信号
-#define AUDIO_CODEC_PA_GPIO GPIO_NUM_40
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 
-// IO-39 音频（输出）切换信号（高电平 ESP32S3使用, 低电平 经典蓝牙YT2888使用）
-#define AUDIO_SWITCH_GPIO GPIO_NUM_39
-#define AUDIO_SWITCH_ESP32S3_LEVEL 1      // ESP32S3使用高电平
-#define AUDIO_SWITCH_BLUETOOTH_LEVEL 0    // 经典蓝牙使用低电平
+// IO-7  2.5V参考电源采集脚ADC
+#define POWER_ADC_GPIO GPIO_NUM_7
+// ADC1通道：GPIO7 对应 ADC_CHANNEL_6（ESP32-S3），用于采样2.5V参考电压
+#define POWER_ADC_CHANNEL ADC_CHANNEL_6
+// 标准参考电压（单位：伏特），作为电池电压采集的动态校准基准
+#define POWER_REF_VOLTAGE 2.5f
 
 // IO-4  电池电量采集脚ADC
 #define BATTERY_ADC_GPIO GPIO_NUM_4
 #define BATTERY_ADC_CHANNEL ADC_CHANNEL_3
 #define BATTERY_VOLTAGE_DIVIDER_RATIO 2.0f  // 两个100K电阻分压，比例是2:1
-#define BATTERY_FULL_VOLTAGE 4.2f          // 锂电池满电电压
-#define BATTERY_EMPTY_VOLTAGE 3.0f         // 锂电池空电电压
+#define BATTERY_FULL_VOLTAGE 4.15f          // 锂电池满电电压 (100%)
+#define BATTERY_EMPTY_VOLTAGE 2.5f          // 锂电池空电电压 (0%, 保护板断电)
 #define BATTERY_ADC_SAMPLES 64             // ADC采样次数
+
+// 电池电量分段电压阈值（根据实际电池特性）
+#define BATTERY_VOLTAGE_90P 4.15f   // 90% 电量对应电压
+#define BATTERY_VOLTAGE_80P 3.95f   // 80% 电量对应电压
+#define BATTERY_VOLTAGE_50P 3.75f   // 50% 电量对应电压
+#define BATTERY_VOLTAGE_20P 3.50f   // 20% 电量对应电压
+#define BATTERY_VOLTAGE_10P 3.30f   // 10% 电量对应电压
 
 // IO-12 EC11-A 
 // IO-8  EC11-B
@@ -51,13 +58,31 @@
 #define SHUTDOWN_DEBOUNCE_TIME_MS 50
 #define SHUTDOWN_LONG_PRESS_TIME_MS 3000
 
+// IO-1 充电输入信号
+#define CHARGE_INPUT_GPIO GPIO_NUM_1
+// IO-2 充电状态led控制脚，控制显示充电状态
+#define CHARGE_STATUS_LED_GPIO GPIO_NUM_2
+
 // IO-15 按键输入信号
 #define KEY_INPUT_GPIO GPIO_NUM_15 
 #define KEY_DEBOUNCE_TIME_MS 50
-#define KEY_LONG_PRESS_TIME_MS 1000
+#define KEY_LONG_PRESS_TIME_MS 3000
 
-// IO-21 开关输入信号
-#define SWITCH_INPUT_GPIO GPIO_NUM_21
+// IO-39 模拟开关芯片Audio输入开关信号
+#define SWITCH_INPUT_GPIO GPIO_NUM_39
+// IO-40 模拟开关芯片Audio输出开关信号
+#define SWITCH_OUTPUT_GPIO GPIO_NUM_40
+// IO-38 功放PA脚
+#define AUDIO_CODEC_PA_GPIO GPIO_NUM_38
+
+#define AUDIO_SWITCH_ESP32S3_LEVEL 1      // ESP32S3使用高电平
+#define AUDIO_SWITCH_BLUETOOTH_LEVEL 0    // 经典蓝牙使用低电平
+
+
+// IO-21 通用输入信号检测（边缘触发，高低电平触发不同事件）
+#define CUSTOM_INPUT_GPIO GPIO_NUM_21
+#define CUSTOM_INPUT_DEBOUNCE_TIME_MS 50
+
 
 // IO-20 控制电机开关，高电平使能，低电平关闭
 #define MOTOR_CONTROL_GPIO              GPIO_NUM_20
@@ -68,8 +93,8 @@
 #define PWM_LED_GPIO GPIO_NUM_19
 #define PWM_LED_TIMER LEDC_TIMER_2
 #define PWM_LED_CHANNEL LEDC_CHANNEL_1
-#define PWM_LED_FREQUENCY 4000
-#define PWM_LED_RESOLUTION LEDC_TIMER_13_BIT
+#define PWM_LED_FREQUENCY 2000
+#define PWM_LED_RESOLUTION LEDC_TIMER_10_BIT
 #define PWM_LED_OUTPUT_INVERT 0
 
 // 串口
@@ -85,7 +110,7 @@
 #define LCD_MOSI_PIN GPIO_NUM_NC //GPIO_NUM_11
 #define LCD_MISO_PIN GPIO_NUM_NC
 #define LCD_DC_PIN GPIO_NUM_NC//GPIO_NUM_40
-#define LCD_CS_PIN GPIO_NUM_21
+#define LCD_CS_PIN GPIO_NUM_NC//GPIO_NUM_21
 
 #define DISPLAY_WIDTH    320
 #define DISPLAY_HEIGHT   240
@@ -111,7 +136,7 @@
 #define CAM_PIN_D0      GPIO_NUM_4
 #define CAM_PIN_D1      GPIO_NUM_5
 #define CAM_PIN_D2      GPIO_NUM_6
-#define CAM_PIN_D3      GPIO_NUM_7
+#define CAM_PIN_D3      GPIO_NUM_NC//GPIO_NUM_7
 #define CAM_PIN_D4      GPIO_NUM_15
 #define CAM_PIN_D5      GPIO_NUM_16
 #define CAM_PIN_D6      GPIO_NUM_NC
