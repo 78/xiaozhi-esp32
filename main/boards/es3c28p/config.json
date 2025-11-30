@@ -1,0 +1,12 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "es3c28p",
+            "sdkconfig_append": [
+                "CONFIG_LANGUAGE_EN_US=y",
+                "CONFIG_BOARD_TYPE_ES3C28P=y"
+            ]
+        }
+    ]
+}

@@ -168,6 +168,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX_LITE
         bool "Espressif ESP-BOX-Lite"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P
+        bool "ES3C28P (2.8inch ESP32-S3 Display)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP-P4-Function-EV-Board"
         depends on IDF_TARGET_ESP32P4
