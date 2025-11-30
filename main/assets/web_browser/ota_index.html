@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTA Firmware Update</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container { 
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 { 
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .upload-box {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-box:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        .upload-box.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+        }
+        .upload-icon { font-size: 48px; margin-bottom: 10px; }
+        .upload-text { color: #666; font-size: 16px; margin-bottom: 5px; }
+        .upload-hint { color: #999; font-size: 12px; }
+        input[type="file"] { display: none; }
+        .file-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .file-info.show { display: block; }
+        .file-name { color: #333; font-weight: 600; word-break: break-all; }
+        .file-size { color: #666; font-size: 12px; margin-top: 5px; }
+        .progress-container {
+            display: none;
+            margin-bottom: 20px;
+        }
+        .progress-container.show { display: block; }
+        .progress-text {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-upload {
+            background: #667eea;
+            color: white;
+        }
+        .btn-upload:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-upload:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-cancel:hover {
+            background: #d0d0d0;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+        .status.show { display: block; }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .info-box {
+            background: #e8ebff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #555;
+            line-height: 1.6;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 OTA Firmware Update</h1>
+        
+        <div class="upload-box" id="uploadArea">
+            <div class="upload-icon">📦</div>
+            <div class="upload-text">Click or drag file here</div>
+            <div class="upload-hint">Supported: .bin files only</div>
+            <input type="file" id="fileInput" accept=".bin" />
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-text">
+                <span id="progressText">Uploading...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <button class="btn-upload" id="uploadBtn" onclick="uploadFile()">Upload & Update</button>
+            <button class="btn-cancel" id="cancelBtn" onclick="cancelUpload()" style="display:none;">Cancel</button>
+        </div>
+        
+        <div class="info-box">
+            <strong>⚠️ Important:</strong><br>
+            • File must be valid ESP32 firmware (.bin)<br>
+            • Do not turn off device during update<br>
+            • Update takes 1-3 minutes<br>
+            • Device will reboot automatically
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let uploadInProgress = false;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const status = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                selectFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectFile(e.target.files[0]);
+            }
+        });
+
+        function selectFile(file) {
+            if (!file.name.endsWith('.bin')) {
+                showStatus('❌ Only .bin files supported', 'error');
+                return;
+            }
+            
+            selectedFile = file;
+            fileName.textContent = '📄 ' + file.name;
+            fileSize.textContent = 'Size: ' + formatFileSize(file.size);
+            fileInfo.classList.add('show');
+            uploadBtn.disabled = false;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function uploadFile() {
+            if (!selectedFile) {
+                showStatus('❌ Please select a file', 'error');
+                return;
+            }
+
+            uploadInProgress = true;
+            uploadBtn.disabled = true;
+            uploadBtn.style.display = 'none';
+            cancelBtn.style.display = 'block';
+            progressContainer.classList.add('show');
+            status.classList.remove('show');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressFill.style.width = percentComplete + '%';
+                    progressPercent.textContent = Math.round(percentComplete) + '%';
+                    progressText.textContent = 'Uploading: ' + formatFileSize(e.loaded) + ' / ' + formatFileSize(e.total);
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const resp = JSON.parse(xhr.responseText);
+                        if (resp.success) {
+                            progressText.textContent = 'Processing firmware...';
+                            progressPercent.textContent = '100%';
+                            progressFill.style.width = '100%';
+                            
+                            setTimeout(() => {
+                                showStatus('✅ Upload successful! Device updating and rebooting...', 'success');
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 5000);
+                            }, 2000);
+                        } else {
+                            showStatus('❌ Update failed: ' + (resp.error || 'Unknown error'), 'error');
+                            resetUpload();
+                        }
+                    } catch (e) {
+                        showStatus('❌ Invalid response', 'error');
+                        resetUpload();
+                    }
+                } else {
+                    showStatus('❌ Upload failed: ' + xhr.status, 'error');
+                    resetUpload();
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                showStatus('❌ Connection error', 'error');
+                resetUpload();
+            });
+
+            xhr.open('POST', '/ota_upload');
+            xhr.send(formData);
+            showStatus('⏳ Uploading...', 'info');
+        }
+
+        function cancelUpload() {
+            resetUpload();
+            showStatus('⏸️ Upload cancelled', 'info');
+        }
+
+        function resetUpload() {
+            uploadInProgress = false;
+            uploadBtn.disabled = false;
+            uploadBtn.style.display = 'block';
+            cancelBtn.style.display = 'none';
+            progressContainer.classList.remove('show');
+            progressFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+        }
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status show ' + type;
+        }
+    </script>
+</body>
+</html>

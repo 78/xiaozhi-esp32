@@ -31,6 +31,7 @@ set(SOURCES "audio/audio_codec.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
+            "ota_server.cc"
             "settings.cc"
             "device_state_event.cc"
             "assets.cc"
@@ -647,6 +648,7 @@ set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
 
 # Collect current language audio files
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/*.ogg)
+file(GLOB WEB_BROWER ${CMAKE_CURRENT_SOURCE_DIR}/assets/web_browser/*.html)
 
 # If not en-US, collect en-US audio files as fallback for missing files
 if(NOT LANG_DIR STREQUAL "en-US")
@@ -683,7 +685,7 @@ if(CONFIG_IDF_TARGET_ESP32)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${WEB_BROWER}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )

@@ -9,6 +9,7 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
+#include "ota_server.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -397,6 +398,8 @@ void Application::Start() {
     // Check for new firmware version or get the MQTT broker address
     Ota ota;
     CheckNewVersion(ota);
+
+    start_ota_webserver();
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
