@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TienHuyIoT - Xiaozhi AI-IoT Vietnam</title>
+    <title>Assets Update</title>
     <style>
-        /* ===== Design aligned with wifi_configuration.html ===== */
         :root {
             --bg-main: #02030b;
             --bg-card: #05081c;
@@ -158,72 +157,14 @@
             margin-top: 14px;
             border: 1px solid rgba(255, 255, 255, 0.06);
         }
-
-        .tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 18px;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 4px;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 10px 12px;
-            border: none;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            background: transparent;
-            color: var(--text-sub);
-            transition: all 0.2s ease;
-        }
-
-        .tab-btn:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-        }
-
-        .tab-btn.active {
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            color: #02040d;
-            box-shadow: 0 4px 12px rgba(0, 255, 200, 0.3);
-        }
-
-        .help-links {
-            margin-top: 10px;
-            font-size: 12px;
-        }
-
-        .help-links a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        .help-links a:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 TienHuyIoT - Xiaozhi AI-IoT Vietnam</h1>
-        
-        <!-- Mode Selection Tabs -->
-        <div class="tabs">
-            <button class="tab-btn active" id="appTab" onclick="switchMode('app')">
-                📱 OTA Application
-            </button>
-            <button class="tab-btn" id="assetsTab" onclick="switchMode('assets')">
-                🎨 Assets Update
-            </button>
-        </div>
+        <h1>📦 Assets Update</h1>
         
         <div class="upload-box" id="uploadArea">
-            <div class="upload-icon" id="uploadIcon">📦</div>
+            <div class="upload-icon">🎨</div>
             <div class="upload-text">Click or drag file here</div>
             <div class="upload-hint">Supported: .bin files only</div>
             <input type="file" id="fileInput" accept=".bin" />
@@ -251,15 +192,15 @@
             <button class="btn-cancel" id="cancelBtn" onclick="cancelUpload()" style="display:none;">Cancel</button>
         </div>
         
-        <div class="info-box" id="infoBox">
+        <div class="info-box">
             <strong>⚠️ Important:</strong><br>
-            • File must be valid ESP32 firmware (.bin)<br>
+            • File must be valid assets binary (.bin)<br>
             • Do not turn off device during update<br>
             • Update takes 1-3 minutes<br>
-            • Device will reboot automatically
+            • Device will apply assets after upload
         </div>
         <div class="help-links">
-            Cần hỗ trợ thêm? Liên hệ Zalo nhóm hỗ trợ Xiaozhi AI-IoT Vietnam: 
+            Cần hỗ trợ thêm? Liên hệ Zalo nhóm hỗ trợ TienHuyIoT:
             <a href="https://zalo.me/g/fsyuiz890" target="_blank" rel="noopener noreferrer">bấm vào đây</a>.
         </div>
     </div>
@@ -267,10 +208,8 @@
     <script>
         let selectedFile = null;
         let uploadInProgress = false;
-        let currentMode = 'app'; // 'app' or 'assets'
 
         const uploadArea = document.getElementById('uploadArea');
-        const uploadIcon = document.getElementById('uploadIcon');
         const fileInput = document.getElementById('fileInput');
         const fileInfo = document.getElementById('fileInfo');
         const fileName = document.getElementById('fileName');
@@ -282,47 +221,6 @@
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         const progressPercent = document.getElementById('progressPercent');
-        const infoBox = document.getElementById('infoBox');
-        const appTab = document.getElementById('appTab');
-        const assetsTab = document.getElementById('assetsTab');
-
-        function switchMode(mode) {
-            currentMode = mode;
-            
-            // Update tabs
-            if (mode === 'app') {
-                appTab.classList.add('active');
-                assetsTab.classList.remove('active');
-                uploadIcon.textContent = '📦';
-                infoBox.innerHTML = `
-                    <strong>⚠️ Important:</strong><br>
-                    • File must be valid ESP32 firmware (.bin)<br>
-                    • Do not turn off device during update<br>
-                    • Update takes 1-3 minutes<br>
-                    • Device will reboot automatically
-                `;
-            } else {
-                assetsTab.classList.add('active');
-                appTab.classList.remove('active');
-                uploadIcon.textContent = '🎨';
-                infoBox.innerHTML = `
-                    <strong>⚠️ Important:</strong><br>
-                    • File must be valid assets binary (.bin)<br>
-                    • Do not turn off device during update<br>
-                    • Update takes 1-3 minutes<br>
-                    • Device will apply assets after upload
-                `;
-            }
-            
-            // Reset upload state
-            selectedFile = null;
-            fileInfo.classList.remove('show');
-            status.classList.remove('show');
-            progressContainer.classList.remove('show');
-            uploadBtn.disabled = false;
-            uploadBtn.style.display = 'block';
-            cancelBtn.style.display = 'none';
-        }
 
         uploadArea.addEventListener('click', () => fileInput.click());
 
@@ -402,26 +300,16 @@
                     try {
                         const resp = JSON.parse(xhr.responseText);
                         if (resp.success) {
-                            progressFill.style.width = '100%';
+                            progressText.textContent = 'Processing assets...';
                             progressPercent.textContent = '100%';
+                            progressFill.style.width = '100%';
                             
-                            if (currentMode === 'app') {
-                                progressText.textContent = 'Processing firmware...';
+                            setTimeout(() => {
+                                showStatus('✅ Upload successful! Assets updated.', 'success');
                                 setTimeout(() => {
-                                    showStatus('✅ Upload successful! Device updating and rebooting...', 'success');
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 5000);
-                                }, 2000);
-                            } else {
-                                progressText.textContent = 'Processing assets...';
-                                setTimeout(() => {
-                                    showStatus('✅ Upload successful! Assets updated.', 'success');
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 3000);
-                                }, 1000);
-                            }
+                                    location.reload();
+                                }, 3000);
+                            }, 1000);
                         } else {
                             showStatus('❌ Update failed: ' + (resp.error || 'Unknown error'), 'error');
                             resetUpload();
@@ -441,9 +329,7 @@
                 resetUpload();
             });
 
-            // Choose endpoint based on current mode
-            const endpoint = currentMode === 'app' ? '/ota_upload' : '/assets_upload';
-            xhr.open('POST', endpoint);
+            xhr.open('POST', '/assets_upload');
             xhr.send(formData);
             showStatus('⏳ Uploading...', 'info');
         }
