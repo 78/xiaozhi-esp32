@@ -55,6 +55,12 @@ private:
     float* hanning_window_float = nullptr;
     float avg_power_spectrum[OLED_FFT_SIZE / 2] = {0};
 
+    // QR code handling
+    lv_obj_t* qr_canvas_ = nullptr;
+    uint8_t* qr_canvas_buffer_ = nullptr;
+    bool qr_code_displayed_ = false;
+    std::string ip_address_;
+
 public:
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
     ~OledDisplay();
@@ -70,6 +76,12 @@ public:
     void ReleaseAudioBuffFFT(int16_t* buffer) override;
     void StartFFT() override; // Hàm bắt đầu task FFT
     void StopFFT() override;  // Hàm dừng task FFT
+
+    // QR code display methods
+    void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) override;
+    void ClearQRCode() override;
+    bool QRCodeIsSupported() override;
+    void SetIpAddress(const std::string& ip_address) override;
 };
 
 #endif // OLED_DISPLAY_H

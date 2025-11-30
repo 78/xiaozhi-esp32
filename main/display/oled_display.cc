@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <math.h>
+#include <qrcode.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -90,6 +91,9 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     fft_imag = nullptr;
     hanning_window_float = nullptr;
     spectrum_container_ = nullptr;
+    qr_canvas_ = nullptr;
+    qr_canvas_buffer_ = nullptr;
+    qr_code_displayed_ = false;
 
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
@@ -189,6 +193,14 @@ OledDisplay::~OledDisplay() {
     }
     if (container_ != nullptr) {
         lv_obj_del(container_);
+    }
+
+    // Clean up QR code resources
+    if (qr_canvas_ != nullptr) {
+        lv_obj_del(qr_canvas_);
+    }
+    if (qr_canvas_buffer_ != nullptr) {
+        heap_caps_free(qr_canvas_buffer_);
     }
 
     if (panel_ != nullptr) {
@@ -745,4 +757,125 @@ void OledDisplay::SetMusicInfo(const char* song_name) {
     } else {
         lv_label_set_text(chat_message_label_, "");
     }
+}
+
+void OledDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
+    DisplayLockGuard lock(this);
+    if (qrcode == nullptr) {
+        ESP_LOGE(TAG, "QR code is null");
+        return;
+    }
+
+    // Get QR code size
+    int qr_size = esp_qrcode_get_size(qrcode);
+    ESP_LOGI(TAG, "QR code size: %d, text: %s", qr_size, text != nullptr ? text : "N/A");
+
+    // Calculate pixel size for OLED (smaller than LCD)
+    int max_size = (width_ < height_ ? width_ : height_) - 10; // Leave margin
+    int pixel_size = max_size / qr_size;
+    if (pixel_size < 1) pixel_size = 1; // Minimum 1 pixel per module for OLED
+    ESP_LOGI(TAG, "QR code pixel size: %d", pixel_size);
+
+    // Create canvas if not exists
+    if (qr_canvas_ == nullptr) {
+        auto screen = lv_screen_active();
+        
+        // For OLED, use monochrome buffer (1 bit per pixel)
+        int canvas_w = width_;
+        int canvas_h = height_;
+        size_t buf_size = LV_CANVAS_BUF_SIZE(canvas_w, canvas_h, 1, LV_COLOR_FORMAT_I1);
+        
+        qr_canvas_buffer_ = (uint8_t*)heap_caps_malloc(buf_size, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+        if (qr_canvas_buffer_ == nullptr) {
+            ESP_LOGE(TAG, "Failed to allocate QR canvas buffer");
+            return;
+        }
+        
+        qr_canvas_ = lv_canvas_create(screen);
+        lv_canvas_set_buffer(qr_canvas_, qr_canvas_buffer_, canvas_w, canvas_h, LV_COLOR_FORMAT_I1);
+        lv_obj_center(qr_canvas_);
+        ESP_LOGI(TAG, "QR canvas created: %dx%d, buffer size: %d", canvas_w, canvas_h, buf_size);
+    }
+
+    // Fill white background
+    lv_canvas_fill_bg(qr_canvas_, lv_color_white(), LV_OPA_COVER);
+    
+    // Initialize layer for drawing
+    lv_layer_t layer;
+    lv_canvas_init_layer(qr_canvas_, &layer);
+    
+    // Setup rect descriptor for QR code modules
+    lv_draw_rect_dsc_t rect_dsc;
+    lv_draw_rect_dsc_init(&rect_dsc);
+    rect_dsc.bg_color = lv_color_black();
+    rect_dsc.bg_opa = LV_OPA_COVER;
+    
+    // Calculate QR code position (centered with space for text at bottom)
+    int text_height = text != nullptr ? 10 : 0;
+    int qr_display_size = qr_size * pixel_size;
+    int qr_pos_x = (width_ - qr_display_size) / 2;
+    int qr_pos_y = (height_ - text_height - qr_display_size) / 2;
+    
+    // Draw QR code modules
+    for (int y = 0; y < qr_size; y++) {
+        for (int x = 0; x < qr_size; x++) {
+            if (esp_qrcode_get_module(qrcode, x, y)) {
+                lv_area_t coords_rect;
+                coords_rect.x1 = x * pixel_size + qr_pos_x;
+                coords_rect.y1 = y * pixel_size + qr_pos_y;
+                coords_rect.x2 = (x + 1) * pixel_size - 1 + qr_pos_x;
+                coords_rect.y2 = (y + 1) * pixel_size - 1 + qr_pos_y;
+                
+                lv_draw_rect(&layer, &rect_dsc, &coords_rect);
+            }
+        }
+    }
+
+    // Draw text at bottom if provided
+    if (text != nullptr || !ip_address_.empty()) {
+        lv_draw_label_dsc_t label_dsc;
+        lv_draw_label_dsc_init(&label_dsc);
+        label_dsc.color = lv_color_black();
+        label_dsc.text = text != nullptr ? text : ip_address_.c_str();
+        
+        int text_pos_y = qr_pos_y + qr_display_size + 2;
+        lv_area_t coords_text = {0, text_pos_y, width_ - 1, height_ - 1};
+        lv_draw_label(&layer, &label_dsc, &coords_text);
+        ESP_LOGI(TAG, "QR text drawn: %s", label_dsc.text);
+    }
+    
+    // Finish layer
+    lv_canvas_finish_layer(qr_canvas_, &layer);
+    ESP_LOGI(TAG, "QR code drawn on OLED canvas");
+    qr_code_displayed_ = true;
+}
+
+void OledDisplay::ClearQRCode() {
+    if (!qr_code_displayed_) {
+        return;
+    }
+
+    qr_code_displayed_ = false;
+    DisplayLockGuard lock(this);
+    
+    if (qr_canvas_ != nullptr) {
+        ESP_LOGI(TAG, "Clearing QR code from OLED canvas");
+        lv_obj_del(qr_canvas_);
+        qr_canvas_ = nullptr;
+    }
+
+    if (qr_canvas_buffer_ != nullptr) {
+        heap_caps_free(qr_canvas_buffer_);
+        qr_canvas_buffer_ = nullptr;
+        ESP_LOGI(TAG, "QR canvas buffer freed");
+    }
+}
+
+bool OledDisplay::QRCodeIsSupported() {
+    return true;
+}
+
+void OledDisplay::SetIpAddress(const std::string& ip_address) {
+    ip_address_ = ip_address;
+    ESP_LOGI(TAG, "IP address set to: %s", ip_address_.c_str());
 }

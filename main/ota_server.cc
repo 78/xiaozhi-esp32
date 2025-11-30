@@ -205,7 +205,16 @@ esp_err_t OtaServer::HandleOtaUpload(httpd_req_t* req) {
   header_buffer.reserve(2048);
 
   // Patterns to search for.
-  const char* kFileMarker = "Content-Type: application/octet-stream";
+/*
+Safari response example:
+Content-Disposition: form-data; name="file"; filename="xiaozhi_app.bin"
+Content-Type: application/macbinary
+
+Chrome response example:
+Content-Disposition: form-data; name="file"; filename="xiaozhi.bin"
+Content-Type: application/octet-stream
+*/
+  const char* kFileMarker = "Content-Disposition: form-data";
   const char* kHeaderEnd = "\r\n\r\n";
   char end_boundary[140];
   snprintf(end_boundary, sizeof(end_boundary), "\r\n--%s", boundary);
@@ -245,9 +254,11 @@ esp_err_t OtaServer::HandleOtaUpload(httpd_req_t* req) {
     if (state == ParseState::kLookingForBinary) {
       // Append to header buffer for searching.
       header_buffer.append(buffer, ret);
-
+      ESP_LOGI(kTag, "Header buffer content size %d: %.512s", (int)header_buffer.size(), header_buffer.c_str());
       size_t file_pos = header_buffer.find(kFileMarker);
       if (file_pos != std::string::npos) {
+        ESP_LOGI(kTag, "✅ Found firmware file marker at position %zu",
+                 file_pos);
         size_t data_start = header_buffer.find(kHeaderEnd, file_pos);
         if (data_start != std::string::npos) {
           data_start += 4;  // Skip \r\n\r\n
@@ -609,7 +620,7 @@ esp_err_t OtaServer::HandleAssetsUpload(httpd_req_t* req) {
   header_buffer.reserve(2048);
 
   // Patterns to search for.
-  const char* kFileMarker = "Content-Type: application/octet-stream";
+  const char* kFileMarker = "Content-Disposition: form-data";
   const char* kHeaderEnd = "\r\n\r\n";
   char end_boundary[140];
   snprintf(end_boundary, sizeof(end_boundary), "\r\n--%s", boundary);

@@ -10,6 +10,7 @@
 #include "assets.h"
 #include "settings.h"
 #include "ota_server.h"
+#include "wifi_station.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -409,6 +410,12 @@ void Application::Start() {
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
+
+    auto& wifi_station = WifiStation::GetInstance();
+    std::string ssid = "SSID: " + wifi_station.GetSsid();
+    std::string ip_address = "IP: " + wifi_station.GetIpAddress();
+    display->SetChatMessage("assistant", ssid.c_str());
+    display->SetChatMessage("assistant", ip_address.c_str());
 
     // Add MCP common tools before initializing the protocol
     auto& mcp_server = McpServer::GetInstance();
