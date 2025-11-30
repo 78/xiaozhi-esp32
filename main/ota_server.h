@@ -37,6 +37,12 @@ class OtaServer {
   // HTTP handler for POST /ota_upload - processes firmware upload.
   static esp_err_t HandleOtaUpload(httpd_req_t* req);
 
+  // HTTP handler for GET /assets - serves the assets upload page.
+  static esp_err_t HandleAssetsGet(httpd_req_t* req);
+
+  // HTTP handler for POST /assets_upload - processes assets upload.
+  static esp_err_t HandleAssetsUpload(httpd_req_t* req);
+
   httpd_handle_t server_handle_ = nullptr;
 };
 
