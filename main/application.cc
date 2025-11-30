@@ -399,7 +399,13 @@ void Application::Start() {
     Ota ota;
     CheckNewVersion(ota);
 
-    start_ota_webserver();
+    // Start the OTA server
+    auto& ota_server = ota::OtaServer::GetInstance();
+    if (ota_server.Start() == ESP_OK) {
+        ESP_LOGI(TAG, "OTA server started successfully");
+    } else {
+        ESP_LOGE(TAG, "Failed to start OTA server");
+    }
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
