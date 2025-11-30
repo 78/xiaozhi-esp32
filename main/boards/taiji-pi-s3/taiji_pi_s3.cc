@@ -618,9 +618,17 @@ public:
             AUDIO_I2S_GPIO_BCLK,
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
+            #ifdef CONFIG_I2S_USE_2SLOT
+            I2S_STD_SLOT_BOTH,
+            #endif
             AUDIO_MIC_SCK_PIN,
             AUDIO_MIC_WS_PIN,
+	        #ifdef CONFIG_I2S_USE_2SLOT
+            AUDIO_MIC_SD_PIN,
+            I2S_STD_SLOT_LEFT
+            #else
             AUDIO_MIC_SD_PIN
+            #endif
         );
 #else
         static NoAudioCodecSimplexPdm audio_codec(
@@ -629,6 +637,9 @@ public:
             AUDIO_I2S_GPIO_BCLK,
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
+            #ifdef CONFIG_I2S_USE_2SLOT
+            I2S_STD_SLOT_BOTH,
+            #endif 
             AUDIO_MIC_WS_PIN,
             AUDIO_MIC_SD_PIN
         );

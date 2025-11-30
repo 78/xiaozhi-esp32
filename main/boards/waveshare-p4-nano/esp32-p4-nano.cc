@@ -6,6 +6,10 @@
 #include "button.h"
 #include "config.h"
 
+#include "esp32_camera.h"
+#include "esp_video_init.h"
+#include "esp_cam_sensor_xclk.h"
+
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
@@ -66,6 +70,7 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     LcdDisplay *display__;
+    Esp32Camera* camera_ = nullptr;
     CustomBacklight *backlight_;
 
     void InitializeCodecI2c() {
@@ -106,7 +111,11 @@ private:
         esp_lcd_panel_handle_t disp_panel = NULL;
 
         esp_lcd_dsi_bus_handle_t mipi_dsi_bus = NULL;
-        esp_lcd_dsi_bus_config_t bus_config = JD9365_PANEL_BUS_DSI_2CH_CONFIG();
+        esp_lcd_dsi_bus_config_t bus_config = {
+            .bus_id = 0,
+            .num_data_lanes = 2,
+            .lane_bit_rate_mbps = 1500,
+        };
         esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
 
         ESP_LOGI(TAG, "Install MIPI DSI LCD control panel");
@@ -192,6 +201,23 @@ private:
         lvgl_port_add_touch(&touch_cfg);
         ESP_LOGI(TAG, "Touch panel initialized successfully");
     }
+    void InitializeCamera() {
+        esp_video_init_csi_config_t base_csi_config = {
+            .sccb_config = {
+                .init_sccb = false,
+                .i2c_handle = codec_i2c_bus_,
+                .freq = 400000,
+            },
+            .reset_pin = GPIO_NUM_NC,
+            .pwdn_pin  = GPIO_NUM_NC,
+        };
+
+        esp_video_init_config_t cam_config = {
+            .csi      = &base_csi_config,
+        };
+
+        camera_ = new Esp32Camera(cam_config);
+    }
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -207,6 +233,7 @@ public:
         InitializeCodecI2c();
         InitializeLCD();
         InitializeTouch();
+        InitializeCamera();
         InitializeButtons();
     }
 
@@ -219,6 +246,10 @@ public:
 
     virtual Display *GetDisplay() override {
         return display__;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 
     virtual Backlight *GetBacklight() override {

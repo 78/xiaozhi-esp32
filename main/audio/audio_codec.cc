@@ -55,6 +55,11 @@ void AudioCodec::SetOutputVolume(int volume) {
     settings.SetInt("output_volume", output_volume_);
 }
 
+void AudioCodec::SetInputGain(float gain) {
+    input_gain_ = gain;
+    ESP_LOGI(TAG, "Set input gain to %.1f", input_gain_);
+}
+
 void AudioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;
