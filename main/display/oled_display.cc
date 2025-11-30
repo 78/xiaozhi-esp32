@@ -768,7 +768,7 @@ void OledDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
 
     // Get QR code size
     int qr_size = esp_qrcode_get_size(qrcode);
-    ESP_LOGI(TAG, "QR code size: %d, text: %s", qr_size, text != nullptr ? text : "N/A");
+    ESP_LOGI(TAG, "QR code size: %d, text: %s", qr_size, text != nullptr ? text : "123456789");
 
     // Calculate pixel size for OLED (smaller than LCD)
     int max_size = (width_ < height_ ? width_ : height_) - 10; // Leave margin
@@ -797,6 +797,7 @@ void OledDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
         ESP_LOGI(TAG, "QR canvas created: %dx%d, buffer size: %d", canvas_w, canvas_h, buf_size);
     }
 
+    lv_obj_move_foreground(qr_canvas_);
     // Fill white background
     lv_canvas_fill_bg(qr_canvas_, lv_color_white(), LV_OPA_COVER);
     
@@ -872,7 +873,7 @@ void OledDisplay::ClearQRCode() {
 }
 
 bool OledDisplay::QRCodeIsSupported() {
-    return true;
+    return false;
 }
 
 void OledDisplay::SetIpAddress(const std::string& ip_address) {

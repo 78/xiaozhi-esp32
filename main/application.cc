@@ -416,6 +416,7 @@ void Application::Start() {
     std::string ip_address = "IP: " + wifi_station.GetIpAddress();
     display->SetChatMessage("assistant", ssid.c_str());
     display->SetChatMessage("assistant", ip_address.c_str());
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
     // Add MCP common tools before initializing the protocol
     auto& mcp_server = McpServer::GetInstance();

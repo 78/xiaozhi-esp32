@@ -80,10 +80,9 @@ void McpServer::AddCommonTools() {
                 // Generate and display QR code for IP address
                 auto display = board.GetDisplay();
                 if (display) {
-                    ESP_LOGI(TAG, "Generating QR code for IP address: %s", ip_address.c_str());
-                    display->SetIpAddress(ip_address);
-
+                    ESP_LOGI(TAG, "Generating QR code for IP address: %s", ip_address.c_str());                    
                     if (display->QRCodeIsSupported()) {
+                        display->SetIpAddress(ip_address);
                         // Capture display pointer for callback
                         static Display* s_display = display;
                         esp_qrcode_config_t qrcode_cfg = {
@@ -107,8 +106,10 @@ void McpServer::AddCommonTools() {
                             cJSON_AddBoolToObject(json, "qrcode_displayed", false);
                         }
                     } else {
-                            ESP_LOGW(TAG, "Display does not support QR code");
-                            cJSON_AddBoolToObject(json, "qrcode_displayed", false);
+                        display->SetChatMessage("assistant", ip_address.c_str());
+                        vTaskDelay(pdMS_TO_TICKS(5000));
+                        ESP_LOGW(TAG, "Display does not support QR code");
+                        cJSON_AddBoolToObject(json, "qrcode_displayed", false);
                     }
                 } else {
                     cJSON_AddStringToObject(json, "status", "disconnected");
