@@ -3,163 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OTA Firmware Update</title>
+    <title>TienHuyIoT - Xiaozhi AI-IoT Vietnam</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* ===== Design aligned with wifi_configuration.html ===== */
+        :root {
+            --bg-main: #02030b;
+            --bg-card: #05081c;
+            --bg-card-soft: #070b26;
+            --accent: #00ffd0;
+            --accent-2: #5f89ff;
+            --text-main: #f8f9ff;
+            --text-sub: #a8b0c8;
+            --border-soft: rgba(255, 255, 255, 0.12);
+            --danger: #ff4d4f;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+            background:
+                radial-gradient(circle at top, #151b3c 0, #02030b 55%, #000000 100%),
+                #000000;
+            color: var(--text-main);
             min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 20px;
-            margin: 0;
+            justify-content: center;
         }
-        .container { 
-            background: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            max-width: 500px;
+
+        .container {
+            background:
+                radial-gradient(circle at 0 0, rgba(0, 255, 200, 0.18), transparent 60%),
+                radial-gradient(circle at 100% 0, rgba(95, 137, 255, 0.18), transparent 55%),
+                var(--bg-card);
+            border-radius: 22px;
+            padding: 22px 20px 18px;
+            box-shadow:
+                0 24px 60px rgba(0, 0, 0, 0.9),
+                0 0 0 1px rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(0, 255, 208, 0.22);
+            max-width: 600px;
             width: 100%;
         }
-        h1 { 
-            color: #333;
+
+        h1 {
+            color: var(--text-main);
             text-align: center;
-            margin-bottom: 30px;
-            font-size: 28px;
+            margin: 0 0 14px 0;
+            font-size: 22px;
+            letter-spacing: 0.02em;
         }
+
         .upload-box {
-            border: 2px dashed #667eea;
-            border-radius: 8px;
-            padding: 40px 20px;
+            border: 1px dashed rgba(0, 255, 200, 0.55);
+            border-radius: 18px;
+            padding: 28px 16px;
             text-align: center;
-            margin-bottom: 20px;
-            background: #f8f9ff;
+            margin-bottom: 14px;
+            background: rgba(0, 0, 0, 0.45);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: border-color 0.16s ease, background 0.16s ease, transform 0.06s ease;
         }
-        .upload-box:hover {
-            border-color: #764ba2;
-            background: #f0f2ff;
-        }
-        .upload-box.dragover {
-            border-color: #764ba2;
-            background: #e8ebff;
-        }
-        .upload-icon { font-size: 48px; margin-bottom: 10px; }
-        .upload-text { color: #666; font-size: 16px; margin-bottom: 5px; }
-        .upload-hint { color: #999; font-size: 12px; }
+        .upload-box:hover { background: rgba(255, 255, 255, 0.06); transform: translateY(-0.5px); }
+        .upload-box.dragover { background: rgba(95, 137, 255, 0.12); }
+        .upload-icon { font-size: 42px; margin-bottom: 8px; }
+        .upload-text { color: var(--text-main); font-size: 14px; margin-bottom: 4px; }
+        .upload-hint { color: var(--text-sub); font-size: 12px; }
         input[type="file"] { display: none; }
+
         .file-info {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
+            background: rgba(3, 6, 22, 0.86);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 14px;
             display: none;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
         .file-info.show { display: block; }
-        .file-name { color: #333; font-weight: 600; word-break: break-all; }
-        .file-size { color: #666; font-size: 12px; margin-top: 5px; }
-        .progress-container {
-            display: none;
-            margin-bottom: 20px;
-        }
+        .file-name { color: var(--text-main); font-weight: 600; word-break: break-all; }
+        .file-size { color: var(--text-sub); font-size: 12px; margin-top: 4px; }
+
+        .progress-container { display: none; margin-bottom: 14px; }
         .progress-container.show { display: block; }
         .progress-text {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--text-sub);
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
         }
         .progress-bar {
             width: 100%;
             height: 10px;
-            background: #e0e0e0;
-            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
             overflow: hidden;
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
             width: 0%;
             transition: width 0.3s ease;
         }
-        .buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
+
+        .buttons { display: flex; gap: 10px; margin-top: 14px; }
         button {
             flex: 1;
-            padding: 12px;
+            padding: 10px 12px;
             border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.06s ease;
         }
         .btn-upload {
-            background: #667eea;
-            color: white;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #02040d;
+            box-shadow: 0 12px 28px rgba(0, 255, 200, 0.35);
         }
-        .btn-upload:hover:not(:disabled) {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        .btn-upload:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .btn-cancel {
-            background: #e0e0e0;
-            color: #333;
-        }
-        .btn-cancel:hover {
-            background: #d0d0d0;
-        }
+        .btn-upload:hover:not(:disabled) { box-shadow: 0 16px 34px rgba(0, 255, 200, 0.55); transform: translateY(-0.5px); }
+        .btn-upload:disabled { background: linear-gradient(135deg, #555d78, #30374d); cursor: not-allowed; box-shadow: none; opacity: 0.75; }
+        .btn-cancel { background: rgba(255, 255, 255, 0.14); color: var(--text-main); border: 1px solid rgba(255, 255, 255, 0.16); }
+        .btn-cancel:hover { background: rgba(255, 255, 255, 0.22); }
+
         .status {
             padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 20px;
+            border-radius: 12px;
+            margin-bottom: 14px;
             display: none;
             text-align: center;
             font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.12);
         }
         .status.show { display: block; }
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
+        .status.success { background: rgba(0, 255, 171, 0.12); color: var(--text-main); border-color: rgba(0, 255, 171, 0.35); }
+        .status.error { background: rgba(255, 77, 79, 0.12); color: var(--text-main); border-color: rgba(255, 77, 79, 0.35); }
+        .status.info { background: rgba(95, 137, 255, 0.12); color: var(--text-main); border-color: rgba(95, 137, 255, 0.35); }
+
         .info-box {
-            background: #e8ebff;
-            border-left: 4px solid #667eea;
+            background:
+                radial-gradient(circle at top left, rgba(0, 255, 200, 0.08), transparent 65%),
+                radial-gradient(circle at bottom right, rgba(95, 137, 255, 0.12), transparent 55%),
+                var(--bg-card-soft);
+            border-left: 4px solid var(--accent);
             padding: 12px;
-            border-radius: 4px;
+            border-radius: 14px;
             font-size: 12px;
-            color: #555;
+            color: var(--text-sub);
             line-height: 1.6;
-            margin-top: 20px;
+            margin-top: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 OTA Firmware Update</h1>
+        <h1>🚀 TienHuyIoT - Xiaozhi AI-IoT Vietnam</h1>
         
         <div class="upload-box" id="uploadArea">
             <div class="upload-icon">📦</div>
