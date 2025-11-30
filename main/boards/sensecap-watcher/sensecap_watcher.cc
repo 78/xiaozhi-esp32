@@ -52,17 +52,29 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             auto text_font = lvgl_theme->text_font()->font();
             auto icon_font = lvgl_theme->icon_font()->font();
 
-            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
+            lv_obj_set_size(top_bar_, LV_HOR_RES, text_font->line_height);
+            lv_obj_set_style_layout(top_bar_, LV_LAYOUT_NONE, 0);
+            lv_obj_set_style_pad_top(top_bar_, 10, 0);
+            lv_obj_set_style_pad_bottom(top_bar_, 1, 0);
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
+            lv_obj_set_y(status_bar_, text_font->line_height);
+            lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_IGNORE_LAYOUT);
+
+            // Reparent mute and battery labels to top_bar_ to allow absolute positioning
+            lv_obj_set_parent(mute_label_, top_bar_);
+            lv_obj_set_parent(battery_label_, top_bar_);
+            lv_obj_set_style_margin_left(battery_label_, 0, 0);
 
             // 针对圆形屏幕调整位置
-            //      network  battery  mute     //
+            //      network  mute  battery     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -1.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.0 * icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, 2.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);
@@ -77,6 +89,10 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             lv_obj_set_style_bg_color(low_battery_popup_, lv_color_hex(0xFF0000), 0);
             lv_obj_set_width(low_battery_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(low_battery_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+            // 针对圆形屏幕调整底部对话框位置，避免被圆角遮挡
+            lv_obj_set_style_pad_bottom(bottom_bar_, 30, 0);
+            lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.75); // 限制宽度，避免文字贴边
         }
 };
 
