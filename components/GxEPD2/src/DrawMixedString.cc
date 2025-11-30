@@ -108,7 +108,7 @@ bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y)
 
     // 一次性绘制
     display.drawBitmap(x, y, buf, CHINESE_WIDTH, CHINESE_HEIGHT, GxEPD_BLACK);
-    ESP_LOGW(TAG, "Chinese drawbitmap");
+   // ESP_LOGW(TAG, "Chinese drawbitmap");
     return true;
 }
 
@@ -117,7 +117,7 @@ bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y)
 
 // 读取并显示一个 ASCII 字符
 int drawAscii8x16(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y) {
-     ESP_LOGW(TAG, "ascii test");
+    // ESP_LOGW(TAG, "ascii test");
     uint8_t buf[26] = {0};  
     // 读取 ASCII 6x12 点阵
     uint8_t ret;
@@ -135,7 +135,7 @@ int drawAscii8x16(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y) {
 
     // 直接使用 GxEPD2 内置的 drawBitmap
     display.drawBitmap(x, y, dot_data, ASCII_WIDTH, ASCII_HEIGHT, GxEPD_BLACK);
-    ESP_LOGW(TAG, "ascii drawbitmap");
+    //ESP_LOGW(TAG, "ascii drawbitmap");
     return 0;  
 }
 
@@ -158,7 +158,7 @@ void drawBitmapMixedString(const char* utf8Str, int x, int y)
             // UTF-8 → GB2312 转换
             uint8_t gb2312[2];
             utf8_to_gb2312(utf8Str, gb2312);  // 你需要提供此函数
-             ESP_LOGW(TAG, "Chinese utf8_to_gb2312");
+ //            ESP_LOGW(TAG, "Chinese utf8_to_gb2312");
             uint16_t gbCode = (gb2312[0] << 8) | gb2312[1];
 
             // 显示中文

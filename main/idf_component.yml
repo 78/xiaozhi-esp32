@@ -43,13 +43,8 @@ dependencies:
   lvgl/lvgl: ~9.3.0
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
-<<<<<<< HEAD
-  espressif2022/image_player: '*' #==1.1.0~1
-  espressif2022/esp_emote_gfx: ^1.1.0
-=======
   espressif2022/image_player: ^1.1.1
   espressif2022/esp_emote_gfx: ^1.1.2
->>>>>>> upstream/main
   espressif/adc_mic: ^0.2.1
   espressif/esp_mmap_assets: '>=1.2'
   txp666/otto-emoji-gif-component:
@@ -57,12 +52,8 @@ dependencies:
     rules:
     - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.0
-<<<<<<< HEAD
-  arduino-esp32: ">=2.0.5"
-=======
   espressif/esp_new_jpeg: ^0.6.1
-
->>>>>>> upstream/main
+  arduino-esp32: ">=2.0.5"
   # SenseCAP Watcher Board
   wvirgil123/sscma_client:
     version: 1.0.2
