@@ -558,6 +558,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
     lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+
+    Settings settings("display", false);
+    int rotation_degree = settings.GetInt("rotation_degree", 0);
+    if (rotation_degree != 0) {
+        SetRotation(rotation_degree, false);
+    }
 }
 #if CONFIG_IDF_TARGET_ESP32P4
 #define  MAX_MESSAGES 40

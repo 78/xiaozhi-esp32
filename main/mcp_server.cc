@@ -82,6 +82,7 @@ void McpServer::AddCommonTools() {
                 if (display) {
                     ESP_LOGI(TAG, "Generating QR code for IP address: %s", ip_address.c_str());                    
                     if (display->QRCodeIsSupported()) {
+                        ip_address += "/ota";
                         display->SetIpAddress(ip_address);
                         // Capture display pointer for callback
                         static Display* s_display = display;
@@ -96,7 +97,7 @@ void McpServer::AddCommonTools() {
                         };
                         
                         // Create URL format for QR code
-                        std::string qr_text = "http://" + ip_address + "/ota";
+                        std::string qr_text = "http://" + ip_address;
                         esp_err_t err = esp_qrcode_generate(&qrcode_cfg, qr_text.c_str());
                         if (err == ESP_OK) {
                             ESP_LOGI(TAG, "QR code generated and displayed for IP: %s", ip_address.c_str());
