@@ -1756,6 +1756,10 @@ void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
     qr_code_displayed_ = true;
 }
 
+bool LcdDisplay::QRCodeIsSupported() {
+    return true;
+}
+
 void LcdDisplay::ClearQRCode() {
     if (!qr_code_displayed_) {
         return;

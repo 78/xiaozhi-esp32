@@ -50,6 +50,7 @@ public:
 
     // For QR code display
     virtual void ClearQRCode() {}
+    virtual bool QRCodeIsSupported() { return false; }
     virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) {}
     virtual void SetIpAddress(const std::string& ip_address) {}
 

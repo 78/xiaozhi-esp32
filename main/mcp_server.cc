@@ -83,32 +83,37 @@ void McpServer::AddCommonTools() {
                     ESP_LOGI(TAG, "Generating QR code for IP address: %s", ip_address.c_str());
                     display->SetIpAddress(ip_address);
 
-                    // Capture display pointer for callback
-                    static Display* s_display = display;
-                    esp_qrcode_config_t qrcode_cfg = {
-                        .display_func = [](esp_qrcode_handle_t qrcode) {
-                            if (s_display && qrcode) {
-                                s_display->DisplayQRCode(qrcode, nullptr);
-                            }
-                        },
-                        .max_qrcode_version = 10,
-                        .qrcode_ecc_level = ESP_QRCODE_ECC_MED
-                    };
-                    
-                    // Create URL format for QR code
-                    std::string qr_text = "http://" + ip_address;
-                    esp_err_t err = esp_qrcode_generate(&qrcode_cfg, qr_text.c_str());
-                    if (err == ESP_OK) {
-                        ESP_LOGI(TAG, "QR code generated and displayed for IP: %s", ip_address.c_str());
-                        cJSON_AddBoolToObject(json, "qrcode_displayed", true);
+                    if (display->QRCodeIsSupported()) {
+                        // Capture display pointer for callback
+                        static Display* s_display = display;
+                        esp_qrcode_config_t qrcode_cfg = {
+                            .display_func = [](esp_qrcode_handle_t qrcode) {
+                                if (s_display && qrcode) {
+                                    s_display->DisplayQRCode(qrcode, nullptr);
+                                }
+                            },
+                            .max_qrcode_version = 10,
+                            .qrcode_ecc_level = ESP_QRCODE_ECC_MED
+                        };
+                        
+                        // Create URL format for QR code
+                        std::string qr_text = "http://" + ip_address + "/ota";
+                        esp_err_t err = esp_qrcode_generate(&qrcode_cfg, qr_text.c_str());
+                        if (err == ESP_OK) {
+                            ESP_LOGI(TAG, "QR code generated and displayed for IP: %s", ip_address.c_str());
+                            cJSON_AddBoolToObject(json, "qrcode_displayed", true);
+                        } else {
+                            ESP_LOGE(TAG, "Failed to generate QR code for IP address");
+                            cJSON_AddBoolToObject(json, "qrcode_displayed", false);
+                        }
                     } else {
-                        ESP_LOGE(TAG, "Failed to generate QR code for IP address");
-                        cJSON_AddBoolToObject(json, "qrcode_displayed", false);
+                            ESP_LOGW(TAG, "Display does not support QR code");
+                            cJSON_AddBoolToObject(json, "qrcode_displayed", false);
                     }
+                } else {
+                    cJSON_AddStringToObject(json, "status", "disconnected");
+                    cJSON_AddStringToObject(json, "message", "Device is not connected to WiFi");
                 }
-            } else {
-                cJSON_AddStringToObject(json, "status", "disconnected");
-                cJSON_AddStringToObject(json, "message", "Device is not connected to WiFi");
             }
             
             return json;

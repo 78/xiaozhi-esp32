@@ -112,6 +112,7 @@ public:
     // QR code display methods
     virtual void DisplayQRCode(const uint8_t* qrcode, const char* text = nullptr) override;
     virtual void ClearQRCode() override;
+    virtual bool QRCodeIsSupported() override;
     virtual void SetIpAddress(const std::string& ip_address) override;
 
     // Rotate lcd display
