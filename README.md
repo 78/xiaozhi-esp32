@@ -56,10 +56,19 @@ Dự án này được fork và phát triển từ [xiaozhi-esp32](https://githu
 
 ### 🔄 Cập Nhật & Triển Khai
 
-#### Hệ Thống OTA
+#### Hệ Thống OTA online
 - Cập nhật firmware qua mạng (Over-The-Air)
 - Link OTA: [https://ota-server.xiaozhi-ota.workers.dev/ota/](https://ota-server.xiaozhi-ota.workers.dev/ota/)
 - Không cần kết nối dây, cập nhật từ xa
+
+#### Hệ Thống OTA WebServer
+- Cập nhật firmware qua Web Server
+- Truy cập link bằng IP kết nối mang: Ví dụ 102.168.1.10/ota
+<div style="display: flex; justify-content: space-between;">
+  <a href="docs/images/02_Xingzhi_Cube.jpg" target="_blank" title="Xingzhi Cube 1.54tft Board">
+    <img src="docs/images/04_ota_server.png" width="480" />
+  </a>
+</div>
 
 #### Nạp ROM Dễ Dàng
 - Nạp ROM trực tiếp qua trình duyệt web
