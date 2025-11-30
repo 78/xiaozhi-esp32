@@ -88,6 +88,59 @@ class CustomBoard : public WifiBoard {
         } while (!gpio_get_level(VBAT_PWR_GPIO));
     }
 
+    uint16_t BatterygetVoltage(void) {
+        static bool initialized = false;
+        static adc_oneshot_unit_handle_t adc_handle;
+        static adc_cali_handle_t cali_handle = NULL;
+        if (!initialized) {
+            adc_oneshot_unit_init_cfg_t init_config = {
+                .unit_id = ADC_UNIT_1,
+            };
+            adc_oneshot_new_unit(&init_config, &adc_handle);
+    
+            adc_oneshot_chan_cfg_t ch_config = {
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_12,
+            };
+            adc_oneshot_config_channel(adc_handle, ADC_CHANNEL_3, &ch_config);
+    
+            adc_cali_curve_fitting_config_t cali_config = {
+                .unit_id = ADC_UNIT_1,
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_12,
+            };
+            if (adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle) == ESP_OK) {
+                initialized = true;
+            }
+        }
+
+        if (initialized) {
+            int raw_value = 0;
+            int raw_voltage = 0;
+            int voltage = 0; // mV
+            adc_oneshot_read(adc_handle, ADC_CHANNEL_3, &raw_value);
+            adc_cali_raw_to_voltage(cali_handle, raw_value, &raw_voltage);
+            voltage =  raw_voltage * 2;
+            // ESP_LOGI(TAG, "voltage: %dmV", voltage);
+            return (uint16_t)voltage;
+        }
+
+        return 0;
+    }
+
+    uint8_t BatterygetPercent() {
+        int voltage = 0;
+        for (uint8_t i = 0; i < 10; i++) {
+            voltage += BatterygetVoltage();
+        }
+
+        voltage /= 10;
+        int percent = (-1 * voltage * voltage + 9016 * voltage - 19189000) / 10000;
+        percent = (percent > 100) ? 100 : (percent < 0) ? 0 : percent;
+        // ESP_LOGI(TAG, "voltage: %dmV, percentage: %d%%", voltage, percent);
+        return (uint8_t)percent;
+    }
+
   public:
     CustomBoard() : boot_button_(BOOT_BUTTON_GPIO), pwr_button_(VBAT_PWR_GPIO) {
         Power_Init();
@@ -104,6 +157,14 @@ class CustomBoard : public WifiBoard {
 
     virtual Display *GetDisplay() override {
         return display_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        charging = false;
+        discharging = !charging;
+        level = (int)BatterygetPercent();
+
+        return true;
     }
 };
 
