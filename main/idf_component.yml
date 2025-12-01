@@ -22,6 +22,12 @@ dependencies:
   78/esp-opus-encoder: ~2.4.1
   78/esp-ml307: ~3.5.1
   78/xiaozhi-fonts: ~1.5.5
+  zhoushoujianwork/esp32-rf-module:
+    version: ^0.1.6
+    rules:
+    - if: target in [esp32s3, esp32c3, esp32c5, esp32c6]
+    # Note: Component will be downloaded for these targets, but only used when CONFIG_BOARD_HAS_RF_PINS is enabled
+    # Code-level conditional compilation (#if CONFIG_BOARD_HAS_RF_PINS) will prevent actual usage
   espressif/led_strip: ~3.0.1
   espressif/esp_codec_dev: ~1.5
   espressif/esp-sr: ~2.2.0

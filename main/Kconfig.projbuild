@@ -440,6 +440,14 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
 endchoice
 
+config BOARD_HAS_RF_PINS
+    bool "Board has RF module pins configured"
+    default n
+    help
+        Enable this if the board has RF module pins (RF_TX_315_PIN, RF_RX_315_PIN, etc.) 
+        defined in its config.h file. This option can be enabled for any board that supports 
+        RF modules. The RF module library will only be loaded when this option is enabled.
+
 choice
     depends on BOARD_TYPE_LILYGO_T_DISPLAY_P4
     prompt "Select the screen type"

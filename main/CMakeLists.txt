@@ -695,9 +695,20 @@ if(CONFIG_IDF_TARGET_ESP32)
                              )
 endif()
 
+# Conditionally add RF module dependency
+set(COMPONENT_REQUIRES "")
+if(CONFIG_BOARD_HAS_RF_PINS)
+    # Find RF module component dynamically
+    find_component_by_pattern("zhoushoujianwork__esp32-rf-module" RF_MODULE_COMPONENT RF_MODULE_COMPONENT_PATH)
+    if(RF_MODULE_COMPONENT)
+        list(APPEND COMPONENT_REQUIRES ${RF_MODULE_COMPONENT})
+    endif()
+endif()
+
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
+                    REQUIRES ${COMPONENT_REQUIRES}
                     WHOLE_ARCHIVE
                     )
 

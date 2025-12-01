@@ -60,5 +60,18 @@
 #define OV_PWDN_IO      4
 #define OV_RESET_IO     5
 
+/* RF Module pins (可选，如果未定义则禁用 RF 功能) */
+#define RF_TX_315_PIN  GPIO_NUM_19
+#define RF_RX_315_PIN  GPIO_NUM_20
+#define RF_TX_433_PIN  GPIO_NUM_17
+#define RF_RX_433_PIN  GPIO_NUM_18
+
+/* Alias for CONFIG_BOARD_HAS_RF_PINS */
+#ifdef CONFIG_BOARD_HAS_RF_PINS
+#define BOARD_HAS_RF_PINS 1
+#else
+#define BOARD_HAS_RF_PINS 0
+#endif
+
 #endif // _BOARD_CONFIG_H_
 
