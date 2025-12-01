@@ -6,10 +6,17 @@
             "sdkconfig_append": [
                 "CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_4_3C=y",
                 "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=y",
+                "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y",
                 "CONFIG_ESPTOOLPY_FLASHFREQ_120M=y",
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_SPIRAM_TYPE_AUTO=y",
+                "CONFIG_SPIRAM_CLK_IO=30",
+                "CONFIG_SPIRAM_CS_IO=26",
                 "CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y",
                 "CONFIG_SPIRAM_RODATA=y",
                 "CONFIG_SPIRAM_SPEED_120M=y",
+                "CONFIG_SPIRAM_SPEED=120",
                 "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y",
                 "CONFIG_IDF_EXPERIMENTAL_FEATURE=y"
             ]
