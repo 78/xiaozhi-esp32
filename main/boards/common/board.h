@@ -52,7 +52,6 @@ public:
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
-    virtual Assets* GetAssets();
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

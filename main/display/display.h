@@ -3,7 +3,7 @@
 
 #include "emoji_collection.h"
 
-#ifdef LVGL_VERSION_MAJOR
+#ifndef CONFIG_USE_EMOTE_MESSAGE_STYLE
 #define HAVE_LVGL 1
 #include <lvgl.h>
 #endif

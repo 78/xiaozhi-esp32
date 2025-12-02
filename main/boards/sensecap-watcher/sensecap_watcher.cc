@@ -12,7 +12,7 @@
 #include "lvgl_theme.h"
 
 #include <esp_log.h>
-#include "esp_check.h"
+#include <esp_check.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_spd2010.h>
@@ -28,6 +28,7 @@
 #include <esp_console.h>
 #include <esp_mac.h>
 #include <nvs_flash.h>
+#include <esp_app_desc.h>
 
 #include "assets/lang_config.h"
 
@@ -51,17 +52,29 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             auto text_font = lvgl_theme->text_font()->font();
             auto icon_font = lvgl_theme->icon_font()->font();
 
-            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height * 2 + 10);
+            lv_obj_set_size(top_bar_, LV_HOR_RES, text_font->line_height);
+            lv_obj_set_style_layout(top_bar_, LV_LAYOUT_NONE, 0);
+            lv_obj_set_style_pad_top(top_bar_, 10, 0);
+            lv_obj_set_style_pad_bottom(top_bar_, 1, 0);
+
+            lv_obj_set_size(status_bar_, LV_HOR_RES, text_font->line_height);
             lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);
             lv_obj_set_style_pad_top(status_bar_, 10, 0);
             lv_obj_set_style_pad_bottom(status_bar_, 1, 0);
+            lv_obj_set_y(status_bar_, text_font->line_height);
+            lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_IGNORE_LAYOUT);
+
+            // Reparent mute and battery labels to top_bar_ to allow absolute positioning
+            lv_obj_set_parent(mute_label_, top_bar_);
+            lv_obj_set_parent(battery_label_, top_bar_);
+            lv_obj_set_style_margin_left(battery_label_, 0, 0);
 
             // 针对圆形屏幕调整位置
-            //      network  battery  mute     //
+            //      network  mute  battery     //
             //               status            //
-            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, -2.5 * icon_font->line_height, 0);
-            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -0.5 * icon_font->line_height, 0);
-            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.5 * icon_font->line_height, 0);
+            lv_obj_align(network_label_, LV_ALIGN_TOP_MID, -1.5 * icon_font->line_height, 0);
+            lv_obj_align(mute_label_, LV_ALIGN_TOP_MID, 1.0 * icon_font->line_height, 0);
+            lv_obj_align(battery_label_, LV_ALIGN_TOP_MID, 2.5 * icon_font->line_height, 0);
             
             lv_obj_align(status_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
             lv_obj_set_flex_grow(status_label_, 0);
@@ -76,6 +89,10 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             lv_obj_set_style_bg_color(low_battery_popup_, lv_color_hex(0xFF0000), 0);
             lv_obj_set_width(low_battery_label_, LV_HOR_RES * 0.75);
             lv_label_set_long_mode(low_battery_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+            // 针对圆形屏幕调整底部对话框位置，避免被圆角遮挡
+            lv_obj_set_style_pad_bottom(bottom_bar_, 30, 0);
+            lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.75); // 限制宽度，避免文字贴边
         }
 };
 
@@ -491,6 +508,47 @@ private:
             .context =this
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&cmd5));
+
+        const esp_console_cmd_t cmd6 = {
+            .command = "version",
+            .help = "Read version info",
+            .hint = NULL,
+            .func = NULL,
+            .argtable = NULL,
+            .func_w_context = [](void *context,int argc, char** argv) -> int {
+                auto self = static_cast<SensecapWatcher*>(context);
+                auto app_desc = esp_app_get_description();
+                const char* region = "UNKNOWN";
+                #if defined(CONFIG_LANGUAGE_ZH_CN)
+                    region = "CN";
+                #elif defined(CONFIG_LANGUAGE_EN_US)
+                    region = "US";
+                #elif defined(CONFIG_LANGUAGE_JA_JP)
+                    region = "JP";
+                #elif defined(CONFIG_LANGUAGE_ES_ES)
+                    region = "ES";
+                #elif defined(CONFIG_LANGUAGE_DE_DE)
+                    region = "DE";
+                #elif defined(CONFIG_LANGUAGE_FR_FR)
+                    region = "FR";
+                #elif defined(CONFIG_LANGUAGE_IT_IT)
+                    region = "IT";
+                #elif defined(CONFIG_LANGUAGE_PT_PT)
+                    region = "PT";
+                #elif defined(CONFIG_LANGUAGE_RU_RU)
+                    region = "RU";
+                #elif defined(CONFIG_LANGUAGE_KO_KR)
+                    region = "KR";
+                #endif
+                printf("{\"type\":0,\"name\":\"VER?\",\"code\":0,\"data\":{\"software\":\"%s\",\"hardware\":\"watcher xiaozhi agent\",\"camera\":%d,\"region\":\"%s\"}}\n",
+                       app_desc->version,
+                       self->GetCamera() == nullptr ? 0 : 1,
+                       region);
+                return 0;
+            },
+            .context =this
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&cmd6));
 
         esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));

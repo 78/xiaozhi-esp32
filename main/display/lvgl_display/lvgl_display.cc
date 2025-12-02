@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <font_awesome.h>
-#include <img_converters.h>
 
 #include "lvgl_display.h"
 #include "board.h"
@@ -12,6 +11,7 @@
 #include "audio_codec.h"
 #include "settings.h"
 #include "assets/lang_config.h"
+#include "jpg/image_to_jpeg.h"
 
 #define TAG "Display"
 
@@ -110,7 +110,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             return;
         }
 
-        // 如果静音状态改变，则更新图标
+        // Update icon if mute state changes
         if (codec->output_volume() == 0 && !muted_) {
             muted_ = true;
             lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_XMARK);
@@ -129,7 +129,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             // Check if the we have already set the time
             if (tm->tm_year >= 2025 - 1900) {
                 char time_str[16];
-                strftime(time_str, sizeof(time_str), "%H:%M  ", tm);
+                strftime(time_str, sizeof(time_str), "%H:%M", tm);
                 SetStatus(time_str);
             } else {
                 ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
@@ -138,7 +138,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     }
 
     esp_pm_lock_acquire(pm_lock_);
-    // 更新电池图标
+    // Update battery icon
     int battery_level;
     bool charging, discharging;
     const char* icon = nullptr;
@@ -164,23 +164,23 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
 
         if (low_battery_popup_ != nullptr) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
-                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
+                if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // Show if low battery popup is hidden
                     lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
                     app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty
-                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框显示，则隐藏
+                if (!lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // Hide if low battery popup is shown
                     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
                 }
             }
         }
     }
 
-    // 每 10 秒更新一次网络图标
+    // Update network icon every 10 seconds
     static int seconds_counter = 0;
     if (update_all || seconds_counter++ % 10 == 0) {
-        // 升级固件时，不读取 4G 网络状态，避免占用 UART 资源
+        // Don't read 4G network status during firmware upgrade to avoid occupying UART resources
         auto device_state = Application::GetInstance().GetDeviceState();
         static const std::vector<DeviceState> allowed_states = {
             kDeviceStateIdle,
@@ -215,12 +215,14 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
     }
 }
 
-bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output_data_size, int quality) {
+bool LvglDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
+#if CONFIG_LV_USE_SNAPSHOT
     DisplayLockGuard lock(this);
 
     lv_obj_t* screen = lv_screen_active();
     lv_draw_buf_t* draw_buffer = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
     if (draw_buffer == nullptr) {
+        ESP_LOGE(TAG, "Failed to take snapshot, draw_buffer is nullptr");
         return false;
     }
 
@@ -231,12 +233,26 @@ bool LvglDisplay::SnapshotToJpeg(uint8_t*& jpeg_output_data, size_t& jpeg_output
         data[i] = __builtin_bswap16(data[i]);
     }
 
-    if (!fmt2jpg(draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h,
-        PIXFORMAT_RGB565, quality, &jpeg_output_data, &jpeg_output_data_size)) {
-        lv_draw_buf_destroy(draw_buffer);
-        return false;
+    // Clear output string and use callback version to avoid pre-allocating large memory blocks
+    jpeg_data.clear();
+
+    // Use callback-based JPEG encoder to further save memory
+    bool ret = image_to_jpeg_cb((uint8_t*)draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h, V4L2_PIX_FMT_RGB565, quality,
+        [](void *arg, size_t index, const void *data, size_t len) -> size_t {
+        std::string* output = static_cast<std::string*>(arg);
+        if (data && len > 0) {
+            output->append(static_cast<const char*>(data), len);
+        }
+        return len;
+    }, &jpeg_data);
+    if (!ret) {
+        ESP_LOGE(TAG, "Failed to convert image to JPEG");
     }
 
     lv_draw_buf_destroy(draw_buffer);
-    return true;
+    return ret;
+#else
+    ESP_LOGE(TAG, "LV_USE_SNAPSHOT is not enabled");
+    return false;
+#endif
 }
