@@ -9,7 +9,7 @@ Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     gpio_num_t pa_pin, uint8_t es8389_addr, bool use_mclk) {
     duplex_ = true; // 是否双工
     input_reference_ = false; // 是否使用参考输入，实现回声消除
-    input_channels_ = 1; // 输入通道数
+    input_channels_ = 2; // 输入通道数，改为2以支持两个麦克风
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     input_gain_ = 40;
@@ -148,8 +148,8 @@ void Es8389AudioCodec::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
+            .channel = (uint8_t)input_channels_, // 使用动态通道数
+            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0) | ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1), // 支持两个通道
             .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };

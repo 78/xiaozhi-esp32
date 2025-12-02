@@ -71,6 +71,13 @@ private:
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
+        ctrl_button_.OnDoubleClick([this]()
+                                   {
+                                      // 停止当前网络连接并进入配网模式
+                                      auto &wifi_station = WifiStation::GetInstance();
+                                      wifi_station.Stop();
+                                      wifi_config_mode_ = true;
+                                      EnterWifiConfigMode(); });
 
         ctrl_button_.OnLongPress([this]()
                                  {

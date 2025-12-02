@@ -68,6 +68,13 @@ private:
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
+        ctrl_button_.OnDoubleClick([this]()
+                                   {
+                                      // 停止当前网络连接并进入配网模式
+                                      auto &wifi_station = WifiStation::GetInstance();
+                                      wifi_station.Stop();
+                                      wifi_config_mode_ = true;
+                                      EnterWifiConfigMode(); });
 
         ctrl_button_.OnLongPress([this]()
                                  {
@@ -218,7 +225,7 @@ public:
         hint += "\n\n";
 
         // 播报配置 WiFi 的提示
-        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG_XIAOYA);
+        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG);
 
 #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
         auto display = Board::GetInstance().GetDisplay();

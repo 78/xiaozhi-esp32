@@ -34,6 +34,10 @@
 #define AUDIO_CODEC_PA_PIN GPIO_NUM_41                    // NS4150B功放使能引脚
 #define AUDIO_CODEC_ES8389_ADDR ES8389_CODEC_DEFAULT_ADDR // ES8389默认I2C地址
 
+// 4G模块
+#define ML307_TX_PIN GPIO_NUM_43 // TX
+#define ML307_RX_PIN GPIO_NUM_44 // RX
+
 // LCD 屏幕相关配置
 #define BOARD_LCD_TYPE LCD_TYPE_WLK_1_8_INCH // LCD 屏幕类型
 
