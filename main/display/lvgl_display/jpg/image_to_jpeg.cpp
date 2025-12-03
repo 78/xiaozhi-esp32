@@ -143,7 +143,7 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
                 src_len = static_cast<uint32_t>(width * height * 2);
                 break;
             [[unlikely]] default:
-                ESP_LOGE(TAG, "[Unreachable Case] unsupported format: 0x%08x", format);
+                ESP_LOGE(TAG, "[Unreachable Case] unsupported format: 0x%08lx", format);
                 std::unreachable();
         }
         int sz = (int)width * (int)height * 2;
@@ -186,7 +186,7 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
             *out_size = sz;
         return buf;
     }
-    ESP_LOGE(TAG, "unsupported format: 0x%08x", format);
+    ESP_LOGE(TAG, "unsupported format: 0x%08lx", format);
     if (out_size)
         *out_size = 0;
     return nullptr;
