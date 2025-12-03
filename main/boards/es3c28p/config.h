@@ -19,8 +19,8 @@
 #define AUDIO_I2S_GPIO_MCLK GPIO_NUM_4 // Audio I2S master clock (MCLK)
 #define AUDIO_I2S_GPIO_BCLK GPIO_NUM_5 // Audio I2S bit clock (BCLK)
 #define AUDIO_I2S_GPIO_WS   GPIO_NUM_7 // Audio I2S LR clock / WS (left/right select)
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_6 // Audio I2S data out (DOUT)
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_8 // Audio I2S data in (DIN)
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_8 // Audio I2S data out (DOUT)
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_6 // Audio I2S data in (DIN)
 
 // ES8311 I2C control pins (ES8311 codec over I2C)
 #define AUDIO_CODEC_I2C_SDA_PIN  BOARD_I2C_SDA_PIN // I2C bus data signal
