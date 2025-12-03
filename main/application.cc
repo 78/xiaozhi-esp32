@@ -9,7 +9,7 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
-#include "ui/display_manager.h"
+#include "ui/epd_manager.h"
 #include "input/button_manager.h"
 #include "audio/audio_manager.h"
 #include "services/word_practice.h"
@@ -383,12 +383,8 @@ void Application::Start() {
     codec->SetOutputVolume(10);
 
 
-    DisplayManager::GetInstance().Init();
-    AudioManager::GetInstance().Init();
-    WordPracticeService::GetInstance().Init();
-    FreeConversationService::GetInstance().Init();
-    SceneConversationService::GetInstance().Init();
-    MenuManager::Init();
+    EpdManager::GetInstance().Init();
+
 
     //===================== [wj] End =====================
 
@@ -537,7 +533,7 @@ void Application::Start() {
                     // @Reason  : route TTS sentence to DisplayManager (assistant side)
                     // Send assistant (server TTS) sentence start to DisplayManager
                     Schedule([this, message = std::string(text->valuestring)]() {
-                        DisplayManager::GetInstance().UpdateConversationSide(false, message, "");
+                        EpdManager::GetInstance().UpdateConversationSide(false, message, "");
                     //===================== [wj] End =====================
                     });
                 }
@@ -553,7 +549,7 @@ void Application::Start() {
                     // @Reason  : route STT result to DisplayManager (user side)
                 // Route user STT result to DisplayManager (user side)
                 Schedule([this, message = std::string(text->valuestring)]() {
-                    DisplayManager::GetInstance().UpdateConversationSide(true, message, "");
+                    EpdManager::GetInstance().UpdateConversationSide(true, message, "");
                     //===================== [wj] End =====================
                 });
             }
@@ -606,7 +602,7 @@ void Application::Start() {
                     // @Reason  : route custom payload to DisplayManager (system side)
                 Schedule([this, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
                     // Show custom payload on the e-paper as a system-side message
-                    DisplayManager::GetInstance().UpdateConversationSide(false, payload_str, "");
+                    EpdManager::GetInstance().UpdateConversationSide(false, payload_str, "");
                 //===================== [wj] End =====================
                 });
             } else {

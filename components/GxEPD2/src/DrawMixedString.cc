@@ -178,6 +178,7 @@ void drawBitmapMixedString(const char* utf8Str, int x, int y)
 
 // C-compatible wrapper API so other TUs don't need to include GxEPD2 headers
 extern "C" {
+    // 初始化Arduino，GT30,EPD设备
     void drawMixedString_init()
     {
         // initialize GT30 and display with sensible defaults
@@ -189,10 +190,17 @@ extern "C" {
         pinMode(EPD_PIN_NUM_BUSY, INPUT);
         pinMode(GT30_PIN_NUM_CS, OUTPUT);
         uint8_t rt = gt30_init();
-        (void)rt;
+        if (rt != 0) {
+            ESP_LOGE(TAG, "gt30_init failed: %d", rt);
+        } else {
+            ESP_LOGI(TAG, "gt30_init ok");
+        }
         display.init(115200, true, 2, false);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         display.fillScreen(GxEPD_WHITE);
+        // force a full refresh to ensure EPD shows the current content (white)
+        display.display(false);
+        ESP_LOGI(TAG, "EPD init done: width=%d height=%d", display.width(), display.height());
         display.setRotation(0);
     }
 
@@ -203,13 +211,30 @@ extern "C" {
 
     void drawMixedString_drawText(const char* utf8, int x, int y)
     {
+        ESP_LOGD(TAG, "drawMixedString_drawText: x=%d y=%d text=%s", x, y, utf8);
         drawBitmapMixedString(utf8, x, y);
     }
 
     void drawMixedString_display(bool partial)
     {
+        ESP_LOGD(TAG, "drawMixedString_display: partial=%d", partial);
         if (partial) display.display(true);
         else display.display(false);
+    }
+
+    void drawMixedString_displayWindow(int x, int y, int w, int h, bool partial)
+    {
+        ESP_LOGD(TAG, "drawMixedString_displayWindow: x=%d y=%d w=%d h=%d partial=%d", x, y, w, h, partial);
+        if (partial)
+        {
+            display.displayWindow(x, y, w, h);
+        }
+        else
+        {
+            // fall back to a full refresh when caller requests non-partial behavior
+            display.setPartialWindow(x, y, w, h);
+            display.display(false);
+        }
     }
 
     int drawMixedString_width()
@@ -224,6 +249,40 @@ extern "C" {
 
     void drawMixedString_drawBitmap(int x, int y, const uint8_t* data, int w, int h, int color)
     {
+        ESP_LOGD(TAG, "drawMixedString_drawBitmap: x=%d y=%d w=%d h=%d color=%d", x, y, w, h, color);
         display.drawBitmap(x, y, data, w, h, color);
+    }
+
+    void drawMixedString_setPartialWindow(int x, int y, int w, int h)
+    {
+        display.setPartialWindow(x, y, w, h);
+    }
+
+
+    void drawMixedString_firstPage()
+    {
+        display.firstPage();
+    }
+
+    bool drawMixedString_nextPage()
+    {
+        return display.nextPage();
+    }
+
+    void drawMixedString_setCursor(int x, int y)
+    {
+        display.setCursor(x, y);
+    }
+
+    void drawMixedString_print(const char* s)
+    {
+        display.print(s);
+    }
+
+    void drawMixedString_selectFastFullUpdate(bool enable)
+    {
+        ESP_LOGI(TAG, "drawMixedString_selectFastFullUpdate: enable=%d", enable);
+        // call selectFastFullUpdate on the contained epd2 instance (safe straight call)
+        display.epd2.selectFastFullUpdate(enable);
     }
 }

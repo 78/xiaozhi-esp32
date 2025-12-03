@@ -75,3 +75,26 @@ bool isChineseUTF8(const char *str);
 
 
 void drawBitmapMixedString(const char* utf8Str, int x, int y);
+
+// optional C wrappers so other translation units can invoke the drawing helpers without
+// including GxEPD2 headers directly.
+#ifdef __cplusplus
+extern "C" {
+#endif
+void drawMixedString_selectFastFullUpdate(bool enable);
+void drawMixedString_init();
+void drawMixedString_fillScreen(int color);
+void drawMixedString_drawText(const char* utf8, int x, int y);
+void drawMixedString_display(bool partial);
+void drawMixedString_displayWindow(int x, int y, int w, int h, bool partial);
+int drawMixedString_width();
+int drawMixedString_height();
+void drawMixedString_drawBitmap(int x, int y, const uint8_t* data, int w, int h, int color);
+void drawMixedString_setPartialWindow(int x, int y, int w, int h);
+void drawMixedString_firstPage();
+bool drawMixedString_nextPage();
+void drawMixedString_setCursor(int x, int y);
+void drawMixedString_print(const char* s);
+#ifdef __cplusplus
+}
+#endif

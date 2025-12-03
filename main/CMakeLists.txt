@@ -39,7 +39,7 @@ set(SOURCES "audio/audio_codec.cc"
             )
 
 # English teacher feature skeleton files
-list(APPEND SOURCES "ui/display_manager.cc"
+list(APPEND SOURCES "ui/epd_manager.cc"
                      "input/button_manager.cc"
                      "audio/audio_manager.cc"
                      "ui/epd_renderer.cc"
