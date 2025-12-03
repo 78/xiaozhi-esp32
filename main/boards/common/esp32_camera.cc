@@ -410,7 +410,7 @@ bool Esp32Camera::Capture() {
             frame_.len = buf.bytesused;
             frame_.data = (uint8_t*)heap_caps_malloc(frame_.len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (!frame_.data) {
-                ESP_LOGE(TAG, "alloc frame copy failed: need allocate %d bytes", buf.bytesused);
+                ESP_LOGE(TAG, "alloc frame copy failed: need allocate %lu bytes", buf.bytesused);
                 if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                     ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                 }
@@ -482,7 +482,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -524,7 +524,7 @@ bool Esp32Camera::Capture() {
                     rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
                     break;
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -639,7 +639,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08x", sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
