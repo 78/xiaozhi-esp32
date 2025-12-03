@@ -134,12 +134,13 @@ private:
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
         ctrl_button_.OnDoubleClick([this]()
-                                   {
-                                      // 停止当前网络连接并进入配网模式
-                                      auto &wifi_station = WifiStation::GetInstance();
-                                      wifi_station.Stop();
-                                      wifi_config_mode_ = true;
-                                      EnterWifiConfigMode(); });
+                                   { xTaskCreate([](void *param)
+                                                 {
+                                            auto* board = static_cast<FogSeekAudio*>(param);
+                                            WifiStation::GetInstance().Stop(); 
+                                            board->wifi_config_mode_ = true;
+                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
+                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
