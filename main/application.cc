@@ -11,6 +11,7 @@
 #include "settings.h"
 #include "ota_server.h"
 #include "wifi_station.h"
+#include "sd_card/sdmmc.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -357,6 +358,14 @@ void Application::Start() {
 
     /* Setup the display */
     auto display = board.GetDisplay();
+    auto sd_card = board.GetSdMMC();
+    if (sd_card != nullptr) {
+        if (sd_card->Initialize() == ESP_OK) {
+            ESP_LOGI(TAG, "SD card mounted successfully");
+        } else {
+            ESP_LOGW(TAG, "Failed to mount SD card");
+        }
+    }
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
@@ -365,6 +374,7 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
+    // codec->SetOutputVolume(10);
 
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {

@@ -15,10 +15,10 @@
 #include "music.h"
 #include "radio.h"
 
-
 void* create_board();
 class AudioCodec;
 class Display;
+class SdMMC;
 class Board {
 private:
     Board(const Board&) = delete; // Disable copy constructor
@@ -48,6 +48,7 @@ public:
     virtual Camera* GetCamera();
     virtual Music* GetMusic();
     virtual Radio* GetRadio();
+    virtual SdMMC* GetSdMMC() { return nullptr; }
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char* GetNetworkStateIcon() = 0;

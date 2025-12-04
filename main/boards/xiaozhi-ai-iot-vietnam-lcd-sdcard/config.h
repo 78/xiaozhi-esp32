@@ -3,10 +3,26 @@
 
 #include <driver/gpio.h>
 
+// Define to use 4-bit SDMMC bus width; comment out to use 1-bit bus width
+#define CARD__SDMMC_BUS_WIDTH_4BIT
+
+#ifdef CARD__SDMMC_BUS_WIDTH_4BIT
+#define CARD_SDMMC_CLK_GPIO GPIO_NUM_40
+#define CARD_SDMMC_CMD_GPIO GPIO_NUM_39
+#define CARD_SDMMC_D0_GPIO GPIO_NUM_41
+#define CARD_SDMMC_D1_GPIO GPIO_NUM_42
+#define CARD_SDMMC_D2_GPIO GPIO_NUM_45
+#define CARD_SDMMC_D3_GPIO GPIO_NUM_38
+#else
+#define CARD_SDMMC_CLK_GPIO GPIO_NUM_40
+#define CARD_SDMMC_CMD_GPIO GPIO_NUM_39
+#define CARD_SDMMC_D0_GPIO GPIO_NUM_41
+#endif
+
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-// 如果使用 Duplex I2S 模式，请注释下面一行
+// If using Duplex I2S mode, please comment out the following line
 #define AUDIO_I2S_METHOD_SIMPLEX
 
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
