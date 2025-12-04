@@ -13,6 +13,7 @@
 #include "config.h"
 #include "mcp_server.h"
 #include "otto_movements.h"
+#include "power_manager.h"
 #include "sdkconfig.h"
 #include "settings.h"
 #include <wifi_station.h>
@@ -75,6 +76,7 @@ private:
         while (true) {
             if (xQueueReceive(controller->action_queue_, &params, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 ESP_LOGI(TAG, "执行动作: %d", params.action_type);
+                PowerManager::PauseBatteryUpdate();  // 动作开始时暂停电量更新
                 controller->is_action_in_progress_ = true;
                 if (params.action_type == ACTION_SERVO_SEQUENCE) {
                     // 执行舵机序列（自编程）- 仅支持短键名格式
@@ -427,6 +429,7 @@ private:
                     }
                 }
                 controller->is_action_in_progress_ = false;
+                PowerManager::ResumeBatteryUpdate();  // 动作结束时恢复电量更新
                 vTaskDelay(pdMS_TO_TICKS(20));
             }
         }
@@ -712,6 +715,7 @@ public:
                                    action_task_handle_ = nullptr;
                                }
                                is_action_in_progress_ = false;
+                               PowerManager::ResumeBatteryUpdate();  // 停止动作时恢复电量更新
                                xQueueReset(action_queue_);
 
                                QueueAction(ACTION_HOME, 1, 1000, 1, 0);

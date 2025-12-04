@@ -690,6 +690,13 @@ config RECEIVE_CUSTOM_MESSAGE
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
 
+config OTTO_ROBOT_USE_CAMERA
+    bool "Enable Otto Robot Camera"
+    default n
+    depends on BOARD_TYPE_OTTO_ROBOT
+    help
+        Enable Otto Robot Camera
+
 menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32
 
