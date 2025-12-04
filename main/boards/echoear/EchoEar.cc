@@ -6,6 +6,7 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
+#include "esp32_camera.h"
 
 #include <esp_log.h>
 
@@ -379,7 +380,7 @@ private:
     SemaphoreHandle_t touch_isr_mux_;
 };
 
-class EspS3Cat : public WifiBoard {
+class EchoEar : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
@@ -389,6 +390,7 @@ private:
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
+    Esp32Camera* camera_ = nullptr;
 
     void InitializeI2c()
     {
@@ -467,7 +469,7 @@ private:
         while (true) {
             if (touchpad->WaitForTouchEvent()) {
                 auto &app = Application::GetInstance();
-                auto &board = (EspS3Cat &)Board::GetInstance();
+                auto &board = (EchoEar &)Board::GetInstance();
 
                 ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
@@ -505,7 +507,7 @@ private:
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::touch_isr_callback, cst816s_);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EchoEar::touch_isr_callback, cst816s_);
     }
 
     void InitializeSpi()
@@ -582,8 +584,33 @@ private:
         gpio_set_level(POWER_CTRL, 0);
     }
 
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    void InitializeCamera() {
+        esp_video_init_usb_uvc_config_t usb_uvc_config = {
+            .uvc = {
+                .uvc_dev_num = 1,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+            .usb = {
+                .init_usb_host_lib = true,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+        };
+
+        esp_video_init_config_t video_config = {
+            .usb_uvc = &usb_uvc_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
+    }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+
 public:
-    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO)
+    EchoEar() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
         uint8_t pcb_verison = DetectPcbVersion();
@@ -593,6 +620,9 @@ public:
         InitializeSpi();
         Initializest77916Display(pcb_verison);
         InitializeButtons();
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+        InitializeCamera();
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     }
 
     virtual AudioCodec* GetAudioCodec() override
@@ -627,6 +657,10 @@ public:
     {
         return backlight_;
     }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
 };
 
-DECLARE_BOARD(EspS3Cat);
+DECLARE_BOARD(EchoEar);
