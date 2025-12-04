@@ -378,6 +378,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_XINGZHI_METAL_1_54_WIFI
+        bool "无名科技星智1.54 METAL(wifi)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
         bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
@@ -438,6 +441,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_AIPI_LITE
         bool "AIPI-Lite"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_HU_087
+        bool "HU-087"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice
@@ -471,7 +477,7 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
