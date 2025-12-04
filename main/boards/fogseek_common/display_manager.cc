@@ -646,7 +646,7 @@ void FogSeekDisplayManager::Initialize(lcd_type_t lcd_type, const lcd_pin_config
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
     // 9. 初始化背光
-    backlight_ = std::make_unique<PwmBacklight>((gpio_num_t)pin_config->bl_gpio, false);
+    backlight_ = std::make_unique<PwmBacklight>((gpio_num_t)pin_config->bl_gpio, true);
     if (backlight_)
     {
         backlight_->SetBrightness(0);

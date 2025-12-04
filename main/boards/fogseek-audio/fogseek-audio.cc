@@ -13,6 +13,7 @@
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
 #include <esp_log.h>
+#include <driver/rtc_io.h>
 
 #define TAG "FogSeekAudio"
 
@@ -59,13 +60,19 @@ private:
                                {
                                    led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
                                });
-
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
-
+        ctrl_button_.OnDoubleClick([this]()
+                                   { xTaskCreate([](void *param)
+                                                 {
+                                            auto* board = static_cast<FogSeekAudio*>(param);
+                                            WifiStation::GetInstance().Stop(); 
+                                            board->wifi_config_mode_ = true;
+                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
+                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态

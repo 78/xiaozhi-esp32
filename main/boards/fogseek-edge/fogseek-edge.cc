@@ -106,6 +106,14 @@ private:
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
+        ctrl_button_.OnDoubleClick([this]()
+                                   { xTaskCreate([](void *param)
+                                                 {
+                                            auto* board = static_cast<FogSeekAudio*>(param);
+                                            WifiStation::GetInstance().Stop(); 
+                                            board->wifi_config_mode_ = true;
+                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
+                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
 
         ctrl_button_.OnLongPress([this]()
                                  {

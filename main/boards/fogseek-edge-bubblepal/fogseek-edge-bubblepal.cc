@@ -3,7 +3,7 @@
 #include "power_manager.h"
 #include "display_manager.h"
 #include "led_controller.h"
-#include "codecs/es8311_audio_codec.h"
+#include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -69,8 +69,7 @@ private:
     {
         led_pin_config_t led_pin_config = {
             .red_gpio = LED_RED_GPIO,
-            .green_gpio = LED_GREEN_GPIO,
-            .rgb_gpio = LED_RGB_GPIO};
+            .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
 
         // 初始化RGB灯带
@@ -110,10 +109,45 @@ private:
 
         ctrl_button_.OnClick([this]()
                              {
+                                 // 循环切换RGB灯带颜色
+                                 static int color_index = 0;
+                                 switch (color_index)
+                                 {
+                                 case 0:
+                                     rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
+                                     break;
+                                 case 1:
+                                     rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
+                                     break;
+                                 case 2:
+                                     rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
+                                     break;
+                                 case 3:
+                                     rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
+                                     break;
+                                 case 4:
+                                     rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
+                                     break;
+                                 case 5:
+                                     rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
+                                     break;
+                                 default:
+                                     rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
+                                     break;
+                                 }
+                                 color_index = (color_index + 1) % 7; // 循环使用7种颜色
+
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
-
+        ctrl_button_.OnDoubleClick([this]()
+                                   { xTaskCreate([](void *param)
+                                                 {
+                                            auto* board = static_cast<FogSeekAudio*>(param);
+                                            WifiStation::GetInstance().Stop(); 
+                                            board->wifi_config_mode_ = true;
+                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
+                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
@@ -133,7 +167,7 @@ private:
         SetAudioAmplifierState(true);
 
         // 开启RGB灯带
-        rgb_led_strip_->SetAllColor({255, 0, 255});
+        rgb_led_strip_->SetAllColor({255, 255, 255});
 
         // 开机自动唤醒
         auto_wake_flag_ = true;
@@ -225,7 +259,7 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8311AudioCodec audio_codec(
+        static Es8389AudioCodec audio_codec(
             i2c_bus_,
             (i2c_port_t)0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -236,9 +270,8 @@ public:
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC,
-            AUDIO_CODEC_ES8311_ADDR,
-            true,
-            false);
+            AUDIO_CODEC_ES8389_ADDR,
+            true);
         return &audio_codec;
     }
 

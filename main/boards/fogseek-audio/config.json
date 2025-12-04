@@ -4,7 +4,8 @@
         {
             "name": "fogseek-audio",
             "sdkconfig_append": [
-                "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y"
+                "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y",
+                "CONFIG_USE_AFE_WAKE_WORD=y"
             ]
         }
     ]
