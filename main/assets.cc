@@ -4,6 +4,9 @@
 #include "application.h"
 #include "lvgl_theme.h"
 #include "emote_display.h"
+#ifdef HAVE_LVGL
+#include "display/lcd_display.h"
+#endif
 
 #include <esp_log.h>
 #include <spi_flash_mmap.h>
@@ -248,6 +251,18 @@ bool Assets::Apply() {
     if (current_theme != nullptr) {
         display->SetTheme(current_theme);
     }
+
+    // Parse hide_subtitle configuration
+    cJSON* hide_subtitle = cJSON_GetObjectItem(root, "hide_subtitle");
+    if (cJSON_IsBool(hide_subtitle)) {
+        bool hide = cJSON_IsTrue(hide_subtitle);
+        auto lcd_display = dynamic_cast<LcdDisplay*>(display);
+        if (lcd_display != nullptr) {
+            lcd_display->SetHideSubtitle(hide);
+            ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
+        }
+    }
+
 #elif defined(CONFIG_USE_EMOTE_MESSAGE_STYLE)
     auto &board = Board::GetInstance();
     auto display = board.GetDisplay();

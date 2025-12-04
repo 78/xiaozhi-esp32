@@ -6,6 +6,10 @@
 #include "button.h"
 #include "config.h"
 
+#include "esp32_camera.h"
+#include "esp_video_init.h"
+#include "esp_cam_sensor_xclk.h"
+
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
@@ -24,6 +28,11 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay *display_;
+    Esp32Camera* camera_ = nullptr;
+
+    esp_err_t i2c_device_probe(uint8_t addr) {
+        return i2c_master_probe(i2c_bus_, addr, 100);
+    }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -66,7 +75,6 @@ private:
         esp_lcd_dsi_bus_config_t bus_config = {
             .bus_id = 0,
             .num_data_lanes = 2,
-            .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
             .lane_bit_rate_mbps = 900,
         };
         esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
@@ -143,6 +151,19 @@ private:
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+        if (ESP_OK == i2c_device_probe(ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS)) {
+            ESP_LOGI(TAG, "Touch panel found at address 0x%02X", ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS);
+        } else if (ESP_OK == i2c_device_probe(ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP)) {
+            ESP_LOGI(TAG, "Touch panel found at address 0x%02X", ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP);
+            tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
+        } else {
+            ESP_LOGE(TAG, "Touch panel not found on I2C bus");
+            ESP_LOGE(TAG, "Tried addresses: 0x%02X and 0x%02X", 
+                     ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, 
+                     ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP);
+            return;
+        }
+
         tp_io_config.scl_speed_hz = 400 * 1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
@@ -153,6 +174,23 @@ private:
         };
         lvgl_port_add_touch(&touch_cfg);
         ESP_LOGI(TAG, "Touch panel initialized successfully");
+    }
+    void InitializeCamera() {
+        esp_video_init_csi_config_t base_csi_config = {
+            .sccb_config = {
+                .init_sccb = false,
+                .i2c_handle = i2c_bus_,
+                .freq = 400000,
+            },
+            .reset_pin = GPIO_NUM_NC,
+            .pwdn_pin  = GPIO_NUM_NC,
+        };
+
+        esp_video_init_config_t cam_config = {
+            .csi      = &base_csi_config,
+        };
+
+        camera_ = new Esp32Camera(cam_config);
     }
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
@@ -169,6 +207,7 @@ public:
         InitializeCodecI2c();
         InitializeLCD();
         InitializeTouch();
+        InitializeCamera();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
@@ -192,6 +231,10 @@ public:
 
     virtual Display *GetDisplay() override {
         return display_;
+    }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
     }
 
     virtual Backlight* GetBacklight() override {

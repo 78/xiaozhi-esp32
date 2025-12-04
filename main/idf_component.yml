@@ -5,7 +5,7 @@ dependencies:
   espressif/esp_lcd_gc9a01: ==2.0.1
   espressif/esp_lcd_st77916: ^1.0.1
   espressif/esp_lcd_axs15231b: ^1.0.0
- 
+
   espressif/esp_lcd_st7701:
     version: ^1.1.4
     rules:
@@ -18,17 +18,17 @@ dependencies:
   espressif/esp_io_expander_tca9554: ==2.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
-  78/esp-wifi-connect: ~2.6.1
+  78/esp-wifi-connect: ~2.6.2
   78/esp-opus-encoder: ~2.4.1
-  78/esp-ml307: ~3.3.7
-  78/xiaozhi-fonts: ~1.5.4
+  78/esp-ml307: ~3.5.1
+  78/xiaozhi-fonts: ~1.5.5
   espressif/led_strip: ~3.0.1
   espressif/esp_codec_dev: ~1.5
   espressif/esp-sr: ~2.2.0
   espressif/button: ~4.1.3
   espressif/knob: ^1.0.0
   espressif/esp_video:
-    version: '==1.3.1' # for compatibility. update version may need to modify this project code.
+    version: ==1.3.1   # for compatibility. update version may need to modify this project code.
     rules:
     - if: target not in [esp32]
   espressif/esp_image_effects:
@@ -47,7 +47,10 @@ dependencies:
   espressif2022/esp_emote_gfx: ^1.1.2
   espressif/adc_mic: ^0.2.1
   espressif/esp_mmap_assets: '>=1.2'
-  txp666/otto-emoji-gif-component: ^1.0.3
+  txp666/otto-emoji-gif-component:
+    version: ^1.0.3
+    rules:
+    - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.0
   espressif/esp_new_jpeg: ^0.6.1
 
@@ -67,7 +70,7 @@ dependencies:
     rules:
     - if: target in [esp32p4]
   espressif/esp32_p4_function_ev_board:
-    version: "^5.0.3"
+    version: ^5.0.3
     rules:
     - if: target in [esp32p4]
   espressif/esp_lcd_ili9881c:
@@ -100,6 +103,12 @@ dependencies:
     version: "*"
 
 
+  espressif/bmi270_sensor:
+    version: ^0.1.0
+    rules:
+    - if: target in [esp32s3, esp32c5]
+
   ## Required IDF version
   idf:
     version: '>=5.4.0'
+  espressif/esp_lcd_touch_st7123: ^1.0.0

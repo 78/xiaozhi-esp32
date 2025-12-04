@@ -4,7 +4,7 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_VER "2.0.4")
+set(PROJECT_VER "2.0.5")
 
 # Fix for Windows: Command line too long error
 # Use response files for compilation to avoid hitting Windows command line length limit

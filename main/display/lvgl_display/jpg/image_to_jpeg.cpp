@@ -3,9 +3,12 @@
 #include <esp_log.h>
 #include <stddef.h>
 #include <string.h>
+#include <utility>
 
 #include "esp_jpeg_common.h"
 #include "esp_jpeg_enc.h"
+#include "esp_imgfx_color_convert.h"
+
 #if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
 #include "driver/jpeg_encode.h"
 #endif
@@ -34,7 +37,7 @@ static __always_inline uint8_t expand_6_to_8(uint8_t v) {
 
 static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
                                              jpeg_pixel_format_t* out_fmt, int* out_size) {
-    // 直接支持的格式：GRAY、RGB888、YCbYCr(YUYV)
+    // GRAY 直接作为 JPEG_PIXEL_FORMAT_GRAY 输入
     if (format == V4L2_PIX_FMT_GREY) {
         int sz = (int)width * (int)height;
         uint8_t* buf = (uint8_t*)jpeg_calloc_align(sz, 16);
@@ -63,7 +66,8 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
     }
 
     // V4L2 UYVY (Cb Y Cr Y) -> 重排为 YUYV 再作为 YCbYCr 输入
-    if (format == V4L2_PIX_FMT_UYVY) {
+    // 当前版本暂时不会出现 UYVY 格式
+    if (format == V4L2_PIX_FMT_UYVY) [[unlikely]] {
         int sz = (int)width * (int)height * 2;
         const uint8_t* s = src;
         uint8_t* buf = (uint8_t*)jpeg_calloc_align(sz, 16);
@@ -87,7 +91,8 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
     }
 
     // V4L2 YUV422P (YUV422 Planar) -> 重排为 YUYV (YCbYCr)
-    if (format == V4L2_PIX_FMT_YUV422P) {
+    // 当前版本暂时不会出现 YUV422P 格式
+    if (format == V4L2_PIX_FMT_YUV422P) [[unlikely]] {
         int sz = (int)width * (int)height * 2;
         const uint8_t* y_plane = src;
         const uint8_t* u_plane = y_plane + (int)width * (int)height;
@@ -119,44 +124,72 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
         return buf;
     }
 
-    // 其余格式转换为 RGB888
-    int rgb_size = (int)width * (int)height * 3;
-    uint8_t* rgb = (uint8_t*)jpeg_calloc_align(rgb_size, 16);
-    if (!rgb)
-        return NULL;
-
-    if (format == V4L2_PIX_FMT_RGB24) {
-        // V4L2_RGB24 即 RGB888
-        memcpy(rgb, src, rgb_size);
-    } else if (format == V4L2_PIX_FMT_RGB565) {
-        // RGB565 小端，需要转换为 RGB888
-        const uint8_t* p = src;
-        uint8_t* d = rgb;
-        int pixels = (int)width * (int)height;
-        for (int i = 0; i < pixels; i++) {
-            uint8_t lo = p[0];  // 低字节（LSB）
-            uint8_t hi = p[1];  // 高字节（MSB）
-            p += 2;
-
-            uint8_t r5 = (hi >> 3) & 0x1F;
-            uint8_t g6 = ((hi & 0x07) << 3) | ((lo & 0xE0) >> 5);
-            uint8_t b5 = lo & 0x1F;
-
-            d[0] = expand_5_to_8(r5);
-            d[1] = expand_6_to_8(g6);
-            d[2] = expand_5_to_8(b5);
-            d += 3;
+    // RGB 转换为 YUV422 (YCbYCr) 再输入
+    // 见 https://github.com/78/xiaozhi-esp32/issues/1380#issuecomment-3497156378
+    else if (format == V4L2_PIX_FMT_RGB24 || format == V4L2_PIX_FMT_RGB565 || format == V4L2_PIX_FMT_RGB565X) {
+        esp_imgfx_pixel_fmt_t in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
+        uint32_t src_len = 0;
+        switch (format) {
+            case V4L2_PIX_FMT_RGB24:
+                in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
+                src_len = static_cast<uint32_t>(width * height * 3);
+                break;
+            case V4L2_PIX_FMT_RGB565:
+                in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE;
+                src_len = static_cast<uint32_t>(width * height * 2);
+                break;
+            [[unlikely]] case V4L2_PIX_FMT_RGB565X: // 当前版本暂时不会出现 RGB565X
+                in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_BE;
+                src_len = static_cast<uint32_t>(width * height * 2);
+                break;
+            [[unlikely]] default:
+                ESP_LOGE(TAG, "[Unreachable Case] unsupported format: 0x%08lx", format);
+                std::unreachable();
         }
-    } else {
-        // 其他未覆盖格式，清零
-        memset(rgb, 0, rgb_size);
+        int sz = (int)width * (int)height * 2;
+        uint8_t* buf = (uint8_t*)jpeg_calloc_align(sz, 16);
+        if (!buf)
+            return nullptr;
+        esp_imgfx_color_convert_cfg_t convert_cfg = {
+            .in_res = {.width = static_cast<int16_t>(width),
+                        .height = static_cast<int16_t>(height)},
+            .in_pixel_fmt = in_pixel_fmt,
+            .out_pixel_fmt = ESP_IMGFX_PIXEL_FMT_YUYV,
+            .color_space_std = ESP_IMGFX_COLOR_SPACE_STD_BT601,
+        };
+        esp_imgfx_color_convert_handle_t convert_handle = nullptr;
+        esp_imgfx_err_t err = esp_imgfx_color_convert_open(&convert_cfg, &convert_handle);
+        if (err != ESP_IMGFX_ERR_OK || convert_handle == nullptr) {
+            ESP_LOGE(TAG, "esp_imgfx_color_convert_open failed");
+            jpeg_free_align(buf);
+            return nullptr;
+        }
+        esp_imgfx_data_t convert_input_data = {
+            .data = const_cast<uint8_t*>(src),
+            .data_len = static_cast<uint32_t>(src_len),
+        };
+        esp_imgfx_data_t convert_output_data = {
+            .data = buf,
+            .data_len = static_cast<uint32_t>(sz),
+        };
+        err = esp_imgfx_color_convert_process(convert_handle, &convert_input_data, &convert_output_data);
+        if (err != ESP_IMGFX_ERR_OK) {
+            ESP_LOGE(TAG, "esp_imgfx_color_convert_process failed");
+            jpeg_free_align(buf);
+            return nullptr;
+        }
+        esp_imgfx_color_convert_close(convert_handle);
+        convert_handle = nullptr;
+        if (out_fmt)
+            *out_fmt = JPEG_PIXEL_FORMAT_YCbYCr;
+        if (out_size)
+            *out_size = sz;
+        return buf;
     }
-
-    if (out_fmt)
-        *out_fmt = JPEG_PIXEL_FORMAT_RGB888;
+    ESP_LOGE(TAG, "unsupported format: 0x%08lx", format);
     if (out_size)
-        *out_size = rgb_size;
-    return rgb;
+        *out_size = 0;
+    return nullptr;
 }
 
 #if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
@@ -393,6 +426,19 @@ static bool encode_with_esp_new_jpeg(const uint8_t* src, size_t src_len, uint16_
 
 bool image_to_jpeg(uint8_t* src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
                    uint8_t quality, uint8_t** out, size_t* out_len) {
+#ifdef CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
+    if (format == V4L2_PIX_FMT_JPEG) {
+        uint8_t * out_data = (uint8_t*)heap_caps_malloc(src_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!out_data) {
+            ESP_LOGE(TAG, "Failed to allocate memory for JPEG output");
+            return false;
+        }
+        memcpy(out_data, src, src_len);
+        *out = out_data;
+        *out_len = src_len;
+        return true;
+    }
+#endif // CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
 #if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
     if (encode_with_hw_jpeg(src, src_len, width, height, format, quality, out, out_len, NULL, NULL)) {
         return true;
@@ -404,6 +450,13 @@ bool image_to_jpeg(uint8_t* src, size_t src_len, uint16_t width, uint16_t height
 
 bool image_to_jpeg_cb(uint8_t* src, size_t src_len, uint16_t width, uint16_t height, v4l2_pix_fmt_t format,
                       uint8_t quality, jpg_out_cb cb, void* arg) {
+#ifdef CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
+    if (format == V4L2_PIX_FMT_JPEG) {
+        cb(arg, 0, src, src_len);
+        cb(arg, 1, nullptr, 0); // end signal
+        return true;
+    }
+#endif // CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
 #if CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
     if (encode_with_hw_jpeg(src, src_len, width, height, format, quality, NULL, NULL, cb, arg)) {
         return true;

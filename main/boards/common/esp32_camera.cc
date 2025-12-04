@@ -1,17 +1,25 @@
-#include "esp32_camera.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <unistd.h>
-#include "board.h"
-#include "display.h"
+#include <errno.h>
+#include <esp_heap_caps.h>
+#include <cstdio>
+#include <cstring>
+
 #include "esp_imgfx_color_convert.h"
 #include "esp_video_device.h"
 #include "esp_video_init.h"
-#include "jpg/image_to_jpeg.h"
 #include "linux/videodev2.h"
+
+#include "board.h"
+#include "display.h"
+#include "esp32_camera.h"
+#include "esp_jpeg_common.h"
+#include "jpg/image_to_jpeg.h"
+#include "jpg/jpeg_to_image.h"
 #include "lvgl_display.h"
 #include "mcp_server.h"
 #include "system_info.h"
@@ -20,6 +28,7 @@
 #undef LOG_LOCAL_LEVEL
 #define LOG_LOCAL_LEVEL MAX(CONFIG_LOG_DEFAULT_LEVEL, ESP_LOG_DEBUG)
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
+#include <esp_log.h> // should be after LOCAL_LOG_LEVEL definition
 
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
 #ifdef CONFIG_IDF_TARGET_ESP32P4
@@ -43,11 +52,6 @@
 #endif  // target
 #endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
 
-#include <errno.h>
-#include <esp_heap_caps.h>
-#include <esp_log.h>
-#include <cstdio>
-#include <cstring>
 
 #define TAG "Esp32Camera"
 
@@ -127,7 +131,7 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
 #endif
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     else if (config.usb_uvc != nullptr) {
-        video_device_name = ESP_VIDEO_USB_UVC_DEVICE_NAME(config.usb_uvc->uvc.uvc_dev_num);
+        video_device_name = ESP_VIDEO_USB_UVC_DEVICE_NAME(0);
     }
 #endif
 
@@ -194,12 +198,9 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
                 return 0;
             case V4L2_PIX_FMT_RGB565:
                 return 1;
-            case V4L2_PIX_FMT_YUV420:
 #ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+            case V4L2_PIX_FMT_YUV420:  // 软件 JPEG 编码器不支持 YUV420 格式
                 return 2;
-#else
-                // 软件 JPEG 编码器不支持 YUV420 格式
-                [[fallthrough]];
 #endif  // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
             case V4L2_PIX_FMT_GREY:
             case V4L2_PIX_FMT_YUV422P:
@@ -211,17 +212,21 @@ Esp32Camera::Esp32Camera(const esp_video_init_config_t& config) {
     auto get_rank = [](uint32_t fmt) -> int {
         switch (fmt) {
             case V4L2_PIX_FMT_YUV422P:
-                return 0;
+                return 10;
             case V4L2_PIX_FMT_RGB565:
-                return 1;
+                return 11;
             case V4L2_PIX_FMT_RGB24:
-                return 2;
+                return 12;
 #ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
             case V4L2_PIX_FMT_YUV420:
-                return 3;
+                return 13;
 #endif  // CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
+#ifdef CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
+            case V4L2_PIX_FMT_JPEG:
+                return 5;
+#endif  // CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
             case V4L2_PIX_FMT_GREY:
-                return 4;
+                return 20;
             default:
                 return 1 << 29;  // unsupported
         }
@@ -406,7 +411,7 @@ bool Esp32Camera::Capture() {
             frame_.len = buf.bytesused;
             frame_.data = (uint8_t*)heap_caps_malloc(frame_.len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (!frame_.data) {
-                ESP_LOGE(TAG, "alloc frame copy failed");
+                ESP_LOGE(TAG, "alloc frame copy failed: need allocate %lu bytes", buf.bytesused);
                 if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                     ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                 }
@@ -429,6 +434,9 @@ bool Esp32Camera::Capture() {
                 case V4L2_PIX_FMT_YUYV:
                 case V4L2_PIX_FMT_YUV420:
                 case V4L2_PIX_FMT_GREY:
+#ifdef CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
+                case V4L2_PIX_FMT_JPEG:
+#endif  // CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
 #ifdef CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP
                 {
                     auto src16 = (uint16_t*)mmap_buffers_[buf.index].start;
@@ -475,7 +483,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08" PRIx32, (uint32_t)sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -517,7 +525,7 @@ bool Esp32Camera::Capture() {
                     rotate_cfg.in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB888;
                     break;
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08" PRIx32, (uint32_t)sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -632,7 +640,7 @@ bool Esp32Camera::Capture() {
                     break;
                 }
                 default:
-                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08" PRIx32, (uint32_t)sensor_format_);
+                    ESP_LOGE(TAG, "unsupported sensor format for PPA rotation: 0x%08lx", sensor_format_);
                     if (ioctl(video_fd_, VIDIOC_QBUF, &buf) != 0) {
                         ESP_LOGE(TAG, "Cleanup: VIDIOC_QBUF failed");
                     }
@@ -793,6 +801,33 @@ bool Esp32Camera::Capture() {
                 lvgl_image_size = frame_.len;  // fallthrough 时兼顾 YUYV 与 RGB565
                 break;
 
+#ifdef CONFIG_XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
+            case V4L2_PIX_FMT_JPEG: {
+                uint8_t* out_data = nullptr;  // out data is allocated by jpeg_to_image
+                size_t out_len = 0;
+                size_t out_width = 0;
+                size_t out_height = 0;
+                size_t out_stride = 0;
+
+                esp_err_t ret =
+                    jpeg_to_image(frame_.data, frame_.len, &out_data, &out_len, &out_width, &out_height, &out_stride);
+                if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to decode JPEG image: %d (%s)", (int)ret, esp_err_to_name(ret));
+                    if (out_data) {
+                        heap_caps_free(out_data);
+                        out_data = nullptr;
+                    }
+                    return false;
+                }
+
+                data = out_data;
+                w = out_width;
+                h = out_height;
+                lvgl_image_size = out_len;
+                stride = out_stride;
+                break;
+            }
+#endif
             default:
                 ESP_LOGE(TAG, "unsupported frame format: 0x%08lx", frame_.format);
                 return false;
@@ -878,16 +913,31 @@ std::string Esp32Camera::Explain(const std::string& question) {
         uint16_t w = frame_.width ? frame_.width : 320;
         uint16_t h = frame_.height ? frame_.height : 240;
         v4l2_pix_fmt_t enc_fmt = frame_.format;
-        image_to_jpeg_cb(
+        bool ok = image_to_jpeg_cb(
             frame_.data, frame_.len, w, h, enc_fmt, 80,
             [](void* arg, size_t index, const void* data, size_t len) -> size_t {
-                auto jpeg_queue = (QueueHandle_t)arg;
-                JpegChunk chunk = {.data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM), .len = len};
-                memcpy(chunk.data, data, len);
+                auto jpeg_queue = static_cast<QueueHandle_t>(arg);
+                JpegChunk chunk = {.data = nullptr, .len = len};
+                if (index == 0 && data != nullptr && len > 0) {
+                    chunk.data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                    if (chunk.data == nullptr) {
+                        ESP_LOGE(TAG, "Failed to allocate %zu bytes for JPEG chunk", len);
+                        chunk.len = 0;
+                    } else {
+                        memcpy(chunk.data, data, len);
+                    }
+                } else {
+                    chunk.len = 0;  // Sentinel or error
+                }
                 xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
                 return len;
             },
             jpeg_queue);
+
+        if (!ok) {
+            JpegChunk chunk = {.data = nullptr, .len = 0};
+            xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
+        }
     });
 
     auto network = Board::GetInstance().GetNetwork();
@@ -940,6 +990,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
 
     // 第三块：JPEG数据
     size_t total_sent = 0;
+    bool saw_terminator = false;
     while (true) {
         JpegChunk chunk;
         if (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) != pdPASS) {
@@ -947,6 +998,7 @@ std::string Esp32Camera::Explain(const std::string& question) {
             break;
         }
         if (chunk.data == nullptr) {
+            saw_terminator = true;
             break;  // The last chunk
         }
         http->Write((const char*)chunk.data, chunk.len);
@@ -957,6 +1009,11 @@ std::string Esp32Camera::Explain(const std::string& question) {
     encoder_thread_.join();
     // 清理队列
     vQueueDelete(jpeg_queue);
+
+    if (!saw_terminator || total_sent == 0) {
+        ESP_LOGE(TAG, "JPEG encoder failed or produced empty output");
+        throw std::runtime_error("Failed to encode image to JPEG");
+    }
 
     {
         // 第四块：multipart尾部
