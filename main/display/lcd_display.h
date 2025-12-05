@@ -67,6 +67,7 @@ protected:
     float* fft_real;
     float* fft_imag;
     float* hanning_window_float;
+    uint16_t bar_max_hight_;
     void compute(float* real, float* imag, int n, bool forward);
     void drawSpectrumIfReady();
     uint16_t get_bar_color(int x_pos);

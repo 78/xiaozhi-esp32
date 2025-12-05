@@ -416,6 +416,7 @@ Content-Type: application/octet-stream
 
         last_update_time = current_time;
         recent_bytes = 0;
+        vTaskDelay(pdMS_TO_TICKS(10));  // Yield to avoid watchdog timer reset.
       }
     }
   }
@@ -858,6 +859,7 @@ esp_err_t OtaServer::HandleAssetsUpload(httpd_req_t* req) {
 
         last_update_time = current_time;
         recent_bytes = 0;
+        vTaskDelay(pdMS_TO_TICKS(10));  // Yield to avoid watchdog timer reset.
       }
     }
   }

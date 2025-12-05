@@ -199,7 +199,7 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
     
     // Configure thread stack size
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.stack_size = 8192;  // 8KB stack size
+    cfg.stack_size = 1024 * 3;  // 3KB stack size
     cfg.prio = 5;           // Medium priority
     cfg.thread_name = "radio_stream";
     esp_pthread_set_cfg(&cfg);

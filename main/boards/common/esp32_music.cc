@@ -476,7 +476,7 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     
     // Configure thread stack size to avoid stack overflow
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.stack_size = 8192;  // 8KB stack size
+    cfg.stack_size = 1024 * 3;  // 3KB stack size
     cfg.prio = 5;           // Medium priority
     cfg.thread_name = "audio_stream";
     esp_pthread_set_cfg(&cfg);
