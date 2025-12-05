@@ -1,12 +1,12 @@
 #include "sdmmc.h"
 #include "esp_log.h"
 
-SdMMC::SdMMC() : card_(nullptr), is_mounted_(false) {
+SdMMC::SdMMC() : card_(nullptr){
   config_ = Config();
 }
 
 SdMMC::SdMMC(const Config& config)
-    : config_(config), card_(nullptr), is_mounted_(false) {}
+    : config_(config), card_(nullptr){}
 
 SdMMC::SdMMC(gpio_num_t clk_pin,
                  gpio_num_t cmd_pin,
@@ -21,8 +21,7 @@ SdMMC::SdMMC(gpio_num_t clk_pin,
                  size_t allocation_unit_size,
                  int max_freq_khz)
     : config_{mount_point, format_if_mount_failed, max_files, allocation_unit_size, bus_width, clk_pin, cmd_pin, d0_pin, d1_pin, d2_pin, d3_pin, max_freq_khz},
-      card_(nullptr),
-      is_mounted_(false) {}
+      card_(nullptr) {}
 
 SdMMC::SdMMC(gpio_num_t clk_pin,
                  gpio_num_t cmd_pin,
@@ -34,8 +33,7 @@ SdMMC::SdMMC(gpio_num_t clk_pin,
                  size_t allocation_unit_size,
                  int max_freq_khz)
     : config_{mount_point, format_if_mount_failed, max_files, allocation_unit_size, bus_width, clk_pin, cmd_pin, d0_pin, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, max_freq_khz},
-      card_(nullptr),
-      is_mounted_(false) {}
+      card_(nullptr) {}
 
 SdMMC::~SdMMC() {
   if (is_mounted_) {

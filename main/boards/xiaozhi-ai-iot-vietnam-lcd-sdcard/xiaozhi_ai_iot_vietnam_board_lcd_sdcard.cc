@@ -180,7 +180,7 @@ public:
         return nullptr;
     }
 
-    virtual SdMMC* GetSdMMC() override {
+    virtual SdCard* GetSdCard() override {
 #ifdef CARD__SDMMC_BUS_WIDTH_4BIT
         static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
                            CARD_SDMMC_CMD_GPIO,

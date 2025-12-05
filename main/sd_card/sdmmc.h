@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/unistd.h>
-
+#include "sd_card.h"
 #include "driver/sdmmc_host.h"
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
@@ -34,7 +34,7 @@ constexpr const char* kSdCardMountPoint = "/sdcard";
 constexpr int kSdCardMaxFiles = 5;
 constexpr size_t kSdCardAllocationUnitSize = 16 * 1024;
 
-class SdMMC {
+class SdMMC : public SdCard {
  public:
   struct Config {
     const char* mount_point = kSdCardMountPoint;
@@ -64,7 +64,7 @@ class SdMMC {
                   bool format_if_mount_failed = false,
                   int max_files = kSdCardMaxFiles,
                   size_t allocation_unit_size = kSdCardAllocationUnitSize,
-                  int max_freq_khz = SDMMC_FREQ_DEFAULT);
+                  int max_freq_khz = SDMMC_FREQ_HIGHSPEED);
   explicit SdMMC(gpio_num_t clk_pin,
                   gpio_num_t cmd_pin,
                   gpio_num_t d0_pin,
@@ -73,7 +73,7 @@ class SdMMC {
                   bool format_if_mount_failed = false,
                   int max_files = kSdCardMaxFiles,
                   size_t allocation_unit_size = kSdCardAllocationUnitSize,
-                  int max_freq_khz = SDMMC_FREQ_DEFAULT);
+                  int max_freq_khz = SDMMC_FREQ_HIGHSPEED);
   ~SdMMC();
 
   // Disable copy and assign
@@ -81,37 +81,32 @@ class SdMMC {
   SdMMC& operator=(const SdMMC&) = delete;
 
   // Initialize and mount the SD card
-  esp_err_t Initialize();
+  esp_err_t Initialize() override;
 
   // Unmount and deinitialize the SD card
-  esp_err_t Deinitialize();
-
-  // Check if SD card is mounted
-  bool IsMounted() const { return is_mounted_; }
+  esp_err_t Deinitialize() override;
 
   // Get mount point path
-  const char* GetMountPoint() const { return config_.mount_point; }
+  const char* GetMountPoint() const override { return config_.mount_point; }
 
   // Get card information
   const sdmmc_card_t* GetCardInfo() const { return card_; }
 
   // Print card information to stdout
-  void PrintCardInfo() const;
+  void PrintCardInfo() const override;
 
   // File operations
-  esp_err_t WriteFile(const char* path, const char* data);
-  esp_err_t ReadFile(const char* path, char* buffer, size_t buffer_size);
-  esp_err_t DeleteFile(const char* path);
-  esp_err_t RenameFile(const char* old_path, const char* new_path);
-  bool FileExists(const char* path);
-
+  esp_err_t WriteFile(const char* path, const char* data) override;
+  esp_err_t ReadFile(const char* path, char* buffer, size_t buffer_size) override;
+  esp_err_t DeleteFile(const char* path) override;
+  esp_err_t RenameFile(const char* old_path, const char* new_path) override;
+  bool FileExists(const char* path) override;
   // Format the SD card
-  esp_err_t Format();
+  esp_err_t Format() override;
 
  private:
   Config config_;
   sdmmc_card_t* card_;
-  bool is_mounted_;
 
   static constexpr const char* kTag = "SdMMC";
 };

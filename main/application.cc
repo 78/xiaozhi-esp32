@@ -358,7 +358,7 @@ void Application::Start() {
 
     /* Setup the display */
     auto display = board.GetDisplay();
-    auto sd_card = board.GetSdMMC();
+    auto sd_card = board.GetSdCard();
     if (sd_card != nullptr) {
         if (sd_card->Initialize() == ESP_OK) {
             ESP_LOGI(TAG, "SD card mounted successfully");
