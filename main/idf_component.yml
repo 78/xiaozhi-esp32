@@ -98,6 +98,10 @@ dependencies:
     version: 1.1.0
     rules:
     - if: target in [esp32p4]
+  
+  chmorgan/esp-libhelix-mp3:
+    version: "*"
+
 
   espressif/bmi270_sensor:
     version: ^0.1.0

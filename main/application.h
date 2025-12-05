@@ -63,6 +63,10 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+    void StartMusicStreaming(const std::string& url);
+    void StopMusicStreaming();
+    // New: Receive external audio data (such as music playback)
+    void AddAudioData(AudioStreamPacket&& packet);
 
 private:
     Application();
