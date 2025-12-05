@@ -28,10 +28,19 @@ private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
+    Button button_up_;
+    Button button_left_;
+    Button button_down_;
+    Button button_right_;
+    Button button_select_;
+    Button button_start_;
     Button boot_button_;
     Button touch_button_;
+    Button button_c;
+    Button button_d;
     Button volume_up_button_;
     Button volume_down_button_;
+
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -102,7 +111,24 @@ private:
     }
 
     void InitializeButtons() {
+        auto log_btn = [](const char* name, gpio_num_t gpio) {
+            ESP_LOGW(TAG, "%s pressed (GPIO%d)", name, static_cast<int>(gpio));
+        };
+
+        button_up_.OnClick([log_btn]() { log_btn("Button UP", BUTTON_UP_GPIO); });
+        button_left_.OnClick([log_btn]() { log_btn("Button LEFT", BUTTON_LEFT_GPIO); });
+        button_down_.OnClick([log_btn]() { log_btn("Button DOWN", BUTTON_DOWN_GPIO); });
+        button_right_.OnClick([log_btn]() { log_btn("Button RIGHT", BUTTON_RIGHT_GPIO); });
+
+        button_select_.OnClick([log_btn]() { log_btn("Button SELECT", BUTTON_SELECT_GPIO); });
+        button_start_.OnClick([log_btn]() { log_btn("Button START", BUTTON_START_GPIO); });
+
+
+        button_c.OnClick([log_btn]() { log_btn("Button C", BUTTON_C_GPIO); });
+        button_d.OnClick([log_btn]() { log_btn("Button D", BUTTON_D_GPIO); });
+
         boot_button_.OnClick([this]() {
+            ESP_LOGW(TAG, "Button A (BOOT) pressed (GPIO%d)", static_cast<int>(BUTTON_A_GPIO));
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -110,13 +136,16 @@ private:
             app.ToggleChatState();
         });
         touch_button_.OnPressDown([this]() {
+            ESP_LOGW(TAG, "Button B (TOUCH) down (GPIO%d)", static_cast<int>(BUTTON_B_GPIO));
             Application::GetInstance().StartListening();
         });
         touch_button_.OnPressUp([this]() {
+            ESP_LOGW(TAG, "Button B (TOUCH) up (GPIO%d)", static_cast<int>(BUTTON_B_GPIO));
             Application::GetInstance().StopListening();
         });
 
         volume_up_button_.OnClick([this]() {
+            ESP_LOGW(TAG, "Button C (VOL+) pressed (GPIO%d)", static_cast<int>(BUTTON_C_GPIO));
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -127,11 +156,13 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+            ESP_LOGW(TAG, "Button C (VOL+) long (GPIO%d)", static_cast<int>(BUTTON_C_GPIO));
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+            ESP_LOGW(TAG, "Button D (VOL-) pressed (GPIO%d)", static_cast<int>(BUTTON_D_GPIO));
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -142,6 +173,7 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+            ESP_LOGW(TAG, "Button D (VOL-) long (GPIO%d)", static_cast<int>(BUTTON_D_GPIO));
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
@@ -154,12 +186,21 @@ private:
 
 public:
     EnglishTeacherBoard() :
+        button_up_(BUTTON_UP_GPIO),
+        button_left_(BUTTON_LEFT_GPIO),
+        button_down_(BUTTON_DOWN_GPIO),
+        button_right_(BUTTON_RIGHT_GPIO),
+        button_select_(BUTTON_SELECT_GPIO),
+        button_start_(BUTTON_START_GPIO),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
+        button_c(BUTTON_C_GPIO),
+        button_d(BUTTON_D_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
-        InitializeDisplayI2c();
-        InitializeSsd1306Display();
+       // InitializeDisplayI2c();
+       // InitializeSsd1306Display();
+        display_ = new NoDisplay(); // Disable display for English Teacher Board
         InitializeButtons();
         InitializeTools();
     }

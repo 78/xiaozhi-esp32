@@ -28,14 +28,32 @@
 #endif
 
 
-#define BUILTIN_LED_GPIO        GPIO_NUM_0
-#define BOOT_BUTTON_GPIO        GPIO_NUM_1
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_2
-#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_18
-#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_21
+#define BUILTIN_LED_GPIO        GPIO_NUM_43
 
-#define DISPLAY_SDA_PIN GPIO_NUM_41
-#define DISPLAY_SCL_PIN GPIO_NUM_42
+// Direction buttons
+#define BUTTON_UP_GPIO          GPIO_NUM_0
+#define BUTTON_LEFT_GPIO        GPIO_NUM_1
+#define BUTTON_DOWN_GPIO        GPIO_NUM_2
+#define BUTTON_RIGHT_GPIO       GPIO_NUM_11
+
+// Action buttons
+#define BUTTON_A_GPIO           GPIO_NUM_12
+#define BUTTON_B_GPIO           GPIO_NUM_18
+#define BUTTON_C_GPIO           GPIO_NUM_21
+#define BUTTON_D_GPIO           GPIO_NUM_38
+
+// Menu buttons
+#define BUTTON_SELECT_GPIO      GPIO_NUM_39
+#define BUTTON_START_GPIO       GPIO_NUM_40
+
+// Reuse legacy names to minimize code changes
+#define BOOT_BUTTON_GPIO        BUTTON_A_GPIO
+#define TOUCH_BUTTON_GPIO       BUTTON_B_GPIO
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_41
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_42
+
+#define DISPLAY_SDA_PIN GPIO_NUM_NC
+#define DISPLAY_SCL_PIN GPIO_NUM_NC
 #define DISPLAY_WIDTH   128
 
 #if CONFIG_OLED_SSD1306_128X32
@@ -54,6 +72,6 @@
 
 
 // A MCP Test: Control a lamp
-#define LAMP_GPIO GPIO_NUM_18
+#define LAMP_GPIO GPIO_NUM_44
 
 #endif // _BOARD_CONFIG_H_
