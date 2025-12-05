@@ -25,6 +25,7 @@
 #define TAG "LcdDisplay"
 
 //Declare theme color
+#define BAR_MAX_Y0_OFFSET 50
 #define BAR_COL_NUM  40
 #define LCD_FFT_SIZE 512
 static int current_heights[BAR_COL_NUM] = {0};
@@ -1376,7 +1377,7 @@ void LcdDisplay::periodicUpdateTask() {
                 drawSpectrumIfReady();
                 lv_area_t refresh_area;
                 refresh_area.x1 = 0;
-                refresh_area.y1 = height_ - 150;
+                refresh_area.y1 = height_ - canvas_height_ + BAR_MAX_Y0_OFFSET;
                 refresh_area.x2 = canvas_width_ - 1;
                 refresh_area.y2 = height_ - 1; // Only refresh the spectrum area
                 lv_obj_invalidate_area(canvas_, &refresh_area);
@@ -1438,7 +1439,7 @@ void LcdDisplay::drawSpectrumIfReady() {
 void LcdDisplay::draw_spectrum(float *power_spectrum,int fft_size){
     const int bartotal=BAR_COL_NUM;
     int bar_height;
-    const int bar_max_height=canvas_height_ - 50;
+    const int bar_max_height=canvas_height_ - BAR_MAX_Y0_OFFSET;
     const int bar_width=canvas_width_/bartotal;
     int x_pos=0;
     int y_pos = (canvas_height_) - 1;

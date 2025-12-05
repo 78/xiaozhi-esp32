@@ -711,7 +711,7 @@ void Esp32Radio::PlayRadioStream() {
         heap_caps_free(input_buffer);
     }
     
-    if (is_downloading_) {
+    if (is_playing_) {
         ESP_LOGI(TAG, "Radio stream playback finished successfully");
         ClearAudioBuffer();  // Clear remaining buffer data
         // Reset the sample rate to the original value
