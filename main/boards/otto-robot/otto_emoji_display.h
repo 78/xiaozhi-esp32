@@ -19,6 +19,5 @@ class OttoEmojiDisplay : public SpiLcdDisplay {
 
    private:
     void InitializeOttoEmojis();
-    void SetupChatLabel();
     void SetupPreviewImage();
 };
