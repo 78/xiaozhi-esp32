@@ -378,6 +378,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_XINGZHI_CUBE_1_54TFT_ML307
         bool "无名科技星智1.54(ML307)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_XINGZHI_METAL_1_54_WIFI
+        bool "无名科技星智1.54 METAL(wifi)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
         bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
@@ -441,6 +444,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_AIPI_LITE
         bool "AIPI-Lite"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_HU_087
+        bool "HU-087"
         depends on IDF_TARGET_ESP32S3
 endchoice
 
@@ -687,6 +693,13 @@ config RECEIVE_CUSTOM_MESSAGE
     default n
     help
         Enable custom message reception, allow the device to receive custom messages from the server (preferably through the MQTT protocol)
+
+config OTTO_ROBOT_USE_CAMERA
+    bool "Enable Otto Robot Camera"
+    default n
+    depends on BOARD_TYPE_OTTO_ROBOT
+    help
+        Enable Otto Robot Camera
 
 menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32

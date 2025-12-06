@@ -4,6 +4,8 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <wifi_station.h>
 
 #include "application.h"
@@ -18,6 +20,7 @@
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
+#include "esp32_camera.h"
 #include "websocket_control_server.h"
 
 #define TAG "OttoRobot"
@@ -30,6 +33,10 @@ private:
     PowerManager* power_manager_;
     Button boot_button_;
     WebSocketControlServer* ws_control_server_;
+#if CONFIG_OTTO_ROBOT_USE_CAMERA
+    i2c_master_bus_handle_t i2c_bus_;
+    Esp32Camera *camera_;
+#endif
     void InitializePowerManager() {
         power_manager_ =
             new PowerManager(POWER_CHARGE_DETECT_PIN, POWER_ADC_UNIT, POWER_ADC_CHANNEL);
@@ -115,10 +122,79 @@ private:
         InitializeWebSocketControlServer();
     }
 
+#if CONFIG_OTTO_ROBOT_USE_CAMERA
+    void InitializeI2c() {
+        // Initialize I2C peripheral
+        i2c_master_bus_config_t i2c_bus_cfg = {
+            .i2c_port = I2C_NUM_0,
+            .sda_io_num = I2C_SDA_PIN,
+            .scl_io_num = I2C_SCL_PIN,
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .glitch_ignore_cnt = 7,
+            .intr_priority = 0,
+            .trans_queue_depth = 0,
+            .flags =
+                {
+                    .enable_internal_pullup = 1,
+                },
+        };
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+    void InitializeCamera() {
+        // DVP pin configuration
+        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
+            .data_width = CAM_CTLR_DATA_WIDTH_8,
+            .data_io = {
+                [0] = CAMERA_D0,
+                [1] = CAMERA_D1,
+                [2] = CAMERA_D2,
+                [3] = CAMERA_D3,
+                [4] = CAMERA_D4,
+                [5] = CAMERA_D5,
+                [6] = CAMERA_D6,
+                [7] = CAMERA_D7,
+            },
+            .vsync_io = CAMERA_VSYNC,
+            .de_io = CAMERA_HSYNC,
+            .pclk_io = CAMERA_PCLK,
+            .xclk_io = CAMERA_XCLK,
+        };
+
+        // 复用 I2C 总线
+        esp_video_init_sccb_config_t sccb_config = {
+            .init_sccb = false,  // 不初始化新的 SCCB，使用现有的 I2C 总线
+            .i2c_handle = i2c_bus_,  // 使用现有的 I2C 总线句柄
+            .freq = 100000,  // 100kHz
+        };
+
+        // DVP configuration
+        esp_video_init_dvp_config_t dvp_config = {
+            .sccb_config = sccb_config,
+            .reset_pin = CAMERA_RESET,
+            .pwdn_pin = CAMERA_PWDN,
+            .dvp_pin = dvp_pin_config,
+            .xclk_freq = CAMERA_XCLK_FREQ,
+        };
+
+        // Main video configuration
+        esp_video_init_config_t video_config = {
+            .dvp = &dvp_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
+        // camera_->SetHMirror(true);
+        camera_->SetVFlip(true);
+  }
+#endif
+
 public:
     OttoRobot() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
+#if CONFIG_OTTO_ROBOT_USE_CAMERA
+        InitializeI2c();
+        InitializeCamera();
+#endif
         InitializeButtons();
         InitializePowerManager();
         InitializeOttoController();
@@ -126,11 +202,18 @@ public:
         GetBacklight()->RestoreBrightness();
     }
 
-    virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-                                               AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK,
-                                               AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK,
-                                               AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+    virtual AudioCodec *GetAudioCodec() override {
+#ifdef AUDIO_I2S_METHOD_SIMPLEX
+        static NoAudioCodecSimplex audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK,
+            AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS,
+            AUDIO_I2S_MIC_GPIO_DIN);
+#else
+        static NoAudioCodecDuplex audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
+#endif
         return &audio_codec;
     }
 
@@ -146,6 +229,9 @@ public:
         level = power_manager_->GetBatteryLevel();
         return true;
     }
+#if CONFIG_OTTO_ROBOT_USE_CAMERA
+    virtual Camera *GetCamera() override { return camera_; }
+#endif
 };
 
 DECLARE_BOARD(OttoRobot);

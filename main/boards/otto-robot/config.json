@@ -6,6 +6,16 @@
             "sdkconfig_append": [
                 "CONFIG_HTTPD_WS_SUPPORT=y"
             ]
+        },
+        {
+            "name": "otto-robot-camera",
+            "sdkconfig_append": [
+                "CONFIG_OTTO_ROBOT_USE_CAMERA=y",
+                "CONFIG_CAMERA_OV2640=y",
+                "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV2640_DVP_YUV422_240X240_25FPS=y",
+                "CONFIG_HTTPD_WS_SUPPORT=y"
+            ]
         }
     ]
 }
