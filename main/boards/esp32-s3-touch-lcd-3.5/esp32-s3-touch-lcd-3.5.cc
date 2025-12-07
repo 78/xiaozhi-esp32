@@ -11,7 +11,6 @@
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -290,8 +289,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -304,7 +304,7 @@ private:
             "Reboot the device and enter WiFi configuration mode.\n"
             "**CAUTION** You must ask the user to confirm this action.",
             PropertyList(), [this](const PropertyList& properties) {
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
                 return true;
             });
     }

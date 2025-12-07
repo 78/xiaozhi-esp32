@@ -33,7 +33,7 @@ set(SOURCES "audio/audio_codec.cc"
             "application.cc"
             "ota.cc"
             "settings.cc"
-            "device_state_event.cc"
+            "device_state_machine.cc"
             "assets.cc"
             "main.cc"
             )

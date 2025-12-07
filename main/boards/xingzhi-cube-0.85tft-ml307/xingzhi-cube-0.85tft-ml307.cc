@@ -12,7 +12,6 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>

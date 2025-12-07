@@ -6,6 +6,7 @@
 #include <mqtt.h>
 #include <udp.h>
 #include <string>
+#include <functional>
 #include <network_interface.h>
 
 #include "led/led.h"
@@ -13,6 +14,21 @@
 #include "camera.h"
 #include "assets.h"
 
+/**
+ * Network events for unified callback
+ */
+enum class NetworkEvent {
+    Scanning,              // Network is scanning (WiFi scanning, etc.)
+    Connecting,            // Network is connecting (data: SSID/network name)
+    Connected,             // Network connected successfully (data: SSID/network name)
+    Disconnected,          // Network disconnected
+    WifiConfigModeEnter,   // Entered WiFi configuration mode
+    WifiConfigModeExit     // Exited WiFi configuration mode
+};
+
+// Network event callback type (event, data)
+// data contains additional info like SSID for Connecting/Connected events
+using NetworkEventCallback = std::function<void(NetworkEvent event, const std::string& data)>;
 
 void* create_board();
 class AudioCodec;
@@ -46,6 +62,7 @@ public:
     virtual Camera* GetCamera();
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
+    virtual void SetNetworkEventCallback(NetworkEventCallback callback) { (void)callback; }
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetSystemInfoJson();

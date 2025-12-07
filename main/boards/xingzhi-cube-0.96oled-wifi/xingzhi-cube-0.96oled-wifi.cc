@@ -10,7 +10,6 @@
 #include "power_save_timer.h"
 #include "../xingzhi-cube-1.54tft-wifi/power_manager.h"
 
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -134,8 +133,9 @@ private:
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

@@ -13,7 +13,6 @@
 #include "i2c_device.h"
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -280,9 +279,10 @@ private:
 
             auto& app = Application::GetInstance();
             if (self->GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                if (app.GetDeviceState() == kDeviceStateStarting) {
                     auto& wifi_board = static_cast<WifiBoard&>(self->GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
+                    wifi_board.EnterWifiConfigMode();
+                    return;
                 }
             }
 

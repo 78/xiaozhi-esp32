@@ -10,7 +10,6 @@
 #include "assets/lang_config.h"
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 
 #define TAG "YunliaoS3"
@@ -85,7 +84,7 @@ private:
             ESP_LOGI(TAG, "Button OnThreeClick");
             if (GetNetworkType() == NetworkType::WIFI) {
                 auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                wifi_board.ResetWifiConfiguration();
+                wifi_board.EnterWifiConfigMode();
             }
         },3);  
         boot_button_.OnLongPress([this]() {

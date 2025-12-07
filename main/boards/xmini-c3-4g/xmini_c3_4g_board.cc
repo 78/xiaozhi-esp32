@@ -11,7 +11,6 @@
 #include "adc_battery_monitor.h"
 #include "press_to_talk_mcp_tool.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
