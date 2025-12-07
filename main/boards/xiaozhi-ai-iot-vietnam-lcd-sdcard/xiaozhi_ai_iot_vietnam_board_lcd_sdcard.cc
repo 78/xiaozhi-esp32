@@ -1,7 +1,7 @@
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
-#include "sd_card/sdmmc.h"
+#include "sdmmc.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -215,7 +215,7 @@ public:
     }
 
     virtual SdCard* GetSdCard() override {
-#ifdef CARD__SDMMC_BUS_WIDTH_4BIT
+#ifdef CARD_SDMMC_BUS_WIDTH_4BIT
         static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
                            CARD_SDMMC_CMD_GPIO,
                            CARD_SDMMC_D0_GPIO,

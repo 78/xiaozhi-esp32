@@ -4,7 +4,7 @@
 #include "display/display.h"
 #include "display/oled_display.h"
 #include "assets/lang_config.h"
-#include "sd_card/sd_card.h"
+#include "sd_card.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>

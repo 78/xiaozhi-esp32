@@ -11,7 +11,7 @@
 #include "settings.h"
 #include "ota_server.h"
 #include "wifi_station.h"
-#include "sd_card/sdmmc.h"
+#include "sd_card.h"
 #include "esp32_sd_music.h"
 
 #include <cstring>
