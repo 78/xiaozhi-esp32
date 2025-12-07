@@ -17,7 +17,6 @@
 #include "config.h"
 #include "sleep_timer.h"
 #include "wifi_board.h"
-#include "wifi_station.h"
 
 #ifdef IMU_INT_GPIO
 #include <esp_sleep.h>
@@ -217,7 +216,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             HandleUserActivity();
-            ResetWifiConfiguration();
+            EnterWifiConfigMode();
         });
 
         key_button_.OnClick([this]() {

@@ -16,7 +16,6 @@
 #include "assets/lang_config.h"
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
-#include <wifi_station.h>
 #include "cst816x.h"
 
 #define TAG "XINGZHI_METAL_1_54_WIFI"
