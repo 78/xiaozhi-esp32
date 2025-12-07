@@ -393,11 +393,11 @@ public:
         return &audio_codec;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
         if (sleep_timer_) {
             sleep_timer_->SetEnabled(enabled);
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {

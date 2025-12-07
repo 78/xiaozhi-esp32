@@ -626,11 +626,11 @@ public:
         return &led;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level == PowerSaveLevel::PERFORMANCE) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {

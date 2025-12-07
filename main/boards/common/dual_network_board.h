@@ -51,7 +51,7 @@ public:
     virtual void StartNetwork() override;
     virtual NetworkInterface* GetNetwork() override;
     virtual const char* GetNetworkStateIcon() override;
-    virtual void SetPowerSaveMode(bool enabled) override;
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override;
     virtual std::string GetBoardJson() override;
     virtual std::string GetDeviceStatusJson() override;
 };

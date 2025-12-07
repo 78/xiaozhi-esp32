@@ -14,6 +14,7 @@
 
 #include <font_awesome.h>
 #include <wifi_manager.h>
+#include <wifi_station.h>
 #include <ssid_manager.h>
 #include "afsk_demod.h"
 
@@ -268,8 +269,21 @@ std::string WifiBoard::GetBoardJson() {
     return json;
 }
 
-void WifiBoard::SetPowerSaveMode(bool enabled) {
-    WifiManager::GetInstance().SetPowerSaveMode(enabled);
+void WifiBoard::SetPowerSaveLevel(PowerSaveLevel level) {
+    WifiPowerSaveLevel wifi_level;
+    switch (level) {
+        case PowerSaveLevel::LOW_POWER:
+            wifi_level = WifiPowerSaveLevel::LOW_POWER;
+            break;
+        case PowerSaveLevel::BALANCED:
+            wifi_level = WifiPowerSaveLevel::BALANCED;
+            break;
+        case PowerSaveLevel::PERFORMANCE:
+        default:
+            wifi_level = WifiPowerSaveLevel::PERFORMANCE;
+            break;
+    }
+    WifiManager::GetInstance().SetPowerSaveLevel(wifi_level);
 }
 
 std::string WifiBoard::GetDeviceStatusJson() {

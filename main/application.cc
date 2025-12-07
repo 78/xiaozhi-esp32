@@ -282,7 +282,7 @@ void Application::HandleActivationDoneEvent() {
     // Release OTA object after activation is complete
     ota_.reset();
     auto& board = Board::GetInstance();
-    board.SetPowerSaveMode(true);
+    board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
 }
 
 void Application::ActivationTask() {
@@ -332,7 +332,7 @@ void Application::CheckAssetsVersion() {
         // Wait for the audio service to be idle for 3 seconds
         vTaskDelay(pdMS_TO_TICKS(3000));
         SetDeviceState(kDeviceStateUpgrading);
-        board.SetPowerSaveMode(false);
+        board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
         bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
@@ -343,7 +343,7 @@ void Application::CheckAssetsVersion() {
             }).detach();
         });
 
-        board.SetPowerSaveMode(true);
+        board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         vTaskDelay(pdMS_TO_TICKS(1000));
 
         if (!success) {
@@ -467,7 +467,7 @@ void Application::InitializeProtocol() {
     });
     
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
-        board.SetPowerSaveMode(false);
+        board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG, "Server sample rate %d does not match device output sample rate %d, resampling may cause distortion",
                 protocol_->server_sample_rate(), codec->output_sample_rate());
@@ -475,7 +475,7 @@ void Application::InitializeProtocol() {
     });
     
     protocol_->OnAudioChannelClosed([this, &board]() {
-        board.SetPowerSaveMode(true);
+        board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
@@ -871,7 +871,7 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
     std::string message = std::string(Lang::Strings::NEW_VERSION) + version_info;
     display->SetChatMessage("system", message.c_str());
 
-    board.SetPowerSaveMode(false);
+    board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
     audio_service_.Stop();
     vTaskDelay(pdMS_TO_TICKS(1000));
 
@@ -887,7 +887,7 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
         // Upgrade failed, restart audio service and continue running
         ESP_LOGE(TAG, "Firmware upgrade failed, restarting audio service and continuing operation...");
         audio_service_.Start(); // Restart audio service
-        board.SetPowerSaveMode(true); // Restore power save mode
+        board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER); // Restore power save mode
         Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
         vTaskDelay(pdMS_TO_TICKS(3000));
         return false;

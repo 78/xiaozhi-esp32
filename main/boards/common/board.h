@@ -26,6 +26,13 @@ enum class NetworkEvent {
     WifiConfigModeExit     // Exited WiFi configuration mode
 };
 
+// Power save level enumeration
+enum class PowerSaveLevel {
+    LOW_POWER,    // Maximum power saving (lowest power consumption)
+    BALANCED,     // Medium power saving (balanced)
+    PERFORMANCE,  // No power saving (maximum power consumption / full performance)
+};
+
 // Network event callback type (event, data)
 // data contains additional info like SSID for Connecting/Connected events
 using NetworkEventCallback = std::function<void(NetworkEvent event, const std::string& data)>;
@@ -66,7 +73,7 @@ public:
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetSystemInfoJson();
-    virtual void SetPowerSaveMode(bool enabled) = 0;
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
 };

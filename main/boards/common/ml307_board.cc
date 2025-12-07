@@ -106,8 +106,9 @@ std::string Ml307Board::GetBoardJson() {
     return board_json;
 }
 
-void Ml307Board::SetPowerSaveMode(bool enabled) {
-    // TODO: Implement power save mode for ML307
+void Ml307Board::SetPowerSaveLevel(PowerSaveLevel level) {
+    // TODO: Implement power save level for ML307
+    (void)level;
 }
 
 std::string Ml307Board::GetDeviceStatusJson() {

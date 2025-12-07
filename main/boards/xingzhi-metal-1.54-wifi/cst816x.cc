@@ -126,7 +126,7 @@ void Cst816x::touchpad_daemon(void* arg) {
                 switch (current_event.type) {
                     case TouchEventType::SINGLE_CLICK:
                         if (current_event.x == 40) {
-                            board.SetPowerSaveMode(false);
+                            board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
                             auto& app = Application::GetInstance();
                             if (app.GetDeviceState() == kDeviceStateStarting) {
                                 auto& wifi_board = static_cast<WifiBoard&>(Board::GetInstance());

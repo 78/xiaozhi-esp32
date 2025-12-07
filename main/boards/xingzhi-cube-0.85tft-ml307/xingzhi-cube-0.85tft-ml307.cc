@@ -228,11 +228,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level == PowerSaveLevel::PERFORMANCE) {
             power_save_timer_->WakeUp();
         }
-        Ml307Board::SetPowerSaveMode(enabled);
+        Ml307Board::SetPowerSaveLevel(level);
     }
 };
 

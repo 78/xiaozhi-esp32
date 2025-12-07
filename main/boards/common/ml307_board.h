@@ -21,7 +21,7 @@ public:
     virtual void StartNetwork() override;
     virtual NetworkInterface* GetNetwork() override;
     virtual const char* GetNetworkStateIcon() override;
-    virtual void SetPowerSaveMode(bool enabled) override;
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override;
     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
     virtual std::string GetDeviceStatusJson() override;
 };
