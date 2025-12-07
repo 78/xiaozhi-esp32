@@ -4,10 +4,7 @@
 #include "display/display.h"
 #include "display/oled_display.h"
 #include "assets/lang_config.h"
-#include "esp32_music.h"
-#include "esp32_radio.h"
-#include "esp32_sd_music.h"
-
+#include "sd_card/sd_card.h"
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -68,19 +65,13 @@ Camera* Board::GetCamera() {
     return nullptr;
 }
 
-Music* Board::GetMusic() {
-    static Esp32Music music;
-    return &music;
-}
-
-Radio* Board::GetRadio() {
-    static Esp32Radio radio;
-    return &radio;
-}
-
 Led* Board::GetLed() {
     static NoLed led;
     return &led;
+}
+
+SdCard* Board::GetSdCard() {
+    return nullptr;
 }
 
 std::string Board::GetSystemInfoJson() {

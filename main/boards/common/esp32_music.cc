@@ -175,8 +175,6 @@ Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), curren
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
                          mp3_decoder_initialized_(false) {
-    ESP_LOGI(TAG, "Music player initialized with default spectrum display mode");
-    InitializeMp3Decoder();
 }
 
 Esp32Music::~Esp32Music() {
@@ -285,6 +283,11 @@ Esp32Music::~Esp32Music() {
     CleanupMp3Decoder();
     
     ESP_LOGI(TAG, "Music player destroyed successfully");
+}
+
+void Esp32Music::Initialize() {
+    ESP_LOGI(TAG, "Initializing music player");
+    InitializeMp3Decoder();
 }
 
 bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
@@ -783,7 +786,6 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
 // Stream audio data
 void Esp32Music::PlayAudioStream() {
     ESP_LOGI(TAG, "Starting audio stream playback");
-	int64_t info_timeout_start = esp_timer_get_time() / 1000; // ms
     
     // Initialize time tracking variables
     current_play_time_ms_ = 0;

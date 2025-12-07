@@ -96,6 +96,8 @@ public:
     Esp32Radio();
     ~Esp32Radio();
 
+    void Initialize();
+
     // Play a specific station
     virtual bool PlayStation(const std::string& station_name) override;
     

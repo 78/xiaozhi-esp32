@@ -205,7 +205,7 @@ void McpServer::AddCommonTools() {
     }
 #endif
 
-    auto music = board.GetMusic();
+    auto music = Application::GetInstance().GetMusic();
      if (music) {
          AddTool("self.music.play_song",
 				 "Play a specified song ONLINE. Đây là chế độ PHÁT NHẠC MẶC ĐỊNH.\n"
@@ -275,7 +275,7 @@ void McpServer::AddCommonTools() {
                  });
      }
 
-    auto radio = board.GetRadio();
+    auto radio = Application::GetInstance().GetRadio();
 	if (radio) {
 		AddTool("self.radio.play_station",
 				"Play a radio station by name. Use this tool when user requests to play radio or listen to a specific station."
@@ -387,8 +387,8 @@ void McpServer::AddCommonTools() {
 				});
 	}
 	
-	auto sd = Application::GetInstance().GetSdMusic();
-	if (sd) {
+	auto sd_music = Application::GetInstance().GetSdMusic();
+	if (sd_music) {
 
 		// ================== 1) PLAYBACK CƠ BẢN ==================
 		// Gộp: self.sdmusic.play, pause, stop, next, prev
@@ -409,14 +409,13 @@ void McpServer::AddCommonTools() {
 			PropertyList({
 				Property("action", kPropertyTypeString),
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				std::string action = props["action"].value<std::string>();
 
 				// Giữ hành vi lỗi giống code gốc:
 				// - play: trả JSON lỗi
 				// - pause/stop/next/prev: trả false
-				if (!sd) {
+				if (!sd_music) {
 					if (action == "play") {
 						return "{\"success\": false, \"message\": \"SD music module not available\"}";
 					}
@@ -424,32 +423,32 @@ void McpServer::AddCommonTools() {
 				}
 
 				if (action == "play") {
-					if (sd->getTotalTracks() == 0) {
-						if (!sd->loadTrackList()) {
+					if (sd_music->getTotalTracks() == 0) {
+						if (!sd_music->loadTrackList()) {
 							return "{\"success\": false, \"message\": \"No MP3 files found on SD card\"}";
 						}
 					}
-					bool ok = sd->play();
+					bool ok = sd_music->play();
 					return ok ? "{\"success\": true, \"message\": \"Playback started\"}"
 							  : "{\"success\": false, \"message\": \"Failed to play\"}";
 				}
 
 				if (action == "pause") {
-					sd->pause();
+					sd_music->pause();
 					return true;
 				}
 
 				if (action == "stop") {
-					sd->stop();
+					sd_music->stop();
 					return true;
 				}
 
 				if (action == "next") {
-					return sd->next();
+					return sd_music->next();
 				}
 
 				if (action == "prev") {
-					return sd->prev();
+					return sd_music->prev();
 				}
 
 				// Hành vi mới, chỉ để an toàn
@@ -470,22 +469,21 @@ void McpServer::AddCommonTools() {
 				Property("enabled", kPropertyTypeBoolean),
 				Property("mode",    kPropertyTypeString)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
-				if (!sd) return "SD music not available";
+			[sd_music](const PropertyList& props) -> ReturnValue {
+				if (!sd_music) return "SD music not available";
 
 				std::string action = props["action"].value<std::string>();
 
 				if (action == "shuffle") {
 					bool enabled = props["enabled"].value<bool>();
-					sd->shuffle(enabled);
+					sd_music->shuffle(enabled);
 
 					if (enabled) {
-						if (sd->getTotalTracks() == 0) sd->loadTrackList();
-						if (sd->getTotalTracks() == 0) return false;
+						if (sd_music->getTotalTracks() == 0) sd_music->loadTrackList();
+						if (sd_music->getTotalTracks() == 0) return false;
 
-						int idx = rand() % sd->getTotalTracks();
-						sd->setTrack(idx);   // auto play() như code gốc
+						int idx = rand() % sd_music->getTotalTracks();
+						sd_music->setTrack(idx);   // auto play() như code gốc
 					}
 					return true;
 				}
@@ -493,9 +491,9 @@ void McpServer::AddCommonTools() {
 				if (action == "repeat") {
 					std::string mode = props["mode"].value<std::string>();
 
-					if (mode == "none")      sd->repeat(Esp32SdMusic::RepeatMode::None);
-					else if (mode == "one")  sd->repeat(Esp32SdMusic::RepeatMode::RepeatOne);
-					else if (mode == "all")  sd->repeat(Esp32SdMusic::RepeatMode::RepeatAll);
+					if (mode == "none")      sd_music->repeat(Esp32SdMusic::RepeatMode::None);
+					else if (mode == "one")  sd_music->repeat(Esp32SdMusic::RepeatMode::RepeatOne);
+					else if (mode == "all")  sd_music->repeat(Esp32SdMusic::RepeatMode::RepeatAll);
 					else return "Invalid repeat mode";
 
 					return true;
@@ -519,12 +517,11 @@ void McpServer::AddCommonTools() {
 				Property("action", kPropertyTypeString),
 				Property("index",  kPropertyTypeInteger, 0, 0, 9999)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				std::string action = props["action"].value<std::string>();
 
 				// Hành vi khi !sd giống tool gốc, nhưng trả thêm field rỗng cho info
-				if (!sd) {
+				if (!sd_music) {
 					if (action == "set") {
 						return false;
 					}
@@ -558,22 +555,22 @@ void McpServer::AddCommonTools() {
 					return "SD music module not available";
 				}
 
-				auto ensure_playlist = [sd]() {
-					if (sd->getTotalTracks() == 0) {
-						sd->loadTrackList();
+				auto ensure_playlist = [sd_music]() {
+					if (sd_music->getTotalTracks() == 0) {
+						sd_music->loadTrackList();
 					}
 				};
 
 				if (action == "set") {
 					int index = props["index"].value<int>();
 					ensure_playlist();
-					return sd->setTrack(index);
+					return sd_music->setTrack(index);
 				}
 
 				if (action == "info") {
 					ensure_playlist();
 					int index = props["index"].value<int>();
-					auto info = sd->getTrackInfo(index);
+					auto info = sd_music->getTrackInfo(index);
 
 					cJSON* json = cJSON_CreateObject();
 					cJSON_AddStringToObject(json, "name",  info.name.c_str());
@@ -599,13 +596,13 @@ void McpServer::AddCommonTools() {
 				if (action == "list") {
 					cJSON* o = cJSON_CreateObject();
 					ensure_playlist();
-					cJSON_AddNumberToObject(o, "count", (int)sd->getTotalTracks());
+					cJSON_AddNumberToObject(o, "count", (int)sd_music->getTotalTracks());
 					return o;
 				}
 
 				if (action == "current") {
 					ensure_playlist();
-					return sd->getCurrentTrack();
+					return sd_music->getCurrentTrack();
 				}
 
 				return "Unknown track action";
@@ -624,14 +621,13 @@ void McpServer::AddCommonTools() {
 				Property("action",    kPropertyTypeString),
 				Property("directory", kPropertyTypeString)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				std::string action = props["action"].value<std::string>();
 
 				// Hành vi khi !sd:
 				// - play_directory: JSON lỗi
 				// - list_directories: trả mảng rỗng
-				if (!sd) {
+				if (!sd_music) {
 					if (action == "play") {
 						return "{\"success\": false, \"message\": \"SD music module not available\"}";
 					}
@@ -645,7 +641,7 @@ void McpServer::AddCommonTools() {
 				if (action == "play") {
 					std::string dir = props["directory"].value<std::string>();
 
-					if (!sd->playDirectory(dir)) {
+					if (!sd_music->playDirectory(dir)) {
 						return "{\"success\": false, \"message\": \"Cannot play directory or directory has no MP3\"}";
 					}
 					return "{\"success\": true, \"message\": \"Playing directory\"}";
@@ -653,7 +649,7 @@ void McpServer::AddCommonTools() {
 
 				if (action == "list") {
 					cJSON* arr = cJSON_CreateArray();
-					auto list = sd->listDirectories();
+					auto list = sd_music->listDirectories();
 					for (auto& d : list) {
 						cJSON_AddItemToArray(arr, cJSON_CreateString(d.c_str()));
 					}
@@ -676,12 +672,11 @@ void McpServer::AddCommonTools() {
 				Property("action",  kPropertyTypeString),
 				Property("keyword", kPropertyTypeString)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				std::string action  = props["action"].value<std::string>();
 				std::string keyword = props["keyword"].value<std::string>();
 
-				if (!sd) {
+				if (!sd_music) {
 					if (action == "search") {
 						cJSON* arr = cJSON_CreateArray();
 						return arr;
@@ -692,9 +687,9 @@ void McpServer::AddCommonTools() {
 					return "{\"success\": false, \"message\": \"SD music module not available\"}";
 				}
 
-				auto ensure_playlist = [sd]() {
-					if (sd->getTotalTracks() == 0) {
-						sd->loadTrackList();
+				auto ensure_playlist = [sd_music]() {
+					if (sd_music->getTotalTracks() == 0) {
+						sd_music->loadTrackList();
 					}
 				};
 
@@ -702,7 +697,7 @@ void McpServer::AddCommonTools() {
 					cJSON* arr = cJSON_CreateArray();
 					ensure_playlist();
 
-					auto list = sd->searchTracks(keyword);
+					auto list = sd_music->searchTracks(keyword);
 					// (Optional) nếu muốn có index, có thể map path -> index ở đây
 					for (auto& t : list) {
 						cJSON* o = cJSON_CreateObject();
@@ -730,7 +725,7 @@ void McpServer::AddCommonTools() {
 						return "{\"success\": false, \"message\": \"Keyword cannot be empty\"}";
 
 					ensure_playlist();
-					bool ok = sd->playByName(keyword);
+					bool ok = sd_music->playByName(keyword);
 					return ok
 						? "{\"success\": true, \"message\": \"Playing song by name\"}"
 						: "{\"success\": false, \"message\": \"Song not found\"}";
@@ -757,11 +752,10 @@ void McpServer::AddCommonTools() {
 				Property("page",      kPropertyTypeInteger, 1, 1, 10000),
 				Property("page_size", kPropertyTypeInteger, 10, 1, 1000)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				std::string action = props["action"].value<std::string>();
 
-				if (!sd) {
+				if (!sd_music) {
 					if (action == "count_dir") {
 						cJSON* o = cJSON_CreateObject();
 						cJSON_AddNumberToObject(o, "count", 0);
@@ -780,16 +774,16 @@ void McpServer::AddCommonTools() {
 					return "{\"success\": false, \"message\": \"SD music module not available\"}";
 				}
 
-				auto ensure_playlist = [sd]() {
-					if (sd->getTotalTracks() == 0) {
-						sd->loadTrackList();
+				auto ensure_playlist = [sd_music]() {
+					if (sd_music->getTotalTracks() == 0) {
+						sd_music->loadTrackList();
 					}
 				};
 
 				if (action == "count_dir") {
 					cJSON* o = cJSON_CreateObject();
 					std::string dir = props["directory"].value<std::string>();
-					size_t count = sd->countTracksInDirectory(dir);
+					size_t count = sd_music->countTracksInDirectory(dir);
 					cJSON_AddStringToObject(o, "directory", dir.c_str());
 					cJSON_AddNumberToObject(o, "count", (int)count);
 					return o;
@@ -798,7 +792,7 @@ void McpServer::AddCommonTools() {
 				if (action == "count_current") {
 					cJSON* o = cJSON_CreateObject();
 					ensure_playlist();
-					cJSON_AddNumberToObject(o, "count", (int)sd->countTracksInCurrentDirectory());
+					cJSON_AddNumberToObject(o, "count", (int)sd_music->countTracksInCurrentDirectory());
 					return o;
 				}
 
@@ -812,7 +806,7 @@ void McpServer::AddCommonTools() {
 					if (page_size <= 0) page_size = 10;
 
 					size_t page_index = (size_t)(page - 1);
-					auto list = sd->listTracksPage(page_index, (size_t)page_size);
+					auto list = sd_music->listTracksPage(page_index, (size_t)page_size);
 					size_t start_index = page_index * (size_t)page_size;
 
 					for (size_t i = 0; i < list.size(); ++i) {
@@ -855,20 +849,19 @@ void McpServer::AddCommonTools() {
 				Property("keyword",     kPropertyTypeString),
 				Property("max_results", kPropertyTypeInteger, 5, 1, 50)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				cJSON* arr = cJSON_CreateArray();
 				std::string action  = props["action"].value<std::string>();
 
-				if (!sd) return arr;
+				if (!sd_music) return arr;
 
 				std::string keyword = props["keyword"].value<std::string>();
 				int max_results     = props["max_results"].value<int>();
 				if (max_results <= 0) max_results = 5;
 
-				auto ensure_playlist = [sd]() {
-					if (sd->getTotalTracks() == 0) {
-						sd->loadTrackList();
+				auto ensure_playlist = [sd_music]() {
+					if (sd_music->getTotalTracks() == 0) {
+						sd_music->loadTrackList();
 					}
 				};
 				ensure_playlist();
@@ -893,7 +886,7 @@ void McpServer::AddCommonTools() {
 				};
 
 				if (action == "next") {
-					auto list = sd->suggestNextTracks((size_t)max_results);
+					auto list = sd_music->suggestNextTracks((size_t)max_results);
 					for (auto& t : list) {
 						add_track_to_array(t);
 					}
@@ -901,7 +894,7 @@ void McpServer::AddCommonTools() {
 				}
 
 				if (action == "similar") {
-					auto list = sd->suggestSimilarTo(keyword, (size_t)max_results);
+					auto list = sd_music->suggestSimilarTo(keyword, (size_t)max_results);
 					for (auto& t : list) {
 						add_track_to_array(t);
 					}
@@ -919,10 +912,9 @@ void McpServer::AddCommonTools() {
 			"self.sdmusic.progress",
 			"Get current playback progress and duration.",
 			PropertyList(),
-			[](const PropertyList&) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList&) -> ReturnValue {
 				cJSON* o = cJSON_CreateObject();
-				if (!sd) {
+				if (!sd_music) {
 					cJSON_AddNumberToObject(o, "position_ms", 0);
 					cJSON_AddNumberToObject(o, "duration_ms", 0);
 					cJSON_AddStringToObject(o, "state", "stopped");
@@ -934,9 +926,9 @@ void McpServer::AddCommonTools() {
 					return o;
 				}
 
-				auto prog  = sd->updateProgress();
-				auto state = sd->getState();
-				int  br    = sd->getBitrate();
+				auto prog  = sd_music->updateProgress();
+				auto state = sd_music->getState();
+				int  br    = sd_music->getBitrate();
 
 				const char* s = "unknown";
 				switch (state) {
@@ -951,10 +943,10 @@ void McpServer::AddCommonTools() {
 				cJSON_AddNumberToObject(o, "duration_ms", (int)prog.duration_ms);
 				cJSON_AddStringToObject(o, "state", s);
 				cJSON_AddNumberToObject(o, "bitrate_kbps", br);
-				cJSON_AddStringToObject(o, "position_str", sd->getCurrentTimeString().c_str());
-				cJSON_AddStringToObject(o, "duration_str", sd->getDurationString().c_str());
-				cJSON_AddStringToObject(o, "track_name", sd->getCurrentTrack().c_str());
-				cJSON_AddStringToObject(o, "track_path", sd->getCurrentTrackPath().c_str());
+				cJSON_AddStringToObject(o, "position_str", sd_music->getCurrentTimeString().c_str());
+				cJSON_AddStringToObject(o, "duration_str", sd_music->getDurationString().c_str());
+				cJSON_AddStringToObject(o, "track_name", sd_music->getCurrentTrack().c_str());
+				cJSON_AddStringToObject(o, "track_path", sd_music->getCurrentTrackPath().c_str());
 				return o;
 			}
 		);
@@ -973,7 +965,7 @@ void McpServer::AddCommonTools() {
 				Property("genre",  kPropertyTypeString),
 				Property("index",  kPropertyTypeInteger, 0, 0, 9999)
 			}),
-			[](const PropertyList& props) -> ReturnValue {
+			[sd_music](const PropertyList& props) -> ReturnValue {
 				auto sd = Application::GetInstance().GetSdMusic();
 				if (!sd) {
 					return "{\"success\": false, \"message\": \"SD music module not available\"}";
@@ -982,9 +974,9 @@ void McpServer::AddCommonTools() {
 				std::string action = props["action"].value<std::string>();
 				std::string genre  = props["genre"].value<std::string>();
 
-				auto ensure_playlist = [sd]() {
-					if (sd->getTotalTracks() == 0)
-						sd->loadTrackList();
+				auto ensure_playlist = [sd_music]() {
+					if (sd_music->getTotalTracks() == 0)
+						sd_music->loadTrackList();
 				};
 				ensure_playlist();
 
@@ -1002,7 +994,7 @@ void McpServer::AddCommonTools() {
 					cJSON* arr = cJSON_CreateArray();
 					if (genre.empty()) return arr;
 
-					auto all = sd->listTracks();
+					auto all = sd_music->listTracks();
 					std::string low = ascii_lower(genre);
 
 					for (auto& t : all) {
@@ -1027,10 +1019,10 @@ void McpServer::AddCommonTools() {
 					if (genre.empty())
 						return "{\"success\": false, \"message\": \"Genre cannot be empty\"}";
 
-					if (!sd->buildGenrePlaylist(genre))
+					if (!sd_music->buildGenrePlaylist(genre))
 						return "{\"success\": false, \"message\": \"No tracks found for this genre\"}";
 
-					bool ok = sd->playGenreIndex(0);
+					bool ok = sd_music->playGenreIndex(0);
 					return ok
 						? "{\"success\": true, \"message\": \"Playing first track of genre\"}"
 						: "{\"success\": false, \"message\": \"Failed to play genre\"}";
@@ -1039,7 +1031,7 @@ void McpServer::AddCommonTools() {
 				// ---------------------- PLAY BY INDEX ---------------------
 				if (action == "play_index") {
 					int index = props["index"].value<int>();
-					bool ok = sd->playGenreIndex(index);
+					bool ok = sd_music->playGenreIndex(index);
 					return ok
 						? "{\"success\": true, \"message\": \"Playing track in genre list\"}"
 						: "{\"success\": false, \"message\": \"Index invalid or genre list empty\"}";
@@ -1047,7 +1039,7 @@ void McpServer::AddCommonTools() {
 
 				// ---------------------- NEXT GENRE TRACK ------------------
 				if (action == "next") {
-					bool ok = sd->playNextGenre();
+					bool ok = sd_music->playNextGenre();
 					return ok
 						? "{\"success\": true, \"message\": \"Playing next track in genre\"}"
 						: "{\"success\": false, \"message\": \"No next track or no active genre mode\"}";
@@ -1063,19 +1055,18 @@ void McpServer::AddCommonTools() {
 			"self.sdmusic.genre_list",
 			"List all unique genres available in the current SD music library.",
 			PropertyList(),
-			[](const PropertyList&) -> ReturnValue {
-				auto sd = Application::GetInstance().GetSdMusic();
+			[sd_music](const PropertyList&) -> ReturnValue {
 				cJSON* arr = cJSON_CreateArray();
-				if (!sd) {
+				if (!sd_music) {
 					return arr; // mảng rỗng nếu module không có
 				}
 
 				// Đảm bảo playlist đã load để listGenres() có dữ liệu
-				if (sd->getTotalTracks() == 0) {
-					sd->loadTrackList();
+				if (sd_music->getTotalTracks() == 0) {
+					sd_music->loadTrackList();
 				}
 
-				auto genres = sd->listGenres();
+				auto genres = sd_music->listGenres();
 				for (auto& g : genres) {
 					cJSON_AddItemToArray(arr, cJSON_CreateString(g.c_str()));
 				}

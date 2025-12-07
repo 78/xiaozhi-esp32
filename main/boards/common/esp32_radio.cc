@@ -28,9 +28,6 @@ Esp32Radio::Esp32Radio() : current_station_name_(), current_station_url_(),
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), aac_decoder_(nullptr), aac_info_(),
                          aac_decoder_initialized_(false), aac_info_ready_(false), aac_out_buffer_() {
-    ESP_LOGI(TAG, "VOV Radio player initialized with AAC decoder support");
-    InitializeRadioStations();
-    // AAC decoder will be initialized on-demand
 }
 
 Esp32Radio::~Esp32Radio() {
@@ -65,6 +62,12 @@ Esp32Radio::~Esp32Radio() {
     CleanupAacDecoder();
     
     ESP_LOGI(TAG, "Radio player destroyed successfully");
+}
+
+void Esp32Radio::Initialize() {
+    ESP_LOGI(TAG, "VOV Radio player initialized with AAC decoder support");
+    // AAC decoder will be initialized on-demand
+    InitializeRadioStations();
 }
 
 void Esp32Radio::InitializeRadioStations() {

@@ -1373,13 +1373,14 @@ void LcdDisplay::StartFFT() {
 
     // Create a periodic update task
     fft_task_should_stop = false;  // Reset the stop flag
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         periodicUpdateTaskWrapper,
         "display_fft",      // Task name
-        4 * 1024 ,             // Stack size
+        1024 * 3,           // Stack size
         this,               // Parameter
         1,                  // Priority
-        &fft_task_handle    // Save to member variable
+        &fft_task_handle,   // Save to member variable
+        0                   // Run on core 0
     );
 }
 

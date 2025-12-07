@@ -393,6 +393,16 @@ void Application::Start() {
     /* Wait for the network to be ready */
     board.StartNetwork();
 
+    music_ = new Esp32Music();
+    if (music_ != nullptr) {
+        music_->Initialize();
+    }
+
+    radio_ = new Esp32Radio();
+    if (radio_ != nullptr) {
+        radio_->Initialize();
+    }
+
     auto sd_card = board.GetSdCard();
     if (sd_card != nullptr) {
         if (sd_card->Initialize() == ESP_OK) {
@@ -718,17 +728,15 @@ void Application::SetDeviceState(DeviceState state) {
     led->OnStateChanged();
     // Stop music playback when transitioning from idle state to any other state
     if (previous_state == kDeviceStateIdle && state != kDeviceStateIdle) {
-        auto music = board.GetMusic();
-        if (music) {
+        if (music_) {
             ESP_LOGI(TAG, "Stopping music streaming due to state change: %s -> %s", 
                     STATE_STRINGS[previous_state], STATE_STRINGS[state]);
-            music->StopStreaming();
+            music_->StopStreaming();
         }
-        auto radio = board.GetRadio();
-        if (radio) {
+        if (radio_) {
             ESP_LOGI(TAG, "Stopping radio streaming due to state change: %s -> %s", 
                     STATE_STRINGS[previous_state], STATE_STRINGS[state]);
-            radio->Stop();
+            radio_->Stop();
         }
 		if (sd_music_) {
 			ESP_LOGI(TAG, "Stopping SD music due to state change: %s -> %s",

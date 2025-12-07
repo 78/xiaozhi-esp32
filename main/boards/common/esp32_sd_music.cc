@@ -1031,7 +1031,7 @@ bool Esp32SdMusic::play()
     }
 
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.stack_size = 8192;
+    cfg.stack_size = 1024 * 3;
     cfg.prio = 5;
     cfg.thread_name = "sd_music_play";
     esp_pthread_set_cfg(&cfg);
