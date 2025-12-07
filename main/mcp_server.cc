@@ -112,10 +112,10 @@ void McpServer::AddCommonTools() {
                         ESP_LOGW(TAG, "Display does not support QR code");
                         cJSON_AddBoolToObject(json, "qrcode_displayed", false);
                     }
-                } else {
-                    cJSON_AddStringToObject(json, "status", "disconnected");
-                    cJSON_AddStringToObject(json, "message", "Device is not connected to WiFi");
                 }
+            } else {
+                cJSON_AddStringToObject(json, "status", "disconnected");
+                cJSON_AddStringToObject(json, "message", "Device is not connected to WiFi");
             }
             
             return json;

@@ -6,6 +6,8 @@
 #include "assets/lang_config.h"
 #include "esp32_music.h"
 #include "esp32_radio.h"
+#include "esp32_sd_music.h"
+
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -24,8 +26,8 @@ Board::Board() {
     ESP_LOGI(TAG, "UUID=%s SKU=%s", uuid_.c_str(), BOARD_NAME);
 }
 
-Board::~Board() {
-}				 
+Board::~Board() {}		
+
 std::string Board::GenerateUuid() {
     // UUID v4 requires 16 bytes of random data
     uint8_t uuid[16];

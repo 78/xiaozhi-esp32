@@ -27,7 +27,7 @@
 // std::string base_url = "http://www.xiaozhishop.xyz:5005";
 // Example: http://www.xiaozhishop.xyz:5005/stream_pcm?song=Con%20mua%20bang%20gia&artist=Bang%20Kieu
 // For local server testing, you should change to your own server address
-#define DEFAULT_MUSIC_URL "http://171.244.143.175:5006"
+#define DEFAULT_MUSIC_URL "http://14.225.204.77:5005"
 
 // ========== Simple ESP32 Authentication Function ==========
 
@@ -290,11 +290,11 @@ Esp32Music::~Esp32Music() {
 bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
     ESP_LOGI(TAG, "Starting to get music details for: %s", song_name.c_str());
     
-    // Clear previous download data
-    last_downloaded_data_.clear();
-    
-    // Save the song name for later display
-    current_song_name_ = song_name;
+    // Clear previous download state
+	last_downloaded_data_.clear();
+	title_name_.clear();
+	artist_name_.clear();
+	current_song_name_ = song_name;
     
     // Step 1: Request the stream_pcm API to retrieve audio information
     std::string base_url = GetCheckMusicServerUrl();
@@ -353,6 +353,28 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
             if (cJSON_IsString(artist)) {
                 ESP_LOGI(TAG, "Artist: %s", artist->valuestring);
             }
+			if (cJSON_IsString(artist)) {
+				artist_name_ = artist->valuestring;    
+			}
+			if (cJSON_IsString(title)) {
+				title_name_ = title->valuestring;      
+			}
+			
+			// Hiển thị thông tin bài hát sớm, trước khi phát (nếu có LCD)
+			if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+				auto display = Board::GetInstance().GetDisplay();
+				if (display) {
+					char buf[256];
+					snprintf(buf, sizeof(buf),
+							 "ONLINE 《%s》\n%s • Đang phát...",
+							 title_name_.empty() ? song_name.c_str() : title_name_.c_str(),
+							 artist_name_.empty() ? "Unknown Artist" : artist_name_.c_str());
+
+					display->SetMusicInfo(buf);
+					ESP_LOGI(TAG, "[PATCH] Early SetMusicInfo: %s", buf);
+				}
+			}
+		
             if (cJSON_IsString(title)) {
                 ESP_LOGI(TAG, "Title: %s", title->valuestring);
             }
@@ -376,8 +398,11 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
                 }
                 
                 ESP_LOGI(TAG, "Starting streaming playback for: %s", song_name.c_str());
-                song_name_displayed_ = false;  // Reset the song name display flag
+                song_name_displayed_ = false; 
+				full_info_displayed_ = false;
+				
                 StartStreaming(current_music_url_);
+
                 
                 // Handle lyric URL - only start lyrics in lyric display mode
                 if (cJSON_IsString(lyric_url) && lyric_url->valuestring && strlen(lyric_url->valuestring) > 0) {
@@ -454,6 +479,20 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     // Stop previous playback and download
     is_downloading_ = false;
     is_playing_ = false;
+	
+	// ================== DỌN FFT CŨ + RESET FLAG ==================
+    {
+        auto display = Board::GetInstance().GetDisplay();
+        if (display) {
+            display->StopFFT();              // Dừng FFT của bài trước
+            display->ReleaseAudioBuffFFT();  // Giải phóng buffer FFT
+            ESP_LOGI(TAG, "[PATCH] Cleared FFT canvas before starting new song");
+        }
+    }
+    fft_started_         = false;
+    full_info_displayed_ = false;
+    song_name_displayed_ = false;
+    // ============================================================
     
     // Wait for the previous threads to fully terminate
     if (download_thread_.joinable()) {
@@ -576,14 +615,25 @@ bool Esp32Music::StopStreaming() {
     }
     
     // After threads have fully stopped, stop FFT display only in spectrum mode
-    if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        display->StopFFT();
-        ESP_LOGI(TAG, "Stopped FFT display in StopStreaming (spectrum mode)");
-    } else if (display) {
-        ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop in StopStreaming");
-    }
-    
+	if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
+		display->StopFFT();
+		display->ReleaseAudioBuffFFT();   
+		final_pcm_data_fft = nullptr;     
+
+		ESP_LOGI(TAG, "Stopped FFT display and cleared FFT buffer in StopStreaming (spectrum mode)");
+	} else if (display) {
+		ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop in StopStreaming");
+	}
+		
+	// Reset FFT flag for next use
+	fft_started_ = false;
+	
     ESP_LOGI(TAG, "Music streaming stop signal sent");
+	
+	title_name_.clear();
+	artist_name_.clear();
+	current_song_name_.clear();
+
     return true;
 }
 
@@ -733,6 +783,7 @@ void Esp32Music::DownloadAudioStream(const std::string& music_url) {
 // Stream audio data
 void Esp32Music::PlayAudioStream() {
     ESP_LOGI(TAG, "Starting audio stream playback");
+	int64_t info_timeout_start = esp_timer_get_time() / 1000; // ms
     
     // Initialize time tracking variables
     current_play_time_ms_ = 0;
@@ -817,26 +868,33 @@ void Esp32Music::PlayAudioStream() {
             continue;
         }
         
-        // Device state check passed, display the current song name
-        if (!song_name_displayed_ && !current_song_name_.empty()) {
-            if (display) {
-                // Format song name as "《Song Name》Playing..."
-                std::string formatted_song_name = "《" + current_song_name_ + "》Playing...";
-                display->SetMusicInfo(formatted_song_name.c_str());
-                ESP_LOGI(TAG, "Displaying song name: %s", formatted_song_name.c_str());
-                song_name_displayed_ = true;
-            }
+        // Start FFT only once per streaming session
+		if (!fft_started_) {
+			if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
+				vTaskDelay(pdMS_TO_TICKS(150));
+				display->StartFFT();
+				ESP_LOGI(TAG, "StartFFT() triggered ONE TIME");
 
-            // Start the appropriate display function based on the display mode
-            if (display) {
-                if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-                    display->StartFFT();
-                    ESP_LOGI(TAG, "Display StartFFT() called for spectrum visualization");
-                } else {
-                    ESP_LOGI(TAG, "Lyrics display mode active, FFT visualization disabled");
-                }
-            }
-        }
+				// Refresh song info AFTER canvas created
+				if (!current_song_name_.empty()) {
+					char buf[256];
+					snprintf(buf, sizeof(buf),
+							 "ONLINE 《%s》\n%s • Đang phát...",
+							 title_name_.empty() ? current_song_name_.c_str() : title_name_.c_str(),
+							 artist_name_.empty() ? "Unknown Artist" : artist_name_.c_str());
+
+					display->SetMusicInfo(buf);
+					ESP_LOGI(TAG, "REFRESH SONG INFO AFTER CANVAS: %s", buf);
+				}
+			}
+			fft_started_ = true;
+		}
+
+
+		// Show song title only once
+		if (!song_name_displayed_ && !current_song_name_.empty()) {
+			song_name_displayed_ = true;
+		}
         
         // If more MP3 data is needed, read from the buffer
         if (bytes_left < 4096) {  // Maintain at least 4KB of data for decoding
@@ -884,17 +942,32 @@ void Esp32Music::PlayAudioStream() {
                 bytes_left += copy_size;
                 read_ptr = mp3_input_buffer;
                 
-                // Check and skip ID3 tags (process only once at the beginning)
-                if (!id3_processed && bytes_left >= 10) {
-                    size_t id3_skip = SkipId3Tag(read_ptr, bytes_left);
-                    if (id3_skip > 0) {
-                        read_ptr += id3_skip;
-                        bytes_left -= id3_skip;
-                        ESP_LOGI(TAG, "Skipped ID3 tag: %u bytes", (unsigned int)id3_skip);
-                    }
-                    id3_processed = true;
-                }
-                
+                // Check and skip ID3 tags (allow multi-chunk ID3 skipping)
+				if (!id3_processed && bytes_left >= 10)
+				{
+					size_t id3_skip = SkipId3Tag(read_ptr, bytes_left);
+					if (id3_skip > 0) {
+
+						// skip ID3 part in current buffer
+						read_ptr += id3_skip;
+						bytes_left -= id3_skip;
+
+						ESP_LOGI(TAG, "Skipped ID3 tag: %u bytes", (unsigned int)id3_skip);
+
+						// If ID3 header is larger than buffer, wait for next chunk
+						if (bytes_left < 256) {
+							ESP_LOGW(TAG, "Remaining buffer too small after ID3 skip, waiting for next chunk");
+							bytes_left = 0;
+							continue;   // pump next incoming data
+						}
+					}
+
+					// Mark as processed ONLY when buffer seems OK (≥ sync possible)
+					if (bytes_left >= 256) {
+						id3_processed = true;
+					}
+				}
+								
                 // Free chunk memory
                 heap_caps_free(chunk.data);
             }
@@ -904,10 +977,16 @@ void Esp32Music::PlayAudioStream() {
         int sync_offset = MP3FindSyncWord(read_ptr, bytes_left);
         if (sync_offset < 0) {
             ESP_LOGW(TAG, "No MP3 sync word found, skipping %d bytes", bytes_left);
-            bytes_left = 0;
+            vTaskDelay(pdMS_TO_TICKS(2));
+			bytes_left = 0;
             continue;
         }
         
+		if (bytes_left < 128) {            
+			vTaskDelay(pdMS_TO_TICKS(2));
+			continue;
+		}
+
         // Skip to sync position
         if (sync_offset > 0) {
             read_ptr += sync_offset;
@@ -920,6 +999,37 @@ void Esp32Music::PlayAudioStream() {
         if (decode_result == 0) {
             // Decode successful, get frame info
             MP3GetLastFrameInfo(mp3_decoder_, &mp3_frame_info_);
+			
+			// ---- SONG INFO DISPLAY ----
+			if (!full_info_displayed_) {
+
+			auto display = Board::GetInstance().GetDisplay();
+			if (display) {
+
+				char buf[256];
+
+				int br = (mp3_frame_info_.bitrate > 0)
+							? mp3_frame_info_.bitrate / 1000
+							: 0;
+
+				int hz = (mp3_frame_info_.samprate > 0)
+							? mp3_frame_info_.samprate
+							: 44100;
+
+				const char* ch = (mp3_frame_info_.nChans == 2) ? "Stereo" : "Mono";
+
+				snprintf(buf, sizeof(buf),
+						 "ONLINE 《%s》\n%s • %d kbps | %d Hz | %s",
+						 title_name_.empty() ? current_song_name_.c_str() : title_name_.c_str(),
+						 artist_name_.empty() ? "Unknown Artist" : artist_name_.c_str(),
+						 br, hz, ch);
+
+				display->SetMusicInfo(buf);
+			}
+
+			full_info_displayed_ = true;
+		}
+
             total_frames_decoded_++;
             
             // Basic frame info validity check to prevent division by zero
@@ -1023,6 +1133,8 @@ void Esp32Music::PlayAudioStream() {
             } else {
                 bytes_left = 0;
             }
+			vTaskDelay(pdMS_TO_TICKS(2));  
+			continue;
         }
     }
     
@@ -1039,28 +1151,43 @@ void Esp32Music::PlayAudioStream() {
     }
 
     // Cleanup
-    if (mp3_input_buffer) {
+        if (mp3_input_buffer) {
         heap_caps_free(mp3_input_buffer);
     }
     
-    // Perform basic cleanup at the end of playback, but do not call StopStreaming to avoid thread self-waiting
     ESP_LOGI(TAG, "Audio stream playback finished, total played: %d bytes", total_played_bytes);
     ESP_LOGI(TAG, "Performing basic cleanup from play thread");
     
     // Stop playback flag
     is_playing_ = false;
-    
-    // Stop FFT display only in spectrum mode
-    if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-        if (display) {
+
+    // Chỉ xử lý FFT khi đang ở chế độ SPECTRUM
+    if (display) {
+        if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+            // 1) Xoá text info (cả trên canvas + chat label, nhờ SetMusicInfo mới chỉnh ở trên)
+            display->SetMusicInfo("");
+
+            // 2) Dừng FFT + xoá UI nhạc + free buffer
             display->StopFFT();
             display->ReleaseAudioBuffFFT();
-            ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
+
+            ESP_LOGI(TAG, "Stopped FFT display and cleared music UI from play thread (spectrum mode)");
+        } else {
+            ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop");
         }
-    } else {
-        ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop");
     }
-}
+	final_pcm_data_fft = nullptr;
+	ClearAudioBuffer();
+	buffer_size_ = 0;
+	CleanupMp3Decoder();
+	mp3_decoder_initialized_ = false;
+
+	// Bật lại output để radio dùng
+	auto codec2 = Board::GetInstance().GetAudioCodec();
+	if (codec2) codec2->EnableOutput(true);
+
+	ESP_LOGI(TAG, "[PATCH] Full cleanup done after PlayAudioStream");
+	}
 
 // Clear audio buffer
 void Esp32Music::ClearAudioBuffer() {

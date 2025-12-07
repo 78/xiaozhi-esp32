@@ -15,6 +15,8 @@
 #include "music.h"
 #include "radio.h"
 
+
+class Esp32SdMusic;
 void* create_board();
 class AudioCodec;
 class Display;
@@ -30,7 +32,6 @@ protected:
 
     // Software-generated unique device identifier
     std::string uuid_;
-
 public:
     static Board& GetInstance() {
         static Board* instance = static_cast<Board*>(create_board());

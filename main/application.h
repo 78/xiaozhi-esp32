@@ -16,6 +16,7 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
+class Esp32SdMusic;
 
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
@@ -65,6 +66,7 @@ public:
     void AddAudioData(AudioStreamPacket&& packet);
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+	Esp32SdMusic* GetSdMusic() { return sd_music_; }
 
 private:
     Application();
@@ -80,6 +82,7 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+    Esp32SdMusic* sd_music_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;

@@ -68,23 +68,32 @@ Esp32Radio::~Esp32Radio() {
 }
 
 void Esp32Radio::InitializeRadioStations() {
-    // Vietnamese VOV radio stations - AAC+ format only
-    // These streams return Content-Type: audio/aacp and require AAC decoder
+    // Vietnamese VOV radio stations - AAC/AAC+ format only
     // Volume values: 1.0 = 100%, 2.0 = 200%, etc.
-    radio_stations_["VOV1"] = RadioStation("VOV 1 - Đài Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-1", "Kênh thông tin tổng hợp", "News/Talk", 4.5f);
-    radio_stations_["VOV2"] = RadioStation("VOV 2 - Âm thanh Việt Nam", "https://stream.vovmedia.vn/vov-2", "Kênh văn hóa - văn nghệ", "Culture/Music", 4.0f);  
-    radio_stations_["VOV3"] = RadioStation("VOV 3 - Tiếng nói Việt Nam", "https://stream.vovmedia.vn/vov-3", "Kênh thông tin - giải trí", "Entertainment", 4.2f);
-    radio_stations_["VOV5"] = RadioStation("VOV 5 - Tiếng nói người Việt", "https://stream.vovmedia.vn/vov5", "Kênh dành cho người Việt ở nước ngoài", "Overseas Vietnamese", 4.3f);
-    radio_stations_["VOVGT"] = RadioStation("VOV Giao thông Hà Nội", "https://stream.vovmedia.vn/vovgt-hn", "Thông tin giao thông Hà Nội", "Traffic", 5.0f);
-    radio_stations_["VOVGT_HCM"] = RadioStation("VOV Giao thông Hồ Chí Minh", "https://stream.vovmedia.vn/vovgt-hcm", "Thông tin giao thông TP. Hồ Chí Minh", "Traffic", 5.2f);
-    radio_stations_["VOV_ENGLISH"] = RadioStation("VOV English Tiếng Anh", "https://stream.vovmedia.vn/vov247", "VOV English Service", "International", 1.0f);
-    radio_stations_["VOV_MEKONG"] = RadioStation("VOV Mê Kông mekong", "https://stream.vovmedia.vn/vovmekong", "Kênh vùng Đồng bằng sông Cửu Long", "Regional", 4.6f);
-    radio_stations_["VOV_MIENTRUNG"] = RadioStation("VOV Miền Trung", "https://stream.vovmedia.vn/vov4mt", "Kênh vùng miền Trung", "Regional", 4.4f);
-    radio_stations_["VOV_TAYBAC"] = RadioStation("VOV Tây Bắc", "https://stream.vovmedia.vn/vov4tb", "Kênh vùng Tây Bắc", "Regional", 4.7f);
-    radio_stations_["VOV_DONGBAC"] = RadioStation("VOV Đông Bắc", "https://stream.vovmedia.vn/vov4db", "Kênh vùng Đông Bắc", "Regional", 4.1f);
-    radio_stations_["VOV_TAYNGUYEN"] = RadioStation("VOV Tây Nguyên", "https://stream.vovmedia.vn/vov4tn", "Kênh vùng Tây Nguyên", "Regional", 4.8f);
+
+    // === VOV - KÊNH QUỐC GIA ===
+    radio_stations_["VOV1"]         = RadioStation("VOV 1 - Thời sự",                   "https://stream.vovmedia.vn/vov-1",       "Tin tức & thời sự quốc gia",               "News/Talk",            4.5f);
+    radio_stations_["VOV2"]         = RadioStation("VOV 2 - Văn hóa & Giáo dục",        "https://stream.vovmedia.vn/vov-2",       "Văn hóa - giáo dục - xã hội",              "Culture/Education",    4.0f);
+    radio_stations_["VOV3"]         = RadioStation("VOV 3 - Âm nhạc & Giải trí",        "https://stream.vovmedia.vn/vov-3",       "Nhạc & giải trí tổng hợp",                 "Music/Entertainment",  4.4f);
+    radio_stations_["VOV5"]         = RadioStation("VOV 5 - Đối ngoại",                 "https://stream.vovmedia.vn/vov5",        "Kênh tiếng Việt & quốc tế",                "International",        4.1f);
     
-    ESP_LOGI(TAG, "Initialized %d VOV radio stations (AAC format only)", radio_stations_.size());
+    // === VOV GIAO THÔNG ===
+    radio_stations_["VOV_GT_HN"]    = RadioStation("VOV Giao thông Hà Nội",             "https://stream.vovmedia.vn/vovgt-hn",    "Giao thông & đời sống Hà Nội",             "Traffic",              4.7f);
+    radio_stations_["VOV_GT_HCM"]   = RadioStation("VOV Giao thông TP.HCM",             "https://stream.vovmedia.vn/vovgt-hcm",   "Giao thông & đời sống TP.HCM",             "Traffic",              4.7f);
+
+    // === VOV VÙNG MIỀN (VOV4) ===
+    radio_stations_["VOV_MEKONG"]       = RadioStation("VOV Mekong FM",                 "https://stream.vovmedia.vn/vovmekong",   "Miền Tây - Đồng bằng sông Cửu Long",       "Regional",             4.6f);
+    radio_stations_["VOV4_MIENTRUNG"]   = RadioStation("VOV4 Miền Trung",               "https://stream.vovmedia.vn/vov4mt",      "Dân tộc - Miền Trung",                      "Regional",             4.3f);
+    radio_stations_["VOV4_TAYBAC"]      = RadioStation("VOV4 Tây Bắc",                  "https://stream.vovmedia.vn/vov4tb",      "Dân tộc - Tây Bắc",                         "Regional",             4.4f);
+    radio_stations_["VOV4_DONGBAC"]     = RadioStation("VOV4 Đông Bắc",                 "https://stream.vovmedia.vn/vov4db",      "Dân tộc - Đông Bắc",                        "Regional",             4.4f);
+    radio_stations_["VOV4_TAYNGUYEN"]   = RadioStation("VOV4 Tây Nguyên",               "https://stream.vovmedia.vn/vov4tn",      "Dân tộc - Tây Nguyên",                      "Regional",             4.5f);
+    radio_stations_["VOV4_DBSCL"]       = RadioStation("VOV4 ĐBSCL",                    "https://stream.vovmedia.vn/vov4dbscl",   "Dân tộc - Đồng bằng sông Cửu Long",         "Regional",             4.5f);
+    radio_stations_["VOV4_HCM"]         = RadioStation("VOV4 TP.HCM",                   "https://stream.vovmedia.vn/vov4hcm",     "Dân tộc - TP.HCM",                          "Regional",             4.5f);
+
+    // === VOV – TIẾNG ANH ===
+    radio_stations_["VOV5_ENGLISH"]     = RadioStation("VOV 5 – English 24/7",          "https://stream.vovmedia.vn/vov247",      "Kênh tiếng Anh quốc tế",                   "International",        4.0f);
+
+    ESP_LOGI(TAG, "Initialized %d VN radio stations (AAC format only)", radio_stations_.size());
 }
 
 bool Esp32Radio::PlayStation(const std::string& station_name) {
@@ -183,6 +192,15 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
     
     // Stop previous playback
     Stop();
+	
+	// --- CLEAN DISPLAY RAM BEFORE STARTING RADIO ---
+	auto display = Board::GetInstance().GetDisplay();
+	if (display) {
+		display->StopFFT();                 // Dừng FFT canvas cũ (nếu có)
+		display->ReleaseAudioBuffFFT();    // Giải phóng buffer FFT
+		display->SetMusicInfo(nullptr);    // Xóa thông tin nhạc cũ
+		ESP_LOGI(TAG, "[PATCH] Display memory released before starting radio");
+	}
     
     // Set current station information
     current_station_url_ = radio_url;
@@ -199,7 +217,7 @@ bool Esp32Radio::PlayUrl(const std::string& radio_url, const std::string& statio
     
     // Configure thread stack size
     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-    cfg.stack_size = 1024 * 3;  // 3KB stack size
+    cfg.stack_size = 1024 * 3 + 512;  // 3.5KB stack size
     cfg.prio = 5;           // Medium priority
     cfg.thread_name = "radio_stream";
     esp_pthread_set_cfg(&cfg);
@@ -283,125 +301,127 @@ std::vector<std::string> Esp32Radio::GetStationList() const {
 
 void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     ESP_LOGD(TAG, "Starting radio stream download from: %s", radio_url.c_str());
-    
-    // Validate URL format
+
     if (radio_url.empty() || radio_url.find("http") != 0) {
         ESP_LOGE(TAG, "Invalid URL format: %s", radio_url.c_str());
         is_downloading_ = false;
         return;
     }
-    
+
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
-    
+
     http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
     http->SetHeader("Accept", "*/*");
-    http->SetHeader("Range", "bytes=0-");  // Support range requests
+    http->SetHeader("Range", "bytes=0-");
 
-    // Add ESP32 authentication headers
-    // add_auth_headers(http.get());
-    
-    // Log for debugging HTTPS vs HTTP
     bool is_https = (radio_url.find("https://") == 0);
     ESP_LOGI(TAG, "Connecting to %s stream: %s", is_https ? "HTTPS" : "HTTP", radio_url.c_str());
-    
+
+    auto display = Board::GetInstance().GetDisplay();
+
     if (!http->Open("GET", radio_url)) {
         ESP_LOGE(TAG, "Failed to connect to radio stream URL: %s", radio_url.c_str());
         is_downloading_ = false;
-        
-        // Notify user about connection error
-        auto& board = Board::GetInstance();
-        auto display = board.GetDisplay();
-        if (display) {
-            display->SetMusicInfo("Radio connection error");
-        }
+        if (display) display->SetMusicInfo("Radio connection error");
         return;
     }
-    
+
     int status_code = http->GetStatusCode();
-    
-    // Handle redirect status codes - Http class does not support GetHeader()
     if (status_code >= 300 && status_code < 400) {
-        ESP_LOGW(TAG, "HTTP %d redirect detected but cannot follow (no GetHeader method)", status_code);
+        ESP_LOGW(TAG, "HTTP %d redirect detected but cannot follow", status_code);
         http->Close();
         is_downloading_ = false;
         return;
     }
-    
     if (status_code != 200 && status_code != 206) {
         ESP_LOGE(TAG, "HTTP GET failed with status code: %d", status_code);
         http->Close();
         is_downloading_ = false;
         return;
     }
-    
+
     ESP_LOGI(TAG, "Started downloading radio stream, status: %d", status_code);
-    
-    // Read audio data in chunks
-    const size_t chunk_size = 4096;  // 4KB per chunk
+
+    const size_t chunk_size = 4096;
     char* buffer = new char[chunk_size];
     size_t total_downloaded = 0;
     size_t total_print_bytes = 0;
-    
+    const int kMaxReconnectAttempts = 3;
+    int reconnect_attempts = 0;
+
     while (is_downloading_ && is_playing_) {
         int bytes_read = http->Read(buffer, chunk_size);
-        if (bytes_read < 0) {
-            ESP_LOGE(TAG, "Failed to read radio data: error code %d", bytes_read);
-            break;
+
+        // ---- HANDLE READ ERRORS & RECONNECT ----
+        if (bytes_read < 0 || bytes_read == 0) {
+            reconnect_attempts++;
+            ESP_LOGW(TAG, "Stream lost (bytes_read=%d), trying reconnect (%d/%d)...", bytes_read, reconnect_attempts, kMaxReconnectAttempts);
+
+            if (display) {
+                display->SetMusicInfo("🔌 Mất kết nối radio...\n⟳ Đang thử lại...");
+            }
+
+            if (reconnect_attempts > kMaxReconnectAttempts) {
+                ESP_LOGE(TAG, "Exceeded max reconnect attempts");
+                break;
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(1500));  // Wait 1.5s
+            http->Close();
+
+            if (!http->Open("GET", radio_url)) {
+                ESP_LOGE(TAG, "Reconnect failed at attempt %d", reconnect_attempts);
+                continue;
+            } else {
+                ESP_LOGI(TAG, "Reconnect success at attempt %d", reconnect_attempts);
+                continue;
+            }
         }
-        if (bytes_read == 0) {
-            ESP_LOGI(TAG, "Radio stream ended, total: %d bytes", total_downloaded);
-            // For live streams, this usually means the connection was interrupted, attempt to reconnect
-            vTaskDelay(pdMS_TO_TICKS(1000));  // Wait 1 second before continuing
-            continue;
-        }
+
+        reconnect_attempts = 0;
 
         if (bytes_read < 16) {
             ESP_LOGI(TAG, "Data chunk too small: %d bytes", bytes_read);
         }
-        
-        // VOV streams use AAC+ format - log format detection
+
         if (total_downloaded == 0 && bytes_read >= 4) {
             if (memcmp(buffer, "ID3", 3) == 0) {
-                ESP_LOGI(TAG, "Detected MP3 file with ID3 tag");
-            } else if (buffer[0] == 0xFF && (buffer[1] & 0xE0) == 0xE0) {
+                ESP_LOGI(TAG, "Detected MP3 with ID3 tag");
+            } else if ((buffer[0] & 0xFF) == 0xFF && (buffer[1] & 0xE0) == 0xE0) {
                 ESP_LOGI(TAG, "Detected MP3 file header");
             } else if (memcmp(buffer, "RIFF", 4) == 0) {
-                ESP_LOGI(TAG, "Detected WAV file");
+                ESP_LOGI(TAG, "Detected WAV");
             } else if (memcmp(buffer, "fLaC", 4) == 0) {
-                ESP_LOGI(TAG, "Detected FLAC file");
+                ESP_LOGI(TAG, "Detected FLAC");
             } else if (memcmp(buffer, "OggS", 4) == 0) {
-                ESP_LOGI(TAG, "Detected OGG file");
+                ESP_LOGI(TAG, "Detected OGG");
             } else {
-                ESP_LOGI(TAG, "Unknown audio format, first 4 bytes: %02X %02X %02X %02X", 
-                        (unsigned char)buffer[0], (unsigned char)buffer[1], 
-                        (unsigned char)buffer[2], (unsigned char)buffer[3]);
+                ESP_LOGI(TAG, "Unknown format, first 4 bytes: %02X %02X %02X %02X",
+                         (unsigned char)buffer[0], (unsigned char)buffer[1],
+                         (unsigned char)buffer[2], (unsigned char)buffer[3]);
             }
         }
-        
-        // Create audio data chunk
+
         uint8_t* chunk_data = (uint8_t*)heap_caps_malloc(bytes_read, MALLOC_CAP_SPIRAM);
         if (!chunk_data) {
             ESP_LOGE(TAG, "Failed to allocate memory for radio chunk");
             break;
         }
         memcpy(chunk_data, buffer, bytes_read);
-        
-        // Wait for buffer space
+
         {
             std::unique_lock<std::mutex> lock(buffer_mutex_);
             buffer_cv_.wait(lock, [this] { return buffer_size_ < MAX_BUFFER_SIZE || !is_downloading_; });
-            
+
             if (is_downloading_) {
                 audio_buffer_.push(RadioAudioChunk(chunk_data, bytes_read));
                 buffer_size_ += bytes_read;
                 total_downloaded += bytes_read;
                 total_print_bytes += bytes_read;
-                
-                // Notify playback thread of new data
                 buffer_cv_.notify_one();
-                
-                if (total_print_bytes >= (128 * 1024)) {  // Log progress every 128KB
+
+                if (total_print_bytes >= (128 * 1024)) {
                     total_print_bytes = 0;
                     ESP_LOGI(TAG, "Downloaded %d bytes, buffer size: %d", total_downloaded, buffer_size_);
                 }
@@ -411,8 +431,8 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
             }
         }
     }
+
     delete[] buffer;
-    
     http->Close();
 
     if (is_downloading_) {
@@ -422,13 +442,16 @@ void Esp32Radio::DownloadRadioStream(const std::string& radio_url) {
     }
 
     is_downloading_ = false;
-    
-    // Notify the playback thread that the download is complete
+
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
     }
-    
+
+    if (total_downloaded < 1024 && display) {
+        display->SetMusicInfo("❌ Không thể kết nối radio.");
+    }
+
     ESP_LOGI(TAG, "Radio stream download thread finished");
 }
 
@@ -471,7 +494,7 @@ void Esp32Radio::PlayRadioStream() {
     uint8_t* read_ptr = nullptr;
     
     // Allocate input buffer (for both MP3 and AAC)
-    input_buffer = (uint8_t*)heap_caps_malloc(8192, MALLOC_CAP_SPIRAM);
+    input_buffer = (uint8_t*)heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
     if (!input_buffer) {
         ESP_LOGE(TAG, "Failed to allocate input buffer");
         is_playing_ = false;
@@ -502,27 +525,29 @@ void Esp32Radio::PlayRadioStream() {
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
-        
-        // Display radio station name
-        if (!station_name_displayed_ && !current_station_name_.empty()) {
-            if (display) {
-                std::string formatted_station_name = "《" + current_station_name_ + "》Playing...";
-                display->SetMusicInfo(formatted_station_name.c_str());
-                ESP_LOGI(TAG, "Displaying radio station: %s", formatted_station_name.c_str());
-                station_name_displayed_ = true;
-            }
 
-            // Start appropriate display functionality based on display mode
-            if (display) {
-                if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-                    display->StartFFT();
-                    ESP_LOGI(TAG, "Display StartFFT() called for spectrum visualization");
-                } else {
-                    ESP_LOGI(TAG, "Info display mode active, FFT visualization disabled");
-                }
-            }
-        }
-        
+		// Display radio station name
+		if (!station_name_displayed_ && !current_station_name_.empty()) {
+
+			// Start appropriate display functionality based on display mode
+			if (display) {
+				if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+					display->StartFFT();
+					ESP_LOGI(TAG, "Display StartFFT() called for spectrum visualization");
+				} else {
+					ESP_LOGI(TAG, "Info display mode active, FFT visualization disabled");
+				}
+			}
+
+			if (display) {
+				std::string formatted_station_name =
+					"Radio 《" + current_station_name_ + "》Đang phát...";
+				display->SetMusicInfo(formatted_station_name.c_str());
+				ESP_LOGI(TAG, "Displaying radio station: %s", formatted_station_name.c_str());
+				station_name_displayed_ = true;
+			}
+		}
+								
         // If more audio data is needed, read from the buffer
         if (bytes_left < 4096) {
             RadioAudioChunk chunk;
@@ -608,26 +633,49 @@ void Esp32Radio::PlayRadioStream() {
             }
             
             if (out_frame.decoded_size > 0) {
-                // First decode -> get stream info
-                if (!aac_info_ready_) {
-                    esp_audio_simple_dec_get_info(aac_decoder_, &aac_info_);
-                    aac_info_ready_ = true;
-                    ESP_LOGI(TAG, "AAC stream info: %d Hz, %d bits, %d ch",
-                            aac_info_.sample_rate, aac_info_.bits_per_sample, aac_info_.channel);
-                }
-                
-                int bits_per_sample = (aac_info_.bits_per_sample > 0) ? aac_info_.bits_per_sample : 16;
-                int bytes_per_sample = bits_per_sample / 8;
-                int channels = (aac_info_.channel > 0) ? aac_info_.channel : 2;
-                
-                int total_samples = out_frame.decoded_size / bytes_per_sample;
-                int samples_per_channel = (channels > 0) ? (total_samples / channels) : total_samples;
-                
-                int16_t* pcm_in = reinterpret_cast<int16_t*>(out_frame.buffer);
-                std::vector<int16_t> mono_buffer;
-                int16_t* final_pcm_data = nullptr;
-                int final_sample_count = 0;
-                
+
+				// First decode -> get stream info
+				if (!aac_info_ready_) {
+					esp_audio_simple_dec_get_info(aac_decoder_, &aac_info_);
+					aac_info_ready_ = true;
+
+					ESP_LOGI(TAG, "AAC stream info: %d Hz, %d bits, %d ch",
+							 aac_info_.sample_rate,
+							 aac_info_.bits_per_sample,
+							 aac_info_.channel);
+
+					// ===============================
+					//   HIỂN THỊ THÔNG TIN AAC LÊN LCD
+					// ===============================
+					auto& board = Board::GetInstance();
+					auto display = board.GetDisplay();
+
+					if (display) {
+						std::ostringstream oss;
+
+						oss << "RADIO 《" << current_station_name_ << "》\n"
+							<< "AAC " << aac_info_.sample_rate << "Hz  "
+							<< aac_info_.bits_per_sample << "bit  "
+							<< aac_info_.channel << "ch";
+
+						display->SetMusicInfo(oss.str().c_str());
+
+						ESP_LOGI(TAG, "Displayed AAC info on LCD: %s", oss.str().c_str());
+					}
+				}
+
+				int bits_per_sample = (aac_info_.bits_per_sample > 0) ? aac_info_.bits_per_sample : 16;
+				int bytes_per_sample = bits_per_sample / 8;
+				int channels = (aac_info_.channel > 0) ? aac_info_.channel : 2;
+
+				int total_samples = out_frame.decoded_size / bytes_per_sample;
+				int samples_per_channel = (channels > 0) ? (total_samples / channels) : total_samples;
+
+				int16_t* pcm_in = reinterpret_cast<int16_t*>(out_frame.buffer);
+				std::vector<int16_t> mono_buffer;
+				int16_t* final_pcm_data = nullptr;
+				int final_sample_count = 0;
+							
                 if (channels == 2) {
                     // Downmix stereo -> mono
                     mono_buffer.resize(samples_per_channel);

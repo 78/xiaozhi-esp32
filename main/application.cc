@@ -12,6 +12,7 @@
 #include "ota_server.h"
 #include "wifi_station.h"
 #include "sd_card/sdmmc.h"
+#include "esp32_sd_music.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -358,14 +359,6 @@ void Application::Start() {
 
     /* Setup the display */
     auto display = board.GetDisplay();
-    auto sd_card = board.GetSdCard();
-    if (sd_card != nullptr) {
-        if (sd_card->Initialize() == ESP_OK) {
-            ESP_LOGI(TAG, "SD card mounted successfully");
-        } else {
-            ESP_LOGW(TAG, "Failed to mount SD card");
-        }
-    }
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
@@ -399,6 +392,18 @@ void Application::Start() {
 
     /* Wait for the network to be ready */
     board.StartNetwork();
+
+    auto sd_card = board.GetSdCard();
+    if (sd_card != nullptr) {
+        if (sd_card->Initialize() == ESP_OK) {
+            ESP_LOGI(TAG, "SD card mounted successfully");
+            sd_music_ = new Esp32SdMusic();
+            sd_music_->Initialize(sd_card);
+            sd_music_->loadTrackList();
+        } else {
+            ESP_LOGW(TAG, "Failed to mount SD card");
+        }
+    }
 
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);
@@ -725,8 +730,13 @@ void Application::SetDeviceState(DeviceState state) {
                     STATE_STRINGS[previous_state], STATE_STRINGS[state]);
             radio->Stop();
         }
-        display->ClearQRCode();
+		if (sd_music_) {
+			ESP_LOGI(TAG, "Stopping SD music due to state change: %s -> %s",
+					 STATE_STRINGS[previous_state], STATE_STRINGS[state]);
+			sd_music_->stop();
+		}
 
+        display->ClearQRCode();
     }																	   
     switch (state) {
         case kDeviceStateUnknown:
