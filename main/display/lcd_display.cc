@@ -2176,26 +2176,46 @@ void LcdDisplay::compute(float* real, float* imag, int n, bool forward) {
 }
 
 uint16_t LcdDisplay::get_bar_color(int x_pos) {
-    static uint16_t color_table[BAR_COL_NUM];
-    static bool initialized = false;
-    
-    if (!initialized) {
-        // Generate gradient from yellow-green -> yellow -> yellow-red
-        for (int i = 0; i < BAR_COL_NUM; i++) {
-            if (i < BAR_COL_NUM/2) {
-                // Yellow-green to yellow: increase red component
-                uint8_t r = static_cast<uint8_t>((i / 19.0f) * 31);
-                color_table[i] = (r << 11) | (0x3F << 5);
-            } else {
-                // Yellow to yellow-red: decrease green component
-                uint8_t g = static_cast<uint8_t>((1.0f - (i - 20) / 19.0f * 0.5f) * 63);
-                color_table[i] = (0x1F << 11) | (g << 5);
-            }
-        }
-        initialized = true;
+    // Tăng offset theo thời gian để màu chạy
+    static float hue_offset = 0.0f;
+    hue_offset += 0.1f;       // tốc độ chạy màu (có thể chỉnh 0.3 → 2.0)
+
+    if (hue_offset >= 360.0f)
+        hue_offset -= 360.0f;
+
+    // Hue tổng = hue theo cột + offset
+    float base_hue = (float)x_pos * (240.0f / 40.0f);   // blue → red
+    float h = fmodf(base_hue + hue_offset, 360.0f);     // hue chạy
+
+    float s = 1.0f;
+    float v = 1.0f;
+    float c = v * s;
+
+    float hh = h / 60.0f;
+    float x = c * (1.0f - fabsf(fmodf(hh, 2.0f) - 1.0f));
+
+    float r1 = 0, g1 = 0, b1 = 0;
+
+    int region = (int)hh;
+    switch (region) {
+        case 0: r1 = c; g1 = x; b1 = 0; break;
+        case 1: r1 = x; g1 = c; b1 = 0; break;
+        case 2: r1 = 0; g1 = c; b1 = x; break;
+        case 3: r1 = 0; g1 = x; b1 = c; break;
+        case 4: r1 = x; g1 = 0; b1 = c; break;
+        default:r1 = c; g1 = 0; b1 = x; break;
     }
-    
-    return color_table[x_pos];
+
+    float m = v - c;
+    float rf = r1 + m;
+    float gf = g1 + m;
+    float bf = b1 + m;
+
+    uint8_t r = (uint8_t)(rf * 31);
+    uint8_t g = (uint8_t)(gf * 63);
+    uint8_t b = (uint8_t)(bf * 31);
+
+    return (r << 11) | (g << 5) | b;
 }
 
 void LcdDisplay::DisplayQRCode(const uint8_t* qrcode, const char* text) {
