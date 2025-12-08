@@ -128,6 +128,9 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
             // Try to connect with the new credentials
             TryWifiConnect();
             break;
+        default:
+            break;
+
     }
     
     // Notify external callback if set

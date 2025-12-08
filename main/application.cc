@@ -108,10 +108,16 @@ void Application::Initialize() {
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
             case NetworkEvent::Connecting: {
-                std::string msg = Lang::Strings::CONNECT_TO;
-                msg += data;
-                msg += "...";
-                display->ShowNotification(msg.c_str(), 30000);
+                if (data.empty()) {
+                    // Cellular network - registering without carrier info yet
+                    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
+                } else {
+                    // WiFi or cellular with carrier info
+                    std::string msg = Lang::Strings::CONNECT_TO;
+                    msg += data;
+                    msg += "...";
+                    display->ShowNotification(msg.c_str(), 30000);
+                }
                 break;
             }
             case NetworkEvent::Connected: {
@@ -129,6 +135,23 @@ void Application::Initialize() {
                 break;
             case NetworkEvent::WifiConfigModeExit:
                 // WiFi config mode exit is handled by WifiBoard internally
+                break;
+            // Cellular modem specific events
+            case NetworkEvent::ModemDetecting:
+                display->SetStatus(Lang::Strings::DETECTING_MODULE);
+                break;
+            case NetworkEvent::ModemErrorNoSim:
+                Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
+                break;
+            case NetworkEvent::ModemErrorRegDenied:
+                Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_REG);
+                break;
+            case NetworkEvent::ModemErrorInitFailed:
+                display->SetStatus(Lang::Strings::DETECTING_MODULE);
+                display->SetChatMessage("system", Lang::Strings::DETECTING_MODULE);
+                break;
+            case NetworkEvent::ModemErrorTimeout:
+                display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
                 break;
         }
     });
@@ -252,6 +275,10 @@ void Application::HandleNetworkConnectedEvent() {
             vTaskDelete(NULL);
         }, "activation", 4096 * 2, this, 2, &activation_task_handle_);
     }
+
+    // Update the status bar immediately to show the network state
+    auto display = Board::GetInstance().GetDisplay();
+    display->UpdateStatusBar(true);
 }
 
 void Application::HandleNetworkDisconnectedEvent() {
@@ -261,6 +288,10 @@ void Application::HandleNetworkDisconnectedEvent() {
         ESP_LOGI(TAG, "Closing audio channel due to network disconnection");
         protocol_->CloseAudioChannel();
     }
+
+    // Update the status bar immediately to show the network state
+    auto display = Board::GetInstance().GetDisplay();
+    display->UpdateStatusBar(true);
 }
 
 void Application::HandleActivationDoneEvent() {

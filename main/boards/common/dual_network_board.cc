@@ -72,6 +72,11 @@ void DualNetworkBoard::StartNetwork() {
     current_board_->StartNetwork();
 }
 
+void DualNetworkBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
+    // Forward the callback to the current board
+    current_board_->SetNetworkEventCallback(std::move(callback));
+}
+
 NetworkInterface* DualNetworkBoard::GetNetwork() {
     return current_board_->GetNetwork();
 }
