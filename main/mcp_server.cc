@@ -386,7 +386,8 @@ void McpServer::AddCommonTools() {
 					}
 				});
 	}
-	
+
+#if defined(CONFIG_SD_CARD_MMC_INTERFACE) || defined(CONFIG_SD_CARD_SPI_INTERFACE)
 	auto sd_music = Application::GetInstance().GetSdMusic();
 	if (sd_music) {
 
@@ -1074,7 +1075,8 @@ void McpServer::AddCommonTools() {
 			}
 		);
 	}
-		
+#endif // CONFIG_EXAMPLE_SD_MUSIC
+	
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
 }
