@@ -10,6 +10,11 @@
 #include "assets.h"
 #include "settings.h"
 
+#if CONFIG_ENABLE_SCHEDULE_REMINDER
+#include "features/schedule_reminder/schedule_reminder.h"
+#include "features/schedule_reminder/schedule_manager.h"
+#endif
+
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
@@ -536,6 +541,11 @@ void Application::Start() {
     SystemInfo::PrintHeapStats();
     SetDeviceState(kDeviceStateIdle);
 
+    // Initialize schedule reminder feature
+    #if CONFIG_ENABLE_SCHEDULE_REMINDER
+    InitializeScheduleReminder();
+    #endif
+
     has_server_time_ = ota.HasServerTime();
     if (protocol_started) {
         std::string message = std::string(Lang::Strings::VERSION) + ota.GetCurrentVersion();
@@ -895,3 +905,44 @@ void Application::SetAecMode(AecMode mode) {
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
 }
+
+#if CONFIG_ENABLE_SCHEDULE_REMINDER
+void Application::InitializeScheduleReminder() {
+    auto& schedule_reminder = ScheduleReminder::GetInstance();
+    
+    // 设置提醒回调 - 使用现有 Alert 系统
+    schedule_reminder.SetReminderCallback([this](const ScheduleItem& item) {
+        this->OnScheduleTriggered(item);
+    });
+    
+    // 初始化日程管理器
+    if (!schedule_reminder.Initialize()) {
+        ESP_LOGE(TAG, "Failed to initialize schedule reminder");
+        return;
+    }
+    
+    // 注册 MCP 工具
+    #if CONFIG_ENABLE_SCHEDULE_MCP_TOOLS
+    ScheduleManager::RegisterMcpTools();
+    #endif
+    
+    ESP_LOGI(TAG, "Schedule reminder feature initialized successfully");
+}
+
+void Application::OnScheduleTriggered(const ScheduleItem& item) {
+    // 创建提醒消息
+    char message[256];
+    if (item.description.empty()) {
+        snprintf(message, sizeof(message), "提醒: %s", item.title.c_str());
+    } else {
+        snprintf(message, sizeof(message), "提醒: %s - %s", 
+                 item.title.c_str(), item.description.c_str());
+    }
+    
+    // 使用系统现有的通知机制
+    Alert("日程提醒", message, "bell", Lang::Sounds::OGG_NOTIFICATION);
+    
+    // 记录日志
+    ESP_LOGI(TAG, "Schedule triggered: %s", item.title.c_str());
+}
+#endif

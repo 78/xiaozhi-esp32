@@ -1,0 +1,30 @@
+menu "Schedule Reminder Features"
+    config ENABLE_SCHEDULE_REMINDER
+        bool "Enable Schedule Reminder"
+        default n
+        help
+            Enable schedule reminder functionality
+
+    config MAX_SCHEDULE_ITEMS
+        int "Maximum schedule items"
+        range 1 50
+        default 20
+        depends on ENABLE_SCHEDULE_REMINDER
+        help
+            Maximum number of schedule items that can be stored
+
+    config SCHEDULE_CHECK_INTERVAL
+        int "Schedule check interval (seconds)"
+        range 10 300
+        default 30
+        depends on ENABLE_SCHEDULE_REMINDER
+        help
+            Interval to check for due schedules
+
+    config ENABLE_SCHEDULE_MCP_TOOLS
+        bool "Enable Schedule MCP Tools"
+        default y
+        depends on ENABLE_SCHEDULE_REMINDER
+        help
+            Enable MCP tools for schedule management
+endmenu
