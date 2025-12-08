@@ -1,0 +1,39 @@
+# Environment (contains secrets)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Logs
+logs/
+*.log
+
+# Data
+data/
+memories/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.docker/
+
+# SSL certificates
+ssl/
+*.pem
+*.key
+*.crt
+
+# OS
+.DS_Store
+Thumbs.db

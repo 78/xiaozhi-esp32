@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  spark-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spark-ai-server
+    restart: unless-stopped
+    ports:
+      - "8765:8765"   # WebSocket server
+      - "8766:8766"   # Vision API server
+    environment:
+      # Gemini API Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash-exp}
+
+      # Server Configuration
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8765
+      - VISION_HOST=0.0.0.0
+      - VISION_PORT=8766
+
+      # Memory Configuration
+      - MEMORY_DIR=/data/memories
+
+      # Optional: Google Search API
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_SEARCH_CX=${GOOGLE_SEARCH_CX:-}
+
+      # Optional: SerpAPI (alternative search)
+      - SERPAPI_KEY=${SERPAPI_KEY:-}
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    volumes:
+      # Persistent memory storage
+      - spark_memories:/data/memories
+      # Optional: Mount logs
+      - ./logs:/app/logs
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8766/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - spark-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Redis for session management (for scaling)
+  # redis:
+  #   image: redis:alpine
+  #   container_name: spark-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - spark-network
+
+  # Optional: Nginx reverse proxy with SSL
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: spark-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "443:443"
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - spark-server
+  #   networks:
+  #     - spark-network
+
+volumes:
+  spark_memories:
+    driver: local
+  # redis_data:
+  #   driver: local
+
+networks:
+  spark-network:
+    driver: bridge
