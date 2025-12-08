@@ -514,13 +514,58 @@ class MemoryStore:
 
 
 class MemoryManager:
-    """Manages memory stores per device."""
+    """
+    Manages memory stores per device.
+    Can be used as instance or class methods.
+    """
 
     _stores: Dict[str, MemoryStore] = {}
 
+    def __init__(self, device_id: str = "default"):
+        """Initialize with a device ID."""
+        self.device_id = device_id
+        self._store = self.get_store(device_id)
+
     @classmethod
     def get_store(cls, device_id: str) -> MemoryStore:
+        """Get or create memory store for device."""
         if device_id not in cls._stores:
             cls._stores[device_id] = MemoryStore(device_id)
             logger.info(f"Memory store created: {device_id} (backend: {MEMORY_BACKEND})")
         return cls._stores[device_id]
+
+    async def get_system_context(self) -> str:
+        """
+        Get system context for cold start.
+        Loads user profile and recent memories.
+        """
+        context_parts = []
+
+        # Get user facts
+        facts = await self._store.recall("user preferences facts profile", limit=5)
+        if facts:
+            context_parts.append(f"Known facts:\n{facts}")
+
+        # Get recent conversation context
+        recent = await self._store.recall("recent conversation context", limit=3)
+        if recent:
+            context_parts.append(f"Recent context:\n{recent}")
+
+        return "\n\n".join(context_parts) if context_parts else ""
+
+    async def store(self, content: str, metadata: Optional[Dict] = None) -> bool:
+        """Store content with optional metadata."""
+        category = metadata.get("type", "general") if metadata else "general"
+        return await self._store.store(content, category=category)
+
+    async def recall(self, query: str, limit: int = 5) -> List[Dict]:
+        """Recall memories matching query."""
+        return await self._store.backend.recall(self.device_id, query, limit)
+
+    async def store_fact(self, fact: str) -> bool:
+        """Store a fact about the user."""
+        return await self._store.store_fact(fact)
+
+    async def get_context(self, query: str) -> str:
+        """Get context for a specific query."""
+        return await self._store.get_context(query)

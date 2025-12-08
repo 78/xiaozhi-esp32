@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 """
-Spark AI Server - Protocol Bridge
+Spark AI Server - Production Orchestrator
 Routes audio between Xiaozhi device and Gemini Live API
 
 Architecture:
-  Device (Opus/Xiaozhi) <-> This Server <-> Gemini Live (PCM)
+  Device (Opus/Xiaozhi) <-> FastAPI WebSocket <-> Gemini Live (PCM)
 """
 
 import asyncio
 import json
 import logging
 import os
-import uuid
 import struct
-from datetime import datetime
-from typing import Optional, Dict
+import threading
+from typing import Optional
 
-import websockets
-from websockets.server import WebSocketServerProtocol
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
 from gemini_live import SparkLiveBridge
 from memory_store import MemoryManager
 from tools import WebSearchTool
+from vision_server import start_vision_server, image_ready_event, LATEST_IMAGE_PATH
+from utils import set_device_state, send_mcp_command
 
+# Logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -53,338 +55,337 @@ Capabilities:
 Be warm, helpful, leave them smiling. Fun, free, and fair!
 """
 
-
-class DeviceSession:
-    """Manages a single device session."""
-
-    def __init__(self, session_id: str, device_id: str, client_id: str):
-        self.session_id = session_id
-        self.device_id = device_id
-        self.client_id = client_id
-        self.created_at = datetime.now()
-        self.bridge: Optional[SparkLiveBridge] = None
-        self.memory = MemoryManager.get_store(device_id)
-        self.is_listening = False
-        self.protocol_version = 3
-
-
-class SparkServer:
-    """Main WebSocket server - bridges device to Gemini Live."""
-
-    def __init__(self):
-        self.sessions: Dict[str, DeviceSession] = {}
-        self.search_tool = WebSearchTool()
-
-    async def handle_connection(self, websocket: WebSocketServerProtocol):
-        """Handle new device connection."""
-        device_id = websocket.request_headers.get("Device-Id", "unknown")
-        client_id = websocket.request_headers.get("Client-Id", str(uuid.uuid4()))
-
-        logger.info(f"New connection: device={device_id}")
-        session: Optional[DeviceSession] = None
-
-        try:
-            async for message in websocket:
-                if isinstance(message, bytes):
-                    # Binary = Audio data
-                    if session and session.bridge and session.is_listening:
-                        opus_frame = self._extract_opus_frame(
-                            message, session.protocol_version
-                        )
-                        if opus_frame:
-                            await session.bridge.push_audio(opus_frame)
-                else:
-                    # JSON = Control message
-                    data = json.loads(message)
-                    msg_type = data.get("type")
-
-                    if msg_type == "hello":
-                        session = await self._handle_hello(
-                            websocket, data, device_id, client_id
-                        )
-                    elif msg_type == "start_listening":
-                        if session:
-                            await self._handle_start_listening(websocket, session, data)
-                    elif msg_type == "stop_listening":
-                        if session:
-                            await self._handle_stop_listening(websocket, session)
-                    elif msg_type == "abort":
-                        if session:
-                            await self._handle_abort(websocket, session)
-                    elif msg_type == "wake_word":
-                        if session:
-                            logger.info(f"Wake word: {data.get('wake_word')}")
-                    elif msg_type == "mcp":
-                        if session:
-                            await self._handle_mcp_response(websocket, session, data)
-
-        except websockets.exceptions.ConnectionClosed:
-            logger.info(f"Connection closed: {device_id}")
-        except Exception as e:
-            logger.error(f"Connection error: {e}", exc_info=True)
-        finally:
-            if session and session.bridge:
-                await session.bridge.close()
-
-    async def _handle_hello(
-        self,
-        websocket: WebSocketServerProtocol,
-        data: dict,
-        device_id: str,
-        client_id: str
-    ) -> DeviceSession:
-        """Handle hello, establish session."""
-        session_id = str(uuid.uuid4())
-        version = data.get("version", 3)
-
-        session = DeviceSession(session_id, device_id, client_id)
-        session.protocol_version = version
-        self.sessions[session_id] = session
-
-        # Get memory context for system prompt
-        memory_context = await session.memory.get_context("greeting")
-        system_prompt = SPARK_SYSTEM_PROMPT
-        if memory_context:
-            system_prompt += f"\n\nPast context:\n{memory_context}"
-
-        # Create Gemini bridge
-        session.bridge = SparkLiveBridge(system_prompt=system_prompt)
-
-        # Send hello response
-        response = {
-            "type": "hello",
-            "session_id": session_id,
-            "transport": "websocket",
-            "audio_params": {
-                "format": "opus",
-                "sample_rate": 24000,
-                "channels": 1,
-                "frame_duration": 60
-            }
-        }
-        await websocket.send(json.dumps(response))
-
-        # Initialize MCP
-        await self._init_mcp(websocket, session)
-
-        logger.info(f"Session created: {session_id}")
-
-        # Start bridge in background
-        asyncio.create_task(self._run_bridge(websocket, session))
-
-        return session
-
-    async def _init_mcp(self, websocket: WebSocketServerProtocol, session: DeviceSession):
-        """Initialize MCP with device."""
-        # Tell device about vision capability
-        host = os.getenv("SERVER_HOST", "localhost")
-        port = os.getenv("VISION_PORT", "8766")
-
-        mcp_init = {
-            "type": "mcp",
-            "payload": {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "capabilities": {
-                        "vision": {
-                            "url": f"http://{host}:{port}/vision",
-                            "token": ""
+# Tool definitions for Gemini
+TOOL_DEFINITIONS = [
+    {
+        "function_declarations": [
+            {
+                "name": "take_photo",
+                "description": "Take a photo with the device camera to see surroundings",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": "What to look for or analyze in the image"
                         }
                     }
                 }
-            }
-        }
-        await websocket.send(json.dumps(mcp_init))
-
-    async def _run_bridge(self, websocket: WebSocketServerProtocol, session: DeviceSession):
-        """Run Gemini bridge and forward audio to device."""
-        if not session.bridge:
-            return
-
-        try:
-            # Connect to Gemini (runs in background)
-            connect_task = asyncio.create_task(session.bridge.connect())
-
-            # Wait for connection
-            await asyncio.sleep(0.5)
-
-            # Forward audio from Gemini to device
-            while True:
-                try:
-                    msg = await asyncio.wait_for(
-                        session.bridge.output_queue.get(),
-                        timeout=0.1
-                    )
-
-                    if msg["type"] == "audio":
-                        frame = self._pack_audio_frame(
-                            msg["data"],
-                            session.protocol_version
-                        )
-                        await websocket.send(frame)
-
-                    elif msg["type"] == "tool_call":
-                        await self._handle_tool_call(websocket, session, msg["payload"])
-
-                    elif msg["type"] == "turn_complete":
-                        await websocket.send(json.dumps({
-                            "type": "tts",
-                            "state": "stop"
-                        }))
-                        session.is_listening = False
-
-                except asyncio.TimeoutError:
-                    if not session.bridge.is_connected:
-                        break
-                    continue
-
-        except Exception as e:
-            logger.error(f"Bridge error: {e}")
-
-    async def _handle_start_listening(
-        self,
-        websocket: WebSocketServerProtocol,
-        session: DeviceSession,
-        data: dict
-    ):
-        """Start listening to user."""
-        mode = data.get("mode", "auto")
-        session.is_listening = True
-        logger.info(f"Listening (mode={mode})")
-
-        # Signal TTS start
-        await websocket.send(json.dumps({"type": "tts", "state": "start"}))
-
-        # Set neutral emotion
-        await websocket.send(json.dumps({"type": "llm", "emotion": "neutral"}))
-
-    async def _handle_stop_listening(
-        self,
-        websocket: WebSocketServerProtocol,
-        session: DeviceSession
-    ):
-        """Stop listening, process input."""
-        logger.info("Stop listening")
-
-        if session.bridge:
-            await session.bridge.end_turn()
-
-        # Show thinking emotion
-        await websocket.send(json.dumps({"type": "llm", "emotion": "thinking"}))
-
-    async def _handle_abort(
-        self,
-        websocket: WebSocketServerProtocol,
-        session: DeviceSession
-    ):
-        """Abort current speech."""
-        logger.info("Abort")
-        session.is_listening = False
-
-        if session.bridge:
-            session.bridge.clear_audio_buffer()
-
-        await websocket.send(json.dumps({"type": "tts", "state": "stop"}))
-
-    async def _handle_mcp_response(
-        self,
-        websocket: WebSocketServerProtocol,
-        session: DeviceSession,
-        data: dict
-    ):
-        """Handle MCP response from device."""
-        payload = data.get("payload", {})
-        result = payload.get("result")
-
-        if result and session.bridge:
-            # Feed camera result back to Gemini
-            if isinstance(result, dict) and "description" in result:
-                await session.bridge.push_text(
-                    f"Camera shows: {result['description']}"
-                )
-
-    async def _handle_tool_call(
-        self,
-        websocket: WebSocketServerProtocol,
-        session: DeviceSession,
-        tool_call
-    ):
-        """Handle tool calls from Gemini."""
-        name = getattr(tool_call, 'name', str(tool_call))
-        args = getattr(tool_call, 'args', {})
-
-        logger.info(f"Tool: {name}")
-
-        if "search" in name.lower():
-            query = args.get("query", "")
-            result = await self.search_tool.search(query)
-            if session.bridge:
-                await session.bridge.push_text(f"Search: {result[:500]}")
-
-        elif "photo" in name.lower() or "camera" in name.lower():
-            question = args.get("question", "What do you see?")
-            mcp_msg = {
-                "type": "mcp",
-                "payload": {
-                    "jsonrpc": "2.0",
-                    "id": 99,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "self.camera.take_photo",
-                        "arguments": {"question": question}
-                    }
+            },
+            {
+                "name": "web_search",
+                "description": "Search the web for current information",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "remember",
+                "description": "Store important information for later recall",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "Information to remember"
+                        }
+                    },
+                    "required": ["content"]
                 }
             }
-            await websocket.send(json.dumps(mcp_msg))
+        ]
+    }
+]
 
-        elif "remember" in name.lower():
+app = FastAPI(title="Spark AI Server")
+search_tool = WebSearchTool()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start vision server on startup."""
+    threading.Thread(target=start_vision_server, daemon=True).start()
+    logger.info("Vision server started")
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint."""
+    return JSONResponse({"status": "healthy", "service": "spark-ai"})
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Main WebSocket endpoint for device connections."""
+    await websocket.accept()
+
+    # Extract device info from headers
+    device_id = websocket.headers.get("device-id", "unknown")
+    client_id = websocket.headers.get("client-id", "unknown")
+    logger.info(f"Device connected: {device_id}")
+
+    # Initialize memory manager
+    memory = MemoryManager(device_id)
+
+    # 1. COLD START: Load Hive Mind Context
+    context_str = await memory.get_system_context()
+    system_prompt = SPARK_SYSTEM_PROMPT
+    if context_str:
+        system_prompt += f"\n\nPast context:\n{context_str}"
+
+    # 2. INIT BRIDGE: Setup Gemini Live
+    bridge = SparkLiveBridge(system_prompt=system_prompt)
+
+    # Protocol state
+    protocol_version = 3
+    is_listening = False
+
+    # Helper: Handle tool calls
+    async def handle_tool(tool_call):
+        """Process tool calls from Gemini."""
+        nonlocal is_listening
+
+        fname = getattr(tool_call, 'name', str(tool_call))
+        args = getattr(tool_call, 'args', {})
+
+        logger.info(f"Tool call: {fname}")
+
+        # Update screen -> Thinking
+        await set_device_state(websocket, emotion="thinking")
+
+        if fname == "take_photo":
+            # Vision Flow
+            await set_device_state(websocket, emotion="thinking", text="Looking...")
+            image_ready_event.clear()
+
+            # Trigger device camera via MCP
+            await send_mcp_command(websocket, "tools/call", {
+                "name": "self.camera.take_photo",
+                "arguments": {"question": args.get("question", "What do you see?")}
+            }, cmd_id=99)
+
+            try:
+                # Wait for upload (10s timeout)
+                await asyncio.wait_for(image_ready_event.wait(), timeout=10.0)
+                await set_device_state(websocket, emotion="happy", text="Got it!")
+
+                # Send image to Gemini
+                if os.path.exists(LATEST_IMAGE_PATH):
+                    await bridge.send_image(LATEST_IMAGE_PATH)
+            except asyncio.TimeoutError:
+                await set_device_state(websocket, emotion="sad", text="Camera timeout")
+                await bridge.push_text("System: Camera timed out, couldn't get image.")
+
+        elif fname == "web_search":
+            query = args.get("query", "")
+            logger.info(f"Web search: {query}")
+            try:
+                result = await search_tool.search(query)
+                await bridge.push_text(f"Search results for '{query}': {result[:1000]}")
+            except Exception as e:
+                logger.error(f"Search failed: {e}")
+                await bridge.push_text(f"Search failed: {str(e)}")
+
+        elif fname == "remember":
             content = args.get("content", "")
-            await session.memory.store_fact(content)
+            if content:
+                await memory.store(content, {"type": "user_fact"})
+                await bridge.push_text(f"Noted: {content}")
+                logger.info(f"Stored memory: {content[:50]}...")
 
-    def _extract_opus_frame(self, data: bytes, version: int) -> Optional[bytes]:
-        """Extract Opus from protocol frame."""
-        try:
-            if version == 2 and len(data) > 14:
-                size = struct.unpack(">I", data[10:14])[0]
-                return data[14:14+size]
-            elif version == 3 and len(data) > 4:
-                size = struct.unpack(">H", data[2:4])[0]
-                return data[4:4+size]
-            return data
-        except:
-            return None
+    # Helper: Forward Gemini output to device
+    async def forward_to_device():
+        """Forward audio and tool calls from Gemini to device."""
+        nonlocal is_listening
 
-    def _pack_audio_frame(self, opus: bytes, version: int) -> bytes:
-        """Pack Opus into protocol frame."""
-        if version == 2:
-            return struct.pack(">HHHII", 2, 0, 0, 0, len(opus)) + opus
-        return struct.pack(">BBH", 0, 0, len(opus)) + opus
+        while True:
+            try:
+                msg = await asyncio.wait_for(bridge.output_queue.get(), timeout=0.1)
+
+                if msg["type"] == "audio":
+                    # Pack and send audio
+                    opus_data = msg["data"]
+                    frame = pack_audio_frame(opus_data, protocol_version)
+                    await websocket.send_bytes(frame)
+
+                    # Show happy face when speaking
+                    await set_device_state(websocket, emotion="happy")
+
+                elif msg["type"] == "tool_call":
+                    # Handle tool calls
+                    payload = msg["payload"]
+                    if hasattr(payload, 'function_calls'):
+                        for call in payload.function_calls:
+                            await handle_tool(call)
+                    else:
+                        await handle_tool(payload)
+
+                elif msg["type"] == "turn_complete":
+                    # Gemini finished speaking
+                    await websocket.send_text(json.dumps({
+                        "type": "tts",
+                        "state": "stop"
+                    }))
+                    is_listening = False
+                    await set_device_state(websocket, emotion="neutral")
+
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Forward error: {e}")
+                break
+
+    # Helper: Process incoming device messages
+    async def handle_device_message(data):
+        """Handle JSON messages from device."""
+        nonlocal protocol_version, is_listening
+
+        msg_type = data.get("type")
+
+        if msg_type == "hello":
+            protocol_version = data.get("version", 3)
+            logger.info(f"Hello from device (protocol v{protocol_version})")
+
+            # Send hello response
+            response = {
+                "type": "hello",
+                "session_id": f"spark-{device_id}",
+                "transport": "websocket",
+                "audio_params": {
+                    "format": "opus",
+                    "sample_rate": 24000,
+                    "channels": 1,
+                    "frame_duration": 60
+                }
+            }
+            await websocket.send_text(json.dumps(response))
+
+            # Initialize MCP
+            vision_host = os.getenv("VISION_HOST", "localhost")
+            vision_port = os.getenv("VISION_PORT", "8766")
+            await send_mcp_command(websocket, "initialize", {
+                "capabilities": {
+                    "vision": {
+                        "url": f"http://{vision_host}:{vision_port}/vision",
+                        "token": ""
+                    }
+                }
+            }, cmd_id=1)
+
+        elif msg_type == "start_listening":
+            is_listening = True
+            logger.info("Start listening")
+
+            await websocket.send_text(json.dumps({"type": "tts", "state": "start"}))
+            await set_device_state(websocket, emotion="neutral", text="Listening...")
+
+        elif msg_type == "stop_listening":
+            logger.info("Stop listening")
+
+            if bridge:
+                await bridge.end_turn()
+
+            await set_device_state(websocket, emotion="thinking")
+
+        elif msg_type == "abort":
+            logger.info("Abort")
+            is_listening = False
+
+            if bridge:
+                bridge.clear_audio_buffer()
+
+            await websocket.send_text(json.dumps({"type": "tts", "state": "stop"}))
+            await set_device_state(websocket, emotion="neutral")
+
+        elif msg_type == "mcp":
+            # MCP response from device
+            payload = data.get("payload", {})
+            result = payload.get("result")
+
+            if result and bridge:
+                if isinstance(result, dict) and "description" in result:
+                    await bridge.push_text(f"Camera shows: {result['description']}")
+
+    # Main connection loop
+    try:
+        # Start Gemini connection
+        gemini_task = asyncio.create_task(bridge.connect())
+        await asyncio.sleep(0.3)  # Let connection establish
+
+        # Start forwarding task
+        forward_task = asyncio.create_task(forward_to_device())
+
+        while True:
+            data = await websocket.receive()
+
+            if "bytes" in data:
+                # Binary = Audio from device
+                if is_listening and bridge:
+                    opus_frame = extract_opus_frame(data["bytes"], protocol_version)
+                    if opus_frame:
+                        await bridge.push_audio(opus_frame)
+
+            elif "text" in data:
+                # JSON = Control message
+                try:
+                    msg = json.loads(data["text"])
+                    await handle_device_message(msg)
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON: {data['text'][:100]}")
+
+    except WebSocketDisconnect:
+        logger.info(f"Device disconnected: {device_id}")
+    except Exception as e:
+        logger.error(f"Connection error: {e}", exc_info=True)
+    finally:
+        # Cleanup
+        if 'gemini_task' in locals():
+            gemini_task.cancel()
+        if 'forward_task' in locals():
+            forward_task.cancel()
+        if bridge:
+            await bridge.close()
+        logger.info(f"Session cleanup: {device_id}")
 
 
-async def main():
-    """Entry point."""
+def extract_opus_frame(data: bytes, version: int) -> Optional[bytes]:
+    """Extract Opus frame from protocol wrapper."""
+    try:
+        if version == 2 and len(data) > 14:
+            size = struct.unpack(">I", data[10:14])[0]
+            return data[14:14+size]
+        elif version == 3 and len(data) > 4:
+            size = struct.unpack(">H", data[2:4])[0]
+            return data[4:4+size]
+        return data
+    except Exception:
+        return None
+
+
+def pack_audio_frame(opus: bytes, version: int) -> bytes:
+    """Pack Opus frame into protocol wrapper."""
+    if version == 2:
+        return struct.pack(">HHHII", 2, 0, 0, 0, len(opus)) + opus
+    return struct.pack(">BBH", 0, 0, len(opus)) + opus
+
+
+# Standalone run support
+if __name__ == "__main__":
+    import uvicorn
+
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8765"))
 
-    server = SparkServer()
-
     logger.info("=" * 50)
-    logger.info("  SPARK AI SERVER (Gemini Live)")
+    logger.info("  SPARK AI SERVER (Gemini Live + FastAPI)")
     logger.info("=" * 50)
+    logger.info(f"WebSocket: ws://{host}:{port}/ws")
 
-    async with websockets.serve(
-        server.handle_connection,
-        host,
-        port,
-        ping_interval=30,
-        ping_timeout=10,
-        max_size=10 * 1024 * 1024
-    ):
-        logger.info(f"Running on ws://{host}:{port}")
-        await asyncio.Future()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(app, host=host, port=port)

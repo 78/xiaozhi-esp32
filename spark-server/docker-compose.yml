@@ -59,8 +59,14 @@ services:
     volumes:
       # Persistent memory storage
       - spark_memories:/data/memories
+      # Fast RAM disk for images
+      - /dev/shm:/dev/shm
       # Optional: Mount logs
       - ./logs:/app/logs
+
+    depends_on:
+      - redis
+      - qdrant
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8766/health')"]
@@ -78,30 +84,30 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Optional: Qdrant vector database (enable if running locally)
-  # qdrant:
-  #   image: qdrant/qdrant:latest
-  #   container_name: spark-qdrant
-  #   restart: unless-stopped
-  #   ports:
-  #     - "6333:6333"
-  #     - "6334:6334"
-  #   volumes:
-  #     - qdrant_data:/qdrant/storage
-  #   networks:
-  #     - spark-network
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: spark-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - spark-network
 
-  # Optional: Redis for caching/session/memory sync
-  # redis:
-  #   image: redis:alpine
-  #   container_name: spark-redis
-  #   restart: unless-stopped
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   networks:
-  #     - spark-network
+  # Redis for caching/session/memory sync
+  redis:
+    image: redis:alpine
+    container_name: spark-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - spark-network
 
   # Optional: Nginx reverse proxy with SSL
   # nginx:
@@ -122,10 +128,10 @@ services:
 volumes:
   spark_memories:
     driver: local
-  # qdrant_data:
-  #   driver: local
-  # redis_data:
-  #   driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
 
 networks:
   spark-network:
