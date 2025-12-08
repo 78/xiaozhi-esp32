@@ -21,8 +21,25 @@ services:
       - VISION_HOST=0.0.0.0
       - VISION_PORT=8766
 
-      # Memory Configuration
+      # Memory Backend Configuration
+      # Options: qdrant, redis, supabase, chromadb
+      - MEMORY_BACKEND=${MEMORY_BACKEND:-qdrant}
       - MEMORY_DIR=/data/memories
+
+      # Qdrant (vector database)
+      - QDRANT_HOST=${QDRANT_HOST:-qdrant}
+      - QDRANT_PORT=${QDRANT_PORT:-6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-spark_memories}
+
+      # Redis (caching + sync)
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_PREFIX=${REDIS_PREFIX:-spark:memory:}
+
+      # Supabase (PostgreSQL backend)
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_KEY=${SUPABASE_KEY:-}
+      - SUPABASE_TABLE=${SUPABASE_TABLE:-ai_memories}
 
       # Optional: Google Search API
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
@@ -61,11 +78,26 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Optional: Redis for session management (for scaling)
+  # Optional: Qdrant vector database (enable if running locally)
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   container_name: spark-qdrant
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6333:6333"
+  #     - "6334:6334"
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+  #   networks:
+  #     - spark-network
+
+  # Optional: Redis for caching/session/memory sync
   # redis:
   #   image: redis:alpine
   #   container_name: spark-redis
   #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
   #   volumes:
   #     - redis_data:/data
   #   networks:
@@ -90,6 +122,8 @@ services:
 volumes:
   spark_memories:
     driver: local
+  # qdrant_data:
+  #   driver: local
   # redis_data:
   #   driver: local
 

@@ -16,8 +16,16 @@ opuslib>=3.0.1
 numpy>=1.26.0
 scipy>=1.12.0
 
-# Vector Memory (semantic search)
+# Vector Memory (pluggable backends)
 chromadb>=0.4.22
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.2
+
+# Redis (caching/session/memory)
+redis>=5.0.0
+
+# Supabase (PostgreSQL backend)
+supabase>=2.3.0
 
 # Web Search
 duckduckgo-search>=4.1.0
