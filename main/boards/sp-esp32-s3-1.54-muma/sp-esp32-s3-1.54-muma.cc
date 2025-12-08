@@ -166,7 +166,7 @@ private:
             if (touch_duration < TOUCH_THRESHOLD_MS) {
                 auto& app = Application::GetInstance();
                 if (app.GetDeviceState() == kDeviceStateStarting) {
-                    EnterWifiConfigMode();
+                    board.EnterWifiConfigMode();
                     return;
                 }
                 app.ToggleChatState();

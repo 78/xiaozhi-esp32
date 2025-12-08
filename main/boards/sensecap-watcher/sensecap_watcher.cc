@@ -266,7 +266,7 @@ private:
 
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
-                EnterWifiConfigMode();
+                self->EnterWifiConfigMode();
                 return;
             }
             app.ToggleChatState();
