@@ -318,6 +318,109 @@ asyncio.run(test())
 
 MIT License - Use freely for personal and commercial projects.
 
+## Deployment Notes (For Later)
+
+### ⚠️ CRITICAL: Backup NVS Factory Before Anything
+
+If your Watcher has SenseCraft firmware, backup the factory partition FIRST:
+
+```bash
+# Connect Watcher via USB, then:
+esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 2000000 read_flash 0x9000 204800 nvsfactory_backup.bin
+
+# Keep this file safe - it contains your device EUI for SenseCraft
+```
+
+### Step 1: Deploy Spark Server to KVA8
+
+```bash
+# SSH to your KVA8 server
+ssh user@your-kva8-server
+
+# Clone repo
+git clone https://github.com/Jupdefi/xiaozhi-esp32.git
+cd xiaozhi-esp32/spark-server
+
+# Configure environment
+cp .env.example .env
+nano .env
+```
+
+**Required .env settings:**
+```bash
+GEMINI_API_KEY=your-key-here
+
+# Connect to your existing infrastructure:
+MEMORY_BACKEND=qdrant
+QDRANT_HOST=your-qdrant-host
+QDRANT_PORT=6333
+REDIS_URL=redis://your-redis:6379
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+```
+
+```bash
+# Start server
+docker-compose up -d
+
+# Verify it's running
+docker-compose logs -f
+curl http://localhost:8766/health
+```
+
+### Step 2: Configure Watcher Device (Via Serial)
+
+On your Pi with the Watcher connected:
+
+```bash
+# Find serial port
+ls /dev/ttyUSB* /dev/ttyACM*
+
+# Connect (use picocom, screen, or minicom)
+picocom -b 115200 /dev/ttyUSB0
+
+# In the SenseCAP console:
+SenseCAP> websocket_url wss://your-kva8-server:8765
+SenseCAP> reboot
+```
+
+### Step 3: Verify Connection
+
+Check server logs for incoming connection:
+```bash
+docker-compose logs -f spark-server | grep -i "connect"
+```
+
+### Partition Table Reference (32MB Flash)
+
+| Partition | Offset | Size | Purpose |
+|-----------|--------|------|---------|
+| nvsfactory | 0x9000 | 200KB | **BACKUP THIS** - Device EUI/credentials |
+| nvs | - | 840KB | Runtime settings (WiFi, URLs) |
+| ota_0 | 0x200000 | 4MB | Firmware slot A |
+| ota_1 | 0x600000 | 4MB | Firmware slot B |
+| assets | 0xA00000 | 16MB | SPIFFS (fonts/sounds) |
+
+**No partition changes needed** - WebSocket URL is stored in NVS, configurable at runtime.
+
+### Memory Sync Architecture
+
+```
+Watcher Device
+     │
+     ▼ (websocket)
+Spark Server ──┬── Qdrant (vector memories)
+               ├── Redis (pub/sub: spark:memory:sync)
+               └── Supabase (shared ai_memories table)
+                        │
+                        ▼
+               Your Main AI System
+```
+
+Redis publishes to `spark:memory:sync` channel - subscribe from your main AI to receive memories in real-time.
+
+---
+
 ## Credits
 
 - Seeed Studio for the AI Watcher hardware
