@@ -301,7 +301,7 @@ private:
     void InitializeTools() {
         auto &mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.system.reconfigure_wifi",
-            "Reboot the device and enter WiFi configuration mode.\n"
+            "End this conversation and enter WiFi configuration mode.\n"
             "**CAUTION** You must ask the user to confirm this action.",
             PropertyList(), [this](const PropertyList& properties) {
                 EnterWifiConfigMode();

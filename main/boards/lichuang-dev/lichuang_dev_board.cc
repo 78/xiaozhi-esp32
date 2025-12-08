@@ -249,10 +249,13 @@ private:
 
     void InitializeTools() {
         auto &mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.disp.network", "重新配网", PropertyList(), [this](const PropertyList &) -> ReturnValue {
-            EnterWifiConfigMode();
-            return true;
-        });
+        mcp_server.AddTool("self.system.reconfigure_wifi",
+            "End this conversation and enter WiFi configuration mode.\n"
+            "**CAUTION** You must ask the user to confirm this action.",
+            PropertyList(), [this](const PropertyList& properties) {
+                EnterWifiConfigMode();
+                return true;
+            });
     }
 
 public:
