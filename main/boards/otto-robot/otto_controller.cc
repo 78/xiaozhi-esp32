@@ -232,25 +232,7 @@ private:
                                                 }
                                             }
                                         }
-                                        
-                                        // 安全检查：防止左右腿脚同时做大幅度动作
-                                        const int LARGE_MOVEMENT_THRESHOLD = 40;  // 大幅度动作阈值：40度
-                                        bool left_leg_large = abs(servo_target[LEFT_LEG] - current_positions[LEFT_LEG]) >= LARGE_MOVEMENT_THRESHOLD;
-                                        bool right_leg_large = abs(servo_target[RIGHT_LEG] - current_positions[RIGHT_LEG]) >= LARGE_MOVEMENT_THRESHOLD;
-                                        bool left_foot_large = abs(servo_target[LEFT_FOOT] - current_positions[LEFT_FOOT]) >= LARGE_MOVEMENT_THRESHOLD;
-                                        bool right_foot_large = abs(servo_target[RIGHT_FOOT] - current_positions[RIGHT_FOOT]) >= LARGE_MOVEMENT_THRESHOLD;
-                                        
-                                        if (left_leg_large && right_leg_large) {
-                                            ESP_LOGW(TAG, "检测到左右腿同时大幅度动作，限制右腿动作");
-                                            // 保持右腿在原位置
-                                            servo_target[RIGHT_LEG] = current_positions[RIGHT_LEG];
-                                        }
-                                        if (left_foot_large && right_foot_large) {
-                                            ESP_LOGW(TAG, "检测到左右脚同时大幅度动作，限制右脚动作");
-                                            // 保持右脚在原位置
-                                            servo_target[RIGHT_FOOT] = current_positions[RIGHT_FOOT];
-                                        }
-                                        
+                                                                                                                    
                                         // 获取移动速度（短键名 "v"，默认1000毫秒）
                                         int speed = 1000;
                                         cJSON* speed_item = cJSON_GetObjectItem(action_item, "v");
@@ -511,12 +493,22 @@ private:
     }
 
 public:
-    OttoController() {
-        otto_.Init(LEFT_LEG_PIN, RIGHT_LEG_PIN, LEFT_FOOT_PIN, RIGHT_FOOT_PIN, LEFT_HAND_PIN,
-                   RIGHT_HAND_PIN);
+    OttoController(const HardwareConfig& hw_config) {
+        otto_.Init(
+            hw_config.left_leg_pin, 
+            hw_config.right_leg_pin, 
+            hw_config.left_foot_pin, 
+            hw_config.right_foot_pin, 
+            hw_config.left_hand_pin,
+            hw_config.right_hand_pin
+        );
 
-        has_hands_ = (LEFT_HAND_PIN != -1 && RIGHT_HAND_PIN != -1);
+        has_hands_ = (hw_config.left_hand_pin != GPIO_NUM_NC && hw_config.right_hand_pin != GPIO_NUM_NC);
         ESP_LOGI(TAG, "Otto机器人初始化%s手部舵机", has_hands_ ? "带" : "不带");
+        ESP_LOGI(TAG, "舵机引脚配置: LL=%d, RL=%d, LF=%d, RF=%d, LH=%d, RH=%d",
+                 hw_config.left_leg_pin, hw_config.right_leg_pin,
+                 hw_config.left_foot_pin, hw_config.right_foot_pin,
+                 hw_config.left_hand_pin, hw_config.right_hand_pin);
 
         LoadTrimsFromNVS();
 
@@ -849,9 +841,9 @@ public:
 
 static OttoController* g_otto_controller = nullptr;
 
-void InitializeOttoController() {
+void InitializeOttoController(const HardwareConfig& hw_config) {
     if (g_otto_controller == nullptr) {
-        g_otto_controller = new OttoController();
+        g_otto_controller = new OttoController(hw_config);
         ESP_LOGI(TAG, "Otto控制器已初始化并注册MCP工具");
     }
 }
