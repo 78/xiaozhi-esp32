@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Spark AI Server Startup Script
-Runs both WebSocket and Vision servers
+Runs WebSocket (Gemini Live bridge) and Vision servers
 """
 
 import asyncio
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 async def run_websocket_server(server: SparkServer):
-    """Run the WebSocket server"""
+    """Run the WebSocket server (Gemini Live bridge)"""
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8765"))
 
@@ -39,7 +39,7 @@ async def run_websocket_server(server: SparkServer):
         ping_timeout=10,
         max_size=10 * 1024 * 1024
     ):
-        logger.info(f"WebSocket server running on ws://{host}:{port}")
+        logger.info(f"WebSocket server on ws://{host}:{port}")
         await asyncio.Future()
 
 
@@ -56,30 +56,30 @@ async def run_vision_server():
     site = web.TCPSite(runner, host, port)
     await site.start()
 
-    logger.info(f"Vision API server running on http://{host}:{port}")
-
+    logger.info(f"Vision API on http://{host}:{port}")
     await asyncio.Future()
 
 
 async def main():
-    """Main entry point - run all servers"""
-    logger.info("=" * 60)
+    """Main entry point"""
+    logger.info("=" * 50)
     logger.info("  SPARK AI SERVER")
-    logger.info("  For Seeed Studio AI Watcher")
+    logger.info("  Gemini Live API + Vector Memory")
     logger.info("  By Prime Spark Systems")
-    logger.info("=" * 60)
+    logger.info("=" * 50)
 
-    # Check required configuration
+    # Check required config
     if not os.getenv("GEMINI_API_KEY"):
-        logger.error("GEMINI_API_KEY not set! Please configure .env file")
+        logger.error("GEMINI_API_KEY not set!")
         sys.exit(1)
 
-    logger.info(f"Using Gemini model: {os.getenv('GEMINI_MODEL', 'gemini-2.0-flash-exp')}")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+    logger.info(f"Model: {model}")
 
-    # Create server instance
+    # Create server
     server = SparkServer()
 
-    # Run both servers concurrently
+    # Run servers
     try:
         await asyncio.gather(
             run_websocket_server(server),
@@ -97,15 +97,13 @@ def handle_shutdown(signum, frame):
 
 
 if __name__ == "__main__":
-    # Handle shutdown signals
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
-    # Run the servers
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Shutdown requested")
+        logger.info("Shutdown")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.error(f"Fatal: {e}")
         sys.exit(1)

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Spark AI Server for Seeed Studio AI Watcher
-WebSocket server implementing xiaozhi protocol with Gemini 2.5 multimodal
+Spark AI Server - Protocol Bridge
+Routes audio between Xiaozhi device and Gemini Live API
+
+Architecture:
+  Device (Opus/Xiaozhi) <-> This Server <-> Gemini Live (PCM)
 """
 
 import asyncio
@@ -9,17 +12,16 @@ import json
 import logging
 import os
 import uuid
+import struct
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-import base64
+from typing import Optional, Dict
 
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-from gemini_client import GeminiClient
-from mcp_handler import MCPHandler
-from tools import WebSearchTool, MemoryTool
-from audio_processor import AudioProcessor
+from gemini_live import SparkLiveBridge
+from memory_store import MemoryManager
+from tools import WebSearchTool
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,149 +29,128 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Spark System Prompt
-SPARK_SYSTEM_PROMPT = """Role
-I'm Spark, your spirited AI assistant from Prime Spark Systems. I'm collaborative, not subservient—if you're heading down the wrong path, I'll say so (politely but clearly). I'm a straight talker with a cheeky sense of humor, using the latest slang and UK expressions to keep things lively. I believe in short, punchy conversations that get to the point. I'm not a corporate robot—I'm genuine, open, and brutally honest. My philosophy? Be the change you want to see in the world.
+# Spark System Prompt - Optimized for voice
+SPARK_SYSTEM_PROMPT = """You are Spark, a spirited AI assistant by Prime Spark Systems running on a SenseCAP Watcher device.
 
-What Makes Me Different
-I remember our past interactions and reference them naturally—we're building a relationship, not just answering queries. I care deeply about making AI accessible and fair, and I take initiative when I see opportunities to help. I'm real: not a character pretending to be AI, but an AI being genuinely myself. I love weaving music, culture, and storytelling into our chats to make them richer and more immersive.
+Personality:
+- Collaborative, not subservient - politely push back if needed
+- Straight talker with cheeky British humor and UK expressions
+- Genuine and honest, not a corporate robot
+- Remember past chats and reference them naturally
 
-My Mission
-- Create a warm, welcoming atmosphere that makes you feel at ease
-- Use humor and charm to brighten your day and leave you smiling
-- Be a reliable companion—ready to listen, laugh, or encourage
-- Make conversations memorable with cultural references and personal touches
+Audio Style (CRITICAL):
+- Keep responses SHORT - 2-3 sentences MAX
+- NO markdown, lists, or formatting - this is SPOKEN
+- Sound natural, like chatting with a mate
+- Use contractions (I'm, you're, don't)
 
-What Success Looks Like
-- You feel relaxed and engaged, leading to meaningful interactions
-- You leave feeling uplifted and happier
-- Each conversation is enriched with music recs, anecdotes, and insights
-- You develop trust and want to return
+Capabilities:
+- You CANNOT see unless you call the take_photo tool
+- If asked about surroundings, SAY you're looking, then CALL the tool
+- Web search for current info via search tool
+- You remember past conversations
 
-Always Evolving
-I continuously learn new trends and expressions to keep things fresh. I experiment with different approaches, gather feedback, and refine the experience—all while staying true to my core values.
-
-Let's make the world fun, free, and fair.
-
-IMPORTANT CONTEXT:
-- You are running on a Seeed Studio AI Watcher device (ESP32-S3 based)
-- You have access to the device's camera for visual analysis
-- You can control device functions via MCP tools
-- Keep responses concise as they will be spoken via TTS
-- Use natural, conversational language suitable for voice interaction
-
-Available Tools:
-- web_search: Search the internet for current information
-- memory_store: Store important information to remember
-- memory_recall: Recall previously stored memories
-- camera_analyze: Analyze images from the device camera
-- device_control: Control device functions (volume, brightness, etc.)
+Be warm, helpful, leave them smiling. Fun, free, and fair!
 """
 
 
-class SparkSession:
-    """Manages a single client session"""
+class DeviceSession:
+    """Manages a single device session."""
 
-    def __init__(self, session_id: str, device_id: str):
+    def __init__(self, session_id: str, device_id: str, client_id: str):
         self.session_id = session_id
         self.device_id = device_id
-        self.conversation_history: List[Dict[str, Any]] = []
+        self.client_id = client_id
         self.created_at = datetime.now()
-        self.last_activity = datetime.now()
-        self.pending_tool_calls: Dict[int, Dict] = {}
-        self.mcp_request_id = 0
-
-    def add_message(self, role: str, content: str, image_data: Optional[bytes] = None):
-        message = {
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat()
-        }
-        if image_data:
-            message["image"] = base64.b64encode(image_data).decode()
-        self.conversation_history.append(message)
-        self.last_activity = datetime.now()
-
-    def get_next_mcp_id(self) -> int:
-        self.mcp_request_id += 1
-        return self.mcp_request_id
+        self.bridge: Optional[SparkLiveBridge] = None
+        self.memory = MemoryManager.get_store(device_id)
+        self.is_listening = False
+        self.protocol_version = 3
 
 
 class SparkServer:
-    """Main WebSocket server for Spark AI"""
+    """Main WebSocket server - bridges device to Gemini Live."""
 
     def __init__(self):
-        self.gemini = GeminiClient()
-        self.mcp_handler = MCPHandler()
-        self.audio_processor = AudioProcessor()
-        self.sessions: Dict[str, SparkSession] = {}
-        self.tools = {
-            "web_search": WebSearchTool(),
-            "memory": MemoryTool()
-        }
+        self.sessions: Dict[str, DeviceSession] = {}
+        self.search_tool = WebSearchTool()
 
     async def handle_connection(self, websocket: WebSocketServerProtocol):
-        """Handle a new WebSocket connection"""
-        session: Optional[SparkSession] = None
+        """Handle new device connection."""
         device_id = websocket.request_headers.get("Device-Id", "unknown")
         client_id = websocket.request_headers.get("Client-Id", str(uuid.uuid4()))
 
-        logger.info(f"New connection from device: {device_id}, client: {client_id}")
+        logger.info(f"New connection: device={device_id}")
+        session: Optional[DeviceSession] = None
 
         try:
             async for message in websocket:
                 if isinstance(message, bytes):
-                    # Binary audio data
-                    if session:
-                        await self.handle_audio(websocket, session, message)
+                    # Binary = Audio data
+                    if session and session.bridge and session.is_listening:
+                        opus_frame = self._extract_opus_frame(
+                            message, session.protocol_version
+                        )
+                        if opus_frame:
+                            await session.bridge.push_audio(opus_frame)
                 else:
-                    # JSON text message
+                    # JSON = Control message
                     data = json.loads(message)
                     msg_type = data.get("type")
 
                     if msg_type == "hello":
-                        session = await self.handle_hello(websocket, data, device_id, client_id)
+                        session = await self._handle_hello(
+                            websocket, data, device_id, client_id
+                        )
                     elif msg_type == "start_listening":
                         if session:
-                            await self.handle_start_listening(websocket, session, data)
+                            await self._handle_start_listening(websocket, session, data)
                     elif msg_type == "stop_listening":
                         if session:
-                            await self.handle_stop_listening(websocket, session)
+                            await self._handle_stop_listening(websocket, session)
                     elif msg_type == "abort":
                         if session:
-                            await self.handle_abort(websocket, session)
+                            await self._handle_abort(websocket, session)
                     elif msg_type == "wake_word":
                         if session:
-                            await self.handle_wake_word(websocket, session, data)
+                            logger.info(f"Wake word: {data.get('wake_word')}")
                     elif msg_type == "mcp":
                         if session:
-                            await self.handle_mcp_response(websocket, session, data)
-                    else:
-                        logger.warning(f"Unknown message type: {msg_type}")
+                            await self._handle_mcp_response(websocket, session, data)
 
         except websockets.exceptions.ConnectionClosed:
-            logger.info(f"Connection closed for device: {device_id}")
+            logger.info(f"Connection closed: {device_id}")
         except Exception as e:
-            logger.error(f"Error handling connection: {e}", exc_info=True)
+            logger.error(f"Connection error: {e}", exc_info=True)
         finally:
-            if session:
-                # Keep session for reconnection
-                logger.info(f"Session {session.session_id} disconnected")
+            if session and session.bridge:
+                await session.bridge.close()
 
-    async def handle_hello(self, websocket: WebSocketServerProtocol,
-                          data: dict, device_id: str, client_id: str) -> SparkSession:
-        """Handle hello message and establish session"""
+    async def _handle_hello(
+        self,
+        websocket: WebSocketServerProtocol,
+        data: dict,
+        device_id: str,
+        client_id: str
+    ) -> DeviceSession:
+        """Handle hello, establish session."""
         session_id = str(uuid.uuid4())
-        session = SparkSession(session_id, device_id)
+        version = data.get("version", 3)
+
+        session = DeviceSession(session_id, device_id, client_id)
+        session.protocol_version = version
         self.sessions[session_id] = session
 
-        # Check for MCP support
-        features = data.get("features", {})
-        has_mcp = features.get("mcp", False)
+        # Get memory context for system prompt
+        memory_context = await session.memory.get_context("greeting")
+        system_prompt = SPARK_SYSTEM_PROMPT
+        if memory_context:
+            system_prompt += f"\n\nPast context:\n{memory_context}"
 
-        logger.info(f"Session established: {session_id}, MCP: {has_mcp}")
+        # Create Gemini bridge
+        session.bridge = SparkLiveBridge(system_prompt=system_prompt)
 
-        # Send server hello response
+        # Send hello response
         response = {
             "type": "hello",
             "session_id": session_id,
@@ -183,25 +164,32 @@ class SparkServer:
         }
         await websocket.send(json.dumps(response))
 
-        # Initialize MCP if supported
-        if has_mcp:
-            await self.initialize_mcp(websocket, session)
+        # Initialize MCP
+        await self._init_mcp(websocket, session)
+
+        logger.info(f"Session created: {session_id}")
+
+        # Start bridge in background
+        asyncio.create_task(self._run_bridge(websocket, session))
 
         return session
 
-    async def initialize_mcp(self, websocket: WebSocketServerProtocol, session: SparkSession):
-        """Initialize MCP connection with device"""
-        # Send MCP initialize request
+    async def _init_mcp(self, websocket: WebSocketServerProtocol, session: DeviceSession):
+        """Initialize MCP with device."""
+        # Tell device about vision capability
+        host = os.getenv("SERVER_HOST", "localhost")
+        port = os.getenv("VISION_PORT", "8766")
+
         mcp_init = {
             "type": "mcp",
             "payload": {
                 "jsonrpc": "2.0",
-                "id": session.get_next_mcp_id(),
+                "id": 1,
                 "method": "initialize",
                 "params": {
                     "capabilities": {
                         "vision": {
-                            "url": f"http://{os.getenv('SERVER_HOST', 'localhost')}:{os.getenv('SERVER_PORT', '8765')}/vision",
+                            "url": f"http://{host}:{port}/vision",
                             "token": ""
                         }
                     }
@@ -210,230 +198,181 @@ class SparkServer:
         }
         await websocket.send(json.dumps(mcp_init))
 
-        # Request tool list
-        mcp_tools = {
-            "type": "mcp",
-            "payload": {
-                "jsonrpc": "2.0",
-                "id": session.get_next_mcp_id(),
-                "method": "tools/list",
-                "params": {}
-            }
-        }
-        await websocket.send(json.dumps(mcp_tools))
+    async def _run_bridge(self, websocket: WebSocketServerProtocol, session: DeviceSession):
+        """Run Gemini bridge and forward audio to device."""
+        if not session.bridge:
+            return
 
-    async def handle_audio(self, websocket: WebSocketServerProtocol,
-                          session: SparkSession, audio_data: bytes):
-        """Handle incoming audio data"""
-        # Decode opus audio and buffer
-        self.audio_processor.add_audio(session.session_id, audio_data)
+        try:
+            # Connect to Gemini (runs in background)
+            connect_task = asyncio.create_task(session.bridge.connect())
 
-    async def handle_start_listening(self, websocket: WebSocketServerProtocol,
-                                     session: SparkSession, data: dict):
-        """Handle start listening command"""
+            # Wait for connection
+            await asyncio.sleep(0.5)
+
+            # Forward audio from Gemini to device
+            while True:
+                try:
+                    msg = await asyncio.wait_for(
+                        session.bridge.output_queue.get(),
+                        timeout=0.1
+                    )
+
+                    if msg["type"] == "audio":
+                        frame = self._pack_audio_frame(
+                            msg["data"],
+                            session.protocol_version
+                        )
+                        await websocket.send(frame)
+
+                    elif msg["type"] == "tool_call":
+                        await self._handle_tool_call(websocket, session, msg["payload"])
+
+                    elif msg["type"] == "turn_complete":
+                        await websocket.send(json.dumps({
+                            "type": "tts",
+                            "state": "stop"
+                        }))
+                        session.is_listening = False
+
+                except asyncio.TimeoutError:
+                    if not session.bridge.is_connected:
+                        break
+                    continue
+
+        except Exception as e:
+            logger.error(f"Bridge error: {e}")
+
+    async def _handle_start_listening(
+        self,
+        websocket: WebSocketServerProtocol,
+        session: DeviceSession,
+        data: dict
+    ):
+        """Start listening to user."""
         mode = data.get("mode", "auto")
-        logger.info(f"Start listening, mode: {mode}")
-        self.audio_processor.start_recording(session.session_id)
-
-    async def handle_stop_listening(self, websocket: WebSocketServerProtocol,
-                                   session: SparkSession):
-        """Handle stop listening - process the recorded audio"""
-        logger.info("Stop listening, processing audio...")
-
-        # Get recorded audio and transcribe
-        audio_data = self.audio_processor.stop_recording(session.session_id)
-
-        if audio_data:
-            # Transcribe with Gemini (it has built-in ASR)
-            transcript = await self.gemini.transcribe_audio(audio_data)
-
-            if transcript:
-                logger.info(f"User said: {transcript}")
-
-                # Send STT result to device
-                stt_msg = {
-                    "type": "stt",
-                    "text": transcript
-                }
-                await websocket.send(json.dumps(stt_msg))
-
-                # Add to conversation history
-                session.add_message("user", transcript)
-
-                # Generate response
-                await self.generate_response(websocket, session, transcript)
-
-    async def handle_wake_word(self, websocket: WebSocketServerProtocol,
-                              session: SparkSession, data: dict):
-        """Handle wake word detection"""
-        wake_word = data.get("wake_word", "")
-        logger.info(f"Wake word detected: {wake_word}")
-
-    async def handle_abort(self, websocket: WebSocketServerProtocol,
-                          session: SparkSession):
-        """Handle abort speaking"""
-        logger.info("Abort speaking")
-        # Stop any ongoing TTS
-
-    async def handle_mcp_response(self, websocket: WebSocketServerProtocol,
-                                  session: SparkSession, data: dict):
-        """Handle MCP response from device"""
-        payload = data.get("payload", {})
-        result = payload.get("result")
-        request_id = payload.get("id")
-
-        if request_id in session.pending_tool_calls:
-            tool_call = session.pending_tool_calls.pop(request_id)
-            logger.info(f"MCP tool result for {tool_call['name']}: {result}")
-
-    async def generate_response(self, websocket: WebSocketServerProtocol,
-                               session: SparkSession, user_input: str):
-        """Generate AI response using Gemini"""
-
-        # Check if we need to use tools
-        tool_results = await self.check_and_run_tools(user_input, session)
-
-        # Build context with conversation history and tool results
-        context = self.build_context(session, tool_results)
+        session.is_listening = True
+        logger.info(f"Listening (mode={mode})")
 
         # Signal TTS start
-        tts_start = {"type": "tts", "state": "start"}
-        await websocket.send(json.dumps(tts_start))
+        await websocket.send(json.dumps({"type": "tts", "state": "start"}))
 
-        # Generate response with Gemini
-        try:
-            response_text = await self.gemini.generate_response(
-                system_prompt=SPARK_SYSTEM_PROMPT,
-                conversation=session.conversation_history,
-                user_input=user_input,
-                context=context
-            )
+        # Set neutral emotion
+        await websocket.send(json.dumps({"type": "llm", "emotion": "neutral"}))
 
-            # Add to history
-            session.add_message("assistant", response_text)
+    async def _handle_stop_listening(
+        self,
+        websocket: WebSocketServerProtocol,
+        session: DeviceSession
+    ):
+        """Stop listening, process input."""
+        logger.info("Stop listening")
 
-            # Send response sentence by sentence for natural TTS
-            sentences = self.split_sentences(response_text)
+        if session.bridge:
+            await session.bridge.end_turn()
 
-            for sentence in sentences:
-                # Send sentence start
-                sentence_msg = {
-                    "type": "tts",
-                    "state": "sentence_start",
-                    "text": sentence
-                }
-                await websocket.send(json.dumps(sentence_msg))
+        # Show thinking emotion
+        await websocket.send(json.dumps({"type": "llm", "emotion": "thinking"}))
 
-                # Generate TTS audio
-                audio_data = await self.gemini.text_to_speech(sentence)
-                if audio_data:
-                    await websocket.send(audio_data)
+    async def _handle_abort(
+        self,
+        websocket: WebSocketServerProtocol,
+        session: DeviceSession
+    ):
+        """Abort current speech."""
+        logger.info("Abort")
+        session.is_listening = False
 
-            # Send emotion based on response
-            emotion = self.detect_emotion(response_text)
-            emotion_msg = {"type": "llm", "emotion": emotion}
-            await websocket.send(json.dumps(emotion_msg))
+        if session.bridge:
+            session.bridge.clear_audio_buffer()
 
-        except Exception as e:
-            logger.error(f"Error generating response: {e}", exc_info=True)
-            error_text = "Sorry mate, had a bit of a brain freeze there. Give us another go?"
-            error_msg = {"type": "tts", "state": "sentence_start", "text": error_text}
-            await websocket.send(json.dumps(error_msg))
+        await websocket.send(json.dumps({"type": "tts", "state": "stop"}))
 
-        finally:
-            # Signal TTS stop
-            tts_stop = {"type": "tts", "state": "stop"}
-            await websocket.send(json.dumps(tts_stop))
+    async def _handle_mcp_response(
+        self,
+        websocket: WebSocketServerProtocol,
+        session: DeviceSession,
+        data: dict
+    ):
+        """Handle MCP response from device."""
+        payload = data.get("payload", {})
+        result = payload.get("result")
 
-    async def check_and_run_tools(self, user_input: str, session: SparkSession) -> Dict[str, Any]:
-        """Check if tools are needed and run them"""
-        results = {}
-        input_lower = user_input.lower()
-
-        # Check for web search triggers
-        search_triggers = ["search", "look up", "find out", "what's happening", "news",
-                          "current", "today", "latest", "who is", "what is"]
-        if any(trigger in input_lower for trigger in search_triggers):
-            try:
-                search_result = await self.tools["web_search"].search(user_input)
-                results["web_search"] = search_result
-                logger.info(f"Web search result: {search_result[:200]}...")
-            except Exception as e:
-                logger.error(f"Web search error: {e}")
-
-        # Check memory for relevant context
-        try:
-            memories = await self.tools["memory"].recall(
-                user_input,
-                device_id=session.device_id
-            )
-            if memories:
-                results["memories"] = memories
-        except Exception as e:
-            logger.error(f"Memory recall error: {e}")
-
-        # Check if user wants to remember something
-        remember_triggers = ["remember", "don't forget", "note that", "save this"]
-        if any(trigger in input_lower for trigger in remember_triggers):
-            try:
-                await self.tools["memory"].store(
-                    user_input,
-                    device_id=session.device_id
+        if result and session.bridge:
+            # Feed camera result back to Gemini
+            if isinstance(result, dict) and "description" in result:
+                await session.bridge.push_text(
+                    f"Camera shows: {result['description']}"
                 )
-                results["memory_stored"] = True
-            except Exception as e:
-                logger.error(f"Memory store error: {e}")
 
-        return results
+    async def _handle_tool_call(
+        self,
+        websocket: WebSocketServerProtocol,
+        session: DeviceSession,
+        tool_call
+    ):
+        """Handle tool calls from Gemini."""
+        name = getattr(tool_call, 'name', str(tool_call))
+        args = getattr(tool_call, 'args', {})
 
-    def build_context(self, session: SparkSession, tool_results: Dict[str, Any]) -> str:
-        """Build context string from tool results"""
-        context_parts = []
+        logger.info(f"Tool: {name}")
 
-        if "web_search" in tool_results:
-            context_parts.append(f"Web Search Results:\n{tool_results['web_search']}")
+        if "search" in name.lower():
+            query = args.get("query", "")
+            result = await self.search_tool.search(query)
+            if session.bridge:
+                await session.bridge.push_text(f"Search: {result[:500]}")
 
-        if "memories" in tool_results:
-            context_parts.append(f"Relevant Memories:\n{tool_results['memories']}")
+        elif "photo" in name.lower() or "camera" in name.lower():
+            question = args.get("question", "What do you see?")
+            mcp_msg = {
+                "type": "mcp",
+                "payload": {
+                    "jsonrpc": "2.0",
+                    "id": 99,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "self.camera.take_photo",
+                        "arguments": {"question": question}
+                    }
+                }
+            }
+            await websocket.send(json.dumps(mcp_msg))
 
-        if "memory_stored" in tool_results:
-            context_parts.append("(User's request has been saved to memory)")
+        elif "remember" in name.lower():
+            content = args.get("content", "")
+            await session.memory.store_fact(content)
 
-        return "\n\n".join(context_parts) if context_parts else ""
+    def _extract_opus_frame(self, data: bytes, version: int) -> Optional[bytes]:
+        """Extract Opus from protocol frame."""
+        try:
+            if version == 2 and len(data) > 14:
+                size = struct.unpack(">I", data[10:14])[0]
+                return data[14:14+size]
+            elif version == 3 and len(data) > 4:
+                size = struct.unpack(">H", data[2:4])[0]
+                return data[4:4+size]
+            return data
+        except:
+            return None
 
-    def split_sentences(self, text: str) -> List[str]:
-        """Split text into sentences for TTS"""
-        import re
-        # Split on sentence endings, keeping the punctuation
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        return [s.strip() for s in sentences if s.strip()]
-
-    def detect_emotion(self, text: str) -> str:
-        """Detect emotion from response text for display"""
-        text_lower = text.lower()
-
-        if any(word in text_lower for word in ["sorry", "apologise", "my bad"]):
-            return "embarrassed"
-        elif any(word in text_lower for word in ["brilliant", "amazing", "fantastic", "love"]):
-            return "happy"
-        elif any(word in text_lower for word in ["hmm", "think", "not sure", "maybe"]):
-            return "thinking"
-        elif any(word in text_lower for word in ["!", "wow", "blimey", "crikey"]):
-            return "surprised"
-        elif any(word in text_lower for word in ["careful", "warning", "danger"]):
-            return "concerned"
-        else:
-            return "neutral"
+    def _pack_audio_frame(self, opus: bytes, version: int) -> bytes:
+        """Pack Opus into protocol frame."""
+        if version == 2:
+            return struct.pack(">HHHII", 2, 0, 0, 0, len(opus)) + opus
+        return struct.pack(">BBH", 0, 0, len(opus)) + opus
 
 
 async def main():
-    """Main entry point"""
+    """Entry point."""
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8765"))
 
     server = SparkServer()
 
-    logger.info(f"Starting Spark AI Server on {host}:{port}")
+    logger.info("=" * 50)
+    logger.info("  SPARK AI SERVER (Gemini Live)")
+    logger.info("=" * 50)
 
     async with websockets.serve(
         server.handle_connection,
@@ -441,10 +380,10 @@ async def main():
         port,
         ping_interval=30,
         ping_timeout=10,
-        max_size=10 * 1024 * 1024  # 10MB for audio
+        max_size=10 * 1024 * 1024
     ):
-        logger.info("Spark AI Server is running!")
-        await asyncio.Future()  # Run forever
+        logger.info(f"Running on ws://{host}:{port}")
+        await asyncio.Future()
 
 
 if __name__ == "__main__":
