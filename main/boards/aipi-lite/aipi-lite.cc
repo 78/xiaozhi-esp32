@@ -236,7 +236,7 @@ class AIPILite : public WifiBoard {
     }
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
-        if (level == PowerSaveLevel::PERFORMANCE) {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
         WifiBoard::SetPowerSaveLevel(level);

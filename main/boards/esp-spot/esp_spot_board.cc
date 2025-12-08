@@ -395,7 +395,7 @@ public:
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
         if (sleep_timer_) {
-            sleep_timer_->SetEnabled(enabled);
+            sleep_timer_->SetEnabled(level == PowerSaveLevel::LOW_POWER);
         }
         WifiBoard::SetPowerSaveLevel(level);
     }

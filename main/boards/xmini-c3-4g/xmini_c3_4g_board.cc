@@ -193,7 +193,7 @@ public:
     }
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
-        if (level == PowerSaveLevel::PERFORMANCE) {
+        if (level != PowerSaveLevel::LOW_POWER) {
             sleep_timer_->WakeUp();
         }
         Ml307Board::SetPowerSaveLevel(level);
