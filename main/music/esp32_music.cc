@@ -287,7 +287,7 @@ Esp32Music::~Esp32Music() {
 
 void Esp32Music::Initialize() {
     ESP_LOGI(TAG, "Initializing music player");
-    InitializeMp3Decoder();
+    // InitializeMp3Decoder();
 }
 
 bool Esp32Music::Download(const std::string& song_name, const std::string& artist_name) {
@@ -805,9 +805,8 @@ void Esp32Music::PlayAudioStream() {
     }
     
     if (!mp3_decoder_initialized_) {
-        ESP_LOGE(TAG, "MP3 decoder not initialized");
-        is_playing_ = false;
-        return;
+        ESP_LOGI(TAG, "MP3 decoder not initialized, initializing now");
+        InitializeMp3Decoder();
     }
     
     // Wait for the buffer to have enough data to start playback
@@ -1166,10 +1165,10 @@ void Esp32Music::PlayAudioStream() {
     // Chỉ xử lý FFT khi đang ở chế độ SPECTRUM
     if (display) {
         if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
-            // 1) Xoá text info (cả trên canvas + chat label, nhờ SetMusicInfo mới chỉnh ở trên)
+            // 1 Xoá text info cả trên canvas + chat label, nhờ SetMusicInfo mới chỉnh ở trên
             display->SetMusicInfo("");
 
-            // 2) Dừng FFT + xoá UI nhạc + free buffer
+            // 2 Dừng FFT + xoá UI nhạc + free buffer
             display->StopFFT();
             display->ReleaseAudioBuffFFT();
 
@@ -1182,14 +1181,13 @@ void Esp32Music::PlayAudioStream() {
 	ClearAudioBuffer();
 	buffer_size_ = 0;
 	CleanupMp3Decoder();
-	mp3_decoder_initialized_ = false;
 
 	// Bật lại output để radio dùng
 	auto codec2 = Board::GetInstance().GetAudioCodec();
 	if (codec2) codec2->EnableOutput(true);
 
 	ESP_LOGI(TAG, "[PATCH] Full cleanup done after PlayAudioStream");
-	}
+}
 
 // Clear audio buffer
 void Esp32Music::ClearAudioBuffer() {

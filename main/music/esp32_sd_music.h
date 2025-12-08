@@ -209,7 +209,7 @@ private:
     // ============================================================
     // MP3 Decoder Utilities
     // ============================================================
-    bool initializeMp3Decoder();            // Init mini-mp3
+    bool InitializeMp3Decoder();            // Init mini-mp3
     void cleanupMp3Decoder();               // Free decoder
     size_t SkipId3Tag(uint8_t* data, size_t size);
     void resetSampleRate();                 // Restore sample-rate codec

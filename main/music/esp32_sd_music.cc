@@ -481,7 +481,7 @@ void Esp32SdMusic::Initialize(class SdCard* sd_card) {
     } else {
         ESP_LOGW(TAG, "SD card not mounted yet — will retry later");
     }
-    initializeMp3Decoder();
+    // InitializeMp3Decoder();
 }
 
 // Helper gom code join/detach thread
@@ -1189,11 +1189,11 @@ void Esp32SdMusic::playbackThreadFunc()
 		display->StartFFT();
 	}
 
-    cleanupMp3Decoder();
-    initializeMp3Decoder();
+    InitializeMp3Decoder();
     mp3_frame_info_ = {};
 
     bool ok = decodeAndPlayFile(track);
+    cleanupMp3Decoder();
 
     if (display) {
         display->StopFFT();
@@ -1275,7 +1275,7 @@ void Esp32SdMusic::playbackThreadFunc()
 // DECODE & PLAY FILE
 bool Esp32SdMusic::decodeAndPlayFile(const TrackInfo& track)
 {
-    if (!mp3_decoder_initialized_ && !initializeMp3Decoder()) {
+    if (!mp3_decoder_initialized_ && !InitializeMp3Decoder()) {
         state_.store(PlayerState::Error);
         return false;
     }
@@ -1512,7 +1512,7 @@ bool Esp32SdMusic::decodeAndPlayFile(const TrackInfo& track)
 //      DECODER UTIL / STATE / PROGRESS / GỢI Ý BÀI HÁT
 // ============================================================================
 
-bool Esp32SdMusic::initializeMp3Decoder()
+bool Esp32SdMusic::InitializeMp3Decoder()
 {
     if (mp3_decoder_initialized_) {
         ESP_LOGW(TAG, "MP3 decoder already initialized");
