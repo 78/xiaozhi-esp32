@@ -214,6 +214,11 @@ public:
         return nullptr;
     }
 
+#ifdef CONFIG_SD_CARD_DISABLED
+    virtual SdCard* GetSdCard() override {
+        return nullptr;
+    }
+#else
     virtual SdCard* GetSdCard() override {
 #ifdef CARD_SDMMC_BUS_WIDTH_4BIT
         static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
@@ -229,6 +234,7 @@ public:
 #endif
         return &sdmmc;
     }
+#endif
 };
 
 DECLARE_BOARD(XiaozhiAiIotVietnamBoardLcdSdcard);

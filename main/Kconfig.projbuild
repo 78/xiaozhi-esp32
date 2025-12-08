@@ -117,8 +117,8 @@ choice BOARD_TYPE
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
-    config BOARD_TYPE_ES3N28P_LCD_2_8
-        bool "ES3N28P LCD 2.8 inch"
+    config BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_ES3N28P_LCD_2_8
+        bool "Xiaozhi AI IoT Vietnam ES3N28P LCD 2.8 inch"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_LCD_SDCARD
         bool "Xiaozhi AI IoT Vietnam LCD + SDCard"
@@ -536,7 +536,7 @@ choice DISPLAY_LCD_TYPE
 endchoice
 
 choice DISPLAY_ES3N28P_LCD_TYPE
-    depends on BOARD_TYPE_ES3N28P_LCD_2_8
+    depends on BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_ES3N28P_LCD_2_8
     prompt "LCD Type"
     default ES3N28P_LCD_ILI9341_240X320
     help
@@ -550,7 +550,7 @@ choice DISPLAY_ES3N28P_LCD_TYPE
 endchoice
 
 choice SD_CARD_INTERFACE_TYPE
-    depends on BOARD_TYPE_ES3N28P_LCD_2_8 || BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_LCD_SDCARD
+    depends on BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_ES3N28P_LCD_2_8 || BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_LCD_SDCARD || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "SD Card Interface Type"
     default SD_CARD_DISABLED
     help

@@ -2,6 +2,7 @@
 #include "codecs/es8311_audio_codec.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
+#include "sdmmc.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -25,7 +26,7 @@
 
 
  
-#define TAG "Es3n28p"
+#define TAG "XiaozhiAIIoTEs3n28p"
 class CPT_NoAudioCodecDuplex : public NoAudioCodec {
 public:
     CPT_NoAudioCodecDuplex(int input_sample_rate, int output_sample_rate, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
@@ -85,7 +86,7 @@ public:
         ESP_LOGI(TAG, "Duplex channels created");
     }
 };
-class Es3n28p : public WifiBoard {
+class XiaozhiAIIoTEs3n28p : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
@@ -173,7 +174,7 @@ private:
     }
 
 public:
-    Es3n28p() :
+    XiaozhiAIIoTEs3n28p() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
@@ -234,6 +235,28 @@ public:
         }
         return nullptr;
     }
+
+#ifdef CONFIG_SD_CARD_DISABLED
+    virtual SdCard* GetSdCard() override {
+        return nullptr;
+    }
+#else
+    virtual SdCard* GetSdCard() override {
+#ifdef CARD_SDMMC_BUS_WIDTH_4BIT
+        static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
+                           CARD_SDMMC_CMD_GPIO,
+                           CARD_SDMMC_D0_GPIO,
+                           CARD_SDMMC_D1_GPIO,
+                           CARD_SDMMC_D2_GPIO,
+                           CARD_SDMMC_D3_GPIO);
+#else
+        static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
+                           CARD_SDMMC_CMD_GPIO,
+                           CARD_SDMMC_D0_GPIO);
+#endif
+        return &sdmmc;
+    }
+#endif
 };
 
-DECLARE_BOARD(Es3n28p);
+DECLARE_BOARD(XiaozhiAIIoTEs3n28p);

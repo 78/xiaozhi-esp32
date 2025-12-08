@@ -67,8 +67,8 @@ set(BUILTIN_ICON_FONT font_awesome_14_1)
 
 # Add board files according to BOARD_TYPE
 # Set default assets if the board uses partition table V2
-if(CONFIG_BOARD_TYPE_ES3N28P_LCD_2_8)
-    set(BOARD_TYPE "es3n28p-lcd-2.8")
+if(CONFIG_BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_ES3N28P_LCD_2_8)
+    set(BOARD_TYPE "xiaozhi-ai-iot-vietnam-es3n28p-lcd-2.8")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
