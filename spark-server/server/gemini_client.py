@@ -225,24 +225,26 @@ class GeminiClient:
         return "Sorry, couldn't quite make out what's in that image."
 
     async def text_to_speech(self, text: str) -> Optional[bytes]:
-        """Convert text to speech using Google Cloud TTS API
+        """Convert text to speech using edge-tts (free, no API key needed)
 
-        Note: For production, use Google Cloud TTS or another TTS service.
-        This is a placeholder that returns None - the device will use
-        its local TTS or you can integrate a proper TTS service.
+        Available voices (natural, not robotic):
+        - en-GB-LibbyNeural: British female, young, casual, friendly
+        - en-GB-MaisieNeural: British female, warm, conversational
+        - en-US-JennyNeural: American female, friendly, natural
+        - en-US-AriaNeural: American female, warm, expressive
         """
-        # Option 1: Use Google Cloud TTS (requires separate API key)
-        # Option 2: Use edge-tts (free, no API key needed)
-        # Option 3: Let the device handle TTS locally
-
         try:
-            # Using edge-tts as a free option
             import edge_tts
+
+            # Get voice from environment or use default
+            # LibbyNeural is young British, casual and friendly - not posh!
+            voice = os.getenv("TTS_VOICE", "en-GB-LibbyNeural")
+            rate = os.getenv("TTS_RATE", "+5%")  # Slightly faster, natural pace
 
             communicate = edge_tts.Communicate(
                 text,
-                voice="en-GB-SoniaNeural",  # British female voice
-                rate="+10%"  # Slightly faster
+                voice=voice,
+                rate=rate
             )
 
             audio_data = b""

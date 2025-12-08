@@ -31,6 +31,11 @@ services:
       # Optional: SerpAPI (alternative search)
       - SERPAPI_KEY=${SERPAPI_KEY:-}
 
+      # Voice Configuration (natural female voices)
+      # Options: en-GB-LibbyNeural, en-GB-MaisieNeural, en-US-JennyNeural, en-US-AriaNeural
+      - TTS_VOICE=${TTS_VOICE:-en-GB-LibbyNeural}
+      - TTS_RATE=${TTS_RATE:-+5%}
+
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
