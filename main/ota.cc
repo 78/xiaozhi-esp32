@@ -261,7 +261,7 @@ void Ota::MarkCurrentVersionValid() {
     }
 }
 
-bool Ota::Upgrade(const std::string& firmware_url) {
+bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progress, size_t speed)> callback) {
     ESP_LOGI(TAG, "Upgrading firmware from %s", firmware_url.c_str());
     esp_ota_handle_t update_handle = 0;
     auto update_partition = esp_ota_get_next_update_partition(NULL);
@@ -308,8 +308,8 @@ bool Ota::Upgrade(const std::string& firmware_url) {
         if (esp_timer_get_time() - last_calc_time >= 1000000 || ret == 0) {
             size_t progress = total_read * 100 / content_length;
             ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %uB/s", progress, total_read, content_length, recent_read);
-            if (upgrade_callback_) {
-                upgrade_callback_(progress, recent_read);
+            if (callback) {
+                callback(progress, recent_read);
             }
             last_calc_time = esp_timer_get_time();
             recent_read = 0;
@@ -368,14 +368,9 @@ bool Ota::Upgrade(const std::string& firmware_url) {
 }
 
 bool Ota::StartUpgrade(std::function<void(int progress, size_t speed)> callback) {
-    upgrade_callback_ = callback;
-    return Upgrade(firmware_url_);
+    return Upgrade(firmware_url_, callback);
 }
 
-bool Ota::StartUpgradeFromUrl(const std::string& url, std::function<void(int progress, size_t speed)> callback) {
-    upgrade_callback_ = callback;
-    return Upgrade(url);
-}
 
 std::vector<int> Ota::ParseVersion(const std::string& version) {
     std::vector<int> versionNumbers;
