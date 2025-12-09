@@ -1,7 +1,7 @@
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
-#include "sdmmc.h"
+#include "sdspi.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -213,6 +213,15 @@ public:
                            CARD_SDMMC_D0_GPIO);
 #endif
         return &sdmmc;
+    }
+#endif
+#ifdef CONFIG_SD_CARD_SPI_INTERFACE
+    virtual SdCard* GetSdCard() override {
+        static SdSPI sdspi(CARD_SPI_MOSI_GPIO,
+                           CARD_SPI_MISO_GPIO,
+                           CARD_SPI_SCLK_GPIO,
+                           CARD_SPI_CS_GPIO);
+        return &sdspi;
     }
 #endif
 };
