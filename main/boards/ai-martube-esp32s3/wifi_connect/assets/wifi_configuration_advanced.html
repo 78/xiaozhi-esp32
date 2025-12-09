@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>高级配置 - 小王子智能音箱</title>
+    <style>
+        :root { --primary:#6a5acd; --text:#333; --radius:12px; --shadow:0 4px 12px rgba(0,0,0,0.08); }
+        body { margin:0; font-family:"Helvetica Neue", Arial, sans-serif; background:#fff9f5; color:var(--text); }
+        .header { background:var(--primary); color:#fff; padding:20px; text-align:center; border-radius:0 0 24px 24px; box-shadow:var(--shadow); }
+        .container { max-width:420px; margin:20px auto; padding:0 20px; }
+        .card { background:#fff; border-radius:var(--radius); box-shadow:var(--shadow); padding:22px; }
+        .title { margin:0 0 16px; font-size:18px; color:var(--primary); }
+        label { display:block; margin-bottom:8px; font-size:14px; color:#555; }
+        input[type="text"] { width:100%; padding:12px 14px; border:1px solid #ddd; border-radius:var(--radius); font-size:15px; }
+        input[type="text"]:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(106,90,205,0.12); }
+        .actions { margin-top:18px; text-align:center; }
+        button { background:var(--primary); color:#fff; border:none; border-radius:var(--radius); padding:12px 18px; font-size:16px; cursor:pointer; box-shadow:var(--shadow); }
+        button:disabled { background:#bbb; cursor:not-allowed; }
+        .toast { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.8); color:#fff; padding:12px 20px; border-radius:8px; min-width:200px; text-align:center; opacity:0; transition:opacity .25s; }
+        .toast.show { opacity:1; }
+        .hint { margin-top:10px; font-size:12px; color:#777; text-align:center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="margin:0;font-size:20px;font-weight:500">小王子智能音箱 - 高级配置</h1>
+        <p style="margin:6px 0 0;font-size:13px;opacity:.9">设置 OTA URL</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">OTA URL</h2>
+            <label for="ota_url">请输入 OTA 更新地址</label>
+            <input type="text" id="ota_url" placeholder="https://example.com/ota.bin">
+            <div class="actions">
+                <button id="save">保存</button>
+            </div>
+            <div class="hint">已连接设备 AP 后可直接访问本页进行配置</div>
+        </div>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script>
+        const otaInput = document.getElementById('ota_url');
+        const saveBtn = document.getElementById('save');
+        const toast = document.getElementById('toast');
+
+        function showToast(msg){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2000); }
+
+        async function loadConfig(){
+            try {
+                const res = await fetch('/advanced/config');
+                if(!res.ok) throw new Error('加载失败');
+                const data = await res.json();
+                if (data.ota_url) otaInput.value = data.ota_url;
+            } catch(e) { showToast('加载配置失败'); }
+        }
+
+        async function save(){
+            saveBtn.disabled = true;
+            try {
+                const payload = { ota_url: otaInput.value };
+                const res = await fetch('/advanced/submit', {
+                    method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload)
+                });
+                if(!res.ok) throw new Error('保存失败');
+                const data = await res.json();
+                if (data && data.success) { window.location.href = '/done.html'; } else { showToast('保存失败'); }
+            } catch(e) { showToast('保存失败'); }
+            saveBtn.disabled = false;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadConfig);
+        saveBtn.addEventListener('click', save);
+    </script>
+</body>
+</html>
+

@@ -23,6 +23,7 @@
 
 extern const char index_html_start[] asm("_binary_wifi_configuration_html_start");
 extern const char done_html_start[] asm("_binary_wifi_configuration_done_html_start");
+extern const char advanced_html_start[] asm("_binary_wifi_configuration_advanced_html_start");
 
 WifiConfigurationAp& WifiConfigurationAp::GetInstance() {
     static WifiConfigurationAp instance;
@@ -234,6 +235,18 @@ void WifiConfigurationAp::StartWebServer()
         .user_ctx = NULL
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &index_html));
+
+    httpd_uri_t advanced_html = {
+        .uri = "/advanced",
+        .method = HTTP_GET,
+        .handler = [](httpd_req_t *req) -> esp_err_t {
+            httpd_resp_set_hdr(req, "Connection", "close");
+            httpd_resp_send(req, advanced_html_start, strlen(advanced_html_start));
+            return ESP_OK;
+        },
+        .user_ctx = NULL
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &advanced_html));
 
     // Register the /saved/list URI
     httpd_uri_t saved_list = {

@@ -4,8 +4,8 @@
 PwmLedController::PwmLedController(GpioLed* led) : led_(led) {
      // 设置默认亮度
      if (led_) {
-        led_->SetBrightness(1);  // 默认 50% 亮度
-        last_brightness_.store(1);
+        led_->SetBrightness(100);  // 默认 50% 亮度
+        last_brightness_.store(100);
     }
     
     esp_timer_create_args_t args = {};

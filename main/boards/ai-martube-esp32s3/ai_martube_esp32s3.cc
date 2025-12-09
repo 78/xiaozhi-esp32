@@ -101,7 +101,7 @@ private:
     static QueueHandle_t key_event_queue_;
     int64_t key_press_time_;
     bool key_is_pressed_;
-    uint8_t light_mode_;  // 灯光模式：0=灭, 1=30%亮度, 2=100%亮度
+    uint8_t light_mode_ = 2;  // 灯光模式：0=灭, 1=30%亮度, 2=100%亮度
     std::function<void()> on_short_press_callback_;  // 短按事件回调
     std::function<void()> on_long_press_callback_;   // 长按事件回调
     bool key_long_press_triggered_;
@@ -433,6 +433,12 @@ private:
     // 控制灯光模式
     void SetLightMode(uint8_t mode)
     {
+        // auto& app = Application::GetInstance(); 
+        // gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
+        // EnablePowerAmplifier();
+        // app.PlaySound(Lang::Sounds::OGG_WIFICONFIG);
+        // vTaskDelay(pdMS_TO_TICKS(2000));
+        // DisablePowerAmplifier();
         if (pwm_led_controller_ && pwm_led_controller_->IsReady()) {
             switch (mode) {
                 case 0:  // 关闭
@@ -440,11 +446,11 @@ private:
                     ESP_LOGI(TAG, "Light mode: OFF");
                     break;
                 case 1:  // 30% 亮度
-                    pwm_led_controller_->SetBrightnessPercent(1);
+                    pwm_led_controller_->SetBrightnessPercent(30);
                     ESP_LOGI(TAG, "Light mode: 30%% brightness");
                     break;
                 case 2:  // 100% 亮度
-                    pwm_led_controller_->SetBrightnessPercent(5);
+                    pwm_led_controller_->SetBrightnessPercent(100);
                     ESP_LOGI(TAG, "Light mode: 100%% brightness");
                     break;
                 default:
@@ -511,6 +517,7 @@ private:
             EnablePowerAmplifier();
             app.PlaySound(Lang::Sounds::OGG_BTMODE);
             vTaskDelay(pdMS_TO_TICKS(2000));
+            DisablePowerAmplifier();
 
             // 设备状态设置为待机
             auto& app = Application::GetInstance();
@@ -536,6 +543,8 @@ private:
             EnablePowerAmplifier();
             app.PlaySound(Lang::Sounds::OGG_AIMODE);
             vTaskDelay(pdMS_TO_TICKS(2000));
+            DisablePowerAmplifier();
+
             // 切到 AI 模式
             gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
             gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
@@ -568,12 +577,12 @@ private:
         
         // 设置为高电平（开机状态）
         // vTaskDelay(pdMS_TO_TICKS(2000));
-        if (gpio_get_level(SHUTDOWN_BUTTON_GPIO) == 0) {
+        // if (gpio_get_level(SHUTDOWN_BUTTON_GPIO) == 0) {
             gpio_set_level(POWER_ON_CONTROL_GPIO, 1);
-        }
-        else{
-            gpio_set_level(POWER_ON_CONTROL_GPIO, 0);
-        }
+        // }
+        // else{
+        //     gpio_set_level(POWER_ON_CONTROL_GPIO, 0);
+        // }
         ESP_LOGI(TAG, "Power control initialized on GPIO %d, status: HIGH (ON)", POWER_ON_CONTROL_GPIO);
     }
 
@@ -908,6 +917,8 @@ private:
                     gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                     EnablePowerAmplifier();
                     app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    DisablePowerAmplifier();
                     OnVolumeChange(new_volume);
                 }
                 else if (new_volume == 100)
@@ -916,6 +927,8 @@ private:
                     gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                     EnablePowerAmplifier();
                     app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                    vTaskDelay(pdMS_TO_TICKS(1500));
+                    DisablePowerAmplifier();
                     OnVolumeChange(new_volume);
                 }
                 
@@ -944,6 +957,8 @@ private:
                     gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                     EnablePowerAmplifier();
                     app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    DisablePowerAmplifier();
                     OnVolumeChange(new_volume);
                 }
             }
@@ -1171,7 +1186,8 @@ private:
                 EnablePowerAmplifier();
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYOFF);
-                
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                DisablePowerAmplifier();
                 // 5秒后关机
                 xTaskCreate([](void* arg) {
                     auto* self = static_cast<ai_martube_esp32s3*>(arg);
@@ -1196,6 +1212,9 @@ private:
                 EnablePowerAmplifier();
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                DisablePowerAmplifier();
+
             }
             // 3.3V - 第一次提醒
             else if (battery_voltage_ <= 3.3f && !battery_remind_3_3v_triggered_) {
@@ -1214,6 +1233,9 @@ private:
                 EnablePowerAmplifier();
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                DisablePowerAmplifier();
+
             }
             
             // 如果电压回升，重置提醒状态（可选，根据需求决定）
