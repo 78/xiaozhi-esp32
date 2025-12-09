@@ -6,26 +6,27 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
-
+#include "power_save_timer.h"
 #include <wifi_station.h>
 #include <esp_log.h>
-
+#include "mcp_server.h"
 #include <driver/i2c_master.h>
-#include <driver/i2c.h>
+// #include <driver/i2c.h>
 #include "i2c_device.h"
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
 #include "esp_lcd_touch_cst816s.h"
 #include "touch.h"
-
+#include "battery_monitor.h"
+#include "assets/lang_config.h"
 #include "driver/temperature_sensor.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #define TAG "EchoEar"
-
+static BatteryMonitor battery_monitor;
 
 temperature_sensor_handle_t temp_sensor = NULL;
 static const st77916_lcd_init_cmd_t vendor_specific_init_yysj[] = {
@@ -221,6 +222,7 @@ gpio_num_t QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_1;
 gpio_num_t TOUCH_PAD2 = TOUCH_PAD2_1;
 gpio_num_t UART1_TX = UART1_TX_1;
 gpio_num_t UART1_RX = UART1_RX_1;
+i2c_master_bus_handle_t i2c_bus_;
 
 class Charge : public I2cDevice {
 public:
@@ -382,7 +384,7 @@ private:
 
 class EspS3Cat : public WifiBoard {
 private:
-    i2c_master_bus_handle_t i2c_bus_;
+    // i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
     Charge* charge_;
     Button boot_button_;
@@ -390,6 +392,8 @@ private:
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
+    PowerSaveTimer* power_save_timer_;
+    
 
     void InitializeI2c()
     {
@@ -583,17 +587,127 @@ private:
         gpio_set_level(POWER_CTRL, 0);
     }
 
+    void InitializeGpio()
+    {
+        // 初始化GPIO引脚，包括LED_G和其他需要的引脚
+        gpio_config_t gpio_conf = {
+            .pin_bit_mask = (1ULL << LED_G | 1ULL << POWER_CTRL),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE
+        };
+        ESP_ERROR_CHECK(gpio_config(&gpio_conf));
+    }
+    // 初始化低功耗定时器
+    void InitializePowerSaveTimer() 
+    {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enter sleep mode");
+            GetDisplay()->SetPowerSaveMode(true);
+            GetBacklight()->SetBrightness(1);
+            bsp_set_head_led(false);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            ESP_LOGI(TAG, "Exit sleep mode");
+            GetDisplay()->SetPowerSaveMode(false);
+            GetBacklight()->RestoreBrightness();
+            bsp_set_head_led(true);
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            ESP_LOGI(TAG, "Shutdown request");
+            bsp_set_peripheral_power(false);
+        });
+        //power_save_timer_->SetEnabled(true);
+    }
+    // 初始化工具
+    void InitializeTools() 
+    {
+        auto& mcp_server = McpServer::GetInstance();
+        auto display = GetDisplay();
+        if (display) 
+        {
+            mcp_server.AddUserOnlyTool("self.screen.get_info", "Information about the screen, including width, height, etc.",
+                PropertyList(),
+                [display](const PropertyList& properties) -> ReturnValue {
+                    cJSON *json = cJSON_CreateObject();
+                    cJSON_AddNumberToObject(json, "width", display->width());
+                    cJSON_AddNumberToObject(json, "height", display->height());
+                    // if (dynamic_cast<OledDisplay*>(display)) {
+                    //     cJSON_AddBoolToObject(json, "monochrome", true);
+                    // } else {
+                    cJSON_AddBoolToObject(json, "monochrome", false);
+                    // }
+                    return json;
+                });
+        }
+        mcp_server.AddTool("self.battery.get_info", "Information about the battery, including state of charge, voltage, current, temperature, capacity, state of health, and charge status.",
+                PropertyList(),
+                [this](const PropertyList& properties) -> ReturnValue {
+                    int16_t soc = battery_monitor.getBatterySOC();
+                    int16_t voltage = battery_monitor.getVoltage();
+                    int16_t current = battery_monitor.getCurrent();
+                    uint16_t temperature = battery_monitor.getTemperature();
+                    uint16_t capacity = battery_monitor.getCapacity();
+                    bool is_charging = battery_monitor.is_charging();
+                    ESP_LOGD(TAG, "Battery info: SOC=%d%%, voltage=%dmV, current=%dmA, temperature=%d℃, capacity=%dmAh, charging=%d",
+                        soc, voltage, current, temperature, capacity, is_charging);
+                    cJSON *json = cJSON_CreateObject();
+                    cJSON_AddStringToObject(json, "SOC", (std::to_string(soc)+"%").c_str());
+                    cJSON_AddStringToObject(json, "voltage", (std::to_string(voltage)+"mV").c_str());
+                    cJSON_AddStringToObject(json, "current", (std::to_string(current)+"mA").c_str());
+                    cJSON_AddStringToObject(json, "temperature", (std::to_string(temperature)+"℃").c_str());
+                    cJSON_AddStringToObject(json, "capacity", (std::to_string(capacity)+"mAh").c_str());  
+                    cJSON_AddBoolToObject(json, "charging", is_charging);
+                    return json;
+                });
+            
+    }
+    // 初始化电池监控
+    void InitializeBatteryMonitor()
+    {
+        PowerSaveTimer* power_save_timer = getPowerSaveTimer();
+        auto& app = Application::GetInstance();
+        battery_monitor.init();
+    
+        /* Process battery monitor */
+        battery_monitor.setBatteryStatusCallback(
+        [power_save_timer](const battery_status_t & status) {
+            static battery_status_t bat_last_status = {};
+            if (bat_last_status.full != status.full) {
+                bat_last_status = status;
+                if (status.DSG == 0) {
+                    power_save_timer->SetEnabled(false);
+                } else {
+                    power_save_timer->SetEnabled(true);
+                }
+            }
+        }
+        );
+
+        battery_monitor.setBatteryShutdownCallback([&app]() {
+            app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
+        });
+        
+    }
+
+
 public:
     EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
         uint8_t pcb_verison = DetectPcbVersion();
-        InitializeCharge();
+        InitializeGpio();
+        //InitializeCharge();
         InitializeCst816sTouchPad();
 
         InitializeSpi();
         Initializest77916Display(pcb_verison);
         InitializeButtons();
+        InitializePowerSaveTimer();
+        InitializeBatteryMonitor();
+        InitializeTools();
     }
 
     virtual AudioCodec* GetAudioCodec() override
@@ -627,6 +741,41 @@ public:
     virtual Backlight* GetBacklight() override
     {
         return backlight_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override
+    {
+        if (battery_monitor.getHandle()) {
+            level = battery_monitor.getBatterySOC();
+            charging = battery_monitor.is_charging();
+            discharging = !charging;
+            return true;
+        } else {
+            return false;
+        }
+    }
+    virtual bool GetTemperature(float& temperature) override
+    {
+        if (battery_monitor.getHandle()) {
+            temperature = battery_monitor.getTemperature();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    esp_err_t bsp_set_head_led(bool on)
+    {
+        return gpio_set_level(LED_G, !on);// GREEN LED 
+    }
+
+    esp_err_t bsp_set_peripheral_power(bool on)
+    {
+        return gpio_set_level(POWER_CTRL, !on);
+    }
+    PowerSaveTimer* getPowerSaveTimer()
+    {
+        return power_save_timer_;
     }
 };
 

@@ -22,6 +22,7 @@
 // Project headers
 #include "assets.h"
 #include "assets/lang_config.h"
+#include "application.h"
 #include "board.h"
 #include "gfx.h"
 
@@ -44,11 +45,18 @@ static const char* TAG = "EmoteDisplay";
 
 // Icon Names - Centralized Management
 #define ICON_MIC                 "icon_mic"
-#define ICON_BATTERY             "icon_Battery"
+#define ICON_BATTERY             "battery_level4"
 #define ICON_SPEAKER_ZZZ         "icon_speaker_zzz"
 #define ICON_WIFI_FAILED         "icon_WiFi_failed"
 #define ICON_WIFI_OK             "icon_wifi"
 #define ICON_LISTEN              "listen"
+#define ICON_BATTERY_CHARG       "battery_charge"
+#define ICON_BATTERY_LEVEL1      "battery_level1"
+#define ICON_BATTERY_LEVEL2      "battery_level2"
+#define ICON_BATTERY_LEVEL3      "battery_level3"
+#define ICON_BATTERY_LEVEL4      "battery_level4"
+
+
 
 using FlushIoReadyCallback = std::function<bool(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void*)>;
 using FlushCallback = std::function<void(gfx_handle_t, int, int, int, int, const void*)>;
@@ -144,7 +152,6 @@ public:
     // Callback functions (public to be accessible from static helper functions)
     static bool OnFlushIoReady(const esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t* const edata, void* const user_ctx);
     static void OnFlush(const gfx_handle_t handle, const int x_start, const int y_start, const int x_end, const int y_end, const void* const color_data);
-
 private:
     gfx_handle_t engine_handle_;
 };
@@ -443,7 +450,8 @@ void EmoteDisplay::SetStatus(const char* const status)
         engine_->SetIcon(ICON_MIC, this);
     } else if (std::strcmp(status, Lang::Strings::STANDBY) == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME, this);
-        engine_->SetIcon(ICON_BATTERY, this);
+        //engine_->SetIcon(ICON_BATTERY, this);
+        SetBatteryIcon();
     } else if (std::strcmp(status, Lang::Strings::SPEAKING) == 0) {
         SetUIDisplayMode(UIDisplayMode::SHOW_TIPS, this);
         engine_->SetIcon(ICON_SPEAKER_ZZZ, this);
@@ -471,13 +479,16 @@ void EmoteDisplay::ShowNotification(const char* notification, int duration_ms)
 
 void EmoteDisplay::UpdateStatusBar(bool update_all)
 {
+    auto& app = Application::GetInstance();
     if (!engine_) {
         return;
     }
 
     // Only display time when battery icon is shown
     DisplayLockGuard lock(this);
-    if (g_current_icon_type == ICON_BATTERY) {
+    //if (g_current_icon_type.find("battery") != std::string::npos) {
+    if(app.GetDeviceState() == kDeviceStateIdle)
+    {
         time_t now;
         struct tm timeinfo;
         time(&now);
@@ -492,6 +503,8 @@ void EmoteDisplay::UpdateStatusBar(bool update_all)
         DisplayLockGuard lock(this);
         gfx_label_set_text(g_obj_label_clock, time_str);
         SetUIDisplayMode(UIDisplayMode::SHOW_TIME, this);
+    
+        SetBatteryIcon();
     }
 }
 
@@ -504,9 +517,11 @@ void EmoteDisplay::SetPowerSaveMode(bool on)
     DisplayLockGuard lock(this);
     ESP_LOGI(TAG, "SetPowerSaveMode: %s", on ? "ON" : "OFF");
     if (on) {
-        gfx_anim_stop(g_obj_anim_eye);
+        //gfx_anim_stop(g_obj_anim_eye);
+        SetEmotion("sleepy");
     } else {
-        gfx_anim_start(g_obj_anim_eye);
+        //gfx_anim_start(g_obj_anim_eye);
+        SetEmotion("neutral");
     }
 }
 
@@ -517,6 +532,11 @@ void EmoteDisplay::SetPreviewImage(const void* image)
         if (engine_) {
         }
     }
+}
+
+bool EmoteDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
+    ESP_LOGI(TAG, "EmoteDisplay mode snapshot is not supported");
+    return true;
 }
 
 void EmoteDisplay::SetTheme(Theme* const theme)
@@ -633,6 +653,8 @@ void* EmoteDisplay::GetEngineHandle() const
 void EmoteDisplay::InitializeEngine(const esp_lcd_panel_handle_t panel, const esp_lcd_panel_io_handle_t panel_io,
                                     const int width, const int height)
 {
+    width_ = width;
+    height_ = height;
     engine_ = std::make_unique<EmoteEngine>(panel, panel_io, width, height, this);
 }
 
@@ -651,5 +673,37 @@ void EmoteDisplay::Unlock()
         gfx_emote_unlock(engine_->GetEngineHandle());
     }
 }
+void EmoteDisplay::SetBatteryIcon()
+{
+    if (engine_) {
+        // Update battery icon
+        int battery_level;
+        bool charging, discharging;
+        std::string icon;
+        auto& board = Board::GetInstance();
+        if (board.GetBatteryLevel(battery_level, charging, discharging)) {
+            if (charging) {
+                icon = ICON_BATTERY_CHARG;
+            } else {
+                int level = battery_level / 25;
+                const std::string levels[] = {
+                    ICON_BATTERY_LEVEL1, //0%-24%
+                    ICON_BATTERY_LEVEL2, //25%-49%
+                    ICON_BATTERY_LEVEL3, //50%-74%
+                    ICON_BATTERY_LEVEL4, //75%-99%
+                    ICON_BATTERY, //100%
+                };
+                icon = levels[std::min(level, 4)];
+            }
+            ESP_LOGD(TAG, "SetBatteryIcon: battery level: %d, icon: %s", battery_level, icon);
+            
+        }
+        if (g_current_icon_type != icon) {
+            engine_->SetIcon(icon, this);
+        }
+    }
+    
+}
+
 
 } // namespace emote
