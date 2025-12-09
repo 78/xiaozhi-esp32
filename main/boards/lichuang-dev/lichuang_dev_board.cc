@@ -7,12 +7,12 @@
 #include "config.h"
 #include "i2c_device.h"
 #include "esp32_camera.h"
+#include "mcp_server.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include <esp_lcd_touch_ft5x06.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
@@ -107,8 +107,10 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -245,6 +247,17 @@ private:
         camera_ = new Esp32Camera(video_config);
     }
 
+    void InitializeTools() {
+        auto &mcp_server = McpServer::GetInstance();
+        mcp_server.AddTool("self.system.reconfigure_wifi",
+            "End this conversation and enter WiFi configuration mode.\n"
+            "**CAUTION** You must ask the user to confirm this action.",
+            PropertyList(), [this](const PropertyList& properties) {
+                EnterWifiConfigMode();
+                return true;
+            });
+    }
+
 public:
     LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
@@ -253,6 +266,7 @@ public:
         InitializeTouch();
         InitializeButtons();
         InitializeCamera();
+        InitializeTools();
 
         GetBacklight()->RestoreBrightness();
     }

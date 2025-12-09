@@ -7,7 +7,6 @@
 #include "config.h"
 #include "backlight.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 
 #include <driver/i2c_master.h>
@@ -475,9 +474,8 @@ private:
                 auto touch_event = touchpad->CheckTouchEvent();
 
                 if (touch_event == Cst816s::TOUCH_RELEASE) {
-                    if (app.GetDeviceState() == kDeviceStateStarting &&
-                            !WifiStation::GetInstance().IsConnected()) {
-                        board.ResetWifiConfiguration();
+                    if (app.GetDeviceState() == kDeviceStateStarting) {
+                        board.EnterWifiConfigMode();
                     } else {
                         app.ToggleChatState();
                     }
@@ -567,9 +565,10 @@ private:
     {
         boot_button_.OnClick([this]() {
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting) {
                 ESP_LOGI(TAG, "Boot button pressed, enter WiFi configuration mode");
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

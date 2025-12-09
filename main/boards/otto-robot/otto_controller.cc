@@ -16,7 +16,7 @@
 #include "power_manager.h"
 #include "sdkconfig.h"
 #include "settings.h"
-#include <wifi_station.h>
+#include <wifi_manager.h>
 
 #define TAG "OttoController"
 
@@ -818,8 +818,8 @@ public:
                            
         mcp_server.AddTool("self.otto.get_ip", "获取机器人WiFi IP地址", PropertyList(),
                            [](const PropertyList& properties) -> ReturnValue {
-                               auto& wifi_station = WifiStation::GetInstance();
-                               std::string ip = wifi_station.GetIpAddress();
+                               auto& wifi = WifiManager::GetInstance();
+                               std::string ip = wifi.GetIpAddress();
                                if (ip.empty()) {
                                    return "{\"ip\":\"\",\"connected\":false}";
                                }

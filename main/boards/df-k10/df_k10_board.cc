@@ -15,7 +15,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 
 #include "esp_io_expander_tca95xx_16bit.h"
 
@@ -119,8 +118,9 @@ private:
         iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         }, this);
@@ -149,8 +149,9 @@ private:
         iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         }, this);
