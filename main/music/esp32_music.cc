@@ -27,7 +27,7 @@
 // std::string base_url = "http://www.xiaozhishop.xyz:5005";
 // Example: http://www.xiaozhishop.xyz:5005/stream_pcm?song=Con%20mua%20bang%20gia&artist=Bang%20Kieu
 // For local server testing, you should change to your own server address
-#define DEFAULT_MUSIC_URL "http://14.225.204.77:5005"
+#define DEFAULT_MUSIC_URL "http://www.xiaozhishop.xyz:5005"
 
 // ========== Simple ESP32 Authentication Function ==========
 

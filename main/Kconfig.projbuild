@@ -534,19 +534,12 @@ choice DISPLAY_LCD_TYPE
         bool "Custom LCD (自定义屏幕参数)"
 endchoice
 
-choice DISPLAY_ES3N28P_LCD_TYPE
+config TOUCH_PANEL_ENABLE
+    bool "Enable Touch Panel"
+    default n
     depends on BOARD_TYPE_XIAOZHI_AI_IOT_VIETNAM_ES3N28P_LCD_2_8
-    prompt "LCD Type"
-    default ES3N28P_LCD_ILI9341_240X320
     help
-        LCD Display Type
-    config ES3N28P_LCD_ILI9341_240X320
-        bool "ES3N28P LCD ILI9341 240*320"
-    config ES3N28P_LCD_ILI9341_240X320_NO_IPS
-        bool "ES3N28P LCD ILI9341 240*320, Non-IPS"
-    config ES3N28P_LCD_CUSTOM
-        bool "ES3N28P LCD Custom LCD"
-endchoice
+        Enable Touch Panel support
 
 config SD_CARD_ENABLE
     bool "Enable SD Card"
