@@ -673,6 +673,7 @@ void EmoteDisplay::Unlock()
         gfx_emote_unlock(engine_->GetEngineHandle());
     }
 }
+
 void EmoteDisplay::SetBatteryIcon()
 {
     if (engine_) {
@@ -702,8 +703,6 @@ void EmoteDisplay::SetBatteryIcon()
             engine_->SetIcon(icon, this);
         }
     }
-    
 }
-
 
 } // namespace emote
