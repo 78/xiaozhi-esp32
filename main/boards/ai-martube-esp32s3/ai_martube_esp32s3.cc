@@ -94,6 +94,14 @@ private:
     GpioLed *pwm_led_;                     // 添加PWM LED成员变量
     PwmLedController *pwm_led_controller_; // 新增：PWM LED 控制器指针
     UartComm *uart_comm_;                  // 新增：串口通信成员
+    esp_timer_handle_t boot_breath_timer_ = nullptr;
+    bool boot_breathing_ = false;
+    uint8_t breath_min_ = 5;
+    uint8_t breath_max_ = 100;
+    uint8_t breath_current_ = 5;
+    bool breath_up_ = true;
+    int breath_interval_ms_ = 30;
+    int breath_step_ = 2;
 
     bool to_open_audio = false;
     
@@ -146,9 +154,9 @@ private:
     int64_t last_battery_check_time_;
     
     // 电池提醒状态变量
-    bool battery_remind_3_3v_triggered_;  // 3.3V 提醒已触发
-    bool battery_remind_2_85v_triggered_; // 2.85V 提醒已触发
-    bool battery_remind_2_8v_triggered_;  // 2.8V 提醒已触发
+    bool battery_remind_first_triggered_;  // 3.3V 提醒已触发
+    bool battery_remind_second_triggered_; // 2.85V 提醒已触发
+    bool battery_remind_end_triggered_;  // 2.8V 提醒已触发
     bool shutdown_in_progress_;           // 关机进行中
     int last_charge_level_ = -1;
     int charge_candidate_level_ = -1;
@@ -173,6 +181,42 @@ private:
 
         // Initialize XL9555
         // xl9555_ = new XL9555(i2c_bus_, 0x20);
+    }
+
+    static void BootBreathTimerCallback(void* arg)
+    {
+        auto* self = static_cast<ai_martube_esp32s3*>(arg);
+        self->HandleBootBreathTick();
+    }
+
+    void HandleBootBreathTick()
+    {
+        if (!boot_breathing_ || pwm_led_ == nullptr) {
+            if (boot_breath_timer_) {
+                esp_timer_stop(boot_breath_timer_);
+            }
+            return;
+        }
+
+        uint8_t cur = breath_current_;
+        if (breath_up_) {
+            if (cur + breath_step_ >= breath_max_) {
+                cur = breath_max_;
+                breath_up_ = false;
+            } else {
+                cur = cur + breath_step_;
+            }
+        } else {
+            if (cur <= breath_min_ + breath_step_) {
+                cur = breath_min_;
+                breath_up_ = true;
+            } else {
+                cur = cur - breath_step_;
+            }
+        }
+        breath_current_ = cur;
+        pwm_led_->SetBrightness(cur);
+        pwm_led_->TurnOn();
     }
 
     // Initialize spi peripheral
@@ -1014,9 +1058,9 @@ private:
         last_battery_check_time_ = 0;
         
         // 初始化电池提醒状态
-        battery_remind_3_3v_triggered_ = false;
-        battery_remind_2_85v_triggered_ = false;
-        battery_remind_2_8v_triggered_ = false;
+        battery_remind_first_triggered_ = false;
+        battery_remind_second_triggered_ = false;
+        battery_remind_end_triggered_ = false;
         shutdown_in_progress_ = false;
         
         ESP_LOGI(TAG, "Battery monitor initialized on GPIO %d (ADC_CH%d)", 
@@ -1078,48 +1122,67 @@ private:
 
     // 计算电池电量百分比（根据实际电池特性分段计算）
     // 参考表格：
-    // 100% (满电): 4.15 - 4.20 V
-    // 80% - 90%: 3.95 - 4.15 V
-    // 50% - 80%: 3.75 - 3.95 V
-    // 20% - 50%: 3.50 - 3.75 V
-    // 10% - 20%: 3.30 - 3.50 V
-    // 0% (保护板断电): 2.50 - 3.30 V
+    // 100%----4.20V
+    // 90%-----4.06V
+    // 80%-----3.98V
+    // 70%-----3.92V   
+    // 60%-----3.87V   
+    // 50%-----3.82V   
+    // 40%-----3.79V   
+    // 30%-----3.77V   
+    // 20%-----3.74V   
+    // 10%-----3.68V   
+    // 5%------3.45V   
+    // 0%------3.00V
     int CalculateBatteryPercentage(float voltage)
     {
-        // 80% - 100%: 3.95 - 4.20 V
-        if (voltage >= BATTERY_VOLTAGE_80P) {
-            float percentage = 80.0f + ((voltage - BATTERY_VOLTAGE_80P) / 
-                                      (4.20f - BATTERY_VOLTAGE_80P)) * 20.0f;
-            return (int)percentage;
+        // Define the voltage to percentage mapping table
+        struct VoltagePoint {
+            float voltage;
+            int percentage;
+        };
+
+        static const VoltagePoint kVoltageTable[] = {
+            {4.15f, 100},
+            {4.06f, 90},
+            {3.98f, 80},
+            {3.92f, 70},
+            {3.87f, 60},
+            {3.82f, 50},
+            {3.75f, 40},
+            {3.70f, 30},
+            {3.60f, 20},
+            {3.50f, 10},
+            {3.40f, 5},
+            {3.30f, 0}
+        };
+        
+        const int kTableSize = sizeof(kVoltageTable) / sizeof(kVoltageTable[0]);
+
+        // Voltage higher than max is 100%
+        if (voltage >= kVoltageTable[0].voltage) {
+            return 100;
         }
-        // 50% - 80%: 3.75 - 3.95 V
-        else if (voltage >= BATTERY_VOLTAGE_50P) {
-            float percentage = 50.0f + ((voltage - BATTERY_VOLTAGE_50P) / 
-                                      (BATTERY_VOLTAGE_80P - BATTERY_VOLTAGE_50P)) * 30.0f;
-            return (int)percentage;
-        }
-        // 20% - 50%: 3.50 - 3.75 V
-        else if (voltage >= BATTERY_VOLTAGE_20P) {
-            float percentage = 20.0f + ((voltage - BATTERY_VOLTAGE_20P) / 
-                                      (BATTERY_VOLTAGE_50P - BATTERY_VOLTAGE_20P)) * 30.0f;
-            return (int)percentage;
-        }
-        // 10% - 20%: 3.30 - 3.50 V
-        else if (voltage >= BATTERY_VOLTAGE_10P) {
-            float percentage = 10.0f + ((voltage - BATTERY_VOLTAGE_10P) / 
-                                      (BATTERY_VOLTAGE_20P - BATTERY_VOLTAGE_10P)) * 10.0f;
-            return (int)percentage;
-        }
-        // 0% - 10%: 2.50 - 3.30 V (保护板断电范围)
-        else if (voltage >= BATTERY_EMPTY_VOLTAGE) {
-            float percentage = ((voltage - BATTERY_EMPTY_VOLTAGE) / 
-                              (BATTERY_VOLTAGE_10P - BATTERY_EMPTY_VOLTAGE)) * 10.0f;
-            return (int)percentage;
-        }
-        // 低于保护板断电电压
-        else {
+
+        // Voltage lower than min is 0%
+        if (voltage <= kVoltageTable[kTableSize - 1].voltage) {
             return 0;
         }
+
+        // Linear interpolation
+        for (int i = 0; i < kTableSize - 1; ++i) {
+            if (voltage >= kVoltageTable[i + 1].voltage) {
+                float v_high = kVoltageTable[i].voltage;
+                float v_low = kVoltageTable[i + 1].voltage;
+                int p_high = kVoltageTable[i].percentage;
+                int p_low = kVoltageTable[i + 1].percentage;
+
+                float percentage = p_low + (voltage - v_low) * (p_high - p_low) / (v_high - v_low);
+                return static_cast<int>(percentage);
+            }
+        }
+
+        return 0;
     }
 
     // 关机函数
@@ -1170,9 +1233,9 @@ private:
             // 电池电量提醒逻辑
             auto& app = Application::GetInstance();
             
-            // 2.8V - 最后一次提醒并关机
-            if (battery_voltage_ <= 2.8f && !battery_remind_2_8v_triggered_) {
-                battery_remind_2_8v_triggered_ = true;
+            // 低于5% - 最后一次提醒并关机
+            if ( battery_percentage_ < 5 && !battery_remind_end_triggered_) {
+                battery_remind_end_triggered_ = true;
                 ESP_LOGW(TAG, "Battery critical: %.2fV, playing shutdown reminder", battery_voltage_);
                 
                 // 播放关机提醒音频
@@ -1196,9 +1259,9 @@ private:
                     vTaskDelete(NULL);
                 }, "battery_shutdown", 4096, this, 5, nullptr);
             }
-            // 2.85V - 第二次提醒
-            else if (battery_voltage_ <= 2.85f && !battery_remind_2_85v_triggered_) {
-                battery_remind_2_85v_triggered_ = true;
+            // 等于5% - 第二次提醒
+            else if (battery_percentage_ <= 5 && !battery_remind_second_triggered_) {
+                battery_remind_second_triggered_ = true;
                 ESP_LOGW(TAG, "Battery low: %.2fV, playing low battery reminder", battery_voltage_);
                 
                 // 播放低电量提醒音频
@@ -1216,9 +1279,9 @@ private:
                 DisablePowerAmplifier();
 
             }
-            // 3.3V - 第一次提醒
-            else if (battery_voltage_ <= 3.3f && !battery_remind_3_3v_triggered_) {
-                battery_remind_3_3v_triggered_ = true;
+            // 低于10% - 第一次提醒
+            else if (battery_percentage_ <= 10 && !battery_remind_first_triggered_) {
+                battery_remind_first_triggered_ = true;
                 ESP_LOGW(TAG, "Battery warning: %.2fV, playing low battery reminder", battery_voltage_);
                 
                 // 播放低电量提醒音频
@@ -1239,14 +1302,12 @@ private:
             }
             
             // 如果电压回升，重置提醒状态（可选，根据需求决定）
-            if (battery_voltage_ > 3.4f) {
-                battery_remind_3_3v_triggered_ = false;
+            if (battery_percentage_ > 20) {
+                battery_remind_first_triggered_ = false;
             }
-            if (battery_voltage_ > 2.9f) {
-                battery_remind_2_85v_triggered_ = false;
-            }
-            if (battery_voltage_ > 2.85f) {
-                battery_remind_2_8v_triggered_ = false;
+            if (battery_percentage_ > 10) {
+                battery_remind_second_triggered_ = false;
+                battery_remind_end_triggered_ = false;
             }
         }
     }
@@ -1456,10 +1517,25 @@ public:
             // 使用正确的GpioLed构造函数参数
             pwm_led_ = new GpioLed(PWM_LED_GPIO, PWM_LED_OUTPUT_INVERT, PWM_LED_TIMER, PWM_LED_CHANNEL);
         }
+        //启动呼吸效果
         pwm_led_controller_ = new PwmLedController(pwm_led_);
-        if (pwm_led_controller_ && pwm_led_controller_->IsReady())
         {
-            pwm_led_controller_->TurnOn();
+            breath_min_ = 5;
+            breath_max_ = 100;
+            breath_step_ = 2;
+            breath_interval_ms_ = 30;
+            breath_current_ = breath_min_;
+            pwm_led_->SetBrightness(breath_current_);
+            pwm_led_->TurnOn();
+            esp_timer_create_args_t args = {};
+            args.callback = &BootBreathTimerCallback;
+            args.arg = this;
+            args.dispatch_method = ESP_TIMER_TASK;
+            args.name = "boot_breath";
+            args.skip_unhandled_events = false;
+            ESP_ERROR_CHECK(esp_timer_create(&args, &boot_breath_timer_));
+            boot_breathing_ = true;
+            esp_timer_start_periodic(boot_breath_timer_, breath_interval_ms_ * 1000);
         }
         // 设置按键回调
         SetKeyCallbacks(
@@ -1542,6 +1618,13 @@ public:
                                 // app.PlaySound(Lang::Sounds::OGG_SUCCESS);
                                 vTaskDelay(pdMS_TO_TICKS(2000));
                                 first_connect_reminder = false;
+                            }
+                            if (self->boot_breath_timer_) {
+                                self->boot_breathing_ = false;
+                                esp_timer_stop(self->boot_breath_timer_);
+                            }
+                            if (self->pwm_led_) {
+                                self->pwm_led_->TurnOff();
                             }
                             // 进入待机状态时，切换到蓝牙模式
                             gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
@@ -1647,6 +1730,34 @@ public:
             4096,
             this,
             5,
+            nullptr,
+            0
+        );
+
+        // 网络状态监测线程：周期性检测 Wi-Fi 连接状态并打印日志
+        xTaskCreatePinnedToCore(
+            [](void* /*arg*/) {
+                bool last_connected = WifiStation::GetInstance().IsConnected();
+                ESP_LOGI(TAG, "Network monitor start, connected=%d", last_connected);
+                while (true) {
+                    bool connected = WifiStation::GetInstance().IsConnected();
+                    // 读取当前 RSSI（仅在已连接时有效）
+                    if (connected) {
+                        int8_t rssi = WifiStation::GetInstance().GetRssi();
+                        ESP_LOGI(TAG, "WiFi RSSI: %d dBm", rssi);
+                    }
+                    if (connected != last_connected) {
+                        ESP_LOGI(TAG, "Network state changed: %s",
+                                 connected ? "connected" : "disconnected");
+                        last_connected = connected;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(2000)); // 2s 检测一次
+                }
+            },
+            "net_monitor",
+            2048,
+            nullptr,
+            4,
             nullptr,
             0
         );

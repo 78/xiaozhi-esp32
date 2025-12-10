@@ -28,6 +28,10 @@ public:
     // 停止闪烁（若在闪烁）
     void StopBlink();
 
+    void StartBreathing(int interval_ms = 30, uint8_t min_percent = 5, uint8_t max_percent = 100);
+    void StopBreathing();
+    bool IsBreathing() const;
+
     // 查询最近设置的亮度（百分比）
     uint8_t LastBrightnessPercent() const;
 
@@ -43,4 +47,14 @@ private:
 
     static void BlinkTimerCallback(void* arg);
     void HandleBlinkTick();
+
+    esp_timer_handle_t breath_timer_ = nullptr;
+    std::atomic<bool> breathing_{false};
+    std::atomic<int> breath_interval_ms_{30};
+    std::atomic<uint8_t> breath_min_{5};
+    std::atomic<uint8_t> breath_max_{100};
+    std::atomic<bool> breath_up_{true};
+    std::atomic<uint8_t> breath_current_{5};
+    static void BreathTimerCallback(void* arg);
+    void HandleBreathTick();
 };

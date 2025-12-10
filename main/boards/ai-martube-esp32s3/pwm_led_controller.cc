@@ -15,14 +15,28 @@ PwmLedController::PwmLedController(GpioLed* led) : led_(led) {
     args.name = "pwm_led_ctrl_timer";
     args.skip_unhandled_events = false;
     esp_timer_create(&args, &blink_timer_);
+
+    esp_timer_create_args_t bargs = {};
+    bargs.callback = &PwmLedController::BreathTimerCallback;
+    bargs.arg = this;
+    bargs.dispatch_method = ESP_TIMER_TASK;
+    bargs.name = "pwm_led_breath_timer";
+    bargs.skip_unhandled_events = false;
+    esp_timer_create(&bargs, &breath_timer_);
 }
 
 PwmLedController::~PwmLedController() {
     StopBlink();
+    StopBreathing();
     if (blink_timer_) {
         esp_timer_stop(blink_timer_);
         esp_timer_delete(blink_timer_);
         blink_timer_ = nullptr;
+    }
+    if (breath_timer_) {
+        esp_timer_stop(breath_timer_);
+        esp_timer_delete(breath_timer_);
+        breath_timer_ = nullptr;
     }
 }
 
@@ -117,4 +131,77 @@ void PwmLedController::HandleBlinkTick() {
             esp_timer_stop(blink_timer_);
         }
     }
+}
+
+void PwmLedController::StartBreathing(int interval_ms, uint8_t min_percent, uint8_t max_percent) {
+    if (!IsReady() || breath_timer_ == nullptr) return;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(blink_timer_);
+    blinking_.store(false);
+    if (min_percent > max_percent) {
+        uint8_t t = min_percent;
+        min_percent = max_percent;
+        max_percent = t;
+    }
+    if (max_percent > 100) max_percent = 100;
+    breath_interval_ms_.store(interval_ms);
+    breath_min_.store(min_percent);
+    breath_max_.store(max_percent);
+    breath_current_.store(min_percent);
+    breath_up_.store(true);
+    breathing_.store(true);
+    SetBrightnessPercent(min_percent);
+    esp_timer_start_periodic(breath_timer_, interval_ms * 1000);
+}
+
+void PwmLedController::StopBreathing() {
+    if (!IsReady() || breath_timer_ == nullptr) return;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    breathing_.store(false);
+    esp_timer_stop(breath_timer_);
+}
+
+bool PwmLedController::IsBreathing() const {
+    return breathing_.load();
+}
+
+void PwmLedController::BreathTimerCallback(void* arg) {
+    auto* self = static_cast<PwmLedController*>(arg);
+    self->HandleBreathTick();
+}
+
+void PwmLedController::HandleBreathTick() {
+    if (!IsReady()) return;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!breathing_.load()) {
+        esp_timer_stop(breath_timer_);
+        return;
+    }
+
+    uint8_t cur = breath_current_.load();
+    uint8_t minp = breath_min_.load();
+    uint8_t maxp = breath_max_.load();
+    bool up = breath_up_.load();
+    int step = 2;
+    if (up) {
+        if (cur + step >= maxp) {
+            cur = maxp;
+            breath_up_.store(false);
+        } else {
+            cur = cur + step;
+        }
+    } else {
+        if (cur <= minp + step) {
+            cur = minp;
+            breath_up_.store(true);
+        } else {
+            cur = cur - step;
+        }
+    }
+    breath_current_.store(cur);
+    SetBrightnessPercent(cur);
 }
