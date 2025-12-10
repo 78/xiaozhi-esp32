@@ -115,7 +115,7 @@ Các tính năng sau đây đang được phát triển tích cực và sẽ đ�
 
 | Tính năng | Mô tả | Trạng thái |
 |-----------|-------|------------|
-| 💾 **Play music from SD card** | Phát nhạc trực tiếp từ thẻ nhớ SD | ✅ https://github.com/NTC95-Xiaozhi-Esp32/Xiaozhi-NTC-SDCARD |
+| 💾 **Play music from SD card** | Phát nhạc trực tiếp từ thẻ nhớ SD | ✅ https://github.com/NTC95-Xiaozhi-Esp32/Xiaozhi_NTC_SDCARD |
 | 🎬 **Play video from SD** | Phát video từ thẻ nhớ SD trên màn hình LCD | 🔨 Đang phát triển |
 | 🔊 **Phát nhạc qua Bluetooth** | Kết nối và phát nhạc qua loa Bluetooth | 🔨 Đang phát triển |
 
@@ -139,10 +139,10 @@ Các tính năng sau đây đang được phát triển tích cực và sẽ đ�
 
 | Tính năng | Mô tả | Trạng thái |
 |-----------|-------|------------|
-| 🌐 **OTA qua Webserver Nhúng** | Cập nhật firmware qua webserver tích hợp trong chip | 🔨 Đang phát triển |
+| 🌐 **OTA qua Webserver Nhúng** | Cập nhật firmware qua webserver tích hợp trong chip | ✅ Đã phát triển |
 | 🔧 **Web Server Cấu Hình GPIO** | Giao diện web để cấu hình chân GPIO | 🔨 Đang phát triển |
 | 🎚️ **Tăng Mic Gain với UI** | Điều chỉnh độ nhạy microphone qua giao diện | 🔨 Đang phát triển |
-| 🔄 **Update V1 lên V2** | Hỗ trợ nâng cấp từ phiên bản V1 lên V2 | 📋 Kế hoạch |
+| 🔄 **Update V1 lên V2** | Hỗ trợ nâng cấp từ phiên bản V1 lên V2 | 🔨 Đang phát triển |
 | 🖥️ **Hỗ Trợ Màn Hình Mới** | Build firmware cho các loại màn hình mới | 🔨 Đang phát triển |
 
 ### ⏰ Tiện Ích Thông Minh
