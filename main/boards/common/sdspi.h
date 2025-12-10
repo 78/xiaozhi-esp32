@@ -39,7 +39,7 @@ class SdSPI : public SdCard {
     gpio_num_t mosi_pin = DEFAULT_SDSPI_MOSI_GPIO;
     gpio_num_t clk_pin = DEFAULT_SDSPI_CLK_GPIO;
     gpio_num_t cs_pin = DEFAULT_SDSPI_CS_GPIO;
-    int max_freq_khz = SDMMC_FREQ_DEFAULT / 2;  // 20MHz default (can be lower for SPI)
+    int max_freq_khz = SDMMC_FREQ_DEFAULT;  // 20MHz default (can be lower for SPI)
     spi_host_device_t host_id = SPI2_HOST;  // SPI2_HOST or SPI3_HOST
   };
 
@@ -54,7 +54,7 @@ class SdSPI : public SdCard {
                   bool format_if_mount_failed = false,
                   int max_files = kSdSpiMaxFiles,
                   size_t allocation_unit_size = kSdSpiAllocationUnitSize,
-                  int max_freq_khz = SDMMC_FREQ_DEFAULT / 2);
+                  int max_freq_khz = SDMMC_FREQ_DEFAULT);
   ~SdSPI();
 
   // Disable copy and assign

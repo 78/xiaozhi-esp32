@@ -403,6 +403,7 @@ void Application::Start() {
         radio_->Initialize();
     }
 
+#ifdef CONFIG_SD_CARD_ENABLE
     auto sd_card = board.GetSdCard();
     if (sd_card != nullptr) {
         if (sd_card->Initialize() == ESP_OK) {
@@ -414,6 +415,7 @@ void Application::Start() {
             ESP_LOGW(TAG, "Failed to mount SD card");
         }
     }
+#endif
 
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);

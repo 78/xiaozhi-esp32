@@ -548,18 +548,24 @@ choice DISPLAY_ES3N28P_LCD_TYPE
         bool "ES3N28P LCD Custom LCD"
 endchoice
 
+config SD_CARD_ENABLE
+    bool "Enable SD Card"
+    default n
+    help
+        Enable SD Card support
+
 choice SD_CARD_INTERFACE_TYPE
     prompt "SD Card Interface Type"
-    default SD_CARD_DISABLED
+    default SD_CARD_MMC_INTERFACE
+    depends on SD_CARD_ENABLE
     help
         SD Card Interface Type
     config SD_CARD_MMC_INTERFACE
         bool "SDMMC Interface"
     config SD_CARD_SPI_INTERFACE
         bool "SPI Interface"
-    config SD_CARD_DISABLED
-        bool "Disable SD Card"
 endchoice
+
 
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP_KORVO2_V3

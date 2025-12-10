@@ -236,11 +236,7 @@ public:
         return nullptr;
     }
 
-#ifdef CONFIG_SD_CARD_DISABLED
-    virtual SdCard* GetSdCard() override {
-        return nullptr;
-    }
-#else
+#ifdef CONFIG_SD_CARD_MMC_INTERFACE
     virtual SdCard* GetSdCard() override {
 #ifdef CARD_SDMMC_BUS_WIDTH_4BIT
         static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
@@ -255,6 +251,15 @@ public:
                            CARD_SDMMC_D0_GPIO);
 #endif
         return &sdmmc;
+    }
+#endif
+#ifdef CONFIG_SD_CARD_SPI_INTERFACE
+    virtual SdCard* GetSdCard() override {
+        static SdSPI sdspi(CARD_SPI_MISO_GPIO,
+                           CARD_SPI_MOSI_GPIO,
+                           CARD_SPI_SCLK_GPIO,
+                           CARD_SPI_CS_GPIO);
+        return &sdspi;
     }
 #endif
 };

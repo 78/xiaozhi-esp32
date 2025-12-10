@@ -387,7 +387,7 @@ void McpServer::AddCommonTools() {
 				});
 	}
 
-#if defined(CONFIG_SD_CARD_MMC_INTERFACE) || defined(CONFIG_SD_CARD_SPI_INTERFACE)
+#ifdef CONFIG_SD_CARD_ENABLE
 	auto sd_music = Application::GetInstance().GetSdMusic();
 	if (sd_music) {
 

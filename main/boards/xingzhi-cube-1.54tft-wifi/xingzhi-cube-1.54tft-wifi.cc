@@ -1,7 +1,11 @@
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
+#ifdef CONFIG_SD_CARD_MMC_INTERFACE
+#include "sdmmc.h"
+#elif defined(CONFIG_SD_CARD_SPI_INTERFACE)
 #include "sdspi.h"
+#endif
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -208,6 +212,13 @@ public:
                            CARD_SDMMC_D2_GPIO,
                            CARD_SDMMC_D3_GPIO);
 #else
+#ifdef CARD_SDMMC_D3_GPIO
+        if (CARD_SDMMC_D3_GPIO != GPIO_NUM_NC) {
+            gpio_set_direction(CARD_SDMMC_D3_GPIO, GPIO_MODE_INPUT);
+            gpio_pullup_en(CARD_SDMMC_D3_GPIO);
+            vTaskDelay(pdMS_TO_TICKS(10)); // Wait for the pin to stabilize
+        }
+#endif
         static SdMMC sdmmc(CARD_SDMMC_CLK_GPIO,
                            CARD_SDMMC_CMD_GPIO,
                            CARD_SDMMC_D0_GPIO);
@@ -217,8 +228,8 @@ public:
 #endif
 #ifdef CONFIG_SD_CARD_SPI_INTERFACE
     virtual SdCard* GetSdCard() override {
-        static SdSPI sdspi(CARD_SPI_MOSI_GPIO,
-                           CARD_SPI_MISO_GPIO,
+        static SdSPI sdspi(CARD_SPI_MISO_GPIO,
+                           CARD_SPI_MOSI_GPIO,
                            CARD_SPI_SCLK_GPIO,
                            CARD_SPI_CS_GPIO);
         return &sdspi;
