@@ -4,8 +4,8 @@
         {
             "name": "waveshare-s3-epaper-1.54",
             "sdkconfig_append": [
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=partitions/v2/8m.csv",
-                "CONFIG_ESPTOOLPY_FLASHSIZE=8MB"
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
             ]
         }
     ]

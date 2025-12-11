@@ -1,33 +1,37 @@
+#include "wifi_board.h"
+#include "codecs/box_audio_codec.h"
+#include "display/lcd_display.h"
+#include "display/emote_display.h"
+#include "application.h"
+#include "button.h"
+#include "config.h"
+#include "backlight.h"
+#include "esp32_camera.h"
+
+#include <esp_log.h>
+
 #include <driver/i2c_master.h>
+#include "i2c_device.h"
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
-#include <esp_log.h>
+#include "esp_lcd_touch_cst816s.h"
+#include "touch.h"
+
+#include "driver/temperature_sensor.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
-#include "application.h"
-#include "assets/lang_config.h"
-#include "backlight.h"
-#include "battery_monitor.h"
-#include "button.h"
-#include "codecs/box_audio_codec.h"
-#include "config.h"
-#include "display/emote_display.h"
-#include "display/lcd_display.h"
-#include "driver/temperature_sensor.h"
-#include "esp_lcd_touch_cst816s.h"
-#include "i2c_device.h"
+
 #include "mcp_server.h"
 #include "power_save_timer.h"
-#include "touch.h"
-#include "wifi_board.h"
+#include "battery_monitor.h"
+#include "assets/lang_config.h"
 
 #define TAG "EchoEar"
 
 static BatteryMonitor battery_monitor;
 temperature_sensor_handle_t temp_sensor = NULL;
-
 static const st77916_lcd_init_cmd_t vendor_specific_init_yysj[] = {
     {0xF0, (uint8_t[]){0x28}, 1, 0},
     {0xF2, (uint8_t[]){0x28}, 1, 0},
@@ -370,7 +374,7 @@ private:
     SemaphoreHandle_t touch_isr_mux_;
 };
 
-class EspS3Cat : public WifiBoard {
+class EchoEar : public WifiBoard {
 private:
     // i2c_master_bus_handle_t i2c_bus_;
     Cst816s *cst816s_;
@@ -381,6 +385,7 @@ private:
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;  // LCD touch handle
     PowerSaveTimer *power_save_timer_;
+    Esp32Camera* camera_ = nullptr;
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -453,7 +458,7 @@ private:
         while (true) {
             if (touchpad->WaitForTouchEvent()) {
                 auto &app = Application::GetInstance();
-                auto &board = (EspS3Cat &)Board::GetInstance();
+                auto &board = (EchoEar &)Board::GetInstance();
 
                 ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
@@ -462,7 +467,6 @@ private:
                 if (touch_event == Cst816s::TOUCH_RELEASE) {
                     if (app.GetDeviceState() == kDeviceStateStarting) {
                         board.EnterWifiConfigMode();
-                        return;
                     } else {
                         app.ToggleChatState();
                     }
@@ -489,7 +493,7 @@ private:
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::touch_isr_callback, cst816s_);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EchoEar::touch_isr_callback, cst816s_);
     }
 
     void InitializeSpi() {
@@ -665,8 +669,33 @@ private:
             [&app]() { app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY); });
     }
 
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    void InitializeCamera() {
+        esp_video_init_usb_uvc_config_t usb_uvc_config = {
+            .uvc = {
+                .uvc_dev_num = 1,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+            .usb = {
+                .init_usb_host_lib = true,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+        };
+
+        esp_video_init_config_t video_config = {
+            .usb_uvc = &usb_uvc_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
+    }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+
 public:
-    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO) {
+    EchoEar() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
         uint8_t pcb_verison = DetectPcbVersion();
         InitializeGpio();
@@ -677,6 +706,9 @@ public:
         InitializePowerSaveTimer();
         InitializeBatteryMonitor();
         InitializeTools();
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+        InitializeCamera();
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     }
 
     virtual AudioCodec *GetAudioCodec() override {
@@ -729,6 +761,10 @@ public:
     esp_err_t bsp_set_peripheral_power(bool on) {
         return gpio_set_level(POWER_CTRL, !on);
     }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
 };
 
-DECLARE_BOARD(EspS3Cat);
+DECLARE_BOARD(EchoEar);
