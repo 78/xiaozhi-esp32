@@ -16,7 +16,6 @@
 #include "assets/lang_config.h"
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
-#include <wifi_station.h>
 #include "cst816x.h"
 
 #define TAG "XINGZHI_METAL_1_54_WIFI"
@@ -191,11 +190,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 
