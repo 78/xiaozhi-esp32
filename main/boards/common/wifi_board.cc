@@ -17,6 +17,9 @@
 #include <wifi_station.h>
 #include <ssid_manager.h>
 #include "afsk_demod.h"
+#ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+#include "blufi.h"
+#endif
 
 static const char *TAG = "WifiBoard";
 
@@ -48,13 +51,13 @@ std::string WifiBoard::GetBoardType() {
 
 void WifiBoard::StartNetwork() {
     auto& wifi_manager = WifiManager::GetInstance();
-    
+
     // Initialize WiFi manager
     WifiManagerConfig config;
     config.ssid_prefix = "Xiaozhi";
     config.language = Lang::CODE;
     wifi_manager.Initialize(config);
-    
+
     // Set unified event callback - forward to NetworkEvent with SSID data
     wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event) {
         std::string ssid = wifi_manager.GetSsid();
@@ -79,7 +82,7 @@ void WifiBoard::StartNetwork() {
                 break;
         }
     });
-    
+
     // Try to connect or enter config mode
     TryWifiConnect();
 }
@@ -87,7 +90,7 @@ void WifiBoard::StartNetwork() {
 void WifiBoard::TryWifiConnect() {
     auto& ssid_manager = SsidManager::GetInstance();
     bool have_ssid = !ssid_manager.GetSsidList().empty();
-    
+
     if (have_ssid) {
         // Start connection attempt with timeout
         ESP_LOGI(TAG, "Starting WiFi connection attempt");
@@ -103,17 +106,21 @@ void WifiBoard::TryWifiConnect() {
 
 void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
     switch (event) {
+        case NetworkEvent::Connected:
+            // Stop timeout timer
+            esp_timer_stop(connect_timer_);
+#ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+            // make sure blufi resources has been released
+            Blufi::GetInstance().deinit();
+#endif
+            in_config_mode_ = false;
+            ESP_LOGI(TAG, "Connected to WiFi: %s", data.c_str());
+            break;
         case NetworkEvent::Scanning:
             ESP_LOGI(TAG, "WiFi scanning");
             break;
         case NetworkEvent::Connecting:
             ESP_LOGI(TAG, "WiFi connecting to %s", data.c_str());
-            break;
-        case NetworkEvent::Connected:
-            // Stop timeout timer
-            esp_timer_stop(connect_timer_);
-            in_config_mode_ = false;
-            ESP_LOGI(TAG, "Connected to WiFi: %s", data.c_str());
             break;
         case NetworkEvent::Disconnected:
             ESP_LOGW(TAG, "WiFi disconnected");
@@ -130,9 +137,8 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
             break;
         default:
             break;
-
     }
-    
+
     // Notify external callback if set
     if (network_event_callback_) {
         network_event_callback_(event, data);
@@ -146,36 +152,41 @@ void WifiBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
 void WifiBoard::OnWifiConnectTimeout(void* arg) {
     auto* board = static_cast<WifiBoard*>(arg);
     ESP_LOGW(TAG, "WiFi connection timeout, entering config mode");
-    
+
     WifiManager::GetInstance().StopStation();
     board->StartWifiConfigMode();
 }
 
 void WifiBoard::StartWifiConfigMode() {
     in_config_mode_ = true;
-    auto& wifi_manager = WifiManager::GetInstance();
-    
     // Transition to wifi configuring state
     Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
+#ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
+    auto& wifi_manager = WifiManager::GetInstance();
 
     wifi_manager.StartConfigAp();
-    
+
     // Show config prompt after a short delay
-    Application::GetInstance().Schedule([this, &wifi_manager]() {
+    Application::GetInstance().Schedule([&wifi_manager]() {
         std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
         hint += wifi_manager.GetApSsid();
         hint += Lang::Strings::ACCESS_VIA_BROWSER;
         hint += wifi_manager.GetApWebUrl();
-        
+
         Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
     });
-    
+#endif
+#if CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+    auto &blufi = Blufi::GetInstance();
+    // initialize esp-blufi protocol
+    blufi.init();
+#endif
 #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     // Start acoustic provisioning task
     auto codec = Board::GetInstance().GetAudioCodec();
     int channel = codec ? codec->input_channels() : 1;
     ESP_LOGI(TAG, "Starting acoustic WiFi provisioning, channels: %d", channel);
-    
+
     xTaskCreate([](void* arg) {
         auto ch = reinterpret_cast<intptr_t>(arg);
         auto& app = Application::GetInstance();
@@ -190,32 +201,32 @@ void WifiBoard::StartWifiConfigMode() {
 void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "EnterWifiConfigMode called");
     GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
-    
+
     auto& app = Application::GetInstance();
     auto state = app.GetDeviceState();
-    
+
     if (state == kDeviceStateSpeaking || state == kDeviceStateListening || state == kDeviceStateIdle) {
         // Reset protocol (close audio channel, reset protocol)
         Application::GetInstance().ResetProtocol();
 
         xTaskCreate([](void* arg) {
             auto* board = static_cast<WifiBoard*>(arg);
-            
+
             // Wait for 1 second to allow speaking to finish gracefully
             vTaskDelay(pdMS_TO_TICKS(1000));
-            
+
             // Stop any ongoing connection attempt
             esp_timer_stop(board->connect_timer_);
             WifiManager::GetInstance().StopStation();
-            
+
             // Enter config mode
             board->StartWifiConfigMode();
-            
+
             vTaskDelete(NULL);
         }, "wifi_cfg_delay", 4096, this, 2, NULL);
         return;
     }
-    
+
     if (state != kDeviceStateStarting) {
         ESP_LOGE(TAG, "EnterWifiConfigMode called but device state is not starting or speaking, device state: %d", state);
         return;
@@ -224,7 +235,7 @@ void WifiBoard::EnterWifiConfigMode() {
     // Stop any ongoing connection attempt
     esp_timer_stop(connect_timer_);
     WifiManager::GetInstance().StopStation();
-    
+
     StartWifiConfigMode();
 }
 
@@ -239,14 +250,14 @@ NetworkInterface* WifiBoard::GetNetwork() {
 
 const char* WifiBoard::GetNetworkStateIcon() {
     auto& wifi = WifiManager::GetInstance();
-    
+
     if (wifi.IsConfigMode()) {
         return FONT_AWESOME_WIFI;
     }
     if (!wifi.IsConnected()) {
         return FONT_AWESOME_WIFI_SLASH;
     }
-    
+
     int rssi = wifi.GetRssi();
     if (rssi >= -60) {
         return FONT_AWESOME_WIFI;
@@ -260,14 +271,14 @@ std::string WifiBoard::GetBoardJson() {
     auto& wifi = WifiManager::GetInstance();
     std::string json = R"({"type":")" + std::string(BOARD_TYPE) + R"(",)";
     json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
-    
+
     if (!wifi.IsConfigMode()) {
         json += R"("ssid":")" + wifi.GetSsid() + R"(",)";
         json += R"("rssi":)" + std::to_string(wifi.GetRssi()) + R"(,)";
         json += R"("channel":)" + std::to_string(wifi.GetChannel()) + R"(,)";
         json += R"("ip":")" + wifi.GetIpAddress() + R"(",)";
     }
-    
+
     json += R"("mac":")" + SystemInfo::GetMacAddress() + R"("})";
     return json;
 }
