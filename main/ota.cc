@@ -139,6 +139,16 @@ bool Ota::CheckVersion() {
         }
     }
 
+    // Persist "bound/activated" state to NVS so it survives reboot/power cycle.
+    // Treat any activation requirement from server as "not bound".
+    {
+        const bool bound = !(has_activation_code_ || has_activation_challenge_);
+        Settings device_settings("device", true);
+        if (device_settings.GetBool("bound", false) != bound) {
+            device_settings.SetBool("bound", bound);
+        }
+    }
+
     has_mqtt_config_ = false;
     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
     if (cJSON_IsObject(mqtt)) {
@@ -473,5 +483,12 @@ esp_err_t Ota::Activate() {
     }
 
     ESP_LOGI(TAG, "Activation successful");
+    // Mark as bound/activated in NVS.
+    {
+        Settings device_settings("device", true);
+        if (!device_settings.GetBool("bound", false)) {
+            device_settings.SetBool("bound", true);
+        }
+    }
     return ESP_OK;
 }

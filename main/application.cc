@@ -381,6 +381,15 @@ void Application::Start() {
     /* Start the clock timer to update the status bar */
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
 
+    // Apply bundled assets early so provisioning screens (which may block before WiFi is up)
+    // can use the assets-provided font/emoji/theme.
+    {
+        auto& assets = Assets::GetInstance();
+        if (assets.partition_valid() && assets.checksum_valid()) {
+            assets.Apply();
+        }
+    }
+
     /* Wait for the network to be ready */
     board.StartNetwork();
 

@@ -118,7 +118,9 @@ void AudioService::Start() {
 }
 
 void AudioService::Stop() {
-    esp_timer_stop(audio_power_timer_);
+    if (audio_power_timer_ != nullptr) {
+        esp_timer_stop(audio_power_timer_);
+    }
     service_stopped_ = true;
     xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
         AS_EVENT_WAKE_WORD_RUNNING |

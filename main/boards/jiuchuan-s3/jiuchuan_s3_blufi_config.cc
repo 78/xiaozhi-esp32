@@ -12,6 +12,10 @@
 * iOS source code: https://github.com/EspressifApp/EspBlufiForiOS
 ****************************************************************************/
 #include "jiuchuan_s3_blufi_config.h"
+#include "board.h"
+#include "audio_codec.h"
+#include "settings.h"
+
 //定义类静态成员变量
 bool JiuChuanS3BlufiConfigurationAp::ble_is_connected = false;
 bool JiuChuanS3BlufiConfigurationAp::gl_sta_connected = false;
@@ -30,10 +34,23 @@ uint8_t JiuChuanS3BlufiConfigurationAp::gl_sta_ssid[32] = {0};
 esp_blufi_callbacks_t JiuChuanS3BlufiConfigurationAp::example_callbacks = {
     .event_cb = example_event_callback,
     .negotiate_data_handler = blufi_dh_negotiate_data_handler,
-    .encrypt_func = NULL,
-    .decrypt_func = NULL,
+    .encrypt_func = blufi_aes_encrypt,
+    .decrypt_func = blufi_aes_decrypt,
     .checksum_func = blufi_crc_checksum,
 };
+
+static bool s_bound_sent_this_session = false;
+
+static void SendBindingStateToBle(const char* trigger) {
+    Settings device_settings("device", false);
+    const bool bound = device_settings.GetBool("bound", false);
+
+    // Minimize BLE traffic: send 1 byte (0/1).
+    // Use ASCII '0'/'1' so apps that render text (EspBlufi) can display it.
+    uint8_t payload = bound ? (uint8_t)'1' : (uint8_t)'0';
+    esp_blufi_send_custom_data(&payload, 1);
+    BLUFI_INFO("Send bound (%s): %c\n", trigger != nullptr ? trigger : "", (char)payload);
+}
 
 JiuChuanS3BlufiConfigurationAp& JiuChuanS3BlufiConfigurationAp::GetInstance() {
     static JiuChuanS3BlufiConfigurationAp instance;
@@ -117,6 +134,12 @@ void JiuChuanS3BlufiConfigurationAp::ip_event_handler(void* arg, esp_event_base_
             strncpy(password, (const char *)sta_config.sta.password, sizeof(password) - 1);
             SsidManager::GetInstance().AddSsid(ssid, password);
             vTaskDelay(1000 / portTICK_PERIOD_MS);
+            // Best-effort: disable speaker amp before reboot to reduce "pop" noise.
+            if (auto codec = Board::GetInstance().GetAudioCodec(); codec != nullptr) {
+                codec->EnableOutput(false);
+                codec->EnableInput(false);
+            }
+            vTaskDelay(pdMS_TO_TICKS(50));
             esp_restart();
         } else {
             BLUFI_INFO("BLUFI BLE is not connected yet\n");
@@ -285,12 +308,14 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
     case ESP_BLUFI_EVENT_BLE_CONNECT:
         BLUFI_INFO("BLUFI ble connect\n");
         ble_is_connected = true;
+        s_bound_sent_this_session = false;
         esp_blufi_adv_stop();
         blufi_security_init();
         break;
     case ESP_BLUFI_EVENT_BLE_DISCONNECT:
         BLUFI_INFO("BLUFI ble disconnect\n");
         ble_is_connected = false;
+        s_bound_sent_this_session = false;
         blufi_security_deinit();
         esp_blufi_adv_start();
         break;
@@ -334,6 +359,11 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
             esp_blufi_send_wifi_conn_report(mode, ESP_BLUFI_STA_CONN_FAIL, softap_get_current_connection_number(), &gl_sta_conn_info);
         }
         BLUFI_INFO("BLUFI get wifi status from AP\n");
+        // Send once per BLE session, after the client is ready and negotiating/security is done.
+        if (!s_bound_sent_this_session && ble_is_connected) {
+            SendBindingStateToBle("get_wifi_status");
+            s_bound_sent_this_session = true;
+        }
 
         break;
     }
@@ -360,6 +390,10 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
         sta_config.sta.ssid[param->sta_ssid.ssid_len] = '\0';
         esp_wifi_set_config(WIFI_IF_STA, &sta_config);
         BLUFI_INFO("Recv STA SSID %s\n", sta_config.sta.ssid);
+        if (!s_bound_sent_this_session && ble_is_connected) {
+            SendBindingStateToBle("recv_sta_ssid");
+            s_bound_sent_this_session = true;
+        }
         break;
 	case ESP_BLUFI_EVENT_RECV_STA_PASSWD:
         if (param->sta_passwd.passwd_len >= sizeof(sta_config.sta.password)/sizeof(sta_config.sta.password[0])) {

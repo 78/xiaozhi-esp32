@@ -39,6 +39,8 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+    virtual void ShowQRCode(const char* url, const char* hint);
+    virtual void HideQRCode();
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -48,6 +50,11 @@ protected:
     int height_ = 0;
 
     Theme* current_theme_ = nullptr;
+
+    // QR Code related members
+    lv_obj_t* qrcode_container_ = nullptr;
+    lv_obj_t* qrcode_ = nullptr;
+    lv_obj_t* qrcode_hint_label_ = nullptr;
 
     friend class DisplayLockGuard;
     virtual bool Lock(int timeout_ms = 0) = 0;

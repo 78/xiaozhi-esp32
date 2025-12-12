@@ -2,6 +2,7 @@
 
 #include "display.h"
 #include "application.h"
+#include "audio_codec.h"
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -75,7 +76,13 @@ void WifiBoard::EnterWifiConfigMode() {
     
     // 播报配置 WiFi 的提示
     application.Alert(Lang::Strings::WIFI_CONFIG_MODE, "", "", Lang::Sounds::OGG_WIFICONFIG);
-    
+    std::string mac = SystemInfo::GetMacAddress();
+    std::string serial_number = SystemInfo::GetSerialNumber();
+    if (serial_number.empty()) {
+        ESP_LOGW(TAG, "Serial number not available; QR code serialnumber will be empty");
+    }
+    std::string url = "https://app.boilon.cn/?mac=" + mac + "&serialnumber=" + serial_number;
+    GetDisplay()->ShowQRCode(url.c_str(), "请使用微信扫码二维码");
     // Wait forever until reset after configuration
     while (true) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
@@ -221,8 +228,17 @@ void WifiBoard::ResetWifiConfiguration() {
         Settings settings("wifi", true);
         settings.SetInt("force_ap", 1);
     }
+
+    // Best-effort: stop audio + disable speaker amp before reboot to reduce "pop" noise.
+    Application::GetInstance().GetAudioService().Stop();
+    if (auto codec = GetAudioCodec(); codec != nullptr) {
+        codec->EnableOutput(false);
+        codec->EnableInput(false);
+    }
+    vTaskDelay(pdMS_TO_TICKS(50));
+
     GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(300));
     // Reboot the device
     esp_restart();
 }

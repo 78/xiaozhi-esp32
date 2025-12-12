@@ -8,6 +8,8 @@
 #include <esp_partition.h>
 #include <esp_app_desc.h>
 #include <esp_ota_ops.h>
+#include <esp_efuse.h>
+#include <esp_efuse_table.h>
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_wifi_remote.h"
 #endif
@@ -41,6 +43,26 @@ std::string SystemInfo::GetMacAddress() {
     char mac_str[18];
     snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return std::string(mac_str);
+}
+
+std::string SystemInfo::GetSerialNumber() {
+#if defined(ESP_EFUSE_BLOCK_USR_DATA)
+    uint8_t serial_number[33] = {0};
+    if (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA, serial_number, 32 * 8) != ESP_OK) {
+        return "";
+    }
+    if (serial_number[0] == 0) {
+        return "";
+    }
+
+    std::string serial(reinterpret_cast<const char*>(serial_number), 32);
+    while (!serial.empty() && (serial.back() == '\0' || serial.back() == ' ' || serial.back() == '\r' || serial.back() == '\n' || serial.back() == '\t')) {
+        serial.pop_back();
+    }
+    return serial;
+#else
+    return "";
+#endif
 }
 
 std::string SystemInfo::GetChipModelName() {
