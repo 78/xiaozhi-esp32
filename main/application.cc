@@ -525,7 +525,7 @@ void Application::InitializeProtocol() {
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
             // Don't change to idle if currently streaming music
-            if (device_state_ == kDeviceStateStreaming) {
+            if (GetDeviceState() == kDeviceStateStreaming) {
                 ESP_LOGI(TAG, "Audio channel closed but music is streaming, keeping streaming state");
                 return;
             }
@@ -808,10 +808,10 @@ void Application::HandleWakeWordDetectedEvent() {
 #endif
     } else if (state == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonWakeWordDetected);
-    } else if (device_state_ == kDeviceStateStreaming) {
+    } else if (state == kDeviceStateStreaming) {
         StopMusicStreaming();
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-    } else if (device_state_ == kDeviceStateActivating) {
+    } else if (state == kDeviceStateActivating) {
     } else if (state == kDeviceStateActivating) {
         // Restart the activation check if the wake word is detected during activation
         SetDeviceState(kDeviceStateIdle);
@@ -1079,7 +1079,7 @@ void Application::StartMusicStreaming(const std::string& url) {
             return;
         }
         
-        if (device_state_ == kDeviceStateStreaming) {
+        if (GetDeviceState() == kDeviceStateStreaming) {
             StopMusicStreaming();
         }
         
@@ -1097,7 +1097,7 @@ void Application::StopMusicStreaming() {
         if (music) {
             music->StopStreaming();
         }
-        if (device_state_ == kDeviceStateStreaming) {
+        if (GetDeviceState() == kDeviceStateStreaming) {
             SetDeviceState(kDeviceStateIdle);
         }
     });
@@ -1107,7 +1107,8 @@ void Application::StopMusicStreaming() {
 void Application::AddAudioData(AudioStreamPacket &&packet)
 {
     auto codec = Board::GetInstance().GetAudioCodec();
-    if ((device_state_ == kDeviceStateIdle || device_state_ == kDeviceStateStreaming) && codec->output_enabled())
+    DeviceState state = GetDeviceState();
+    if ((state == kDeviceStateIdle || state == kDeviceStateStreaming) && codec->output_enabled())
     {
         // packet.payload包含的是原始PCM数据（int16_t）
         if (packet.payload.size() >= 2)
