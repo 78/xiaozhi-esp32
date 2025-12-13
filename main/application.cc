@@ -20,6 +20,22 @@
 #define TAG "Application"
 
 
+static const char* const STATE_STRINGS[] = {
+    "unknown",
+    "starting",
+    "configuring",
+    "idle",
+    "connecting",
+    "listening",
+    "speaking",
+    "upgrading",
+    "activating",
+    "audio_testing",
+    "streaming",
+    "fatal_error",
+    "invalid_state"
+};
+
 Application::Application() {
     event_group_ = xEventGroupCreate();
 
@@ -508,6 +524,12 @@ void Application::InitializeProtocol() {
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
+            // Don't change to idle if currently streaming music
+            if (GetDeviceState() == kDeviceStateStreaming) {
+                ESP_LOGI(TAG, "Audio channel closed but music is streaming, keeping streaming state");
+                return;
+            }
+            
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
@@ -786,6 +808,10 @@ void Application::HandleWakeWordDetectedEvent() {
 #endif
     } else if (state == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonWakeWordDetected);
+    } else if (state == kDeviceStateStreaming) {
+        StopMusicStreaming();
+        SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+    } else if (state == kDeviceStateActivating) {
     } else if (state == kDeviceStateActivating) {
         // Restart the activation check if the wake word is detected during activation
         SetDeviceState(kDeviceStateIdle);
@@ -836,6 +862,12 @@ void Application::HandleStateChangedEvent() {
             }
             audio_service_.ResetDecoder();
             break;
+        case kDeviceStateStreaming:
+            display->SetStatus("Streaming Music");
+            display->SetEmotion("music");
+            // Keep minimal wake word detection (AFE if available)
+            audio_service_.EnableVoiceProcessing(false);
+            audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
         case kDeviceStateWifiConfiguring:
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(false);
@@ -986,6 +1018,11 @@ bool Application::CanEnterSleepMode() {
         return false;
     }
 
+    auto music = Board::GetInstance().GetMusic();
+    if (music && music->IsPlaying()) {
+        return false;
+    }
+
     if (!audio_service_.IsIdle()) {
         return false;
     }
@@ -1034,6 +1071,143 @@ void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
 }
 
+void Application::StartMusicStreaming(const std::string& url) {
+    Schedule([this, url]() {
+        auto music = Board::GetInstance().GetMusic();
+        if (!music) {
+            Alert(Lang::Strings::ERROR, "Music not available", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+            return;
+        }
+        
+        if (GetDeviceState() == kDeviceStateStreaming) {
+            StopMusicStreaming();
+        }
+        
+        if (music->StartStreaming(url)) {
+            SetDeviceState(kDeviceStateStreaming);
+        } else {
+            Alert(Lang::Strings::ERROR, "Failed to start music streaming", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+        }
+    });
+}
+
+void Application::StopMusicStreaming() {
+    Schedule([this]() {
+        auto music = Board::GetInstance().GetMusic();
+        if (music) {
+            music->StopStreaming();
+        }
+        if (GetDeviceState() == kDeviceStateStreaming) {
+            SetDeviceState(kDeviceStateIdle);
+        }
+    });
+}
+
+// 新增：接收外部音频数据（如音乐播放）
+void Application::AddAudioData(AudioStreamPacket &&packet)
+{
+    auto codec = Board::GetInstance().GetAudioCodec();
+    DeviceState state = GetDeviceState();
+    if ((state == kDeviceStateIdle || state == kDeviceStateStreaming) && codec->output_enabled())
+    {
+        // packet.payload包含的是原始PCM数据（int16_t）
+        if (packet.payload.size() >= 2)
+        {
+            size_t num_samples = packet.payload.size() / sizeof(int16_t);
+            std::vector<int16_t> pcm_data(num_samples);
+            
+            // Ensure alignment: copy sample by sample to avoid alignment issues
+            const int16_t* src = reinterpret_cast<const int16_t*>(packet.payload.data());
+            for (size_t i = 0; i < num_samples; ++i) {
+                pcm_data[i] = src[i];
+            }
+
+            // Check if sample rates match, if not, perform simple resampling
+            if (packet.sample_rate != codec->output_sample_rate())
+            {
+                // ESP_LOGI(TAG, "Resampling music audio from %d to %d Hz",
+                //         packet.sample_rate, codec->output_sample_rate());
+
+                // Validate sample rate parameters
+                if (packet.sample_rate <= 0 || codec->output_sample_rate() <= 0)
+                {
+                    ESP_LOGE(TAG, "Invalid sample rates: %d -> %d",
+                             packet.sample_rate, codec->output_sample_rate());
+                    return;
+                }
+
+                std::vector<int16_t> resampled;
+
+                if (packet.sample_rate > codec->output_sample_rate())
+                {
+                    ESP_LOGI(TAG, "Music playback: switching sample rate from %d Hz to %d Hz",
+                             codec->output_sample_rate(), packet.sample_rate);
+
+                    // Try to dynamically switch sample rate
+                    if (codec->SetOutputSampleRate(packet.sample_rate))
+                    {
+                        ESP_LOGI(TAG, "Successfully switched to music playback sample rate: %d Hz", packet.sample_rate);
+                    }
+                    else
+                    {
+                        ESP_LOGW(TAG, "Unable to switch sample rate, continuing with current sample rate: %d Hz", codec->output_sample_rate());
+                    }
+                }
+                else
+                {
+                    // Upsampling: linear interpolation
+                    float upsample_ratio = codec->output_sample_rate() / static_cast<float>(packet.sample_rate);
+                    size_t expected_size = static_cast<size_t>(pcm_data.size() * upsample_ratio + 0.5f);
+                    resampled.reserve(expected_size);
+
+                    for (size_t i = 0; i < pcm_data.size(); ++i)
+                    {
+                        // Add original sample
+                        resampled.push_back(pcm_data[i]);
+
+                        // Calculate the number of samples that need interpolation
+                        int interpolation_count = static_cast<int>(upsample_ratio) - 1;
+                        if (interpolation_count > 0 && i + 1 < pcm_data.size())
+                        {
+                            int16_t current = pcm_data[i];
+                            int16_t next = pcm_data[i + 1];
+                            for (int j = 1; j <= interpolation_count; ++j)
+                            {
+                                float t = static_cast<float>(j) / (interpolation_count + 1);
+                                int16_t interpolated = static_cast<int16_t>(current + (next - current) * t);
+                                resampled.push_back(interpolated);
+                            }
+                        }
+                        else if (interpolation_count > 0)
+                        {
+                            // Last sample, repeat directly
+                            for (int j = 1; j <= interpolation_count; ++j)
+                            {
+                                resampled.push_back(pcm_data[i]);
+                            }
+                        }
+                    }
+
+                    ESP_LOGI(TAG, "Upsampled %d -> %d samples (ratio: %.2f)",
+                             pcm_data.size(), resampled.size(), upsample_ratio);
+                }
+
+                pcm_data = std::move(resampled);
+            }
+
+            // Ensure audio output is enabled
+            if (!codec->output_enabled())
+            {
+                codec->EnableOutput(true);
+            }
+
+            // Send PCM data to audio codec
+            codec->OutputData(pcm_data);
+
+            audio_service_.UpdateOutputTimestamp();
+        }
+    }
+}
 void Application::ResetProtocol() {
     Schedule([this]() {
         // Close audio channel if opened
