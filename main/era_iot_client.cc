@@ -5,13 +5,11 @@
 
 #define TAG "EraIotClient"
 
-// E-Ra API configuration constants
-
 static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
 static const char *ERA_BASE_URL = "https://backend.eoh.io";
-static const char *ERA_CONFIG_ID = "146756";
-static const char *ERA_ACTION_ON_KEY = "63d31df1-4030-41b8-b32e-273d23873f13";
-static const char *ERA_ACTION_OFF_KEY = "54feda84-f623-4580-9aa9-ff175b8a1bb1";
+static const char *ERA_CONFIG_ID = "150632";
+static const char *ERA_ACTION_ON_KEY = "ced48cf9-b159-4f2e-87de-44aaa6ea08c0";
+static const char *ERA_ACTION_OFF_KEY = "6bd3f760-453d-4a01-89c4-ee1f4559fcb8";
 
 EraIotClient::EraIotClient() : initialized_(false)
 {
@@ -49,6 +47,8 @@ std::string EraIotClient::GetCurrentValue(const std::string &config_id)
         ESP_LOGE(TAG, "Failed to get current value for config %s", config_id.c_str());
         return "";
     }
+
+    ESP_LOGI(TAG, "Raw response for config %s: %s", config_id.c_str(), response.c_str());
 
     // Parse JSON response to extract current_value_only
     cJSON *json = cJSON_Parse(response.c_str());
@@ -153,6 +153,7 @@ std::string EraIotClient::MakeRequest(const std::string &method, const std::stri
     http->SetHeader("Accept", "application/json");
     http->SetHeader("Authorization", auth_token_);
     http->SetHeader("User-Agent", "XiaoZhi-ESP32/1.0");
+    http->SetHeader("Cache-Control", "no-cache");
 
     if (method == "POST")
     {

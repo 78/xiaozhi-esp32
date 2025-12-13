@@ -1,0 +1,12 @@
+{
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "bread-compact-wifi-s3cam",
+      "sdkconfig_append": [
+        "CONFIG_CAMERA_OV2640=y",
+        "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y"
+      ]
+    }
+  ]
+} 
