@@ -9,7 +9,6 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
@@ -269,8 +268,10 @@ public:
 
     void AppToggleChatState(void){
         auto& app = Application::GetInstance();
-        if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-            ResetWifiConfiguration();
+        // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+        if (app.GetDeviceState() == kDeviceStateStarting) {
+            EnterWifiConfigMode();
+            return;
         }
         app.ToggleChatState(); 
     }

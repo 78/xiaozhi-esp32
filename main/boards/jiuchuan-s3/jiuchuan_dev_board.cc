@@ -10,7 +10,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "esp_lcd_panel_gc9301.h"
@@ -230,11 +229,11 @@ private:
             } });
 
         // 电源键三击：重置WiFi
-        pwr_button_.OnMultipleClick([this]()
-                                    {
+        pwr_button_.OnMultipleClick([this]() {
             ESP_LOGI(TAG, "Power button triple click: 重置WiFi");
             power_save_timer_->WakeUp();
-            ResetWifiConfiguration(); }, 3);
+            EnterWifiConfigMode();
+        }, 3);
 
         wifi_button.OnPressDown([this]()
                             {
@@ -372,11 +371,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

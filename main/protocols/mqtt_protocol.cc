@@ -20,8 +20,11 @@ MqttProtocol::MqttProtocol() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
                 ESP_LOGI(TAG, "Reconnecting to MQTT server");
-                app.Schedule([protocol]() {
-                    protocol->StartMqttClient(false);
+                auto alive = protocol->alive_;  // Capture alive flag
+                app.Schedule([protocol, alive]() {
+                    if (*alive) {
+                        protocol->StartMqttClient(false);
+                    }
                 });
             }
         },
@@ -32,6 +35,10 @@ MqttProtocol::MqttProtocol() {
 
 MqttProtocol::~MqttProtocol() {
     ESP_LOGI(TAG, "MqttProtocol deinit");
+    
+    // Mark as dead first to prevent any pending scheduled tasks from executing
+    *alive_ = false;
+    
     if (reconnect_timer_ != nullptr) {
         esp_timer_stop(reconnect_timer_);
         esp_timer_delete(reconnect_timer_);
@@ -109,8 +116,11 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
             auto session_id = cJSON_GetObjectItem(root, "session_id");
             ESP_LOGI(TAG, "Received goodbye message, session_id: %s", session_id ? session_id->valuestring : "null");
             if (session_id == nullptr || session_id_ == session_id->valuestring) {
-                Application::GetInstance().Schedule([this]() {
-                    CloseAudioChannel();
+                auto alive = alive_;  // Capture alive flag
+                Application::GetInstance().Schedule([this, alive]() {
+                    if (*alive) {
+                        CloseAudioChannel();
+                    }
                 });
             }
         } else if (on_incoming_json_ != nullptr) {
