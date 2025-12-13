@@ -10,6 +10,11 @@
 #include <esp_chip_info.h>
 #include <esp_random.h>
 
+#if CONFIG_BOARD_HAS_RF_PINS
+#include <rf_mcp_tools.h>
+#include <driver/gpio.h>
+#endif
+
 #define TAG "Board"
 
 Board::Board() {
@@ -65,6 +70,63 @@ Camera* Board::GetCamera() {
 Led* Board::GetLed() {
     static NoLed led;
     return &led;
+}
+
+#if CONFIG_BOARD_HAS_RF_PINS
+bool Board::GetRFPinConfig(gpio_num_t& tx_433, gpio_num_t& rx_433, 
+                            gpio_num_t& tx_315, gpio_num_t& rx_315) {
+    // 默认实现：尝试使用 config.h 中的宏定义
+    // 板子可以重写此方法来提供自定义引脚配置
+    #ifdef RF_TX_315_PIN
+    tx_433 = RF_TX_433_PIN;
+    rx_433 = RF_RX_433_PIN;
+    tx_315 = RF_TX_315_PIN;
+    rx_315 = RF_RX_315_PIN;
+    return true;
+    #else
+    return false;
+    #endif
+}
+
+void Board::InitializeRFModule() {
+    if (rf_module_ != nullptr) {
+        return; // 已经初始化
+    }
+    
+    gpio_num_t tx_433, rx_433, tx_315, rx_315;
+    if (!GetRFPinConfig(tx_433, rx_433, tx_315, rx_315)) {
+        ESP_LOGI(TAG, "RF module pins not configured, RF functionality disabled");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Initializing RF module...");
+    rf_module_ = new RFModule(tx_433, rx_433, tx_315, rx_315);
+    rf_module_->Begin();
+    ESP_LOGI(TAG, "RF module initialized: TX433=%d, RX433=%d, TX315=%d, RX315=%d",
+             tx_433, rx_433, tx_315, rx_315);
+    
+    // 注册 MCP tools
+    RegisterRFMcpTools(rf_module_);
+}
+
+RFModule* Board::GetRFModule() {
+    // RF module is initialized in board constructor, just return the instance
+    return rf_module_;
+}
+#else
+RFModule* Board::GetRFModule() {
+    return nullptr;
+}
+#endif // CONFIG_BOARD_HAS_RF_PINS
+
+Board::~Board() {
+#if CONFIG_BOARD_HAS_RF_PINS
+    if (rf_module_) {
+        rf_module_->End();
+        delete rf_module_;
+        rf_module_ = nullptr;
+    }
+#endif
 }
 
 std::string Board::GetSystemInfoJson() {
