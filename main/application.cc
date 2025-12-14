@@ -817,14 +817,6 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
-
-            // Make sure the audio processor is running
-            if (!audio_service_.IsAudioProcessorRunning()) {
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
-                audio_service_.EnableVoiceProcessing(true);
-                audio_service_.EnableWakeWordDetection(false);
-            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
@@ -865,6 +857,14 @@ void Application::AbortSpeaking(AbortReason reason) {
 void Application::SetListeningMode(ListeningMode mode) {
     listening_mode_ = mode;
     SetDeviceState(kDeviceStateListening);
+
+    // Make sure the audio processor is running
+    if (!audio_service_.IsAudioProcessorRunning()) {
+        // Send the start listening command
+        protocol_->SendStartListening(listening_mode_);
+        audio_service_.EnableVoiceProcessing(true);
+        audio_service_.EnableWakeWordDetection(false);
+    }
 }
 
 void Application::Reboot() {
