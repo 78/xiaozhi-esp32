@@ -13,6 +13,7 @@
 #include "wifi_station.h"
 #include "sd_card.h"
 #include "esp32_sd_music.h"
+#include <qrcode.h>
 
 #include <cstring>
 #include <esp_log.h>
@@ -362,6 +363,28 @@ void Application::Start() {
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+
+#if (0) // Test QR code display
+    // Capture display pointer for callback
+    static Display* s_display = display;
+    esp_qrcode_config_t qrcode_cfg = {
+        .display_func = [](esp_qrcode_handle_t qrcode) {
+            if (s_display && qrcode) {
+                s_display->DisplayQRCode(qrcode, nullptr);
+            }
+        },
+        .max_qrcode_version = 10,
+        .qrcode_ecc_level = ESP_QRCODE_ECC_MED
+    };
+    
+    // Create URL format for QR code
+    std::string qr_text = "1234567890";
+    esp_err_t err = esp_qrcode_generate(&qrcode_cfg, qr_text.c_str());
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to generate test QR code");
+    }
+    return;
+#endif
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();

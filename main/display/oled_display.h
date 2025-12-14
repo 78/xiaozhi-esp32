@@ -60,6 +60,7 @@ private:
     uint8_t* qr_canvas_buffer_ = nullptr;
     bool qr_code_displayed_ = false;
     std::string ip_address_;
+    bool qr_inverted_ = false;
 
 public:
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
@@ -82,6 +83,7 @@ public:
     void ClearQRCode() override;
     bool QRCodeIsSupported() override;
     void SetIpAddress(const std::string& ip_address) override;
+    void SetQrInverted(bool inverted);
 };
 
 #endif // OLED_DISPLAY_H
