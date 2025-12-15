@@ -12,16 +12,25 @@ protected:
     gpio_num_t tx_pin_;
     gpio_num_t rx_pin_;
     gpio_num_t dtr_pin_;
+    NetworkEventCallback network_event_callback_;
 
     virtual std::string GetBoardJson() override;
+
+    // Internal helper to trigger network event callback
+    void OnNetworkEvent(NetworkEvent event, const std::string& data = "");
+    
+    // Network initialization task (runs in FreeRTOS task)
+    static void NetworkTaskEntry(void* arg);
+    void NetworkTask();
 
 public:
     Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin = GPIO_NUM_NC);
     virtual std::string GetBoardType() override;
     virtual void StartNetwork() override;
+    virtual void SetNetworkEventCallback(NetworkEventCallback callback) override;
     virtual NetworkInterface* GetNetwork() override;
     virtual const char* GetNetworkStateIcon() override;
-    virtual void SetPowerSaveMode(bool enabled) override;
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override;
     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
     virtual std::string GetDeviceStatusJson() override;
 };

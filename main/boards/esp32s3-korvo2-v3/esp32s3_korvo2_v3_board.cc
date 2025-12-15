@@ -13,7 +13,6 @@
 #include <esp_lcd_ili9341.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "esp32_camera.h"
 
 #define TAG "esp32s3_korvo2_v3"
@@ -231,18 +230,19 @@ private:
 
         auto set_button = adc_button_[BSP_ADC_BUTTON_SET];
         set_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+            EnterWifiConfigMode();
         });
 
         auto rec_button = adc_button_[BSP_ADC_BUTTON_REC];
         rec_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+             Application::GetInstance().ToggleChatState();
         });
         boot_button_.OnClick([this]() {});
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
