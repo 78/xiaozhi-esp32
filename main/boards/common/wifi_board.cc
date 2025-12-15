@@ -17,6 +17,14 @@
 #include <ssid_manager.h>
 #include "afsk_demod.h"
 
+// 添加蓝牙相关头文件
+#ifdef CONFIG_BT_BLUEDROID_ENABLED
+#include <esp_bt.h>
+#include <esp_bt_main.h>
+#include <esp_bt_device.h>
+#include <esp_blufi.h>
+#endif
+
 static const char *TAG = "WifiBoard";
 
 WifiBoard::WifiBoard() {
@@ -32,6 +40,51 @@ std::string WifiBoard::GetBoardType() {
     return "wifi";
 }
 
+#ifdef CONFIG_BLUFICONFIG_ENABLE
+#include "boards/jiuchuan-s3/jiuchuan_s3_blufi_config.h"
+void WifiBoard::EnterWifiConfigMode() {
+    auto& application = Application::GetInstance();
+    application.SetDeviceState(kDeviceStateWifiConfiguring);
+
+    //初始化
+    JiuChuanS3BlufiConfigurationAp::GetInstance().EnterBluFiConfigMode();
+    
+    // // 获取蓝牙设备名称和MAC地址
+    // std::string bt_name = "未知设备";
+    // std::string bt_id = "未知";
+    
+    // #ifdef CONFIG_BT_BLUEDROID_ENABLED
+    // // 获取蓝牙设备名称
+    // #ifndef BLUFI_DEVICE_NAME
+    // #define BLUFI_DEVICE_NAME "Boilon_JC02"  // 默认名称，如果未定义的话
+    // #endif
+    // bt_name = BLUFI_DEVICE_NAME;
+    
+    // // 获取蓝牙MAC地址
+    // const uint8_t* bt_addr = esp_bt_dev_get_address();
+    // if (bt_addr != nullptr) {
+    //     char bt_addr_str[18];
+    //     snprintf(bt_addr_str, sizeof(bt_addr_str), "%02X:%02X:%02X:%02X:%02X:%02X", 
+    //              bt_addr[0], bt_addr[1], bt_addr[2], bt_addr[3], bt_addr[4], bt_addr[5]);
+    //     bt_id = std::string(bt_addr_str);
+    // }
+    // #endif
+    
+    // // 构建显示消息，包含蓝牙名称和ID
+    // std::string config_message = "蓝牙配网模式\n设备名: " + bt_name + "\nMAC: " + bt_id;
+    
+    // 播报配置 WiFi 的提示
+    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, "", "", Lang::Sounds::OGG_WIFICONFIG);
+    
+    // Wait forever until reset after configuration
+    while (true) {
+        int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        int min_free_sram = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+        ESP_LOGI(TAG, "Free internal: %u minimal internal: %u", free_sram, min_free_sram);
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+}
+#else
 void WifiBoard::EnterWifiConfigMode() {
     auto& application = Application::GetInstance();
     application.SetDeviceState(kDeviceStateWifiConfiguring);
@@ -70,6 +123,7 @@ void WifiBoard::EnterWifiConfigMode() {
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
+#endif
 
 void WifiBoard::StartNetwork() {
     // User can press BOOT button while starting to enter WiFi configuration mode

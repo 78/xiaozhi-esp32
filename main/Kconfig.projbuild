@@ -1,3 +1,39 @@
+menu "JiuChuan"
+    config BLUFICONFIG_ENABLE
+        bool "启用蓝牙配网"
+        default n
+        help
+            启用BluFi蓝牙配网功能，需使用对应的配网小程序.
+    
+    choice EXAMPLE_WIFI_SCAN_AUTH_MODE_THRESHOLD
+        prompt "WiFi Scan auth mode threshold"
+        default ESP_WIFI_AUTH_WPA2_PSK
+        depends on BLUFICONFIG_ENABLE
+        help
+            The weakest authmode to accept in the scan mode.
+            This value defaults to ESP_WIFI_AUTH_WPA2_PSK in case password is present and ESP_WIFI_AUTH_OPEN is used.
+            Please select ESP_WIFI_AUTH_WEP/ESP_WIFI_AUTH_WPA_PSK in case AP is operating in WEP/WPA mode.
+    
+        config ESP_WIFI_AUTH_OPEN
+            bool "OPEN"
+        config ESP_WIFI_AUTH_WEP
+            bool "WEP"
+        config ESP_WIFI_AUTH_WPA_PSK
+            bool "WPA PSK"
+        config ESP_WIFI_AUTH_WPA2_PSK
+            bool "WPA2 PSK"
+        config ESP_WIFI_AUTH_WPA_WPA2_PSK
+            bool "WPA/WPA2 PSK"
+        config ESP_WIFI_AUTH_WPA3_PSK
+            bool "WPA3 PSK"
+        config ESP_WIFI_AUTH_WPA2_WPA3_PSK
+            bool "WPA2/WPA3 PSK"
+        config ESP_WIFI_AUTH_WAPI_PSK
+            bool "WAPI PSK"
+    endchoice
+    
+endmenu
+
 menu "Xiaozhi Assistant"
 
 config OTA_URL

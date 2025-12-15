@@ -508,12 +508,20 @@ void AudioService::EnableAudioTesting(bool enable) {
 
 void AudioService::EnableDeviceAec(bool enable) {
     ESP_LOGI(TAG, "%s device AEC", enable ? "Enabling" : "Disabling");
-    if (!audio_processor_initialized_) {
-        audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_);
-        audio_processor_initialized_ = true;
+    if (enable) {
+        // Only create the audio processor when AEC needs to run; avoiding
+        // initialization when simply disabling saves internal SRAM at boot.
+        if (!audio_processor_initialized_) {
+            audio_processor_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_);
+            audio_processor_initialized_ = true;
+        }
+        audio_processor_->EnableDeviceAec(true);
+    } else {
+        if (!audio_processor_initialized_) {
+            return;
+        }
+        audio_processor_->EnableDeviceAec(false);
     }
-
-    audio_processor_->EnableDeviceAec(enable);
 }
 
 void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
