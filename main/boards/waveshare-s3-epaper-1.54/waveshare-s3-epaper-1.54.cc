@@ -3,7 +3,6 @@
 #include <driver/spi_common.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
-#include "wifi_station.h"
 #include "application.h"
 #include "button.h"
 #include "codecs/es8311_audio_codec.h"
@@ -42,8 +41,10 @@ class CustomBoard : public WifiBoard {
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -60,7 +61,7 @@ class CustomBoard : public WifiBoard {
     void InitializeTools() {
         auto &mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.disp.network", "重新配网", PropertyList(), [this](const PropertyList &) -> ReturnValue {
-            ResetWifiConfiguration();
+            EnterWifiConfigMode();
             return true;
         });
     }

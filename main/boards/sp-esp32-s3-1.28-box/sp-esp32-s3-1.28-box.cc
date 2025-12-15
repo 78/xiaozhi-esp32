@@ -6,7 +6,6 @@
 #include "config.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
@@ -241,9 +240,10 @@ private:
             // 只有短触才触发
             if (touch_duration < TOUCH_THRESHOLD_MS) {
                 auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateStarting &&
-                    !WifiStation::GetInstance().IsConnected()) {
-                    board->ResetWifiConfiguration();
+                // During startup (before connected), pressing touch enters Wi-Fi config mode without reboot
+                if (app.GetDeviceState() == kDeviceStateStarting) {
+                    board->EnterWifiConfigMode();
+                    return;
                 }
                 app.ToggleChatState();
             }
@@ -365,8 +365,10 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -471,11 +473,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

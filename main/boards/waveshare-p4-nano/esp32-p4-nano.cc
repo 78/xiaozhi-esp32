@@ -17,7 +17,6 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_jd9365_10_1.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
@@ -221,10 +220,13 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
-            app.ToggleChatState(); });
+            app.ToggleChatState();
+        });
     }
 
 public:
