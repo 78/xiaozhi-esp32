@@ -9,6 +9,7 @@
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
+#include "ota_server.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -139,7 +140,8 @@ void Application::CheckNewVersion(Ota &ota)
         auto display = board.GetDisplay();
         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
 
-        if (!ota.CheckVersion())
+        std::string url;
+        if (!ota.CheckVersion(url))
         {
             retry_count++;
             if (retry_count >= MAX_RETRY)
@@ -448,6 +450,17 @@ void Application::Start()
     // Check for new firmware version or get the MQTT broker address
     Ota ota;
     CheckNewVersion(ota);
+
+    // Start the OTA server
+    auto &ota_server = ota::OtaServer::GetInstance();
+    if (ota_server.Start() == ESP_OK)
+    {
+        ESP_LOGI(TAG, "OTA server started successfully");
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to start OTA server");
+    }
 
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
