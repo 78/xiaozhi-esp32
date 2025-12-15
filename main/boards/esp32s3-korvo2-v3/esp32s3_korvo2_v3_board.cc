@@ -230,12 +230,12 @@ private:
 
         auto set_button = adc_button_[BSP_ADC_BUTTON_SET];
         set_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+            EnterWifiConfigMode();
         });
 
         auto rec_button = adc_button_[BSP_ADC_BUTTON_REC];
         rec_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+             Application::GetInstance().ToggleChatState();
         });
         boot_button_.OnClick([this]() {});
         boot_button_.OnClick([this]() {
