@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "dual_network_board.h"
 #include "config.h"
 #include "power_manager.h"
 #include "display_manager.h"
@@ -10,7 +10,6 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
-#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include <wifi_station.h>
@@ -18,9 +17,9 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeBubblePal"
+#define TAG "FogSeekEdgeEs83894G"
 
-class FogSeekEdgeBubblePal : public WifiBoard
+class FogSeekEdgeEs83894G : public DualNetworkBoard
 {
 private:
     Button boot_button_;
@@ -28,7 +27,7 @@ private:
     FogSeekPowerManager power_manager_;
     FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-    CircularStrip *rgb_led_strip_ = nullptr;
+
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
 
@@ -71,9 +70,31 @@ private:
             .red_gpio = LED_RED_GPIO,
             .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
+    }
 
-        // 初始化RGB灯带
-        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
+    // 初始化显示管理器
+    void InitializeDisplayManager()
+    {
+        lcd_pin_config_t lcd_pin_config = {
+            .io0_gpio = LCD_IO0_GPIO,
+            .io1_gpio = LCD_IO1_GPIO,
+            .scl_gpio = LCD_SCL_GPIO,
+            .io2_gpio = LCD_IO2_GPIO,
+            .io3_gpio = LCD_IO3_GPIO,
+            .cs_gpio = LCD_CS_GPIO,
+            .dc_gpio = LCD_DC_GPIO,
+            .reset_gpio = LCD_RESET_GPIO,
+            .im0_gpio = LCD_IM0_GPIO,
+            .im2_gpio = LCD_IM2_GPIO,
+            .bl_gpio = LCD_BL_GPIO,
+            .width = LCD_H_RES,
+            .height = LCD_V_RES,
+            .offset_x = DISPLAY_OFFSET_X,
+            .offset_y = DISPLAY_OFFSET_Y,
+            .mirror_x = DISPLAY_MIRROR_X,
+            .mirror_y = DISPLAY_MIRROR_Y,
+            .swap_xy = DISPLAY_SWAP_XY};
+        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -109,53 +130,17 @@ private:
 
         ctrl_button_.OnClick([this]()
                              {
-                                 // 循环切换RGB灯带颜色
-                                 static int color_index = 0;
-                                 switch (color_index)
-                                 {
-                                 case 0:
-                                     rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
-                                     break;
-                                 case 1:
-                                     rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
-                                     break;
-                                 case 2:
-                                     rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
-                                     break;
-                                 case 3:
-                                     rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
-                                     break;
-                                 case 4:
-                                     rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
-                                     break;
-                                 case 5:
-                                     rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
-                                     break;
-                                 default:
-                                     rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
-                                     break;
-                                 }
-                                 color_index = (color_index + 1) % 7; // 循环使用7种颜色
-
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
-        ctrl_button_.OnDoubleClick([this]()
-                                   { xTaskCreate([](void *param)
-                                                 {
-                                            auto* board = static_cast<FogSeekEdgeBubblePal*>(param);
-                                            WifiStation::GetInstance().Stop(); 
-                                            board->wifi_config_mode_ = true;
-                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
-                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
-            // 切换电源状态
-            if (!power_manager_.IsPowerOn()) {
-                PowerOn();
-            } else {
-                PowerOff();
-            } });
+                                     // 切换电源状态
+                                     if (!power_manager_.IsPowerOn()) {
+                                     PowerOn();
+                                     } else {
+                                     PowerOff();
+                                     } });
     }
 
     // 开机流程
@@ -164,10 +149,8 @@ private:
         power_manager_.PowerOn();
         led_controller_.SetPowerState(true);
         led_controller_.UpdateBatteryStatus(power_manager_);
+        // display_manager_.SetBrightness(100);
         SetAudioAmplifierState(true);
-
-        // 开启RGB灯带
-        rgb_led_strip_->SetAllColor({255, 255, 255});
 
         // 开机自动唤醒
         auto_wake_flag_ = true;
@@ -183,10 +166,8 @@ private:
         power_manager_.PowerOff();
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
+        // display_manager_.SetBrightness(0);
         SetAudioAmplifierState(false);
-
-        // 关闭RGB灯带
-        rgb_led_strip_->SetAllColor({0, 0, 0});
 
         // 重置自动唤醒标志位到默认状态
         auto_wake_flag_ = false;
@@ -209,11 +190,11 @@ private:
                 app.PlaySound(Lang::Sounds::OGG_SUCCESS);
 
             vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
-                                            // 进入聆听状态
+            // 进入聆听状态
             app.Schedule([]()
                          {
             auto &app = Application::GetInstance();
-            app.ToggleChatState(); });
+    app.ToggleChatState(); });
         }
     }
 
@@ -224,6 +205,7 @@ private:
         if (power_manager_.IsPowerOn())
         {
             led_controller_.HandleDeviceState(current_state, power_manager_);
+            display_manager_.HandleDeviceState(current_state);
 
             // 处理自动唤醒逻辑
             HandleAutoWake(current_state);
@@ -239,14 +221,32 @@ private:
         }
     }
 
+    // 启用4G模块
+    // void Enable4GModule()
+    // {
+    //     // 配置4G模块的控制引脚
+    //     gpio_config_t ml307_enable_config = {
+    //         .pin_bit_mask = (1ULL << 45), // 使用GPIO45控制4G模块
+    //         .mode = GPIO_MODE_OUTPUT,
+    //         .pull_up_en = GPIO_PULLUP_DISABLE,
+    //         .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    //         .intr_type = GPIO_INTR_DISABLE,
+    //     };
+    //     gpio_config(&ml307_enable_config);
+    //     gpio_set_level(GPIO_NUM_45, 1);
+    // }
+
 public:
-    FogSeekEdgeBubblePal() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdgeEs83894G() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
+                          boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
+        // InitializeDisplayManager();
         InitializeAudioAmplifier();
+        // Enable4GModule(); // 启用4G模块
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
@@ -256,6 +256,11 @@ public:
         DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
     }
+
+    // virtual Display *GetDisplay() override
+    // {
+    //     return display_manager_.GetDisplay();
+    // }
 
     virtual AudioCodec *GetAudioCodec() override
     {
@@ -271,24 +276,18 @@ public:
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC,
             AUDIO_CODEC_ES8389_ADDR,
-            true);
+            true,
+            true);  // 启用input_reference以支持回声消除
         return &audio_codec;
     }
 
-    ~FogSeekEdgeBubblePal()
+    ~FogSeekEdgeEs83894G()
     {
         if (i2c_bus_)
         {
             i2c_del_master_bus(i2c_bus_);
         }
-
-        // 删除RGB灯带对象
-        if (rgb_led_strip_)
-        {
-            delete rgb_led_strip_;
-            rgb_led_strip_ = nullptr;
-        }
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeBubblePal);
+DECLARE_BOARD(FogSeekEdgeEs83894G);

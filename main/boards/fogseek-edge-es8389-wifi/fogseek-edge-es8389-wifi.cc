@@ -1,4 +1,4 @@
-#include "dual_network_board.h"
+#include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
 #include "display_manager.h"
@@ -17,9 +17,9 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeEs8389"
+#define TAG "FogSeekEdgeEs8389Wifi"
 
-class FogSeekEdgeEs8389 : public DualNetworkBoard
+class FogSeekEdgeEs8389Wifi : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -133,14 +133,6 @@ private:
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
-        ctrl_button_.OnDoubleClick([this]()
-                                   { xTaskCreate([](void *param)
-                                                 {
-                                            auto* board = static_cast<FogSeekAudio*>(param);
-                                            WifiStation::GetInstance().Stop(); 
-                                            board->wifi_config_mode_ = true;
-                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
-                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
                                      // 切换电源状态
@@ -157,7 +149,6 @@ private:
         power_manager_.PowerOn();
         led_controller_.SetPowerState(true);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        // display_manager_.SetBrightness(100);
         SetAudioAmplifierState(true);
 
         // 开机自动唤醒
@@ -174,7 +165,6 @@ private:
         power_manager_.PowerOff();
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        // display_manager_.SetBrightness(0);
         SetAudioAmplifierState(false);
 
         // 重置自动唤醒标志位到默认状态
@@ -229,32 +219,15 @@ private:
         }
     }
 
-    // 启用4G模块
-    // void Enable4GModule()
-    // {
-    //     // 配置4G模块的控制引脚
-    //     gpio_config_t ml307_enable_config = {
-    //         .pin_bit_mask = (1ULL << 45), // 使用GPIO45控制4G模块
-    //         .mode = GPIO_MODE_OUTPUT,
-    //         .pull_up_en = GPIO_PULLUP_DISABLE,
-    //         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    //         .intr_type = GPIO_INTR_DISABLE,
-    //     };
-    //     gpio_config(&ml307_enable_config);
-    //     gpio_set_level(GPIO_NUM_45, 1);
-    // }
-
 public:
-    FogSeekEdgeEs8389() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
-                          boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdgeEs8389Wifi() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
-        // InitializeDisplayManager();
+        InitializeDisplayManager();
         InitializeAudioAmplifier();
-        // Enable4GModule(); // 启用4G模块
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
@@ -265,10 +238,10 @@ public:
                                                                            { OnDeviceStateChanged(previous_state, current_state); });
     }
 
-    // virtual Display *GetDisplay() override
-    // {
-    //     return display_manager_.GetDisplay();
-    // }
+    virtual Display *GetDisplay() override
+    {
+        return display_manager_.GetDisplay();
+    }
 
     virtual AudioCodec *GetAudioCodec() override
     {
@@ -282,13 +255,14 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
+            AUDIO_CODEC_PA_PIN,
             AUDIO_CODEC_ES8389_ADDR,
+            true,
             true);
         return &audio_codec;
     }
 
-    ~FogSeekEdgeEs8389()
+    ~FogSeekEdgeEs8389Wifi()
     {
         if (i2c_bus_)
         {
@@ -297,4 +271,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeEs8389);
+DECLARE_BOARD(FogSeekEdgeEs8389Wifi);

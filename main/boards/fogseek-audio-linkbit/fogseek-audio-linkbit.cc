@@ -1,57 +1,35 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
-#include "display_manager.h"
 #include "led_controller.h"
-#include "codecs/es8389_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
-#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
+#include "display.h"
 #include <wifi_station.h>
+#include <wifi_configuration_ap.h>
+#include <ssid_manager.h>
 #include <esp_log.h>
-#include <driver/i2c_master.h>
-#include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeBubblePal"
+#define TAG "FogSeekAudioLinkBit"
 
-class FogSeekEdgeBubblePal : public WifiBoard
+class FogSeekAudioLinkBit : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
-    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-    CircularStrip *rgb_led_strip_ = nullptr;
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
 
     // 添加自动唤醒标志位
     bool auto_wake_flag_ = false;
-
-    // 初始化I2C外设
-    void InitializeI2c()
-    {
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)0,
-            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
-        };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-    }
 
     // 初始化电源管理器
     void InitializePowerManager()
@@ -71,28 +49,6 @@ private:
             .red_gpio = LED_RED_GPIO,
             .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
-
-        // 初始化RGB灯带
-        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
-    }
-
-    // 初始化音频功放引脚并默认关闭功放
-    void InitializeAudioAmplifier()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetAudioAmplifierState(false); // 默认关闭功放
-    }
-
-    // 设置音频功放状态
-    void SetAudioAmplifierState(bool enable)
-    {
-        gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
     }
 
     // 初始化按键回调
@@ -109,45 +65,18 @@ private:
 
         ctrl_button_.OnClick([this]()
                              {
-                                 // 循环切换RGB灯带颜色
-                                 static int color_index = 0;
-                                 switch (color_index)
-                                 {
-                                 case 0:
-                                     rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
-                                     break;
-                                 case 1:
-                                     rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
-                                     break;
-                                 case 2:
-                                     rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
-                                     break;
-                                 case 3:
-                                     rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
-                                     break;
-                                 case 4:
-                                     rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
-                                     break;
-                                 case 5:
-                                     rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
-                                     break;
-                                 default:
-                                     rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
-                                     break;
-                                 }
-                                 color_index = (color_index + 1) % 7; // 循环使用7种颜色
-
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
         ctrl_button_.OnDoubleClick([this]()
                                    { xTaskCreate([](void *param)
                                                  {
-                                            auto* board = static_cast<FogSeekEdgeBubblePal*>(param);
+                                            auto* board = static_cast<FogSeekAudioLinkBit*>(param);
                                             WifiStation::GetInstance().Stop(); 
                                             board->wifi_config_mode_ = true;
                                             board->EnterWifiConfigMode(); // 双击进入WiFi配网
                                             vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
+
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
@@ -164,10 +93,6 @@ private:
         power_manager_.PowerOn();
         led_controller_.SetPowerState(true);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        SetAudioAmplifierState(true);
-
-        // 开启RGB灯带
-        rgb_led_strip_->SetAllColor({255, 255, 255});
 
         // 开机自动唤醒
         auto_wake_flag_ = true;
@@ -183,10 +108,6 @@ private:
         power_manager_.PowerOff();
         led_controller_.SetPowerState(false);
         led_controller_.UpdateBatteryStatus(power_manager_);
-        SetAudioAmplifierState(false);
-
-        // 关闭RGB灯带
-        rgb_led_strip_->SetAllColor({0, 0, 0});
 
         // 重置自动唤醒标志位到默认状态
         auto_wake_flag_ = false;
@@ -240,13 +161,11 @@ private:
     }
 
 public:
-    FogSeekEdgeBubblePal() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekAudioLinkBit() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
-        InitializeI2c();
         InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
-        InitializeAudioAmplifier();
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
@@ -259,36 +178,78 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8389AudioCodec audio_codec(
-            i2c_bus_,
-            (i2c_port_t)0,
-            AUDIO_INPUT_SAMPLE_RATE,
-            AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK,
-            AUDIO_I2S_GPIO_BCLK,
-            AUDIO_I2S_GPIO_WS,
-            AUDIO_I2S_GPIO_DOUT,
-            AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
-            AUDIO_CODEC_ES8389_ADDR,
-            true);
+        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+                                              AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
         return &audio_codec;
     }
 
-    ~FogSeekEdgeBubblePal()
+    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
+    virtual void StartNetwork() override
     {
-        if (i2c_bus_)
+        // User can press BOOT button while starting to enter WiFi configuration mode
+        if (wifi_config_mode_)
         {
-            i2c_del_master_bus(i2c_bus_);
+            EnterWifiConfigMode();
+            return;
         }
 
-        // 删除RGB灯带对象
-        if (rgb_led_strip_)
+        // If no WiFi SSID is configured, enter WiFi configuration mode
+        auto &ssid_manager = SsidManager::GetInstance();
+        auto ssid_list = ssid_manager.GetSsidList();
+        if (ssid_list.empty())
         {
-            delete rgb_led_strip_;
-            rgb_led_strip_ = nullptr;
+            wifi_config_mode_ = true;
+            EnterWifiConfigMode();
+            return;
         }
+
+        // For normal operation, use the parent class's logic
+        WifiBoard::StartNetwork();
+    }
+
+    // 重新实现EnterWifiConfigMode方法，将热点名称前缀设置为"LinkBit"
+    void EnterWifiConfigMode()
+    {
+        auto &application = Application::GetInstance();
+        application.SetDeviceState(kDeviceStateWifiConfiguring);
+
+        auto &wifi_ap = WifiConfigurationAp::GetInstance();
+        wifi_ap.SetLanguage(Lang::CODE);
+        wifi_ap.SetSsidPrefix("LinkBit");
+        wifi_ap.Start();
+
+        // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
+        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
+        hint += wifi_ap.GetSsid();
+        hint += Lang::Strings::ACCESS_VIA_BROWSER;
+        hint += wifi_ap.GetWebServerUrl();
+        hint += "\n\n";
+
+        // 播报配置 WiFi 的提示
+        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG);
+
+#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
+        auto display = Board::GetInstance().GetDisplay();
+        auto codec = Board::GetInstance().GetAudioCodec();
+        int channel = 1;
+        if (codec)
+        {
+            channel = codec->input_channels();
+        }
+        ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
+        audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
+#endif
+
+        // Wait forever until reset after configuration
+        while (true)
+        {
+            vTaskDelay(pdMS_TO_TICKS(10000));
+        }
+    }
+
+    ~FogSeekAudioLinkBit()
+    {
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeBubblePal);
+DECLARE_BOARD(FogSeekAudioLinkBit);

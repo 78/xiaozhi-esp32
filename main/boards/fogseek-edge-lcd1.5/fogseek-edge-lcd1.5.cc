@@ -136,7 +136,7 @@ private:
         ctrl_button_.OnDoubleClick([this]()
                                    { xTaskCreate([](void *param)
                                                  {
-                                            auto* board = static_cast<FogSeekAudio*>(param);
+                                            auto* board = static_cast<FogSeekEdgeLcd15*>(param);
                                             WifiStation::GetInstance().Stop(); 
                                             board->wifi_config_mode_ = true;
                                             board->EnterWifiConfigMode(); // 双击进入WiFi配网
