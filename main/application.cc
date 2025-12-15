@@ -780,9 +780,10 @@ void Application::HandleWakeWordDetectedEvent() {
         protocol_->SendWakeWordDetected(wake_word);
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
 #else
+        // Set flag to play popup sound after state changes to listening
+        // (PlaySound here would be cleared by ResetDecoder in EnableVoiceProcessing)
+        play_popup_on_listening_ = true;
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-        // Play the pop up sound to indicate the wake word is detected
-        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
 #endif
     } else if (state == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonWakeWordDetected);
@@ -825,6 +826,12 @@ void Application::HandleStateChangedEvent() {
                 audio_service_.EnableVoiceProcessing(true);
                 audio_service_.EnableWakeWordDetection(false);
             }
+
+            // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
+            if (play_popup_on_listening_) {
+                play_popup_on_listening_ = false;
+                audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
@@ -846,7 +853,7 @@ void Application::HandleStateChangedEvent() {
     }
 }
 
-void Application::Schedule(std::function<void()> callback) {
+void Application::Schedule(std::function<void()>&& callback) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         main_tasks_.push_back(std::move(callback));
@@ -960,9 +967,10 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
         protocol_->SendWakeWordDetected(wake_word);
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
 #else
+        // Set flag to play popup sound after state changes to listening
+        // (PlaySound here would be cleared by ResetDecoder in EnableVoiceProcessing)
+        play_popup_on_listening_ = true;
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-        // Play the pop up sound to indicate the wake word is detected
-        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
 #endif
     } else if (state == kDeviceStateSpeaking) {
         Schedule([this]() {
