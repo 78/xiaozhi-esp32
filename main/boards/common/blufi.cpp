@@ -114,6 +114,7 @@ Blufi::~Blufi() {
 
 esp_err_t Blufi::init() {
     esp_err_t ret;
+    inited_ = true;
     m_provisioned = false;
     m_deinited = false;
 
@@ -136,21 +137,24 @@ esp_err_t Blufi::init() {
 }
 
 esp_err_t Blufi::deinit() {
-    if (m_deinited) {
-        return ESP_OK;
-    }
-    m_deinited = true;
-    esp_err_t ret;
-    ret = _host_deinit();
-    if (ret) {
-        ESP_LOGE(BLUFI_TAG, "Host deinit failed: %s", esp_err_to_name(ret));
-    }
+    esp_err_t ret = ESP_OK;
+
+    if (inited_) {
+        if (m_deinited) {
+            return ESP_OK;
+        }
+        m_deinited = true;
+        ret = _host_deinit();
+        if (ret) {
+            ESP_LOGE(BLUFI_TAG, "Host deinit failed: %s", esp_err_to_name(ret));
+        }
 #if CONFIG_BT_CONTROLLER_ENABLED || !CONFIG_BT_NIMBLE_ENABLED
-    ret = _controller_deinit();
-    if (ret) {
-        ESP_LOGE(BLUFI_TAG, "Controller deinit failed: %s", esp_err_to_name(ret));
-    }
+        ret = _controller_deinit();
+        if (ret) {
+            ESP_LOGE(BLUFI_TAG, "Controller deinit failed: %s", esp_err_to_name(ret));
+        }
 #endif
+    }
     return ret;
 }
 
