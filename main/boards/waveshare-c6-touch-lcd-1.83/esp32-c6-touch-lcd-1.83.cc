@@ -104,9 +104,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting) {
+              if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
-                return;            
+                return;
             }
             app.ToggleChatState();
         });
@@ -191,7 +191,7 @@ private:
             "Reboot the device and enter WiFi configuration mode.\n"
             "**CAUTION** You must ask the user to confirm this action.",
             PropertyList(), [this](const PropertyList& properties) {
-               // ResetWifiConfiguration();
+                ResetWifiConfiguration();
                 return true;
             });
     }
@@ -249,13 +249,13 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
-        if (level != PowerSaveLevel::LOW_POWER) {
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled)
         {
             power_save_timer_->WakeUp();
         }
-       WifiBoard::SetPowerSaveLevel(level);
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
-};
+
 DECLARE_BOARD(WaveshareEsp32c6TouchLCD1inch83);
