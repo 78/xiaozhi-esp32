@@ -191,7 +191,7 @@ private:
             "Reboot the device and enter WiFi configuration mode.\n"
             "**CAUTION** You must ask the user to confirm this action.",
             PropertyList(), [this](const PropertyList& properties) {
-                ResetWifiConfiguration();
+               // ResetWifiConfiguration();
                 return true;
             });
     }
@@ -257,5 +257,5 @@ public:
        WifiBoard::SetPowerSaveLevel(level);
     }
 };
-
+}
 DECLARE_BOARD(WaveshareEsp32c6TouchLCD1inch83);
