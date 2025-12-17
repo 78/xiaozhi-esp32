@@ -34,6 +34,8 @@ public:
     Blufi &operator=(const Blufi &) = delete;
 
 private:
+    bool inited_ = false;
+
     Blufi();
 
     ~Blufi();
