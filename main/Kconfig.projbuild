@@ -30,7 +30,7 @@ config CUSTOM_ASSETS_FILE
 
 choice
     prompt "Default Language"
-    default LANGUAGE_VI_VN
+    default LANGUAGE_ZH_CN
     help
         Select device display language
 
