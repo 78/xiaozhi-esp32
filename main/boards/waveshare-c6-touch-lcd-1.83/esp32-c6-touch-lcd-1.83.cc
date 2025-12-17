@@ -257,5 +257,5 @@ public:
        WifiBoard::SetPowerSaveLevel(level);
     }
 };
-}
+};
 DECLARE_BOARD(WaveshareEsp32c6TouchLCD1inch83);
