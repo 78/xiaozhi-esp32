@@ -75,7 +75,7 @@ public:
     /**
      * Schedule a callback to be executed in the main task
      */
-    void Schedule(std::function<void()> callback);
+    void Schedule(std::function<void()>&& callback);
 
     /**
      * Alert with status, message, emotion and optional sound
@@ -139,6 +139,7 @@ private:
     bool has_server_time_ = false;
     bool aborted_ = false;
     bool assets_version_checked_ = false;
+    bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
 
