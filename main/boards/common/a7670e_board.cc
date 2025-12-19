@@ -109,6 +109,8 @@ A7670EBoard::A7670EBoard(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t power_
     vTaskDelay(pdMS_TO_TICKS(3000));
 }
 
+A7670EBoard::~A7670EBoard() = default;
+
 /**
  * 发送AT指令并等待响应
  */

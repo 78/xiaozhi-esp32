@@ -35,10 +35,11 @@ private:
 
 public:
     A7670EBoard(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t power_pin = GPIO_NUM_33);
-    virtual ~A7670EBoard() = default;
+    virtual ~A7670EBoard();
 
     // Board 接口实现
     std::string GetBoardType() override { return "a7670e"; }
+    AudioCodec* GetAudioCodec() override { return nullptr; }
     NetworkInterface* GetNetwork() override;
     void StartNetwork() override;
     void SetNetworkEventCallback(NetworkEventCallback callback) override { network_event_callback_ = std::move(callback); }
