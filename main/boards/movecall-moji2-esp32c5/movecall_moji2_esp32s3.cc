@@ -236,7 +236,7 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(160, 300);
+        power_save_timer_ = new PowerSaveTimer(240, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
         });
