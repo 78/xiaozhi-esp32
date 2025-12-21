@@ -1,0 +1,18 @@
+{
+    "target": "esp32c5",
+    "builds": [
+        {
+            "name": "movecall-moji2-esp32c5",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_SPIRAM_SPEED_80M=y",
+                "CONFIG_SPIRAM_SPEED=80",
+                "CONFIG_SPI_FLASH_FREQ_LIMIT_C5_240MHZ=y"
+            ]
+        }
+    ]
+}
