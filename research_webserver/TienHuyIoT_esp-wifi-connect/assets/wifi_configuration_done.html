@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>Xiaozhi AI-IoT 🇻🇳 – Khởi động lại thiết bị</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <style>
+        /* ===== GLOBAL ===== */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            color: #e5e7eb;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.25), transparent 60%),
+                radial-gradient(circle at 80% 100%, rgba(16, 185, 129, 0.25), transparent 60%),
+                linear-gradient(135deg, #020617, #0f172a, #0b1120);
+        }
+
+        /* RoBot5320 glow overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.14), transparent 65%),
+                radial-gradient(circle at 80% 60%, rgba(34, 197, 94, 0.12), transparent 60%);
+            pointer-events: none;
+            z-index: -1;
+            opacity: 1;
+        }
+
+        /* ===== HEADER RoBot5320 ===== */
+        .brand-header {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.35);
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 14px;
+            background: radial-gradient(circle at 30% 0%, #22d3ee, #22c55e);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 18px;
+            color: #020617;
+            box-shadow:
+                0 0 20px rgba(34, 211, 238, 0.9),
+                0 0 0 1px rgba(15, 23, 42, 0.8);
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .brand-text-main {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            /* text-transform: uppercase; */
+            background: linear-gradient(120deg, var(--accent), #ffffff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* ===== LAYOUT ===== */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* ===== Checkmark Wrapper ===== */
+        .checkmark-wrapper {
+            position: relative;
+            margin-bottom: 28px;
+            margin-top: 40px;
+        }
+
+        .checkmark-glow {
+            position: absolute;
+            inset: 10px;
+            border-radius: 999px;
+            background: radial-gradient(circle, rgba(34,197,94,0.32), transparent 70%);
+            filter: blur(12px);
+            opacity: 0;
+            animation: glow-in 0.7s ease-out 0.2s forwards;
+        }
+
+        @keyframes glow-in {
+            from { opacity: 0; transform: scale(0.9); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* ===== Checkmark Animation ===== */
+        .checkmark {
+            width: 150px;
+            height: 150px;
+            filter: drop-shadow(0 10px 35px rgba(22, 163, 74, 0.45));
+            transform-origin: center;
+            animation: pop-in 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        @keyframes pop-in {
+            0%   { transform: scale(0.7); opacity: 0; }
+            60%  { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+        .checkmark__circle {
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            stroke-width: 3;
+            stroke: #22c55e;
+            fill: none;
+            animation: stroke-animation 0.6s ease-out forwards;
+        }
+
+        .checkmark__check {
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            stroke-width: 3;
+            stroke: #22c55e;
+            fill: none;
+            animation: check-animation 0.4s ease-out 0.6s forwards;
+        }
+
+        @keyframes stroke-animation { 100% { stroke-dashoffset: 0; } }
+        @keyframes check-animation { 100% { stroke-dashoffset: 0; } }
+
+        /* ===== Message Box ===== */
+        .message-box {
+            background:
+                radial-gradient(circle at top left, rgba(34,211,238,0.16), transparent 60%),
+                radial-gradient(circle at bottom right, rgba(16,185,129,0.18), transparent 60%),
+                rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(14px);
+            border-radius: 22px;
+            padding: 24px 32px;
+            box-shadow:
+                0 18px 40px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(148, 163, 184, 0.32);
+            max-width: 360px;
+            width: 100%;
+            animation: fadein 0.6s ease-out 0.2s both;
+            position: relative;
+        }
+
+        .message {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+
+        .count {
+            font-weight: 800;
+            color: #5eead4;
+            text-shadow: 0 0 8px rgba(34,211,238,0.85);
+        }
+
+        .sub {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #cbd5e1;
+        }
+
+        .hint {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .count-pulse {
+            animation: pulse 1s ease-out infinite;
+        }
+
+        @keyframes pulse {
+            0%   { transform: scale(1); }
+            50%  { transform: scale(1.18); }
+            100% { transform: scale(1); }
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 480px) {
+            .checkmark { width: 120px; height: 120px; }
+            .message-box { max-width: 300px; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <div class="brand-header">
+        <div class="brand-logo">T</div>
+        <div class="brand-title">Xiaozhi AI-IoT 🇻🇳 – Wi-Fi device setup</div>
+    </div>
+
+    <div class="container">
+
+        <!-- Checkmark animation -->
+        <div class="checkmark-wrapper">
+            <div class="checkmark-glow"></div>
+            <svg class="checkmark" viewBox="0 0 52 52">
+                <circle class="checkmark__circle" cx="26" cy="26" r="25"/>
+                <path class="checkmark__check" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+        </div>
+
+        <!-- Message -->
+        <div class="message-box">
+            <div class="message">
+                Thiết bị sẽ khởi động lại sau
+                <span id="countdown" class="count count-pulse">3</span> giây
+            </div>
+            <div class="sub">
+                Vui lòng đợi trong khi hệ thống lưu và áp dụng cấu hình...
+            </div>
+            <div class="hint">
+                Nếu trang không tự đóng, bạn có thể đóng cửa sổ này và chờ thiết bị kết nối lại Wi-Fi.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('load', function () {
+            let count = 3;
+            let countdownElement = document.getElementById('countdown');
+
+            const timer = setInterval(function () {
+                count--;
+                countdownElement.textContent = count;
+
+                if (count <= 0) {
+                    clearInterval(timer);
+
+                    fetch('/reboot', { method: 'POST' })
+                        .then(response => {
+                            if (response.ok) {
+                                window.close();
+                            }
+                        })
+                        .catch(() => {});
+                }
+            }, 1000);
+        });
+    </script>
+
+</body>
+</html>

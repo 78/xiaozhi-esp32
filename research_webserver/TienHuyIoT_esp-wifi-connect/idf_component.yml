@@ -1,0 +1,11 @@
+dependencies:
+  idf: '>=5.3'
+description: ESP32 WiFi Configuration
+files:
+  exclude:
+  - .git
+  - dist
+license: MIT
+repository: https://github.com/TienHuyIoT/esp-wifi-connect
+url: https://github.com/TienHuyIoT/esp-wifi-connect
+version: 1.0.0

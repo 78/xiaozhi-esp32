@@ -93,7 +93,7 @@ dependencies:
   espfriends/servo_dog_ctrl:
     version: ^0.1.8
     rules:
-      - if: target in [esp32c3]
+      - if: target in [esp32c3, esp32s3]
 
   llgok/cpp_bus_driver:
     version: 1.1.0

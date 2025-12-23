@@ -5,12 +5,17 @@
 
 #define TAG "EraIotClient"
 
-static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
-static const char *ERA_BASE_URL = "https://backend.eoh.io";
-static const char *ERA_CONFIG_ID = "150632";
-static const char *ERA_ACTION_ON_KEY = "ced48cf9-b159-4f2e-87de-44aaa6ea08c0";
-static const char *ERA_ACTION_OFF_KEY = "6bd3f760-453d-4a01-89c4-ee1f4559fcb8";
+// static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
+// static const char *ERA_BASE_URL = "https://backend.eoh.io";
+// static const char *ERA_CONFIG_ID = "150632";
+// static const char *ERA_ACTION_ON_KEY = "ced48cf9-b159-4f2e-87de-44aaa6ea08c0";
+// static const char *ERA_ACTION_OFF_KEY = "6bd3f760-453d-4a01-89c4-ee1f4559fcb8";
 
+static const char *ERA_AUTH_TOKEN = "your_token_here";
+static const char *ERA_BASE_URL = "your_base_url_here";
+static const char *ERA_CONFIG_ID = "your_config_id_here";
+static const char *ERA_ACTION_ON_KEY = "your_action_on_key_here";
+static const char *ERA_ACTION_OFF_KEY = "your_action_off_key_here";
 EraIotClient::EraIotClient() : initialized_(false)
 {
 }

@@ -205,7 +205,13 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
 elseif(CONFIG_BOARD_TYPE_ESP_HI)
     set(BOARD_TYPE "esp-hi")
     # Set ESP_HI emoji directory for DEFAULT_ASSETS_EXTRA_FILES
-    set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_BINARY_DIR}/emoji")
+elseif(CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3)
+set(BOARD_TYPE "iotforce-esp-puppy-s3")
+set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+set(BUILTIN_ICON_FONT font_awesome_20_4)
+set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+list(APPEND SOURCES "boards/iotforce-esp-puppy-s3/puppy_movements.cc" "boards/iotforce-esp-puppy-s3/oscillator.cc")
+    
 elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
@@ -730,9 +736,10 @@ if(XIAOZHI_FONTS_COMPONENT_PATH)
     set(XIAOZHI_FONTS_PATH "${XIAOZHI_FONTS_COMPONENT_PATH}")
 endif()
 
-if(CONFIG_BOARD_TYPE_ESP_HI)
+if(CONFIG_BOARD_TYPE_ESP_HI OR CONFIG_BOARD_TYPE_OTTO_ROBOT OR CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3)
 set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
 set(EMOJI_DIR "${CMAKE_BINARY_DIR}/emoji")
+set(DEFAULT_ASSETS_EXTRA_FILES "${EMOJI_DIR}")
 file(MAKE_DIRECTORY ${EMOJI_DIR})
 
 # List all files to download

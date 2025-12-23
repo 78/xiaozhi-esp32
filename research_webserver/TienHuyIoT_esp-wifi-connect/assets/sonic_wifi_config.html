@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>TienHuyIoT – Sonic WiFi Config</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-main: #02030a;
+      --bg-card: #050718;
+      --accent: #00f5ff;
+      --accent-alt: #ff00ff;
+      --accent-soft: rgba(0, 245, 255, 0.18);
+      --text-main: #f8f9ff;
+      --text-sub: #8e9ac0;
+      --border-soft: #1a2138;
+      --danger: #ff4d4f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+      background:
+        radial-gradient(circle at top, #151a3d 0, #02030a 55%, #000000 100%),
+        #000;
+      margin: 0;
+      padding: 2.4rem 1.2rem;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-main);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .layout {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 2.2rem;
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 245, 255, 0.18), transparent 60%),
+        radial-gradient(circle at 100% 0, rgba(255, 0, 255, 0.16), transparent 55%),
+        var(--bg-card);
+      padding: 2.1rem 1.85rem 1.7rem;
+      border-radius: 24px;
+      max-width: 460px;
+      width: 100%;
+      box-shadow:
+        0 22px 55px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(0, 245, 255, 0.1);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        conic-gradient(from 160deg, rgba(0, 245, 255, 0.18), transparent, rgba(255, 0, 255, 0.18), transparent),
+        radial-gradient(circle at 50% 120%, rgba(0, 245, 255, 0.18), transparent 60%);
+      mix-blend-mode: screen;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.15rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(0, 245, 255, 0.06);
+      border: 1px solid rgba(0, 245, 255, 0.5);
+      backdrop-filter: blur(10px);
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    .clickable {
+      cursor: pointer;
+      transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease;
+    }
+
+    .clickable:hover {
+      transform: translateY(-0.6px);
+      box-shadow: 0 0 16px rgba(0, 245, 255, 0.35);
+      background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .menu-wrapper {
+      position: relative;
+    }
+
+    .tag-btn {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      padding: 0.16rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text-sub);
+      background: rgba(0, 0, 0, 0.25);
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .tag-arrow {
+      font-size: 0.7rem;
+    }
+
+    .link-menu {
+      position: absolute;
+      top: 130%;
+      right: 0;
+      width: 310px;
+      max-width: min(320px, 80vw);
+      background: rgba(5, 7, 25, 0.98);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(0, 245, 255, 0.18);
+      padding: 0.9rem 0.85rem;
+      font-size: 0.8rem;
+      z-index: 20;
+      display: none;
+    }
+
+    .link-menu.visible {
+      display: block;
+    }
+
+    .menu-item {
+      padding: 0.45rem 0.45rem;
+      border-radius: 10px;
+      transition: background 0.12s ease;
+    }
+
+    .menu-item + .menu-item {
+      margin-top: 0.25rem;
+    }
+
+    .menu-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .menu-title {
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .menu-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .menu-link-pill {
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 245, 255, 0.45);
+      font-size: 0.73rem;
+      color: var(--accent);
+      background: rgba(0, 245, 255, 0.08);
+    }
+
+    .menu-desc {
+      color: var(--text-sub);
+      font-size: 0.76rem;
+    }
+
+    .logo-line {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .logo-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px rgba(0, 245, 255, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: #012;
+    }
+
+    .logo-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .logo-main {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: linear-gradient(120deg, var(--accent), var(--accent-alt));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: inline-block;
+    }
+
+    .logo-main:hover {
+      text-shadow: 0 0 14px rgba(0, 245, 255, 0.6);
+      transform: translateY(-0.4px);
+    }
+
+    .logo-sub {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-sub);
+    }
+
+    h2 {
+      margin: 0.1rem 0 0.4rem;
+      font-size: 1.22rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    h2 span.icon {
+      font-size: 1.3rem;
+      filter: drop-shadow(0 0 8px rgba(0, 245, 255, 0.7));
+    }
+
+    .subtitle {
+      margin: 0 0 1.55rem;
+      font-size: 0.9rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    .subtitle span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    label {
+      font-weight: 600;
+      display: block;
+      margin: 1rem 0 0.35rem;
+      font-size: 0.9rem;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-prefix {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.76rem 0.85rem 0.76rem 2.3rem;
+      font-size: 0.95rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      background: radial-gradient(circle at top left, rgba(0, 245, 255, 0.08), transparent 55%),
+                  rgba(3, 6, 24, 0.96);
+      color: var(--text-main);
+      outline: none;
+      transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease,
+        background 0.16s ease,
+        transform 0.06s ease;
+    }
+
+    input[type="text"]::placeholder,
+    input[type="password"]::placeholder {
+      color: #5f6c8e;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 0 1px rgba(0, 245, 255, 0.7),
+        0 0 18px rgba(0, 245, 255, 0.3);
+      background: rgba(4, 8, 32, 0.98);
+      transform: translateY(-0.6px);
+    }
+
+    .checkbox-container {
+      margin-top: 0.8rem;
+      font-size: 0.86rem;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .checkbox-container input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 0.7rem;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      padding: 0.8rem 0.8rem;
+      font-size: 0.95rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      transition:
+        background-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.06s ease,
+        opacity 0.12s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(130deg, var(--accent), var(--accent-alt));
+      color: #020305;
+      font-weight: 650;
+      box-shadow:
+        0 12px 30px rgba(0, 245, 255, 0.45),
+        0 0 22px rgba(255, 0, 255, 0.25);
+    }
+
+    .btn-primary:hover {
+      box-shadow:
+        0 16px 36px rgba(0, 245, 255, 0.7),
+        0 0 28px rgba(255, 0, 255, 0.35);
+      transform: translateY(-0.8px);
+    }
+
+    .btn-primary:active {
+      box-shadow:
+        0 7px 20px rgba(0, 245, 255, 0.4),
+        0 0 18px rgba(255, 0, 255, 0.2);
+      transform: translateY(0.3px) scale(0.992);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-0.5px);
+    }
+
+    .btn-secondary:active {
+      transform: translateY(0.2px) scale(0.994);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .btn-download {
+      margin-top: 0.7rem;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+
+    .btn-download:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    audio {
+      margin-top: 1.35rem;
+      width: 100%;
+      outline: none;
+      filter: drop-shadow(0 0 14px rgba(0, 245, 255, 0.35));
+      border-radius: 999px;
+    }
+
+    .hint {
+      margin-top: 0.85rem;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    .hint span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .signature {
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      color: #657094;
+      text-align: right;
+      opacity: 0.9;
+    }
+
+    .signature span {
+      background: linear-gradient(120deg, var(--accent), var(--accent-alt));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: 600;
+    }
+
+    .guide-card {
+      max-width: 420px;
+      width: 100%;
+      border-radius: 22px;
+      padding: 1.9rem 1.7rem 1.6rem;
+      background:
+        radial-gradient(circle at top right, rgba(255, 0, 255, 0.22), transparent 60%),
+        rgba(5, 8, 30, 0.96);
+      border: 1px solid rgba(120, 130, 180, 0.35);
+      box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.75),
+        0 0 0 1px rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+    }
+
+    .guide-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .guide-title span.icon {
+      font-size: 1.2rem;
+    }
+
+    .guide-intro {
+      margin: 0 0 1rem;
+      font-size: 0.86rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    .steps {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1.1rem;
+      counter-reset: step;
+    }
+
+    .steps li {
+      position: relative;
+      padding-left: 2.1rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--text-main);
+    }
+
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0.2rem;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #ffffff, var(--accent-alt));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #020010;
+      box-shadow: 0 0 14px rgba(255, 0, 255, 0.8);
+    }
+
+    .steps li span.tag {
+      border-radius: 999px;
+      padding: 0.05rem 0.55rem;
+      font-size: 0.73rem;
+      margin-left: 0.35rem;
+      border-color: rgba(0, 245, 255, 0.4);
+      color: var(--accent);
+      background: rgba(0, 245, 255, 0.08);
+    }
+
+    .guide-highlight {
+      margin-top: 0.5rem;
+      padding: 0.7rem 0.75rem;
+      border-radius: 14px;
+      font-size: 0.8rem;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px dashed rgba(0, 245, 255, 0.4);
+      color: var(--text-sub);
+    }
+
+    .guide-highlight strong {
+      color: var(--accent);
+    }
+
+    .guide-errors-title {
+      margin: 1rem 0 0.4rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .error-list {
+      margin: 0;
+      padding-left: 1.1rem;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    .error-list li + li {
+      margin-top: 0.25rem;
+    }
+
+    @media (max-width: 920px) {
+      .layout {
+        flex-direction: column;
+        align-items: center;
+        gap: 1.8rem;
+      }
+      .card,
+      .guide-card {
+        max-width: 520px;
+      }
+      .link-menu {
+        right: auto;
+        left: 0;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 1.8rem 1.05rem;
+      }
+      .card {
+        padding: 1.75rem 1.3rem 1.45rem;
+        border-radius: 20px;
+      }
+      .guide-card {
+        padding: 1.6rem 1.25rem 1.4rem;
+        border-radius: 18px;
+      }
+      .logo-main {
+        font-size: 1.35rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+      }
+      .btn-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="card" id="tienhuy-sonic-card">
+      <div class="brand-row">
+        <a
+          class="badge clickable"
+          href="https://zalo.me/g/fsyuiz890"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span class="badge-dot"></span>
+          TienHuyIoT · Sonic WiFi Config
+        </a>
+
+        <div class="menu-wrapper">
+          <button class="tag-btn clickable" id="robot-menu-toggle" type="button">
+            RoBot5320 edition
+            <span class="tag-arrow" id="robot-menu-arrow">▾</span>
+          </button>
+
+          <div class="link-menu" id="robot-menu">
+            <div class="menu-item">
+              <div class="menu-title">📱 Zalo – Nhóm hỗ trợ chính thức</div>
+              <div class="menu-links">
+                <a
+                  href="https://zalo.me/g/ghwomx800"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Nhóm 1</a>
+                <a
+                  href="https://zalo.me/g/fsyuiz890"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Nhóm 2</a>
+              </div>
+              <div class="menu-desc">Tham gia nhóm để được hỗ trợ trực tiếp, hỏi đáp về Xiaozhi AI–IoT.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">📘 Facebook Community</div>
+              <div class="menu-links">
+                <a
+                  href="https://www.facebook.com/share/g/17mkTxx1oQ/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Group</a>
+                <a
+                  href="https://www.facebook.com/share/1BhraxqFBb/?mibextid=wwXIfr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Fanpage</a>
+              </div>
+              <div class="menu-desc">Cộng đồng chia sẻ dự án, hình ảnh sản phẩm và update firmware mới.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">🎥 YouTube – Video hướng dẫn</div>
+              <div class="menu-links">
+                <a
+                  href="https://youtu.be/g7Lh-LpxElU"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Xem video</a>
+              </div>
+              <div class="menu-desc">Hướng dẫn chi tiết từ A–Z: lắp ráp, nạp firmware, cấu hình WiFi.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">🎵 TikTok – RoBot5320</div>
+              <div class="menu-links">
+                <a
+                  href="https://www.tiktok.com/@robot.5320?is_from_webapp=1&sender_device=pc"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >@robot.5320</a>
+              </div>
+              <div class="menu-desc">Xem demo thực tế, mẹo chơi đồ IoT và update nhanh.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">🌍 Website RoBot5320</div>
+              <div class="menu-links">
+                <a
+                  href="https://robotntq.netlify.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Website</a>
+              </div>
+              <div class="menu-desc">Tài liệu, firmware, hướng dẫn chi tiết cho các board hỗ trợ.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">🤖 ChatRoBot5320 – Server AI</div>
+              <div class="menu-links">
+                <a
+                  href="https://robot5320xiaozhi-backend.onrender.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Mở chat</a>
+              </div>
+              <div class="menu-desc">Kết nối trực tiếp Xiaozhi AI với server riêng của RoBot5320.</div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-title">🔧 Web Flasher – Nạp firmware</div>
+              <div class="menu-links">
+                <a
+                  href="https://tienhuyiot.github.io/esp_web_flasher/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="menu-link-pill"
+                >Mở Web Flasher</a>
+              </div>
+              <div class="menu-desc">Nạp firmware cho ESP32 ngay trên trình duyệt, không cần cài thêm tool.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="logo-line">
+        <div class="logo-avatar">
+          <img src="tienhuy_logo.png" alt="TienHuyIoT Logo" />
+        </div>
+        <div>
+          <a
+            class="logo-main"
+            href="https://www.facebook.com/XiaozhiAI.IoTVietnam?mibextid=wwXIfr&rdid=M1TC4WlMyMQa9fHz&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F1BhraxqFBb%2F%3Fmibextid%3DwwXIfr%23"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            TienHuyIoT
+          </a>
+          <div class="logo-sub">wifi sonic tool</div>
+        </div>
+      </div>
+
+      <h2>
+        <span class="icon">🎧</span>
+        Bắn cấu hình WiFi bằng sóng âm
+      </h2>
+
+      <p class="subtitle">
+        Nhập <span>SSID</span> và <span>mật khẩu</span> WiFi, công cụ sẽ tạo một file âm thanh đặc biệt để ESP32
+        của TienHuyIoT nghe và tự kết nối mạng.
+      </p>
+
+      <label for="ssid">Tên WiFi (SSID)</label>
+      <div class="input-wrapper">
+        <span class="input-prefix">📡</span>
+        <input id="ssid" type="text" value="" placeholder="Nhập tên WiFi (ví dụ: TienHuy_Lab)" />
+      </div>
+
+      <label for="pwd">Mật khẩu WiFi</label>
+      <div class="input-wrapper">
+        <span class="input-prefix">🔐</span>
+        <input id="pwd" type="password" value="" placeholder="Nhập mật khẩu WiFi" />
+      </div>
+
+      <div class="checkbox-container">
+        <input type="checkbox" id="loopCheck" checked />
+        <label for="loopCheck">Tự động lặp lại âm thanh cấu hình cho tới khi ESP32 bắt được</label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="btn-generate" type="button">⚡ Tạo & phát âm thanh</button>
+        <button class="btn-secondary" id="btn-stop" type="button">⏹️ Dừng phát</button>
+      </div>
+
+      <button class="btn-secondary btn-download" id="btn-download" type="button" disabled>
+        ⬇️ Tải file WAV về máy
+      </button>
+
+      <audio id="player" controls></audio>
+
+      <p class="hint">
+        Gợi ý: <span>Tăng âm lượng điện thoại khoảng 70–90%</span>, đặt loa sát thiết bị ESP32, sau đó nhấn
+        “Tạo & phát âm thanh” để bắt đầu cấu hình.
+      </p>
+
+      <div class="signature">
+        Tặng riêng cho <span>TienHuyIoT</span> · Dev: RoBot5320
+      </div>
+    </div>
+
+    <div class="guide-card">
+      <h3 class="guide-title">
+        <span class="icon">📘</span>
+        Hướng dẫn sử dụng cho khách
+      </h3>
+      <p class="guide-intro">
+        Đây là công cụ cấu hình WiFi cho thiết bị ESP32 của TienHuyIoT bằng âm thanh. Chỉ cần vài bước là thiết bị sẽ tự kết nối mạng, không cần vào web cấu hình.
+      </p>
+
+      <ol class="steps">
+        <li>
+          Chuẩn bị điện thoại hoặc laptop có loa, và bật sẵn trang <strong>TienHuyIoT – Sonic WiFi Config</strong>.
+          Đặt thiết bị ESP32 ở nơi yên tĩnh, tránh ồn quá lớn.
+        </li>
+        <li>
+          Ở khung bên trái, nhập đúng <strong>tên WiFi (SSID)</strong> và <strong>mật khẩu WiFi</strong> đang dùng.
+          Nên dùng mạng 2.4GHz nếu router có cả 2.4G và 5G.
+        </li>
+        <li>
+          Đưa loa lại gần micro của thiết bị ESP32 (khoảng 5–20&nbsp;cm), sau đó bấm nút
+          <strong>“⚡ Tạo &amp; phát âm thanh”</strong>. Giữ nguyên vị trí cho đến khi thiết bị báo đã nhận cấu hình.
+          <span class="tag">Auto repeat</span>
+        </li>
+        <li>
+          Khi ESP32 nghe xong, tùy firmware sẽ có tiếng bíp, đèn LED đổi màu hoặc thông báo trên màn hình cho biết
+          đã kết nối WiFi thành công.
+        </li>
+        <li>
+          Nếu muốn gửi cho người khác dùng offline, sau khi tạo âm thanh hãy bấm
+          <strong>“Tải file WAV về máy”</strong> để lưu file và có thể phát lại bằng bất kỳ trình phát nhạc nào.
+        </li>
+      </ol>
+
+      <div class="guide-highlight">
+        <strong>Mẹo nhỏ:</strong> Nếu lần đầu chưa ăn, hãy tăng âm lượng lên thêm một chút, giữ khoảng cách loa cố định,
+        rồi bấm phát lại. Tránh để loa quá sát micro làm âm bị rè.
+      </div>
+
+      <div class="guide-errors-title">
+        Lỗi thường gặp
+      </div>
+      <ul class="error-list">
+        <li>ESP32 không vào được mạng: kiểm tra lại SSID hoặc mật khẩu có viết hoa, ký tự đặc biệt hay khoảng trắng thừa không.</li>
+        <li>Thiết bị không phản hồi: thử đổi sang WiFi 2.4GHz, hoặc đưa loa gần hơn và giảm tiếng ồn xung quanh.</li>
+        <li>Âm thanh nghe rè: giảm bớt âm lượng hoặc đổi thiết bị phát khác (tai nghe loa nhỏ sẽ khó nhận hơn loa ngoài to).</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const ROBOT5320_MARK = 1800;
+    const ROBOT5320_SPACE = 1500;
+    const ROBOT5320_SAMPLE_RATE = 44100;
+    const ROBOT5320_BIT_RATE = 100;
+    const ROBOT5320_START_BYTES = [0x01, 0x02];
+    const ROBOT5320_END_BYTES = [0x03, 0x04];
+    let robot5320LastUrl = null;
+
+    function robot5320Checksum(data) {
+      return data.reduce(function (sum, b) {
+        return (sum + b) & 0xff;
+      }, 0);
+    }
+
+    function robot5320ToBits(byte) {
+      const bits = [];
+      for (let i = 7; i >= 0; i--) {
+        bits.push((byte >> i) & 1);
+      }
+      return bits;
+    }
+
+    function robot5320AfskModulate(bits) {
+      const samplesPerBit = ROBOT5320_SAMPLE_RATE / ROBOT5320_BIT_RATE;
+      const totalSamples = Math.floor(bits.length * samplesPerBit);
+      const buffer = new Float32Array(totalSamples);
+      for (let i = 0; i < bits.length; i++) {
+        const freq = bits[i] ? ROBOT5320_MARK : ROBOT5320_SPACE;
+        for (let j = 0; j < samplesPerBit; j++) {
+          const t = (i * samplesPerBit + j) / ROBOT5320_SAMPLE_RATE;
+          buffer[i * samplesPerBit + j] = Math.sin(2 * Math.PI * freq * t);
+        }
+      }
+      return buffer;
+    }
+
+    function robot5320FloatTo16BitPCM(floatSamples) {
+      const buffer = new Uint8Array(floatSamples.length * 2);
+      for (let i = 0; i < floatSamples.length; i++) {
+        const s = Math.max(-1, Math.min(1, floatSamples[i]));
+        const val = s < 0 ? s * 0x8000 : s * 0x7fff;
+        buffer[i * 2] = val & 0xff;
+        buffer[i * 2 + 1] = (val >> 8) & 0xff;
+      }
+      return buffer;
+    }
+
+    function robot5320BuildWav(pcm) {
+      const wavHeader = new Uint8Array(44);
+      const dataLen = pcm.length;
+      const fileLen = 36 + dataLen;
+
+      function writeStr(offset, str) {
+        for (let i = 0; i < str.length; i++) {
+          wavHeader[offset + i] = str.charCodeAt(i);
+        }
+      }
+
+      function write32(offset, value) {
+        wavHeader[offset] = value & 0xff;
+        wavHeader[offset + 1] = (value >> 8) & 0xff;
+        wavHeader[offset + 2] = (value >> 16) & 0xff;
+        wavHeader[offset + 3] = (value >> 24) & 0xff;
+      }
+
+      function write16(offset, value) {
+        wavHeader[offset] = value & 0xff;
+        wavHeader[offset + 1] = (value >> 8) & 0xff;
+      }
+
+      writeStr(0, "RIFF");
+      write32(4, fileLen);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      write32(16, 16);
+      write16(20, 1);
+      write16(22, 1);
+      write32(24, ROBOT5320_SAMPLE_RATE);
+      write32(28, ROBOT5320_SAMPLE_RATE * 2);
+      write16(32, 2);
+      write16(34, 16);
+      writeStr(36, "data");
+      write32(40, dataLen);
+
+      return new Blob([wavHeader, pcm], { type: "audio/wav" });
+    }
+
+    function robot5320Generate() {
+      robot5320StopPlay();
+      const ssid = document.getElementById("ssid").value.trim();
+      const pwd = document.getElementById("pwd").value.trim();
+      const dataStr = ssid + "\n" + pwd;
+      const textBytes = Array.from(new TextEncoder().encode(dataStr));
+      const fullBytes = ROBOT5320_START_BYTES.concat(
+        textBytes,
+        [robot5320Checksum(textBytes)],
+        ROBOT5320_END_BYTES
+      );
+
+      let bits = [];
+      fullBytes.forEach(function (b) {
+        bits = bits.concat(robot5320ToBits(b));
+      });
+
+      const floatBuf = robot5320AfskModulate(bits);
+      const pcmBuf = robot5320FloatTo16BitPCM(floatBuf);
+      const wavBlob = robot5320BuildWav(pcmBuf);
+
+      const audio = document.getElementById("player");
+      if (robot5320LastUrl) {
+        URL.revokeObjectURL(robot5320LastUrl);
+      }
+      const url = URL.createObjectURL(wavBlob);
+      robot5320LastUrl = url;
+
+      audio.src = url;
+      audio.load();
+      audio.play();
+
+      const loopCheck = document.getElementById("loopCheck");
+      if (loopCheck && loopCheck.checked) {
+        audio.onended = function () {
+          audio.currentTime = 0;
+          audio.play();
+        };
+      } else {
+        audio.onended = null;
+      }
+
+      const downloadBtn = document.getElementById("btn-download");
+      if (downloadBtn) {
+        downloadBtn.disabled = false;
+      }
+    }
+
+    function robot5320StopPlay() {
+      const audio = document.getElementById("player");
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.onended = null;
+      }
+    }
+
+    function robot5320Download() {
+      if (!robot5320LastUrl) return;
+      const a = document.createElement("a");
+      a.href = robot5320LastUrl;
+      a.download = "TienHuyIoT_wifi_config.wav";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    document.getElementById("btn-generate").addEventListener("click", robot5320Generate);
+    document.getElementById("btn-stop").addEventListener("click", robot5320StopPlay);
+    document.getElementById("btn-download").addEventListener("click", robot5320Download);
+
+    const robotMenuToggle = document.getElementById("robot-menu-toggle");
+    const robotMenu = document.getElementById("robot-menu");
+    const robotArrow = document.getElementById("robot-menu-arrow");
+
+    robotMenuToggle.addEventListener("click", function () {
+      const visible = robotMenu.classList.toggle("visible");
+      robotArrow.textContent = visible ? "▴" : "▾";
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!robotMenu.contains(e.target) && !robotMenuToggle.contains(e.target)) {
+        if (robotMenu.classList.contains("visible")) {
+          robotMenu.classList.remove("visible");
+          robotArrow.textContent = "▾";
+        }
+      }
+    });
+  </script>
+</body>
+</html>
