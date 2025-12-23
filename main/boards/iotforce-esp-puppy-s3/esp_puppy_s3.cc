@@ -220,6 +220,10 @@ private:
                         instance->puppy_.Home();
                     } else if (cmd.type == 3) { // Stop
                         instance->puppy_.Home();
+                    } else if (cmd.type == 4) { // Happy
+                        instance->puppy_.Happy();
+                    } else if (cmd.type == 5) { // Shake
+                        instance->puppy_.Shake();
                     }
                 }
             } }, "PuppyTask", 4096, this, 5, NULL);
@@ -248,7 +252,7 @@ private:
         auto &mcp_server = McpServer::GetInstance();
 
         // Basic Control
-        mcp_server.AddTool("self.dog.basic_control", "Basic robot actions: forward, backward, turn_left, turn_right, stop, wag_tail",
+        mcp_server.AddTool("self.dog.basic_control", "Basic robot actions: forward, backward, turn_left, turn_right, stop, wag_tail, happy, shake",
                            PropertyList({
                                Property("action", kPropertyTypeString),
                            }),
@@ -296,6 +300,16 @@ private:
                                else if (action == "wag_tail")
                                {
                                    puppy_.WagTail(500, 30);
+                               }
+                               else if (action == "happy")
+                               {
+                                   cmd.type = 4;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "shake")
+                               {
+                                   cmd.type = 5;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
                                }
                                else
                                {

@@ -61,6 +61,8 @@ public:
     void Sit();
     void WagTail(int period = 500, int amplitude = 30);
     void Jump(float steps = 1, int period = 2000);
+    void Happy();
+    void Shake();
 
     // -- Servo limiter
     void EnableServoLimit(int speed_limit_degree_per_sec = SERVO_LIMIT_DEFAULT);

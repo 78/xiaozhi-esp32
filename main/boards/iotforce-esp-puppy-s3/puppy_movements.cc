@@ -199,9 +199,19 @@ void Puppy::DisableServoLimit()
 
 void Puppy::Walk(float steps, int period, int dir)
 {
-    // Basic trot gait
-    // FL and BR move together, FR and BL move together
-    // Phase diff: FL=0, BR=0, FR=180, BL=180
+    // Basic trot gait for 4-servo quadruped
+    // FL and BR move together (Diagonal)
+    // FR and BL move together (Diagonal)
+
+    // Assuming standard servo orientation (Left: + is Fwd, Right: + is Back)
+    // We want FL Fwd (+), BR Fwd (- -> 180)
+    // We want FR Back (+ -> 0), BL Back (- -> 180)
+
+    // So phases should be:
+    // FL: 0
+    // FR: 0
+    // BL: 180
+    // BR: 180
 
     int amplitude[SERVO_COUNT] = {30, 30, 30, 30, 0};
     int offset[SERVO_COUNT] = {0, 0, 0, 0, 0};
@@ -210,16 +220,16 @@ void Puppy::Walk(float steps, int period, int dir)
     if (dir == FORWARD)
     {
         phase_diff[FL_LEG] = DEG2RAD(0);
-        phase_diff[BR_LEG] = DEG2RAD(0);
-        phase_diff[FR_LEG] = DEG2RAD(180);
+        phase_diff[FR_LEG] = DEG2RAD(0);
         phase_diff[BL_LEG] = DEG2RAD(180);
+        phase_diff[BR_LEG] = DEG2RAD(180);
     }
     else
     { // BACKWARD
         phase_diff[FL_LEG] = DEG2RAD(180);
-        phase_diff[BR_LEG] = DEG2RAD(180);
-        phase_diff[FR_LEG] = DEG2RAD(0);
+        phase_diff[FR_LEG] = DEG2RAD(180);
         phase_diff[BL_LEG] = DEG2RAD(0);
+        phase_diff[BR_LEG] = DEG2RAD(0);
     }
 
     OscillateServos(amplitude, offset, period, phase_diff, steps);
@@ -234,24 +244,30 @@ void Puppy::Turn(float steps, int period, int dir)
 
     if (dir == LEFT)
     {
-        offset[FL_LEG] = -20;
-        offset[BL_LEG] = -20;
-        offset[FR_LEG] = 20;
-        offset[BR_LEG] = 20;
+        // Turn Left: Left legs move Back, Right legs move Fwd
+        // FL Back (- -> 180)
+        // BL Back (- -> 180)
+        // FR Fwd (- -> 180)
+        // BR Fwd (- -> 180)
+
+        phase_diff[FL_LEG] = DEG2RAD(180);
+        phase_diff[FR_LEG] = DEG2RAD(180);
+        phase_diff[BL_LEG] = DEG2RAD(180);
+        phase_diff[BR_LEG] = DEG2RAD(180);
     }
     else
     { // RIGHT
-        offset[FL_LEG] = 20;
-        offset[BL_LEG] = 20;
-        offset[FR_LEG] = -20;
-        offset[BR_LEG] = -20;
-    }
+        // Turn Right: Left legs move Fwd, Right legs move Back
+        // FL Fwd (+ -> 0)
+        // BL Fwd (+ -> 0)
+        // FR Back (+ -> 0)
+        // BR Back (+ -> 0)
 
-    // Use a walking gait but with offsets to turn
-    phase_diff[FL_LEG] = DEG2RAD(0);
-    phase_diff[BR_LEG] = DEG2RAD(0);
-    phase_diff[FR_LEG] = DEG2RAD(180);
-    phase_diff[BL_LEG] = DEG2RAD(180);
+        phase_diff[FL_LEG] = DEG2RAD(0);
+        phase_diff[FR_LEG] = DEG2RAD(0);
+        phase_diff[BL_LEG] = DEG2RAD(0);
+        phase_diff[BR_LEG] = DEG2RAD(0);
+    }
 
     OscillateServos(amplitude, offset, period, phase_diff, steps);
 }
@@ -284,4 +300,35 @@ void Puppy::Jump(float steps, int period)
         MoveServos(period / 2, down);
         MoveServos(period / 2, up);
     }
+}
+
+void Puppy::Happy()
+{
+    // Crouch and Jump 3 times
+    int crouch[SERVO_COUNT] = {45, 45, 45, 45, 0}; // All legs bent
+    int stand[SERVO_COUNT] = {0, 0, 0, 0, 0};      // All legs straight
+
+    for (int i = 0; i < 3; i++)
+    {
+        MoveServos(300, crouch); // Crouch down
+        MoveServos(200, stand);  // Jump up
+    }
+
+    // Wag Tail
+    WagTail(200, 40);
+}
+
+void Puppy::Shake()
+{
+    // Shake body left/right
+    int left[SERVO_COUNT] = {-20, -20, -20, -20, 0};
+    int right[SERVO_COUNT] = {20, 20, 20, 20, 0};
+    int stand[SERVO_COUNT] = {0, 0, 0, 0, 0};
+
+    for (int i = 0; i < 5; i++)
+    {
+        MoveServos(100, left);
+        MoveServos(100, right);
+    }
+    MoveServos(200, stand); // Back to home
 }
