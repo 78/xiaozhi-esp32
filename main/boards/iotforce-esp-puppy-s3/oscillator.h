@@ -32,7 +32,7 @@ class Oscillator
 public:
     Oscillator(int trim = 0);
     ~Oscillator();
-    void Attach(int pin, bool rev = false);
+    void Attach(int pin, int channel, bool rev = false);
     void Detach();
 
     void SetA(unsigned int amplitude) { amplitude_ = amplitude; };

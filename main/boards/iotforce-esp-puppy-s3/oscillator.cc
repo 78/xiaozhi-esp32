@@ -67,7 +67,7 @@ bool Oscillator::NextSample()
     return false;
 }
 
-void Oscillator::Attach(int pin, bool rev)
+void Oscillator::Attach(int pin, int channel, bool rev)
 {
     if (is_attached_)
     {
@@ -76,6 +76,7 @@ void Oscillator::Attach(int pin, bool rev)
 
     pin_ = pin;
     rev_ = rev;
+    ledc_channel_ = (ledc_channel_t)channel;
 
     ledc_timer_config_t ledc_timer = {.speed_mode = LEDC_LOW_SPEED_MODE,
                                       .duty_resolution = LEDC_TIMER_13_BIT,
@@ -83,10 +84,6 @@ void Oscillator::Attach(int pin, bool rev)
                                       .freq_hz = 50,
                                       .clk_cfg = LEDC_AUTO_CLK};
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
-
-    static int last_channel = 0;
-    last_channel = (last_channel + 1) % 7 + 1;
-    ledc_channel_ = (ledc_channel_t)last_channel;
 
     ledc_channel_config_t ledc_channel = {.gpio_num = pin_,
                                           .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -99,8 +96,7 @@ void Oscillator::Attach(int pin, bool rev)
 
     ledc_speed_mode_ = LEDC_LOW_SPEED_MODE;
 
-    // pos_ = 90;
-    // Write(pos_);
+    Write(pos_);
     previous_servo_command_millis_ = millis();
 
     is_attached_ = true;
@@ -110,7 +106,7 @@ void Oscillator::Detach()
 {
     if (!is_attached_)
         return;
-    // ledc_stop(ledc_speed_mode_, ledc_channel_, 0);
+    ledc_stop(ledc_speed_mode_, ledc_channel_, 0);
     is_attached_ = false;
 }
 

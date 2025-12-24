@@ -92,6 +92,7 @@ void McpServer::AddCommonTools()
 
     // Bluetooth KCX_BT_EMITTER Hardware Control
     // Initialize GPIO pins for Bluetooth control
+#ifndef CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3
     static bool bluetooth_gpio_initialized = false;
     if (!bluetooth_gpio_initialized)
     {
@@ -114,7 +115,9 @@ void McpServer::AddCommonTools()
         bluetooth_gpio_initialized = true;
         ESP_LOGI(TAG, "Bluetooth GPIO initialized: CONNECT=%d, LINK=%d", BLUETOOTH_CONNECT_PIN, BLUETOOTH_LINK_PIN);
     }
+#endif
 
+#ifndef CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3
     AddTool("self.bluetooth.connect",
             "Activate Bluetooth pairing mode or connect to a nearby Bluetooth device. Use this when user asks to connect, pair, or turn on Bluetooth.",
             PropertyList(),
@@ -153,6 +156,7 @@ void McpServer::AddCommonTools()
                 cJSON_AddStringToObject(json, "status", is_connected ? "Connected" : "Disconnected");
                 return json;
             });
+#endif
 
 #ifdef HAVE_LVGL
     auto display = board.GetDisplay();

@@ -63,6 +63,12 @@ public:
     void Jump(float steps = 1, int period = 2000);
     void Happy();
     void Shake();
+    void Sad();
+    void Angry();
+    void Annoyed();
+    void Shy();
+    void Sleepy();
+    void Calibrate();
 
     // -- Servo limiter
     void EnableServoLimit(int speed_limit_degree_per_sec = SERVO_LIMIT_DEFAULT);

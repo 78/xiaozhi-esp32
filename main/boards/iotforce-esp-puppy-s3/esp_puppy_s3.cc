@@ -19,7 +19,6 @@
 
 #include "assets/lang_config.h"
 #include "anim_player.h"
-// #include "emoji_display.h"
 #include "led_strip.h"
 #include "driver/rmt_tx.h"
 #include "device_state_event.h"
@@ -72,6 +71,7 @@ private:
     bool led_on_ = false;
     Puppy puppy_;
     QueueHandle_t puppy_queue_;
+    bool puppy_started_ = false;
 
 #ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
     static void wifi_event_handler(void *arg, esp_event_base_t event_base,
@@ -200,12 +200,19 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
-        // Initialize Puppy
+        // Create Puppy Queue
+        puppy_queue_ = xQueueCreate(10, sizeof(OttoCommand));
+    }
+
+    void EnablePuppy()
+    {
+        if (puppy_started_)
+            return;
+
+        ESP_LOGI(TAG, "Enabling Puppy Servos...");
         puppy_.Init(FL_GPIO_NUM, FR_GPIO_NUM, BL_GPIO_NUM, BR_GPIO_NUM, TAIL_GPIO_NUM);
         puppy_.Home();
 
-        // Create Puppy Task
-        puppy_queue_ = xQueueCreate(10, sizeof(OttoCommand));
         xTaskCreate([](void *arg)
                     {
             EspPuppyS3 *instance = static_cast<EspPuppyS3 *>(arg);
@@ -224,11 +231,24 @@ private:
                         instance->puppy_.Happy();
                     } else if (cmd.type == 5) { // Shake
                         instance->puppy_.Shake();
+                    } else if (cmd.type == 6) { // Sad
+                        instance->puppy_.Sad();
+                    } else if (cmd.type == 7) { // Angry
+                        instance->puppy_.Angry();
+                    } else if (cmd.type == 8) { // Annoyed
+                        instance->puppy_.Annoyed();
+                    } else if (cmd.type == 9) { // Shy
+                        instance->puppy_.Shy();
+                    } else if (cmd.type == 10) { // Sleepy
+                        instance->puppy_.Sleepy();
+                    } else if (cmd.type == 11) { // Calibrate
+                        instance->puppy_.Calibrate();
                     }
                 }
             } }, "PuppyTask", 4096, this, 5, NULL);
 
         StartupAnimation();
+        puppy_started_ = true;
     }
 
     void StartupAnimation()
@@ -252,13 +272,56 @@ private:
         auto &mcp_server = McpServer::GetInstance();
 
         // Basic Control
-        mcp_server.AddTool("self.dog.basic_control", "Basic robot actions: forward, backward, turn_left, turn_right, stop, wag_tail, happy, shake",
+        mcp_server.AddTool("self.dog.basic_control", "Control the robot dog's movements and emotions. Available actions:\n"
+                                                     "- Movement: 'forward' (tiến lên, đi tới, đi thẳng), 'backward' (lùi lại, đi lùi), 'turn_left' (quay trái, rẽ trái), 'turn_right' (quay phải, rẽ phải), 'stop' (dừng lại, đứng yên).\n"
+                                                     "- Emotions/Actions:\n"
+                                                     "  - 'wag_tail': vẫy đuôi, mừng rỡ.\n"
+                                                     "  - 'happy': vui vẻ, nhảy múa, phấn khích.\n"
+                                                     "  - 'shake': lắc mình, rũ lông.\n"
+                                                     "  - 'sad': buồn bã, tủi thân, cúi đầu.\n"
+                                                     "  - 'angry': tức giận, bực bội, dậm chân.\n"
+                                                     "  - 'annoyed': hờn dỗi, khó chịu, quay mặt đi.\n"
+                                                     "  - 'shy': ngại ngùng, e thẹn, trốn.\n"
+                                                     "  - 'sleepy': buồn ngủ, đi ngủ, nằm xuống.\n"
+                                                     "- Maintenance: 'calibrate' (cân chỉnh, kiểm tra chân, calib).",
                            PropertyList({
                                Property("action", kPropertyTypeString),
                            }),
                            [this](const PropertyList &properties) -> ReturnValue
                            {
-                               const std::string &action = properties["action"].value<std::string>();
+                               std::string action = properties["action"].value<std::string>();
+                               // Normalize action string to handle synonyms if the LLM passes raw text
+                               if (action == "go_forward" || action == "move_forward" || action == "tiến lên" || action == "đi tới" || action == "đi thẳng" || action == "tới luôn")
+                                   action = "forward";
+                               if (action == "go_backward" || action == "move_backward" || action == "lùi lại" || action == "đi lùi" || action == "lùi")
+                                   action = "backward";
+                               if (action == "left" || action == "go_left" || action == "sang trái" || action == "rẽ trái" || action == "quay trái")
+                                   action = "turn_left";
+                               if (action == "right" || action == "go_right" || action == "sang phải" || action == "rẽ phải" || action == "quay phải")
+                                   action = "turn_right";
+                               if (action == "halt" || action == "dừng" || action == "đứng lại" || action == "thôi" || action == "ngừng" || action == "đứng yên")
+                                   action = "stop";
+
+                               if (action == "vẫy đuôi" || action == "lắc đuôi" || action == "mừng")
+                                   action = "wag_tail";
+                               if (action == "vui" || action == "hạnh phúc" || action == "nhảy" || action == "phấn khích")
+                                   action = "happy";
+                               if (action == "lắc" || action == "rũ người" || action == "lắc mình")
+                                   action = "shake";
+
+                               if (action == "buồn" || action == "sadness" || action == "khóc" || action == "tủi thân")
+                                   action = "sad";
+                               if (action == "tức giận" || action == "bực bội" || action == "giận" || action == "quạu" || action == "tức")
+                                   action = "angry";
+                               if (action == "hờn dỗi" || action == "khó chịu" || action == "dỗi" || action == "hờn" || action == "chảnh")
+                                   action = "annoyed";
+                               if (action == "ngại ngùng" || action == "e thẹn" || action == "ngại" || action == "xấu hổ" || action == "nhát")
+                                   action = "shy";
+                               if (action == "buồn ngủ" || action == "sleep" || action == "ngủ" || action == "đi ngủ")
+                                   action = "sleepy";
+                               if (action == "cân chỉnh" || action == "calib" || action == "kiểm tra" || action == "test servo")
+                                   action = "calibrate";
+
                                OttoCommand cmd;
                                if (action == "forward")
                                {
@@ -309,6 +372,36 @@ private:
                                else if (action == "shake")
                                {
                                    cmd.type = 5;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "sad")
+                               {
+                                   cmd.type = 6;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "angry")
+                               {
+                                   cmd.type = 7;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "annoyed")
+                               {
+                                   cmd.type = 8;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "shy")
+                               {
+                                   cmd.type = 9;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "sleepy")
+                               {
+                                   cmd.type = 10;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "calibrate")
+                               {
+                                   cmd.type = 11;
                                    xQueueSend(puppy_queue_, &cmd, 0);
                                }
                                else
@@ -394,6 +487,12 @@ public:
     {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    virtual void StartNetwork() override
+    {
+        WifiBoard::StartNetwork();
+        EnablePuppy();
     }
 };
 

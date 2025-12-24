@@ -185,16 +185,30 @@ private:
     }
 
 public:
-    CompactWifiBoardS3Cam() : boot_button_(BOOT_BUTTON_GPIO)
+    CompactWifiBoardS3Cam() : boot_button_(BOOT_BUTTON_GPIO), display_(nullptr), camera_(nullptr)
     {
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
-        InitializeCamera();
+        if (!wifi_config_mode_)
+        {
+            InitializeCamera();
+        }
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC)
         {
             GetBacklight()->RestoreBrightness();
         }
+    }
+
+    virtual void EnterWifiConfigMode() override
+    {
+        if (camera_)
+        {
+            ESP_LOGI(TAG, "Deinitializing camera for WiFi config mode");
+            delete camera_;
+            camera_ = nullptr;
+        }
+        WifiBoard::EnterWifiConfigMode();
     }
 
     virtual Led *GetLed() override

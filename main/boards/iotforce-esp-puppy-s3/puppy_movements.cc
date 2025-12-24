@@ -43,7 +43,9 @@ void Puppy::AttachServos()
     {
         if (servo_pins_[i] != -1)
         {
-            servo_[i].Attach(servo_pins_[i]);
+            // Use fixed channels starting from 2 to avoid conflicts with Backlight (usually Ch 0)
+            // FL=2, FR=3, BL=4, BR=5, Tail=6
+            servo_[i].Attach(servo_pins_[i], i + 2);
         }
     }
 }
@@ -95,7 +97,6 @@ void Puppy::MoveServos(int time, int servo_target[])
         }
         for (int iteration = 0; iteration < time / 10; iteration++)
         {
-            partial_time_ = millis() + 10;
             for (int i = 0; i < SERVO_COUNT; i++)
             {
                 if (servo_pins_[i] != -1)
@@ -103,8 +104,7 @@ void Puppy::MoveServos(int time, int servo_target[])
                     servo_[i].SetPosition(servo_[i].GetPosition() + increment_[i]);
                 }
             }
-            while (millis() < partial_time_)
-                ; // Pause
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
     else
@@ -132,6 +132,12 @@ void Puppy::MoveSingle(int position, int servo_number)
         position = 90;
     if (position < -90)
         position = -90;
+
+    if (GetRestState() == true)
+    {
+        SetRestState(false);
+    }
+
     if (servo_pins_[servo_number] != -1)
     {
         servo_[servo_number].SetPosition(position);
@@ -141,6 +147,11 @@ void Puppy::MoveSingle(int position, int servo_number)
 void Puppy::OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int period,
                             double phase_diff[SERVO_COUNT], float cycle)
 {
+    if (GetRestState() == true)
+    {
+        SetRestState(false);
+    }
+
     for (int i = 0; i < SERVO_COUNT; i++)
     {
         servo_[i].SetO(offset[i]);
@@ -149,12 +160,14 @@ void Puppy::OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT],
         servo_[i].SetPh(phase_diff[i]);
     }
     double ref = millis();
-    for (double x = ref; x <= ref + period * cycle; x = millis())
+    double end_time = ref + period * cycle;
+    while (millis() < end_time)
     {
         for (int i = 0; i < SERVO_COUNT; i++)
         {
             servo_[i].Refresh();
         }
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -165,8 +178,7 @@ void Puppy::Home()
 
     int homes[SERVO_COUNT] = {0, 0, 0, 0, 0}; // All servos to 0 degrees (center)
     MoveServos(500, homes);
-    DetachServos();
-    is_puppy_resting_ = true;
+    SetRestState(true);
 }
 
 bool Puppy::GetRestState()
@@ -176,7 +188,18 @@ bool Puppy::GetRestState()
 
 void Puppy::SetRestState(bool state)
 {
-    is_puppy_resting_ = state;
+    if (state != is_puppy_resting_)
+    {
+        is_puppy_resting_ = state;
+        if (!is_puppy_resting_)
+        {
+            AttachServos();
+        }
+        else
+        {
+            DetachServos();
+        }
+    }
 }
 
 void Puppy::EnableServoLimit(int speed_limit_degree_per_sec)
@@ -331,4 +354,127 @@ void Puppy::Shake()
         MoveServos(100, right);
     }
     MoveServos(200, stand); // Back to home
+}
+
+void Puppy::Sad()
+{
+    // Head down, slow movement
+    int sad_pos[SERVO_COUNT] = {30, 30, 0, 0, -20}; // Front legs bent, tail down
+    MoveServos(2000, sad_pos);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Slight sway
+    int sad_sway1[SERVO_COUNT] = {35, 25, 0, 0, -25};
+    int sad_sway2[SERVO_COUNT] = {25, 35, 0, 0, -15};
+
+    for (int i = 0; i < 3; i++)
+    {
+        MoveServos(1000, sad_sway1);
+        MoveServos(1000, sad_sway2);
+    }
+
+    Home();
+}
+
+void Puppy::Angry()
+{
+    // Aggressive stance, stomp
+    int lean_fwd[SERVO_COUNT] = {40, 40, -20, -20, 40}; // Lean forward, tail up
+    MoveServos(200, lean_fwd);
+
+    // Stomp front legs
+    int stomp_left[SERVO_COUNT] = {0, 40, -20, -20, 45};
+    int stomp_right[SERVO_COUNT] = {40, 0, -20, -20, 35};
+
+    for (int i = 0; i < 5; i++)
+    {
+        MoveServos(100, stomp_left);
+        MoveServos(100, lean_fwd);
+        MoveServos(100, stomp_right);
+        MoveServos(100, lean_fwd);
+    }
+    Home();
+}
+
+void Puppy::Annoyed()
+{
+    // Turn away and hold
+    int turn_away[SERVO_COUNT] = {20, -20, 20, -20, 10}; // Turn body
+    MoveServos(500, turn_away);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Shake head/body briefly
+    int shake1[SERVO_COUNT] = {30, -10, 30, -10, 20};
+    int shake2[SERVO_COUNT] = {10, -30, 10, -30, 0};
+
+    for (int i = 0; i < 3; i++)
+    {
+        MoveServos(100, shake1);
+        MoveServos(100, shake2);
+    }
+    MoveServos(500, turn_away);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    Home();
+}
+
+void Puppy::Shy()
+{
+    // Crouch low and slow
+    int crouch[SERVO_COUNT] = {60, 60, 60, 60, -40}; // Low crouch, tail tucked
+    MoveServos(2000, crouch);
+
+    // Hide face? (Move front legs in?)
+    int hide[SERVO_COUNT] = {60, 60, 60, 60, -45}; // Just slight movement
+
+    for (int i = 0; i < 3; i++)
+    {
+        MoveServos(500, hide);
+        MoveServos(500, crouch);
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    Home();
+}
+
+void Puppy::Sleepy()
+{
+    // Lie down completely
+    int lie_down[SERVO_COUNT] = {80, 80, 80, 80, -10};
+    MoveServos(3000, lie_down);
+
+    // Breathing motion
+    int breathe_in[SERVO_COUNT] = {75, 75, 75, 75, -10};
+    int breathe_out[SERVO_COUNT] = {80, 80, 80, 80, -10};
+
+    for (int i = 0; i < 5; i++)
+    {
+        MoveServos(2000, breathe_in);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        MoveServos(2000, breathe_out);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    Home();
+}
+
+void Puppy::Calibrate()
+{
+    // Move each servo one by one to check range/operation
+    // Center all first
+    int center[SERVO_COUNT] = {0, 0, 0, 0, 0};
+    MoveServos(1000, center);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Wiggle each leg
+    for (int i = 0; i < SERVO_COUNT; i++)
+    {
+        if (servo_pins_[i] != -1)
+        {
+            MoveSingle(20, i);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            MoveSingle(-20, i);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            MoveSingle(0, i);
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+    }
+    Home();
 }
