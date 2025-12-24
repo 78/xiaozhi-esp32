@@ -40,6 +40,7 @@ esp_blufi_callbacks_t JiuChuanS3BlufiConfigurationAp::example_callbacks = {
 };
 
 static bool s_bound_sent_this_session = false;
+static bool s_provisioning_active = false;
 
 static void SendBindingStateToBle(const char* trigger) {
     Settings device_settings("device", false);
@@ -122,6 +123,7 @@ void JiuChuanS3BlufiConfigurationAp::ip_event_handler(void* arg, esp_event_base_
         info.sta_ssid = gl_sta_ssid;
         info.sta_ssid_len = gl_sta_ssid_len;
         gl_sta_got_ip = true;
+        s_provisioning_active = false;
         if (ble_is_connected == true) {
             BLUFI_INFO("WiFi已成功连接.........");
             esp_blufi_send_wifi_conn_report(mode, ESP_BLUFI_STA_CONN_SUCCESS, softap_get_current_connection_number(), &info);
@@ -172,11 +174,24 @@ void JiuChuanS3BlufiConfigurationAp::wifi_event_handler(void* arg, esp_event_bas
         gl_sta_ssid_len = event->ssid_len;
         break;
     case WIFI_EVENT_STA_DISCONNECTED:
+        disconnected_event = (wifi_event_sta_disconnected_t*) event_data;
         /* Only handle reconnection during connecting */
         if (gl_sta_connected == false && example_wifi_reconnect() == false) {
             gl_sta_is_connecting = false;
-            disconnected_event = (wifi_event_sta_disconnected_t*) event_data;
             example_record_wifi_conn_info(disconnected_event->rssi, disconnected_event->reason);
+
+            // Proactively push failure state to BLE client (mini program) without waiting for GET_WIFI_STATUS.
+            if (s_provisioning_active && ble_is_connected) {
+                esp_wifi_get_mode(&mode);
+                esp_blufi_send_wifi_conn_report(mode, ESP_BLUFI_STA_CONN_FAIL,
+                                                softap_get_current_connection_number(), &gl_sta_conn_info);
+            }
+        } else if (s_provisioning_active && ble_is_connected && gl_sta_connected && !gl_sta_got_ip) {
+            // Connected once but disconnected before getting IP during provisioning: report as failure with reason.
+            example_record_wifi_conn_info(disconnected_event->rssi, disconnected_event->reason);
+            esp_wifi_get_mode(&mode);
+            esp_blufi_send_wifi_conn_report(mode, ESP_BLUFI_STA_CONN_FAIL,
+                                            softap_get_current_connection_number(), &gl_sta_conn_info);
         }
         /* This is a workaround as ESP32 WiFi libs don't currently
            auto-reassociate. */
@@ -309,6 +324,7 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
         BLUFI_INFO("BLUFI ble connect\n");
         ble_is_connected = true;
         s_bound_sent_this_session = false;
+        s_provisioning_active = false;
         esp_blufi_adv_stop();
         blufi_security_init();
         break;
@@ -316,6 +332,7 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
         BLUFI_INFO("BLUFI ble disconnect\n");
         ble_is_connected = false;
         s_bound_sent_this_session = false;
+        s_provisioning_active = false;
         blufi_security_deinit();
         esp_blufi_adv_start();
         break;
@@ -326,6 +343,7 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
     case ESP_BLUFI_EVENT_REQ_CONNECT_TO_AP:
         BLUFI_INFO("BLUFI request wifi connect to AP\n");
         BLUFI_INFO("尝试连接新WiFi...................\n");
+        s_provisioning_active = true;
         /* there is no wifi callback when the device has already connected to this wifi
         so disconnect wifi before connection.
         */
@@ -334,6 +352,7 @@ void JiuChuanS3BlufiConfigurationAp::example_event_callback(esp_blufi_cb_event_t
         break;
     case ESP_BLUFI_EVENT_REQ_DISCONNECT_FROM_AP:
         BLUFI_INFO("BLUFI request wifi disconnect from AP\n");
+        s_provisioning_active = false;
         esp_wifi_disconnect();
         break;
     case ESP_BLUFI_EVENT_REPORT_ERROR:
