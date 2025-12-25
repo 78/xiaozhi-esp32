@@ -740,6 +740,33 @@ menu "Camera Configuration"
     endif
 endmenu
 
+menu "Battery Configuration"
+    config BATTERY_ADC_GPIO
+        int "Battery ADC GPIO"
+        default 14
+        help
+            GPIO pin for battery voltage reading.
+            
+    config BATTERY_VOLTAGE_DIVIDER_FACTOR
+        string "Voltage Divider Factor"
+        default "2.0"
+        help
+            Voltage divider factor (R1+R2)/R2. 
+            For two 100k resistors, the factor is 2.0.
+            
+    config BATTERY_MAX_VOLTAGE
+        int "Max Battery Voltage (mV)"
+        default 4200
+        help
+            Maximum battery voltage in mV (100%).
+            
+    config BATTERY_MIN_VOLTAGE
+        int "Min Battery Voltage (mV)"
+        default 3300
+        help
+            Minimum battery voltage in mV (0%).
+endmenu
+
 menu "TAIJIPAI_S3_CONFIG"
     depends on BOARD_TYPE_TAIJI_PI_S3
     choice I2S_TYPE_TAIJIPI_S3

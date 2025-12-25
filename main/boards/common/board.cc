@@ -10,6 +10,9 @@
 #include <esp_ota_ops.h>
 #include <esp_chip_info.h>
 #include <esp_random.h>
+#include <esp_adc/adc_oneshot.h>
+#include <esp_adc/adc_cali.h>
+#include <esp_adc/adc_cali_scheme.h>
 
 #define TAG "Board"
 
@@ -58,6 +61,89 @@ std::string Board::GenerateUuid()
 
 bool Board::GetBatteryLevel(int &level, bool &charging, bool &discharging)
 {
+#ifdef CONFIG_BATTERY_ADC_GPIO
+    static adc_oneshot_unit_handle_t adc_handle = nullptr;
+    static adc_cali_handle_t adc_cali_handle = nullptr;
+    static bool initialized = false;
+
+    if (!initialized)
+    {
+        adc_oneshot_unit_init_cfg_t init_config = {
+            .unit_id = ADC_UNIT_1,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
+
+        adc_oneshot_chan_cfg_t config = {
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+            .atten = ADC_ATTEN_DB_12,
+        };
+
+        adc_channel_t channel;
+        adc_unit_t unit_id = ADC_UNIT_1;
+        if (adc_oneshot_io_to_channel(CONFIG_BATTERY_ADC_GPIO, &unit_id, &channel) == ESP_OK)
+        {
+            ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, channel, &config));
+
+            adc_cali_curve_fitting_config_t cali_config = {
+                .unit_id = unit_id,
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            if (adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle) != ESP_OK)
+            {
+                adc_cali_line_fitting_config_t line_config = {
+                    .unit_id = unit_id,
+                    .atten = ADC_ATTEN_DB_12,
+                    .bitwidth = ADC_BITWIDTH_DEFAULT,
+                };
+                adc_cali_create_scheme_line_fitting(&line_config, &adc_cali_handle);
+            }
+            initialized = true;
+        }
+        else
+        {
+            ESP_LOGE(TAG, "ADC channel not found for GPIO %d", CONFIG_BATTERY_ADC_GPIO);
+            return false;
+        }
+    }
+
+    if (!initialized)
+        return false;
+
+    int raw = 0;
+    adc_channel_t channel;
+    adc_unit_t unit_id = ADC_UNIT_1;
+    adc_oneshot_io_to_channel(CONFIG_BATTERY_ADC_GPIO, &unit_id, &channel);
+
+    if (adc_oneshot_read(adc_handle, channel, &raw) == ESP_OK)
+    {
+        int voltage = 0;
+        if (adc_cali_handle)
+        {
+            adc_cali_raw_to_voltage(adc_cali_handle, raw, &voltage);
+        }
+        else
+        {
+            voltage = raw * 2500 / 4095;
+        }
+
+        float divider_factor = atof(CONFIG_BATTERY_VOLTAGE_DIVIDER_FACTOR);
+        int battery_voltage = voltage * divider_factor;
+
+        int max_v = CONFIG_BATTERY_MAX_VOLTAGE;
+        int min_v = CONFIG_BATTERY_MIN_VOLTAGE;
+
+        level = (battery_voltage - min_v) * 100 / (max_v - min_v);
+        if (level > 100)
+            level = 100;
+        if (level < 0)
+            level = 0;
+
+        charging = false;
+        discharging = true;
+        return true;
+    }
+#endif
     return false;
 }
 
