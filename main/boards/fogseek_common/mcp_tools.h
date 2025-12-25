@@ -16,7 +16,7 @@ void InitializeLightMCP(
     McpServer &mcp_server,
     GpioLed *cold_light,
     GpioLed *warm_light,
-    bool &cold_light_state,
-    bool &warm_light_state);
+    bool cold_light_state,
+    bool warm_light_state);
 
 #endif // _FOGSEEK_MCP_TOOLS_H_
