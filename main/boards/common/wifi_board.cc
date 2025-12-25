@@ -6,6 +6,7 @@
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"
+#include "mcp_server.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -152,6 +153,16 @@ void WifiBoard::StartNetwork()
         ESP_LOGI(TAG, "Re-enabling audio output after successful WiFi startup");
         codec->EnableOutput(true);
     }
+
+#ifdef CONFIG_ENABLE_VOICE_WIFI_CONFIG
+    auto &mcp_server = McpServer::GetInstance();
+    mcp_server.AddTool("self.system.wifi_config", "Enter WiFi configuration mode. Use this when the user asks to configure WiFi, change WiFi settings, or reset WiFi connection. The device will switch to AP mode (192.168.4.1) for configuration. Keywords: 'cấu hình wifi', 'đổi wifi', 'reset wifi', 'wifi config mode', 'cài đặt wifi'.", PropertyList(), [this](const PropertyList &properties) -> ReturnValue
+                       {
+        xTaskCreate([](void *arg) {
+            static_cast<WifiBoard*>(arg)->EnterWifiConfigMode();
+        }, "wifi_config", 4096, this, 5, NULL);
+        return true; });
+#endif
 }
 
 NetworkInterface *WifiBoard::GetNetwork()

@@ -6,6 +6,12 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config ENABLE_VOICE_WIFI_CONFIG
+    bool "Enable Voice WiFi Configuration"
+    default y
+    help
+        Enable entering WiFi configuration mode via voice command.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS
