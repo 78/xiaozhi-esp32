@@ -27,11 +27,11 @@
 
 #define DISPLAY_WIDTH 240
 #define DISPLAY_HEIGHT 240
-#define DISPLAY_SWAP_XY false
+#define DISPLAY_SWAP_XY true
 #define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
+#define DISPLAY_MIRROR_Y true
 #define BACKLIGHT_INVERT false
-#define DISPLAY_OFFSET_X 0
+#define DISPLAY_OFFSET_X 80
 #define DISPLAY_OFFSET_Y 0
 
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_20

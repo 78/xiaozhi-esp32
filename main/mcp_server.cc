@@ -302,7 +302,7 @@ void McpServer::AddCommonTools()
     };
 
     AddTool("self.era_iot.get_device_status",
-            "Get the current status of the E-Ra IoT device. Use this tool when the user asks to check the IoT device, check the switch, check the light/lamp, or check the status of any connected device. This shows the current state (ON/OFF).",
+            "Get the current status of the E-Ra IoT device (3-button switch). Returns the status (ON/OFF) for each of the 3 switches. Use this to check which switches are currently on or off. If the user asks about 'lights' or 'switches' without specifying, check this first.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {
@@ -311,31 +311,58 @@ void McpServer::AddCommonTools()
                 {
                     throw std::runtime_error("E-Ra IoT client not initialized");
                 }
-                std::string current_value = era_client.GetCurrentValue("150632");
-                if (current_value.empty())
-                {
-                    throw std::runtime_error("Failed to get device status from E-Ra");
-                }
 
-                // Create JSON response with device status
                 cJSON *json = cJSON_CreateObject();
-                cJSON_AddStringToObject(json, "config_id", "150632");
-                cJSON_AddStringToObject(json, "current_value", current_value.c_str());
-
-                // Interpret the value (assuming 0=OFF, 1=ON based on typical IoT logic)
-                std::string status = "OFF";
-                if (current_value == "1" || current_value == "true" || current_value == "on" || current_value == "ON")
-                {
-                    status = "ON";
-                }
-                cJSON_AddStringToObject(json, "device_status", status.c_str());
                 cJSON_AddStringToObject(json, "platform", "E-Ra IoT");
+
+                cJSON *switches = cJSON_CreateArray();
+                for (int i = 1; i <= 3; i++)
+                {
+                    std::string val = era_client.GetSwitchStatus(i);
+                    cJSON *sw = cJSON_CreateObject();
+                    cJSON_AddNumberToObject(sw, "index", i);
+                    cJSON_AddStringToObject(sw, "status", (val == "1" || val == "true" || val == "on" || val == "ON") ? "ON" : "OFF");
+                    cJSON_AddItemToArray(switches, sw);
+                }
+                cJSON_AddItemToObject(json, "switches", switches);
 
                 return json;
             });
 
+    AddTool("self.era_iot.turn_switch_on",
+            "Turn ON a specific switch (1, 2, or 3) on the E-Ra IoT device. If the user says 'turn on the light' or 'turn on switch 1', use this.",
+            PropertyList({Property("switch_index", kPropertyTypeInteger, 1, 3)}),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("Client not initialized");
+                int index = properties["switch_index"].value<int>();
+                if (era_client.TurnSwitchOn(index))
+                {
+                    return "Switch " + std::to_string(index) + " turned ON";
+                }
+                return "Failed to turn ON switch " + std::to_string(index);
+            });
+
+    AddTool("self.era_iot.turn_switch_off",
+            "Turn OFF a specific switch (1, 2, or 3) on the E-Ra IoT device. If the user says 'turn off the light' or 'turn off switch 1', use this.",
+            PropertyList({Property("switch_index", kPropertyTypeInteger, 1, 3)}),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("Client not initialized");
+                int index = properties["switch_index"].value<int>();
+                if (era_client.TurnSwitchOff(index))
+                {
+                    return "Switch " + std::to_string(index) + " turned OFF";
+                }
+                return "Failed to turn OFF switch " + std::to_string(index);
+            });
+
     AddTool("self.era_iot.turn_device_on",
-            "Turn ON the E-Ra IoT device. Use this tool when user requests to turn on, enable, or activate the IoT device, switch, light, or lamp.",
+            "Turn ON the E-Ra IoT device (Switch 1). Legacy support.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {
@@ -353,7 +380,7 @@ void McpServer::AddCommonTools()
             });
 
     AddTool("self.era_iot.turn_device_off",
-            "Turn OFF the E-Ra IoT device. Use this tool when user requests to turn off, disable, or deactivate the IoT device, switch, light, or lamp.",
+            "Turn OFF the E-Ra IoT device (Switch 1). Legacy support.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {

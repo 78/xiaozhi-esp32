@@ -63,6 +63,10 @@ public:
     void Jump(float steps = 1, int period = 2000);
     void Happy();
     void Shake();
+    void ShakeHands();
+    void Comfort();
+    void Excited();
+    void Cry();
     void Sad();
     void Angry();
     void Annoyed();

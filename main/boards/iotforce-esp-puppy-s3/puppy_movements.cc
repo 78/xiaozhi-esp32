@@ -356,6 +356,92 @@ void Puppy::Shake()
     MoveServos(200, stand); // Back to home
 }
 
+void Puppy::ShakeHands()
+{
+    // Sit first
+    int sit_pos[SERVO_COUNT] = {0, 0, 90, 90, 0};
+    MoveServos(1000, sit_pos);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Raise Right Front Leg (FR_LEG is index 1)
+    // And wag tail
+    int raise_hand[SERVO_COUNT] = {0, 60, 90, 90, 20}; // FR_LEG up
+    MoveServos(500, raise_hand);
+
+    // Shake hand and wag tail
+    int shake_in[SERVO_COUNT] = {0, 70, 90, 90, -20};
+    int shake_out[SERVO_COUNT] = {0, 50, 90, 90, 20};
+
+    for (int i = 0; i < 5; i++)
+    {
+        MoveServos(150, shake_in);
+        MoveServos(150, shake_out);
+    }
+
+    // Put down
+    MoveServos(500, sit_pos);
+
+    // Wait 10 seconds before returning to normal state
+    vTaskDelay(pdMS_TO_TICKS(10000));
+
+    Home();
+}
+
+void Puppy::Comfort()
+{
+    // Sit and lean forward gently
+    int sit_lean[SERVO_COUNT] = {30, 30, 80, 80, -10};
+    MoveServos(2000, sit_lean);
+
+    // Nuzzle / Sway slowly
+    int sway1[SERVO_COUNT] = {40, 20, 80, 80, -15};
+    int sway2[SERVO_COUNT] = {20, 40, 80, 80, -5};
+
+    for (int i = 0; i < 3; i++)
+    {
+        MoveServos(1500, sway1);
+        MoveServos(1500, sway2);
+    }
+    Home();
+}
+
+void Puppy::Excited()
+{
+    // Fast jumps / tippy taps
+    int tap_left[SERVO_COUNT] = {-20, 0, 0, 0, 40};
+    int tap_right[SERVO_COUNT] = {0, -20, 0, 0, -40};
+
+    for (int i = 0; i < 6; i++)
+    {
+        MoveServos(100, tap_left);
+        MoveServos(100, tap_right);
+    }
+
+    // Big jump
+    Jump(1, 500);
+    WagTail(100, 40);
+}
+
+void Puppy::Cry()
+{
+    // Sad pose
+    int sad_pos[SERVO_COUNT] = {40, 40, 10, 10, -30};
+    MoveServos(1500, sad_pos);
+
+    // Sobbing (small rapid movements)
+    int sob_up[SERVO_COUNT] = {45, 45, 10, 10, -35};
+    int sob_down[SERVO_COUNT] = {35, 35, 10, 10, -25};
+
+    for (int i = 0; i < 5; i++)
+    {
+        MoveServos(100, sob_up);
+        MoveServos(100, sob_down);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    Home();
+}
+
 void Puppy::Sad()
 {
     // Head down, slow movement

@@ -243,6 +243,14 @@ private:
                         instance->puppy_.Sleepy();
                     } else if (cmd.type == 11) { // Calibrate
                         instance->puppy_.Calibrate();
+                    } else if (cmd.type == 12) { // ShakeHands
+                        instance->puppy_.ShakeHands();
+                    } else if (cmd.type == 13) { // Comfort
+                        instance->puppy_.Comfort();
+                    } else if (cmd.type == 14) { // Excited
+                        instance->puppy_.Excited();
+                    } else if (cmd.type == 15) { // Cry
+                        instance->puppy_.Cry();
                     }
                 }
             } }, "PuppyTask", 4096, this, 5, NULL);
@@ -283,6 +291,10 @@ private:
                                                      "  - 'annoyed': hờn dỗi, khó chịu, quay mặt đi.\n"
                                                      "  - 'shy': ngại ngùng, e thẹn, trốn.\n"
                                                      "  - 'sleepy': buồn ngủ, đi ngủ, nằm xuống.\n"
+                                                     "  - 'shake_hands': bắt tay, xin chào.\n"
+                                                     "  - 'comfort': an ủi, dỗ dành (khi người dùng buồn).\n"
+                                                     "  - 'excited': phấn khích, cực kỳ vui, tăng động.\n"
+                                                     "  - 'cry': khóc, nức nở.\n"
                                                      "- Maintenance: 'calibrate' (cân chỉnh, kiểm tra chân, calib).",
                            PropertyList({
                                Property("action", kPropertyTypeString),
@@ -321,6 +333,15 @@ private:
                                    action = "sleepy";
                                if (action == "cân chỉnh" || action == "calib" || action == "kiểm tra" || action == "test servo")
                                    action = "calibrate";
+
+                               if (action == "bắt tay" || action == "shake_hand" || action == "shake_hands" || action == "xin chào")
+                                   action = "shake_hands";
+                               if (action == "an ủi" || action == "dỗ dành" || action == "comfort" || action == "thương")
+                                   action = "comfort";
+                               if (action == "phấn khích" || action == "excited" || action == "quẩy" || action == "tăng động")
+                                   action = "excited";
+                               if (action == "khóc" || action == "cry" || action == "nức nở")
+                                   action = "cry";
 
                                OttoCommand cmd;
                                if (action == "forward")
@@ -402,6 +423,26 @@ private:
                                else if (action == "calibrate")
                                {
                                    cmd.type = 11;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "shake_hands")
+                               {
+                                   cmd.type = 12;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "comfort")
+                               {
+                                   cmd.type = 13;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "excited")
+                               {
+                                   cmd.type = 14;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "cry")
+                               {
+                                   cmd.type = 15;
                                    xQueueSend(puppy_queue_, &cmd, 0);
                                }
                                else
