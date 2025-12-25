@@ -140,9 +140,12 @@ private:
         if (app.GetDeviceState() == DeviceState::kDeviceStateIdle)
         {
             auto &app = Application::GetInstance();
-            // USB供电需要播放音效
+            // USB充电状态下开机需要播放音效
             if (power_manager_.IsUsbPowered())
+            {
                 app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+                vTaskDelay(pdMS_TO_TICKS(500)); // 延时500ms播放音效
+            }
             app.Schedule([]()
                          {
                             auto &app = Application::GetInstance();
