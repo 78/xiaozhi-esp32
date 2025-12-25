@@ -8,8 +8,8 @@
 const char *FogSeekPowerManager::TAG = "FogSeekPowerManager";
 
 // 构造函数 - 初始化电源控制引脚
-FogSeekPowerManager::FogSeekPowerManager() : pwr_hold_state_(false),
-                                             power_state_(PowerState::NO_POWER),
+FogSeekPowerManager::FogSeekPowerManager() : power_state_(PowerState::NO_POWER),
+                                             device_power_state_(DevicePowerState::CHARGING),
                                              low_battery_warning_(false),
                                              low_battery_shutdown_(false),
                                              battery_level_(0),
@@ -81,7 +81,7 @@ void FogSeekPowerManager::Initialize(const power_pin_config_t *pin_config)
     // 更新初始电源状态
     UpdatePowerState();
 
-    // 创建电源状态更新定时器
+    // 创建电源状态（低电量）更新定时器
     esp_timer_create_args_t timer_args = {
         .callback = &FogSeekPowerManager::PowerStateUpdateTimerCallback,
         .arg = this,
@@ -93,16 +93,25 @@ void FogSeekPowerManager::Initialize(const power_pin_config_t *pin_config)
 // 开机
 void FogSeekPowerManager::PowerOn()
 {
-    pwr_hold_state_ = true;
+    SetPowerState(true);
     gpio_set_level((gpio_num_t)pin_config_.hold_gpio, 1);
+    SetDevicePowerState(DevicePowerState::POWER_ON);
     ESP_LOGI(TAG, "Power ON");
 }
 
 // 关机
 void FogSeekPowerManager::PowerOff()
 {
-    pwr_hold_state_ = false;
+    SetPowerState(false);
     gpio_set_level((gpio_num_t)pin_config_.hold_gpio, 0);
+    if (IsUsbPowered())
+    {
+        SetDevicePowerState(DevicePowerState::CHARGING);
+    }
+    else
+    {
+        SetDevicePowerState(DevicePowerState::POWER_OFF);
+    }
     ESP_LOGI(TAG, "Power OFF");
 }
 
@@ -137,7 +146,7 @@ void FogSeekPowerManager::UpdatePowerState()
     {
         power_state_ = PowerState::USB_POWER_NO_BATTERY;
     }
-    else if (is_charge_done && !battery_detected)
+    else if (is_charge_done && !battery_detected) // 无电池时，charging和done会交替变化
     {
         power_state_ = PowerState::USB_POWER_NO_BATTERY;
     }

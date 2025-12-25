@@ -3,9 +3,7 @@
 #include "application.h"
 #include "display.h"
 #include "assets/lang_config.h"
-// #include "audio_codec.h"
 #include "wifi_board.h"
-#include <wifi_station.h>
 #include "power_save_timer.h"
 #include "codecs/es8311_audio_codec.h"
 #include <algorithm>  // 用于std::max/std::min
@@ -128,11 +126,12 @@ void Cst816x::touchpad_daemon(void* arg) {
                 switch (current_event.type) {
                     case TouchEventType::SINGLE_CLICK:
                         if (current_event.x == 40) {
-                            board.SetPowerSaveMode(false);
+                            board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
                             auto& app = Application::GetInstance();
-                            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                            if (app.GetDeviceState() == kDeviceStateStarting) {
                                 auto& wifi_board = static_cast<WifiBoard&>(Board::GetInstance());
-                                wifi_board.ResetWifiConfiguration();
+                                wifi_board.EnterWifiConfigMode();
+                                return;
                             }
                             app.ToggleChatState();  
                         } else if (current_event.x == 20) {     // 20,600 单击：音量+

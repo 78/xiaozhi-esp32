@@ -4,12 +4,13 @@
 
 static const char TAG[] = "Es8389AudioCodec";
 
-Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8389_addr, bool use_mclk) {
-    duplex_ = true; // 是否双工
-    input_reference_ = false; // 是否使用参考输入，实现回声消除
-    input_channels_ = 2; // 输入通道数，改为2以支持两个麦克风
+Es8389AudioCodec::Es8389AudioCodec(void *i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
+                                   gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
+                                   gpio_num_t pa_pin, uint8_t es8389_addr, bool use_mclk, bool input_reference)
+{
+    duplex_ = true;                             // 是否双工
+    input_reference_ = input_reference;         // 是否使用参考输入，实现回声消除
+    input_channels_ = input_reference_ ? 2 : 1; // 输入通道数，改为2以支持两个麦克风
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     input_gain_ = 40;
@@ -69,7 +70,8 @@ Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     ESP_LOGI(TAG, "Es8389AudioCodec initialized");
 }
 
-Es8389AudioCodec::~Es8389AudioCodec() {
+Es8389AudioCodec::~Es8389AudioCodec()
+{
     ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
     esp_codec_dev_delete(output_dev_);
     ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
@@ -81,7 +83,8 @@ Es8389AudioCodec::~Es8389AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din)
+{
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -100,105 +103,125 @@ void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-#ifdef   I2S_HW_VERSION_2    
-                .ext_clk_freq_hz = 0,
+#ifdef I2S_HW_VERSION_2
+            .ext_clk_freq_hz = 0,
 #endif
         },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
-            .bit_shift = true,
-            .left_align = true,
-            .big_endian = false,
-            .bit_order_lsb = false
-        },
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws = ws,
-            .dout = dout,
-            .din = din,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
-    };
+        .slot_cfg = {.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT, .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO, .slot_mode = I2S_SLOT_MODE_STEREO, .slot_mask = I2S_STD_SLOT_BOTH, .ws_width = I2S_DATA_BIT_WIDTH_16BIT, .ws_pol = false, .bit_shift = true, .left_align = true, .big_endian = false, .bit_order_lsb = false},
+        .gpio_cfg = {.mclk = mclk, .bclk = bclk, .ws = ws, .dout = dout, .din = din, .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false}}};
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
-void Es8389AudioCodec::SetOutputVolume(int volume) {
+void Es8389AudioCodec::SetOutputVolume(int volume)
+{
     ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, volume));
     AudioCodec::SetOutputVolume(volume);
 }
 
-void Es8389AudioCodec::EnableInput(bool enable) {
+void Es8389AudioCodec::EnableInput(bool enable)
+{
     std::lock_guard<std::mutex> lock(data_if_mutex_);
-    if (enable == input_enabled_) {
+    if (enable == input_enabled_)
+    {
         return;
     }
-    if (enable) {
+    if (enable)
+    {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = (uint8_t)input_channels_, // 使用动态通道数
-            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0) | ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1), // 支持两个通道
+            .channel = (uint8_t)input_channels_,                // 使用动态通道数
+            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), // 主麦克风通道
             .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
+
+        if (input_reference_)
+        {
+            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1); // 回声消除参考通道
+        }
+
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, input_gain_));
-    } else {
+        if (input_reference_)
+        {
+            // MIC1P输入(0x05)，增益值10(30dB)
+            uint8_t mic1_config = (0x05 << 4) | (10 & 0x0F);
+            ESP_ERROR_CHECK_WITHOUT_ABORT(ctrl_if_->write_reg(ctrl_if_, 0x72, 1, &mic1_config, 1));
+
+            // MIC2P输入(0x05)，增益值0(0dB)
+            uint8_t mic2_config = (0x05 << 4) | (0 & 0x0F);
+            ESP_ERROR_CHECK_WITHOUT_ABORT(ctrl_if_->write_reg(ctrl_if_, 0x73, 1, &mic2_config, 1));
+        }
+        else
+        {
+            ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 22));
+        }
+    }
+    else
+    {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
     AudioCodec::EnableInput(enable);
 }
 
-void Es8389AudioCodec::EnableOutput(bool enable) {
+void Es8389AudioCodec::EnableOutput(bool enable)
+{
     std::lock_guard<std::mutex> lock(data_if_mutex_);
-    if (enable == output_enabled_) {
+    if (enable == output_enabled_)
+    {
         return;
     }
-    if (enable) {
+    if (enable)
+    {
         // Play 16bit 1 channel
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
             .channel = 1,
-            .channel_mask = 0,
+            .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
-        if (pa_pin_ != GPIO_NUM_NC) {
+
+        if (input_reference_)
+        {
+            uint8_t dac_gain = 0xB9; // AEC模式：-6dB
+            ESP_ERROR_CHECK_WITHOUT_ABORT(ctrl_if_->write_reg(ctrl_if_, 0x46, 1, &dac_gain, 1));
+        }
+
+        if (pa_pin_ != GPIO_NUM_NC)
+        {
             gpio_set_level(pa_pin_, 1);
         }
-    } else {
+    }
+    else
+    {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-        if (pa_pin_ != GPIO_NUM_NC) {
+        if (pa_pin_ != GPIO_NUM_NC)
+        {
             gpio_set_level(pa_pin_, 0);
         }
     }
     AudioCodec::EnableOutput(enable);
 }
 
-int Es8389AudioCodec::Read(int16_t* dest, int samples) {
-    if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+int Es8389AudioCodec::Read(int16_t *dest, int samples)
+{
+    if (input_enabled_)
+    {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void *)dest, samples * sizeof(int16_t)));
     }
     return samples;
 }
 
-int Es8389AudioCodec::Write(const int16_t* data, int samples) {
-    if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+int Es8389AudioCodec::Write(const int16_t *data, int samples)
+{
+    if (output_enabled_)
+    {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void *)data, samples * sizeof(int16_t)));
     }
     return samples;
 }

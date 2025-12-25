@@ -147,6 +147,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_FOGSEEK_AUDIO
         bool "雾岸科技 Audio"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_AUDIO_LINKBIT
+        bool "雾岸科技 LinkBit"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_FOGSEEK_AUDIO_MOODLIGHT
         bool "雾岸科技 MoodLight"
         depends on IDF_TARGET_ESP32S3
@@ -159,8 +162,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_FOGSEEK_EDGE_BUBBLEPAL
         bool "雾岸科技 BubblePal"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_ES8389
-        bool "雾岸科技 Edge-ES8389"
+    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G
+        bool "雾岸科技 Edge-ES8389-4G"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI
+        bool "雾岸科技 Edge-ES8389-WiFi"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_FOGSEEK_EDGE_LCD1_5
         bool "雾岸科技 Edge-LCD1.5"
@@ -297,6 +303,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_C6_LCD_1_69
         bool "Waveshare ESP32-C6-LCD-1.69"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_LCD_1_83
+        bool "Waveshare ESP32-C6-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
@@ -354,6 +363,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
         bool "Movecall Moji 小智AI衍生版"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOVECALL_MOJI2_ESP32C5
+        bool "Movecall Moji2.0 小智AI衍生版"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
         bool "Movecall CuiCan 璀璨·AI吊坠"
         depends on IDF_TARGET_ESP32S3
@@ -678,7 +690,8 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83\
         || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
-        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49)
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49 \
+        || BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI || BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
@@ -695,18 +708,35 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+menu "WiFi Configuration Method"
+    help
+        WiFi Configuration Method Selection
+    config USE_HOTSPOT_WIFI_PROVISIONING
+        bool "Hotspot"
+        default y
+        help
+            Use WiFi Hotspot to transmit WiFi configuration data
+    config USE_ACOUSTIC_WIFI_PROVISIONING
+        bool "Acoustic"
+        help
+            Use audio signal to transmit WiFi configuration data
+
+    config USE_ESP_BLUFI_WIFI_PROVISIONING
+        bool "Esp Blufi"
+        help
+            Use esp blufi protocol to transmit WiFi configuration data
+        select BT_ENABLED
+        select BT_BLE_42_FEATURES_SUPPORTED
+        select BT_BLE_BLUFI_ENABLE
+        select MBEDTLS_DHM_C
+endmenu
+
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
         UDP server address, format: IP:PORT, used to receive audio debugging data
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
@@ -718,7 +748,7 @@ menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32
 
     comment "Warning: Please read the help text before modifying these settings."
-    
+
     config XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
         bool "Allow JPEG Input"
         default n

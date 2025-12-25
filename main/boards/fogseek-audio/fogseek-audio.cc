@@ -11,7 +11,7 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
-#include <wifi_station.h>
+#include "device_state_machine.h"
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 
@@ -25,9 +25,7 @@ private:
     FogSeekPowerManager power_manager_;
     FogSeekLedController led_controller_;
     AudioCodec *audio_codec_ = nullptr;
-
-    // 添加自动唤醒标志位
-    bool auto_wake_flag_ = false;
+    esp_timer_handle_t check_idle_timer_ = nullptr;
 
     // 初始化电源管理器
     void InitializePowerManager()
@@ -49,30 +47,29 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
     }
 
+    // 初始化音频输出控制
+    void InitializeAudioOutputControl()
+    {
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(0); // 功放不支持使能控制，通过设置音量来替代使能，避免USB插入时自动播放声音
+    }
+
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
-        ctrl_button_.OnPressDown([this]()
-                                 {
-                                     led_controller_.SetPrePowerOnState(true); // 按键按下时设置预开机标志位
-                                 });
-        ctrl_button_.OnPressUp([this]()
-                               {
-                                   led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
-                               });
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
         ctrl_button_.OnDoubleClick([this]()
-                                   { xTaskCreate([](void *param)
-                                                 {
-                                            auto* board = static_cast<FogSeekAudio*>(param);
-                                            WifiStation::GetInstance().Stop(); 
-                                            board->wifi_config_mode_ = true;
-                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
-                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
+                                   {
+            auto &app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting)
+            {
+                EnterWifiConfigMode();
+                return;
+            } });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
@@ -83,93 +80,85 @@ private:
             } });
     }
 
+    // 处理自动唤醒逻辑
+    void HandleAutoWake()
+    {
+        auto &app = Application::GetInstance();
+        if (app.GetDeviceState() == DeviceState::kDeviceStateIdle)
+        {
+            auto &app = Application::GetInstance();
+            // USB充电状态下开机需要播放音效
+            if (power_manager_.IsUsbPowered())
+            {
+                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+                vTaskDelay(pdMS_TO_TICKS(500)); // 延时500ms播放音效
+            }
+            app.Schedule([]()
+                         {
+                            auto &app = Application::GetInstance();
+                            app.ToggleChatState(); });
+        }
+        else
+        {
+            // 设备尚未进入空闲状态，500ms后再次检查，使用定时器异步检查，不阻塞当前任务
+            esp_timer_handle_t check_timer;
+            esp_timer_create_args_t timer_args = {};
+            timer_args.callback = [](void *arg)
+            {
+                auto instance = static_cast<FogSeekAudio *>(arg);
+                instance->HandleAutoWake();
+            };
+            timer_args.arg = this;
+            timer_args.name = "check_idle_timer";
+            esp_timer_create(&timer_args, &check_timer);
+            esp_timer_start_once(check_timer, 500000); // 500ms = 500000微秒
+        }
+    }
+
     // 开机流程
     void PowerOn()
     {
-        power_manager_.PowerOn();
-        led_controller_.SetPowerState(true);
-        led_controller_.UpdateBatteryStatus(power_manager_);
+        power_manager_.PowerOn();                        // 更新电源状态
+        led_controller_.UpdateLedStatus(power_manager_); // 更新LED灯状态
 
-        // 开机自动唤醒
-        auto_wake_flag_ = true;
-        OnDeviceStateChanged(DeviceState::kDeviceStateUnknown,
-                             Application::GetInstance().GetDeviceState());
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(70); // 开机后将音量设置为默认值
 
         ESP_LOGI(TAG, "Device powered on.");
+
+        HandleAutoWake(); // 开机自动唤醒
     }
 
     // 关机流程
     void PowerOff()
     {
         power_manager_.PowerOff();
-        led_controller_.SetPowerState(false);
-        led_controller_.UpdateBatteryStatus(power_manager_);
+        led_controller_.UpdateLedStatus(power_manager_);
 
-        // 重置自动唤醒标志位到默认状态
-        auto_wake_flag_ = false;
-        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle);
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(0); // 关机后将音量设置为默0
+
+        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
 
         ESP_LOGI(TAG, "Device powered off.");
-    }
-
-    // 处理自动唤醒逻辑
-    void HandleAutoWake(DeviceState current_state)
-    {
-        // 检查是否需要自动唤醒
-        if (auto_wake_flag_ && current_state == DeviceState::kDeviceStateIdle)
-        {
-            auto_wake_flag_ = false; // 关闭标志位
-
-            auto &app = Application::GetInstance();
-            // USB供电需要播放音效
-            if (power_manager_.IsUsbPowered())
-                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-
-            vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
-                                            // 进入聆听状态
-            app.Schedule([]()
-                         {
-            auto &app = Application::GetInstance();
-            app.ToggleChatState(); });
-        }
-    }
-
-    // 设备状态变更处理函数
-    void OnDeviceStateChanged(DeviceState previous_state, DeviceState current_state)
-    {
-        // 只有在设备开机状态下才处理LED和显示屏状态
-        if (power_manager_.IsPowerOn())
-        {
-            led_controller_.HandleDeviceState(current_state, power_manager_);
-
-            // 处理自动唤醒逻辑
-            HandleAutoWake(current_state);
-        }
-    }
-
-    // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
-    void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
-    {
-        if (!power_manager_.IsPowerOn() || Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
-        {
-            led_controller_.UpdateBatteryStatus(power_manager_);
-        }
     }
 
 public:
     FogSeekAudio() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
-        InitializeButtonCallbacks();
         InitializePowerManager();
         InitializeLedController();
+        InitializeAudioOutputControl();
+        InitializeButtonCallbacks();
 
-        // 设置电源状态变化回调函数
+        // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
-                                             { OnPowerStateChanged(state); });
+                                             { led_controller_.UpdateLedStatus(power_manager_); });
+    }
 
-        // 注册设备交互状态变更回调
-        DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
-                                                                           { OnDeviceStateChanged(previous_state, current_state); });
+    virtual Led *GetLed() override
+    {
+        return led_controller_.GetGreenLed();
     }
 
     virtual AudioCodec *GetAudioCodec() override

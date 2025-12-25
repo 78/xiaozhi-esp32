@@ -12,7 +12,7 @@ private:
     static constexpr struct {
         uint16_t adc;
         uint8_t level;
-    } BATTERY_LEVELS[] = {{2150, 0}, {2450, 100}};
+    } BATTERY_LEVELS[] = {{2050, 0}, {2450, 100}};
     static constexpr size_t BATTERY_LEVELS_COUNT = 2;
     static constexpr size_t ADC_VALUES_COUNT = 10;
 
@@ -25,12 +25,23 @@ private:
     size_t adc_values_count_ = 0;
     uint8_t battery_level_ = 100;
     bool is_charging_ = false;
+    inline static bool battery_update_paused_ = false;  // 静态标志：是否暂停电量更新
 
     adc_oneshot_unit_handle_t adc_handle_;
 
     void CheckBatteryStatus() {
+      // 如果电量更新被暂停（动作进行中），则跳过更新
+      if (battery_update_paused_) {
+        return;
+      }
+      
+      ReadBatteryAdcData();
+
+      if (charging_pin_ == GPIO_NUM_NC) {
+        is_charging_ = false;
+      } else {
         is_charging_ = gpio_get_level(charging_pin_) == 0;
-        ReadBatteryAdcData();
+      }
     }
 
     void ReadBatteryAdcData() {
@@ -71,6 +82,8 @@ public:
     PowerManager(gpio_num_t charging_pin, adc_unit_t adc_unit = ADC_UNIT_2,
                  adc_channel_t adc_channel = ADC_CHANNEL_3)
         : charging_pin_(charging_pin), adc_unit_(adc_unit), adc_channel_(adc_channel) {
+
+      if (charging_pin_ != GPIO_NUM_NC) {
         gpio_config_t io_conf = {};
         io_conf.intr_type = GPIO_INTR_DISABLE;
         io_conf.mode = GPIO_MODE_INPUT;
@@ -78,6 +91,10 @@ public:
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
         gpio_config(&io_conf);
+        ESP_LOGI("PowerManager", "充电检测引脚配置完成: GPIO%d", charging_pin_);
+      } else {
+        ESP_LOGI("PowerManager", "充电检测引脚未配置，不进行充电状态检测");
+      }
 
         esp_timer_create_args_t timer_args = {
             .callback =
@@ -97,18 +114,20 @@ public:
     }
 
     void InitializeAdc() {
-        adc_oneshot_unit_init_cfg_t init_config = {
-            .unit_id = adc_unit_,
-            .ulp_mode = ADC_ULP_MODE_DISABLE,
-        };
-        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle_));
+      adc_oneshot_unit_init_cfg_t init_config = {
+          .unit_id = adc_unit_,
+          .clk_src = ADC_RTC_CLK_SRC_DEFAULT,
+          .ulp_mode = ADC_ULP_MODE_DISABLE,
+      };
+      ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle_));
 
-        adc_oneshot_chan_cfg_t chan_config = {
-            .atten = ADC_ATTEN_DB_12,
-            .bitwidth = ADC_BITWIDTH_12,
-        };
+      adc_oneshot_chan_cfg_t chan_config = {
+          .atten = ADC_ATTEN_DB_12,
+          .bitwidth = ADC_BITWIDTH_12,
+      };
 
-        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle_, adc_channel_, &chan_config));
+      ESP_ERROR_CHECK(
+          adc_oneshot_config_channel(adc_handle_, adc_channel_, &chan_config));
     }
 
     ~PowerManager() {
@@ -124,5 +143,9 @@ public:
     bool IsCharging() { return is_charging_; }
 
     uint8_t GetBatteryLevel() { return battery_level_; }
+
+    // 暂停/恢复电量更新（用于动作执行时屏蔽更新）
+    static void PauseBatteryUpdate() { battery_update_paused_ = true; }
+    static void ResumeBatteryUpdate() { battery_update_paused_ = false; }
 };
 #endif  // __POWER_MANAGER_H__

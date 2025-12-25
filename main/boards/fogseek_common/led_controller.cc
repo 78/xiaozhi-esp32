@@ -1,45 +1,158 @@
 #include "led_controller.h"
 #include "power_manager.h"
+#include "../../application.h"
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <esp_timer.h>
 #include <rom/ets_sys.h>
+#include <memory>
 
-// 定义TAG常量
+/// 日志标签
 const char *FogSeekLedController::TAG = "FogSeekLedController";
+const char *RedLed::TAG = "RedLed";
+const char *GreenLed::TAG = "GreenLed";
 
-// 构造函数 - 创建LED闪烁定时器
-FogSeekLedController::FogSeekLedController() : led_blink_timer_(nullptr),
-                                               red_led_state_(false),
+// ==================== RedLed Implementation ====================
+RedLed::RedLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, ledc_channel_t channel) : GpioLed(gpio, output_invert, timer_num, channel) {}
+
+RedLed::~RedLed() {}
+
+void RedLed::OnStateChanged()
+{
+    // 红灯不响应设备状态变化，因此为空实现
+}
+
+void RedLed::UpdateBatteryStatus(FogSeekPowerManager::PowerState state)
+{
+    switch (state)
+    {
+    case FogSeekPowerManager::PowerState::USB_POWER_CHARGING:
+        // USB供电充电中：红灯呼吸效果
+        StartFadeTask();
+        break;
+
+    case FogSeekPowerManager::PowerState::USB_POWER_DONE:
+        // USB供电充电完成：红灯常亮
+        TurnOn();
+        break;
+
+    case FogSeekPowerManager::PowerState::USB_POWER_NO_BATTERY:
+        // USB供电无电池：红灯熄灭
+        TurnOff();
+        break;
+
+    case FogSeekPowerManager::PowerState::BATTERY_POWER:
+        // 电池供电：红灯熄灭
+        TurnOff();
+        break;
+
+    case FogSeekPowerManager::PowerState::LOW_BATTERY:
+        // 低电量状态：红灯100ms间隔连续闪烁
+        SetBrightness(100);
+        StartContinuousBlink(100);
+        break;
+
+    case FogSeekPowerManager::PowerState::NO_POWER:
+        // 无电源：红灯熄灭
+        TurnOff();
+        break;
+
+    default:
+        TurnOff();
+        break;
+    }
+
+    ESP_LOGD(TAG, "Red LED updated for power state: %d", static_cast<int>(state));
+}
+
+// ==================== GreenLed Implementation ====================
+GreenLed::GreenLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, ledc_channel_t channel) : GpioLed(gpio, output_invert, timer_num, channel) {}
+GreenLed::~GreenLed() {}
+
+void GreenLed::OnStateChanged()
+{
+    if (ignore_state_changes_)
+    {
+        TurnOff();
+        return;
+    }
+    auto &app = Application::GetInstance();
+    auto device_state = app.GetDeviceState();
+    switch (device_state)
+    {
+    case kDeviceStateIdle: // 空闲状态：绿灯呼吸效果
+        StartFadeTask();
+        break;
+
+    case kDeviceStateListening: // 监听状态：绿灯常亮
+        TurnOn();
+        break;
+
+    case kDeviceStateSpeaking: // 说话状态：绿灯1000ms间隔连续闪烁
+        StartContinuousBlink(800);
+        break;
+
+    case kDeviceStateStarting:        // 启动状态
+    case kDeviceStateWifiConfiguring: // WiFi配置状态
+    case kDeviceStateConnecting:      // 连接状态的处理
+    case kDeviceStateUpgrading:       // 升级状态
+    case kDeviceStateActivating:      // 激活状态
+    case kDeviceStateAudioTesting:    // 音频测试状态
+        StartContinuousBlink(200);
+        break;
+
+    case kDeviceStateFatalError: // 致命错误状态
+        StartContinuousBlink(100);
+        break;
+
+    case kDeviceStateUnknown: // 未知状态的处理
+        TurnOff();
+        break;
+
+    default:
+        ESP_LOGE(TAG, "Unknown gpio led event: %d", static_cast<int>(device_state));
+        return;
+    }
+
+    ESP_LOGD(TAG, "Green LED updated for device state: %d", static_cast<int>(device_state));
+}
+
+// ==================== FogSeekLedController Implementation ====================
+
+/**
+ * @brief 构造函数 - 初始化LED控制器
+ */
+FogSeekLedController::FogSeekLedController() : red_led_state_(false),
                                                green_led_state_(false),
-                                               is_power_on_(false),
-                                               blink_interval_ms_(0),
-                                               blink_counter_(0),
-                                               blink_red_(false),
-                                               blink_green_(false),
+                                               red_led_(nullptr),
+                                               green_led_(nullptr),
                                                cold_light_(nullptr),
                                                warm_light_(nullptr),
                                                cold_light_state_(false),
                                                warm_light_state_(false)
 {
-    esp_timer_create_args_t blink_timer_args = {};
-    blink_timer_args.callback = &FogSeekLedController::BlinkTimerCallback;
-    blink_timer_args.arg = this;
-    blink_timer_args.name = "led_blink_timer";
-    ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &led_blink_timer_));
 }
 
-// 析构函数 - 清理定时器
+/**
+ * @brief 析构函数 - 清理资源
+ */
 FogSeekLedController::~FogSeekLedController()
 {
-    if (led_blink_timer_)
+    // 删除红灯控制器
+    if (red_led_)
     {
-        esp_timer_stop(led_blink_timer_);
-        esp_timer_delete(led_blink_timer_);
-        led_blink_timer_ = nullptr;
+        delete red_led_;
+        red_led_ = nullptr;
     }
 
-    // 删除冷暖色灯
+    // 删除绿灯控制器
+    if (green_led_)
+    {
+        delete green_led_;
+        green_led_ = nullptr;
+    }
+
+    // 删除冷暖色灯控制器
     if (cold_light_)
     {
         delete cold_light_;
@@ -53,197 +166,95 @@ FogSeekLedController::~FogSeekLedController()
     }
 }
 
-// 初始化LED GPIO
+/**
+ * @brief 初始化LED GPIO
+ *
+ * @param power_manager 电源管理器引用
+ * @param pin_config LED引脚配置
+ */
 void FogSeekLedController::InitializeLeds(FogSeekPowerManager &power_manager, const led_pin_config_t *pin_config)
 {
     // 保存引脚配置
     pin_config_ = *pin_config;
 
-    // 初始化通用LED (红/绿)
-    gpio_config_t led_conf = {};
-    led_conf.intr_type = GPIO_INTR_DISABLE;
-    led_conf.mode = GPIO_MODE_OUTPUT;
-    led_conf.pin_bit_mask = (1ULL << pin_config->red_gpio) | (1ULL << pin_config->green_gpio);
-    led_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    led_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    gpio_config(&led_conf);
+    // 初始化红灯
+    if (pin_config->red_gpio >= 0)
+    {
+        // 为红灯和绿灯分配不同的LEDC通道，避免冲突
+        red_led_ = new RedLed(static_cast<gpio_num_t>(pin_config->red_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_1);
+    }
+
+    // 初始化绿灯
+    if (pin_config->green_gpio >= 0)
+    {
+        // 为红灯和绿灯分配不同的LEDC通道，避免冲突
+        green_led_ = new GreenLed(static_cast<gpio_num_t>(pin_config->green_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_2);
+    }
 
     // 如果配置了冷暖色灯GPIO，则初始化冷暖色灯
     if (pin_config->cold_light_gpio >= 0 || pin_config->warm_light_gpio >= 0)
     {
-        InitializeColdWarmLeds(pin_config->cold_light_gpio, pin_config->warm_light_gpio);
+        // 初始化冷暖色灯（使用PWM控制）
+        if (pin_config->cold_light_gpio >= 0)
+        {
+            // 为冷色灯和暖色灯分配不同的LEDC通道，避免冲突
+            cold_light_ = new GpioLed(static_cast<gpio_num_t>(pin_config->cold_light_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_3);
+            cold_light_->TurnOff();
+        }
+
+        if (pin_config->warm_light_gpio >= 0)
+        {
+            warm_light_ = new GpioLed(static_cast<gpio_num_t>(pin_config->warm_light_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_4);
+            warm_light_->TurnOff();
+        }
     }
 
-    // 主要针对插USB的情况，初始化时根据电源状态设置LED
-    UpdateBatteryStatus(power_manager);
-
+    UpdateLedStatus(power_manager);
     ESP_LOGI(TAG, "LEDs initialized");
 }
-// 初始化冷暖色灯
-void FogSeekLedController::InitializeColdWarmLeds(int cold_gpio, int warm_gpio)
+
+/**
+ * @brief 统一更新所有LED状态
+ *
+ * @param power_manager 电源管理器引用
+ */
+void FogSeekLedController::UpdateLedStatus(FogSeekPowerManager &power_manager)
 {
-    // 初始化冷暖色灯（使用PWM控制）
-    if (cold_gpio >= 0)
+    auto device_power_state = power_manager.GetDevicePowerState();
+    auto power_state = power_manager.GetPowerState();
+
+    switch (device_power_state)
     {
-        // 为冷色灯和暖色灯分配不同的LEDC通道，避免冲突
-        cold_light_ = new GpioLed(static_cast<gpio_num_t>(cold_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_0);
-        cold_light_->TurnOff();
-    }
-
-    if (warm_gpio >= 0)
-    {
-        warm_light_ = new GpioLed(static_cast<gpio_num_t>(warm_gpio), 0, LEDC_TIMER_1, LEDC_CHANNEL_1);
-        warm_light_->TurnOff();
-    }
-}
-
-// 设置LED状态
-void FogSeekLedController::SetLedState(bool red, bool green)
-{
-    // 停止闪烁
-    StopBlink();
-
-    // 设置LED状态 (直接使用布尔值控制电平)
-    gpio_set_level((gpio_num_t)pin_config_.red_gpio, red);
-    gpio_set_level((gpio_num_t)pin_config_.green_gpio, green);
-
-    // 保存当前状态
-    red_led_state_ = red;
-    green_led_state_ = green;
-}
-
-// 开始闪烁
-void FogSeekLedController::StartBlink(int interval_ms, bool red, bool green)
-{
-    // 停止当前闪烁
-    StopBlink();
-
-    // 设置闪烁参数
-    blink_interval_ms_ = interval_ms;
-    blink_red_ = red;
-    blink_green_ = green;
-    blink_counter_ = 0;
-
-    // 设置初始状态为熄灭
-    gpio_set_level((gpio_num_t)pin_config_.red_gpio, 1);
-    gpio_set_level((gpio_num_t)pin_config_.green_gpio, 1);
-
-    // 启动定时器
-    if (led_blink_timer_)
-    {
-        esp_timer_start_periodic(led_blink_timer_, interval_ms * 1000);
-    }
-}
-
-// 停止闪烁
-void FogSeekLedController::StopBlink()
-{
-    if (led_blink_timer_)
-    {
-        esp_timer_stop(led_blink_timer_);
-    }
-
-    // 恢复到之前的状态
-    gpio_set_level((gpio_num_t)pin_config_.red_gpio, red_led_state_ ? 0 : 1);
-    gpio_set_level((gpio_num_t)pin_config_.green_gpio, green_led_state_ ? 0 : 1);
-}
-
-// 处理设备状态变化的LED指示
-void FogSeekLedController::HandleDeviceState(DeviceState current_state, FogSeekPowerManager &power_manager)
-{
-    // 如果设备未开机，则不处理设备状态
-    if (!is_power_on_)
-    {
-        return;
-    }
-
-    switch (current_state)
-    {
-    case DeviceState::kDeviceStateIdle:
-        // 空闲状态时根据电源状态更新LED
-        UpdateBatteryStatus(power_manager);
+    case FogSeekPowerManager::DevicePowerState::CHARGING: // 充电状态，绿灯熄灭，红灯亮度正常，状态根据电源充电状态刷新
+        red_led_->SetBrightness(100);
+        red_led_->UpdateBatteryStatus(power_state);
+        green_led_->TurnOff();
+        green_led_->SetIgnoreStateChanges(true); // 设置绿灯忽略状态变化
         break;
 
-    case DeviceState::kDeviceStateListening:
-        // 监听状态时两个LED同时亮起表示正在监听
-        SetLedState(true, true);
+    case FogSeekPowerManager::DevicePowerState::POWER_ON: // 开机状态，两个灯都工作（红灯亮度调低，绿灯正常）
+        red_led_->SetBrightness(10);
+        red_led_->UpdateBatteryStatus(power_state);
+        green_led_->SetBrightness(100);
+        green_led_->SetIgnoreStateChanges(false); // 恢复绿灯响应状态变化
+        green_led_->OnStateChanged();
         break;
 
-    case DeviceState::kDeviceStateSpeaking:
-        // 说话状态时两个LED同时慢闪烁表示正在说话
-        StartBlink(500, true, true); // 500ms间隔慢闪烁
+    case FogSeekPowerManager::DevicePowerState::POWER_OFF: // 关机状态，两个灯都熄灭
+        red_led_->TurnOff();
+        green_led_->TurnOff();
+        green_led_->SetIgnoreStateChanges(true); // 设置绿灯忽略状态变化
         break;
-
     default:
-        ESP_LOGW(TAG, "Unknown device state: %d", static_cast<int>(current_state));
         break;
     }
 }
 
-// 根据电源状态更新LED
-void FogSeekLedController::UpdateBatteryStatus(FogSeekPowerManager &power_manager)
-{
-    // 针对电池供电的设计，短按系统会上电进入初始化，未达到长按逻辑不能亮灯，防止用户松手而掉电，长按开机再正常判断LED灯逻辑
-    if ((power_manager.IsBatteryPowered()) && is_pre_power_on_ && !is_power_on_)
-    {
-        SetLedState(false, false);
-        return;
-    }
-
-    // 根据电源状态更新LED显示
-    switch (power_manager.GetPowerState())
-    {
-    case FogSeekPowerManager::PowerState::BATTERY_POWER:
-        // 电池供电时绿色LED常亮
-        SetLedState(false, true);
-        break;
-
-    case FogSeekPowerManager::PowerState::USB_POWER_CHARGING:
-        // USB充电中时红灯慢闪
-        StartBlink(800, true, false);
-        break;
-
-    case FogSeekPowerManager::PowerState::USB_POWER_DONE:
-        // USB充电完成时绿色LED常亮
-        SetLedState(false, true);
-        break;
-
-    case FogSeekPowerManager::PowerState::USB_POWER_NO_BATTERY:
-        // USB供电无电池时绿色LED常亮
-        SetLedState(false, true);
-        break;
-
-    case FogSeekPowerManager::PowerState::LOW_BATTERY:
-        // 低电量警告时红色LED快闪表示警告状态
-        StartBlink(200, true, false); // 200ms间隔快闪烁
-        break;
-
-    case FogSeekPowerManager::PowerState::NO_POWER:
-    default:
-        // 熄灭LED
-        SetLedState(false, false);
-        break;
-    }
-}
-
-// 定时器回调函数
-void FogSeekLedController::BlinkTimerCallback(void *arg)
-{
-    FogSeekLedController *led_controller = static_cast<FogSeekLedController *>(arg);
-
-    // 切换LED状态
-    bool red_state = led_controller->blink_red_ && (led_controller->blink_counter_ % 2 == 0);
-    bool green_state = led_controller->blink_green_ && (led_controller->blink_counter_ % 2 == 0);
-
-    // 设置LED状态
-    gpio_set_level((gpio_num_t)led_controller->pin_config_.red_gpio, red_state);
-    gpio_set_level((gpio_num_t)led_controller->pin_config_.green_gpio, green_state);
-
-    // 更新计数器
-    led_controller->blink_counter_++;
-}
-
-// 冷色灯控制
+/**
+ * @brief 控制冷色灯
+ *
+ * @param state true为开启，false为关闭
+ */
 void FogSeekLedController::SetColdLight(bool state)
 {
     if (cold_light_)
@@ -261,7 +272,11 @@ void FogSeekLedController::SetColdLight(bool state)
     }
 }
 
-// 暖色灯控制
+/**
+ * @brief 控制暖色灯
+ *
+ * @param state true为开启，false为关闭
+ */
 void FogSeekLedController::SetWarmLight(bool state)
 {
     if (warm_light_)
@@ -279,7 +294,11 @@ void FogSeekLedController::SetWarmLight(bool state)
     }
 }
 
-// 设置冷色灯亮度
+/**
+ * @brief 设置冷色灯亮度
+ *
+ * @param brightness 亮度值 (0-100)
+ */
 void FogSeekLedController::SetColdLightBrightness(int brightness)
 {
     if (cold_light_)
@@ -297,7 +316,11 @@ void FogSeekLedController::SetColdLightBrightness(int brightness)
     }
 }
 
-// 设置暖色灯亮度
+/**
+ * @brief 设置暖色灯亮度
+ *
+ * @param brightness 亮度值 (0-100)
+ */
 void FogSeekLedController::SetWarmLightBrightness(int brightness)
 {
     if (warm_light_)

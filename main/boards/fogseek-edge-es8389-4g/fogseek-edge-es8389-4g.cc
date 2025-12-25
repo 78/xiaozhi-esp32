@@ -12,14 +12,15 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
-#include <wifi_station.h>
+#include "device_state_machine.h"
 #include <esp_log.h>
+#include <driver/rtc_io.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeEs8389"
+#define TAG "FogSeekEdgeEs83894G"
 
-class FogSeekEdgeEs8389 : public DualNetworkBoard
+class FogSeekEdgeEs83894G : public DualNetworkBoard
 {
 private:
     Button boot_button_;
@@ -30,9 +31,7 @@ private:
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
-
-    // 添加自动唤醒标志位
-    bool auto_wake_flag_ = false;
+    esp_timer_handle_t check_idle_timer_ = nullptr;
 
     // 初始化I2C外设
     void InitializeI2c()
@@ -116,153 +115,118 @@ private:
         gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
     }
 
+    // 启用4G模块
+    void Enable4GModule()
+    {
+        // 配置4G模块的控制引脚
+        gpio_config_t ml307_enable_config = {
+            .pin_bit_mask = (1ULL << 45), // 使用GPIO45控制4G模块
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&ml307_enable_config);
+        gpio_set_level(GPIO_NUM_45, 1);
+    }
+
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
-        ctrl_button_.OnPressDown([this]()
-                                 {
-                                     led_controller_.SetPrePowerOnState(true); // 按键按下时设置预开机标志位
-                                 });
-        ctrl_button_.OnPressUp([this]()
-                               {
-                                   led_controller_.SetPrePowerOnState(false); // 按键松开时清除预开机标志位
-                               });
-
         ctrl_button_.OnClick([this]()
                              {
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
-        ctrl_button_.OnDoubleClick([this]()
-                                   { xTaskCreate([](void *param)
-                                                 {
-                                            auto* board = static_cast<FogSeekAudio*>(param);
-                                            WifiStation::GetInstance().Stop(); 
-                                            board->wifi_config_mode_ = true;
-                                            board->EnterWifiConfigMode(); // 双击进入WiFi配网
-                                            vTaskDelete(nullptr); }, "wifi_config_task", 4096, this, 5, nullptr); });
         ctrl_button_.OnLongPress([this]()
                                  {
-                                     // 切换电源状态
-                                     if (!power_manager_.IsPowerOn()) {
-                                     PowerOn();
-                                     } else {
-                                     PowerOff();
-                                     } });
+            // 切换电源状态
+            if (!power_manager_.IsPowerOn()) {
+                PowerOn();
+            } else {
+                PowerOff();
+            } });
+    }
+
+    // 处理自动唤醒逻辑
+    void HandleAutoWake()
+    {
+        auto &app = Application::GetInstance();
+        if (app.GetDeviceState() == DeviceState::kDeviceStateIdle)
+        {
+            auto &app = Application::GetInstance();
+            // USB充电状态下开机需要播放音效
+            if (power_manager_.IsUsbPowered())
+            {
+                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+                vTaskDelay(pdMS_TO_TICKS(500)); // 延时500ms播放音效
+            }
+            app.Schedule([]()
+                         {
+                            auto &app = Application::GetInstance();
+                            app.ToggleChatState(); });
+        }
+        else
+        {
+            // 设备尚未进入空闲状态，500ms后再次检查，使用定时器异步检查，不阻塞当前任务
+            esp_timer_handle_t check_timer;
+            esp_timer_create_args_t timer_args = {};
+            timer_args.callback = [](void *arg)
+            {
+                auto instance = static_cast<FogSeekEdgeEs83894G *>(arg);
+                instance->HandleAutoWake();
+            };
+            timer_args.arg = this;
+            timer_args.name = "check_idle_timer";
+            esp_timer_create(&timer_args, &check_timer);
+            esp_timer_start_once(check_timer, 500000); // 500ms = 500000微秒
+        }
     }
 
     // 开机流程
     void PowerOn()
     {
-        power_manager_.PowerOn();
-        led_controller_.SetPowerState(true);
-        led_controller_.UpdateBatteryStatus(power_manager_);
-        // display_manager_.SetBrightness(100);
-        SetAudioAmplifierState(true);
+        power_manager_.PowerOn();                        // 更新电源状态
+        led_controller_.UpdateLedStatus(power_manager_); // 更新LED灯状态
 
-        // 开机自动唤醒
-        auto_wake_flag_ = true;
-        OnDeviceStateChanged(DeviceState::kDeviceStateUnknown,
-                             Application::GetInstance().GetDeviceState());
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(70); // 开机后将音量设置为默认值
 
         ESP_LOGI(TAG, "Device powered on.");
+
+        HandleAutoWake(); // 开机自动唤醒
     }
 
     // 关机流程
     void PowerOff()
     {
         power_manager_.PowerOff();
-        led_controller_.SetPowerState(false);
-        led_controller_.UpdateBatteryStatus(power_manager_);
-        // display_manager_.SetBrightness(0);
-        SetAudioAmplifierState(false);
+        led_controller_.UpdateLedStatus(power_manager_);
 
-        // 重置自动唤醒标志位到默认状态
-        auto_wake_flag_ = false;
-        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle);
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(0); // 关机后将音量设置为默0
+
+        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
 
         ESP_LOGI(TAG, "Device powered off.");
     }
 
-    // 处理自动唤醒逻辑
-    void HandleAutoWake(DeviceState current_state)
-    {
-        // 检查是否需要自动唤醒
-        if (auto_wake_flag_ && current_state == DeviceState::kDeviceStateIdle)
-        {
-            auto_wake_flag_ = false; // 关闭标志位
-
-            auto &app = Application::GetInstance();
-            // USB供电需要播放音效
-            if (power_manager_.IsUsbPowered())
-                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-
-            vTaskDelay(pdMS_TO_TICKS(500)); // 添加延时确保声音播放完成
-            // 进入聆听状态
-            app.Schedule([]()
-                         {
-            auto &app = Application::GetInstance();
-    app.ToggleChatState(); });
-        }
-    }
-
-    // 设备状态变更处理函数
-    void OnDeviceStateChanged(DeviceState previous_state, DeviceState current_state)
-    {
-        // 只有在设备开机状态下才处理LED和显示屏状态
-        if (power_manager_.IsPowerOn())
-        {
-            led_controller_.HandleDeviceState(current_state, power_manager_);
-            display_manager_.HandleDeviceState(current_state);
-
-            // 处理自动唤醒逻辑
-            HandleAutoWake(current_state);
-        }
-    }
-
-    // 电源状态变更处理函数，用于关机充电时，充电状态变化更新指示灯
-    void OnPowerStateChanged(FogSeekPowerManager::PowerState state)
-    {
-        if (!power_manager_.IsPowerOn() || Application::GetInstance().GetDeviceState() == DeviceState::kDeviceStateIdle)
-        {
-            led_controller_.UpdateBatteryStatus(power_manager_);
-        }
-    }
-
-    // 启用4G模块
-    // void Enable4GModule()
-    // {
-    //     // 配置4G模块的控制引脚
-    //     gpio_config_t ml307_enable_config = {
-    //         .pin_bit_mask = (1ULL << 45), // 使用GPIO45控制4G模块
-    //         .mode = GPIO_MODE_OUTPUT,
-    //         .pull_up_en = GPIO_PULLUP_DISABLE,
-    //         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-    //         .intr_type = GPIO_INTR_DISABLE,
-    //     };
-    //     gpio_config(&ml307_enable_config);
-    //     gpio_set_level(GPIO_NUM_45, 1);
-    // }
-
 public:
-    FogSeekEdgeEs8389() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
-                          boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdgeEs83894G() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
+                            boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
-        InitializeButtonCallbacks();
+
         InitializePowerManager();
         InitializeLedController();
         // InitializeDisplayManager();
         InitializeAudioAmplifier();
+        InitializeButtonCallbacks();
         // Enable4GModule(); // 启用4G模块
 
-        // 设置电源状态变化回调函数
+        // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
-                                             { OnPowerStateChanged(state); });
-
-        // 注册设备交互状态变更回调
-        DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([this](DeviceState previous_state, DeviceState current_state)
-                                                                           { OnDeviceStateChanged(previous_state, current_state); });
+                                             { led_controller_.UpdateLedStatus(power_manager_); });
     }
 
     // virtual Display *GetDisplay() override
@@ -284,11 +248,12 @@ public:
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC,
             AUDIO_CODEC_ES8389_ADDR,
-            true);
+            true,
+            true); // 启用input_reference以支持回声消除
         return &audio_codec;
     }
 
-    ~FogSeekEdgeEs8389()
+    ~FogSeekEdgeEs83894G()
     {
         if (i2c_bus_)
         {
@@ -297,4 +262,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeEs8389);
+DECLARE_BOARD(FogSeekEdgeEs83894G);
