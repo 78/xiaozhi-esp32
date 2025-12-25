@@ -367,6 +367,41 @@ bool Assets::Apply() {
     return true;
 }
 
+void Assets::RestoreBuiltInTheme() {
+#ifdef HAVE_LVGL
+    LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+
+    auto display = Board::GetInstance().GetDisplay();
+    DisplayLockGuard lock(display);
+
+    auto builtin_text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
+
+    auto& theme_manager = LvglThemeManager::GetInstance();
+    auto light_theme = theme_manager.GetTheme("light");
+    auto dark_theme = theme_manager.GetTheme("dark");
+
+    if (light_theme != nullptr) {
+        light_theme->set_text_font(builtin_text_font);
+        light_theme->set_background_image(nullptr);
+        light_theme->set_emoji_collection(nullptr);
+    }
+
+    if (dark_theme != nullptr) {
+        dark_theme->set_text_font(builtin_text_font);
+        dark_theme->set_background_image(nullptr);
+        dark_theme->set_emoji_collection(nullptr);
+    }
+
+    auto current_theme = display->GetTheme();
+    if (current_theme != nullptr) {
+        display->SetTheme(current_theme);
+    }
+
+    // Ensure we don't keep rendering an old asset-backed emoji image while updating flash.
+    display->SetEmotion("microchip_ai");
+#endif
+}
+
 bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
     ESP_LOGI(TAG, "Downloading new version of assets from %s", url.c_str());
     
@@ -376,6 +411,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         mmap_handle_ = 0;
         mmap_root_ = nullptr;
     }
+    partition_valid_ = false;
     checksum_valid_ = false;
     assets_.clear();
 
@@ -385,22 +421,29 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     
     if (!http->Open("GET", url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
+        InitializePartition();
         return false;
     }
 
     if (http->GetStatusCode() != 200) {
         ESP_LOGE(TAG, "Failed to get assets, status code: %d", http->GetStatusCode());
+        http->Close();
+        InitializePartition();
         return false;
     }
 
     size_t content_length = http->GetBodyLength();
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
+        http->Close();
+        InitializePartition();
         return false;
     }
 
     if (content_length > partition_->size) {
         ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)", content_length, partition_->size);
+        http->Close();
+        InitializePartition();
         return false;
     }
 
@@ -425,6 +468,8 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         int ret = http->Read(buffer, sizeof(buffer));
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
+            http->Close();
+            InitializePartition();
             return false;
         }
 
@@ -444,6 +489,8 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
             // 确保擦除范围不超过分区大小
             if (sector_end > partition_->size) {
                 ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)", sector_end, partition_->size);
+                http->Close();
+                InitializePartition();
                 return false;
             }
             
@@ -451,6 +498,8 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
             esp_err_t err = esp_partition_erase_range(partition_, sector_start, SECTOR_SIZE);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s", current_sector, sector_start, esp_err_to_name(err));
+                http->Close();
+                InitializePartition();
                 return false;
             }
             
@@ -461,6 +510,8 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         esp_err_t err = esp_partition_write(partition_, total_written, buffer, ret);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to write to assets partition at offset %u: %s", total_written, esp_err_to_name(err));
+            http->Close();
+            InitializePartition();
             return false;
         }
 
@@ -485,6 +536,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
 
     if (total_written != content_length) {
         ESP_LOGE(TAG, "Downloaded size (%u) does not match expected size (%u)", total_written, content_length);
+        InitializePartition();
         return false;
     }
 

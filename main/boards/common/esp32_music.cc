@@ -837,12 +837,12 @@ bool Esp32Music::InitializeIndex() {
     index_manager_->PrintMemoryStats();
 
     // 打印当前 SD 卡音乐的索引表（分批输出避免单次日志过长）
-    const size_t total_entries = index_manager_->GetIndexSize();
-    const size_t kBatchSize = 50;
-    for (size_t start = 0; start < total_entries; start += kBatchSize) {
-        size_t batch_count = std::min(kBatchSize, total_entries - start);
-        index_manager_->PrintIndex(start, batch_count);
-    }
+    // const size_t total_entries = index_manager_->GetIndexSize();
+    // const size_t kBatchSize = 50;
+    // for (size_t start = 0; start < total_entries; start += kBatchSize) {
+    //     size_t batch_count = std::min(kBatchSize, total_entries - start);
+    //     index_manager_->PrintIndex(start, batch_count);
+    // }
     
     ESP_LOGI(TAG, "Music index initialized successfully");
     return true;

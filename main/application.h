@@ -104,8 +104,10 @@ private:
     // 新增：进入空闲的时间点（微秒）
 	int64_t idle_since_us_ = 0;
 
-	// 新增：是否正在播放音乐（集中控制时钟UI的屏蔽条件）
-	std::atomic<bool> music_playing_{false};
+    // 新增：是否正在播放音乐（集中控制时钟UI的屏蔽条件）
+    std::atomic<bool> music_playing_{false};
+
+    bool assets_applied_ = false;
 
     void OnWakeWordDetected();
     void CheckNewVersion(Ota& ota);

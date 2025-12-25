@@ -82,9 +82,11 @@ void Application::CheckAssetsVersion() {
     Settings settings("assets", true);
     // Check if there is a new assets need to be downloaded
     std::string download_url = settings.GetString("download_url");
+    bool need_apply = !assets_applied_;
 
     if (!download_url.empty()) {
         settings.EraseKey("download_url");
+        need_apply = true;
 
         char message[256];
         snprintf(message, sizeof(message), Lang::Strings::FOUND_NEW_ASSETS, download_url.c_str());
@@ -96,12 +98,16 @@ void Application::CheckAssetsVersion() {
         board.SetPowerSaveMode(false);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
-        bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
-            std::thread([display, progress, speed]() {
+        // Switch UI to built-in resources before unmapping/overwriting the assets partition.
+        assets.RestoreBuiltInTheme();
+
+        bool success = assets.Download(download_url, [this](int progress, size_t speed) -> void {
+            Schedule([progress, speed]() {
+                auto display = Board::GetInstance().GetDisplay();
                 char buffer[32];
-                snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+                snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, static_cast<unsigned>(speed / 1024));
                 display->SetChatMessage("system", buffer);
-            }).detach();
+            });
         });
 
         board.SetPowerSaveMode(true);
@@ -115,7 +121,9 @@ void Application::CheckAssetsVersion() {
     }
 
     // Apply assets
-    assets.Apply();
+    if (need_apply) {
+        assets_applied_ = assets.Apply() || assets_applied_;
+    }
     display->SetChatMessage("system", "");
     display->SetEmotion("microchip_ai");
 }
@@ -397,7 +405,7 @@ void Application::Start() {
     {
         auto& assets = Assets::GetInstance();
         if (assets.partition_valid() && assets.checksum_valid()) {
-            assets.Apply();
+            assets_applied_ = assets.Apply();
         }
     }
 
