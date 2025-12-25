@@ -21,6 +21,7 @@ public:
     virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image);
+    virtual void SetMusicInfo(const char* song_name);
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
     virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80);

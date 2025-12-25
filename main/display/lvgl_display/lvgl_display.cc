@@ -218,6 +218,11 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
     }
 }
 
+void LvglDisplay::SetMusicInfo(const char* song_name) {
+    // 默认实现：将歌名显示在聊天消息区域
+    SetChatMessage("system", song_name != nullptr ? song_name : "");
+}
+
 bool LvglDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
 #if CONFIG_LV_USE_SNAPSHOT
     DisplayLockGuard lock(this);

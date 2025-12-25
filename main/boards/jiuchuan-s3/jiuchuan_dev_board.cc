@@ -23,7 +23,21 @@
 #include <esp_sleep.h>
 #include <esp_timer.h>
 
+// 增加SDMMC主机驱动模式的头文件
+#include "driver/sdmmc_host.h"
+#include "driver/gpio.h"
+#include "esp_vfs_fat.h"
+#include <dirent.h>
+
+// 定义SDMMC模式引脚 (1位模式: CLK, CMD, D0)
+#define SDMMC_CLK_GPIO GPIO_NUM_47 // SD时钟
+#define SDMMC_CMD_GPIO GPIO_NUM_48 // SD命令线
+#define SDMMC_D0_GPIO GPIO_NUM_21  // SD数据线0 (仅使用1位模式)
+// 定义挂载点
+#define MOUNT_POINT "/sdcard"
+
 #define BOARD_TAG "JiuchuanDevBoard"
+
 
 // 九川版AudioCodec：手动控制PA引脚（参考立创版）
 class JiuchuanAudioCodec : public BoxAudioCodec {
@@ -120,6 +134,89 @@ private:
         // 将0-80映射到0-100
         // 公式: 显示音量 = (内部音量 / 80) * 100
         return (internal_volume * 100) / 80;
+    }
+    
+        // SDMMC模式初始化函数
+     void InitializeSDCard()
+     {
+         ESP_LOGI(TAG, "InitializeSDCard");
+         esp_err_t ret;
+
+         // 配置SDMMC主机
+         sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+         host.flags =SDMMC_HOST_FLAG_1BIT;
+
+         // 配置IO映射 (1位模式)
+         sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+         //sdmmc_slot_config_t slot_config;
+         slot_config.clk = SDMMC_CLK_GPIO;
+         slot_config.cmd = SDMMC_CMD_GPIO;
+         slot_config.d0 = SDMMC_D0_GPIO;
+         slot_config.flags =0;
+         slot_config.width =1;
+
+         // 禁用内部上拉 (如果外部已有上拉电阻)
+         slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+
+         // 配置FAT文件系统
+         esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+             .format_if_mount_failed = false,
+             .max_files = 5,
+             .allocation_unit_size = 16 * 1024};
+
+         // 挂载SD卡
+         sdmmc_card_t *card = nullptr; // 显式初始化为nullptr
+         ret = esp_vfs_fat_sdmmc_mount(MOUNT_POINT, &host, &slot_config, &mount_config, &card);
+         if (ret != ESP_OK)
+         {
+             if (ret == ESP_FAIL)
+             {
+                 ESP_LOGE(TAG, "Failed to mount filesystem. "
+                               "If you want the card to be formatted, set format_if_mount_failed = true.");
+             }
+             else
+             {
+                 ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                               "Make sure SD card lines have pull-up resistors in place.",
+                          esp_err_to_name(ret));
+             }
+             return;
+         }
+
+         // 确保card指针有效
+         if (card == nullptr)
+         {
+             ESP_LOGE(TAG, "SD card mount succeeded but card pointer is null!");
+             return;
+         }
+
+         // 打印SD卡信息
+         ESP_LOGI(TAG, "SD card initialized successfully");
+
+         // 安全访问card结构体成员
+         if (card->csd.csd_ver == 0)
+         {
+             ESP_LOGI(TAG, "SD card type: SDHC/SDXC");
+         }
+         else if (card->csd.csd_ver == 1)
+         {
+             ESP_LOGI(TAG, "SD card type: SD 2.0");
+         }
+         else
+         {
+             ESP_LOGI(TAG, "SD card type: SD 1.x");
+         }
+
+         // 计算并打印SD卡容量（使用64位计算）
+         uint64_t card_size = (uint64_t)card->csd.capacity * (uint64_t)card->csd.sector_size / (1024 * 1024);
+         ESP_LOGI(TAG, "SD card size: %" PRIu64 " MB", card_size);
+
+        // 打印块大小
+        ESP_LOGI(TAG, "SD card block size: %u bytes", card->csd.sector_size);
+
+        // 打印频率
+        ESP_LOGI(TAG, "SD card frequency: %u Hz", card->host.max_freq_khz * 1000);
+
     }
     
     void InitializePowerManager() {
@@ -376,6 +473,7 @@ public:
         InitializePowerSaveTimer();
         InitializeButtons();
         InitializeDisplay();
+        InitializeSDCard();// 调用SD卡初始化函数
         GetBacklight()->RestoreBrightness();
 
     #if CONFIG_USE_DEVICE_AEC

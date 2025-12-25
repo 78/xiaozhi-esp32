@@ -49,6 +49,13 @@ void Display::SetChatMessage(const char* role, const char* content) {
     ESP_LOGW(TAG, "     %s", content);
 }
 
+void Display::SetMusicInfo(const char* song_name) {
+    // 默认实现：记录日志，派生类可以覆盖此方法
+    if (song_name != nullptr && strlen(song_name) > 0) {
+        ESP_LOGI(TAG, "SetMusicInfo: %s", song_name);
+    }
+}
+
 void Display::SetTheme(Theme* theme) {
     current_theme_ = theme;
     Settings settings("display", true);

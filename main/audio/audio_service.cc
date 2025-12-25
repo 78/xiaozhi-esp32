@@ -629,6 +629,15 @@ void AudioService::PlaySound(const std::string_view& ogg) {
     }
 }
 
+void AudioService::UpdateOutputTimestamp() {
+    last_output_time_ = std::chrono::steady_clock::now();
+
+    // If the power timer was stopped because both input/output were idle, restart it
+    if (audio_power_timer_ && !esp_timer_is_active(audio_power_timer_)) {
+        esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+    }
+}
+
 bool AudioService::IsIdle() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
     return audio_encode_queue_.empty() && audio_decode_queue_.empty() && audio_playback_queue_.empty() && audio_testing_queue_.empty();

@@ -424,6 +424,12 @@ void EmoteDisplay::SetChatMessage(const char* const role, const char* const cont
     }
 }
 
+void EmoteDisplay::SetMusicInfo(const char* song_name)
+{
+    // 使用 SetChatMessage 实现，显示歌曲名称
+    SetChatMessage("system", song_name);
+}
+
 void EmoteDisplay::SetStatus(const char* const status)
 {
     if (!status) {

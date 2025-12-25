@@ -62,6 +62,63 @@ void McpServer::AddCommonTools() {
             codec->SetOutputVolume(properties["volume"].value<int>());
             return true;
         });
+     // Local music playback (SD card)
+    auto music = board.GetMusic();
+    if (music)
+    {
+        AddTool("self.music.play_song",
+                "播放本地SD卡中的歌曲，不走在线播放。参数：song_name（必填），artist（可选，用于更精确匹配）。",
+                PropertyList({
+                    Property("song_name", kPropertyTypeString),
+                    Property("artist", kPropertyTypeString, std::string(""))
+                }),
+                [music](const PropertyList &properties) -> ReturnValue
+                {
+                    const auto song_name = properties["song_name"].value<std::string>();
+                    std::string artist = properties["artist"].value<std::string>();
+
+                    // 搜索本地索引
+                    std::vector<std::string> matches;
+                    if (!artist.empty())
+                    {
+                        ESP_LOGI(TAG, "Searching local song: %s (artist: %s)", song_name.c_str(), artist.c_str());
+                        matches = music->SearchSdCardMusicWithArtist(song_name, artist);
+                    }
+                    else
+                    {
+                        ESP_LOGI(TAG, "Searching local song: %s", song_name.c_str());
+                        matches = music->SearchSdCardMusic(song_name);
+                    }
+
+                    if (matches.empty())
+                    {
+                        ESP_LOGW(TAG, "No local match for song: %s", song_name.c_str());
+                        return "{\"success\": false, \"message\": \"未找到本地音乐\"}";
+                    }
+
+                    const std::string &path = matches.front();
+                    if (music->PlaySdCardMusic(path))
+                    {
+                        ESP_LOGI(TAG, "Playing local music: %s", path.c_str());
+                        return "{\"success\": true, \"source\": \"local\", \"path\": \"" + path + "\"}";
+                    }
+
+                    ESP_LOGW(TAG, "Failed to play local music: %s", path.c_str());
+                    music->Stop();
+                    return "{\"success\": false, \"message\": \"本地音乐播放失败\"}";
+                });
+
+        AddTool("self.music.stop",
+                "停止当前音乐播放并释放资源。",
+                PropertyList(),
+                [music](const PropertyList &properties) -> ReturnValue
+                {
+                    (void)properties;
+                    music->Stop();
+                    ESP_LOGI(TAG, "Music playback stopped by MCP");
+                    return "{\"success\": true, \"action\": \"stopped\"}";
+                });
+    }
     
     auto backlight = board.GetBacklight();
     if (backlight) {

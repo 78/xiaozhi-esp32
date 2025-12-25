@@ -345,6 +345,17 @@ void Application::StopListening() {
     });
 }
 
+void Application::CloseAudioChannelIfOpened() {
+    if (!protocol_) {
+        return;
+    }
+    Schedule([this]() {
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
+        }
+    });
+}
+
 void Application::Start() {
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
@@ -898,6 +909,93 @@ void Application::SetAecMode(AecMode mode, bool notify) {
     });
 }
 
+// Handle external PCM data (e.g. SD card music playback)
+void Application::AddAudioData(AudioStreamPacket&& packet) {
+    auto codec = Board::GetInstance().GetAudioCodec();
+    if (!codec) {
+        return;
+    }
+
+    if (packet.payload.size() < sizeof(int16_t)) {
+        return;
+    }
+
+    // External PCM playback (e.g. SD card music) is allowed in Idle/Listening.
+    // Music playback is expected to start right after TTS ends (state typically becomes Listening).
+    if (device_state_ != kDeviceStateIdle && device_state_ != kDeviceStateListening) {
+        return;
+    }
+
+    auto resample = [](const std::vector<int16_t>& input, int src_rate, int dst_rate) {
+        std::vector<int16_t> output;
+        if (input.empty() || src_rate <= 0 || dst_rate <= 0) {
+            return output;
+        }
+        if (src_rate == dst_rate) {
+            return input;
+        }
+
+        double ratio = static_cast<double>(dst_rate) / static_cast<double>(src_rate);
+        size_t output_size = std::max<size_t>(1, static_cast<size_t>(input.size() * ratio));
+        output.resize(output_size);
+
+        double step = static_cast<double>(src_rate) / static_cast<double>(dst_rate);
+        double position = 0.0;
+        for (size_t i = 0; i < output_size; ++i) {
+            size_t base_index = static_cast<size_t>(position);
+            if (base_index >= input.size()) {
+                base_index = input.size() - 1;
+            }
+            size_t next_index = std::min(base_index + 1, input.size() - 1);
+            double fraction = position - static_cast<double>(base_index);
+            int current = input[base_index];
+            int next = input[next_index];
+            output[i] = static_cast<int16_t>(current + (next - current) * fraction);
+            position += step;
+        }
+        return output;
+    };
+
+    size_t num_samples = packet.payload.size() / sizeof(int16_t);
+    std::vector<int16_t> pcm_data(num_samples);
+    memcpy(pcm_data.data(), packet.payload.data(), packet.payload.size());
+
+    int src_rate = packet.sample_rate;
+    int dst_rate = codec->output_sample_rate();
+    if (src_rate <= 0 || dst_rate <= 0) {
+        ESP_LOGE(TAG, "Invalid sample rates: %d -> %d", src_rate, dst_rate);
+        return;
+    }
+
+    if (src_rate != dst_rate) {
+        auto converted = resample(pcm_data, src_rate, dst_rate);
+        if (!converted.empty()) {
+            pcm_data = std::move(converted);
+        }
+    }
+
+    if (!codec->output_enabled()) {
+        codec->EnableOutput(true);
+    }
+
+    codec->OutputData(pcm_data);
+    audio_service_.UpdateOutputTimestamp();
+}
+
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+// 设置音乐播放状态
+void Application::SetMusicPlaying(bool on) {
+    bool prev = music_playing_.exchange(on);
+    if (on && !prev) {
+        ESP_LOGI(TAG, "Music state -> playing: clock UI will be suppressed");
+    } else if (!on && prev) {
+        ESP_LOGI(TAG, "Music state -> stopped: clock UI may appear after idle threshold");
+    }
+}
+
+bool Application::IsMusicPlaying() const {
+    return music_playing_.load();
 }
