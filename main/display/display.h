@@ -39,6 +39,9 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+    virtual void SetMusicInfo(const char *song_name);
+    virtual void start() {}
+    virtual void stopFft() {}     // 停止FFT显示，默认为空实现
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
