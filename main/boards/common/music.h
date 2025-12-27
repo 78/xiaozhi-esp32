@@ -24,6 +24,13 @@ public:
     
     // 新增：支持歌手+歌名的搜索方法
     virtual std::vector<std::string> SearchSdCardMusicWithArtist(const std::string& song_name, const std::string& artist = "") = 0;
+
+    // 新增：SD卡多曲目连续播放（播完自动播放下一首）
+    virtual bool PlaySdCardPlaylist(const std::vector<std::string>& file_paths, bool loop = false) = 0;
+
+    // 新增：播放列表控制（上一曲/下一曲）
+    virtual bool NextTrack() = 0;
+    virtual bool PrevTrack() = 0;
 };
 
 #endif // MUSIC_H 

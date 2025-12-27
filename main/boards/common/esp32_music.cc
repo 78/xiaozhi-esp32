@@ -313,6 +313,16 @@ void Esp32Music::DisplayFileError(const std::string& file_path, const std::strin
 void Esp32Music::PlaySdCardAudioStream() {
     ESP_LOGI(TAG, "Starting SD card audio stream playback");
 
+    struct PlayTaskHandleScope {
+        Esp32Music* self;
+        explicit PlayTaskHandleScope(Esp32Music* instance) : self(instance) {
+            self->play_thread_task_handle_.store((void*)xTaskGetCurrentTaskHandle(), std::memory_order_relaxed);
+        }
+        ~PlayTaskHandleScope() {
+            self->play_thread_task_handle_.store(nullptr, std::memory_order_relaxed);
+        }
+    } play_task_handle_scope(this);
+
     // 初始化时间跟踪变量
     current_play_time_ms_ = 0;
     last_frame_time_ms_ = 0;
@@ -361,7 +371,70 @@ void Esp32Music::PlaySdCardAudioStream() {
     bool id3_processed = false;
     int consecutive_decode_failures = 0;
 
+    auto switch_to_track = [&](const std::string& track_path) -> bool {
+        ESP_LOGI(TAG, "Switching to track: %s", track_path.c_str());
+
+        if (!OpenSdCardFile(track_path)) {
+            ESP_LOGW(TAG, "Failed to open track: %s", track_path.c_str());
+            return false;
+        }
+
+        // 更新当前曲目信息
+        current_song_name_ = track_path.substr(track_path.find_last_of("/\\") + 1);
+        song_name_displayed_ = false;
+        playback_started_ = false;
+        stop_listening_requested_ = false;
+
+        // 重置解码/计时状态
+        current_play_time_ms_ = 0;
+        last_frame_time_ms_ = 0;
+        total_frames_decoded_ = 0;
+        id3_processed = false;
+        consecutive_decode_failures = 0;
+        bytes_left = 0;
+        read_ptr = mp3_input_buffer;
+
+        // 重置 MP3 解码器状态，避免跨文件残留
+        if (mp3_decoder_) {
+            MP3FreeDecoder(mp3_decoder_);
+            mp3_decoder_ = nullptr;
+        }
+        mp3_decoder_ = MP3InitDecoder();
+        mp3_decoder_initialized_ = (mp3_decoder_ != nullptr);
+        if (!mp3_decoder_initialized_) {
+            ESP_LOGE(TAG, "Failed to reinitialize MP3 decoder for track switch");
+            is_playing_ = false;
+            return false;
+        }
+
+        return true;
+    };
+
     while (is_playing_) {
+        // 用户请求切歌（上一曲/下一曲）：仅在列表播放下生效
+        int requested_index = playlist_switch_to_index_.exchange(-1, std::memory_order_relaxed);
+        if (requested_index >= 0 && is_playing_.load()) {
+            std::string requested_track;
+            {
+                std::lock_guard<std::mutex> lock(playlist_mutex_);
+                if (playlist_active_ &&
+                    requested_index < static_cast<int>(playlist_paths_.size()) &&
+                    requested_index >= 0) {
+                    playlist_index_ = static_cast<size_t>(requested_index);
+                    requested_track = playlist_paths_[playlist_index_];
+                }
+            }
+
+            if (!requested_track.empty()) {
+                ESP_LOGI(TAG, "Track switch requested: index=%d, path=%s",
+                         requested_index, requested_track.c_str());
+                if (switch_to_track(requested_track)) {
+                    continue;
+                }
+                ESP_LOGW(TAG, "Track switch failed, continue current track");
+            }
+        }
+
         // 统一检查：对话暂停标记 || 非空闲/非聆听状态
         auto &app = Application::GetInstance();
         DeviceState current_state = app.GetDeviceState();
@@ -429,7 +502,35 @@ void Esp32Music::PlaySdCardAudioStream() {
             size_t read_size = fread(mp3_input_buffer + bytes_left, 1, 8192 - bytes_left, sd_file_);
             if (read_size == 0) {
                 if (feof(sd_file_)) {
-                    // 文件读取结束，播放结束
+                    // 文件读取结束：若启用了播放列表，自动切换到下一首
+                    std::string next_track;
+                    size_t max_attempts = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(playlist_mutex_);
+                        max_attempts = playlist_active_ ? playlist_paths_.size() : 0;
+                    }
+
+                    bool switched = false;
+                    if (is_playing_.load() && max_attempts > 0) {
+                        for (size_t attempt = 0; attempt < max_attempts && is_playing_.load(); ++attempt) {
+                            if (!GetNextPlaylistTrack(next_track)) {
+                                break;
+                            }
+
+                            ESP_LOGI(TAG, "Track finished, switching to next: %s", next_track.c_str());
+                            if (switch_to_track(next_track)) {
+                                switched = true;
+                                break;
+                            }
+                            ESP_LOGW(TAG, "Failed to switch to next track: %s, skipping", next_track.c_str());
+                        }
+                    }
+
+                    if (switched) {
+                        continue;
+                    }
+
+                    // 文件读取结束，播放结束（无下一首或切换失败）
                     ESP_LOGI(TAG, "SD card playback finished, total played: %d bytes", total_played);
                     break;
                 } else {
@@ -657,66 +758,198 @@ void Esp32Music::CloseSdCardFile() {
     
 }
 
+void Esp32Music::ClearPlaylist() {
+    std::lock_guard<std::mutex> lock(playlist_mutex_);
+    playlist_paths_.clear();
+    playlist_index_ = 0;
+    playlist_loop_ = false;
+    playlist_active_ = false;
+    playlist_switch_to_index_.store(-1, std::memory_order_relaxed);
+}
+
+bool Esp32Music::GetNextPlaylistTrack(std::string& next_path) {
+    std::lock_guard<std::mutex> lock(playlist_mutex_);
+    if (!playlist_active_ || playlist_paths_.empty()) {
+        return false;
+    }
+
+    size_t next_index = playlist_index_ + 1;
+    if (next_index < playlist_paths_.size()) {
+        playlist_index_ = next_index;
+        next_path = playlist_paths_[playlist_index_];
+        return true;
+    }
+
+    if (playlist_loop_) {
+        playlist_index_ = 0;
+        next_path = playlist_paths_[playlist_index_];
+        return true;
+    }
+
+    playlist_paths_.clear();
+    playlist_index_ = 0;
+    playlist_loop_ = false;
+    playlist_active_ = false;
+    return false;
+}
+
+bool Esp32Music::NextTrack() {
+    if (!is_playing_.load()) {
+        ESP_LOGW(TAG, "NextTrack: not playing");
+        return false;
+    }
+
+    int target_index = -1;
+    {
+        std::lock_guard<std::mutex> lock(playlist_mutex_);
+        if (!playlist_active_ || playlist_paths_.empty()) {
+            ESP_LOGW(TAG, "NextTrack: playlist not active");
+            return false;
+        }
+
+        size_t next_index = playlist_index_ + 1;
+        if (next_index < playlist_paths_.size()) {
+            target_index = static_cast<int>(next_index);
+        } else if (playlist_loop_) {
+            target_index = 0;
+        } else {
+            ESP_LOGW(TAG, "NextTrack: already at last track");
+            return false;
+        }
+    }
+
+    playlist_switch_to_index_.store(target_index, std::memory_order_relaxed);
+    ESP_LOGI(TAG, "NextTrack requested, target index=%d", target_index);
+    return true;
+}
+
+bool Esp32Music::PrevTrack() {
+    if (!is_playing_.load()) {
+        ESP_LOGW(TAG, "PrevTrack: not playing");
+        return false;
+    }
+
+    int target_index = -1;
+    {
+        std::lock_guard<std::mutex> lock(playlist_mutex_);
+        if (!playlist_active_ || playlist_paths_.empty()) {
+            ESP_LOGW(TAG, "PrevTrack: playlist not active");
+            return false;
+        }
+
+        if (playlist_index_ > 0) {
+            target_index = static_cast<int>(playlist_index_ - 1);
+        } else if (playlist_loop_) {
+            target_index = static_cast<int>(playlist_paths_.size() - 1);
+        } else {
+            ESP_LOGW(TAG, "PrevTrack: already at first track");
+            return false;
+        }
+    }
+
+    playlist_switch_to_index_.store(target_index, std::memory_order_relaxed);
+    ESP_LOGI(TAG, "PrevTrack requested, target index=%d", target_index);
+    return true;
+}
+
+bool Esp32Music::StartSdCardPlayback(const std::string& file_path) {
+    if (is_playing_.load()) {
+        ESP_LOGW(TAG, "Music is already playing");
+        return false;
+    }
+    playback_started_ = false;
+    paused_for_dialog_ = false;
+    user_wakeup_pause_ = false;
+    pause_log_emitted_ = false;
+    stop_listening_requested_ = false;
+
+    // 注意：不在这里控制设备状态
+    // 让 AI 自然地完成回复，播放线程会在状态变为 idle 时自动开始
+    // 这样避免了与 Protocol 的状态管理冲突
+
+    if (!OpenSdCardFile(file_path)) {
+        ESP_LOGE(TAG, "Failed to open SD card file: %s", file_path.c_str());
+        // 新增：文件打开失败时清理资源
+        CleanupOnPlaybackFailure();
+        return false;
+    }
+
+    // 保存歌名用于后续显示
+    current_song_name_ = file_path.substr(file_path.find_last_of("/\\") + 1);
+
+    // 重置歌名显示标志，确保每次播放都会显示歌名
+    song_name_displayed_ = false;
+
+    // 清空之前的歌词数据，因为SD卡音乐没有歌词
+    {
+        std::lock_guard<std::mutex> lock(lyrics_mutex_);
+        lyrics_.clear();
+        current_lyric_index_ = -1;
+    }
+
+    // 配置线程栈大小以避免栈溢出
+    esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
+    cfg.stack_size = 16384; // 16KB 栈大小
+    cfg.prio = 5;          // 中等优先级
+    cfg.thread_name = "sd_audio_stream";
+    esp_pthread_set_cfg(&cfg);
+
+    // 确保之前的播放线程已经结束
+    if (play_thread_.joinable()) {
+        ESP_LOGW(TAG, "Previous play thread still running, waiting for it to finish");
+        is_playing_ = false;
+        play_thread_.join();
+        ESP_LOGI(TAG, "Previous play thread finished");
+    }
+
+    // 开始播放线程
+    is_playing_ = true;
+    play_thread_ = std::thread(&Esp32Music::PlaySdCardAudioStream, this);
+
+    // 新增：上报音乐开始播放（SD卡），抑制时钟UI
+    Application::GetInstance().SetMusicPlaying(true);
+
+    ESP_LOGI(TAG, "SD card streaming thread started successfully");
+    return true;
+}
+
 // 播放 SD 卡中的音乐
 bool Esp32Music::PlaySdCardMusic(const std::string& file_path) {
- 	if (is_playing_.load()) {
- 		ESP_LOGW(TAG, "Music is already playing");
- 		return false;
- 	}
-    playback_started_ = false;
-	paused_for_dialog_ = false;
-	user_wakeup_pause_ = false;
-	pause_log_emitted_ = false;
-	stop_listening_requested_ = false;
+    if (is_playing_.load()) {
+        ESP_LOGW(TAG, "Music is already playing");
+        return false;
+    }
+    ClearPlaylist();
+    return StartSdCardPlayback(file_path);
+}
 
- 	// 注意：不在这里控制设备状态
- 	// 让 AI 自然地完成回复，播放线程会在状态变为 idle 时自动开始
- 	// 这样避免了与 Protocol 的状态管理冲突
+bool Esp32Music::PlaySdCardPlaylist(const std::vector<std::string>& file_paths, bool loop) {
+    if (file_paths.empty()) {
+        ESP_LOGW(TAG, "Playlist is empty");
+        return false;
+    }
 
-	if (!OpenSdCardFile(file_path)) {
-		ESP_LOGE(TAG, "Failed to open SD card file: %s", file_path.c_str());
-		// 新增：文件打开失败时清理资源
-		CleanupOnPlaybackFailure();
-		return false;
-	}
+    // 若当前正在播放，先停止并等待线程退出
+    if (is_playing_.load()) {
+        Stop();
+    }
 
-	// 保存歌名用于后续显示
-	current_song_name_ = file_path.substr(file_path.find_last_of("/\\") + 1);
-	
-	// 重置歌名显示标志，确保每次播放都会显示歌名
-	song_name_displayed_ = false;
+    {
+        std::lock_guard<std::mutex> lock(playlist_mutex_);
+        playlist_paths_ = file_paths;
+        playlist_index_ = 0;
+        playlist_loop_ = loop;
+        playlist_active_ = true;
+    }
 
-	// 清空之前的歌词数据，因为SD卡音乐没有歌词
-	{
-		std::lock_guard<std::mutex> lock(lyrics_mutex_);
-		lyrics_.clear();
-		current_lyric_index_ = -1;
-	}
+    // 开始播放第一首
+    if (!StartSdCardPlayback(file_paths.front())) {
+        ClearPlaylist();
+        return false;
+    }
 
-	// 配置线程栈大小以避免栈溢出
-	esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-	cfg.stack_size = 16384; // 16KB 栈大小
-	cfg.prio = 5;          // 中等优先级
-	cfg.thread_name = "sd_audio_stream";
-	esp_pthread_set_cfg(&cfg);
-
-	// 确保之前的播放线程已经结束
-	if (play_thread_.joinable()) {
-		ESP_LOGW(TAG, "Previous play thread still running, waiting for it to finish");
-		is_playing_ = false;
-		play_thread_.join();
-		ESP_LOGI(TAG, "Previous play thread finished");
-	}
-
-	// 开始播放线程
-	is_playing_ = true;
-	play_thread_ = std::thread(&Esp32Music::PlaySdCardAudioStream, this);
-
-	// 新增：上报音乐开始播放（SD卡），抑制时钟UI
-	Application::GetInstance().SetMusicPlaying(true);
-
-	ESP_LOGI(TAG, "SD card streaming thread started successfully");
-	return true;
+    ESP_LOGI(TAG, "Playlist started (count=%u, loop=%d)", (unsigned int)file_paths.size(), loop ? 1 : 0);
+    return true;
 }
 
 // 在Esp32Music类中添加成员函数，用于搜索SD卡中的MP3文件
@@ -1039,7 +1272,31 @@ bool Esp32Music::Play() {
 bool Esp32Music::Stop() {
     // 停止 SD 卡音乐播放
     is_playing_ = false;
+
+    // 等待播放线程退出，避免 Stop() 与 fread/fseek/feof 并发导致竞态（关闭文件句柄后仍被使用）
+    if (play_thread_.joinable()) {
+        void* current_task = (void*)xTaskGetCurrentTaskHandle();
+        void* play_task = play_thread_task_handle_.load(std::memory_order_relaxed);
+        if (play_task != nullptr && play_task == current_task) {
+            ESP_LOGW(TAG, "Stop called from playback task, skip join/cleanup");
+            ClearPlaylist();
+            return true;
+        }
+
+        ESP_LOGI(TAG, "Waiting for SD playback thread to stop...");
+        try {
+            play_thread_.join();
+        } catch (const std::exception& e) {
+            // If join fails, do not close the file handle here; let the playback thread clean up.
+            ESP_LOGW(TAG, "Exception while joining play_thread: %s", e.what());
+            ClearPlaylist();
+            return true;
+        }
+    }
+
+    ClearPlaylist();
     CloseSdCardFile();
+    Application::GetInstance().SetMusicPlaying(false);
     ESP_LOGI(TAG, "Stop called");
     return true;
 }

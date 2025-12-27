@@ -7,6 +7,7 @@
 #include <esp_log.h>
 #include <esp_app_desc.h>
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <esp_pthread.h>
 
@@ -67,15 +68,32 @@ void McpServer::AddCommonTools() {
     if (music)
     {
         AddTool("self.music.play_song",
-                "播放本地SD卡中的歌曲，不走在线播放。参数：song_name（必填），artist（可选，用于更精确匹配）。",
+                "播放本地SD卡音乐（不走在线播放）。参数：song_name（可选；为空/不传=播放全部），artist（可选；用于更精确匹配），continuous（可选；song_name为空时会自动视为true），loop（可选；循环播放，仅continuous生效）。",
                 PropertyList({
-                    Property("song_name", kPropertyTypeString),
-                    Property("artist", kPropertyTypeString, std::string(""))
+                    Property("song_name", kPropertyTypeString, std::string("")),
+                    Property("artist", kPropertyTypeString, std::string("")),
+                    Property("continuous", kPropertyTypeBoolean, false),
+                    Property("loop", kPropertyTypeBoolean, false)
                 }),
                 [music](const PropertyList &properties) -> ReturnValue
                 {
-                    const auto song_name = properties["song_name"].value<std::string>();
+                    std::string song_name = properties["song_name"].value<std::string>();
                     std::string artist = properties["artist"].value<std::string>();
+                    bool continuous = properties["continuous"].value<bool>();
+                    bool loop = properties["loop"].value<bool>();
+
+                    auto is_blank = [](const std::string& s) -> bool {
+                        return std::all_of(s.begin(), s.end(), [](unsigned char ch) {
+                            return std::isspace(ch) != 0;
+                        });
+                    };
+
+                    // song_name 为空/不传：认为用户要“播放本地音乐”（连续播放）
+                    if (song_name.empty() || is_blank(song_name)) {
+                        song_name.clear();
+                        continuous = true;
+                        ESP_LOGI(TAG, "No song_name provided, playing all local music as playlist");
+                    }
 
                     // 搜索本地索引
                     std::vector<std::string> matches;
@@ -96,14 +114,22 @@ void McpServer::AddCommonTools() {
                         return "{\"success\": false, \"message\": \"未找到本地音乐\"}";
                     }
 
-                    const std::string &path = matches.front();
-                    if (music->PlaySdCardMusic(path))
-                    {
-                        ESP_LOGI(TAG, "Playing local music: %s", path.c_str());
-                        return "{\"success\": true, \"source\": \"local\", \"path\": \"" + path + "\"}";
+                    const std::string &first_path = matches.front();
+                    if (continuous) {
+                        if (music->PlaySdCardPlaylist(matches, loop)) {
+                            ESP_LOGI(TAG, "Playing local playlist, count=%u", (unsigned int)matches.size());
+                            return "{\"success\": true, \"source\": \"local\", \"mode\": \"playlist\", \"count\": " +
+                                   std::to_string(matches.size()) + "}";
+                        }
+                    } else {
+                        if (music->PlaySdCardMusic(first_path))
+                        {
+                            ESP_LOGI(TAG, "Playing local music: %s", first_path.c_str());
+                            return "{\"success\": true, \"source\": \"local\", \"path\": \"" + first_path + "\"}";
+                        }
                     }
 
-                    ESP_LOGW(TAG, "Failed to play local music: %s", path.c_str());
+                    ESP_LOGW(TAG, "Failed to play local music: %s", first_path.c_str());
                     music->Stop();
                     return "{\"success\": false, \"message\": \"本地音乐播放失败\"}";
                 });
@@ -117,6 +143,32 @@ void McpServer::AddCommonTools() {
                     music->Stop();
                     ESP_LOGI(TAG, "Music playback stopped by MCP");
                     return "{\"success\": true, \"action\": \"stopped\"}";
+                });
+
+        AddTool("self.music.next",
+                "播放下一曲（仅本地连续播放/列表播放时有效）。",
+                PropertyList(),
+                [music](const PropertyList &properties) -> ReturnValue
+                {
+                    (void)properties;
+                    if (music->NextTrack()) {
+                        ESP_LOGI(TAG, "Next track requested by MCP");
+                        return "{\"success\": true, \"action\": \"next\"}";
+                    }
+                    return "{\"success\": false, \"message\": \"当前没有下一曲或未处于列表播放\"}";
+                });
+
+        AddTool("self.music.prev",
+                "播放上一曲（仅本地连续播放/列表播放时有效）。",
+                PropertyList(),
+                [music](const PropertyList &properties) -> ReturnValue
+                {
+                    (void)properties;
+                    if (music->PrevTrack()) {
+                        ESP_LOGI(TAG, "Previous track requested by MCP");
+                        return "{\"success\": true, \"action\": \"prev\"}";
+                    }
+                    return "{\"success\": false, \"message\": \"当前没有上一曲或未处于列表播放\"}";
                 });
     }
     

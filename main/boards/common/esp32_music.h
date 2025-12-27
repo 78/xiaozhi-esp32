@@ -47,6 +47,7 @@ private:
     std::atomic<bool> is_playing_;
     std::atomic<bool> is_downloading_;
     std::thread play_thread_;
+    std::atomic<void*> play_thread_task_handle_{nullptr};  // FreeRTOS TaskHandle_t for play_thread_ (set inside thread)
     std::thread download_thread_;
     int64_t current_play_time_ms_;  // 当前播放时间(毫秒)
     int64_t last_frame_time_ms_;    // 上一帧的时间戳
@@ -91,6 +92,18 @@ private:
     void PlaySdCardAudioStream();
     void CloseSdCardFile();
 
+    // 新增：播放列表/连续播放
+    bool StartSdCardPlayback(const std::string& file_path);
+    bool GetNextPlaylistTrack(std::string& next_path);
+    void ClearPlaylist();
+
+    std::mutex playlist_mutex_;
+    std::vector<std::string> playlist_paths_;
+    size_t playlist_index_ = 0;
+    bool playlist_loop_ = false;
+    bool playlist_active_ = false;
+    std::atomic<int> playlist_switch_to_index_{-1};
+
     // 文件验证
     bool ValidateMP3File(const std::string& file_path);
     void DisplayFileError(const std::string& file_path, const std::string& error_msg);
@@ -133,6 +146,12 @@ public:
     
     // 新增：支持歌手+歌名的搜索方法
     virtual std::vector<std::string> SearchSdCardMusicWithArtist(const std::string& song_name, const std::string& artist = "") override;
+
+    // 新增：SD卡多曲目连续播放（播完自动播放下一首）
+    virtual bool PlaySdCardPlaylist(const std::vector<std::string>& file_paths, bool loop = false) override;
+
+    virtual bool NextTrack() override;
+    virtual bool PrevTrack() override;
 };
 
 #endif // ESP32_MUSIC_H
