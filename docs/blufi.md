@@ -17,15 +17,15 @@ BluFi
 1) 手机端通过 BluFi（如官方 EspBlufi App 或自研客户端）连接设备，发送 Wi‑Fi SSID/密码。
 2) 设备侧在 `ESP_BLUFI_EVENT_REQ_CONNECT_TO_AP` 中将凭据写入 `SsidManager`（存储到 NVS，属于 `esp-wifi-connect` 组件）。
 3) 随后启动 `WifiStation` 扫描并连接；状态通过 BluFi 返回。
-4) 连接成功后当前固件会延时 1 秒并重启，使主应用在下次启动时直接使用新 Wi‑Fi；失败则返回失败状态。
+4) 配网成功后设备会自动连接新 Wi‑Fi；失败则返回失败状态。
 
 ## 使用步骤
 
 1. 配置：在 menuconfig 开启 `Esp Blufi`。编译并烧录固件。
 2. 触发配网：设备首次启动且没有已保存的 Wi‑Fi 时会自动进入配网。
-3. 手机端操作：打开 EspBlufi App（或其他 BluFi 客户端），搜索并连接设备，按提示输入 Wi‑Fi SSID/密码并发送。
+3. 手机端操作：打开 EspBlufi App（或其他 BluFi 客户端），搜索并连接设备，可以选择是否加密，按提示输入 Wi‑Fi SSID/密码并发送。
 4. 观察结果：
-    - 成功：BluFi 报告连接成功，设备自动使用新的 Wi‑Fi。
+    - 成功：BluFi 报告连接成功，设备自动连接 Wi‑Fi。
     - 失败：BluFi 返回失败状态，可重新发送或检查路由器。
 
 ## 注意事项
