@@ -155,13 +155,13 @@ const char* Ml307Board::GetNetworkStateIcon() {
     int csq = modem_->GetCsq();
     if (csq == -1) {
         return FONT_AWESOME_SIGNAL_OFF;
-    } else if (csq >= 0 && csq <= 14) {
+    } else if (csq >= 0 && csq <= 9) {
         return FONT_AWESOME_SIGNAL_WEAK;
-    } else if (csq >= 15 && csq <= 19) {
+    } else if (csq >= 10 && csq <= 14) {
         return FONT_AWESOME_SIGNAL_FAIR;
-    } else if (csq >= 20 && csq <= 24) {
+    } else if (csq >= 15 && csq <= 19) {
         return FONT_AWESOME_SIGNAL_GOOD;
-    } else if (csq >= 25 && csq <= 31) {
+    } else if (csq >= 20 && csq <= 31) {
         return FONT_AWESOME_SIGNAL_STRONG;
     }
 
