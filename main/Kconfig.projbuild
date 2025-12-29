@@ -118,6 +118,12 @@ choice
         bool "Serbian"
 endchoice
 
+config USE_ERA_SMART_HOME
+    bool "Enable E-Ra Smart Home Control"
+    default n
+    help
+        Enable E-Ra Smart Home control features.
+
 choice BOARD_TYPE
     prompt "Board Type"
     default BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -741,6 +747,12 @@ menu "Camera Configuration"
 endmenu
 
 menu "Battery Configuration"
+    config ENABLE_BATTERY_DISPLAY
+        bool "Enable Battery Display"
+        default y
+        help
+            Enable or disable battery level display on the screen.
+
     config BATTERY_ADC_GPIO
         int "Battery ADC GPIO"
         default 14

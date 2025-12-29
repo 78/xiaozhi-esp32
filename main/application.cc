@@ -723,8 +723,8 @@ void Application::OnWakeWordDetected()
 
         auto wake_word = audio_service_.GetLastWakeWord();
         ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_SEND_WAKE_WORD_DATA
-        // Encode and send the wake word data to the server
+#if 0 // CONFIG_SEND_WAKE_WORD_DATA
+      // Encode and send the wake word data to the server
         while (auto packet = audio_service_.PopWakeWordPacket())
         {
             protocol_->SendAudio(std::move(packet));

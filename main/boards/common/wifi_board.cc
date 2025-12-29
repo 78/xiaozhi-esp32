@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "sdkconfig.h"
 #include "era_iot_client.h"
 
 #include "display.h"
@@ -343,6 +344,7 @@ std::string WifiBoard::GetDeviceStatusJson()
     }
 
     // Era IoT
+#ifdef CONFIG_USE_ERA_SMART_HOME
     auto GetEraClient = []() -> EraIotClient &
     {
         static EraIotClient era_client;
@@ -368,6 +370,7 @@ std::string WifiBoard::GetDeviceStatusJson()
         }
         cJSON_AddItemToObject(root, "iot", iot);
     }
+#endif
 
     auto json_str = cJSON_PrintUnformatted(root);
     std::string json(json_str);

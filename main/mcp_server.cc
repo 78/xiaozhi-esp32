@@ -4,6 +4,7 @@
  */
 
 #include "mcp_server.h"
+#include "sdkconfig.h"
 #include "era_iot_client.h"
 #include <esp_log.h>
 #include <esp_app_desc.h>
@@ -288,6 +289,7 @@ void McpServer::AddCommonTools()
                 });
     }
 
+#ifdef CONFIG_USE_ERA_SMART_HOME
     // E-Ra IoT device control tools helper function
     auto GetEraClient = []() -> EraIotClient &
     {
@@ -302,7 +304,7 @@ void McpServer::AddCommonTools()
     };
 
     AddTool("self.era_iot.get_device_status",
-            "Get the current status of the E-Ra IoT device (3-button switch). Returns the status (ON/OFF) for each of the 3 switches. Use this to check which switches are currently on or off. If the user asks about 'lights' or 'switches' without specifying, check this first.",
+            "Get the current status of the MAIN E-Ra IoT device. Use this tool when the user mentions 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot', or asks to check the status of any connected device. This shows the current state (ON/OFF). If the user asks about 'switch 1', 'switch 2', or 'switch 3', DO NOT use this tool, use the specific switch tools instead.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {
@@ -311,58 +313,32 @@ void McpServer::AddCommonTools()
                 {
                     throw std::runtime_error("E-Ra IoT client not initialized");
                 }
-
-                cJSON *json = cJSON_CreateObject();
-                cJSON_AddStringToObject(json, "platform", "E-Ra IoT");
-
-                cJSON *switches = cJSON_CreateArray();
-                for (int i = 1; i <= 3; i++)
+                std::string current_value = era_client.GetCurrentValue("150632");
+                if (current_value.empty())
                 {
-                    std::string val = era_client.GetSwitchStatus(i);
-                    cJSON *sw = cJSON_CreateObject();
-                    cJSON_AddNumberToObject(sw, "index", i);
-                    cJSON_AddStringToObject(sw, "status", (val == "1" || val == "true" || val == "on" || val == "ON") ? "ON" : "OFF");
-                    cJSON_AddItemToArray(switches, sw);
+                    throw std::runtime_error("Failed to get device status from E-Ra");
                 }
-                cJSON_AddItemToObject(json, "switches", switches);
+
+                // Create JSON response with device status
+                cJSON *json = cJSON_CreateObject();
+                cJSON_AddStringToObject(json, "config_id", "150632");
+                cJSON_AddStringToObject(json, "current_value", current_value.c_str());
+
+                // Interpret the value (assuming 0=OFF, 1=ON based on typical IoT logic)
+                std::string status = "OFF";
+                if (current_value == "1" || current_value == "true" || current_value == "on" || current_value == "ON")
+                {
+                    status = "ON";
+                }
+                cJSON_AddStringToObject(json, "device_status", status.c_str());
+                cJSON_AddStringToObject(json, "platform", "E-Ra IoT");
 
                 return json;
             });
 
-    AddTool("self.era_iot.turn_switch_on",
-            "Turn ON a specific switch (1, 2, or 3) on the E-Ra IoT device. If the user says 'turn on the light' or 'turn on switch 1', use this.",
-            PropertyList({Property("switch_index", kPropertyTypeInteger, 1, 3)}),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("Client not initialized");
-                int index = properties["switch_index"].value<int>();
-                if (era_client.TurnSwitchOn(index))
-                {
-                    return "Switch " + std::to_string(index) + " turned ON";
-                }
-                return "Failed to turn ON switch " + std::to_string(index);
-            });
-
-    AddTool("self.era_iot.turn_switch_off",
-            "Turn OFF a specific switch (1, 2, or 3) on the E-Ra IoT device. If the user says 'turn off the light' or 'turn off switch 1', use this.",
-            PropertyList({Property("switch_index", kPropertyTypeInteger, 1, 3)}),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("Client not initialized");
-                int index = properties["switch_index"].value<int>();
-                if (era_client.TurnSwitchOff(index))
-                {
-                    return "Switch " + std::to_string(index) + " turned OFF";
-                }
-                return "Failed to turn OFF switch " + std::to_string(index);
-            });
-
+    /*
     AddTool("self.era_iot.turn_device_on",
-            "Turn ON the E-Ra IoT device (Switch 1). Legacy support.",
+            "Turn ON the MAIN E-Ra IoT device. Use this tool when user requests to turn on, enable, or activate the 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot'.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {
@@ -380,7 +356,7 @@ void McpServer::AddCommonTools()
             });
 
     AddTool("self.era_iot.turn_device_off",
-            "Turn OFF the E-Ra IoT device (Switch 1). Legacy support.",
+            "Turn OFF the MAIN E-Ra IoT device. Use this tool when user requests to turn off, disable, or deactivate the 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot'.",
             PropertyList(),
             [GetEraClient](const PropertyList &properties) -> ReturnValue
             {
@@ -395,6 +371,130 @@ void McpServer::AddCommonTools()
                     throw std::runtime_error("Failed to turn off E-Ra IoT device");
                 }
                 return "Device turned OFF successfully via E-Ra IoT platform";
+            });
+    */
+
+    // Switch 1 Tools
+    AddTool("self.era_iot.switch_1.turn_on",
+            "Turn ON Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOn(1))
+                    throw std::runtime_error("Failed to turn on Switch 1");
+                return "Switch 1 turned ON";
+            });
+
+    AddTool("self.era_iot.switch_1.turn_off",
+            "Turn OFF Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOff(1))
+                    throw std::runtime_error("Failed to turn off Switch 1");
+                return "Switch 1 turned OFF";
+            });
+
+    AddTool("self.era_iot.switch_1.get_status",
+            "Get the status of Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                std::string status = era_client.GetSwitchStatus(1);
+                if (status.empty())
+                    throw std::runtime_error("Failed to get Switch 1 status");
+                return "Switch 1 status: " + status;
+            });
+
+    // Switch 2 Tools
+    AddTool("self.era_iot.switch_2.turn_on",
+            "Turn ON Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOn(2))
+                    throw std::runtime_error("Failed to turn on Switch 2");
+                return "Switch 2 turned ON";
+            });
+
+    AddTool("self.era_iot.switch_2.turn_off",
+            "Turn OFF Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOff(2))
+                    throw std::runtime_error("Failed to turn off Switch 2");
+                return "Switch 2 turned OFF";
+            });
+
+    AddTool("self.era_iot.switch_2.get_status",
+            "Get the status of Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                std::string status = era_client.GetSwitchStatus(2);
+                if (status.empty())
+                    throw std::runtime_error("Failed to get Switch 2 status");
+                return "Switch 2 status: " + status;
+            });
+
+    // Switch 3 Tools
+    AddTool("self.era_iot.switch_3.turn_on",
+            "Turn ON Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOn(3))
+                    throw std::runtime_error("Failed to turn on Switch 3");
+                return "Switch 3 turned ON";
+            });
+
+    AddTool("self.era_iot.switch_3.turn_off",
+            "Turn OFF Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                if (!era_client.TurnSwitchOff(3))
+                    throw std::runtime_error("Failed to turn off Switch 3");
+                return "Switch 3 turned OFF";
+            });
+
+    AddTool("self.era_iot.switch_3.get_status",
+            "Get the status of Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
+            PropertyList(),
+            [GetEraClient](const PropertyList &properties) -> ReturnValue
+            {
+                auto &era_client = GetEraClient();
+                if (!era_client.IsInitialized())
+                    throw std::runtime_error("E-Ra IoT client not initialized");
+                std::string status = era_client.GetSwitchStatus(3);
+                if (status.empty())
+                    throw std::runtime_error("Failed to get Switch 3 status");
+                return "Switch 3 status: " + status;
             });
 
     AddTool("self.era_iot.trigger_custom_action",
@@ -412,13 +512,14 @@ void McpServer::AddCommonTools()
                 {
                     throw std::runtime_error("Action key cannot be empty");
                 }
-                bool success = era_client.TriggerAction(action_key);
+                bool success = era_client.TriggerAction(action_key, 1);
                 if (!success)
                 {
                     throw std::runtime_error("Failed to trigger action: " + action_key);
                 }
                 return "Action triggered successfully: " + action_key;
             });
+#endif
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());

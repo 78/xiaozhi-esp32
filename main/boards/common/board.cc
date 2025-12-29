@@ -74,8 +74,8 @@ bool Board::GetBatteryLevel(int &level, bool &charging, bool &discharging)
         ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 
         adc_oneshot_chan_cfg_t config = {
-            .bitwidth = ADC_BITWIDTH_DEFAULT,
             .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
 
         adc_channel_t channel;
@@ -84,20 +84,21 @@ bool Board::GetBatteryLevel(int &level, bool &charging, bool &discharging)
         {
             ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, channel, &config));
 
+#if CONFIG_IDF_TARGET_ESP32
+            adc_cali_line_fitting_config_t cali_config = {
+                .unit_id = unit_id,
+                .atten = ADC_ATTEN_DB_12,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            adc_cali_create_scheme_line_fitting(&cali_config, &adc_cali_handle);
+#else
             adc_cali_curve_fitting_config_t cali_config = {
                 .unit_id = unit_id,
                 .atten = ADC_ATTEN_DB_12,
                 .bitwidth = ADC_BITWIDTH_DEFAULT,
             };
-            if (adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle) != ESP_OK)
-            {
-                adc_cali_line_fitting_config_t line_config = {
-                    .unit_id = unit_id,
-                    .atten = ADC_ATTEN_DB_12,
-                    .bitwidth = ADC_BITWIDTH_DEFAULT,
-                };
-                adc_cali_create_scheme_line_fitting(&line_config, &adc_cali_handle);
-            }
+            adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle);
+#endif
             initialized = true;
         }
         else

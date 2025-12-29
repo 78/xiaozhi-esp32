@@ -18,21 +18,22 @@ LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-    int width, int height, bool mirror_x, bool mirror_y)
-    : panel_io_(panel_io), panel_(panel) {
+                         int width, int height, bool mirror_x, bool mirror_y)
+    : panel_io_(panel_io), panel_(panel)
+{
     width_ = width;
     height_ = height;
 
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_1);
-    
+
     auto dark_theme = new LvglTheme("dark");
     dark_theme->set_text_font(text_font);
     dark_theme->set_icon_font(icon_font);
     dark_theme->set_large_icon_font(large_icon_font);
 
-    auto& theme_manager = LvglThemeManager::GetInstance();
+    auto &theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("dark", dark_theme);
     current_theme_ = dark_theme;
 
@@ -71,52 +72,67 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     };
 
     display_ = lvgl_port_add_disp(&display_cfg);
-    if (display_ == nullptr) {
+    if (display_ == nullptr)
+    {
         ESP_LOGE(TAG, "Failed to add display");
         return;
     }
 
-    if (height_ == 64) {
+    if (height_ == 64)
+    {
         SetupUI_128x64();
-    } else {
+    }
+    else
+    {
         SetupUI_128x32();
     }
 }
 
-OledDisplay::~OledDisplay() {
-    if (content_ != nullptr) {
+OledDisplay::~OledDisplay()
+{
+    if (content_ != nullptr)
+    {
         lv_obj_del(content_);
     }
-    if (status_bar_ != nullptr) {
+    if (status_bar_ != nullptr)
+    {
         lv_obj_del(status_bar_);
     }
-    if (side_bar_ != nullptr) {
+    if (side_bar_ != nullptr)
+    {
         lv_obj_del(side_bar_);
     }
-    if (container_ != nullptr) {
+    if (container_ != nullptr)
+    {
         lv_obj_del(container_);
     }
 
-    if (panel_ != nullptr) {
+    if (panel_ != nullptr)
+    {
         esp_lcd_panel_del(panel_);
     }
-    if (panel_io_ != nullptr) {
+    if (panel_io_ != nullptr)
+    {
         esp_lcd_panel_io_del(panel_io_);
     }
     lvgl_port_deinit();
 }
 
-bool OledDisplay::Lock(int timeout_ms) {
+bool OledDisplay::Lock(int timeout_ms)
+{
     return lvgl_port_lock(timeout_ms);
 }
 
-void OledDisplay::Unlock() {
+void OledDisplay::Unlock()
+{
     lvgl_port_unlock();
 }
 
-void OledDisplay::SetChatMessage(const char* role, const char* content) {
+void OledDisplay::SetChatMessage(const char *role, const char *content)
+{
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
+    if (chat_message_label_ == nullptr)
+    {
         return;
     }
 
@@ -124,22 +140,29 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
     std::string content_str = content;
     std::replace(content_str.begin(), content_str.end(), '\n', ' ');
 
-    if (content_right_ == nullptr) {
+    if (content_right_ == nullptr)
+    {
         lv_label_set_text(chat_message_label_, content_str.c_str());
-    } else {
-        if (content == nullptr || content[0] == '\0') {
+    }
+    else
+    {
+        if (content == nullptr || content[0] == '\0')
+        {
             lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
-        } else {
+        }
+        else
+        {
             lv_label_set_text(chat_message_label_, content_str.c_str());
             lv_obj_remove_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
         }
     }
 }
 
-void OledDisplay::SetupUI_128x64() {
+void OledDisplay::SetupUI_128x64()
+{
     DisplayLockGuard lock(this);
 
-    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    auto lvgl_theme = static_cast<LvglTheme *>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
@@ -175,7 +198,7 @@ void OledDisplay::SetupUI_128x64() {
 
     // 创建左侧固定宽度的容器
     content_left_ = lv_obj_create(content_);
-    lv_obj_set_size(content_left_, 32, LV_SIZE_CONTENT);  // 固定宽度32像素
+    lv_obj_set_size(content_left_, 32, LV_SIZE_CONTENT); // 固定宽度32像素
     lv_obj_set_style_pad_all(content_left_, 0, 0);
     lv_obj_set_style_border_width(content_left_, 0, 0);
 
@@ -233,6 +256,7 @@ void OledDisplay::SetupUI_128x64() {
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, icon_font, 0);
 
+#ifdef CONFIG_ENABLE_BATTERY_DISPLAY
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, icon_font, 0);
@@ -248,12 +272,14 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
 
-void OledDisplay::SetupUI_128x32() {
+void OledDisplay::SetupUI_128x32()
+{
     DisplayLockGuard lock(this);
 
-    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    auto lvgl_theme = static_cast<LvglTheme *>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
@@ -318,9 +344,11 @@ void OledDisplay::SetupUI_128x32() {
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, icon_font, 0);
 
+#ifdef CONFIG_ENABLE_BATTERY_DISPLAY
     battery_label_ = lv_label_create(status_bar_);
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, icon_font, 0);
+#endif
 
     chat_message_label_ = lv_label_create(side_bar_);
     lv_obj_set_size(chat_message_label_, width_ - 32, LV_SIZE_CONTENT);
@@ -337,23 +365,29 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
 }
 
-void OledDisplay::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
+void OledDisplay::SetEmotion(const char *emotion)
+{
+    const char *utf8 = font_awesome_get_utf8(emotion);
     DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (emotion_label_ == nullptr)
+    {
         return;
     }
-    if (utf8 != nullptr) {
+    if (utf8 != nullptr)
+    {
         lv_label_set_text(emotion_label_, utf8);
-    } else {
+    }
+    else
+    {
         lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
     }
 }
 
-void OledDisplay::SetTheme(Theme* theme) {
+void OledDisplay::SetTheme(Theme *theme)
+{
     DisplayLockGuard lock(this);
 
-    auto lvgl_theme = static_cast<LvglTheme*>(theme);
+    auto lvgl_theme = static_cast<LvglTheme *>(theme);
     auto text_font = lvgl_theme->text_font()->font();
 
     auto screen = lv_screen_active();

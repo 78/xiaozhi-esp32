@@ -168,6 +168,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all)
 
     esp_pm_lock_acquire(pm_lock_);
     // 更新电池图标
+#ifdef CONFIG_ENABLE_BATTERY_DISPLAY
     int battery_level;
     bool charging, discharging;
     const char *icon = nullptr;
@@ -229,6 +230,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all)
             }
         }
     }
+#endif
 
     // 每 10 秒更新一次网络图标
     static int seconds_counter = 0;
@@ -245,11 +247,11 @@ void LvglDisplay::UpdateStatusBar(bool update_all)
         };
         if (std::find(allowed_states.begin(), allowed_states.end(), device_state) != allowed_states.end())
         {
-            icon = board.GetNetworkStateIcon();
-            if (network_label_ != nullptr && icon != nullptr && network_icon_ != icon)
+            const char *net_icon = board.GetNetworkStateIcon();
+            if (network_label_ != nullptr && net_icon != nullptr && network_icon_ != net_icon)
             {
                 DisplayLockGuard lock(this);
-                network_icon_ = icon;
+                network_icon_ = net_icon;
                 lv_label_set_text(network_label_, network_icon_);
             }
         }
