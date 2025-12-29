@@ -808,7 +808,7 @@ menu "Standby Screen Configuration"
 
     config WEATHER_API_KEY
         string "OpenWeatherMap API Key"
-        default "ae8d3c2fda691593ce3e84472ef25784"
+        default "your_api_key_here"
         depends on STANDBY_SCREEN_ENABLE
         help
             API Key for OpenWeatherMap.
