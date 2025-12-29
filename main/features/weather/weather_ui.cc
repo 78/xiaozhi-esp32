@@ -1,4 +1,5 @@
 #include "weather_ui.h"
+#include "weather_icons.h"
 #include "lunar_calendar.h"
 #include <esp_log.h>
 #include <time.h>
@@ -15,25 +16,16 @@
 #define COLOR_SUCCESS lv_color_hex(0x00ff99)
 #define COLOR_DANGER lv_color_hex(0xff3366)
 
-// Font Awesome Icons (Assuming they are available in the project)
-#define FA_CLOUD "\uf0c2"
-#define FA_SUN "\uf185"
-#define FA_CLOUD_RAIN "\uf73d"
-#define FA_BOLT "\uf0e7"
-#define FA_SNOWFLAKE "\uf2dc"
-#define FA_SMOG "\uf75f"
-
 LV_FONT_DECLARE(lv_font_montserrat_14);
 LV_FONT_DECLARE(lv_font_montserrat_20);
 LV_FONT_DECLARE(lv_font_montserrat_28);
 LV_FONT_DECLARE(lv_font_montserrat_48);
-// LV_FONT_DECLARE(font_awesome_30_4); // Assuming this exists in project
+LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
 WeatherUI::WeatherUI() : idle_panel_(nullptr) {}
 
 WeatherUI::~WeatherUI()
 {
-    // If idle_panel_ is valid, delete it to clean up memory
     if (idle_panel_ && lv_obj_is_valid(idle_panel_))
     {
         lv_obj_del(idle_panel_);
@@ -44,27 +36,23 @@ WeatherUI::~WeatherUI()
 const char *WeatherUI::GetWeatherIcon(const std::string &code)
 {
     if (code.size() < 2)
-        return FA_CLOUD;
+        return "\uf0c2"; // Cloud
     std::string prefix = code.substr(0, 2);
     if (prefix == "01")
-        return FA_SUN;
+        return "\uf185"; // Sun
     if (prefix == "02")
-        return FA_CLOUD;
-    if (prefix == "03")
-        return FA_CLOUD;
-    if (prefix == "04")
-        return FA_CLOUD;
-    if (prefix == "09")
-        return FA_CLOUD_RAIN;
-    if (prefix == "10")
-        return FA_CLOUD_RAIN;
+        return "\uf6c4"; // Cloud Sun
+    if (prefix == "03" || prefix == "04")
+        return "\uf0c2"; // Cloud
+    if (prefix == "09" || prefix == "10")
+        return "\uf740"; // Rain
     if (prefix == "11")
-        return FA_BOLT;
+        return "\uf0e7"; // Bolt
     if (prefix == "13")
-        return FA_SNOWFLAKE;
+        return "\uf2dc"; // Snow
     if (prefix == "50")
-        return FA_SMOG;
-    return FA_CLOUD;
+        return "\uf72e"; // Wind
+    return "\uf0c2";     // Cloud
 }
 
 void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_height)
@@ -80,57 +68,148 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_size(idle_panel_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(idle_panel_, COLOR_BG_MAIN, 0);
     lv_obj_set_style_border_width(idle_panel_, 0, 0);
-    lv_obj_set_flex_flow(idle_panel_, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(idle_panel_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_outline_width(idle_panel_, 0, 0);
     lv_obj_set_scrollbar_mode(idle_panel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(idle_panel_, LV_OBJ_FLAG_HIDDEN);
 
-    // Time
-    time_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(time_label_, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(time_label_, COLOR_PRIMARY, 0);
+    // --- Header (15%) ---
+    header_panel_ = lv_obj_create(idle_panel_);
+    lv_obj_set_size(header_panel_, LV_PCT(100), LV_PCT(15));
+    lv_obj_set_pos(header_panel_, 0, 0);
+    lv_obj_set_style_bg_opa(header_panel_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(header_panel_, 0, 0);
+    lv_obj_set_style_outline_width(header_panel_, 0, 0);
+    lv_obj_set_flex_flow(header_panel_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header_panel_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_left(header_panel_, 10, 0);
+    lv_obj_set_style_pad_right(header_panel_, 10, 0);
 
-    // Date (Solar)
-    date_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(date_label_, &lv_font_montserrat_20, 0);
+    // Wifi Icon
+    wifi_label_ = lv_label_create(header_panel_);
+    lv_obj_set_style_text_font(wifi_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(wifi_label_, lv_color_hex(0x00FF00), 0); // Green
+    lv_label_set_text(wifi_label_, "\uf1eb");
+
+    // Title
+    title_label_ = lv_label_create(header_panel_);
+    lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(title_label_, lv_color_hex(0xFFA500), 0); // Orange
+    lv_label_set_text(title_label_, "IoTForce AI Box");
+
+    // Battery Icon
+    battery_label_ = lv_label_create(header_panel_);
+    lv_obj_set_style_text_font(battery_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(battery_label_, lv_color_hex(0x00FF00), 0); // Green
+    lv_label_set_text(battery_label_, "\uf240");
+
+    // --- Date (10%) ---
+    lv_obj_t *date_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(date_cont, LV_PCT(100), LV_PCT(10));
+    lv_obj_set_pos(date_cont, 0, LV_PCT(15));
+    lv_obj_set_style_bg_opa(date_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(date_cont, 0, 0);
+    lv_obj_set_style_outline_width(date_cont, 0, 0);
+    lv_obj_set_flex_flow(date_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(date_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    date_label_ = lv_label_create(date_cont);
+    lv_obj_set_style_text_font(date_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(date_label_, COLOR_TEXT_MAIN, 0);
 
-    // Lunar Date
-    lunar_date_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(lunar_date_label_, &lv_font_montserrat_14, 0); // Use smaller font or custom font supporting Vietnamese if available
-    lv_obj_set_style_text_color(lunar_date_label_, COLOR_TEXT_SUB, 0);
+    // --- Time (35%) ---
+    lv_obj_t *time_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(time_cont, LV_PCT(100), LV_PCT(35));
+    lv_obj_set_pos(time_cont, 0, LV_PCT(25));
+    lv_obj_set_style_bg_opa(time_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(time_cont, 0, 0);
+    lv_obj_set_style_outline_width(time_cont, 0, 0);
+    lv_obj_set_flex_flow(time_cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(time_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    // Weather Row
-    lv_obj_t *row = lv_obj_create(idle_panel_);
-    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(row, 0, 0);
-    lv_obj_set_style_pad_gap(row, 15, 0);
+    time_label_ = lv_label_create(time_cont);
+    lv_obj_set_style_text_font(time_label_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(time_label_, COLOR_TEXT_MAIN, 0);
 
-    icon_label_ = lv_label_create(row);
-    // lv_obj_set_style_text_font(icon_label_, &font_awesome_30_4, 0); // Uncomment if font exists
-    lv_obj_set_style_text_color(icon_label_, COLOR_SUCCESS, 0);
+    // --- Bottom Grid (40%) ---
+    // Row 1 Left: Weather
+    lv_obj_t *weather_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(weather_cont, LV_PCT(50), LV_PCT(20));
+    lv_obj_set_pos(weather_cont, 0, LV_PCT(60));
+    lv_obj_set_style_bg_opa(weather_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(weather_cont, 0, 0);
+    lv_obj_set_style_outline_width(weather_cont, 0, 0);
+    lv_obj_set_flex_flow(weather_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(weather_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(weather_cont, 5, 0);
 
-    temp_label_ = lv_label_create(row);
-    lv_obj_set_style_text_font(temp_label_, &lv_font_montserrat_28, 0);
+    icon_label_ = lv_label_create(weather_cont);
+    lv_obj_set_style_text_font(icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(icon_label_, lv_color_hex(0xFFD700), 0); // Gold
+    lv_label_set_text(icon_label_, "\uf0c2");                            // Default Cloud
+
+    temp_label_ = lv_label_create(weather_cont);
+    lv_obj_set_style_text_font(temp_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(temp_label_, COLOR_TEXT_MAIN, 0);
 
-    // Details (Humidity, etc.)
-    detail_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(detail_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(detail_label_, COLOR_TEXT_SUB, 0);
+    // Row 1 Right: Location
+    lv_obj_t *loc_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(loc_cont, LV_PCT(50), LV_PCT(20));
+    lv_obj_set_pos(loc_cont, LV_PCT(50), LV_PCT(60));
+    lv_obj_set_style_bg_opa(loc_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(loc_cont, 0, 0);
+    lv_obj_set_style_outline_width(loc_cont, 0, 0);
+    lv_obj_set_flex_flow(loc_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(loc_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(loc_cont, 5, 0);
 
-    // Environment (UV, PM2.5)
-    env_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(env_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(env_label_, COLOR_DANGER, 0);
+    location_icon_label_ = lv_label_create(loc_cont);
+    lv_obj_set_style_text_font(location_icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(location_icon_label_, lv_color_hex(0x00BFFF), 0); // Deep Sky Blue
+    lv_label_set_text(location_icon_label_, "\uf3c5");                            // Map Marker
 
-    // City
-    city_label_ = lv_label_create(idle_panel_);
-    lv_obj_set_style_text_font(city_label_, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(city_label_, COLOR_PRIMARY, 0);
-    lv_obj_set_style_margin_top(city_label_, 10, 0);
+    city_label_ = lv_label_create(loc_cont);
+    lv_obj_set_style_text_font(city_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(city_label_, COLOR_TEXT_MAIN, 0);
+
+    // Row 2 Left: UV Index
+    lv_obj_t *uv_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(uv_cont, LV_PCT(50), LV_PCT(20));
+    lv_obj_set_pos(uv_cont, 0, LV_PCT(80));
+    lv_obj_set_style_bg_opa(uv_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(uv_cont, 0, 0);
+    lv_obj_set_style_outline_width(uv_cont, 0, 0);
+    lv_obj_set_flex_flow(uv_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(uv_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(uv_cont, 5, 0);
+
+    uv_icon_label_ = lv_label_create(uv_cont);
+    lv_obj_set_style_text_font(uv_icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(uv_icon_label_, lv_color_hex(0xFFA500), 0); // Orange
+    lv_label_set_text(uv_icon_label_, "\uf185");                            // Sun
+
+    uv_label_ = lv_label_create(uv_cont);
+    lv_obj_set_style_text_font(uv_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(uv_label_, COLOR_TEXT_MAIN, 0);
+
+    // Row 2 Right: PM2.5
+    lv_obj_t *pm25_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(pm25_cont, LV_PCT(50), LV_PCT(20));
+    lv_obj_set_pos(pm25_cont, LV_PCT(50), LV_PCT(80));
+    lv_obj_set_style_bg_opa(pm25_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(pm25_cont, 0, 0);
+    lv_obj_set_style_outline_width(pm25_cont, 0, 0);
+    lv_obj_set_flex_flow(pm25_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(pm25_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(pm25_cont, 5, 0);
+
+    pm25_icon_label_ = lv_label_create(pm25_cont);
+    lv_obj_set_style_text_font(pm25_icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(pm25_icon_label_, lv_color_hex(0x808080), 0); // Grey
+    lv_label_set_text(pm25_icon_label_, "\uf0c2");                            // Cloud (for Air/PM2.5)
+
+    pm25_label_ = lv_label_create(pm25_cont);
+    lv_obj_set_style_text_font(pm25_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(pm25_label_, COLOR_TEXT_MAIN, 0);
 }
 
 void WeatherUI::ShowIdleCard(const IdleCardInfo &info)
@@ -139,22 +218,19 @@ void WeatherUI::ShowIdleCard(const IdleCardInfo &info)
         return;
 
     lv_label_set_text(time_label_, info.time_text.c_str());
-    lv_label_set_text(date_label_, info.date_text.c_str());
 
-    std::string lunar_text = info.lunar_date_text + "\n" + info.can_chi_year;
-    lv_label_set_text(lunar_date_label_, lunar_text.c_str());
+    // Combine Date and Lunar Date if needed, or just show Date
+    // Image shows "T3 23/12/25"
+    lv_label_set_text(date_label_, info.date_text.c_str());
 
     if (info.icon)
         lv_label_set_text(icon_label_, info.icon);
+
     lv_label_set_text(temp_label_, info.temperature_text.c_str());
-
-    std::string details = "Hum: " + info.humidity_text + " | " + info.description_text;
-    lv_label_set_text(detail_label_, details.c_str());
-
-    std::string env = "UV: " + info.uv_text + " | PM2.5: " + info.pm25_text;
-    lv_label_set_text(env_label_, env.c_str());
-
     lv_label_set_text(city_label_, info.city.c_str());
+
+    lv_label_set_text(uv_label_, info.uv_text.c_str());
+    lv_label_set_text(pm25_label_, info.pm25_text.c_str());
 
     lv_obj_remove_flag(idle_panel_, LV_OBJ_FLAG_HIDDEN);
 }
@@ -180,12 +256,26 @@ void WeatherUI::UpdateIdleDisplay(const WeatherInfo &weather_info)
     strftime(buf, sizeof(buf), "%H:%M", &tm_buf);
     card.time_text = buf;
 
-    strftime(buf, sizeof(buf), "%d/%m/%Y", &tm_buf);
+    // Format: T<DayOfWeek> dd/mm/yy
+    // tm_wday: 0=Sun, 1=Mon, ...
+    int wday = tm_buf.tm_wday == 0 ? 8 : tm_buf.tm_wday + 1; // CN, T2, T3...
+    if (wday == 8)
+    {
+        strftime(buf, sizeof(buf), "CN %d/%m/%y", &tm_buf);
+    }
+    else
+    {
+        char wday_str[16];
+        snprintf(wday_str, sizeof(wday_str), "T%d", wday);
+        char date_part[16];
+        strftime(date_part, sizeof(date_part), "%d/%m/%y", &tm_buf);
+        snprintf(buf, sizeof(buf), "%s %s", wday_str, date_part);
+    }
     card.date_text = buf;
 
     // Lunar
     card.lunar_date_text = LunarCalendar::GetLunarDateString(tm_buf.tm_mday, tm_buf.tm_mon + 1, tm_buf.tm_year + 1900);
-    card.can_chi_year = LunarCalendar::GetCanChiYear(tm_buf.tm_year + 1900); // Simplified
+    card.can_chi_year = LunarCalendar::GetCanChiYear(tm_buf.tm_year + 1900);
 
     // Weather
     if (weather_info.valid)
@@ -193,21 +283,23 @@ void WeatherUI::UpdateIdleDisplay(const WeatherInfo &weather_info)
         card.city = weather_info.city;
         snprintf(buf, sizeof(buf), "%.1f C", weather_info.temp);
         card.temperature_text = buf;
-        card.humidity_text = std::to_string(weather_info.humidity) + "%";
-        card.description_text = weather_info.description;
         card.icon = GetWeatherIcon(weather_info.icon_code);
 
-        snprintf(buf, sizeof(buf), "%.1f", weather_info.uv_index);
+        // Set UV Index
+        snprintf(buf, sizeof(buf), "%.1f UV", weather_info.uv_index);
         card.uv_text = buf;
 
-        snprintf(buf, sizeof(buf), "%.1f", weather_info.pm2_5);
+        // Set PM2.5
+        snprintf(buf, sizeof(buf), "%.1f PM2.5", weather_info.pm2_5);
         card.pm25_text = buf;
     }
     else
     {
         card.city = "Updating...";
         card.temperature_text = "--";
-        card.icon = FA_CLOUD;
+        card.icon = "\uf0c2"; // Cloud
+        card.uv_text = "-- UV";
+        card.pm25_text = "-- PM2.5";
     }
 
     ShowIdleCard(card);

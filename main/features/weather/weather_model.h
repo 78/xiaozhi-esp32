@@ -33,7 +33,14 @@ struct IdleCardInfo
     std::string description_text;
     std::string uv_text;
     std::string pm25_text;
-    const char *icon = nullptr;
+
+    // New fields for UI redesign
+    std::string wifi_icon = "\uf1eb";
+    std::string battery_icon = "\uf240";
+    std::string location_icon = "\uf3c5";
+
+    const char *icon = nullptr;     // Font Awesome Icon
+    const void *icon_src = nullptr; // LVGL Image Source
 };
 
 #endif // WEATHER_MODEL_H

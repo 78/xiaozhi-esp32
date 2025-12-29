@@ -13,6 +13,7 @@
 #include "assets.h"
 #include "settings.h"
 #include "ota_server.h"
+#include "ota.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -20,6 +21,7 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 #include <font_awesome.h>
+#include <thread>
 
 #define TAG "Application"
 
@@ -593,6 +595,41 @@ void Application::Start()
                 Alert(status->valuestring, message->valuestring, emotion->valuestring, Lang::Sounds::OGG_VIBRATION);
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
+            }
+        } else if (strcmp(type->valuestring, "ota_url") == 0) {
+            auto url = cJSON_GetObjectItem(root, "url");
+            if (cJSON_IsString(url)) {
+                std::string firmware_url = url->valuestring;
+                ESP_LOGI(TAG, "Received OTA URL via Protocol: %s", firmware_url.c_str());
+                
+                Schedule([this, display, firmware_url]() {
+                    display->SetChatMessage("system", "OTA Update Started...");
+                    
+                    // Run OTA in a separate thread to avoid blocking the main loop
+                    std::thread([this, display, firmware_url]() {
+                        Ota ota;
+                        bool success = ota.StartUpgradeFromUrl(firmware_url, [this, display](int progress, size_t speed) {
+                            Schedule([display, progress, speed]() {
+                                char msg[64];
+                                snprintf(msg, sizeof(msg), "Updating: %d%% %uKB/s", progress, (unsigned int)(speed / 1024));
+                                display->SetChatMessage("system", msg);
+                            });
+                        });
+
+                        if (success) {
+                            Schedule([display]() {
+                                display->SetChatMessage("system", "Update Success! Restarting...");
+                            });
+                            vTaskDelay(pdMS_TO_TICKS(2000));
+                            esp_restart();
+                        } else {
+                            Schedule([this, display]() {
+                                display->SetChatMessage("system", "Update Failed!");
+                                Alert(Lang::Strings::ERROR, "Update Failed", "circle_xmark", Lang::Sounds::OGG_ERR_PIN);
+                            });
+                        }
+                    }).detach();
+                });
             }
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
@@ -1274,7 +1311,7 @@ void Application::UpdateIdleDisplay()
             card.temperature_text = buf;
             card.humidity_text = std::to_string(weather_info.humidity) + "%";
             card.description_text = weather_info.description;
-            card.icon = WeatherUI::GetWeatherIcon(weather_info.icon_code);
+            card.icon_src = WeatherUI::GetWeatherIcon(weather_info.icon_code);
 
             snprintf(buf, sizeof(buf), "%.1f", weather_info.uv_index);
             card.uv_text = buf;

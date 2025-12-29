@@ -1,12 +1,15 @@
 #include "ota_server.h"
 
 #include <string>
+#include <cJSON.h>
+#include <thread>
 
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
+#include "ota.h"
 #include "application.h"
 #include "assets.h"
 #include "assets/lang_config.h"
@@ -85,6 +88,13 @@ namespace ota
             .handler = HandleAssetsUpload,
             .user_ctx = nullptr};
         httpd_register_uri_handler(server_handle_, &assets_upload);
+
+        httpd_uri_t ota_url = {
+            .uri = "/ota_url",
+            .method = HTTP_POST,
+            .handler = HandleOtaUrl,
+            .user_ctx = nullptr};
+        httpd_register_uri_handler(server_handle_, &ota_url);
 
         ESP_LOGI(kTag, "OTA Webserver started");
         return ESP_OK;
@@ -970,6 +980,92 @@ namespace ota
         // Re-initialize and apply assets.
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
+
+        return ESP_OK;
+    }
+
+    esp_err_t OtaServer::HandleOtaUrl(httpd_req_t *req)
+    {
+        char buf[1024];
+        int ret, remaining = req->content_len;
+
+        if (remaining >= sizeof(buf))
+        {
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+
+        ret = httpd_req_recv(req, buf, remaining);
+        if (ret <= 0)
+        {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+            {
+                httpd_resp_send_408(req);
+            }
+            return ESP_FAIL;
+        }
+        buf[ret] = '\0';
+
+        cJSON *root = cJSON_Parse(buf);
+        if (root == NULL)
+        {
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+
+        cJSON *url_item = cJSON_GetObjectItem(root, "url");
+        if (!cJSON_IsString(url_item) || (url_item->valuestring == NULL))
+        {
+            cJSON_Delete(root);
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+
+        std::string url = url_item->valuestring;
+        cJSON_Delete(root);
+
+        ESP_LOGI(kTag, "Received OTA URL: %s", url.c_str());
+
+        // Respond immediately
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\": true, \"message\": \"OTA update started\"}");
+
+        // Run OTA in a separate thread
+        std::thread([url]()
+                    {
+            ESP_LOGI(kTag, "Starting OTA task...");
+            Ota ota;
+            auto &app = Application::GetInstance();
+            auto display = Board::GetInstance().GetDisplay();
+
+            // Update UI that OTA started
+            app.Schedule([display]() {
+                display->SetChatMessage("system", "OTA Update Started...");
+            });
+
+            bool success = ota.StartUpgradeFromUrl(url, [display, &app](int progress, size_t speed) {
+                app.Schedule([display, progress, speed]() {
+                    char msg[64];
+                    snprintf(msg, sizeof(msg), "Updating: %d%% %uKB/s", progress, (unsigned int)(speed / 1024));
+                    display->SetChatMessage("system", msg);
+                });
+            });
+
+            if (success) {
+                ESP_LOGI(kTag, "OTA Success, restarting...");
+                app.Schedule([display]() {
+                    display->SetChatMessage("system", "Update Success! Restarting...");
+                });
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                esp_restart();
+            } else {
+                ESP_LOGE(kTag, "OTA Failed");
+                app.Schedule([display, &app]() {
+                    display->SetChatMessage("system", "Update Failed!");
+                    app.Alert(Lang::Strings::ERROR, "Update Failed", "circle_xmark", Lang::Sounds::OGG_ERR_PIN);
+                });
+            } })
+            .detach();
 
         return ESP_OK;
     }

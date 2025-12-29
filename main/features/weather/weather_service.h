@@ -24,21 +24,20 @@ private:
     WeatherService();
     ~WeatherService() = default;
 
-    bool FetchCurrentWeather(const std::string &city, const std::string &api_key);
-    bool FetchAirPollution(float lat, float lon, const std::string &api_key);
+    bool FetchGeocoding(const std::string &city);
+    bool FetchOpenMeteoWeather(float lat, float lon);
+    bool FetchOpenMeteoAirQuality(float lat, float lon);
 
     WeatherInfo weather_info_;
     mutable std::mutex mutex_;
     std::atomic<bool> is_fetching_{false};
 
-    std::string api_key_;
     std::string city_;
     uint32_t last_update_time_;
     float lat_ = 0.0f;
     float lon_ = 0.0f;
 
     static std::string UrlEncode(const std::string &value);
-    static std::string GetCityFromIP();
 };
 
 #endif // WEATHER_SERVICE_H

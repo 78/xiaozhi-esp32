@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xiaozhi OTA Test Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 10px 20px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      button:disabled {
+        background-color: #ccc;
+      }
+      #log {
+        margin-top: 20px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        background-color: #f9f9f9;
+        font-family: monospace;
+      }
+      .status {
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      .connected {
+        color: green;
+      }
+      .disconnected {
+        color: red;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Xiaozhi OTA Test Tool</h1>
+
+    <div class="form-group">
+      <label for="protocol">Protocol:</label>
+      <select id="protocol" onchange="onProtocolChange()">
+        <option value="mqtt">MQTT (via WebSocket)</option>
+        <option value="websocket">Native WebSocket (MCP)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="broker" id="urlLabel">MQTT Broker (WebSocket URL):</label>
+      <input
+        type="text"
+        id="broker"
+        value="wss://broker.emqx.io:8084/mqtt"
+        placeholder="wss://broker.example.com:8084/mqtt"
+      />
+      <small id="urlHint"
+        >Note: Use a WebSocket enabled port (usually 8083/8084)</small
+      >
+    </div>
+
+    <div class="form-group" id="macGroup">
+      <label for="mac">Device MAC Address:</label>
+      <input type="text" id="mac" placeholder="AA:BB:CC:DD:EE:FF" />
+    </div>
+
+    <div class="form-group" id="topicGroup">
+      <label for="topic">Topic Template ({mac} will be replaced):</label>
+      <input type="text" id="topic" value="xiaozhi/{mac}/command" />
+    </div>
+
+    <div class="form-group">
+      <button id="connectBtn" onclick="toggleConnect()">Connect</button>
+      <span id="status" class="status disconnected">Disconnected</span>
+    </div>
+
+    <hr />
+
+    <div class="form-group">
+      <label for="otaUrl">Firmware URL (OTA):</label>
+      <input
+        type="text"
+        id="otaUrl"
+        placeholder="https://your-bucket.s3.amazonaws.com/firmware.bin"
+      />
+    </div>
+
+    <div class="form-group">
+      <button id="sendBtn" onclick="sendOtaCommand()" disabled>
+        Send OTA Command
+      </button>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+      let client = null;
+      let wsClient = null;
+      let isConnected = false;
+
+      function onProtocolChange() {
+        const protocol = document.getElementById("protocol").value;
+        const urlLabel = document.getElementById("urlLabel");
+        const urlHint = document.getElementById("urlHint");
+        const macGroup = document.getElementById("macGroup");
+        const topicGroup = document.getElementById("topicGroup");
+        const brokerInput = document.getElementById("broker");
+
+        if (protocol === "mqtt") {
+          urlLabel.innerText = "MQTT Broker (WebSocket URL):";
+          urlHint.innerText =
+            "Note: Use a WebSocket enabled port (usually 8083/8084)";
+          macGroup.classList.remove("hidden");
+          topicGroup.classList.remove("hidden");
+          brokerInput.value = "wss://broker.emqx.io:8084/mqtt";
+        } else {
+          urlLabel.innerText = "WebSocket Server URL:";
+          urlHint.innerText = "Example: wss://api.xiaozhi.me/mcp/?token=...";
+          macGroup.classList.add("hidden"); // Native WS usually connects directly to the endpoint
+          topicGroup.classList.add("hidden");
+          brokerInput.value = "wss://api.xiaozhi.me/mcp/?token=YOUR_TOKEN_HERE";
+        }
+      }
+
+      function log(msg) {
+        const logDiv = document.getElementById("log");
+        const entry = document.createElement("div");
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logDiv.appendChild(entry);
+        logDiv.scrollTop = logDiv.scrollHeight;
+      }
+
+      function toggleConnect() {
+        if (isConnected) {
+          disconnect();
+        } else {
+          connect();
+        }
+      }
+
+      function connect() {
+        const protocol = document.getElementById("protocol").value;
+        if (protocol === "mqtt") {
+          connectMqtt();
+        } else {
+          connectWebsocket();
+        }
+      }
+
+      function disconnect() {
+        const protocol = document.getElementById("protocol").value;
+        if (protocol === "mqtt") {
+          if (client) {
+            client.disconnect();
+            log("Disconnected from MQTT broker");
+          }
+        } else {
+          if (wsClient) {
+            wsClient.close();
+            log("Disconnected from WebSocket server");
+          }
+        }
+        isConnected = false;
+        updateUI();
+      }
+
+      function updateUI() {
+        const btn = document.getElementById("connectBtn");
+        const status = document.getElementById("status");
+        const sendBtn = document.getElementById("sendBtn");
+
+        if (isConnected) {
+          btn.textContent = "Disconnect";
+          status.textContent = "Connected";
+          status.className = "status connected";
+          sendBtn.disabled = false;
+        } else {
+          btn.textContent = "Connect";
+          status.textContent = "Disconnected";
+          status.className = "status disconnected";
+          sendBtn.disabled = true;
+        }
+      }
+
+      function connectWebsocket() {
+        const url = document.getElementById("broker").value;
+        log(`Connecting to WebSocket: ${url}`);
+
+        try {
+          wsClient = new WebSocket(url);
+
+          wsClient.onopen = function () {
+            log("WebSocket Connected");
+            isConnected = true;
+            updateUI();
+          };
+
+          wsClient.onmessage = function (event) {
+            log(`Received: ${event.data}`);
+          };
+
+          wsClient.onclose = function () {
+            log("WebSocket Closed");
+            isConnected = false;
+            updateUI();
+          };
+
+          wsClient.onerror = function (error) {
+            log(`WebSocket Error: ${error}`);
+          };
+        } catch (e) {
+          log(`Connection error: ${e.message}`);
+        }
+      }
+
+      function connectMqtt() {
+        const brokerUrl = document.getElementById("broker").value;
+        const mac = document.getElementById("mac").value.trim();
+
+        if (!mac) {
+          alert("Please enter MAC Address");
+          return;
+        }
+
+        try {
+          const url = new URL(brokerUrl);
+          const host = url.hostname;
+          const port =
+            parseInt(url.port) || (url.protocol === "wss:" ? 443 : 80);
+          const path = url.pathname;
+          const useSSL = url.protocol === "wss:";
+          const clientId =
+            "test_tool_" + Math.random().toString(16).substr(2, 8);
+
+          log(`Connecting to ${host}:${port}${path} as ${clientId}...`);
+
+          client = new Paho.MQTT.Client(host, port, path, clientId);
+
+          client.onConnectionLost = onConnectionLost;
+          client.onMessageArrived = onMessageArrived;
+
+          const options = {
+            useSSL: useSSL,
+            onSuccess: onConnect,
+            onFailure: onFailure,
+            keepAliveInterval: 30,
+          };
+
+          client.connect(options);
+        } catch (e) {
+          log("Error parsing URL: " + e.message);
+        }
+      }
+
+      function onConnect() {
+        isConnected = true;
+        updateUI();
+        log("Connected to MQTT Broker");
+      }
+
+      function onFailure(message) {
+        log("Connection failed: " + message.errorMessage);
+      }
+
+      function onConnectionLost(responseObject) {
+        isConnected = false;
+        updateUI();
+        if (responseObject.errorCode !== 0) {
+          log("Connection lost: " + responseObject.errorMessage);
+        }
+      }
+
+      function onMessageArrived(message) {
+        log("Message received: " + message.payloadString);
+      }
+
+      function sendOtaCommand() {
+        const otaUrl = document.getElementById("otaUrl").value.trim();
+        if (!otaUrl) {
+          alert("Please enter OTA URL");
+          return;
+        }
+
+        const payload = JSON.stringify({
+          type: "ota_url",
+          url: otaUrl,
+        });
+
+        const protocol = document.getElementById("protocol").value;
+
+        if (protocol === "mqtt") {
+          const mac = document.getElementById("mac").value.trim();
+          const topicTemplate = document.getElementById("topic").value.trim();
+          const topic = topicTemplate.replace("{mac}", mac);
+
+          log(`Publishing to ${topic}: ${payload}`);
+          const message = new Paho.MQTT.Message(payload);
+          message.destinationName = topic;
+          client.send(message);
+        } else {
+          // WebSocket
+          log(`Sending: ${payload}`);
+          wsClient.send(payload);
+        }
+      }
+    </script>
+  </body>
+</html>

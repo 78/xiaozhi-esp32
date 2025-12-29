@@ -45,6 +45,9 @@ namespace ota
         // HTTP handler for POST /assets_upload - processes assets upload.
         static esp_err_t HandleAssetsUpload(httpd_req_t *req);
 
+        // HTTP handler for POST /ota_url - triggers OTA from a URL.
+        static esp_err_t HandleOtaUrl(httpd_req_t *req);
+
         httpd_handle_t server_handle_ = nullptr;
     };
 

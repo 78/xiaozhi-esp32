@@ -105,6 +105,29 @@
         display: none;
       }
 
+      /* URL Input Styles */
+      .url-box {
+        display: none;
+        margin-bottom: 14px;
+      }
+      .url-box.show {
+        display: block;
+      }
+      .url-input {
+        width: 100%;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        color: var(--text-main);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .url-input:focus {
+        border-color: var(--accent);
+      }
+
       .file-info {
         background: rgba(3, 6, 22, 0.86);
         border-radius: 14px;
@@ -306,6 +329,9 @@
         <button class="tab-btn" id="assetsTab" onclick="switchMode('assets')">
           🎨 Assets Update
         </button>
+        <button class="tab-btn" id="urlTab" onclick="switchMode('url')">
+          🔗 OTA via URL
+        </button>
       </div>
 
       <div class="upload-box" id="uploadArea">
@@ -313,6 +339,15 @@
         <div class="upload-text">Click or drag file here</div>
         <div class="upload-hint">Supported: .bin files only</div>
         <input type="file" id="fileInput" accept=".bin" />
+      </div>
+
+      <div class="url-box" id="urlBox">
+        <input
+          type="text"
+          class="url-input"
+          id="urlInput"
+          placeholder="Enter Firmware URL (http://...)"
+        />
       </div>
 
       <div class="file-info" id="fileInfo">
@@ -367,7 +402,7 @@
     <script>
       let selectedFile = null;
       let uploadInProgress = false;
-      let currentMode = "app"; // 'app' or 'assets'
+      let currentMode = "app"; // 'app', 'assets', or 'url'
 
       const uploadArea = document.getElementById("uploadArea");
       const uploadIcon = document.getElementById("uploadIcon");
@@ -385,14 +420,22 @@
       const infoBox = document.getElementById("infoBox");
       const appTab = document.getElementById("appTab");
       const assetsTab = document.getElementById("assetsTab");
+      const urlTab = document.getElementById("urlTab");
+      const urlBox = document.getElementById("urlBox");
+      const urlInput = document.getElementById("urlInput");
 
       function switchMode(mode) {
         currentMode = mode;
 
         // Update tabs
+        appTab.classList.remove("active");
+        assetsTab.classList.remove("active");
+        urlTab.classList.remove("active");
+
         if (mode === "app") {
           appTab.classList.add("active");
-          assetsTab.classList.remove("active");
+          uploadArea.style.display = "block";
+          urlBox.classList.remove("show");
           uploadIcon.textContent = "📦";
           infoBox.innerHTML = `
                     <strong>⚠️ Important:</strong><br>
@@ -401,9 +444,10 @@
                     • Update takes 1-3 minutes<br>
                     • Device will reboot automatically
                 `;
-        } else {
+        } else if (mode === "assets") {
           assetsTab.classList.add("active");
-          appTab.classList.remove("active");
+          uploadArea.style.display = "block";
+          urlBox.classList.remove("show");
           uploadIcon.textContent = "🎨";
           infoBox.innerHTML = `
                     <strong>⚠️ Important:</strong><br>
@@ -411,6 +455,17 @@
                     • Do not turn off device during update<br>
                     • Update takes 1-3 minutes<br>
                     • Device will apply assets after upload
+                `;
+        } else if (mode === "url") {
+          urlTab.classList.add("active");
+          uploadArea.style.display = "none";
+          urlBox.classList.add("show");
+          infoBox.innerHTML = `
+                    <strong>⚠️ Important:</strong><br>
+                    • Enter a direct URL to a .bin file<br>
+                    • Device must have internet access<br>
+                    • Check device screen for progress<br>
+                    • Device will reboot automatically
                 `;
         }
 
@@ -422,6 +477,14 @@
         uploadBtn.disabled = false;
         uploadBtn.style.display = "block";
         cancelBtn.style.display = "none";
+
+        if (mode === "url") {
+          uploadBtn.textContent = "Start Update";
+          uploadBtn.onclick = triggerUrlOta;
+        } else {
+          uploadBtn.textContent = "Upload & Update";
+          uploadBtn.onclick = uploadFile;
+        }
       }
 
       uploadArea.addEventListener("click", () => fileInput.click());
@@ -470,6 +533,51 @@
         return (
           Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i]
         );
+      }
+
+      function triggerUrlOta() {
+        const url = urlInput.value.trim();
+        if (!url) {
+          showStatus("❌ Please enter a URL", "error");
+          return;
+        }
+        if (!url.startsWith("http")) {
+          showStatus("❌ URL must start with http:// or https://", "error");
+          return;
+        }
+
+        uploadBtn.disabled = true;
+        showStatus("⏳ Sending command...", "info");
+
+        fetch("/ota_url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: url }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              showStatus("✅ Update started! Check device screen.", "success");
+              infoBox.innerHTML = `
+                    <strong>🚀 Update Started!</strong><br>
+                    The device is now downloading the firmware.<br>
+                    Please watch the device screen for progress.<br>
+                    Do not unplug the device.
+                `;
+            } else {
+              showStatus(
+                "❌ Failed: " + (data.error || "Unknown error"),
+                "error"
+              );
+              uploadBtn.disabled = false;
+            }
+          })
+          .catch((err) => {
+            showStatus("❌ Connection error", "error");
+            uploadBtn.disabled = false;
+          });
       }
 
       function uploadFile() {
