@@ -13,7 +13,7 @@
   - NULLLAB AI-VOX3 支持双网络，默认使用 WIFI 网络，在开机后长按 BOOT 键可以切换到 4G 网络。要修改默认网络，打开 `config.h` 文件，修改 `#define DEFAULT_4G_NETWORK 1`。
 - 编译配置通过 idf.py menuconfig 进行设置或在开发板的 config.json 中设置（推荐）
 
-**官方推荐使用编译脚本进行编译：`python ./scripts/release.py nulllab-AI-VOX3`，省去切换开发板配置。**
+**官方推荐使用编译脚本进行编译：`python ./scripts/release.py ai-vox3`，省去切换开发板配置。**
 案例所需要的配置都写在了 config.json 文件中，编译脚本可以自动完成配置。
 
 ---
