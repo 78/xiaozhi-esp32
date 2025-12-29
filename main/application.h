@@ -16,7 +16,6 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
-
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
 #define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
@@ -25,22 +24,24 @@
 #define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
 #define MAIN_EVENT_CLOCK_TICK (1 << 6)
 
-
-enum AecMode {
+enum AecMode
+{
     kAecOff,
     kAecOnDeviceSide,
     kAecOnServerSide,
 };
 
-class Application {
+class Application
+{
 public:
-    static Application& GetInstance() {
+    static Application &GetInstance()
+    {
         static Application instance;
         return instance;
     }
     // 删除拷贝构造函数和赋值运算符
-    Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
+    Application(const Application &) = delete;
+    Application &operator=(const Application &) = delete;
 
     void Start();
     void MainEventLoop();
@@ -48,25 +49,26 @@ public:
     bool IsVoiceDetected() const { return audio_service_.IsVoiceDetected(); }
     void Schedule(std::function<void()> callback);
     void SetDeviceState(DeviceState state);
-    void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
+    void Alert(const char *status, const char *message, const char *emotion = "", const std::string_view &sound = "");
     void DismissAlert();
     void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
     void StartListening();
     void StopListening();
     void Reboot();
-    void WakeWordInvoke(const std::string& wake_word);
-    bool UpgradeFirmware(Ota& ota, const std::string& url = "");
+    void WakeWordInvoke(const std::string &wake_word);
+    bool UpgradeFirmware(Ota &ota, const std::string &url = "");
     bool CanEnterSleepMode();
-    void SendMcpMessage(const std::string& payload);
+    void SendMcpMessage(const std::string &payload);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
-    void PlaySound(const std::string_view& sound);
-    AudioService& GetAudioService() { return audio_service_; }
-    void StartMusicStreaming(const std::string& url);
+    void PlaySound(const std::string_view &sound);
+    AudioService &GetAudioService() { return audio_service_; }
+    void StartMusicStreaming(const std::string &url);
     void StopMusicStreaming();
     // New: Receive external audio data (such as music playback)
-    void AddAudioData(AudioStreamPacket&& packet);
+    void AddAudioData(AudioStreamPacket &&packet);
+    void UpdateIdleDisplay();
 
 private:
     Application();
@@ -90,20 +92,22 @@ private:
     TaskHandle_t main_event_loop_task_handle_ = nullptr;
 
     void OnWakeWordDetected();
-    void CheckNewVersion(Ota& ota);
+    void CheckNewVersion(Ota &ota);
     void CheckAssetsVersion();
-    void ShowActivationCode(const std::string& code, const std::string& message);
+    void ShowActivationCode(const std::string &code, const std::string &message);
     void SetListeningMode(ListeningMode mode);
 };
 
-
-class TaskPriorityReset {
+class TaskPriorityReset
+{
 public:
-    TaskPriorityReset(BaseType_t priority) {
+    TaskPriorityReset(BaseType_t priority)
+    {
         original_priority_ = uxTaskPriorityGet(NULL);
         vTaskPrioritySet(NULL, priority);
     }
-    ~TaskPriorityReset() {
+    ~TaskPriorityReset()
+    {
         vTaskPrioritySet(NULL, original_priority_);
     }
 

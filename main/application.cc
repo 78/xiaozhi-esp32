@@ -1,4 +1,7 @@
 #include "application.h"
+#include "features/weather/weather_service.h"
+#include "features/weather/weather_ui.h"
+#include "features/weather/lunar_calendar.h"
 #include "board.h"
 #include "display.h"
 #include "system_info.h"
@@ -686,6 +689,29 @@ void Application::MainEventLoop()
         if (bits & MAIN_EVENT_CLOCK_TICK)
         {
             clock_ticks_++;
+
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+            if (device_state_ == kDeviceStateIdle)
+            {
+                // Update every second for time
+                UpdateIdleDisplay();
+
+                // Fetch weather every 30 mins (1800 seconds) or 5 seconds after boot
+                if (clock_ticks_ == 5 || clock_ticks_ % 1800 == 0)
+                {
+                    auto &ws = WeatherService::GetInstance();
+                    if (!ws.IsFetching())
+                    {
+                        xTaskCreate([](void *arg)
+                                    {
+                            auto &ws = WeatherService::GetInstance();
+                            ws.FetchWeatherData();
+                            vTaskDelete(NULL); }, "weather_fetch", 4096, NULL, 5, NULL);
+                    }
+                }
+            }
+#endif
+
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
 
@@ -1210,4 +1236,60 @@ void Application::AddAudioData(AudioStreamPacket &&packet)
             audio_service_.UpdateOutputTimestamp();
         }
     }
+}
+
+void Application::UpdateIdleDisplay()
+{
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+    auto &weather_service = WeatherService::GetInstance();
+    // Get copy of weather info to avoid race conditions
+    WeatherInfo weather_info = weather_service.GetWeatherInfo();
+
+    auto display = Board::GetInstance().GetDisplay();
+    if (display)
+    {
+        IdleCardInfo card;
+
+        // Time & Date
+        time_t now = time(nullptr);
+        struct tm tm_buf;
+        localtime_r(&now, &tm_buf);
+
+        char buf[32];
+        strftime(buf, sizeof(buf), "%H:%M", &tm_buf);
+        card.time_text = buf;
+
+        strftime(buf, sizeof(buf), "%d/%m/%Y", &tm_buf);
+        card.date_text = buf;
+
+        // Lunar
+        card.lunar_date_text = LunarCalendar::GetLunarDateString(tm_buf.tm_mday, tm_buf.tm_mon + 1, tm_buf.tm_year + 1900);
+        card.can_chi_year = LunarCalendar::GetCanChiYear(tm_buf.tm_year + 1900);
+
+        // Weather
+        if (weather_info.valid)
+        {
+            card.city = weather_info.city;
+            snprintf(buf, sizeof(buf), "%.1f C", weather_info.temp);
+            card.temperature_text = buf;
+            card.humidity_text = std::to_string(weather_info.humidity) + "%";
+            card.description_text = weather_info.description;
+            card.icon = WeatherUI::GetWeatherIcon(weather_info.icon_code);
+
+            snprintf(buf, sizeof(buf), "%.1f", weather_info.uv_index);
+            card.uv_text = buf;
+
+            snprintf(buf, sizeof(buf), "%.1f", weather_info.pm2_5);
+            card.pm25_text = buf;
+        }
+        else
+        {
+            card.city = "Updating...";
+            card.temperature_text = "--";
+            card.icon = "\uf0c2"; // FA_CLOUD
+        }
+
+        display->ShowIdleCard(card);
+    }
+#endif
 }

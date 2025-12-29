@@ -76,6 +76,10 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     std::string theme_name = settings.GetString("theme", "light");
     current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);
 
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+    weather_ui_ = std::make_unique<WeatherUI>();
+#endif
+
     // Create a timer to hide the preview image
     esp_timer_create_args_t preview_timer_args = {
         .callback = [](void *arg)
@@ -503,6 +507,13 @@ void LcdDisplay::SetupUI()
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
     lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+    if (weather_ui_)
+    {
+        weather_ui_->SetupIdleUI(screen, width_, height_);
+    }
+#endif
 }
 #if CONFIG_IDF_TARGET_ESP32P4
 #define MAX_MESSAGES 40
@@ -939,6 +950,13 @@ void LcdDisplay::SetupUI()
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+    if (weather_ui_)
+    {
+        weather_ui_->SetupIdleUI(screen, width_, height_);
+    }
+#endif
 }
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image)
@@ -1250,3 +1268,35 @@ void LcdDisplay::SetTheme(Theme *theme)
     // No errors occurred. Save theme to settings
     Display::SetTheme(lvgl_theme);
 }
+
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+void LcdDisplay::ShowIdleCard(const IdleCardInfo &info)
+{
+    if (weather_ui_)
+    {
+        DisplayLockGuard lock(this);
+        // Hide other containers if needed
+        if (container_)
+            lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
+        if (emoji_label_)
+            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        if (emoji_image_)
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+
+        weather_ui_->ShowIdleCard(info);
+    }
+}
+
+void LcdDisplay::HideIdleCard()
+{
+    if (weather_ui_)
+    {
+        DisplayLockGuard lock(this);
+        weather_ui_->HideIdleCard();
+
+        // Restore other containers
+        if (container_)
+            lv_obj_remove_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+#endif

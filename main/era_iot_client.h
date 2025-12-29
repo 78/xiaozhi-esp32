@@ -36,21 +36,31 @@ public:
      * Trigger an action
      * API: POST /api/chip_manager/trigger_action/
      * @param action_key Action key to trigger
+     * @param value Value to send (1 for ON, 0 for OFF)
      * @return true if successful, false otherwise
      */
-    bool TriggerAction(const std::string &action_key);
+    bool TriggerAction(const std::string &action_key, int value);
 
     /**
-     * Turn device ON
-     * Uses predefined action_on key
+     * Get status of a specific switch (1-3)
+     * @param index Switch index (1-3)
+     * @return Status string
      */
-    bool TurnDeviceOn();
+    std::string GetSwitchStatus(int index);
 
     /**
-     * Turn device OFF
-     * Uses predefined action_off key
+     * Turn a specific switch ON (1-3)
+     * @param index Switch index (1-3)
+     * @return true if successful
      */
-    bool TurnDeviceOff();
+    bool TurnSwitchOn(int index);
+
+    /**
+     * Turn a specific switch OFF (1-3)
+     * @param index Switch index (1-3)
+     * @return true if successful
+     */
+    bool TurnSwitchOff(int index);
 
     /**
      * Check if client is initialized
@@ -60,9 +70,6 @@ public:
 private:
     std::string auth_token_;
     std::string base_url_;
-    std::string config_id_;
-    std::string action_on_key_;
-    std::string action_off_key_;
     bool initialized_;
 
     /**

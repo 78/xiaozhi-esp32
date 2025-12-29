@@ -36,13 +36,16 @@ set(SOURCES "audio/audio_codec.cc"
             "device_state_event.cc"
             "assets.cc"
             "main.cc"
+            "features/weather/weather_service.cc"
+            "features/weather/weather_ui.cc"
+            "features/weather/lunar_calendar.cc"
             )
 
 if(CONFIG_USE_ERA_SMART_HOME)
     list(APPEND SOURCES "era_iot_client.cc")
 endif()
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols" "features/weather")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)

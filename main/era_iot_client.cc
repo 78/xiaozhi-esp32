@@ -5,17 +5,24 @@
 
 #define TAG "EraIotClient"
 
-// static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
-// static const char *ERA_BASE_URL = "https://backend.eoh.io";
-// static const char *ERA_CONFIG_ID = "150632";
-// static const char *ERA_ACTION_ON_KEY = "ced48cf9-b159-4f2e-87de-44aaa6ea08c0";
-// static const char *ERA_ACTION_OFF_KEY = "6bd3f760-453d-4a01-89c4-ee1f4559fcb8";
+static const char *ERA_AUTH_TOKEN = "Token 7da2578ede0a67dfbe13366428e01862cf64e2b5";
+static const char *ERA_BASE_URL = "https://backend.eoh.io";
 
-static const char *ERA_AUTH_TOKEN = "your_token_here";
-static const char *ERA_BASE_URL = "your_base_url_here";
-static const char *ERA_CONFIG_ID = "your_config_id_here";
-static const char *ERA_ACTION_ON_KEY = "your_action_on_key_here";
-static const char *ERA_ACTION_OFF_KEY = "your_action_off_key_here";
+// Switch 1
+static const char *ERA_SWITCH1_CONFIG_ID = "154532";
+static const char *ERA_SWITCH1_ACTION_ON = "976d5ef7-803c-4950-a62d-cea9d9666a6b";
+static const char *ERA_SWITCH1_ACTION_OFF = "6f2b7d2f-0ad2-491e-9e6a-f2364958cbb9";
+
+// Switch 2
+static const char *ERA_SWITCH2_CONFIG_ID = "154533";
+static const char *ERA_SWITCH2_ACTION_ON = "b9364f39-51dd-41e8-89cd-c5a87a034330";
+static const char *ERA_SWITCH2_ACTION_OFF = "ecff2b3a-36be-4762-bcae-cdaaf44b1e0f";
+
+// Switch 3
+static const char *ERA_SWITCH3_CONFIG_ID = "154534";
+static const char *ERA_SWITCH3_ACTION_ON = "ab0d8064-c72c-4770-931f-a6f54e48c50a";
+static const char *ERA_SWITCH3_ACTION_OFF = "67777a1d-a4f0-4f0c-8ef6-2f5be637d209";
+
 EraIotClient::EraIotClient() : initialized_(false)
 {
 }
@@ -28,9 +35,6 @@ void EraIotClient::Initialize(const std::string &auth_token, const std::string &
 {
     auth_token_ = auth_token.empty() ? ERA_AUTH_TOKEN : auth_token;
     base_url_ = base_url.empty() ? ERA_BASE_URL : base_url;
-    config_id_ = ERA_CONFIG_ID;
-    action_on_key_ = ERA_ACTION_ON_KEY;
-    action_off_key_ = ERA_ACTION_OFF_KEY;
     initialized_ = true;
 
     ESP_LOGI(TAG, "E-Ra IoT Client initialized with base URL: %s", base_url_.c_str());
@@ -83,7 +87,7 @@ std::string EraIotClient::GetCurrentValue(const std::string &config_id)
     return result;
 }
 
-bool EraIotClient::TriggerAction(const std::string &action_key)
+bool EraIotClient::TriggerAction(const std::string &action_key, int value)
 {
     if (!initialized_)
     {
@@ -92,9 +96,6 @@ bool EraIotClient::TriggerAction(const std::string &action_key)
     }
 
     std::string endpoint = "/api/chip_manager/trigger_action/";
-
-    // Determine value based on action key (ON=1, OFF=0)
-    int value = (action_key == action_on_key_) ? 1 : 0;
 
     // Create JSON payload according to E-Ra API format
     cJSON *json = cJSON_CreateObject();
@@ -121,18 +122,6 @@ bool EraIotClient::TriggerAction(const std::string &action_key)
     }
 
     return success;
-}
-
-bool EraIotClient::TurnDeviceOn()
-{
-    ESP_LOGI(TAG, "Turning device ON");
-    return TriggerAction(action_on_key_);
-}
-
-bool EraIotClient::TurnDeviceOff()
-{
-    ESP_LOGI(TAG, "Turning device OFF");
-    return TriggerAction(action_off_key_);
 }
 
 std::string EraIotClient::MakeRequest(const std::string &method, const std::string &endpoint, const std::string &payload)
@@ -199,4 +188,67 @@ std::string EraIotClient::MakeRequest(const std::string &method, const std::stri
 
     ESP_LOGD(TAG, "Response: %s", response.c_str());
     return response;
+}
+
+std::string EraIotClient::GetSwitchStatus(int index)
+{
+    const char *config_id = nullptr;
+    switch (index)
+    {
+    case 1:
+        config_id = ERA_SWITCH1_CONFIG_ID;
+        break;
+    case 2:
+        config_id = ERA_SWITCH2_CONFIG_ID;
+        break;
+    case 3:
+        config_id = ERA_SWITCH3_CONFIG_ID;
+        break;
+    default:
+        ESP_LOGE(TAG, "Invalid switch index: %d", index);
+        return "";
+    }
+    return GetCurrentValue(config_id);
+}
+
+bool EraIotClient::TurnSwitchOn(int index)
+{
+    const char *action_key = nullptr;
+    switch (index)
+    {
+    case 1:
+        action_key = ERA_SWITCH1_ACTION_ON;
+        break;
+    case 2:
+        action_key = ERA_SWITCH2_ACTION_ON;
+        break;
+    case 3:
+        action_key = ERA_SWITCH3_ACTION_ON;
+        break;
+    default:
+        ESP_LOGE(TAG, "Invalid switch index: %d", index);
+        return false;
+    }
+    return TriggerAction(action_key, 1);
+}
+
+bool EraIotClient::TurnSwitchOff(int index)
+{
+    const char *action_key = nullptr;
+    switch (index)
+    {
+    case 1:
+        action_key = ERA_SWITCH1_ACTION_OFF;
+        break;
+    case 2:
+        action_key = ERA_SWITCH2_ACTION_OFF;
+        break;
+    case 3:
+        action_key = ERA_SWITCH3_ACTION_OFF;
+        break;
+    default:
+        ESP_LOGE(TAG, "Invalid switch index: %d", index);
+        return false;
+    }
+    return TriggerAction(action_key, 0);
 }

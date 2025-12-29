@@ -799,4 +799,26 @@ menu "TAIJIPAI_S3_CONFIG"
         启动双声道
 endmenu
 
+menu "Standby Screen Configuration"
+    config STANDBY_SCREEN_ENABLE
+        bool "Enable Standby Screen"
+        default y
+        help
+            Enable the standby screen with weather, time, and environment info.
+
+    config WEATHER_API_KEY
+        string "OpenWeatherMap API Key"
+        default "ae8d3c2fda691593ce3e84472ef25784"
+        depends on STANDBY_SCREEN_ENABLE
+        help
+            API Key for OpenWeatherMap.
+
+    config WEATHER_CITY
+        string "Default City"
+        default "Hanoi"
+        depends on STANDBY_SCREEN_ENABLE
+        help
+            Default city for weather.
+endmenu
+
 endmenu
