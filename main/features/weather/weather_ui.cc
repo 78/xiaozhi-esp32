@@ -69,6 +69,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_color(idle_panel_, COLOR_BG_MAIN, 0);
     lv_obj_set_style_border_width(idle_panel_, 0, 0);
     lv_obj_set_style_outline_width(idle_panel_, 0, 0);
+    lv_obj_set_style_pad_all(idle_panel_, 0, 0);
     lv_obj_set_scrollbar_mode(idle_panel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(idle_panel_, LV_OBJ_FLAG_HIDDEN);
 
@@ -79,6 +80,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(header_panel_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(header_panel_, 0, 0);
     lv_obj_set_style_outline_width(header_panel_, 0, 0);
+    lv_obj_set_scrollbar_mode(header_panel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(header_panel_, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(header_panel_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_left(header_panel_, 10, 0);
@@ -109,6 +111,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(date_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(date_cont, 0, 0);
     lv_obj_set_style_outline_width(date_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(date_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(date_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(date_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -123,6 +126,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(time_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(time_cont, 0, 0);
     lv_obj_set_style_outline_width(time_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(time_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(time_cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(time_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -138,6 +142,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(weather_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(weather_cont, 0, 0);
     lv_obj_set_style_outline_width(weather_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(weather_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(weather_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(weather_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_gap(weather_cont, 5, 0);
@@ -158,6 +163,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(loc_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(loc_cont, 0, 0);
     lv_obj_set_style_outline_width(loc_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(loc_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(loc_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(loc_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_gap(loc_cont, 5, 0);
@@ -178,6 +184,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(uv_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(uv_cont, 0, 0);
     lv_obj_set_style_outline_width(uv_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(uv_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(uv_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(uv_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_gap(uv_cont, 5, 0);
@@ -198,6 +205,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_bg_opa(pm25_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(pm25_cont, 0, 0);
     lv_obj_set_style_outline_width(pm25_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(pm25_cont, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(pm25_cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(pm25_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_gap(pm25_cont, 5, 0);

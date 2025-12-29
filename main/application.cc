@@ -863,6 +863,14 @@ void Application::SetDeviceState(DeviceState state)
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
+
+#ifdef CONFIG_STANDBY_SCREEN_ENABLE
+    if (state != kDeviceStateIdle && state != kDeviceStateUnknown)
+    {
+        display->HideIdleCard();
+    }
+#endif
+
     switch (state)
     {
     case kDeviceStateUnknown:
