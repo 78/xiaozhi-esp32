@@ -16,6 +16,7 @@
 #include "i2c_device.h"
 #include "esp32_camera.h"
 #include "mcp_server.h"
+#include "bq27220.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -80,6 +81,7 @@ private:
     Display* display_;
     Pca9557* pca9557_;
     Esp32Camera* camera_;
+    Bq27220* bq27220_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -99,6 +101,39 @@ private:
 
         // Initialize PCA9557
         pca9557_ = new Pca9557(i2c_bus_, 0x19);
+
+        // Initialize BQ27220 fuel gauge
+        bq27220_ = new Bq27220(i2c_bus_, BQ27220_I2C_ADDRESS);
+        if (!bq27220_->Init()) {
+            ESP_LOGE(TAG, "BQ27220 initialization failed!");
+        } else {
+            // Check if design capacity needs to be configured
+            int design_capacity = bq27220_->GetDesignCapacity();
+            int full_charge_capacity = bq27220_->GetFullCapacity();
+            ESP_LOGI(TAG, "BQ27220 Design Capacity: %d mAh, Full Charge Capacity: %d mAh", 
+                     design_capacity, full_charge_capacity);
+            
+            // Check both design and full charge capacity
+            if (design_capacity != BQ27220_DESIGN_CAPACITY || 
+                full_charge_capacity != BQ27220_DESIGN_CAPACITY) {
+                ESP_LOGW(TAG, "Capacity mismatch! Design: %d, FullCharge: %d, Expected: %d", 
+                         design_capacity, full_charge_capacity, BQ27220_DESIGN_CAPACITY);
+                ESP_LOGI(TAG, "Configuring BQ27220 to %d mAh...", BQ27220_DESIGN_CAPACITY);
+                
+                if (bq27220_->SetDesignCapacity(BQ27220_DESIGN_CAPACITY)) {
+                    ESP_LOGI(TAG, "Capacity configured successfully!");
+                    // Re-read to verify
+                    design_capacity = bq27220_->GetDesignCapacity();
+                    full_charge_capacity = bq27220_->GetFullCapacity();
+                    ESP_LOGI(TAG, "After config - Design: %d mAh, FullCharge: %d mAh",
+                             design_capacity, full_charge_capacity);
+                } else {
+                    ESP_LOGE(TAG, "Failed to configure capacity!");
+                }
+            } else {
+                ESP_LOGI(TAG, "BQ27220 capacity already configured correctly");
+            }
+        }
     }
 
     void InitializeSpi() {
@@ -297,6 +332,45 @@ public:
 
     virtual Camera* GetCamera() override {
         return camera_;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static int last_level = -1;
+        static bool last_charging = false;
+        static int log_counter = 0;
+        
+        if (bq27220_ == nullptr) {
+            return false;
+        }
+        
+        // Get basic battery info
+        level = bq27220_->GetBatteryLevel();
+        charging = bq27220_->IsCharging();
+        discharging = bq27220_->IsDischarging();
+        
+        // Only log when: level changes, charging state changes, or every 30 seconds
+        log_counter++;
+        bool should_log = (level != last_level) || 
+                          (charging != last_charging) || 
+                          (log_counter >= 30);
+        
+        if (should_log) {
+            log_counter = 0;
+            last_level = level;
+            last_charging = charging;
+            
+            // Get additional battery info for logging
+            int voltage = bq27220_->GetVoltage();
+            int current = bq27220_->GetCurrent();
+            int remaining = bq27220_->GetRemainingCapacity();
+            int full_capacity = bq27220_->GetFullCapacity();
+            
+            ESP_LOGI(TAG, "Battery: %d%% (%d/%d mAh), %dmV, %dmA, %s", 
+                     level, remaining, full_capacity, voltage, current,
+                     charging ? "Charging" : (discharging ? "Discharging" : "Idle"));
+        }
+        
+        return true;
     }
 };
 

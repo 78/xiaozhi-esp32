@@ -58,5 +58,11 @@
 
 #define XCLK_FREQ_HZ 20000000
 
+/* BQ27220 Fuel Gauge */
+#define BQ27220_I2C_SDA_PIN GPIO_NUM_1
+#define BQ27220_I2C_SCL_PIN GPIO_NUM_2
+#define BQ27220_I2C_ADDRESS 0x55
+#define BQ27220_DESIGN_CAPACITY 1000  // Battery design capacity in mAh
+
 
 #endif // _BOARD_CONFIG_H_
