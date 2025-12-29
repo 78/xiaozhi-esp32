@@ -14,6 +14,12 @@ AtomS3R CAM、AtomS3R M12 是 M5Stack 推出的基于 ESP32-S3-PICO-1-N8R8 的�
 
 两款开发版均**不带屏幕、不带额外按键**，需要使用语音唤醒。必要时，需要使用 `idf.py monitor` 查看 log 以确定运行状态。
 
+> ![NOTE]
+>
+> 自版本 [待定] 起，由于依赖库不支持 OV3660 传感器，AtomS3R M12 无法使用摄像头识别功能。
+>
+> AtomS3R CAM 不受影响；使用旧版本小智固件的 AtomS3R M12 不受影响。
+
 ## 配置、编译命令
 
 **配置编译目标为 ESP32S3**
@@ -32,7 +38,7 @@ idf.py menuconfig
 
 - `Xiaozhi Assistant` → `Board Type` → 选择 `AtomS3R CAM/M12 + Echo Base`
 - `Xiaozhi Assistant` → `IoT Protocol` → 选择 `MCP协议` 可开启摄像头识别功能
-- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v1/8m.csv`
+- `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v2/8m.csv`
 - `Serial flasher config` → `Flash size` → 选择 `8 MB`
 
 按 `S` 保存，按 `Q` 退出。

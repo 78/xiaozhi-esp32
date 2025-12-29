@@ -10,7 +10,6 @@
 #include "power_save_timer.h"
 #include "../xingzhi-cube-1.54tft-wifi/power_manager.h"
 
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -20,10 +19,6 @@
 #include <esp_lcd_panel_vendor.h>
 
 #define TAG "XINGZHI_CUBE_0_96OLED_WIFI"
-
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
-
 
 class XINGZHI_CUBE_0_96OLED_WIFI : public WifiBoard {
 private:
@@ -131,16 +126,16 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -219,11 +214,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

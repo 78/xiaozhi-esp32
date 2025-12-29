@@ -12,16 +12,11 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 
 class XINGZHI_CUBE_1_54TFT_WIFI : public WifiBoard {
 private:
@@ -85,8 +80,9 @@ private:
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -151,16 +147,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
 
         display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
-        {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-            .emoji_font = font_emoji_32_init(),
-#else
-            .emoji_font = font_emoji_64_init(),
-#endif
-        });
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -203,11 +190,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

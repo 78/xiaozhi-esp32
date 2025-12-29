@@ -1,87 +1,29 @@
-#include "custom_lcd_display.h"
 
+#include "config.h"
+#include "custom_lcd_display.h"
 #include "lcd_display.h"
+#include "assets/lang_config.h"
+#include "settings.h"
+#include "board.h"
 
 #include <vector>
-#include <font_awesome_symbols.h>
+#include <cstring>
+
+#include <esp_lcd_panel_io.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
-#include "assets/lang_config.h"
-#include <cstring>
-#include "settings.h"
-
-#include "esp_lcd_panel_io.h"
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-
-#include "config.h"
-
-#include "board.h"
-
 
 #define TAG "CustomLcdDisplay"
 
-// Color definitions for dark theme
-#define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
-#define DARK_TEXT_COLOR             lv_color_white()           // White text
-#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
-#define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
-#define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
-#define DARK_SYSTEM_BUBBLE_COLOR    lv_color_hex(0x2A2A2A)     // Medium gray
-#define DARK_SYSTEM_TEXT_COLOR      lv_color_hex(0xAAAAAA)     // Light gray text
-#define DARK_BORDER_COLOR           lv_color_hex(0x333333)     // Dark gray border
-#define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)     // Red for dark mode
-
-// Color definitions for light theme
-#define LIGHT_BACKGROUND_COLOR       lv_color_white()           // White background
-#define LIGHT_TEXT_COLOR             lv_color_black()           // Black text
-#define LIGHT_CHAT_BACKGROUND_COLOR  lv_color_hex(0xE0E0E0)     // Light gray background
-#define LIGHT_USER_BUBBLE_COLOR      lv_color_hex(0x95EC69)     // WeChat green
-#define LIGHT_ASSISTANT_BUBBLE_COLOR lv_color_white()           // White
-#define LIGHT_SYSTEM_BUBBLE_COLOR    lv_color_hex(0xE0E0E0)     // Light gray
-#define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
-#define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
-#define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
-
-
-// Define dark theme colors
-static const ThemeColors DARK_THEME = {
-    .background = DARK_BACKGROUND_COLOR,
-    .text = DARK_TEXT_COLOR,
-    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
-    .user_bubble = DARK_USER_BUBBLE_COLOR,
-    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
-    .system_text = DARK_SYSTEM_TEXT_COLOR,
-    .border = DARK_BORDER_COLOR,
-    .low_battery = DARK_LOW_BATTERY_COLOR
-};
-
-// Define light theme colors
-static const ThemeColors LIGHT_THEME = {
-    .background = LIGHT_BACKGROUND_COLOR,
-    .text = LIGHT_TEXT_COLOR,
-    .chat_background = LIGHT_CHAT_BACKGROUND_COLOR,
-    .user_bubble = LIGHT_USER_BUBBLE_COLOR,
-    .assistant_bubble = LIGHT_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = LIGHT_SYSTEM_BUBBLE_COLOR,
-    .system_text = LIGHT_SYSTEM_TEXT_COLOR,
-    .border = LIGHT_BORDER_COLOR,
-    .low_battery = LIGHT_LOW_BATTERY_COLOR
-};
-
-// Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
 
 static SemaphoreHandle_t trans_done_sem = NULL;
 static uint16_t *trans_act;
 static uint16_t *trans_buf_1;
 static uint16_t *trans_buf_2;
-
-
 
 bool CustomLcdDisplay::lvgl_port_flush_io_ready_callback(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
@@ -99,7 +41,6 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     assert(drv != NULL);
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)lv_display_get_driver_data(drv);
     assert(panel_handle != NULL);
-
 
     size_t len = lv_area_get_size(area);
     lv_draw_sw_rgb565_swap(color_map, len);
@@ -250,11 +191,9 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     lv_disp_flush_ready(drv);
 }
 
-
 CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy,
-                           DisplayFonts fonts)
-    : LcdDisplay(panel_io, panel, fonts, width, height) {
+                           int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
+    : LcdDisplay(panel_io, panel, width, height) {
     //     width_ = width;
     // height_ = height;
 
@@ -342,12 +281,6 @@ CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_p
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    // Update the theme
-    if (current_theme_name_ == "dark") {
-        current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
-        current_theme = LIGHT_THEME;
-    }
 
     SetupUI();
 }

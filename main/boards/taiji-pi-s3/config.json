@@ -4,7 +4,15 @@
         {
             "name": "taiji-pi-s3",
             "sdkconfig_append": [
-                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y"
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y",
+                "CONFIG_TAIJIPAI_I2S_TYPE_STD=y"
+            ]
+        },
+        {
+            "name": "taiji-pi-s3-pdm",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y",
+                "CONFIG_TAIJIPAI_I2S_TYPE_PDM=y"
             ]
         }
     ]

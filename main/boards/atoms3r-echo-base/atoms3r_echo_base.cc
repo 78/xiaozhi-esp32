@@ -9,7 +9,6 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_gc9a01.h>
@@ -22,9 +21,6 @@
 #define PI4IOE_REG_IO_DIR    0x03
 #define PI4IOE_REG_IO_OUT    0x05
 #define PI4IOE_REG_IO_PULLUP 0x0D
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class Pi4ioe : public I2cDevice {
 public:
@@ -114,6 +110,7 @@ private:
     Display* display_ = nullptr;
     Button boot_button_;
     bool is_echo_base_connected_ = false;
+
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -254,19 +251,15 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
         display_ = new SpiLcdDisplay(io_handle, panel_handle,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

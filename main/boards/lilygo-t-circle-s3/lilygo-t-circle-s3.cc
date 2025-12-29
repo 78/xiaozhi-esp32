@@ -9,15 +9,11 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include "esp_lcd_gc9d01n.h"
 
 #define TAG "LilygoTCircleS3Board"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class Cst816x : public I2cDevice {
 public:
@@ -185,12 +181,7 @@ private:
 
         display_ = new SpiLcdDisplay(panel_io, panel,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_16_4,
-                                      .icon_font = &font_awesome_16_4,
-                                      .emoji_font = font_emoji_32_init(),
-                                  });
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
         gpio_config_t config;
         config.pin_bit_mask = BIT64(DISPLAY_BL);
@@ -207,11 +198,12 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
             power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
+            }
             app.ToggleChatState();
         });
     }
@@ -246,11 +238,11 @@ public:
         return display_;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
     
     virtual Backlight* GetBacklight() override {

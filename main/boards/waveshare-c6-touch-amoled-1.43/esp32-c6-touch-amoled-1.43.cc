@@ -8,7 +8,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "esp_lcd_sh8601.h"
 #include "display/lcd_display.h"
 #include "esp_io_expander_tca9554.h"
@@ -16,10 +15,6 @@
 #include "lvgl.h"
 
 #define TAG "waveshare_c6_amoled_1_43"
-
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
 
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = 
 {
@@ -58,12 +53,7 @@ public:
                     bool mirror_y,
                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_30_4,
-                        .icon_font = &font_awesome_30_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_display_add_event_cb(display_, MyDrawEventCb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
@@ -162,8 +152,9 @@ private:
     void InitializeButtons() { //接入锂电池时,可长按PWR开机/关机
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
 

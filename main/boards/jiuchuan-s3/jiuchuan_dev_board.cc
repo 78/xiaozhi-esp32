@@ -10,7 +10,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "esp_lcd_panel_gc9301.h"
@@ -25,9 +24,6 @@
 #define BOARD_TAG "JiuchuanDevBoard"
 #define __USER_GPIO_PWRDOWN__
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 // 自定义LCD显示器类，用于圆形屏幕适配
 class CustomLcdDisplay : public SpiLcdDisplay
 {
@@ -40,9 +36,8 @@ public:
                      int offset_y,
                      bool mirror_x,
                      bool mirror_y,
-                     bool swap_xy,
-                     DisplayFonts fonts)
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, fonts)
+                     bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy)
     {
 
         DisplayLockGuard lock(this);
@@ -142,7 +137,6 @@ private:
         power_save_timer_->SetEnabled(true);
     }
 
-
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -235,11 +229,11 @@ private:
             } });
 
         // 电源键三击：重置WiFi
-        pwr_button_.OnMultipleClick([this]()
-                                    {
+        pwr_button_.OnMultipleClick([this]() {
             ESP_LOGI(TAG, "Power button triple click: 重置WiFi");
             power_save_timer_->WakeUp();
-            ResetWifiConfiguration(); }, 3);
+            EnterWifiConfigMode();
+        }, 3);
 
         wifi_button.OnPressDown([this]()
                             {
@@ -315,16 +309,7 @@ private:
             esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
             esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
             display_ = new CustomLcdDisplay(panel_io, panel,
-                                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                            {
-                                                .text_font = &font_puhui_20_4,
-                                                .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                                .emoji_font = font_emoji_32_init(),
-#else
-                                                .emoji_font = font_emoji_64_init(),
-#endif
-                                            });
+                                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -386,11 +371,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

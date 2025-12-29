@@ -8,11 +8,9 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 
 #define TAG "AtomEchoS3R"
 
- 
 class AtomEchoS3rBaseBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -58,8 +56,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

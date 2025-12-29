@@ -1,13 +1,13 @@
 #include "wifi_board.h"
 #include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
+#include "display/emote_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
-#include "emote_display.h"
+#include "esp32_camera.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 
 #include <driver/i2c_master.h>
@@ -26,10 +26,7 @@
 
 #define TAG "EchoEar"
 
-#define USE_LVGL_DEFAULT    0
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 temperature_sensor_handle_t temp_sensor = NULL;
 static const st77916_lcd_init_cmd_t vendor_specific_init_yysj[] = {
     {0xF0, (uint8_t []){0x28}, 1, 0},
@@ -383,20 +380,17 @@ private:
     SemaphoreHandle_t touch_isr_mux_;
 };
 
-class EspS3Cat : public WifiBoard {
+class EchoEar : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
     Charge* charge_;
     Button boot_button_;
-#if USE_LVGL_DEFAULT
-    LcdDisplay* display_;
-#else
-    anim::EmoteDisplay* display_ = nullptr;
-#endif
+    Display* display_ = nullptr;
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
+    Esp32Camera* camera_ = nullptr;
 
     void InitializeI2c()
     {
@@ -475,16 +469,15 @@ private:
         while (true) {
             if (touchpad->WaitForTouchEvent()) {
                 auto &app = Application::GetInstance();
-                auto &board = (EspS3Cat &)Board::GetInstance();
+                auto &board = (EchoEar &)Board::GetInstance();
 
                 ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
                 auto touch_event = touchpad->CheckTouchEvent();
 
                 if (touch_event == Cst816s::TOUCH_RELEASE) {
-                    if (app.GetDeviceState() == kDeviceStateStarting &&
-                            !WifiStation::GetInstance().IsConnected()) {
-                        board.ResetWifiConfiguration();
+                    if (app.GetDeviceState() == kDeviceStateStarting) {
+                        board.EnterWifiConfigMode();
                     } else {
                         app.ToggleChatState();
                     }
@@ -514,7 +507,7 @@ private:
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::touch_isr_callback, cst816s_);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EchoEar::touch_isr_callback, cst816s_);
     }
 
     void InitializeSpi()
@@ -560,15 +553,11 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-#if USE_LVGL_DEFAULT
-        display_ = new SpiLcdDisplay(panel_io, panel,
-        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-            .emoji_font = font_emoji_64_init(),
-        });
+#if CONFIG_USE_EMOTE_MESSAGE_STYLE
+        display_ = new emote::EmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #else
-        display_ = new anim::EmoteDisplay(panel, panel_io);
+        display_ = new SpiLcdDisplay(panel_io, panel,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 #endif
         backlight_ = new PwmBacklight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         backlight_->RestoreBrightness();
@@ -578,9 +567,10 @@ private:
     {
         boot_button_.OnClick([this]() {
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting) {
                 ESP_LOGI(TAG, "Boot button pressed, enter WiFi configuration mode");
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -594,8 +584,33 @@ private:
         gpio_set_level(POWER_CTRL, 0);
     }
 
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    void InitializeCamera() {
+        esp_video_init_usb_uvc_config_t usb_uvc_config = {
+            .uvc = {
+                .uvc_dev_num = 1,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+            .usb = {
+                .init_usb_host_lib = true,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+        };
+
+        esp_video_init_config_t video_config = {
+            .usb_uvc = &usb_uvc_config,
+        };
+
+        camera_ = new Esp32Camera(video_config);
+    }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+
 public:
-    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO)
+    EchoEar() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
         uint8_t pcb_verison = DetectPcbVersion();
@@ -605,6 +620,9 @@ public:
         InitializeSpi();
         Initializest77916Display(pcb_verison);
         InitializeButtons();
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+        InitializeCamera();
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     }
 
     virtual AudioCodec* GetAudioCodec() override
@@ -639,6 +657,10 @@ public:
     {
         return backlight_;
     }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
 };
 
-DECLARE_BOARD(EspS3Cat);
+DECLARE_BOARD(EchoEar);

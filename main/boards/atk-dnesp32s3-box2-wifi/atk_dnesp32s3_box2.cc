@@ -13,16 +13,12 @@
 #include "i2c_device.h"
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include "esp_io_expander_tca95xx_16bit.h"
 
 #define TAG "atk_dnesp32s3_box2_wifi"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class atk_dnesp32s3_box2_wifi : public WifiBoard {
 private:
@@ -265,8 +261,9 @@ private:
             auto self = static_cast<atk_dnesp32s3_box2_wifi*>(usr_data);
 
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
 
             if (self->power_status_ == kDeviceBatterySupply) {
@@ -392,12 +389,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
 public:
@@ -450,11 +442,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

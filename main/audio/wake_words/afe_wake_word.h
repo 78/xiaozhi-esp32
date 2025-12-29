@@ -24,7 +24,7 @@ public:
     AfeWakeWord();
     ~AfeWakeWord();
 
-    bool Initialize(AudioCodec* codec);
+    bool Initialize(AudioCodec* codec, srmodel_list_t* models_list);
     void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
     void Start();
@@ -36,7 +36,7 @@ public:
 
 private:
     srmodel_list_t *models_ = nullptr;
-    esp_afe_sr_iface_t* afe_iface_ = nullptr;
+    const esp_afe_sr_iface_t* afe_iface_ = nullptr;
     esp_afe_sr_data_t* afe_data_ = nullptr;
     char* wakenet_model_ = NULL;
     std::vector<std::string> wake_words_;

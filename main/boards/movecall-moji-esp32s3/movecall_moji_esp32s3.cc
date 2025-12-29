@@ -6,7 +6,6 @@
 #include "config.h"
 #include "led/single_led.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
@@ -20,10 +19,6 @@
 
 #define TAG "MovecallMojiESP32S3"
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
-
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, 
@@ -35,12 +30,7 @@ public:
                     bool mirror_x,
                     bool mirror_y,
                     bool swap_xy) 
-        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_20_4,
-                        .icon_font = &font_awesome_20_4,
-                        .emoji_font = font_emoji_64_init(),
-                    }) {
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
 
         DisplayLockGuard lock(this);
         // 由于屏幕是圆的，所以状态栏需要增加左右内边距
@@ -105,19 +95,15 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true)); 
 
         display_ = new SpiLcdDisplay(io_handle, panel_handle,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

@@ -10,7 +10,6 @@
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
@@ -22,9 +21,6 @@
 #define LCD_OPCODE_WRITE_CMD        (0x02ULL)
 #define LCD_OPCODE_READ_CMD         (0x0BULL)
 #define LCD_OPCODE_WRITE_COLOR      (0x32ULL)
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 static const st77916_lcd_init_cmd_t vendor_specific_init_new[] = {
     {0xF0, (uint8_t []){0x28}, 1, 0},
@@ -223,7 +219,6 @@ private:
     button_driver_t* pwr_btn_driver_ = nullptr;
     static CustomBoard* instance_;
 
-
     void InitializeI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -358,12 +353,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
  
     void InitializeButtonsCustom() {
@@ -394,8 +384,9 @@ private:
         iot_button_register_cb(boot_btn, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<CustomBoard*>(usr_data);
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         }, this);

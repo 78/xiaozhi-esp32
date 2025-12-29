@@ -8,18 +8,12 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
 #include <esp_timer.h>
 
 #define TAG "TaijiPiS3Board"
-
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 
 static const st77916_lcd_init_cmd_t lcd_init_cmds[] = {
 #ifdef CONFIG_TAIJIPAI_I2S_TYPE_STD
@@ -508,9 +502,9 @@ private:
             // 只有短触才触发
             if (touch_duration < TOUCH_THRESHOLD_MS) {
                 auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateStarting && 
-                    !WifiStation::GetInstance().IsConnected()) {
-                    board.ResetWifiConfiguration();
+                if (app.GetDeviceState() == kDeviceStateStarting) {
+                    board.EnterWifiConfigMode();
+                    return;
                 }
                 app.ToggleChatState();
             }
@@ -595,12 +589,7 @@ private:
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_20_4,
-                                        .icon_font = &font_awesome_20_4,
-                                        .emoji_font = font_emoji_64_init(),
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeMute() {
@@ -628,9 +617,17 @@ public:
             AUDIO_I2S_GPIO_BCLK,
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
+            #ifdef CONFIG_I2S_USE_2SLOT
+            I2S_STD_SLOT_BOTH,
+            #endif
             AUDIO_MIC_SCK_PIN,
             AUDIO_MIC_WS_PIN,
+	        #ifdef CONFIG_I2S_USE_2SLOT
+            AUDIO_MIC_SD_PIN,
+            I2S_STD_SLOT_LEFT
+            #else
             AUDIO_MIC_SD_PIN
+            #endif
         );
 #else
         static NoAudioCodecSimplexPdm audio_codec(
@@ -639,6 +636,9 @@ public:
             AUDIO_I2S_GPIO_BCLK,
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
+            #ifdef CONFIG_I2S_USE_2SLOT
+            I2S_STD_SLOT_BOTH,
+            #endif 
             AUDIO_MIC_WS_PIN,
             AUDIO_MIC_SD_PIN
         );

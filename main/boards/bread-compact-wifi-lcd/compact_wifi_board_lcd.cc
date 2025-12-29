@@ -9,7 +9,6 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
@@ -59,9 +58,6 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 #endif
  
 #define TAG "CompactWifiBoardLCD"
-
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
 
 class CompactWifiBoardLCD : public WifiBoard {
 private:
@@ -114,7 +110,6 @@ private:
 #endif
         
         esp_lcd_panel_reset(panel);
- 
 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
@@ -124,25 +119,15 @@ private:
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-#endif
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-
- 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

@@ -10,7 +10,6 @@
 #include "power_save_timer.h"
 #include "press_to_talk_mcp_tool.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
@@ -18,9 +17,6 @@
 #include <esp_lcd_panel_vendor.h>
 
 #define TAG "XminiC3Board"
-
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
 
 class XminiC3Board : public WifiBoard {
 private:
@@ -33,11 +29,7 @@ private:
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
 
     void InitializePowerSaveTimer() {
-#if CONFIG_USE_ESP_WAKE_WORD
         power_save_timer_ = new PowerSaveTimer(160, 300);
-#else
-        power_save_timer_ = new PowerSaveTimer(160, 60);
-#endif
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
         });
@@ -116,15 +108,15 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
                 app.ToggleChatState();
@@ -179,11 +171,11 @@ public:
         return &audio_codec;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

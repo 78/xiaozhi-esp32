@@ -9,7 +9,6 @@
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -19,10 +18,6 @@
 #include "power_save_timer.h"
 
 #define TAG "waveshare_lcd_1_69"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
@@ -36,22 +31,12 @@ public:
                     bool mirror_y,
                     bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle,
-                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
-                    {
-                        .text_font = &font_puhui_20_4,
-                        .icon_font = &font_awesome_20_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                        .emoji_font = font_emoji_32_init(),
-#else
-                        .emoji_font = font_emoji_64_init(),
-#endif
-                    }) {
+                    width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
     }
 };
-
 
 class CustomButton: public Button {
 public:
@@ -70,7 +55,6 @@ public:
         iot_button_unregister_cb(button_handle_, BUTTON_PRESS_UP, nullptr);
     }
 };
-
 
 class CustomBoard : public WifiBoard {
 private:
@@ -174,8 +158,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -258,11 +243,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

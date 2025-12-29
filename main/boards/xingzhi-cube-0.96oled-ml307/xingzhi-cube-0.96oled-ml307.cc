@@ -16,13 +16,8 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #define TAG "XINGZHI_CUBE_0_96OLED_ML307"
-
-LV_FONT_DECLARE(font_puhui_14_1);
-LV_FONT_DECLARE(font_awesome_14_1);
-
 
 class XINGZHI_CUBE_0_96OLED_ML307 : public DualNetworkBoard {
 private:
@@ -130,8 +125,7 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y,
-            {&font_puhui_14_1, &font_awesome_14_1});
+        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
@@ -139,10 +133,11 @@ private:
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                if (app.GetDeviceState() == kDeviceStateStarting) {
                     // cast to WifiBoard
                     auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
+                    wifi_board.EnterWifiConfigMode();
+                    return;
                 }
             }
             app.ToggleChatState();
@@ -228,11 +223,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        DualNetworkBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveLevel(level);
     }
 };
 

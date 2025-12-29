@@ -5,7 +5,6 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
-#include <wifi_station.h>
 
 #include "application.h"
 #include "codecs/no_audio_codec.h"
@@ -23,9 +22,6 @@
 
 // 控制器初始化函数声明
 void InitializeElectronBotController();
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
 
 class ElectronBot : public WifiBoard {
 private:
@@ -73,20 +69,15 @@ private:
 
         display_ = new ElectronEmojiDisplay(io_handle, panel_handle, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                             DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                            {
-                                                .text_font = &font_puhui_20_4,
-                                                .icon_font = &font_awesome_20_4,
-                                                .emoji_font = font_emoji_64_init(),
-                                            });
+                                            DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting &&
-                !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });

@@ -7,7 +7,6 @@
 
 #include "config.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include "esp_lcd_gc9503.h"
@@ -16,9 +15,6 @@
 #include <esp_lcd_panel_io_additions.h>
 
 #define TAG "Yuying_313lcd"
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
 
 class Yuying_313lcd : public WifiBoard {
 private:
@@ -103,13 +99,9 @@ private:
 
         display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_30_4,
-                                      .icon_font = &font_awesome_30_4,
-                                      .emoji_font = font_emoji_64_init(),
-                                  });
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
+
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -130,8 +122,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         boot_button_.OnPressDown([this]() {

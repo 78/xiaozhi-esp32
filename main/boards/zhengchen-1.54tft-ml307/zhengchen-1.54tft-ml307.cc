@@ -12,16 +12,11 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
 #define TAG "ZHENGCHEN_1_54TFT_ML307"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 
 class ZHENGCHEN_1_54TFT_ML307 : public DualNetworkBoard {
 private:
@@ -81,10 +76,11 @@ private:
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                if (app.GetDeviceState() == kDeviceStateStarting) {
                     // cast to WifiBoard
                     auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
+                    wifi_board.EnterWifiConfigMode();
+                    return;
                 }
             }
             app.ToggleChatState();
@@ -154,12 +150,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
 
         display_ = new ZHENGCHEN_LcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
-        {
-            .text_font = &font_puhui_20_4,
-            .icon_font = &font_awesome_20_4,
-            .emoji_font = font_emoji_64_init(),
-        });
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         display_->SetupHighTempWarningPopup();
     }
 
@@ -209,11 +200,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        DualNetworkBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveLevel(level);
     }
 };
 
