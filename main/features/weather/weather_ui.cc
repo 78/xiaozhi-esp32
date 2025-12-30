@@ -10,11 +10,18 @@
 
 // Colors from CSS
 #define COLOR_PRIMARY lv_color_hex(0xd946ef)
-#define COLOR_BG_MAIN lv_color_hex(0x090014)
+#define COLOR_BG_MAIN lv_color_hex(0x000000) // Deep Black for Neon contrast
 #define COLOR_TEXT_MAIN lv_color_hex(0xffffff)
 #define COLOR_TEXT_SUB lv_color_hex(0xd1d5db)
 #define COLOR_SUCCESS lv_color_hex(0x00ff99)
 #define COLOR_DANGER lv_color_hex(0xff3366)
+
+// Neon Colors
+#define COLOR_NEON_CYAN lv_color_hex(0x00FFFF)
+#define COLOR_NEON_MAGENTA lv_color_hex(0xFF00FF)
+#define COLOR_NEON_GREEN lv_color_hex(0x39FF14)
+#define COLOR_NEON_ORANGE lv_color_hex(0xFFA500)
+#define COLOR_NEON_BLUE lv_color_hex(0x00BFFF)
 
 LV_FONT_DECLARE(lv_font_montserrat_14);
 LV_FONT_DECLARE(lv_font_montserrat_20);
@@ -66,6 +73,21 @@ const char *WeatherUI::GetWeatherIcon(const std::string &code)
     return "\uf0c2";     // Cloud
 }
 
+static void StyleNeonBox(lv_obj_t *obj, lv_color_t color)
+{
+    lv_obj_set_style_bg_color(obj, lv_color_hex(0x101010), 0); // Very dark grey background
+    lv_obj_set_style_bg_opa(obj, LV_OPA_80, 0);                // Semi-transparent
+    lv_obj_set_style_border_color(obj, color, 0);
+    lv_obj_set_style_border_width(obj, 2, 0);
+    lv_obj_set_style_radius(obj, 8, 0); // Rounded corners
+
+    // Shadow for Glow Effect
+    lv_obj_set_style_shadow_width(obj, 15, 0);
+    lv_obj_set_style_shadow_color(obj, color, 0);
+    lv_obj_set_style_shadow_spread(obj, 2, 0);
+    lv_obj_set_style_shadow_opa(obj, LV_OPA_60, 0);
+}
+
 void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_height)
 {
     screen_width_ = screen_width;
@@ -84,151 +106,149 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_scrollbar_mode(idle_panel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(idle_panel_, LV_OBJ_FLAG_HIDDEN);
 
-    // --- Header (15%) ---
+    // --- Header (Top Bar) ---
     header_panel_ = lv_obj_create(idle_panel_);
-    lv_obj_set_size(header_panel_, LV_PCT(100), LV_PCT(15));
-    lv_obj_set_pos(header_panel_, 0, 0);
+    lv_obj_set_size(header_panel_, LV_PCT(100), 30);
+    lv_obj_set_align(header_panel_, LV_ALIGN_TOP_MID);
     lv_obj_set_style_bg_opa(header_panel_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(header_panel_, 0, 0);
-    lv_obj_set_style_outline_width(header_panel_, 0, 0);
-    lv_obj_set_scrollbar_mode(header_panel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(header_panel_, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(header_panel_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_left(header_panel_, 10, 0);
-    lv_obj_set_style_pad_right(header_panel_, 10, 0);
+    lv_obj_set_style_pad_hor(header_panel_, 10, 0);
 
     // Wifi Icon
     wifi_label_ = lv_label_create(header_panel_);
     lv_obj_set_style_text_font(wifi_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(wifi_label_, lv_color_hex(0x00FF00), 0); // Green
+    lv_obj_set_style_text_color(wifi_label_, COLOR_NEON_GREEN, 0);
     lv_label_set_text(wifi_label_, "\uf1eb");
 
     // Title
     title_label_ = lv_label_create(header_panel_);
     lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(title_label_, lv_color_hex(0xFFA500), 0); // Orange
-    lv_label_set_text(title_label_, "Tu Thuoc IoT");
+    lv_obj_set_style_text_color(title_label_, COLOR_NEON_ORANGE, 0);
+    lv_label_set_text(title_label_, "IoTForce AI Box");
 
     // Battery Icon
     battery_label_ = lv_label_create(header_panel_);
     lv_obj_set_style_text_font(battery_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(battery_label_, lv_color_hex(0x00FF00), 0); // Green
+    lv_obj_set_style_text_color(battery_label_, COLOR_NEON_GREEN, 0);
     lv_label_set_text(battery_label_, "\uf240");
 
-    // --- Date (10%) ---
-    lv_obj_t *date_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(date_cont, LV_PCT(100), LV_PCT(10));
-    lv_obj_set_pos(date_cont, 0, LV_PCT(15));
-    lv_obj_set_style_bg_opa(date_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(date_cont, 0, 0);
-    lv_obj_set_style_outline_width(date_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(date_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(date_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(date_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // --- Location (Above Time Box) ---
+    lv_obj_t *loc_cont_top = lv_obj_create(idle_panel_);
+    lv_obj_set_size(loc_cont_top, LV_PCT(100), 30);
+    lv_obj_set_align(loc_cont_top, LV_ALIGN_TOP_MID);
+    lv_obj_set_y(loc_cont_top, 35); // Below header (30px)
+    lv_obj_set_style_bg_opa(loc_cont_top, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(loc_cont_top, 0, 0);
+    lv_obj_set_flex_flow(loc_cont_top, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(loc_cont_top, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(loc_cont_top, 5, 0);
 
-    date_label_ = lv_label_create(date_cont);
-    lv_obj_set_style_text_font(date_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(date_label_, COLOR_TEXT_MAIN, 0);
-
-    // --- Time (35%) ---
-    lv_obj_t *time_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(time_cont, LV_PCT(100), LV_PCT(35));
-    lv_obj_set_pos(time_cont, 0, LV_PCT(25));
-    lv_obj_set_style_bg_opa(time_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(time_cont, 0, 0);
-    lv_obj_set_style_outline_width(time_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(time_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(time_cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(time_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    time_label_ = lv_label_create(time_cont);
-    lv_obj_set_style_text_font(time_label_, IDLE_TIME_FONT, 0);
-    lv_obj_set_style_text_color(time_label_, COLOR_TEXT_MAIN, 0);
-
-    // --- Bottom Grid (40%) ---
-    // Row 1 Left: Weather
-    lv_obj_t *weather_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(weather_cont, LV_PCT(50), LV_PCT(20));
-    lv_obj_set_pos(weather_cont, 0, LV_PCT(60));
-    lv_obj_set_style_bg_opa(weather_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(weather_cont, 0, 0);
-    lv_obj_set_style_outline_width(weather_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(weather_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(weather_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(weather_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(weather_cont, 5, 0);
-
-    icon_label_ = lv_label_create(weather_cont);
-    lv_obj_set_style_text_font(icon_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(icon_label_, lv_color_hex(0xFFD700), 0); // Gold
-    lv_label_set_text(icon_label_, "\uf0c2");                            // Default Cloud
-
-    temp_label_ = lv_label_create(weather_cont);
-    lv_obj_set_style_text_font(temp_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(temp_label_, COLOR_TEXT_MAIN, 0);
-
-    // Row 1 Right: Location
-    lv_obj_t *loc_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(loc_cont, LV_PCT(50), LV_PCT(20));
-    lv_obj_set_pos(loc_cont, LV_PCT(50), LV_PCT(60));
-    lv_obj_set_style_bg_opa(loc_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(loc_cont, 0, 0);
-    lv_obj_set_style_outline_width(loc_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(loc_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(loc_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(loc_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(loc_cont, 5, 0);
-
-    location_icon_label_ = lv_label_create(loc_cont);
+    location_icon_label_ = lv_label_create(loc_cont_top);
     lv_obj_set_style_text_font(location_icon_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(location_icon_label_, lv_color_hex(0x00BFFF), 0); // Deep Sky Blue
-    lv_label_set_text(location_icon_label_, "\uf3c5");                            // Map Marker
+    lv_obj_set_style_text_color(location_icon_label_, COLOR_NEON_BLUE, 0);
+    lv_label_set_text(location_icon_label_, "\uf3c5");
 
-    city_label_ = lv_label_create(loc_cont);
+    city_label_ = lv_label_create(loc_cont_top);
     lv_obj_set_style_text_font(city_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(city_label_, COLOR_TEXT_MAIN, 0);
+    lv_label_set_text(city_label_, "City");
 
-    // Row 2 Left: UV Index
-    lv_obj_t *uv_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(uv_cont, LV_PCT(50), LV_PCT(20));
-    lv_obj_set_pos(uv_cont, 0, LV_PCT(80));
-    lv_obj_set_style_bg_opa(uv_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(uv_cont, 0, 0);
-    lv_obj_set_style_outline_width(uv_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(uv_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(uv_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(uv_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(uv_cont, 5, 0);
+    // --- Main Time Box (Center) ---
+    lv_obj_t *time_box = lv_obj_create(idle_panel_);
+    lv_obj_set_size(time_box, 200, 100);
+    lv_obj_set_align(time_box, LV_ALIGN_CENTER);
+    StyleNeonBox(time_box, COLOR_NEON_CYAN);
+    lv_obj_set_flex_flow(time_box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(time_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollbar_mode(time_box, LV_SCROLLBAR_MODE_OFF);
 
-    uv_icon_label_ = lv_label_create(uv_cont);
+    time_label_ = lv_label_create(time_box);
+    lv_obj_set_style_text_font(time_label_, IDLE_TIME_FONT, 0);
+    lv_obj_set_style_text_color(time_label_, COLOR_NEON_CYAN, 0);
+    lv_label_set_text(time_label_, "00:00");
+
+    date_label_ = lv_label_create(time_box);
+    lv_obj_set_style_text_font(date_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(date_label_, COLOR_TEXT_MAIN, 0);
+    lv_label_set_text(date_label_, "Mon 01/01");
+
+    // --- Bottom Info Grid ---
+    lv_obj_t *grid_cont = lv_obj_create(idle_panel_);
+    lv_obj_set_size(grid_cont, LV_PCT(100), 80);
+    lv_obj_set_align(grid_cont, LV_ALIGN_BOTTOM_MID);
+    lv_obj_set_style_bg_opa(grid_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(grid_cont, 0, 0);
+    lv_obj_set_flex_flow(grid_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(grid_cont, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_bottom(grid_cont, 10, 0);
+
+    // Box 1: Weather
+    lv_obj_t *weather_box = lv_obj_create(grid_cont);
+    lv_obj_set_size(weather_box, 70, 60);
+    StyleNeonBox(weather_box, COLOR_NEON_MAGENTA);
+    lv_obj_set_flex_flow(weather_box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(weather_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollbar_mode(weather_box, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_all(weather_box, 2, 0);
+
+    icon_label_ = lv_label_create(weather_box);
+    lv_obj_set_style_text_font(icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(icon_label_, COLOR_NEON_MAGENTA, 0);
+    lv_label_set_text(icon_label_, "\uf0c2");
+
+    temp_label_ = lv_label_create(weather_box);
+    lv_obj_set_style_text_font(temp_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(temp_label_, COLOR_TEXT_MAIN, 0);
+    lv_label_set_text(temp_label_, "-- C");
+
+    // Box 2: Humidity (Middle)
+    lv_obj_t *hum_box = lv_obj_create(grid_cont);
+    lv_obj_set_size(hum_box, 70, 60);
+    StyleNeonBox(hum_box, COLOR_NEON_BLUE);
+    lv_obj_set_flex_flow(hum_box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(hum_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollbar_mode(hum_box, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_all(hum_box, 2, 0);
+
+    humidity_icon_label_ = lv_label_create(hum_box);
+    lv_obj_set_style_text_font(humidity_icon_label_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(humidity_icon_label_, COLOR_NEON_BLUE, 0);
+    lv_label_set_text(humidity_icon_label_, "\uf0c2"); // Cloud icon (fallback for humidity)
+
+    humidity_label_ = lv_label_create(hum_box);
+    lv_obj_set_style_text_font(humidity_label_, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(humidity_label_, COLOR_TEXT_MAIN, 0);
+    lv_label_set_text(humidity_label_, "-- %");
+
+    // Box 3: UV/Air (Right)
+    lv_obj_t *uv_box = lv_obj_create(grid_cont);
+    lv_obj_set_size(uv_box, 70, 60);
+    StyleNeonBox(uv_box, COLOR_NEON_ORANGE);
+    lv_obj_set_flex_flow(uv_box, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(uv_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollbar_mode(uv_box, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_all(uv_box, 2, 0);
+
+    uv_icon_label_ = lv_label_create(uv_box);
     lv_obj_set_style_text_font(uv_icon_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(uv_icon_label_, lv_color_hex(0xFFA500), 0); // Orange
-    lv_label_set_text(uv_icon_label_, "\uf185");                            // Sun
+    lv_obj_set_style_text_color(uv_icon_label_, COLOR_NEON_ORANGE, 0);
+    lv_label_set_text(uv_icon_label_, "\uf185");
 
-    uv_label_ = lv_label_create(uv_cont);
+    uv_label_ = lv_label_create(uv_box);
     lv_obj_set_style_text_font(uv_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(uv_label_, COLOR_TEXT_MAIN, 0);
+    lv_label_set_text(uv_label_, "UV");
 
-    // Row 2 Right: PM2.5
-    lv_obj_t *pm25_cont = lv_obj_create(idle_panel_);
-    lv_obj_set_size(pm25_cont, LV_PCT(50), LV_PCT(20));
-    lv_obj_set_pos(pm25_cont, LV_PCT(50), LV_PCT(80));
-    lv_obj_set_style_bg_opa(pm25_cont, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(pm25_cont, 0, 0);
-    lv_obj_set_style_outline_width(pm25_cont, 0, 0);
-    lv_obj_set_scrollbar_mode(pm25_cont, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_flex_flow(pm25_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(pm25_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(pm25_cont, 5, 0);
-
-    pm25_icon_label_ = lv_label_create(pm25_cont);
-    lv_obj_set_style_text_font(pm25_icon_label_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(pm25_icon_label_, lv_color_hex(0x808080), 0); // Grey
-    lv_label_set_text(pm25_icon_label_, "\uf0c2");                            // Cloud (for Air/PM2.5)
-
-    pm25_label_ = lv_label_create(pm25_cont);
-    lv_obj_set_style_text_font(pm25_label_, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(pm25_label_, COLOR_TEXT_MAIN, 0);
+    // Initialize unused pointers to null or create dummy objects if needed to prevent crashes
+    // Since we changed layout, some pointers like pm25_label_ might be unused in this specific design
+    // Let's add PM2.5 to the UV box or create a 4th box if space permits.
+    // For now, let's just map pm25_label_ to a hidden object or reuse UV box for simplicity
+    // Or better, let's add it to the UV box as a second line if needed, but for "Sporty" look, less is more.
+    // We will just create it but hide it to avoid null pointer crashes in UpdateIdleDisplay
+    pm25_label_ = lv_label_create(uv_box);
+    lv_obj_add_flag(pm25_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void WeatherUI::ShowIdleCard(const IdleCardInfo &info)
@@ -248,6 +268,7 @@ void WeatherUI::ShowIdleCard(const IdleCardInfo &info)
     lv_label_set_text(temp_label_, info.temperature_text.c_str());
     lv_label_set_text(city_label_, info.city.c_str());
 
+    lv_label_set_text(humidity_label_, info.humidity_text.c_str());
     lv_label_set_text(uv_label_, info.uv_text.c_str());
     lv_label_set_text(pm25_label_, info.pm25_text.c_str());
 
@@ -304,6 +325,10 @@ void WeatherUI::UpdateIdleDisplay(const WeatherInfo &weather_info)
         card.temperature_text = buf;
         card.icon = GetWeatherIcon(weather_info.icon_code);
 
+        // Set Humidity
+        snprintf(buf, sizeof(buf), "%d %%", weather_info.humidity);
+        card.humidity_text = buf;
+
         // Set UV Index
         snprintf(buf, sizeof(buf), "%.1f UV", weather_info.uv_index);
         card.uv_text = buf;
@@ -317,6 +342,7 @@ void WeatherUI::UpdateIdleDisplay(const WeatherInfo &weather_info)
         card.city = "Updating...";
         card.temperature_text = "--";
         card.icon = "\uf0c2"; // Cloud
+        card.humidity_text = "-- %";
         card.uv_text = "-- UV";
         card.pm25_text = "-- PM2.5";
     }

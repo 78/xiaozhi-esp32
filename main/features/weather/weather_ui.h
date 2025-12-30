@@ -38,6 +38,9 @@ private:
     lv_obj_t *uv_label_;
     lv_obj_t *uv_icon_label_;
 
+    lv_obj_t *humidity_label_;
+    lv_obj_t *humidity_icon_label_;
+
     lv_obj_t *pm25_label_;
     lv_obj_t *pm25_icon_label_;
 
