@@ -2,7 +2,7 @@
     "target": "esp32c5",
     "builds": [
         {
-            "name": "esp-sensair-shuttle",
+            "name": "esp-sensairshuttle",
             "sdkconfig_append": [
                 "CONFIG_IDF_TARGET=\"esp32c5\"",
                 "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=6",
