@@ -634,6 +634,15 @@ void AudioService::ResetDecoder() {
     audio_queue_cv_.notify_all();
 }
 
+void AudioService::UpdateOutputTimestamp() {
+    last_output_time_ = std::chrono::steady_clock::now();
+    // Debug: Log timestamp updates during music playback (reduce frequency)
+    static int update_count = 0;
+    if (update_count++ % 50 == 0) {  // Log every 50 updates
+        ESP_LOGD(TAG, "Updated output timestamp (update #%d)", update_count);
+    }
+}
+
 void AudioService::CheckAndUpdateAudioPowerState() {
     auto now = std::chrono::steady_clock::now();
     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();

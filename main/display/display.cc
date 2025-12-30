@@ -54,3 +54,12 @@ void Display::SetTheme(Theme* theme) {
 void Display::SetPowerSaveMode(bool on) {
     ESP_LOGW(TAG, "SetPowerSaveMode: %d", on);
 }
+
+void Display::SetMusicInfo(const char *song_name) {
+    // 默认实现：对于非微信模式，将歌名显示在聊天消息标签中
+    if (song_name != nullptr && strlen(song_name) > 0) {
+        ESP_LOGW(TAG, "SetMusicInfo: %s", song_name);
+    } else {
+        ESP_LOGW(TAG, "SetMusicInfo: (empty)");
+    }
+}
