@@ -20,6 +20,17 @@ LV_FONT_DECLARE(lv_font_montserrat_14);
 LV_FONT_DECLARE(lv_font_montserrat_20);
 LV_FONT_DECLARE(lv_font_montserrat_28);
 LV_FONT_DECLARE(lv_font_montserrat_48);
+
+// Uncomment the following line after generating the font file
+#define USE_DIGITAL_FONT
+
+#ifdef USE_DIGITAL_FONT
+LV_FONT_DECLARE(font_digital_7_48);
+#define IDLE_TIME_FONT &font_digital_7_48
+#else
+#define IDLE_TIME_FONT &lv_font_montserrat_48
+#endif
+
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
 WeatherUI::WeatherUI() : idle_panel_(nullptr) {}
@@ -96,7 +107,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     title_label_ = lv_label_create(header_panel_);
     lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(title_label_, lv_color_hex(0xFFA500), 0); // Orange
-    lv_label_set_text(title_label_, "IoTForce AI Box");
+    lv_label_set_text(title_label_, "Tu Thuoc IoT");
 
     // Battery Icon
     battery_label_ = lv_label_create(header_panel_);
@@ -131,7 +142,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_flex_align(time_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     time_label_ = lv_label_create(time_cont);
-    lv_obj_set_style_text_font(time_label_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_font(time_label_, IDLE_TIME_FONT, 0);
     lv_obj_set_style_text_color(time_label_, COLOR_TEXT_MAIN, 0);
 
     // --- Bottom Grid (40%) ---

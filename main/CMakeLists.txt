@@ -39,6 +39,7 @@ set(SOURCES "audio/audio_codec.cc"
             "features/weather/weather_service.cc"
             "features/weather/weather_ui.cc"
             "features/weather/lunar_calendar.cc"
+            "features/weather/font_digital_7_48.c"
             )
 
 if(CONFIG_USE_ERA_SMART_HOME)
