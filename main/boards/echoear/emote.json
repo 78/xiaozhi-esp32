@@ -18,5 +18,6 @@
     {"emote": "relaxed",     "src": "Happy.eaf",     "loop": true,  "fps": 20},
     {"emote": "confused",    "src": "confused.eaf",  "loop": true,  "fps": 20},
     {"emote": "neutral",     "src": "winking.eaf",   "loop": false, "fps": 20},
-    {"emote": "idle",        "src": "neutral.eaf",   "loop": false, "fps": 20}
+    {"emote": "idle",        "src": "neutral.eaf",   "loop": false, "fps": 20},
+    {"emote": "gear",        "src": "confused.eaf",  "loop": false, "fps": 20}
 ]

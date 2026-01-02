@@ -67,7 +67,9 @@ public:
     virtual void UpdateStatusBar(bool update_all = false) override;
     virtual void SetPowerSaveMode(bool on) override;
     virtual void SetPreviewImage(const void* image);
-
+    virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80);
+    
+    void SetBatteryIcon();
     void AddEmojiData(const std::string &name, const void* data, size_t size, uint8_t fps = 0, bool loop = false, bool lack = false);
     void AddIconData(const std::string &name, const void* data, size_t size);
     void AddLayoutData(const std::string &name, const std::string &align_str, int x, int y, int width = 0, int height = 0);
