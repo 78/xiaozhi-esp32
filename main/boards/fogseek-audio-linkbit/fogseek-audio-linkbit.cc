@@ -12,9 +12,8 @@
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
-#include <wifi_station.h>
-#include <wifi_configuration_ap.h>
 #include <ssid_manager.h>
+#include <wifi_manager.h>
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 
@@ -174,65 +173,41 @@ public:
     // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
     virtual void StartNetwork() override
     {
-        // User can press BOOT button while starting to enter WiFi configuration mode
-        if (in_config_mode_)
-        {
-            EnterWifiConfigMode();
-            return;
-        }
+        auto &wifi_manager = WifiManager::GetInstance();
 
-        // If no WiFi SSID is configured, enter WiFi configuration mode
-        auto &ssid_manager = SsidManager::GetInstance();
-        auto ssid_list = ssid_manager.GetSsidList();
-        if (ssid_list.empty())
-        {
-            in_config_mode_ = true;
-            EnterWifiConfigMode();
-            return;
-        }
+        // Initialize WiFi manager with custom SSID prefix
+        WifiManagerConfig config;
+        config.ssid_prefix = "LinkBit";
+        config.language = Lang::CODE;
+        wifi_manager.Initialize(config);
 
-        // For normal operation, use the parent class's logic
-        WifiBoard::StartNetwork();
-    }
+        // Set unified event callback - forward to NetworkEvent with SSID data
+        wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
+                                      {
+            std::string ssid = wifi_manager.GetSsid();
+            switch (event) {
+                case WifiEvent::Scanning:
+                    OnNetworkEvent(NetworkEvent::Scanning);
+                    break;
+                case WifiEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                    break;
+                case WifiEvent::Connected:
+                    OnNetworkEvent(NetworkEvent::Connected, ssid);
+                    break;
+                case WifiEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case WifiEvent::ConfigModeEnter:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeEnter);
+                    break;
+                case WifiEvent::ConfigModeExit:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeExit);
+                    break;
+            } });
 
-    // 重新实现EnterWifiConfigMode方法，将热点名称前缀设置为"LinkBit"
-    void EnterWifiConfigMode()
-    {
-        auto &application = Application::GetInstance();
-        application.SetDeviceState(kDeviceStateWifiConfiguring);
-
-        WifiConfigurationAp wifi_ap;
-        wifi_ap.SetLanguage(Lang::CODE);
-        wifi_ap.SetSsidPrefix("LinkBit");
-        wifi_ap.Start();
-
-        // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
-        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
-        hint += wifi_ap.GetSsid();
-        hint += Lang::Strings::ACCESS_VIA_BROWSER;
-        hint += wifi_ap.GetWebServerUrl();
-        hint += "\n\n";
-
-        // 播报配置 WiFi 的提示
-        application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "", Lang::Sounds::OGG_WIFICONFIG);
-
-#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
-        auto display = Board::GetInstance().GetDisplay();
-        auto codec = Board::GetInstance().GetAudioCodec();
-        int channel = 1;
-        if (codec)
-        {
-            channel = codec->input_channels();
-        }
-        ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
-        audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
-#endif
-
-        // Wait forever until reset after configuration
-        while (true)
-        {
-            vTaskDelay(pdMS_TO_TICKS(10000));
-        }
+        // Try to connect or enter config mode
+        TryWifiConnect();
     }
 
     ~FogSeekAudioLinkBit()
