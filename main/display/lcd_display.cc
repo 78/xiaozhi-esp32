@@ -789,14 +789,18 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_border_width(content_, 0, 0);
     lv_obj_set_style_bg_color(content_, lvgl_theme->chat_background_color(), 0);
 
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
+    // 使用绝对定位,不使用 flex 布局,避免表情跳动
 
+    // 表情盒子 - 固定在顶部中间偏上位置
     emoji_box_ = lv_obj_create(content_);
     lv_obj_set_size(emoji_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(emoji_box_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_all(emoji_box_, 0, 0);
     lv_obj_set_style_border_width(emoji_box_, 0, 0);
+    //调试布局用
+    // lv_obj_set_style_border_width(emoji_box_, 2, 0);
+    // lv_obj_set_style_border_color(emoji_box_, lv_color_hex(0xFF0000), 0);
+    lv_obj_align(emoji_box_, LV_ALIGN_TOP_MID, 0, lvgl_theme->spacing(8)); // 固定在顶部中间,距顶部一定距离
 
     emoji_label_ = lv_label_create(emoji_box_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
@@ -807,18 +811,26 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(emoji_image_);
     lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
 
+    // 预览图片 - 固定在中央
     preview_image_ = lv_image_create(content_);
     lv_obj_set_size(preview_image_, width_ / 2, height_ / 2);
     lv_obj_align(preview_image_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
 
+    // 聊天消息文本 - 固定在表情下方,使用顶部对齐
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
     lv_obj_set_width(chat_message_label_, width_ * 0.9); // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    // 限制最大高度,避免超出屏幕
+    lv_obj_set_height(chat_message_label_, 78);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 自动换行显示超长文本
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
-
+    // 使用顶部中央对齐,Y轴偏移固定距离,确保文本框顶部位置固定
+    lv_obj_align(chat_message_label_, LV_ALIGN_TOP_MID, 0, height_ / 2 + 25);
+    //调试布局用
+    // lv_obj_set_style_border_width(chat_message_label_, 2, 0);
+    // lv_obj_set_style_border_color(chat_message_label_, lv_color_hex(0xFF0000), 0);  
     /* Status bar */
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
