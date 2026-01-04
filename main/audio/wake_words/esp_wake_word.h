@@ -37,6 +37,7 @@ private:
 
     std::function<void(const std::string& wake_word)> wake_word_detected_callback_;
     std::string last_detected_wake_word_;
+    std::vector<int16_t> input_buffer_;
 };
 
 #endif

@@ -265,27 +265,18 @@ void AudioService::AudioInputTask() {
             }
         }
 
-        /* Feed the wake word */
-        if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
+        /* Feed the wake word and/or audio processor */
+        if (bits & (AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING)) {
+            int samples = 160; // 10ms
             std::vector<int16_t> data;
-            int samples = wake_word_->GetFeedSize();
-            if (samples > 0) {
-                if (ReadAudioData(data, 16000, samples)) {
+            if (ReadAudioData(data, 16000, samples)) {
+                if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
                     wake_word_->Feed(data);
-                    continue;
                 }
-            }
-        }
-
-        /* Feed the audio processor */
-        if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
-            std::vector<int16_t> data;
-            int samples = audio_processor_->GetFeedSize();
-            if (samples > 0) {
-                if (ReadAudioData(data, 16000, samples)) {
+                if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
                     audio_processor_->Feed(std::move(data));
-                    continue;
                 }
+                continue;
             }
         }
 

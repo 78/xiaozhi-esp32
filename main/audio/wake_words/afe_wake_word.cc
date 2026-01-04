@@ -102,16 +102,23 @@ void AfeWakeWord::Stop() {
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
     }
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.clear();
 }
 
 void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
-    if (afe_data_ == nullptr) {
+    if (afe_data_ == nullptr || !(xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT)) {
         return;
     }
-    if (!(xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT)) {
-        return;
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
     }
-    afe_iface_->feed(afe_data_, data.data());
 }
 
 size_t AfeWakeWord::GetFeedSize() {

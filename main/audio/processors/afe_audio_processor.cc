@@ -89,10 +89,17 @@ size_t AfeAudioProcessor::GetFeedSize() {
 }
 
 void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
-    if (afe_data_ == nullptr) {
+    if (afe_data_ == nullptr || !IsRunning()) {
         return;
     }
-    afe_iface_->feed(afe_data_, data.data());
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+    }
 }
 
 void AfeAudioProcessor::Start() {
@@ -104,6 +111,9 @@ void AfeAudioProcessor::Stop() {
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
     }
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.clear();
 }
 
 bool AfeAudioProcessor::IsRunning() {
