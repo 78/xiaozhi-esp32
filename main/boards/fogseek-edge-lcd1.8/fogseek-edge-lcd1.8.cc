@@ -123,6 +123,14 @@ private:
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
+        ctrl_button_.OnDoubleClick([this]()
+                                   {
+            auto &app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting)
+            {
+                EnterWifiConfigMode();
+                return;
+            } });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
@@ -176,6 +184,7 @@ private:
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(70); // 开机后将音量设置为默认值
+        SetAudioAmplifierState(true);
 
         ESP_LOGI(TAG, "Device powered on.");
 
@@ -190,6 +199,7 @@ private:
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(0); // 关机后将音量设置为默0
+        SetAudioAmplifierState(false);
 
         Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
 
