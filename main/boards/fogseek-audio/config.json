@@ -3,9 +3,7 @@
     "builds": [
         {
             "name": "fogseek-audio",
-            "sdkconfig_append": [
-                "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y"
-            ]
+            "sdkconfig_append": []
         }
     ]
 }

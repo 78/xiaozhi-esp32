@@ -16,7 +16,7 @@
 // LED相关配置
 #define LED_RED_GPIO GPIO_NUM_48
 #define LED_GREEN_GPIO GPIO_NUM_47
-#define LED_RGB_GPIO GPIO_NUM_3 // RGB灯带控制引脚
+#define LED_RGB_GPIO GPIO_NUM_2 // RGB灯带控制引脚
 
 // 音频相关配置
 #define AUDIO_INPUT_SAMPLE_RATE 24000
@@ -34,5 +34,8 @@
 
 #define AUDIO_CODEC_PA_PIN GPIO_NUM_41 // NS4150B功放使能引脚
 #define AUDIO_CODEC_ES8389_ADDR ES8389_CODEC_DEFAULT_ADDR
+
+// 扩展板电源使能引脚
+#define EXTENSION_POWER_ENABLE_GPIO GPIO_NUM_9
 
 #endif
