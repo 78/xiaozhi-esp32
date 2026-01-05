@@ -82,7 +82,7 @@ void WifiBoard::EnterWifiConfigMode() {
         ESP_LOGW(TAG, "Serial number not available; QR code serialnumber will be empty");
     }
     std::string url = "https://app.boilon.cn/?mac=" + mac + "&serialnumber=" + serial_number;
-    GetDisplay()->ShowQRCode(url.c_str(), "请使用微信扫码二维码");
+    GetDisplay()->ShowQRCode(url.c_str(), "请使用微信扫描二维码");
     // Wait forever until reset after configuration
     while (true) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
