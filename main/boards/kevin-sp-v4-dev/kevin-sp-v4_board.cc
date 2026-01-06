@@ -10,17 +10,15 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 #include "esp32_camera.h"
 
 #define TAG "kevin-sp-v4"
 
 class KEVIN_SP_V4Board : public WifiBoard {
 private:
-    i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
-    i2c_master_bus_handle_t codec_i2c_bus_;
+    i2c_master_bus_handle_t i2c_bus_;
     Esp32Camera* camera_;
 
     void InitializeCodecI2c() {
@@ -37,7 +35,7 @@ private:
                 .enable_internal_pullup = 1,
             },
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
     void InitializeSpi() {
@@ -54,8 +52,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         boot_button_.OnPressDown([this]() {
@@ -118,12 +117,8 @@ private:
         };
 
         esp_video_init_sccb_config_t sccb_config = {
-            .init_sccb = true,
-            .i2c_config = {
-                .port = 1,
-                .scl_pin = CAMERA_PIN_SIOC,
-                .sda_pin = GPIO_NUM_NC,
-            },
+            .init_sccb = false,
+            .i2c_handle = i2c_bus_,
             .freq = 100000,
         };
 
@@ -159,7 +154,7 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+        static Es8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;

@@ -18,9 +18,9 @@ dependencies:
   espressif/esp_io_expander_tca9554: ==2.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
-  78/esp-wifi-connect: ~2.6.2
+  78/esp-wifi-connect: ~3.0.2
   78/esp-opus-encoder: ~2.4.1
-  78/esp-ml307: ~3.5.1
+  78/esp-ml307: ~3.5.3
   78/xiaozhi-fonts: ~1.5.5
   espressif/led_strip: ~3.0.1
   espressif/esp_codec_dev: ~1.5
@@ -44,7 +44,7 @@ dependencies:
   esp_lvgl_port: ~2.6.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
   espressif2022/image_player: ^1.1.1
-  espressif2022/esp_emote_gfx: ^1.1.2
+  espressif2022/esp_emote_gfx: ==2.0.0
   espressif/adc_mic: ^0.2.1
   espressif/esp_mmap_assets: '>=1.2'
   txp666/otto-emoji-gif-component:

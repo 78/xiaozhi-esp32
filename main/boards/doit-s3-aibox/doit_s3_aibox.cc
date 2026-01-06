@@ -5,7 +5,6 @@
 #include "button.h"
 #include "config.h"
 #include "led/gpio_led.h"
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
@@ -36,8 +35,9 @@ private:
                 check_time = 0;
             }
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -46,13 +46,13 @@ private:
             ESP_LOGI(TAG, "DoubleClick times %d", click_times);
             if(click_times==3) {
                 click_times = 0;
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
             }
         });
 
         boot_button_.OnLongPress([this]() {
             if(click_times>=3) {
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
             } else {
                 click_times = 0;
                 check_time = 0;

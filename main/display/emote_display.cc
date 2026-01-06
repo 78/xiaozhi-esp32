@@ -362,7 +362,11 @@ bool EmoteEngine::OnFlushIoReady(const esp_lcd_panel_io_handle_t panel_io,
                                  esp_lcd_panel_io_event_data_t* const edata,
                                  void* const user_ctx)
 {
-    return true;
+    gfx_handle_t handle = static_cast<gfx_handle_t>(user_ctx);
+    if (handle) {
+        gfx_emote_flush_ready(handle, true);
+    }
+    return false;
 }
 
 void EmoteEngine::OnFlush(const gfx_handle_t handle, const int x_start, const int y_start,
@@ -372,7 +376,6 @@ void EmoteEngine::OnFlush(const gfx_handle_t handle, const int x_start, const in
     if (panel) {
         esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
     }
-    gfx_emote_flush_ready(handle, true);
 }
 
 // ============================================================================
