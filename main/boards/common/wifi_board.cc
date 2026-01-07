@@ -214,21 +214,6 @@ std::string WifiBoard::GetDeviceStatusJson() {
     }
     cJSON_AddItemToObject(root, "audio_speaker", audio_speaker);
 
-    // // Screen brightness
-    // auto backlight = board.GetBacklight();
-    // auto screen = cJSON_CreateObject();
-    // if (backlight) {
-    //     cJSON_AddNumberToObject(screen, "brightness", backlight->brightness());
-    // }
-    // auto display = board.GetDisplay();
-    // if (display && display->height() > 64) { // For LCD display only
-    //     auto theme = display->GetTheme();
-    //     if (theme != nullptr) {
-    //         cJSON_AddStringToObject(screen, "theme", theme->name().c_str());
-    //     }
-    // }
-    // cJSON_AddItemToObject(root, "screen", screen);
-
     // Battery
     int battery_level = 0;
     bool charging = false;
@@ -237,7 +222,6 @@ std::string WifiBoard::GetDeviceStatusJson() {
         cJSON* battery = cJSON_CreateObject();
         cJSON_AddNumberToObject(battery, "level", battery_level);
         ESP_LOGD(TAG, "Battery level: %d, charging: %d, discharging: %d", battery_level, charging, discharging);
-        // cJSON_AddBoolToObject(battery, "charging", charging);
         cJSON_AddItemToObject(root, "battery", battery);
     }
 

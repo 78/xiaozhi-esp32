@@ -4,7 +4,6 @@
         {
             "name": "ai-martube-esp32s3",
             "sdkconfig_append": [
-                "CONFIG_USE_DEVICE_AEC=y"
             ]
         }
     ]

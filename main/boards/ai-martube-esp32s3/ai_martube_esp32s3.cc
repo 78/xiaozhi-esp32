@@ -315,7 +315,7 @@ private:
                 std::string wake_word = "你好小王子";
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
                 auto& app = Application::GetInstance();
-                app.InvokeWakeWord(wake_word);
+                app.WakeWordInvoke(wake_word);
             }
         });
 
@@ -1003,7 +1003,7 @@ public:
                     
                     std::string wake_word = "你好小王子";
                     ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-                    app.InvokeWakeWord(wake_word);
+                    app.WakeWordInvoke(wake_word);
                 }
             } 
         });
