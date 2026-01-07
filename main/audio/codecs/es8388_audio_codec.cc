@@ -195,12 +195,12 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
         }
 
         if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, 1);
+            gpio_set_level(pa_pin_, 0);
         }
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
         if (pa_pin_ != GPIO_NUM_NC) {
-            gpio_set_level(pa_pin_, 0);
+            gpio_set_level(pa_pin_, 1);
         }
     }
     AudioCodec::EnableOutput(enable);

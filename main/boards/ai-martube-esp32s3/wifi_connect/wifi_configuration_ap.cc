@@ -115,8 +115,8 @@ std::string WifiConfigurationAp::GetSsid()
 #else
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP));
 #endif
-    char ssid[32];
-    snprintf(ssid, sizeof(ssid), "%s-%02X%02X", ssid_prefix_.c_str(), mac[4], mac[5]);
+    char ssid[32] = "B-612";
+    // snprintf(ssid, sizeof(ssid), "%s-%02X%02X", ssid_prefix_.c_str(), mac[4], mac[5]);
     return std::string(ssid);
 }
 

@@ -15,6 +15,9 @@ Knob::Knob(gpio_num_t pin_a, gpio_num_t pin_b) {
         ESP_LOGE(TAG, "Failed to create knob instance");
         return;
     }
+    // 强制开启内部上拉，防止因无外部上拉导致的信号浮空
+    gpio_set_pull_mode(pin_a, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(pin_b, GPIO_PULLUP_ONLY);
 
     err = iot_knob_register_cb(knob_handle_, KNOB_LEFT, knob_callback, this);
     if (err != ESP_OK) {

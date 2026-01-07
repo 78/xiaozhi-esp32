@@ -47,7 +47,7 @@
 // IO-12  EC11-B
 // 旋转编码器，用于音量调节
 #define ENCODER_A_GPIO GPIO_NUM_8
-#define ENCODER_B_GPIO GPIO_NUM_12
+#define ENCODER_B_GPIO GPIO_NUM_16
 #define ENCODER_DEBOUNCE_TIME_MS 5
 
 // IO-6  电源开机控制信号，高电平开机，低电平关机
@@ -64,7 +64,7 @@
 #define CHARGE_STATUS_LED_GPIO GPIO_NUM_2
 
 // IO-15 按键输入信号
-#define KEY_INPUT_GPIO GPIO_NUM_15 
+#define KEY_INPUT_GPIO GPIO_NUM_12 
 #define KEY_DEBOUNCE_TIME_MS 50
 #define KEY_LONG_PRESS_TIME_MS 3000
 
@@ -72,8 +72,12 @@
 #define SWITCH_INPUT_GPIO GPIO_NUM_39
 // IO-40 模拟开关芯片Audio输出开关信号
 #define SWITCH_OUTPUT_GPIO GPIO_NUM_40
-// IO-38 功放PA脚
+
+// IO-38 功放PA脚 PA打开时，低电平 PA关闭时，高电平
 #define AUDIO_CODEC_PA_GPIO GPIO_NUM_38
+#define AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL  0
+#define AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL 1
+
 
 #define AUDIO_SWITCH_ESP32S3_LEVEL 1      // ESP32S3使用高电平
 #define AUDIO_SWITCH_BLUETOOTH_LEVEL 0    // 经典蓝牙使用低电平
@@ -86,8 +90,8 @@
 
 // IO-20 控制电机开关，高电平使能，低电平关闭
 #define MOTOR_CONTROL_GPIO              GPIO_NUM_20
-#define MOTOR_CONTROL_ENABLE_LEVEL      1
-#define MOTOR_CONTROL_DISABLE_LEVEL     0
+#define MOTOR_CONTROL_ENABLE_LEVEL      0
+#define MOTOR_CONTROL_DISABLE_LEVEL     1
 
 // PWM LED 配置
 #define PWM_LED_GPIO GPIO_NUM_19
@@ -104,7 +108,7 @@
 #define BOARD_UART_BAUD     9600
 
 
-#define BUILTIN_LED_GPIO GPIO_NUM_16
+#define BUILTIN_LED_GPIO GPIO_NUM_NC
 
 #define LCD_SCLK_PIN GPIO_NUM_12
 #define LCD_MOSI_PIN GPIO_NUM_NC //GPIO_NUM_11
@@ -138,7 +142,7 @@
 #define CAM_PIN_D2      GPIO_NUM_6
 #define CAM_PIN_D3      GPIO_NUM_NC//GPIO_NUM_7
 #define CAM_PIN_D4      GPIO_NUM_15
-#define CAM_PIN_D5      GPIO_NUM_16
+#define CAM_PIN_D5      GPIO_NUM_NC//GPIO_NUM_16
 #define CAM_PIN_D6      GPIO_NUM_NC
 #define CAM_PIN_D7      GPIO_NUM_NC
 #define OV_PWDN_IO      4

@@ -12,6 +12,7 @@
 #include "backlight.h"
 #include "camera.h"
 #include "assets.h"
+#include "pwm_led_controller.h"
 
 
 void* create_board();
@@ -52,6 +53,7 @@ public:
     virtual void SetPowerSaveMode(bool enabled) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
+    virtual PwmLedController* GetPwmLedController() { return nullptr; }
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

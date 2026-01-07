@@ -11,9 +11,12 @@
 #include "mcp_server.h"         // 添加这行
 #include "pwm_led_controller.h" // 新增：引入 PWM LED 控制器头文件
 #include "uart_comm.h"
+#include "ec11_encoder.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -88,6 +91,8 @@ class ai_martube_esp32s3 : public WifiBoard
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
+    Button shutdown_button_;
+    Button key_input_button_;
     LcdDisplay *display_;
     XL9555 *xl9555_;
     Esp32Camera *camera_;
@@ -106,41 +111,14 @@ private:
     bool to_open_audio = false;
     
     // 按键相关变量
-    static QueueHandle_t key_event_queue_;
-    int64_t key_press_time_;
-    bool key_is_pressed_;
     uint8_t light_mode_ = 2;  // 灯光模式：0=灭, 1=30%亮度, 2=100%亮度
-    std::function<void()> on_short_press_callback_;  // 短按事件回调
-    std::function<void()> on_long_press_callback_;   // 长按事件回调
-    bool key_long_press_triggered_;
-
-    // 开关机按键相关变量
-    static QueueHandle_t shutdown_event_queue_;
-    int64_t shutdown_press_time_;
-    bool shutdown_is_pressed_;
-    std::function<void()> on_shutdown_long_press_callback_;  // 关机长按事件回调
-    bool shutdown_long_press_triggered_;
-
-    // 自定义输入信号相关变量
-    int custom_input_last_level_;
-    bool custom_input_event_triggered_;  // 标记是否已触发，确保只触发一次
-    int64_t custom_input_last_change_time_;
-    std::function<void()> on_custom_input_high_callback_;  // 高电平事件回调
-    std::function<void()> on_custom_input_low_callback_;   // 低电平事件回调
 
     // 旋转编码器相关变量
-    int encoder_a_last_state_;
-    int encoder_b_last_state_;
+    // 编码器实例
+    Ec11Encoder* encoder_ = nullptr;
     int current_volume_;  // 当前音量 (0-100)
-    std::function<void(int)> on_volume_change_callback_;  // 音量变化回调
-    int64_t last_a_change_time_us_ = 0;
-    int64_t last_b_change_time_us_ = 0;
-    int last_ab_state_ = 0;
-    int prev_read_ab_ = 0;
-    int stable_count_ = 0;
-    int pulse_accum_ = 0;
-    int64_t window_start_us_ = 0;
-    int64_t last_ab_change_time_us_ = 0;
+
+
     
     // 模式标志：false=AI模式，true=蓝牙模式
     bool bluetooth_mode_ = false;
@@ -235,108 +213,112 @@ private:
     void InitializeButtons()
     {
         boot_button_.OnClick([this]()
-                             {
+        {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            app.ToggleChatState(); });
-    }
+            app.ToggleChatState(); 
+        });
 
-    void InitializeSt7789Display()
-    {
-        esp_lcd_panel_io_handle_t panel_io = nullptr;
-        esp_lcd_panel_handle_t panel = nullptr;
-        ESP_LOGD(TAG, "Install panel IO");
-        // 液晶屏控制IO初始化
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = LCD_CS_PIN;
-        io_config.dc_gpio_num = LCD_DC_PIN;
-        io_config.spi_mode = 0;
-        io_config.pclk_hz = 20 * 1000 * 1000;
-        io_config.trans_queue_depth = 7;
-        io_config.lcd_cmd_bits = 8;
-        io_config.lcd_param_bits = 8;
-        esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io);
-
-        // 初始化液晶屏驱动芯片ST7789
-        ESP_LOGD(TAG, "Install LCD driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.bits_per_pixel = 16;
-        panel_config.data_endian = LCD_RGB_DATA_ENDIAN_BIG,
-        esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel);
-
-        esp_lcd_panel_reset(panel);
-        // xl9555_->SetOutputState(8, 1);
-        // xl9555_->SetOutputState(2, 0);
-
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-    }
-
-    // 初始化摄像头：ov2640；
-    // 根据正点原子官方示例参数
-    void InitializeCamera()
-    {
-
-        xl9555_->SetOutputState(OV_PWDN_IO, 0);  // PWDN=低 (上电)
-        xl9555_->SetOutputState(OV_RESET_IO, 0); // 确保复位
-        vTaskDelay(pdMS_TO_TICKS(50));           // 延长复位保持时间
-        xl9555_->SetOutputState(OV_RESET_IO, 1); // 释放复位
-        vTaskDelay(pdMS_TO_TICKS(50));           // 延长 50ms
-
-        camera_config_t config = {};
-
-        config.pin_pwdn = CAM_PIN_PWDN;   // 实际由 XL9555 控制
-        config.pin_reset = CAM_PIN_RESET; // 实际由 XL9555 控制
-        config.pin_xclk = CAM_PIN_XCLK;
-        config.pin_sccb_sda = CAM_PIN_SIOD;
-        config.pin_sccb_scl = CAM_PIN_SIOC;
-
-        config.pin_d7 = CAM_PIN_D7;
-        config.pin_d6 = CAM_PIN_D6;
-        config.pin_d5 = CAM_PIN_D5;
-        config.pin_d4 = CAM_PIN_D4;
-        config.pin_d3 = CAM_PIN_D3;
-        config.pin_d2 = CAM_PIN_D2;
-        config.pin_d1 = CAM_PIN_D1;
-        config.pin_d0 = CAM_PIN_D0;
-        config.pin_vsync = CAM_PIN_VSYNC;
-        config.pin_href = CAM_PIN_HREF;
-        config.pin_pclk = CAM_PIN_PCLK;
-
-        /* XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental) */
-        config.xclk_freq_hz = 24000000;
-        config.ledc_timer = LEDC_TIMER_0;
-        config.ledc_channel = LEDC_CHANNEL_0;
-
-        config.pixel_format = PIXFORMAT_RGB565; /* YUV422,GRAYSCALE,RGB565,JPEG */
-        config.frame_size = FRAMESIZE_QVGA;     /* QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates */
-
-        config.jpeg_quality = 12; /* 0-63, for OV series camera sensors, lower number means higher quality */
-        config.fb_count = 2;      /* When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode */
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-
-        esp_err_t err = esp_camera_init(&config); // 测试相机是否存在
-        if (err != ESP_OK)
+        shutdown_button_.OnLongPress([this]()
         {
-            ESP_LOGE(TAG, "Camera is not plugged in or not supported, error: %s", esp_err_to_name(err));
-            // 如果摄像头初始化失败，设置 camera_ 为 nullptr
-            camera_ = nullptr;
-            return;
-        }
-        else
+            ESP_LOGI(TAG, "Shutdown command triggered by long press");
+            // 设备状态设置为待机
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() != kDeviceStateIdle)  {
+                app.SetDeviceState(kDeviceStateIdle);
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
+            // 提醒用户关机
+            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
+            gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
+            app.PlaySound(Lang::Sounds::OGG_POWEROFF);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            SetPowerState(false);
+        });
+
+        shutdown_button_.OnClick([this]()
         {
-            esp_camera_deinit(); // 释放之前的摄像头资源,为正确初始化做准备
-            camera_ = new Esp32Camera(config);
-        }
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateSpeaking) {
+                ESP_LOGI(TAG, "Shutdown short press: abort speaking and enter listening");
+                app.ToggleChatState();
+            } else {
+                ESP_LOGI(TAG, "Shutdown short press ignored: current state not speaking");
+            }
+        });
+        
+        key_input_button_.OnClick([this]()
+        {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            else
+            {
+                light_mode_ = (light_mode_ + 1) % 3;  // 0->1->2->0
+                ESP_LOGI(TAG, "Short press: switch light mode to %u", light_mode_);
+                SetLightMode(light_mode_);
+            }
+        });
+
+        key_input_button_.OnLongPress([this]()
+        {
+            auto& app = Application::GetInstance();
+            // 长切换模式：AI 模式 <-> 蓝牙模式，并发送串口命令
+            // AI -> 蓝牙：A5 00 02 05
+            // 蓝牙 -> AI：A5 00 02 06
+            if (!bluetooth_mode_) {
+                // 设备状态设置为待机
+                auto& app = Application::GetInstance();
+                if (app.GetDeviceState() == kDeviceStateSpeaking) {
+                    app.AbortSpeaking(kAbortReasonNone);
+                }
+                app.SetDeviceState(kDeviceStateIdle);
+
+                // 提醒用户切换到蓝牙模式
+                app.PlaySound(Lang::Sounds::OGG_BTMODE);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+
+                
+                // 切到蓝牙模式
+                gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
+                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
+                uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x05};
+                if (uart_comm_ && uart_comm_->IsReady()) {
+                    uart_comm_->Send(cmd, sizeof(cmd));
+                } else {
+                    ESP_LOGW(TAG, "UART not ready, skip sending BT command");
+                }
+                ESP_LOGI(TAG, "Long press: switch to Bluetooth mode, sent A5 00 02 07");
+                bluetooth_mode_ = true;
+            } else {
+                // 提醒用户切换到 AI 模式
+                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
+                app.PlaySound(Lang::Sounds::OGG_AIMODE);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+
+                
+                // 切到 AI 模式
+                gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
+                uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x06};
+                if (uart_comm_ && uart_comm_->IsReady()) {
+                    uart_comm_->Send(cmd, sizeof(cmd));
+                } else {
+                    ESP_LOGW(TAG, "UART not ready, skip sending AI command");
+                }
+                ESP_LOGI(TAG, "Long press: switch to AI mode, sent A5 00 02 08");
+                bluetooth_mode_ = false;
+                std::string wake_word = "你好小王子";
+                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
+                auto& app = Application::GetInstance();
+                app.InvokeWakeWord(wake_word);
+            }
+        });
+
     }
 
 
@@ -371,118 +353,14 @@ private:
         ESP_ERROR_CHECK(gpio_config(&motor_init_struct));
         gpio_set_level(MOTOR_CONTROL_GPIO, MOTOR_CONTROL_DISABLE_LEVEL);
     }
+    
 
-    // 初始化开关输入IO：配置为输入模式，禁用内部上下拉
-    void InitializeSwitchInput()
-    {
-        gpio_config_t switch_init_struct = {0};
 
-        switch_init_struct.mode = GPIO_MODE_INPUT;
-        switch_init_struct.pull_up_en = GPIO_PULLUP_DISABLE;
-        switch_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        switch_init_struct.pin_bit_mask = 1ull << SWITCH_INPUT_GPIO;
-        ESP_ERROR_CHECK(gpio_config(&switch_init_struct));
-        
-        // 读取当前电平
-        int initial_level = gpio_get_level(SWITCH_INPUT_GPIO);
-        ESP_LOGI(TAG, "Switch input initialized on GPIO %d, initial status: %d", SWITCH_INPUT_GPIO, initial_level);
-        
-        // 延迟后再次读取，确认是否稳定
-        vTaskDelay(pdMS_TO_TICKS(100));
-        int level_after_delay = gpio_get_level(SWITCH_INPUT_GPIO);
-        ESP_LOGI(TAG, "Switch input status after 100ms: %d", level_after_delay);
-    }
-
-    // 初始化按键输入IO：配置为输入模式，启用上拉
-    void InitializeKeyInput()
-    {
-        gpio_config_t key_init_struct = {0};
-
-        key_init_struct.mode = GPIO_MODE_INPUT;
-        key_init_struct.pull_up_en = GPIO_PULLUP_ENABLE;
-        key_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        key_init_struct.pin_bit_mask = 1ull << KEY_INPUT_GPIO;
-        ESP_ERROR_CHECK(gpio_config(&key_init_struct));
-        
-        // 创建按键事件队列
-        key_event_queue_ = xQueueCreate(10, sizeof(KeyEvent));
-        if (key_event_queue_ == NULL) {
-            ESP_LOGE(TAG, "Failed to create key event queue");
-        }
-        
-        // 初始化按键状态
-        key_press_time_ = 0;
-        key_is_pressed_ = false;
-        key_long_press_triggered_ = false;
-        light_mode_ = 0;  // 初始为关闭状态
-        
-        // 读取当前电平
-        int initial_level = gpio_get_level(KEY_INPUT_GPIO);
-        ESP_LOGI(TAG, "Key input initialized on GPIO %d, initial status: %d", KEY_INPUT_GPIO, initial_level);
-    }
-
-    // 设置按键事件回调
-    void SetKeyCallbacks(std::function<void()> short_press_cb, std::function<void()> long_press_cb)
-    {
-        on_short_press_callback_ = short_press_cb;
-        on_long_press_callback_ = long_press_cb;
-    }
-
-    // 处理按键事件
-    void ProcessKeyEvent()
-    {
-        KeyEvent event;
-        while (xQueueReceive(key_event_queue_, &event, 0) == pdTRUE) {
-            int64_t current_time = esp_timer_get_time();
-            
-            if (event.type == KEY_EVENT_PRESS) {
-                if (!key_is_pressed_) {
-                    key_is_pressed_ = true;
-                    key_press_time_ = current_time;
-                    key_long_press_triggered_ = false;
-                    ESP_LOGI(TAG, "Key pressed at %lld", key_press_time_);
-                }
-            } else if (event.type == KEY_EVENT_RELEASE) {
-                if (key_is_pressed_) {
-                    key_is_pressed_ = false;
-                    int64_t press_duration = current_time - key_press_time_;
-                    ESP_LOGI(TAG, "Key released, duration: %lld us", press_duration);
-                    
-                    if (!key_long_press_triggered_ && press_duration >= KEY_DEBOUNCE_TIME_MS * 1000) {
-                        // 短按
-                        ESP_LOGI(TAG, "Short press detected");
-                        if (on_short_press_callback_) {
-                            on_short_press_callback_();
-                        }
-                    }
-                    key_long_press_triggered_ = false;
-                }
-            }
-        }
-
-        // 即时长按：无需等待释放，超过阈值立即触发一次
-        if (key_is_pressed_ && !key_long_press_triggered_) {
-            int64_t now = esp_timer_get_time();
-            int64_t duration = now - key_press_time_;
-            if (duration >= KEY_LONG_PRESS_TIME_MS * 1000) {
-                key_long_press_triggered_ = true;
-                ESP_LOGI(TAG, "Long press detected (instant)");
-                if (on_long_press_callback_) {
-                    on_long_press_callback_();
-                }
-            }
-        }
-    }
 
     // 控制灯光模式
     void SetLightMode(uint8_t mode)
     {
-        // auto& app = Application::GetInstance(); 
-        // gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-        // EnablePowerAmplifier();
-        // app.PlaySound(Lang::Sounds::OGG_WIFICONFIG);
-        // vTaskDelay(pdMS_TO_TICKS(2000));
-        // DisablePowerAmplifier();
+
         if (pwm_led_controller_ && pwm_led_controller_->IsReady()) {
             switch (mode) {
                 case 0:  // 关闭
@@ -503,23 +381,6 @@ private:
             }
             light_mode_ = mode;
         }
-    }
-
-    // 短按处理：循环切换灯光模式，在上电时则进入配网模式
-    void OnShortPress()
-    {
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-            ResetWifiConfiguration();
-        }
-        else
-        {
-            light_mode_ = (light_mode_ + 1) % 3;  // 0->1->2->0
-            ESP_LOGI(TAG, "Short press: switch light mode to %u", light_mode_);
-            SetLightMode(light_mode_);
-        }
-        
-
     }
 
     // 自定义输入低电平事件：蓝牙模式播放音乐
@@ -548,65 +409,6 @@ private:
         }
     }
 
-    // 长按处理
-    void OnLongPress()
-    {
-        auto& app = Application::GetInstance();
-        // 长切换模式：AI 模式 <-> 蓝牙模式，并发送串口命令
-        // AI -> 蓝牙：A5 00 02 05
-        // 蓝牙 -> AI：A5 00 02 06
-        if (!bluetooth_mode_) {
-            // 提醒用户切换到蓝牙模式
-            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-            EnablePowerAmplifier();
-            app.PlaySound(Lang::Sounds::OGG_BTMODE);
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            DisablePowerAmplifier();
-
-            // 设备状态设置为待机
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() != kDeviceStateIdle)  {
-                app.SetDeviceState(kDeviceStateIdle);
-            }
-            
-            // 切到蓝牙模式
-            gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
-            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
-            DisablePowerAmplifier();
-            uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x05};
-            if (uart_comm_ && uart_comm_->IsReady()) {
-                uart_comm_->Send(cmd, sizeof(cmd));
-            } else {
-                ESP_LOGW(TAG, "UART not ready, skip sending BT command");
-            }
-            ESP_LOGI(TAG, "Long press: switch to Bluetooth mode, sent A5 00 02 07");
-            bluetooth_mode_ = true;
-        } else {
-            // 提醒用户切换到 AI 模式
-            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-            EnablePowerAmplifier();
-            app.PlaySound(Lang::Sounds::OGG_AIMODE);
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            DisablePowerAmplifier();
-
-            // 切到 AI 模式
-            gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-            EnablePowerAmplifier();
-            uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x06};
-            if (uart_comm_ && uart_comm_->IsReady()) {
-                uart_comm_->Send(cmd, sizeof(cmd));
-            } else {
-                ESP_LOGW(TAG, "UART not ready, skip sending AI command");
-            }
-            ESP_LOGI(TAG, "Long press: switch to AI mode, sent A5 00 02 08");
-            bluetooth_mode_ = false;
-            std::string wake_word = "你好小王子";
-            ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-            auto& app = Application::GetInstance();
-            app.InvokeWakeWord(wake_word);
-        }
-    }
 
     // 初始化电源开机控制IO：配置为输出模式，初始状态为高电平（开机）
     void InitializePowerControl()
@@ -620,13 +422,8 @@ private:
         ESP_ERROR_CHECK(gpio_config(&power_init_struct));
         
         // 设置为高电平（开机状态）
-        // vTaskDelay(pdMS_TO_TICKS(2000));
-        // if (gpio_get_level(SHUTDOWN_BUTTON_GPIO) == 0) {
-            gpio_set_level(POWER_ON_CONTROL_GPIO, 1);
-        // }
-        // else{
-        //     gpio_set_level(POWER_ON_CONTROL_GPIO, 0);
-        // }
+        gpio_set_level(POWER_ON_CONTROL_GPIO, 1);
+
         ESP_LOGI(TAG, "Power control initialized on GPIO %d, status: HIGH (ON)", POWER_ON_CONTROL_GPIO);
     }
 
@@ -683,168 +480,6 @@ private:
         custom_input_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
         custom_input_init_struct.pin_bit_mask = 1ull << CUSTOM_INPUT_GPIO;
         ESP_ERROR_CHECK(gpio_config(&custom_input_init_struct));
-        
-        // 初始化状态
-        custom_input_last_level_ = gpio_get_level(CUSTOM_INPUT_GPIO);
-        custom_input_event_triggered_ = false;
-        custom_input_last_change_time_ = esp_timer_get_time();
-        
-        ESP_LOGI(TAG, "Custom input initialized on GPIO %d, initial status: %d", CUSTOM_INPUT_GPIO, custom_input_last_level_);
-    }
-
-    // 设置自定义输入事件回调
-    void SetCustomInputCallbacks(std::function<void()> high_cb, std::function<void()> low_cb)
-    {
-        on_custom_input_high_callback_ = high_cb;
-        on_custom_input_low_callback_ = low_cb;
-    }
-
-    // 处理自定义输入变化（只触发一次）
-    void ProcessCustomInput()
-    {
-        int current_level = gpio_get_level(CUSTOM_INPUT_GPIO);
-        int64_t now = esp_timer_get_time();
-        
-        // 检测电平变化
-        if (current_level != custom_input_last_level_) {
-            // 检查去抖时间
-            if (now - custom_input_last_change_time_ >= CUSTOM_INPUT_DEBOUNCE_TIME_MS * 1000) {
-                // 确保只触发一次
-                if (!custom_input_event_triggered_) {
-                    ESP_LOGI(TAG, "Custom input level changed: %d -> %d", custom_input_last_level_, current_level);
-                    
-                    // 触发对应的事件回调
-                    if (current_level == 1 && on_custom_input_high_callback_) {
-                        // 高电平触发
-                        ESP_LOGI(TAG, "Custom input HIGH level event triggered");
-                        on_custom_input_high_callback_();
-                    } else if (current_level == 0 && on_custom_input_low_callback_) {
-                        // 低电平触发
-                        ESP_LOGI(TAG, "Custom input LOW level event triggered");
-                        on_custom_input_low_callback_();
-                    }
-                    
-                    // 标记已触发，确保只触发一次
-                    custom_input_event_triggered_ = true;
-                    custom_input_last_level_ = current_level;
-                }
-            }
-            custom_input_last_change_time_ = now;
-        } else {
-            // 电平稳定后，重置触发标志，允许下次变化再次触发
-            if (now - custom_input_last_change_time_ >= CUSTOM_INPUT_DEBOUNCE_TIME_MS * 1000) {
-                custom_input_event_triggered_ = false;
-            }
-        }
-    }
-
-    // 初始化开关机按键输入IO：配置为输入模式，启用上拉
-    void InitializeShutdownButton()
-    {
-        gpio_config_t shutdown_init_struct = {0};
-
-        shutdown_init_struct.mode = GPIO_MODE_INPUT;
-        shutdown_init_struct.pull_up_en = GPIO_PULLUP_ENABLE;
-        shutdown_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        shutdown_init_struct.pin_bit_mask = 1ull << SHUTDOWN_BUTTON_GPIO;
-        ESP_ERROR_CHECK(gpio_config(&shutdown_init_struct));
-        
-        // 创建开关机按键事件队列
-        shutdown_event_queue_ = xQueueCreate(5, sizeof(KeyEvent));
-        if (shutdown_event_queue_ == NULL) {
-            ESP_LOGE(TAG, "Failed to create shutdown event queue");
-        }
-        
-        // 初始化开关机按键状态
-        shutdown_press_time_ = 0;
-        shutdown_is_pressed_ = false;
-        
-        // 读取当前电平
-        int initial_level = gpio_get_level(SHUTDOWN_BUTTON_GPIO);
-        ESP_LOGI(TAG, "Shutdown button initialized on GPIO %d, initial status: %d", SHUTDOWN_BUTTON_GPIO, initial_level);
-        shutdown_long_press_triggered_ = false;
-    }
-
-    // 设置开关机按键事件回调
-    void SetShutdownCallback(std::function<void()> long_press_cb)
-    {
-        on_shutdown_long_press_callback_ = long_press_cb;
-    }
-
-    // 处理开关机按键事件
-    void ProcessShutdownEvent()
-    {
-        KeyEvent event;
-        while (xQueueReceive(shutdown_event_queue_, &event, 0) == pdTRUE) {
-            int64_t current_time = esp_timer_get_time();
-            
-            if (event.type == KEY_EVENT_PRESS) {
-                if (!shutdown_is_pressed_) {
-                    shutdown_is_pressed_ = true;
-                    shutdown_press_time_ = current_time;
-                    shutdown_long_press_triggered_ = false;
-                    ESP_LOGI(TAG, "Shutdown button pressed at %lld", shutdown_press_time_);
-                }
-            } else if (event.type == KEY_EVENT_RELEASE) {
-                if (shutdown_is_pressed_) {
-                    shutdown_is_pressed_ = false;
-                    int64_t press_duration = current_time - shutdown_press_time_;
-                    ESP_LOGI(TAG, "Shutdown button released, duration: %lld us", press_duration);
-                    
-                    if (!shutdown_long_press_triggered_) {
-                        if (press_duration >= SHUTDOWN_LONG_PRESS_TIME_MS * 1000) {
-                            ESP_LOGI(TAG, "Shutdown long press detected");
-                            if (on_shutdown_long_press_callback_) {
-                                on_shutdown_long_press_callback_();
-                            }
-                        } else if (press_duration >= SHUTDOWN_DEBOUNCE_TIME_MS * 1000) {
-                        auto& app = Application::GetInstance();
-                        if (app.GetDeviceState() == kDeviceStateSpeaking) {
-                            ESP_LOGI(TAG, "Shutdown short press: abort speaking and enter listening");
-                            app.ToggleChatState();
-                        } else {
-                            ESP_LOGI(TAG, "Shutdown short press ignored: current state not speaking");
-                        }
-                    }
-                    }
-                    shutdown_long_press_triggered_ = false;
-                    
-                    
-                }
-            }
-        }
-        if (shutdown_is_pressed_ && !shutdown_long_press_triggered_) {
-            int64_t now = esp_timer_get_time();
-            if (now - shutdown_press_time_ >= SHUTDOWN_LONG_PRESS_TIME_MS * 1000) {
-                shutdown_long_press_triggered_ = true;
-                ESP_LOGI(TAG, "Shutdown long press detected (instant)");
-                if (on_shutdown_long_press_callback_) {
-                    on_shutdown_long_press_callback_();
-                }
-            }
-        }
-    }
-
-    // 关机长按处理
-    void OnShutdownLongPress()
-    {
-        ESP_LOGI(TAG, "Shutdown command triggered by long press");
-        // 设备状态设置为待机
-        auto& app = Application::GetInstance();
-        if (app.GetDeviceState() != kDeviceStateIdle)  {
-            app.SetDeviceState(kDeviceStateIdle);
-        }
-        vTaskDelay(pdMS_TO_TICKS(500));
-        // 提醒用户关机
-        gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-        EnablePowerAmplifier();
-        app.PlaySound(Lang::Sounds::OGG_POWEROFF);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        DisablePowerAmplifier();
-        vTaskDelay(pdMS_TO_TICKS(100));
-        SetPowerState(false);
-        
-
     }
 
     // 电源控制函数
@@ -854,164 +489,52 @@ private:
         ESP_LOGI(TAG, "Power control set to %s", power_on ? "HIGH (ON)" : "LOW (OFF)");
     }
 
-    // 功放使能函数
-    void EnablePowerAmplifier()
-    {
-        gpio_set_level(AUDIO_CODEC_PA_GPIO, 0);
-        ESP_LOGI(TAG, "Power amplifier enabled on GPIO %d", AUDIO_CODEC_PA_GPIO);
-    }
-
-    // 功放禁用函数
-    void DisablePowerAmplifier()
-    {
-        gpio_set_level(AUDIO_CODEC_PA_GPIO, 1);
-        ESP_LOGI(TAG, "Power amplifier disabled on GPIO %d", AUDIO_CODEC_PA_GPIO);
-    }
 
     // 初始化旋转编码器：配置为输入模式，启用上拉
     void InitializeEncoder()
-    {
-        gpio_config_t encoder_a_config = {0};
-        encoder_a_config.mode = GPIO_MODE_INPUT;
-        encoder_a_config.pull_up_en = GPIO_PULLUP_ENABLE;
-        encoder_a_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        encoder_a_config.pin_bit_mask = 1ull << ENCODER_A_GPIO;
-        ESP_ERROR_CHECK(gpio_config(&encoder_a_config));
-
-        gpio_config_t encoder_b_config = {0};
-        encoder_b_config.mode = GPIO_MODE_INPUT;
-        encoder_b_config.pull_up_en = GPIO_PULLUP_ENABLE;
-        encoder_b_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        encoder_b_config.pin_bit_mask = 1ull << ENCODER_B_GPIO;
-        ESP_ERROR_CHECK(gpio_config(&encoder_b_config));
-
-        // 初始化编码器状态
-        encoder_a_last_state_ = gpio_get_level(ENCODER_A_GPIO);
-        encoder_b_last_state_ = gpio_get_level(ENCODER_B_GPIO);
-        current_volume_ = 50;  // 初始音量设为50%
-
-        last_ab_state_ = (encoder_a_last_state_ << 1) | encoder_b_last_state_;
-        prev_read_ab_ = last_ab_state_;
-        stable_count_ = 0;
-        pulse_accum_ = 0;
-        window_start_us_ = 0;
-        last_ab_change_time_us_ = 0;
-
-        ESP_LOGI(TAG, "Encoder initialized - A: GPIO%d=%d, B: GPIO%d=%d, Volume: %d%%", 
-                 ENCODER_A_GPIO, encoder_a_last_state_, 
-                 ENCODER_B_GPIO, encoder_b_last_state_, 
-                 current_volume_);
-    }
-
-    // 设置音量变化回调
-    void SetVolumeChangeCallback(std::function<void(int)> callback)
-    {
-        on_volume_change_callback_ = callback;
-    }
-
-    // 处理旋转编码器
-    void ProcessEncoder()
-    {
-        int a_now = gpio_get_level(ENCODER_A_GPIO);
-        int b_now = gpio_get_level(ENCODER_B_GPIO);
-        int ab_now = (a_now << 1) | b_now;
-        int64_t now_us = esp_timer_get_time();
-        auto& app = Application::GetInstance();
-
-        if (ab_now != last_ab_state_) {
-            if (now_us - last_ab_change_time_us_ >= ENCODER_DEBOUNCE_US) {
-                int t = (last_ab_state_ << 2) | ab_now;
-                bool cw = (t == ((0 << 2) | 2)) || (t == ((2 << 2) | 3)) || (t == ((3 << 2) | 1)) || (t == ((1 << 2) | 0));
-                bool ccw = (t == ((0 << 2) | 1)) || (t == ((1 << 2) | 3)) || (t == ((3 << 2) | 2)) || (t == ((2 << 2) | 0));
-                if (cw || ccw) {
-                    if (pulse_accum_ == 0) {
-                        window_start_us_ = now_us;
+    {      
+        if (!encoder_) {
+            // 初始化旋钮：GPIO A/B
+            encoder_ = new Ec11Encoder(ENCODER_A_GPIO, ENCODER_B_GPIO);
+            encoder_->SetCallback([this](int step) {
+                // 仅发送简单事件，避免阻塞定时器回调
+                ESP_LOGI(TAG, "Knob event: %d", step);
+                if (bluetooth_mode_) {
+                    uint8_t cmd_up[4] = {0xA5, 0x00, 0x02, 0x01};
+                    uint8_t cmd_down[4] = {0xA5, 0x00, 0x02, 0x02};
+                    if (step > 0) {
+                        if (uart_comm_ && uart_comm_->IsReady()) {
+                            uart_comm_->Send(cmd_up, sizeof(cmd_up));
+                        }
+                    } else {
+                        if (uart_comm_ && uart_comm_->IsReady()) {
+                            uart_comm_->Send(cmd_down, sizeof(cmd_down));
+                        }
                     }
-                    pulse_accum_ += cw ? 1 : -1;
-                }
-                last_ab_state_ = ab_now;
-                last_ab_change_time_us_ = now_us;
-            }
-        }
-
-        if (pulse_accum_ != 0) {
-            if (now_us - window_start_us_ > ENCODER_WINDOW_US) {
-                pulse_accum_ = 0;
-                window_start_us_ = 0;
-            }
-        }
-
-        if (pulse_accum_ >= 2) {
-            if (bluetooth_mode_) {
-                int steps = pulse_accum_ / 2;
-                for (int i = 0; i < steps; ++i) {
-                    uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x01};
-                    if (uart_comm_ && uart_comm_->IsReady()) {
-                        uart_comm_->Send(cmd, sizeof(cmd));
+                } else {
+ 
+                    int delta = step * 5;
+                    auto& app = Application::GetInstance();
+                    int v = current_volume_ + delta;
+                    ESP_LOGI(TAG, "##################Volume change: %d%%", v);
+                    if (v > 100) {
+                        v = 100;
+                        app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                    }
+                    if (v < 0) v = 0;
+                    if (v != current_volume_) {
+                        OnVolumeChange(v);
+                        if(v != 100)app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
                     }
                 }
-            } else {
-                int steps = pulse_accum_ / 2;
-                int delta = steps * 5;
-                int new_volume = current_volume_ + delta;
-                if (new_volume > 100) new_volume = 100;
-                //如果音量相同，不处理
-                if (new_volume != current_volume_) {
-                    // 播放提示音
-                    gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                    EnablePowerAmplifier();
-                    app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    DisablePowerAmplifier();
-                    OnVolumeChange(new_volume);
-                }
-                else if (new_volume == 100)
-                {
-                    // 播放提示音
-                    gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                    EnablePowerAmplifier();
-                    app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
-                    vTaskDelay(pdMS_TO_TICKS(1500));
-                    DisablePowerAmplifier();
-                    OnVolumeChange(new_volume);
-                }
-                
-            }
-            pulse_accum_ -= (pulse_accum_ / 2) * 2;
-            if (pulse_accum_ == 0) {
-                window_start_us_ = 0;
-            }
-        } else if (pulse_accum_ <= -2) {
-            if (bluetooth_mode_) {
-                int steps = (-pulse_accum_) / 2;
-                for (int i = 0; i < steps; ++i) {
-                    uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x02};
-                    if (uart_comm_ && uart_comm_->IsReady()) {
-                        uart_comm_->Send(cmd, sizeof(cmd));
-                    }
-                }
-            } else {
-                int steps = (-pulse_accum_) / 2;
-                int delta = steps * 5;
-                int new_volume = current_volume_ - delta;
-                if (new_volume < 0) new_volume = 0;
-                //如果音量相同，不处理
-                if (new_volume != current_volume_) {
-                    // 播放提示音
-                    gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                    EnablePowerAmplifier();
-                    app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                    DisablePowerAmplifier();
-                    OnVolumeChange(new_volume);
-                }
-            }
-            pulse_accum_ += ((-pulse_accum_) / 2) * 2;
-            if (pulse_accum_ == 0) {
-                window_start_us_ = 0;
-            }
+
+            });
+            encoder_->Start();
         }
+        
     }
+
+
 
     // 音量变化处理
     void OnVolumeChange(int volume)
@@ -1101,6 +624,7 @@ private:
             vTaskDelay(pdMS_TO_TICKS(1));
         }
         adc_reading /= BATTERY_ADC_SAMPLES;
+        
         
         // 转换为电压值
         ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle_, adc_reading, &voltage_mv));
@@ -1246,11 +770,11 @@ private:
                                                        _binary_low_battery_off_ogg_end - _binary_low_battery_off_ogg_start);
                 // 切换esp32s3 音频输出通道
                 gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                EnablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYOFF);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                DisablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
                 // 5秒后关机
                 xTaskCreate([](void* arg) {
                     auto* self = static_cast<ai_martube_esp32s3*>(arg);
@@ -1272,11 +796,11 @@ private:
                                                           _binary_low_battery_remind_ogg_end - _binary_low_battery_remind_ogg_start);
                 // 切换esp32s3 音频输出通道
                 gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                EnablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                DisablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
 
             }
             // 低于10% - 第一次提醒
@@ -1293,11 +817,11 @@ private:
 
                 // 切换esp32s3 音频输出通道
                 gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                EnablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                DisablePowerAmplifier();
+                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
 
             }
             
@@ -1315,19 +839,6 @@ private:
     void InitializeTools()
     {
         auto &mcp_server = McpServer::GetInstance();
-
-        // 添加桌面灯控制工具
-        mcp_server.AddTool("self.light.get_brightness",
-                           "获取桌面灯的亮度状态",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               if (pwm_led_controller_ && pwm_led_controller_->IsReady())
-                               {
-                                   return static_cast<int>(pwm_led_controller_->LastBrightnessPercent());
-                               }
-                               return "灯状态查询功能暂不可用";
-                           });
 
         mcp_server.AddTool("self.light.set_brightness",
                            "设置桌面灯的亮度 (0-100)",
@@ -1364,33 +875,6 @@ private:
                                if (pwm_led_controller_ && pwm_led_controller_->IsReady())
                                {
                                    pwm_led_controller_->TurnOff();
-                                   return true;
-                               }
-                               return false;
-                           });
-
-        mcp_server.AddTool("self.light.blink_once",
-                           "桌面灯闪烁一次",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               if (pwm_led_controller_ && pwm_led_controller_->IsReady())
-                               {
-                                   pwm_led_controller_->BlinkOnce();
-                                   return true;
-                               }
-                               return false;
-                           });
-
-        mcp_server.AddTool("self.light.start_continuous_blink",
-                           "桌面灯持续闪烁",
-                           PropertyList({Property("interval", kPropertyTypeInteger, 100, 5000)}),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               if (pwm_led_controller_ && pwm_led_controller_->IsReady())
-                               {
-                                   int interval = properties["interval"].value<int>();
-                                   pwm_led_controller_->StartContinuousBlink(interval);
                                    return true;
                                }
                                return false;
@@ -1445,71 +929,23 @@ private:
                                return true;
                            });
 
-        mcp_server.AddTool("self.power.get_status",
-                           "获取电源状态",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               int level = gpio_get_level(POWER_ON_CONTROL_GPIO);
-                               return (level == 1) ? "开机" : "关机";
-                           });
-
-        // 添加获取当前音量的工具（全局只有设置工具）
-        mcp_server.AddTool("self.volume.get",
-                           "获取当前音量",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               return current_volume_;
-                           });
-
-        // 添加电池电量工具
-        mcp_server.AddTool("self.battery.get_voltage",
-                           "获取电池电压",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               UpdateBatteryStatus();
-                               return std::to_string(battery_voltage_);
-                           });
-
-        mcp_server.AddTool("self.battery.get_percentage",
-                           "获取电池电量百分比",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               UpdateBatteryStatus();
-                               return battery_percentage_;
-                           });
-
-        mcp_server.AddTool("self.battery.get_status",
-                           "获取电池状态信息",
-                           PropertyList(),
-                           [this](const PropertyList &properties) -> ReturnValue
-                           {
-                               UpdateBatteryStatus();
-                               std::string status = "电压: " + std::to_string(battery_voltage_) + 
-                                                   "V, 电量: " + std::to_string(battery_percentage_) + "%";
-                               return status;
-                           });
     }
 
 public:
-    ai_martube_esp32s3() : boot_button_(BOOT_BUTTON_GPIO), pwm_led_(nullptr), pwm_led_controller_(nullptr)
+    ai_martube_esp32s3() :  boot_button_(BOOT_BUTTON_GPIO), 
+                            shutdown_button_(SHUTDOWN_BUTTON_GPIO, true, 3000, 0, false), 
+                            key_input_button_(KEY_INPUT_GPIO, false, 3000, 0, false),
+                            pwm_led_(nullptr), 
+                            pwm_led_controller_(nullptr)
     {
-        InitializeShutdownButton();
         InitializePowerControl();
         InitializeAudioSwitch();
         InitializeMotor();
         InitializeChargeStatus();
         InitializeBatteryMonitor();
-        // InitializeSwitchInput();
-        InitializeKeyInput();
         InitializeEncoder();
         InitializeCustomInput();
         InitializeI2c();
-        // InitializeSpi();
-        // InitializeSt7789Display();
         InitializeButtons();
         // 先确保板级 LED 已创建，再实例化控制器
         if (!pwm_led_)
@@ -1537,27 +973,8 @@ public:
             boot_breathing_ = true;
             esp_timer_start_periodic(boot_breath_timer_, breath_interval_ms_ * 1000);
         }
-        // 设置按键回调
-        SetKeyCallbacks(
-            [this]() { OnShortPress(); },  // 短按回调
-            [this]() { OnLongPress(); }    // 长按回调
-        );
+    
         
-        // 设置开关机按键回调
-        SetShutdownCallback(
-            [this]() { OnShutdownLongPress(); }  // 关机长按回调
-        );
-
-        // 设置自定义输入回调
-        SetCustomInputCallbacks(
-            [this]() { OnCustomInputHighEvent(); },
-            [this]() { OnCustomInputLowEvent(); }
-        );
-        
-        // 设置音量变化回调
-        SetVolumeChangeCallback(
-            [this](int volume) { OnVolumeChange(volume); }  // 音量变化回调
-        );
         
         InitializeTools();
 
@@ -1582,7 +999,6 @@ public:
                 if (app.GetDeviceState() == kDeviceStateIdle && !bluetooth_mode_) {
                     gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                     gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                    EnablePowerAmplifier();
 
                     
                     std::string wake_word = "你好小王子";
@@ -1597,11 +1013,11 @@ public:
                 auto* self = static_cast<ai_martube_esp32s3*>(arg);
                 auto& app = Application::GetInstance();
                 DeviceState last = app.GetDeviceState();
-                int last_switch_level = gpio_get_level(SWITCH_INPUT_GPIO);
-                int last_key_level = gpio_get_level(KEY_INPUT_GPIO);
-                int last_shutdown_level = gpio_get_level(SHUTDOWN_BUTTON_GPIO);
-                // 上电后首次成功连接提醒标志位
+                int last_custom_input_level = gpio_get_level(CUSTOM_INPUT_GPIO);
                 bool first_connect_reminder = true;
+
+                Settings settings("audio", false);
+                self->current_volume_ = settings.GetInt("output_volume", 70);
                 
                 while (true) {
                     // 音频控制逻辑
@@ -1610,118 +1026,50 @@ public:
                     // 根据设备状态切换音频模式
                     if (cur != last) {
                         if (cur == kDeviceStateIdle) {
-                            // 连接成功后首次提醒
+                            // 连接成功后关闭呼吸灯
                             if (first_connect_reminder) {
-                                self->EnablePowerAmplifier();
-                                vTaskDelay(pdMS_TO_TICKS(10));
-                                // 在main\application.cc的542处有提醒，所以这里暂时不开启，延时的目的是等待那里播放后才禁用功放
-                                // app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-                                vTaskDelay(pdMS_TO_TICKS(2000));
+                                if (self->boot_breath_timer_) {
+                                    self->boot_breathing_ = false;
+                                    esp_timer_stop(self->boot_breath_timer_);
+                                }
+                                if (self->pwm_led_) {
+                                    self->pwm_led_->TurnOff();
+                                }
                                 first_connect_reminder = false;
                             }
-                            if (self->boot_breath_timer_) {
-                                self->boot_breathing_ = false;
-                                esp_timer_stop(self->boot_breath_timer_);
-                            }
-                            if (self->pwm_led_) {
-                                self->pwm_led_->TurnOff();
-                            }
+
                             // 进入待机状态时，切换到蓝牙模式
                             gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
                             ESP_LOGI(TAG, "Device state changed to idle, switching to Bluetooth audio mode");
-                            self->DisablePowerAmplifier();
-                        }
-                        else if (cur == kDeviceStateSpeaking) {
-                            // 进入说话状态时，确保输出通道在 ESP32S3
-                            self->EnablePowerAmplifier();
-                            ESP_LOGI(TAG, "Device state changed to speaking, ensuring ESP32S3 output");
-                        }
-                        else if (cur == kDeviceStateListening) {
-                            // 进入监听状态时，确保输入通道在 ESP32S3
-                            gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                            ESP_LOGI(TAG, "Device state changed to listening, ensuring ESP32S3 input");
-                            // 监听时不需要功放
-                            self->DisablePowerAmplifier();
-                        }
-                        else if (cur == kDeviceStateWifiConfiguring) {
-                            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                            self->EnablePowerAmplifier();
-                        } else {
-                            self->DisablePowerAmplifier();
                         }
                         
                         last = cur;
 
                     }
                     // 开关输入检测逻辑
-                    int current_switch_level = gpio_get_level(SWITCH_INPUT_GPIO);
-                    if (current_switch_level != last_switch_level) {
-                        ESP_LOGI(TAG, "Switch state changed: %d -> %d", last_switch_level, current_switch_level);
+                    int current_custom_input_level = gpio_get_level(CUSTOM_INPUT_GPIO);
+                    if (current_custom_input_level != last_custom_input_level) {
+                        ESP_LOGI(TAG, "Custom input state changed: %d -> %d", last_custom_input_level, current_custom_input_level);
                         
                         // 根据开关状态控制电机
-                        if (current_switch_level == 0) {
-                            // 开关闭合（高电平）
-                            gpio_set_level(MOTOR_CONTROL_GPIO, MOTOR_CONTROL_ENABLE_LEVEL);
-                            ESP_LOGI(TAG, "Motor enabled by switch");
+                        if (current_custom_input_level == 0) {
+                            // 开关闭合（低电平）
+                            self->OnCustomInputLowEvent();
+                            ESP_LOGI(TAG, "Motor enabled by custom input");
                         } else {
-                            // 开关断开（低电平）
-                            gpio_set_level(MOTOR_CONTROL_GPIO, MOTOR_CONTROL_DISABLE_LEVEL);
-                            ESP_LOGI(TAG, "Motor disabled by switch");
+                            // 开关断开（高电平）
+                            self->OnCustomInputHighEvent();
+                            ESP_LOGI(TAG, "Motor disabled by custom input");
                         }
                         
-                        last_switch_level = current_switch_level;
+                        last_custom_input_level = current_custom_input_level;
                     }
 
-                    // 按键输入检测逻辑
-                    int current_key_level = gpio_get_level(KEY_INPUT_GPIO);
-                    if (current_key_level != last_key_level) {
-                        ESP_LOGI(TAG, "Key state changed: %d -> %d", last_key_level, current_key_level);
-                        
-                        // 发送按键事件到队列
-                        KeyEvent event;
-                        event.timestamp = esp_timer_get_time();
-                        event.type = (current_key_level == 0) ? KEY_EVENT_PRESS : KEY_EVENT_RELEASE;
-                        
-                        if (xQueueSend(key_event_queue_, &event, 0) != pdTRUE) {
-                            ESP_LOGW(TAG, "Key event queue full, dropping event");
-                        }
-                        
-                        last_key_level = current_key_level;
-                    }
                     
-                    // 处理按键事件
-                    self->ProcessKeyEvent();
-
-                    // 开关机按键输入检测逻辑
-                    int current_shutdown_level = gpio_get_level(SHUTDOWN_BUTTON_GPIO);
-                    if (current_shutdown_level != last_shutdown_level) {
-                        ESP_LOGI(TAG, "Shutdown button state changed: %d -> %d", last_shutdown_level, current_shutdown_level);
-                        
-                        // 发送开关机按键事件到队列
-                        KeyEvent event;
-                        event.timestamp = esp_timer_get_time();
-                        event.type = (current_shutdown_level == 0) ? KEY_EVENT_PRESS : KEY_EVENT_RELEASE;
-                        
-                        if (xQueueSend(shutdown_event_queue_, &event, 0) != pdTRUE) {
-                            ESP_LOGW(TAG, "Shutdown event queue full, dropping event");
-                        }
-                        
-                        last_shutdown_level = current_shutdown_level;
-                    }
-                    
-                    // 处理开关机按键事件
-                    self->ProcessShutdownEvent();
-
-                    // 处理旋转编码器
-                    self->ProcessEncoder();
-
                     // 更新电池状态
                     self->UpdateBatteryStatus();
 
                     self->UpdateChargeStatus();
-
-                    // 处理自定义输入事件
-                    self->ProcessCustomInput();
                     
                     vTaskDelay(pdMS_TO_TICKS(10));
                 }
@@ -1735,39 +1083,35 @@ public:
         );
 
         // 网络状态监测线程：周期性检测 Wi-Fi 连接状态并打印日志
-        xTaskCreatePinnedToCore(
-            [](void* /*arg*/) {
-                bool last_connected = WifiStation::GetInstance().IsConnected();
-                ESP_LOGI(TAG, "Network monitor start, connected=%d", last_connected);
-                while (true) {
-                    bool connected = WifiStation::GetInstance().IsConnected();
-                    // 读取当前 RSSI（仅在已连接时有效）
-                    if (connected) {
-                        int8_t rssi = WifiStation::GetInstance().GetRssi();
-                        ESP_LOGI(TAG, "WiFi RSSI: %d dBm", rssi);
-                    }
-                    if (connected != last_connected) {
-                        ESP_LOGI(TAG, "Network state changed: %s",
-                                 connected ? "connected" : "disconnected");
-                        last_connected = connected;
-                    }
-                    vTaskDelay(pdMS_TO_TICKS(2000)); // 2s 检测一次
-                }
-            },
-            "net_monitor",
-            2048,
-            nullptr,
-            4,
-            nullptr,
-            0
-        );
+        // xTaskCreatePinnedToCore(
+        //     [](void* /*arg*/) {
+        //         bool last_connected = WifiStation::GetInstance().IsConnected();
+        //         ESP_LOGI(TAG, "Network monitor start, connected=%d", last_connected);
+        //         while (true) {
+        //             bool connected = WifiStation::GetInstance().IsConnected();
+        //             // 读取当前 RSSI（仅在已连接时有效）
+        //             if (connected) {
+        //                 int8_t rssi = WifiStation::GetInstance().GetRssi();
+        //                 ESP_LOGI(TAG, "WiFi RSSI: %d dBm", rssi);
+        //             }
+        //             if (connected != last_connected) {
+        //                 ESP_LOGI(TAG, "Network state changed: %s",
+        //                          connected ? "connected" : "disconnected");
+        //                 last_connected = connected;
+        //             }
+        //             vTaskDelay(pdMS_TO_TICKS(2000)); // 2s 检测一次
+        //         }
+        //     },
+        //     "net_monitor",
+        //     2048,
+        //     nullptr,
+        //     4,
+        //     nullptr,
+        //     0
+        // );
     }
 
-    virtual Led *GetLed() override
-    {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
-    }
+
 
     virtual AudioCodec *GetAudioCodec() override
     {
@@ -1782,7 +1126,7 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
+            AUDIO_CODEC_PA_GPIO,
             AUDIO_CODEC_ES8388_ADDR);
         return &audio_codec;
     }
@@ -1799,10 +1143,20 @@ public:
         // return camera_;
         return nullptr;
     }
-};
 
-// 静态成员变量定义
-QueueHandle_t ai_martube_esp32s3::key_event_queue_ = nullptr;
-QueueHandle_t ai_martube_esp32s3::shutdown_event_queue_ = nullptr;
+    virtual PwmLedController *GetPwmLedController() override
+    {
+        return pwm_led_controller_;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override
+    {
+        level = battery_percentage_;
+        charging = false;
+        discharging = false;
+        return true;
+    }
+    
+};
 
 DECLARE_BOARD(ai_martube_esp32s3);

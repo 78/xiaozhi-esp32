@@ -60,12 +60,13 @@ void AudioCodec::SetOutputVolume(int volume) {
         volume = 100;
     }
 
-    // 线性映射到 30–80：0→30, 100→80
-    int mapped = 30 + (volume * 50) / 100;
+    // // 线性映射到 30–80：0→30, 100→80
+    // int mapped = 30 + (volume * 50) / 100;
 
-    ESP_LOGI(TAG, "Set output volume: requested=%d, clamped=%d, effective=%d", requested, volume, mapped);
+    // ESP_LOGI(TAG, "Set output volume: requested=%d, clamped=%d, effective=%d", requested, volume, mapped);
 
-    output_volume_ = mapped;
+    // output_volume_ = mapped;
+    output_volume_ = volume;
     
     Settings settings("audio", true);
     settings.SetInt("output_volume", output_volume_);
