@@ -4,6 +4,7 @@
         {
             "name": "fogseek-edge-lcd1.8",
             "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
                 "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y"
             ]
         }

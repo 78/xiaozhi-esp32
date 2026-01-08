@@ -18,10 +18,11 @@
 #include <driver/rtc_io.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
+#include <wifi_manager.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "EdgeLinkBitVison"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class EdgeLinkBitVison : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -186,7 +187,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<EdgeLinkBitVison *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -231,7 +232,7 @@ private:
     }
 
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    EdgeLinkBitVison() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -270,7 +271,47 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
+    virtual void StartNetwork() override
+    {
+        auto &wifi_manager = WifiManager::GetInstance();
+
+        // Initialize WiFi manager with custom SSID prefix
+        WifiManagerConfig config;
+        config.ssid_prefix = "LinkBit";
+        config.language = Lang::CODE;
+        wifi_manager.Initialize(config);
+
+        // Set unified event callback - forward to NetworkEvent with SSID data
+        wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
+                                      {
+            std::string ssid = wifi_manager.GetSsid();
+            switch (event) {
+                case WifiEvent::Scanning:
+                    OnNetworkEvent(NetworkEvent::Scanning);
+                    break;
+                case WifiEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                    break;
+                case WifiEvent::Connected:
+                    OnNetworkEvent(NetworkEvent::Connected, ssid);
+                    break;
+                case WifiEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case WifiEvent::ConfigModeEnter:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeEnter);
+                    break;
+                case WifiEvent::ConfigModeExit:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeExit);
+                    break;
+            } });
+
+        // Try to connect or enter config mode
+        TryWifiConnect();
+    }
+
+    ~EdgeLinkBitVison()
     {
         if (i2c_bus_)
         {
@@ -279,4 +320,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(EdgeLinkBitVison);

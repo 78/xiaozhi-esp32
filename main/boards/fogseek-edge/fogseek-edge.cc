@@ -2,7 +2,7 @@
 #include "config.h"
 #include "power_manager.h"
 #include "led_controller.h"
-#include "codecs/es8311_audio_codec.h"
+#include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -19,7 +19,7 @@
 
 #define TAG "FogSeekEdge"
 
-class FogSeekEdge : public WifiBoard
+class FogeSeekEdge : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -139,7 +139,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdge *>(arg);
+                auto instance = static_cast<FogeSeekEdge *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -180,7 +180,7 @@ private:
     }
 
 public:
-    FogSeekEdge() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogeSeekEdge() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -193,14 +193,9 @@ public:
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
 
-    virtual Led *GetLed() override
-    {
-        return led_controller_.GetGreenLed();
-    }
-
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8311AudioCodec audio_codec(
+        static Es8389AudioCodec audio_codec(
             i2c_bus_,
             (i2c_port_t)0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -210,14 +205,14 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
-            AUDIO_CODEC_ES8311_ADDR,
+            AUDIO_CODEC_PA_PIN,
+            AUDIO_CODEC_ES8389_ADDR,
             true,
-            false);
+            true);
         return &audio_codec;
     }
 
-    ~FogSeekEdge()
+    ~FogeSeekEdge()
     {
         if (i2c_bus_)
         {
@@ -226,4 +221,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdge);
+DECLARE_BOARD(FogeSeekEdge);

@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
-#include "display_manager.h"
 #include "led_controller.h"
 #include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
@@ -10,6 +9,7 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
+#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
@@ -18,18 +18,18 @@
 #include <driver/rtc_io.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
+#include <wifi_manager.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "EdgeLinkBitLumi"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class EdgeLinkBitLumi : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
-    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-
+    CircularStrip *rgb_led_strip_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
@@ -70,31 +70,9 @@ private:
             .red_gpio = LED_RED_GPIO,
             .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
-    }
 
-    // 初始化显示管理器
-    void InitializeDisplayManager()
-    {
-        lcd_pin_config_t lcd_pin_config = {
-            .io0_gpio = LCD_IO0_GPIO,
-            .io1_gpio = LCD_IO1_GPIO,
-            .scl_gpio = LCD_SCL_GPIO,
-            .io2_gpio = LCD_IO2_GPIO,
-            .io3_gpio = LCD_IO3_GPIO,
-            .cs_gpio = LCD_CS_GPIO,
-            .dc_gpio = LCD_DC_GPIO,
-            .reset_gpio = LCD_RESET_GPIO,
-            .im0_gpio = LCD_IM0_GPIO,
-            .im2_gpio = LCD_IM2_GPIO,
-            .bl_gpio = LCD_BL_GPIO,
-            .width = LCD_H_RES,
-            .height = LCD_V_RES,
-            .offset_x = DISPLAY_OFFSET_X,
-            .offset_y = DISPLAY_OFFSET_Y,
-            .mirror_x = DISPLAY_MIRROR_X,
-            .mirror_y = DISPLAY_MIRROR_Y,
-            .swap_xy = DISPLAY_SWAP_XY};
-        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
+        // 初始化RGB灯带
+        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -140,6 +118,34 @@ private:
     {
         ctrl_button_.OnClick([this]()
                              {
+                                 // 循环切换RGB灯带颜色
+                                 static int color_index = 0;
+                                 switch (color_index)
+                                 {
+                                 case 0:
+                                     rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
+                                     break;
+                                 case 1:
+                                     rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
+                                     break;
+                                 case 2:
+                                     rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
+                                     break;
+                                 case 3:
+                                     rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
+                                     break;
+                                 case 4:
+                                     rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
+                                     break;
+                                 case 5:
+                                     rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
+                                     break;
+                                 default:
+                                     rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
+                                     break;
+                                 }
+                                 color_index = (color_index + 1) % 7; // 循环使用7种颜色
+
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
@@ -186,7 +192,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<EdgeLinkBitLumi *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -230,25 +236,35 @@ private:
         ESP_LOGI(TAG, "Device powered off.");
     }
 
+    // 初始化MCP工具
+    void InitializeMCP()
+    {
+        // 获取MCP服务器实例
+        auto &mcp_server = McpServer::GetInstance();
+
+        // 初始化RGB LED MCP 工具
+        InitializeRgbLedMCP(mcp_server, rgb_led_strip_);
+    }
+
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    EdgeLinkBitLumi() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
-        InitializeDisplayManager();
         InitializeAudioAmplifier();
         InitializeExtensionPowerEnable();
         InitializeButtonCallbacks();
+        InitializeMCP();
 
         // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
 
-    virtual Display *GetDisplay() override
+    virtual Led *GetLed() override
     {
-        return display_manager_.GetDisplay();
+        return led_controller_.GetGreenLed();
     }
 
     virtual AudioCodec *GetAudioCodec() override
@@ -270,13 +286,60 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
+    virtual void StartNetwork() override
+    {
+        auto &wifi_manager = WifiManager::GetInstance();
+
+        // Initialize WiFi manager with custom SSID prefix
+        WifiManagerConfig config;
+        config.ssid_prefix = "LinkBit";
+        config.language = Lang::CODE;
+        wifi_manager.Initialize(config);
+
+        // Set unified event callback - forward to NetworkEvent with SSID data
+        wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
+                                      {
+            std::string ssid = wifi_manager.GetSsid();
+            switch (event) {
+                case WifiEvent::Scanning:
+                    OnNetworkEvent(NetworkEvent::Scanning);
+                    break;
+                case WifiEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                    break;
+                case WifiEvent::Connected:
+                    OnNetworkEvent(NetworkEvent::Connected, ssid);
+                    break;
+                case WifiEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case WifiEvent::ConfigModeEnter:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeEnter);
+                    break;
+                case WifiEvent::ConfigModeExit:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeExit);
+                    break;
+            } });
+
+        // Try to connect or enter config mode
+        TryWifiConnect();
+    }
+
+    ~EdgeLinkBitLumi()
     {
         if (i2c_bus_)
         {
             i2c_del_master_bus(i2c_bus_);
         }
+
+        // 删除RGB灯带对象
+        if (rgb_led_strip_)
+        {
+            delete rgb_led_strip_;
+            rgb_led_strip_ = nullptr;
+        }
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(EdgeLinkBitLumi);

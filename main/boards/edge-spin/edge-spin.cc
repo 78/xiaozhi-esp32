@@ -19,9 +19,9 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "EdgeSpin"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class EdgeSpin : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -186,7 +186,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<EdgeSpin *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -231,7 +231,7 @@ private:
     }
 
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    EdgeSpin() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -270,7 +270,7 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    ~EdgeSpin()
     {
         if (i2c_bus_)
         {
@@ -279,4 +279,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(EdgeSpin);

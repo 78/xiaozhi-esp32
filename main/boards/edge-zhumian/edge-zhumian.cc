@@ -1,8 +1,8 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
-#include "display_manager.h"
 #include "led_controller.h"
+#include "servo_controller.h"
 #include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
@@ -10,6 +10,7 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
+#include "led/circular_strip.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
@@ -19,17 +20,17 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "EdgeZhumian"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class EdgeZhumian : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
-    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-
+    FogSeekServoController servo_controller_;
+    CircularStrip *rgb_led_strip_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
@@ -70,31 +71,21 @@ private:
             .red_gpio = LED_RED_GPIO,
             .green_gpio = LED_GREEN_GPIO};
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
+
+        // 初始化RGB灯带
+        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
     }
 
-    // 初始化显示管理器
-    void InitializeDisplayManager()
+    // 初始化舵机控制器
+    void InitializeServoController()
     {
-        lcd_pin_config_t lcd_pin_config = {
-            .io0_gpio = LCD_IO0_GPIO,
-            .io1_gpio = LCD_IO1_GPIO,
-            .scl_gpio = LCD_SCL_GPIO,
-            .io2_gpio = LCD_IO2_GPIO,
-            .io3_gpio = LCD_IO3_GPIO,
-            .cs_gpio = LCD_CS_GPIO,
-            .dc_gpio = LCD_DC_GPIO,
-            .reset_gpio = LCD_RESET_GPIO,
-            .im0_gpio = LCD_IM0_GPIO,
-            .im2_gpio = LCD_IM2_GPIO,
-            .bl_gpio = LCD_BL_GPIO,
-            .width = LCD_H_RES,
-            .height = LCD_V_RES,
-            .offset_x = DISPLAY_OFFSET_X,
-            .offset_y = DISPLAY_OFFSET_Y,
-            .mirror_x = DISPLAY_MIRROR_X,
-            .mirror_y = DISPLAY_MIRROR_Y,
-            .swap_xy = DISPLAY_SWAP_XY};
-        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
+        // 使用配置文件中定义的舵机控制引脚 (GPIO_NUM_5)
+        servo_controller_.Initialize(SERVO_BODY_GPIO);
+
+        // 设置舵机初始位置
+        servo_controller_.SetAngle(90); // 90度位置（中间）
+
+        ESP_LOGI(TAG, "Servo controller initialized on GPIO %d.", SERVO_BODY_GPIO);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -122,7 +113,7 @@ private:
         gpio_config_t io_conf;
         io_conf.intr_type = GPIO_INTR_DISABLE;
         io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << EXTENSION_POWER_ENABLE_GPIO);
+        io_conf.pin_bit_mask = (1ULL << EXT_POWER_ENABLE_GPIO);
         io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
         io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
         gpio_config(&io_conf);
@@ -132,7 +123,7 @@ private:
     // 设置扩展板电源使能状态
     void SetExtensionPowerEnableState(bool enable)
     {
-        gpio_set_level(EXTENSION_POWER_ENABLE_GPIO, enable ? 1 : 0);
+        gpio_set_level(EXT_POWER_ENABLE_GPIO, enable ? 1 : 0);
     }
 
     // 初始化按键回调
@@ -140,11 +131,45 @@ private:
     {
         ctrl_button_.OnClick([this]()
                              {
+                                 servo_controller_.SetAngle(45);
+                                 // 延时500ms后返回到90度位置
+                                 vTaskDelay(pdMS_TO_TICKS(500));
+                                 servo_controller_.SetAngle(90);
+
+                                 // 循环切换RGB灯带颜色
+                                 static int color_index = 0;
+                                 switch (color_index)
+                                 {
+                                 case 0:
+                                     rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
+                                     break;
+                                 case 1:
+                                     rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
+                                     break;
+                                 case 2:
+                                     rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
+                                     break;
+                                 case 3:
+                                     rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
+                                     break;
+                                 case 4:
+                                     rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
+                                     break;
+                                 case 5:
+                                     rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
+                                     break;
+                                 default:
+                                     rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
+                                     break;
+                                 }
+                                 color_index = (color_index + 1) % 7; // 循环使用7种颜色
+
                                  auto &app = Application::GetInstance();
                                  app.ToggleChatState(); // 切换聊天状态（打断）
                              });
         ctrl_button_.OnDoubleClick([this]()
                                    {
+                                    rgb_led_strip_->SetAllColor({0, 0, 0}); // 关灯
             auto &app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting)
             {
@@ -186,7 +211,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<EdgeZhumian *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -208,6 +233,9 @@ private:
 
         SetExtensionPowerEnableState(true); // 开机时打开扩展板电源使能
 
+        // 初始化舵机控制器
+        InitializeServoController();
+
         ESP_LOGI(TAG, "Device powered on.");
 
         HandleAutoWake(); // 开机自动唤醒
@@ -216,7 +244,8 @@ private:
     // 关机流程
     void PowerOff()
     {
-        SetExtensionPowerEnableState(false); // 关机时关闭扩展板电源使能
+        SetExtensionPowerEnableState(false);    // 关机时关闭扩展板电源使能
+        rgb_led_strip_->SetAllColor({0, 0, 0}); // 白色
 
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
@@ -230,25 +259,35 @@ private:
         ESP_LOGI(TAG, "Device powered off.");
     }
 
+    // 初始化MCP工具
+    void InitializeMCP()
+    {
+        // 获取MCP服务器实例
+        auto &mcp_server = McpServer::GetInstance();
+
+        // 初始化RGB LED MCP 工具
+        InitializeRgbLedMCP(mcp_server, rgb_led_strip_);
+    }
+
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    EdgeZhumian() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
-        InitializeDisplayManager();
         InitializeAudioAmplifier();
         InitializeExtensionPowerEnable();
         InitializeButtonCallbacks();
+        InitializeMCP();
 
-        // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
+        // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
 
-    virtual Display *GetDisplay() override
+    virtual Led *GetLed() override
     {
-        return display_manager_.GetDisplay();
+        return led_controller_.GetGreenLed();
     }
 
     virtual AudioCodec *GetAudioCodec() override
@@ -270,13 +309,20 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    ~EdgeZhumian()
     {
         if (i2c_bus_)
         {
             i2c_del_master_bus(i2c_bus_);
         }
+
+        // 删除RGB灯带对象
+        if (rgb_led_strip_)
+        {
+            delete rgb_led_strip_;
+            rgb_led_strip_ = nullptr;
+        }
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(EdgeZhumian);

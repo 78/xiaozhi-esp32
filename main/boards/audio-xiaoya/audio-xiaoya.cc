@@ -1,9 +1,8 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "power_manager.h"
-#include "display_manager.h"
 #include "led_controller.h"
-#include "codecs/es8389_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -13,44 +12,21 @@
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
-#include "mcp_tools.h"
 #include <esp_log.h>
 #include <driver/rtc_io.h>
-#include <driver/i2c_master.h>
-#include <driver/gpio.h>
+#include <wifi_manager.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "AudioXiaoYa"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class AudioXiaoYa : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
-    FogSeekDisplayManager display_manager_;
     FogSeekLedController led_controller_;
-
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
-
-    // 初始化I2C外设
-    void InitializeI2c()
-    {
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)0,
-            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
-        };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-    }
 
     // 初始化电源管理器
     void InitializePowerManager()
@@ -72,67 +48,11 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
     }
 
-    // 初始化显示管理器
-    void InitializeDisplayManager()
+    // 初始化音频输出控制
+    void InitializeAudioOutputControl()
     {
-        lcd_pin_config_t lcd_pin_config = {
-            .io0_gpio = LCD_IO0_GPIO,
-            .io1_gpio = LCD_IO1_GPIO,
-            .scl_gpio = LCD_SCL_GPIO,
-            .io2_gpio = LCD_IO2_GPIO,
-            .io3_gpio = LCD_IO3_GPIO,
-            .cs_gpio = LCD_CS_GPIO,
-            .dc_gpio = LCD_DC_GPIO,
-            .reset_gpio = LCD_RESET_GPIO,
-            .im0_gpio = LCD_IM0_GPIO,
-            .im2_gpio = LCD_IM2_GPIO,
-            .bl_gpio = LCD_BL_GPIO,
-            .width = LCD_H_RES,
-            .height = LCD_V_RES,
-            .offset_x = DISPLAY_OFFSET_X,
-            .offset_y = DISPLAY_OFFSET_Y,
-            .mirror_x = DISPLAY_MIRROR_X,
-            .mirror_y = DISPLAY_MIRROR_Y,
-            .swap_xy = DISPLAY_SWAP_XY};
-        display_manager_.Initialize(BOARD_LCD_TYPE, &lcd_pin_config);
-    }
-
-    // 初始化音频功放引脚并默认关闭功放
-    void InitializeAudioAmplifier()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetAudioAmplifierState(false); // 默认关闭功放
-    }
-
-    // 设置音频功放状态
-    void SetAudioAmplifierState(bool enable)
-    {
-        gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
-    }
-
-    // 初始化扩展板电源使能引脚
-    void InitializeExtensionPowerEnable()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << EXTENSION_POWER_ENABLE_GPIO);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetExtensionPowerEnableState(false); // 默认关闭扩展板电源使能
-    }
-
-    // 设置扩展板电源使能状态
-    void SetExtensionPowerEnableState(bool enable)
-    {
-        gpio_set_level(EXTENSION_POWER_ENABLE_GPIO, enable ? 1 : 0);
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(0); // 功放不支持使能控制，通过设置音量来替代使能，避免USB插入时自动播放声音
     }
 
     // 初始化按键回调
@@ -186,7 +106,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<AudioXiaoYa *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -204,9 +124,6 @@ private:
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(70); // 开机后将音量设置为默认值
-        SetAudioAmplifierState(true);
-
-        SetExtensionPowerEnableState(true); // 开机时打开扩展板电源使能
 
         ESP_LOGI(TAG, "Device powered on.");
 
@@ -216,14 +133,11 @@ private:
     // 关机流程
     void PowerOff()
     {
-        SetExtensionPowerEnableState(false); // 关机时关闭扩展板电源使能
-
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(0); // 关机后将音量设置为默0
-        SetAudioAmplifierState(false);
 
         Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
 
@@ -231,14 +145,11 @@ private:
     }
 
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    AudioXiaoYa() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
-        InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
-        InitializeDisplayManager();
-        InitializeAudioAmplifier();
-        InitializeExtensionPowerEnable();
+        InitializeAudioOutputControl();
         InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
@@ -246,37 +157,61 @@ public:
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
 
-    virtual Display *GetDisplay() override
+    virtual Led *GetLed() override
     {
-        return display_manager_.GetDisplay();
+        return led_controller_.GetGreenLed();
     }
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8389AudioCodec audio_codec(
-            i2c_bus_,
-            (i2c_port_t)0,
-            AUDIO_INPUT_SAMPLE_RATE,
-            AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK,
-            AUDIO_I2S_GPIO_BCLK,
-            AUDIO_I2S_GPIO_WS,
-            AUDIO_I2S_GPIO_DOUT,
-            AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
-            AUDIO_CODEC_ES8389_ADDR,
-            true,
-            true);
+        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+                                              AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
+    virtual void StartNetwork() override
     {
-        if (i2c_bus_)
-        {
-            i2c_del_master_bus(i2c_bus_);
-        }
+        auto &wifi_manager = WifiManager::GetInstance();
+
+        // Initialize WiFi manager with custom SSID prefix
+        WifiManagerConfig config;
+        config.ssid_prefix = "XiaoYa";
+        config.language = Lang::CODE;
+        wifi_manager.Initialize(config);
+
+        // Set unified event callback - forward to NetworkEvent with SSID data
+        wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
+                                      {
+            std::string ssid = wifi_manager.GetSsid();
+            switch (event) {
+                case WifiEvent::Scanning:
+                    OnNetworkEvent(NetworkEvent::Scanning);
+                    break;
+                case WifiEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                    break;
+                case WifiEvent::Connected:
+                    OnNetworkEvent(NetworkEvent::Connected, ssid);
+                    break;
+                case WifiEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case WifiEvent::ConfigModeEnter:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeEnter);
+                    break;
+                case WifiEvent::ConfigModeExit:
+                    OnNetworkEvent(NetworkEvent::WifiConfigModeExit);
+                    break;
+            } });
+
+        // Try to connect or enter config mode
+        TryWifiConnect();
+    }
+
+    ~AudioXiaoYa()
+    {
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(AudioXiaoYa);

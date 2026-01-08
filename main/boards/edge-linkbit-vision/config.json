@@ -1,0 +1,16 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "edge-linkbit-vision",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+                "CONFIG_SR_MN_CN_MULTINET7_QUANT=y",
+                "CONFIG_CUSTOM_WAKE_WORD=\"ni hao lin bi\"",
+                "CONFIG_CUSTOM_WAKE_WORD_DISPLAY=\"你好林比\"",
+                "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20"
+            ]
+        }
+    ]
+}

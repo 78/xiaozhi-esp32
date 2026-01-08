@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "dual_network_board.h"
 #include "config.h"
 #include "power_manager.h"
 #include "display_manager.h"
@@ -13,15 +13,14 @@
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
-#include "mcp_tools.h"
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "EdgeSpin4G"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class EdgeSpin4G : public DualNetworkBoard
 {
 private:
     Button boot_button_;
@@ -61,6 +60,40 @@ private:
             .charge_done_gpio = PWR_CHARGE_DONE_GPIO,
             .adc_gpio = BATTERY_ADC_GPIO};
         power_manager_.Initialize(&power_pin_config);
+    }
+
+    // 初始化扩展板电源使能引脚
+    void InitializeExtensionPowerEnable()
+    {
+        gpio_config_t io_conf;
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        io_conf.mode = GPIO_MODE_OUTPUT;
+        io_conf.pin_bit_mask = (1ULL << EXTENSION_POWER_ENABLE_GPIO);
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        gpio_config(&io_conf);
+        SetExtensionPowerEnableState(false); // 默认关闭扩展板电源使能
+    }
+
+    // 设置扩展板电源使能状态
+    void SetExtensionPowerEnableState(bool enable)
+    {
+        gpio_set_level(EXTENSION_POWER_ENABLE_GPIO, enable ? 1 : 0);
+    }
+
+    // 启用4G模块
+    void InitializeEnable4GModule()
+    {
+        // 配置4G模块的控制引脚
+        gpio_config_t ml307_enable_config = {
+            .pin_bit_mask = (1ULL << ML307_ENABLE_GPIO),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&ml307_enable_config);
+        gpio_set_level(ML307_ENABLE_GPIO, 1);
     }
 
     // 初始化LED控制器
@@ -116,25 +149,6 @@ private:
         gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
     }
 
-    // 初始化扩展板电源使能引脚
-    void InitializeExtensionPowerEnable()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << EXTENSION_POWER_ENABLE_GPIO);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetExtensionPowerEnableState(false); // 默认关闭扩展板电源使能
-    }
-
-    // 设置扩展板电源使能状态
-    void SetExtensionPowerEnableState(bool enable)
-    {
-        gpio_set_level(EXTENSION_POWER_ENABLE_GPIO, enable ? 1 : 0);
-    }
-
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
@@ -186,7 +200,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<EdgeSpin4G *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -231,14 +245,16 @@ private:
     }
 
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    EdgeSpin4G() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
+                   boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
+        InitializeExtensionPowerEnable();
+        InitializeEnable4GModule();
         InitializeLedController();
         InitializeDisplayManager();
         InitializeAudioAmplifier();
-        InitializeExtensionPowerEnable();
         InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
@@ -270,7 +286,7 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    ~EdgeSpin4G()
     {
         if (i2c_bus_)
         {
@@ -279,4 +295,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(EdgeSpin4G);

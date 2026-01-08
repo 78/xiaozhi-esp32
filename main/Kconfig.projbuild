@@ -147,32 +147,53 @@ choice BOARD_TYPE
     config BOARD_TYPE_FOGSEEK_AUDIO
         bool "雾岸科技 Audio"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_AUDIO_LINKBIT
-        bool "雾岸科技 LinkBit"
+    config BOARD_TYPE_FOGSEEK_EDGE
+        bool "雾岸科技 Edge"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_EDGE_LCD1_8
+        bool "雾岸科技 Edge-LCD1.8"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_EDGE_KIT
+        bool "雾岸科技 Edge-Kit "
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_EDGE_ES8311_LCD1_8
+        bool "雾岸科技 Edge-ES8311-LCD1.8"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_FOGSEEK_AUDIO_MOODLIGHT
         bool "雾岸科技 MoodLight"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_AUDIO_XIAOYA
-        bool "小雅小雅"
+    config BOARD_TYPE_AUDIO_LINKBIT
+        bool "林比积木"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE
-        bool "雾岸科技 Edge"
-        depends on IDF_TARGET_ESP32S3 
-    config BOARD_TYPE_FOGSEEK_EDGE_BUBBLEPAL
-        bool "雾岸科技 BubblePal"
+    config BOARD_TYPE_EDGE_LINKBIT
+        bool "林比积木Pro"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G
-        bool "雾岸科技 Edge-ES8389-4G"
+    config BOARD_TYPE_EDGE_LINKBIT_LUMI
+        bool "林比机器人Lumi"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI
-        bool "雾岸科技 Edge-ES8389-WiFi"
+    config BOARD_TYPE_EDGE_LINKBIT_LUMI_4G
+        bool "林比机器人Lumi 4G版"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_LCD1_5
-        bool "雾岸科技 Edge-LCD1.5"
+    config BOARD_TYPE_EDGE_LINKBIT_VISON
+        bool "林比机器人Vison"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_LCD1_8
-        bool "雾岸科技 Edge-LCD1.8"
+    config BOARD_TYPE_EDGE_LINKBIT_VISON_4G
+        bool "林比机器人Vison 4G版"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_AUDIO_XIAOYA
+        bool "小雅积木"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDGE_XIAOYA
+        bool "小雅积木Pro"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDGE_SPIN
+        bool "Spin机器人"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDGE_SPIN_4G
+        bool "Spin机器人 4G版"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDGE_ZHUMIAN
+        bool "助眠科技 智能助眠香氛音箱"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_KORVO2_V3
         bool "Espressif Korvo2 V3"
@@ -694,7 +715,9 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49 \
-        || BOARD_TYPE_FOGSEEK_EDGE_BUBBLEPAL || BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI || BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G)
+        || BOARD_TYPE_FOGSEEK_EDGE || BOARD_TYPE_FOGSEEK_EDGE_KIT || BOARD_TYPE_FOGSEEK_EDGE_LCD1_8 \
+        || BOARD_TYPE_EDGE_LINKBIT || BOARD_TYPE_EDGE_LINKBIT_LUMI || BOARD_TYPE_EDGE_LINKBIT_LUMI_4G || BOARD_TYPE_EDGE_LINKBIT_VISON || BOARD_TYPE_EDGE_LINKBIT_VISON_4G \
+        || BOARD_TYPE_EDGE_SPIN || BOARD_TYPE_EDGE_SPIN_4G || BOARD_TYPE_EDGE_XIAOYA || BOARD_TYPE_EDGE_ZHUMIAN)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 

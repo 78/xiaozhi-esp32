@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "fogseek-audio",
+            "name": "fogseek-edge-es8311-lcd1.8",
             "sdkconfig_append": [
                 "CONFIG_SR_WN_WN9_HAIXIAOWU_TTS=y"
             ]

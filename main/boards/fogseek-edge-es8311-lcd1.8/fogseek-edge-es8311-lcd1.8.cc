@@ -3,7 +3,7 @@
 #include "power_manager.h"
 #include "display_manager.h"
 #include "led_controller.h"
-#include "codecs/es8389_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -13,15 +13,14 @@
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
 #include "device_state_machine.h"
-#include "mcp_tools.h"
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "FogSeekEdgeLcd1_8"
+#define TAG "FogSeekEdgeES8311Lcd1_8"
 
-class FogSeekEdgeLcd1_8 : public WifiBoard
+class FogSeekEdgeES8311Lcd1_8 : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -116,25 +115,6 @@ private:
         gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
     }
 
-    // 初始化扩展板电源使能引脚
-    void InitializeExtensionPowerEnable()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << EXTENSION_POWER_ENABLE_GPIO);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetExtensionPowerEnableState(false); // 默认关闭扩展板电源使能
-    }
-
-    // 设置扩展板电源使能状态
-    void SetExtensionPowerEnableState(bool enable)
-    {
-        gpio_set_level(EXTENSION_POWER_ENABLE_GPIO, enable ? 1 : 0);
-    }
-
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
@@ -186,7 +166,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekEdgeLcd1_8 *>(arg);
+                auto instance = static_cast<FogSeekEdgeES8311Lcd1_8 *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -206,8 +186,6 @@ private:
         codec->SetOutputVolume(70); // 开机后将音量设置为默认值
         SetAudioAmplifierState(true);
 
-        SetExtensionPowerEnableState(true); // 开机时打开扩展板电源使能
-
         ESP_LOGI(TAG, "Device powered on.");
 
         HandleAutoWake(); // 开机自动唤醒
@@ -216,8 +194,6 @@ private:
     // 关机流程
     void PowerOff()
     {
-        SetExtensionPowerEnableState(false); // 关机时关闭扩展板电源使能
-
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
 
@@ -231,14 +207,13 @@ private:
     }
 
 public:
-    FogSeekEdgeLcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekEdgeES8311Lcd1_8() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
         InitializeDisplayManager();
         InitializeAudioAmplifier();
-        InitializeExtensionPowerEnable();
         InitializeButtonCallbacks();
 
         // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
@@ -253,7 +228,7 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8389AudioCodec audio_codec(
+        static Es8311AudioCodec audio_codec(
             i2c_bus_,
             (i2c_port_t)0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -264,13 +239,13 @@ public:
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC,
-            AUDIO_CODEC_ES8389_ADDR,
+            AUDIO_CODEC_ES8311_ADDR,
             true,
-            true);
+            false);
         return &audio_codec;
     }
 
-    ~FogSeekEdgeLcd1_8()
+    ~FogSeekEdgeES8311Lcd1_8()
     {
         if (i2c_bus_)
         {
@@ -279,4 +254,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogSeekEdgeLcd1_8);
+DECLARE_BOARD(FogSeekEdgeES8311Lcd1_8);
