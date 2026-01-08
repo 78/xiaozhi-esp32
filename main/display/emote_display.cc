@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <tuple>
 #include <algorithm>
+#include <cinttypes>
 
 // Standard C headers
 #include <sys/time.h>
@@ -28,7 +29,6 @@
 #include "gfx.h"
 #include "expression_emote.h"
 
-LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 
 namespace emote {
 
@@ -232,7 +232,7 @@ bool EmoteDisplay::StopAnimDialog()
 
 bool EmoteDisplay::InsertAnimDialog(const char* emoji_name, uint32_t duration_ms)
 {
-    ESP_LOGI(TAG, "InsertAnimDialog: %s, %d", emoji_name, duration_ms);
+    ESP_LOGI(TAG, "InsertAnimDialog: %s, %" PRIu32, emoji_name, duration_ms);
     if (emote_handle_ && emoji_name) {
         return emote_insert_anim_dialog(emote_handle_, emoji_name, duration_ms);
     }
