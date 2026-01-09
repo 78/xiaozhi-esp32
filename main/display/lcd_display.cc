@@ -282,6 +282,11 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
 
 LcdDisplay::~LcdDisplay() {
     SetPreviewImage(nullptr);
+
+    if (chat_message_scroll_timer_ != nullptr) {
+        lv_timer_delete(chat_message_scroll_timer_);
+        chat_message_scroll_timer_ = nullptr;
+    }
     
     // Clean up GIF controller
     if (gif_controller_) {
@@ -744,6 +749,12 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 #else
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
+    if (chat_message_scroll_timer_ != nullptr) {
+        lv_timer_delete(chat_message_scroll_timer_);
+        chat_message_scroll_timer_ = nullptr;
+    }
+    chat_message_scroll_delay_ticks_ = 0;
+    chat_message_scroll_step_ = 0;
     LvglTheme* lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
@@ -828,6 +839,41 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
     // 使用顶部中央对齐,Y轴偏移固定距离,确保文本框顶部位置固定
     lv_obj_align(chat_message_label_, LV_ALIGN_TOP_MID, 0, height_ / 2 + 25);
+
+    // Put the chat label into a scrollable box so long replies are still readable
+    lv_obj_update_layout(container_);
+    lv_obj_update_layout(content_);
+    lv_coord_t content_h = lv_obj_get_height(content_);
+    if (content_h <= 0) {
+        content_h = height_;
+    }
+
+    chat_message_box_ = lv_obj_create(content_);
+    lv_obj_set_width(chat_message_box_, width_ * 0.9);
+    lv_coord_t chat_box_y = content_h / 2 + text_font->line_height;
+    lv_coord_t bottom_safe = lvgl_theme->spacing(18);
+    if (bottom_safe < text_font->line_height) {
+        bottom_safe = text_font->line_height;
+    }
+    lv_coord_t chat_box_h = content_h - chat_box_y - bottom_safe;
+    if (chat_box_h < text_font->line_height * 2) {
+        chat_box_h = text_font->line_height * 2;
+    }
+    lv_obj_set_height(chat_message_box_, chat_box_h);
+    lv_obj_set_style_bg_opa(chat_message_box_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(chat_message_box_, 0, 0);
+    lv_obj_set_style_pad_top(chat_message_box_, lvgl_theme->spacing(1), 0);
+    lv_obj_set_style_pad_left(chat_message_box_, 0, 0);
+    lv_obj_set_style_pad_right(chat_message_box_, 0, 0);
+    lv_obj_set_style_pad_bottom(chat_message_box_, lvgl_theme->spacing(6), 0);
+    lv_obj_set_scroll_dir(chat_message_box_, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(chat_message_box_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_align(chat_message_box_, LV_ALIGN_TOP_MID, 0, chat_box_y);
+
+    lv_obj_set_parent(chat_message_label_, chat_message_box_);
+    lv_obj_set_width(chat_message_label_, lv_obj_get_width(chat_message_box_));
+    lv_obj_set_height(chat_message_label_, LV_SIZE_CONTENT);
+    lv_obj_align(chat_message_label_, LV_ALIGN_TOP_MID, 0, 0);
     //调试布局用
     // lv_obj_set_style_border_width(chat_message_label_, 2, 0);
     // lv_obj_set_style_border_color(chat_message_label_, lv_color_hex(0xFF0000), 0);  
@@ -917,7 +963,64 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (chat_message_label_ == nullptr) {
         return;
     }
+
+    if (chat_message_scroll_timer_ != nullptr) {
+        lv_timer_delete(chat_message_scroll_timer_);
+        chat_message_scroll_timer_ = nullptr;
+    }
+    chat_message_scroll_delay_ticks_ = 0;
+
     lv_label_set_text(chat_message_label_, content);
+
+    if (chat_message_box_ == nullptr) {
+        return;
+    }
+
+    lv_obj_set_width(chat_message_label_, lv_obj_get_width(chat_message_box_));
+    lv_obj_set_height(chat_message_label_, LV_SIZE_CONTENT);
+
+    // Show from the top first
+    lv_obj_scroll_to_y(chat_message_box_, 0, LV_ANIM_OFF);
+    lv_obj_update_layout(chat_message_box_);
+
+    int32_t remaining = lv_obj_get_scroll_bottom(chat_message_box_);
+    if (remaining <= 0) {
+        return;
+    }
+
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    auto text_font = lvgl_theme->text_font()->font();
+    lv_coord_t page = lv_obj_get_height(chat_message_box_) - text_font->line_height * 2;
+    if (page < text_font->line_height) {
+        page = text_font->line_height;
+    }
+    chat_message_scroll_step_ = page;
+    chat_message_scroll_delay_ticks_ = 1.8; // allow reading the first page
+
+    chat_message_scroll_timer_ = lv_timer_create([](lv_timer_t* timer) {
+        auto* self = static_cast<LcdDisplay*>(lv_timer_get_user_data(timer));
+        if (self == nullptr || self->chat_message_box_ == nullptr) {
+            return;
+        }
+        if (self->chat_message_scroll_delay_ticks_ > 0) {
+            self->chat_message_scroll_delay_ticks_--;
+            return;
+        }
+        int32_t bottom = lv_obj_get_scroll_bottom(self->chat_message_box_);
+        if (bottom <= 0) {
+            self->chat_message_scroll_timer_ = nullptr;
+            lv_timer_delete(timer);
+            return;
+        }
+        int32_t top = lv_obj_get_scroll_top(self->chat_message_box_);
+        lv_coord_t step = self->chat_message_scroll_step_ > 0 ? self->chat_message_scroll_step_ : 10;
+        int32_t target = top + step;
+        int32_t max_target = top + bottom;
+        if (target > max_target) {
+            target = max_target;
+        }
+        lv_obj_scroll_to_y(self->chat_message_box_, target, LV_ANIM_ON);
+    }, 2000, this);
 }
 #endif
 

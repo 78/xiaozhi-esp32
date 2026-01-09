@@ -30,8 +30,13 @@ protected:
     std::unique_ptr<LvglGif> gif_controller_ = nullptr;
     lv_obj_t* emoji_box_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
+    lv_obj_t* chat_message_box_ = nullptr;
     esp_timer_handle_t preview_timer_ = nullptr;
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
+
+    lv_timer_t* chat_message_scroll_timer_ = nullptr;
+    lv_coord_t  chat_message_scroll_step_ = 0;
+    uint8_t     chat_message_scroll_delay_ticks_ = 0;
 
     void InitializeLcdThemes();
     void SetupUI();
