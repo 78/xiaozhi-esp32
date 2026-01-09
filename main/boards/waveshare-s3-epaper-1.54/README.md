@@ -2,6 +2,12 @@
 
 [微雪电子 ESP32-S3-ePaper-1.54](https://www.waveshare.net/shop/ESP32-S3-ePaper-1.54.htm)
 
+```bash
+esptool.py flash_id
+V1: 4MB Flash, 2MB PSRAM
+V2: 8MB Flash, 8MB PSRAM
+```
+
 # 编译配置命令
 
 **克隆工程**
@@ -31,18 +37,18 @@ idf.py menuconfig
 **选择板子**
 
 ```bash
-Xiaozhi Assistant -> Board Type -> Waveshare ESP32-S3-ePaper-1.54
+Xiaozhi Assistant -> Board Type -> Waveshare ESP32-S3-ePaper-1.54_v2
 ```
 
 **编译**
 
-```ba
-idf.py build
+```bash
+python ./scripts/release.py --name waveshare-s3-epaper-1.54-v2 waveshare-s3-epaper-1.54
 ```
 
 **下载并打开串口终端**
 
 ```bash
-idf.py build flash monitor
+idf.py flash monitor
 ```
 
