@@ -96,6 +96,9 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     if (idle_panel_)
         return;
 
+    bool is_landscape = (screen_width_ > screen_height_);
+    int box_width = is_landscape ? 90 : 70;
+
     // Main Panel
     idle_panel_ = lv_obj_create(parent);
     lv_obj_set_size(idle_panel_, LV_PCT(100), LV_PCT(100));
@@ -126,7 +129,8 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     title_label_ = lv_label_create(header_panel_);
     lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(title_label_, COLOR_NEON_ORANGE, 0);
-    lv_label_set_text(title_label_, "IoTForce AI Box");
+    // lv_label_set_text(title_label_, "IoTForce AI Box");
+    lv_label_set_text(title_label_, "ROBOT AI");
 
     // Battery Icon
     battery_label_ = lv_label_create(header_panel_);
@@ -186,7 +190,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
 
     // Box 1: Weather
     lv_obj_t *weather_box = lv_obj_create(grid_cont);
-    lv_obj_set_size(weather_box, 70, 60);
+    lv_obj_set_size(weather_box, box_width, 60);
     StyleNeonBox(weather_box, COLOR_NEON_MAGENTA);
     lv_obj_set_flex_flow(weather_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(weather_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -205,7 +209,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
 
     // Box 2: Humidity (Middle)
     lv_obj_t *hum_box = lv_obj_create(grid_cont);
-    lv_obj_set_size(hum_box, 70, 60);
+    lv_obj_set_size(hum_box, box_width, 60);
     StyleNeonBox(hum_box, COLOR_NEON_BLUE);
     lv_obj_set_flex_flow(hum_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(hum_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -224,7 +228,7 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
 
     // Box 3: UV/Air (Right)
     lv_obj_t *uv_box = lv_obj_create(grid_cont);
-    lv_obj_set_size(uv_box, 70, 60);
+    lv_obj_set_size(uv_box, box_width, 60);
     StyleNeonBox(uv_box, COLOR_NEON_ORANGE);
     lv_obj_set_flex_flow(uv_box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(uv_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

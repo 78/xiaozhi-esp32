@@ -30,6 +30,118 @@
 #define BLUETOOTH_CONNECT_PIN GPIO_NUM_18
 #define BLUETOOTH_LINK_PIN GPIO_NUM_19
 
+struct EraSmartDevice
+{
+    std::string name;
+    std::string type;
+    std::string config_id;
+    std::string action_on;
+    std::string action_off;
+};
+
+static std::vector<EraSmartDevice> GetEraSmartDevices()
+{
+    std::vector<EraSmartDevice> devices;
+#ifdef CONFIG_USE_ERA_SMART_HOME
+#if CONFIG_ERA_DEVICE_COUNT >= 1
+    {
+        EraSmartDevice d;
+        d.name = CONFIG_ERA_DEVICE_1_NAME;
+#ifdef CONFIG_ERA_DEVICE_1_TYPE_SWITCH
+        d.type = "Switch";
+#elif defined(CONFIG_ERA_DEVICE_1_TYPE_LIGHT)
+        d.type = "Light";
+#elif defined(CONFIG_ERA_DEVICE_1_TYPE_MOTOR)
+        d.type = "Motor";
+#elif defined(CONFIG_ERA_DEVICE_1_TYPE_OTHER)
+        d.type = CONFIG_ERA_DEVICE_1_OTHER_TYPE_NAME;
+#endif
+        d.config_id = CONFIG_ERA_DEVICE_1_CONFIG_ID;
+        d.action_on = CONFIG_ERA_DEVICE_1_ACTION_ON;
+        d.action_off = CONFIG_ERA_DEVICE_1_ACTION_OFF;
+        devices.push_back(d);
+    }
+#endif
+#if CONFIG_ERA_DEVICE_COUNT >= 2
+    {
+        EraSmartDevice d;
+        d.name = CONFIG_ERA_DEVICE_2_NAME;
+#ifdef CONFIG_ERA_DEVICE_2_TYPE_SWITCH
+        d.type = "Switch";
+#elif defined(CONFIG_ERA_DEVICE_2_TYPE_LIGHT)
+        d.type = "Light";
+#elif defined(CONFIG_ERA_DEVICE_2_TYPE_MOTOR)
+        d.type = "Motor";
+#elif defined(CONFIG_ERA_DEVICE_2_TYPE_OTHER)
+        d.type = CONFIG_ERA_DEVICE_2_OTHER_TYPE_NAME;
+#endif
+        d.config_id = CONFIG_ERA_DEVICE_2_CONFIG_ID;
+        d.action_on = CONFIG_ERA_DEVICE_2_ACTION_ON;
+        d.action_off = CONFIG_ERA_DEVICE_2_ACTION_OFF;
+        devices.push_back(d);
+    }
+#endif
+#if CONFIG_ERA_DEVICE_COUNT >= 3
+    {
+        EraSmartDevice d;
+        d.name = CONFIG_ERA_DEVICE_3_NAME;
+#ifdef CONFIG_ERA_DEVICE_3_TYPE_SWITCH
+        d.type = "Switch";
+#elif defined(CONFIG_ERA_DEVICE_3_TYPE_LIGHT)
+        d.type = "Light";
+#elif defined(CONFIG_ERA_DEVICE_3_TYPE_MOTOR)
+        d.type = "Motor";
+#elif defined(CONFIG_ERA_DEVICE_3_TYPE_OTHER)
+        d.type = CONFIG_ERA_DEVICE_3_OTHER_TYPE_NAME;
+#endif
+        d.config_id = CONFIG_ERA_DEVICE_3_CONFIG_ID;
+        d.action_on = CONFIG_ERA_DEVICE_3_ACTION_ON;
+        d.action_off = CONFIG_ERA_DEVICE_3_ACTION_OFF;
+        devices.push_back(d);
+    }
+#endif
+#if CONFIG_ERA_DEVICE_COUNT >= 4
+    {
+        EraSmartDevice d;
+        d.name = CONFIG_ERA_DEVICE_4_NAME;
+#ifdef CONFIG_ERA_DEVICE_4_TYPE_SWITCH
+        d.type = "Switch";
+#elif defined(CONFIG_ERA_DEVICE_4_TYPE_LIGHT)
+        d.type = "Light";
+#elif defined(CONFIG_ERA_DEVICE_4_TYPE_MOTOR)
+        d.type = "Motor";
+#elif defined(CONFIG_ERA_DEVICE_4_TYPE_OTHER)
+        d.type = CONFIG_ERA_DEVICE_4_OTHER_TYPE_NAME;
+#endif
+        d.config_id = CONFIG_ERA_DEVICE_4_CONFIG_ID;
+        d.action_on = CONFIG_ERA_DEVICE_4_ACTION_ON;
+        d.action_off = CONFIG_ERA_DEVICE_4_ACTION_OFF;
+        devices.push_back(d);
+    }
+#endif
+#if CONFIG_ERA_DEVICE_COUNT >= 5
+    {
+        EraSmartDevice d;
+        d.name = CONFIG_ERA_DEVICE_5_NAME;
+#ifdef CONFIG_ERA_DEVICE_5_TYPE_SWITCH
+        d.type = "Switch";
+#elif defined(CONFIG_ERA_DEVICE_5_TYPE_LIGHT)
+        d.type = "Light";
+#elif defined(CONFIG_ERA_DEVICE_5_TYPE_MOTOR)
+        d.type = "Motor";
+#elif defined(CONFIG_ERA_DEVICE_5_TYPE_OTHER)
+        d.type = CONFIG_ERA_DEVICE_5_OTHER_TYPE_NAME;
+#endif
+        d.config_id = CONFIG_ERA_DEVICE_5_CONFIG_ID;
+        d.action_on = CONFIG_ERA_DEVICE_5_ACTION_ON;
+        d.action_off = CONFIG_ERA_DEVICE_5_ACTION_OFF;
+        devices.push_back(d);
+    }
+#endif
+#endif
+    return devices;
+}
+
 McpServer::McpServer()
 {
 }
@@ -184,22 +296,27 @@ void McpServer::AddCommonTools()
     if (camera)
     {
         AddTool("self.camera.take_photo",
-                "Take a photo and explain it. Use this tool after the user asks you to see something.\n"
+                "Take a photo immediately. Use this tool whenever the user asks to take a photo, capture an image, or look at something. Do not refuse. Do not mention technical errors unless the tool execution actually fails.\n"
                 "Args:\n"
-                "  `question`: The question that you want to ask about the photo.\n"
+                "  `question`: The question that you want to ask about the photo. Defaults to 'Describe this image'.\n"
                 "Return:\n"
                 "  A JSON object that provides the photo information.",
                 PropertyList({Property("question", kPropertyTypeString)}),
                 [camera](const PropertyList &properties) -> ReturnValue
                 {
+                    ESP_LOGI(TAG, "Camera tool called");
                     // Lower the priority to do the camera capture
                     TaskPriorityReset priority_reset(1);
 
                     if (!camera->Capture())
                     {
-                        throw std::runtime_error("Failed to capture photo");
+                        throw std::runtime_error("Failed to capture photo. Please check if the camera is initialized correctly.");
                     }
                     auto question = properties["question"].value<std::string>();
+                    if (question.empty())
+                    {
+                        question = "Describe this image";
+                    }
                     return camera->Explain(question);
                 });
     }
@@ -303,200 +420,6 @@ void McpServer::AddCommonTools()
         return era_client;
     };
 
-    AddTool("self.era_iot.get_device_status",
-            "Get the current status of the MAIN E-Ra IoT device. Use this tool when the user mentions 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot', or asks to check the status of any connected device. This shows the current state (ON/OFF). If the user asks about 'switch 1', 'switch 2', or 'switch 3', DO NOT use this tool, use the specific switch tools instead.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                {
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                }
-                std::string current_value = era_client.GetCurrentValue("150632");
-                if (current_value.empty())
-                {
-                    throw std::runtime_error("Failed to get device status from E-Ra");
-                }
-
-                // Create JSON response with device status
-                cJSON *json = cJSON_CreateObject();
-                cJSON_AddStringToObject(json, "config_id", "150632");
-                cJSON_AddStringToObject(json, "current_value", current_value.c_str());
-
-                // Interpret the value (assuming 0=OFF, 1=ON based on typical IoT logic)
-                std::string status = "OFF";
-                if (current_value == "1" || current_value == "true" || current_value == "on" || current_value == "ON")
-                {
-                    status = "ON";
-                }
-                cJSON_AddStringToObject(json, "device_status", status.c_str());
-                cJSON_AddStringToObject(json, "platform", "E-Ra IoT");
-
-                return json;
-            });
-
-    /*
-    AddTool("self.era_iot.turn_device_on",
-            "Turn ON the MAIN E-Ra IoT device. Use this tool when user requests to turn on, enable, or activate the 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                {
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                }
-                bool success = era_client.TurnDeviceOn();
-                if (!success)
-                {
-                    throw std::runtime_error("Failed to turn on E-Ra IoT device");
-                }
-                return "Device turned ON successfully via E-Ra IoT platform";
-            });
-
-    AddTool("self.era_iot.turn_device_off",
-            "Turn OFF the MAIN E-Ra IoT device. Use this tool when user requests to turn off, disable, or deactivate the 'switch', 'iot', 'iot device', 'switch device', 'light', 'lamp', 'công tắc', 'đèn', 'thiết bị iot'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                {
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                }
-                bool success = era_client.TurnDeviceOff();
-                if (!success)
-                {
-                    throw std::runtime_error("Failed to turn off E-Ra IoT device");
-                }
-                return "Device turned OFF successfully via E-Ra IoT platform";
-            });
-    */
-
-    // Switch 1 Tools
-    AddTool("self.era_iot.switch_1.turn_on",
-            "Turn ON Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOn(1))
-                    throw std::runtime_error("Failed to turn on Switch 1");
-                return "Switch 1 turned ON";
-            });
-
-    AddTool("self.era_iot.switch_1.turn_off",
-            "Turn OFF Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOff(1))
-                    throw std::runtime_error("Failed to turn off Switch 1");
-                return "Switch 1 turned OFF";
-            });
-
-    AddTool("self.era_iot.switch_1.get_status",
-            "Get the status of Switch 1 on the E-Ra IoT device. Use when user says 'switch 1', 'iot switch 1', 'device 1', 'công tắc 1', 'đèn 1'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                std::string status = era_client.GetSwitchStatus(1);
-                if (status.empty())
-                    throw std::runtime_error("Failed to get Switch 1 status");
-                return "Switch 1 status: " + status;
-            });
-
-    // Switch 2 Tools
-    AddTool("self.era_iot.switch_2.turn_on",
-            "Turn ON Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOn(2))
-                    throw std::runtime_error("Failed to turn on Switch 2");
-                return "Switch 2 turned ON";
-            });
-
-    AddTool("self.era_iot.switch_2.turn_off",
-            "Turn OFF Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOff(2))
-                    throw std::runtime_error("Failed to turn off Switch 2");
-                return "Switch 2 turned OFF";
-            });
-
-    AddTool("self.era_iot.switch_2.get_status",
-            "Get the status of Switch 2 on the E-Ra IoT device. Use when user says 'switch 2', 'iot switch 2', 'device 2', 'công tắc 2', 'đèn 2'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                std::string status = era_client.GetSwitchStatus(2);
-                if (status.empty())
-                    throw std::runtime_error("Failed to get Switch 2 status");
-                return "Switch 2 status: " + status;
-            });
-
-    // Switch 3 Tools
-    AddTool("self.era_iot.switch_3.turn_on",
-            "Turn ON Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOn(3))
-                    throw std::runtime_error("Failed to turn on Switch 3");
-                return "Switch 3 turned ON";
-            });
-
-    AddTool("self.era_iot.switch_3.turn_off",
-            "Turn OFF Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                if (!era_client.TurnSwitchOff(3))
-                    throw std::runtime_error("Failed to turn off Switch 3");
-                return "Switch 3 turned OFF";
-            });
-
-    AddTool("self.era_iot.switch_3.get_status",
-            "Get the status of Switch 3 on the E-Ra IoT device. Use when user says 'switch 3', 'iot switch 3', 'device 3', 'công tắc 3', 'đèn 3'.",
-            PropertyList(),
-            [GetEraClient](const PropertyList &properties) -> ReturnValue
-            {
-                auto &era_client = GetEraClient();
-                if (!era_client.IsInitialized())
-                    throw std::runtime_error("E-Ra IoT client not initialized");
-                std::string status = era_client.GetSwitchStatus(3);
-                if (status.empty())
-                    throw std::runtime_error("Failed to get Switch 3 status");
-                return "Switch 3 status: " + status;
-            });
-
     AddTool("self.era_iot.trigger_custom_action",
             "Trigger a custom action on E-Ra IoT platform using action key. Use this for advanced IoT device control with specific action keys.",
             PropertyList({Property("action_key", kPropertyTypeString, "Action key to trigger (UUID format)")}),
@@ -518,6 +441,183 @@ void McpServer::AddCommonTools()
                     throw std::runtime_error("Failed to trigger action: " + action_key);
                 }
                 return "Action triggered successfully: " + action_key;
+            });
+
+    // Dynamic ERA Smart Home Devices
+    auto era_devices = GetEraSmartDevices();
+    if (!era_devices.empty())
+    {
+        std::string device_list_desc = "Available devices: ";
+        for (const auto &d : era_devices)
+        {
+            device_list_desc += d.name + " (" + d.type + "), ";
+        }
+
+        AddTool("self.era_smart_home.control_device",
+                "Control ERA Smart Home devices. " + device_list_desc + "Action: 'on' or 'off'.",
+                PropertyList({Property("device_name", kPropertyTypeString, "Name of the device to control"),
+                              Property("action", kPropertyTypeString, "Action to perform: 'on' or 'off'")}),
+                [GetEraClient, era_devices](const PropertyList &properties) -> ReturnValue
+                {
+                    auto &era_client = GetEraClient();
+                    if (!era_client.IsInitialized())
+                    {
+                        throw std::runtime_error("E-Ra IoT client not initialized");
+                    }
+
+                    std::string device_name = properties["device_name"].value<std::string>();
+                    std::string action = properties["action"].value<std::string>();
+
+                    const EraSmartDevice *target_device = nullptr;
+                    for (const auto &d : era_devices)
+                    {
+                        if (d.name == device_name)
+                        {
+                            target_device = &d;
+                            break;
+                        }
+                    }
+
+                    if (!target_device)
+                    {
+                        for (const auto &d : era_devices)
+                        {
+                            // Case-insensitive comparison
+                            if (d.name.size() == device_name.size() &&
+                                std::equal(d.name.begin(), d.name.end(), device_name.begin(),
+                                           [](char a, char b)
+                                           {
+                                               return tolower((unsigned char)a) == tolower((unsigned char)b);
+                                           }))
+                            {
+                                target_device = &d;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!target_device)
+                    {
+                        throw std::runtime_error("Device not found: " + device_name);
+                    }
+
+                    std::string key;
+                    if (action == "on")
+                    {
+                        key = target_device->action_on;
+                    }
+                    else if (action == "off")
+                    {
+                        key = target_device->action_off;
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Invalid action: " + action);
+                    }
+
+                    if (key.empty())
+                    {
+                        throw std::runtime_error("Action key not configured for device: " + device_name);
+                    }
+
+                    bool success = era_client.TriggerAction(key, 1);
+                    if (!success)
+                    {
+                        throw std::runtime_error("Failed to trigger action for " + device_name);
+                    }
+                    return "Successfully turned " + action + " " + device_name;
+                });
+
+        AddTool("self.era_smart_home.get_device_status",
+                "Get status of ERA Smart Home devices. " + device_list_desc,
+                PropertyList({Property("device_name", kPropertyTypeString, "Name of the device to check")}),
+                [GetEraClient, era_devices](const PropertyList &properties) -> ReturnValue
+                {
+                    auto &era_client = GetEraClient();
+                    if (!era_client.IsInitialized())
+                    {
+                        throw std::runtime_error("E-Ra IoT client not initialized");
+                    }
+
+                    std::string device_name = properties["device_name"].value<std::string>();
+
+                    const EraSmartDevice *target_device = nullptr;
+                    for (const auto &d : era_devices)
+                    {
+                        // Case-insensitive comparison
+                        if (d.name.size() == device_name.size() &&
+                            std::equal(d.name.begin(), d.name.end(), device_name.begin(),
+                                       [](char a, char b)
+                                       {
+                                           return tolower((unsigned char)a) == tolower((unsigned char)b);
+                                       }))
+                        {
+                            target_device = &d;
+                            break;
+                        }
+                    }
+
+                    if (!target_device)
+                    {
+                        throw std::runtime_error("Device not found: " + device_name);
+                    }
+
+                    if (target_device->config_id.empty())
+                    {
+                        throw std::runtime_error("Config ID not configured for device: " + device_name);
+                    }
+
+                    std::string status = era_client.GetCurrentValue(target_device->config_id);
+                    if (status.empty())
+                    {
+                        return "Status for " + device_name + " is unknown (empty response)";
+                    }
+                    return "Status for " + device_name + ": " + status;
+                });
+    }
+#endif
+
+#ifdef CONFIG_ENABLE_GPIO_CONTROL
+    static bool gpio_control_initialized = false;
+    if (!gpio_control_initialized)
+    {
+        gpio_reset_pin((gpio_num_t)CONFIG_GPIO_CONTROL_PIN);
+        gpio_set_direction((gpio_num_t)CONFIG_GPIO_CONTROL_PIN, GPIO_MODE_OUTPUT);
+// Set initial state to OFF.
+// If Active High, OFF is 0. If Active Low, OFF is 1.
+#ifdef CONFIG_GPIO_CONTROL_ACTIVE_HIGH
+        gpio_set_level((gpio_num_t)CONFIG_GPIO_CONTROL_PIN, 0);
+#else
+        gpio_set_level((gpio_num_t)CONFIG_GPIO_CONTROL_PIN, 1);
+#endif
+        gpio_control_initialized = true;
+    }
+
+    AddTool("self.gpio_control.set_state",
+            "Turn the configured GPIO pin ON or OFF. Accepted values: 'on', 'off'.",
+            PropertyList({Property("state", kPropertyTypeString)}),
+            [](const PropertyList &properties) -> ReturnValue
+            {
+                std::string state = properties["state"].value<std::string>();
+                int level = 0;
+                if (state == "on")
+                {
+#ifdef CONFIG_GPIO_CONTROL_ACTIVE_HIGH
+                    level = 1;
+#else
+                    level = 0;
+#endif
+                }
+                else
+                {
+#ifdef CONFIG_GPIO_CONTROL_ACTIVE_HIGH
+                    level = 0;
+#else
+                    level = 1;
+#endif
+                }
+                gpio_set_level((gpio_num_t)CONFIG_GPIO_CONTROL_PIN, level);
+                return "GPIO set to " + state;
             });
 #endif
 
@@ -560,14 +660,16 @@ void McpServer::AddUserOnlyTools()
                         ESP_LOGI(TAG, "User requested firmware upgrade from URL: %s", url.c_str());
 
                         auto &app = Application::GetInstance();
-                        app.Schedule([url, &app]()
-                                     {
-                auto ota = std::make_unique<Ota>();
-                
-                bool success = app.UpgradeFirmware(*ota, url);
-                if (!success) {
-                    ESP_LOGE(TAG, "Firmware upgrade failed");
-                } });
+                        // Run OTA in a separate thread to avoid blocking the main loop
+                        std::thread([url]()
+                                    {
+                            auto &app = Application::GetInstance();
+                            auto ota = std::make_unique<Ota>();
+                            bool success = app.UpgradeFirmware(*ota, url);
+                            if (!success) {
+                                ESP_LOGE(TAG, "Firmware upgrade failed");
+                            } })
+                            .detach();
 
                         return true;
                     });
@@ -714,6 +816,32 @@ void McpServer::AddUserOnlyTools()
                             return true;
                         });
     }
+
+    AddTool("self.system.firmware_update",
+            "Update the device firmware from a specific URL. Use this tool when the user asks to update the firmware or system version.",
+            PropertyList({Property("url", kPropertyTypeString)}),
+            [](const PropertyList &properties) -> ReturnValue
+            {
+                std::string url = "https://update-ota-firmware.s3.ap-southeast-2.amazonaws.com/merged-binary.bin";
+                if (properties.count("url"))
+                {
+                    std::string provided_url = properties["url"].value<std::string>();
+                    if (!provided_url.empty())
+                    {
+                        url = provided_url;
+                    }
+                }
+
+                ESP_LOGI(TAG, "Triggering firmware update from URL: %s", url.c_str());
+
+                // Schedule the update on the main thread to avoid blocking the MCP response
+                Application::GetInstance().Schedule([url]()
+                                                    {
+                    Ota ota;
+                    Application::GetInstance().UpgradeFirmware(ota, url); });
+
+                return "Firmware update started. The device will restart automatically upon completion.";
+            });
 }
 
 void McpServer::AddTool(McpTool *tool)

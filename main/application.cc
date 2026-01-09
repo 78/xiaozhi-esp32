@@ -522,7 +522,7 @@ void Application::Start()
             display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
         }); });
-    protocol_->OnIncomingJson([this, display](const cJSON *root)
+    protocol_-> ([this, display](const cJSON *root)
                               {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");

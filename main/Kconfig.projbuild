@@ -124,6 +124,263 @@ config USE_ERA_SMART_HOME
     help
         Enable E-Ra Smart Home control features.
 
+menu "ERA Smart Home Devices"
+    depends on USE_ERA_SMART_HOME
+
+    config ERA_DEVICE_COUNT
+        int "Number of Devices"
+        range 0 5
+        default 0
+        help
+            Number of ERA Smart Home devices to configure.
+
+    menu "Device 1"
+        depends on ERA_DEVICE_COUNT >= 1
+        
+        config ERA_DEVICE_1_NAME
+            string "Device Name"
+            default "Device 1"
+            help
+                Name of the device (e.g., Living Room Light).
+
+        choice ERA_DEVICE_1_TYPE
+            prompt "Device Type"
+            default ERA_DEVICE_1_TYPE_LIGHT
+            
+            config ERA_DEVICE_1_TYPE_SWITCH
+                bool "Switch"
+            config ERA_DEVICE_1_TYPE_LIGHT
+                bool "Light"
+            config ERA_DEVICE_1_TYPE_MOTOR
+                bool "Motor"
+            config ERA_DEVICE_1_TYPE_OTHER
+                bool "Other"
+        endchoice
+
+        config ERA_DEVICE_1_OTHER_TYPE_NAME
+            string "Custom Type Name"
+            depends on ERA_DEVICE_1_TYPE_OTHER
+            default "Device"
+            help
+                Specify the type name if 'Other' is selected.
+
+        config ERA_DEVICE_1_CONFIG_ID
+            string "Config ID"
+            default ""
+            help
+                Config ID for checking device status.
+
+        config ERA_DEVICE_1_ACTION_ON
+            string "Action On Key"
+            default ""
+            help
+                Action key to turn the device ON.
+
+        config ERA_DEVICE_1_ACTION_OFF
+            string "Action Off Key"
+            default ""
+            help
+                Action key to turn the device OFF.
+    endmenu
+
+    menu "Device 2"
+        depends on ERA_DEVICE_COUNT >= 2
+        
+        config ERA_DEVICE_2_NAME
+            string "Device Name"
+            default "Device 2"
+            help
+                Name of the device.
+
+        choice ERA_DEVICE_2_TYPE
+            prompt "Device Type"
+            default ERA_DEVICE_2_TYPE_LIGHT
+            
+            config ERA_DEVICE_2_TYPE_SWITCH
+                bool "Switch"
+            config ERA_DEVICE_2_TYPE_LIGHT
+                bool "Light"
+            config ERA_DEVICE_2_TYPE_MOTOR
+                bool "Motor"
+            config ERA_DEVICE_2_TYPE_OTHER
+                bool "Other"
+        endchoice
+
+        config ERA_DEVICE_2_OTHER_TYPE_NAME
+            string "Custom Type Name"
+            depends on ERA_DEVICE_2_TYPE_OTHER
+            default "Device"
+            help
+                Specify the type name if 'Other' is selected.
+
+        config ERA_DEVICE_2_CONFIG_ID
+            string "Config ID"
+            default ""
+            help
+                Config ID for checking device status.
+
+        config ERA_DEVICE_2_ACTION_ON
+            string "Action On Key"
+            default ""
+            help
+                Action key to turn the device ON.
+
+        config ERA_DEVICE_2_ACTION_OFF
+            string "Action Off Key"
+            default ""
+            help
+                Action key to turn the device OFF.
+    endmenu
+
+    menu "Device 3"
+        depends on ERA_DEVICE_COUNT >= 3
+        
+        config ERA_DEVICE_3_NAME
+            string "Device Name"
+            default "Device 3"
+            help
+                Name of the device.
+
+        choice ERA_DEVICE_3_TYPE
+            prompt "Device Type"
+            default ERA_DEVICE_3_TYPE_LIGHT
+            
+            config ERA_DEVICE_3_TYPE_SWITCH
+                bool "Switch"
+            config ERA_DEVICE_3_TYPE_LIGHT
+                bool "Light"
+            config ERA_DEVICE_3_TYPE_MOTOR
+                bool "Motor"
+            config ERA_DEVICE_3_TYPE_OTHER
+                bool "Other"
+        endchoice
+
+        config ERA_DEVICE_3_OTHER_TYPE_NAME
+            string "Custom Type Name"
+            depends on ERA_DEVICE_3_TYPE_OTHER
+            default "Device"
+            help
+                Specify the type name if 'Other' is selected.
+
+        config ERA_DEVICE_3_CONFIG_ID
+            string "Config ID"
+            default ""
+            help
+                Config ID for checking device status.
+
+        config ERA_DEVICE_3_ACTION_ON
+            string "Action On Key"
+            default ""
+            help
+                Action key to turn the device ON.
+
+        config ERA_DEVICE_3_ACTION_OFF
+            string "Action Off Key"
+            default ""
+            help
+                Action key to turn the device OFF.
+    endmenu
+
+    menu "Device 4"
+        depends on ERA_DEVICE_COUNT >= 4
+        
+        config ERA_DEVICE_4_NAME
+            string "Device Name"
+            default "Device 4"
+            help
+                Name of the device.
+
+        choice ERA_DEVICE_4_TYPE
+            prompt "Device Type"
+            default ERA_DEVICE_4_TYPE_LIGHT
+            
+            config ERA_DEVICE_4_TYPE_SWITCH
+                bool "Switch"
+            config ERA_DEVICE_4_TYPE_LIGHT
+                bool "Light"
+            config ERA_DEVICE_4_TYPE_MOTOR
+                bool "Motor"
+            config ERA_DEVICE_4_TYPE_OTHER
+                bool "Other"
+        endchoice
+
+        config ERA_DEVICE_4_OTHER_TYPE_NAME
+            string "Custom Type Name"
+            depends on ERA_DEVICE_4_TYPE_OTHER
+            default "Device"
+            help
+                Specify the type name if 'Other' is selected.
+
+        config ERA_DEVICE_4_CONFIG_ID
+            string "Config ID"
+            default ""
+            help
+                Config ID for checking device status.
+
+        config ERA_DEVICE_4_ACTION_ON
+            string "Action On Key"
+            default ""
+            help
+                Action key to turn the device ON.
+
+        config ERA_DEVICE_4_ACTION_OFF
+            string "Action Off Key"
+            default ""
+            help
+                Action key to turn the device OFF.
+    endmenu
+
+    menu "Device 5"
+        depends on ERA_DEVICE_COUNT >= 5
+        
+        config ERA_DEVICE_5_NAME
+            string "Device Name"
+            default "Device 5"
+            help
+                Name of the device.
+
+        choice ERA_DEVICE_5_TYPE
+            prompt "Device Type"
+            default ERA_DEVICE_5_TYPE_LIGHT
+            
+            config ERA_DEVICE_5_TYPE_SWITCH
+                bool "Switch"
+            config ERA_DEVICE_5_TYPE_LIGHT
+                bool "Light"
+            config ERA_DEVICE_5_TYPE_MOTOR
+                bool "Motor"
+            config ERA_DEVICE_5_TYPE_OTHER
+                bool "Other"
+        endchoice
+
+        config ERA_DEVICE_5_OTHER_TYPE_NAME
+            string "Custom Type Name"
+            depends on ERA_DEVICE_5_TYPE_OTHER
+            default "Device"
+            help
+                Specify the type name if 'Other' is selected.
+
+        config ERA_DEVICE_5_CONFIG_ID
+            string "Config ID"
+            default ""
+            help
+                Config ID for checking device status.
+
+        config ERA_DEVICE_5_ACTION_ON
+            string "Action On Key"
+            default ""
+            help
+                Action key to turn the device ON.
+
+        config ERA_DEVICE_5_ACTION_OFF
+            string "Action Off Key"
+            default ""
+            help
+                Action key to turn the device OFF.
+    endmenu
+
+endmenu
+
 choice BOARD_TYPE
     prompt "Board Type"
     default BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -806,6 +1063,21 @@ menu "Standby Screen Configuration"
         help
             Enable the standby screen with weather, time, and environment info.
 
+    choice
+        prompt "Screen Size"
+        default STANDBY_SCREEN_1_54
+        depends on STANDBY_SCREEN_ENABLE
+        help
+            Select the screen size for the standby screen.
+
+        config STANDBY_SCREEN_1_54
+            bool "1.54 inch (240x240)"
+        config STANDBY_SCREEN_2_4
+            bool "2.4 inch (320x240)"
+        config STANDBY_SCREEN_2_8
+            bool "2.8 inch (320x240)"
+    endchoice
+
     config WEATHER_API_KEY
         string "OpenWeatherMap API Key"
         default "your_api_key_here"
@@ -821,4 +1093,32 @@ menu "Standby Screen Configuration"
             Default city for weather.
 endmenu
 
+endmenu
+
+menu "GPIO Control"
+    config ENABLE_GPIO_CONTROL
+        bool "Enable GPIO Control"
+        default n
+        help
+            Enable controlling a specific GPIO pin via MCP.
+
+    config GPIO_CONTROL_PIN
+        int "GPIO Pin Number"
+        depends on ENABLE_GPIO_CONTROL
+        default 2
+        help
+            The GPIO pin number to control.
+
+    choice
+        prompt "Active Logic Level"
+        depends on ENABLE_GPIO_CONTROL
+        default GPIO_CONTROL_ACTIVE_HIGH
+        help
+            Select the active logic level for the GPIO.
+
+        config GPIO_CONTROL_ACTIVE_HIGH
+            bool "Active High (1 is ON)"
+        config GPIO_CONTROL_ACTIVE_LOW
+            bool "Active Low (0 is ON)"
+    endchoice
 endmenu

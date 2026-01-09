@@ -24,6 +24,7 @@ private:
     WeatherService();
     ~WeatherService() = default;
 
+    bool FetchLocationFromIP();
     bool FetchGeocoding(const std::string &city);
     bool FetchOpenMeteoWeather(float lat, float lon);
     bool FetchOpenMeteoAirQuality(float lat, float lon);
@@ -36,7 +37,9 @@ private:
     uint32_t last_update_time_;
     float lat_ = 0.0f;
     float lon_ = 0.0f;
+    bool location_initialized_ = false;
 
+    static std::string CleanCityName(const std::string &city);
     static std::string UrlEncode(const std::string &value);
 };
 

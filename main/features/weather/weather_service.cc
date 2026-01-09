@@ -11,7 +11,7 @@
 
 #define TAG "WeatherService"
 
-WeatherService::WeatherService() : last_update_time_(0)
+WeatherService::WeatherService() : last_update_time_(0), location_initialized_(false)
 {
     city_ = "Ho Chi Minh";
     lat_ = 10.8231;
@@ -29,6 +29,34 @@ bool WeatherService::NeedsUpdate() const
 {
     uint32_t current_time = xTaskGetTickCount() * portTICK_PERIOD_MS;
     return (current_time - last_update_time_) >= WEATHER_UPDATE_INTERVAL_MS;
+}
+
+std::string WeatherService::CleanCityName(const std::string &city)
+{
+    std::string clean = city;
+    // List of suffixes to remove. Includes user request and common variations.
+    const char *suffixes[] = {
+        " City", " Province", " Town", " District", " Municipality",
+        " city", " province", " town", " district", " municipality"};
+
+    bool changed = true;
+    while (changed)
+    {
+        changed = false;
+        for (const char *suffix : suffixes)
+        {
+            size_t suffix_len = strlen(suffix);
+            // Check if suffix matches and ensure we don't remove the entire string (e.g. city named "Town")
+            if (clean.size() > suffix_len &&
+                clean.compare(clean.size() - suffix_len, suffix_len, suffix) == 0)
+            {
+                clean = clean.substr(0, clean.size() - suffix_len);
+                changed = true;
+                break; // Restart loop to handle stacked suffixes like "City District"
+            }
+        }
+    }
+    return clean;
 }
 
 std::string WeatherService::UrlEncode(const std::string &value)
@@ -218,6 +246,19 @@ bool WeatherService::FetchWeatherData()
         return false;
     is_fetching_ = true;
 
+    // 0. Auto-detect location if not initialized
+    if (!location_initialized_)
+    {
+        if (FetchLocationFromIP())
+        {
+            ESP_LOGI(TAG, "Location auto-detected successfully");
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Location auto-detection failed, using default: %s", city_.c_str());
+        }
+    }
+
     // 1. Geocoding to get Lat/Lon from City Name
     // if (!FetchGeocoding(city_))
     // {
@@ -246,6 +287,56 @@ bool WeatherService::FetchWeatherData()
 
     is_fetching_ = false;
     return true;
+}
+
+bool WeatherService::FetchLocationFromIP()
+{
+    std::string url = IP_LOCATION_API_ENDPOINT;
+    std::string response = HttpGet(url);
+    if (response.empty())
+    {
+        ESP_LOGE(TAG, "Failed to fetch location from IP");
+        return false;
+    }
+
+    cJSON *json = cJSON_Parse(response.c_str());
+    if (!json)
+    {
+        ESP_LOGE(TAG, "Failed to parse IP location JSON");
+        return false;
+    }
+
+    bool success = false;
+    cJSON *success_item = cJSON_GetObjectItem(json, "success");
+    if (success_item && cJSON_IsTrue(success_item))
+    {
+        cJSON *city_item = cJSON_GetObjectItem(json, "city");
+        cJSON *lat_item = cJSON_GetObjectItem(json, "latitude");
+        cJSON *lon_item = cJSON_GetObjectItem(json, "longitude");
+
+        if (city_item && lat_item && lon_item)
+        {
+            lat_ = lat_item->valuedouble;
+            lon_ = lon_item->valuedouble;
+            city_ = CleanCityName(city_item->valuestring);
+
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                weather_info_.city = city_;
+            }
+
+            ESP_LOGI(TAG, "Location detected: %s (%.4f, %.4f)", city_.c_str(), lat_, lon_);
+            success = true;
+            location_initialized_ = true;
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "IP location API returned error");
+    }
+
+    cJSON_Delete(json);
+    return success;
 }
 
 bool WeatherService::FetchGeocoding(const std::string &city)
