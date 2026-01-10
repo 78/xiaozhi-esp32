@@ -9,7 +9,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <font_awesome.h>
-#include <opus_encoder.h>
 #include <utility>
 
 static const char *TAG = "Ml307Board";

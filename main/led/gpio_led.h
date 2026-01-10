@@ -32,7 +32,9 @@ class GpioLed : public Led {
     int blink_interval_ms_ = 0;
     esp_timer_handle_t blink_timer_ = nullptr;
     bool fade_up_ = true;
-
+    TaskHandle_t event_task_handle_;
+    
+    static void EventTask(void* arg);
     void StartBlinkTask(int times, int interval_ms);
     void OnBlinkTimer();
 
