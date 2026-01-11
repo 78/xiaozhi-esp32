@@ -5,11 +5,11 @@
 #define TAG "I2cDevice"
 
 
-I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr) {
+I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr, uint32_t speed_hz) {
     i2c_device_config_t i2c_device_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = addr,
-        .scl_speed_hz = 400 * 1000,
+        .scl_speed_hz = speed_hz,
         .scl_wait_us = 0,
         .flags = {
             .disable_ack_check = 0,

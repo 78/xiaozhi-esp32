@@ -227,6 +227,15 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_C3_V2
         bool "神奇按钮 Magiclick_C3_v2"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_MAGIC_P4
+        bool "MagicP4"
+        depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_M5STACK_CHAIN_CAPTAIN
+        bool "M5Stack Chain Captain"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_STICKS3
+        bool "M5Stack StickS3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3

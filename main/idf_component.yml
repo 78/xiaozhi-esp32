@@ -100,12 +100,13 @@ dependencies:
     rules:
     - if: target in [esp32p4]
 
-  espressif/bmi270_sensor:
-    version: ^0.1.0
-    rules:
-    - if: target in [esp32s3, esp32c5]
+  # espressif/bmi270_sensor:
+  #   version: ^0.1.0
+  #   rules:
+  #   - if: target in [esp32s3, esp32c5]
 
   ## Required IDF version
   idf:
     version: '>=5.4.0'
   espressif/esp_lcd_touch_st7123: ^1.0.0
+  espressif/esp_lcd_co5300: ^2.0.3
