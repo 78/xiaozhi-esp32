@@ -142,6 +142,7 @@ private:
     void* opus_encoder_ = nullptr;
     void* opus_decoder_ = nullptr;
     std::mutex decoder_mutex_;
+    std::mutex input_resampler_mutex_;
     esp_ae_rate_cvt_handle_t input_resampler_ = nullptr;
     esp_ae_rate_cvt_handle_t output_resampler_ = nullptr;
     
