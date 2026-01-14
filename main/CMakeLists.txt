@@ -40,13 +40,15 @@ set(SOURCES "audio/audio_codec.cc"
             "features/weather/weather_ui.cc"
             "features/weather/lunar_calendar.cc"
             "features/weather/font_digital_7_48.c"
+            "music/esp32_sd_music.cc"
+            "music/esp32_radio.cc"
             )
 
 if(CONFIG_USE_ERA_SMART_HOME)
     list(APPEND SOURCES "era_iot_client.cc")
 endif()
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols" "features/weather")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols" "features/weather" "music")
 
 # Add board common files
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -555,6 +557,17 @@ elseif(CONFIG_BOARD_TYPE_AIPI_LITE)
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+elseif(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
+    set(BOARD_TYPE "iotforce-xiaozhi-iot-vietnam-es3n28p-lcd-2.8")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)    
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+
+elseif(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_LCD_SDCARD)
+    set(BOARD_TYPE "iotforce-xiaozhi-iot-vietnam-lcd-sdcard")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)    
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 
 file(GLOB BOARD_SOURCES

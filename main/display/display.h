@@ -49,7 +49,11 @@ public:
     virtual void SetMusicInfo(const char *song_name);
     virtual void start() {}
     virtual void stopFft() {} // 停止FFT显示，默认为空实现
-
+    virtual void StartFFT() {}
+    virtual void StopFFT() { stopFft(); }
+    virtual int16_t *MakeAudioBuffFFT(size_t sample_count) { return nullptr; }
+    virtual void FeedAudioDataFFT(int16_t *data, size_t sample_count) {}
+    virtual void ReleaseAudioBuffFFT(int16_t *buffer) {}
 #ifdef CONFIG_STANDBY_SCREEN_ENABLE
     virtual void ShowIdleCard(const IdleCardInfo &info) {}
     virtual void HideIdleCard() {}

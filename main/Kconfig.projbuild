@@ -12,6 +12,24 @@ config ENABLE_VOICE_WIFI_CONFIG
     help
         Enable entering WiFi configuration mode via voice command.
 
+config SD_CARD_ENABLE
+    bool "Enable SD Card"
+    default n
+    help
+        Enable SD Card support
+
+choice SD_CARD_INTERFACE_TYPE
+    prompt "SD Card Interface Type"
+    default SD_CARD_MMC_INTERFACE
+    depends on SD_CARD_ENABLE
+    help
+        SD Card Interface Type
+    config SD_CARD_MMC_INTERFACE
+        bool "SDMMC Interface"
+    config SD_CARD_SPI_INTERFACE
+        bool "SPI Interface"
+endchoice
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS
@@ -123,6 +141,13 @@ config USE_ERA_SMART_HOME
     default n
     help
         Enable E-Ra Smart Home control features.
+
+config ENABLE_EXTRACT_DOCUMENTATION
+    bool "Enable Extract Documentation"
+    default n
+    depends on SD_CARD_ENABLE && (BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_LCD_SDCARD || BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
+    help
+        Enable extracting documentation from SD card for MCP.
 
 menu "ERA Smart Home Devices"
     depends on USE_ERA_SMART_HOME
@@ -426,7 +451,15 @@ choice BOARD_TYPE
         bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3
-    bool "IoTForce ESP Puppy S3"    
+    bool "IoTForce ESP Puppy S3"
+
+    config BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8
+        bool "IoTForce Xiaozhi Vietnam (ES3N28P LCD 2.8)"
+        depends on IDF_TARGET_ESP32S3
+
+    config BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_LCD_SDCARD
+        bool "IoTForce Xiaozhi Vietnam (LCD SDCard)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX_3
         bool "Espressif ESP-BOX-3"
         depends on IDF_TARGET_ESP32S3
@@ -747,7 +780,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM || BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_LCD_SDCARD
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -793,6 +826,13 @@ choice DISPLAY_LCD_TYPE
     config LCD_CUSTOM
         bool "Custom LCD (自定义屏幕参数)"
 endchoice
+
+config TOUCH_PANEL_ENABLE
+    bool "Enable Touch Panel"
+    default n
+    depends on BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8 || BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_LCD_SDCARD
+    help
+        Enable Touch Panel support
 
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP_KORVO2_V3

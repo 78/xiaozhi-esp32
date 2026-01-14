@@ -17,6 +17,7 @@
 void *create_board();
 class AudioCodec;
 class Display;
+class SdCard;
 class Board
 {
 private:
@@ -49,6 +50,7 @@ public:
     virtual Display *GetDisplay();
     virtual Camera *GetCamera();
     virtual Music *GetMusic();
+    virtual SdCard *GetSdCard() { return nullptr; }
     virtual NetworkInterface *GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char *GetNetworkStateIcon() = 0;

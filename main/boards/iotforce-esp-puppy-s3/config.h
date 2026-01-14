@@ -16,7 +16,7 @@
 
 // Buttons
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
-#define AUDIO_WAKE_BUTTON_GPIO GPIO_NUM_2
+#define AUDIO_WAKE_BUTTON_GPIO GPIO_NUM_11
 
 // Display (ST7789 SPI)
 #define DISPLAY_SDA GPIO_NUM_41
@@ -41,7 +41,7 @@
 #define FL_GPIO_NUM GPIO_NUM_17
 #define FR_GPIO_NUM GPIO_NUM_18
 #define BL_GPIO_NUM GPIO_NUM_39
-#define BR_GPIO_NUM GPIO_NUM_38 // Moved from 20 (Conflict) to 11 (Old MOSI)
+#define BR_GPIO_NUM GPIO_NUM_38 
 
 // Servo (Tail) - Moved to accommodate Audio
 #define TAIL_GPIO_NUM GPIO_NUM_12 // Moved from 21 (Conflict) to 12 (Old CLK)

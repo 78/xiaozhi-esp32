@@ -1,0 +1,16 @@
+{
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "iotforce-xiaozhi-iot-vietnam-es3n28p-lcd-2.8",
+      "sdkconfig_append": [
+        "ES3N28P_LCD_ILI9341_240X320=y",
+        "CONFIG_SD_CARD_ENABLE=y",
+        "CONFIG_SD_CARD_MMC_INTERFACE=y",
+        "CONFIG_FATFS_LFN_HEAP=y",
+        "CONFIG_FATFS_API_ENCODING_UTF_8=y",
+        "CONFIG_FATFS_FS_LOCK=5"
+      ]
+    }
+  ]
+}

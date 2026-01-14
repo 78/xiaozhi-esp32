@@ -16,6 +16,10 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
+// Forward declarations for Music
+class Esp32Radio;
+class Esp32SdMusic;
+
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
 #define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
@@ -70,6 +74,10 @@ public:
     void AddAudioData(AudioStreamPacket &&packet);
     void UpdateIdleDisplay();
 
+    // Music & Radio Accessors
+    Esp32Radio *GetRadio() const { return radio_.get(); }
+    Esp32SdMusic *GetSdMusic() const { return sd_music_.get(); }
+
 private:
     Application();
     ~Application();
@@ -84,6 +92,10 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+
+    // Music & Radio Instances
+    std::unique_ptr<Esp32Radio> radio_;
+    std::unique_ptr<Esp32SdMusic> sd_music_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;

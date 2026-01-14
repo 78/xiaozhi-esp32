@@ -42,27 +42,6 @@ public:
     bool TriggerAction(const std::string &action_key, int value);
 
     /**
-     * Get status of a specific switch (1-3)
-     * @param index Switch index (1-3)
-     * @return Status string
-     */
-    std::string GetSwitchStatus(int index);
-
-    /**
-     * Turn a specific switch ON (1-3)
-     * @param index Switch index (1-3)
-     * @return true if successful
-     */
-    bool TurnSwitchOn(int index);
-
-    /**
-     * Turn a specific switch OFF (1-3)
-     * @param index Switch index (1-3)
-     * @return true if successful
-     */
-    bool TurnSwitchOff(int index);
-
-    /**
      * Check if client is initialized
      */
     bool IsInitialized() const { return initialized_; }

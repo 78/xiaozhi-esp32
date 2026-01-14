@@ -67,30 +67,28 @@
     <div class="form-group">
       <label for="protocol">Protocol:</label>
       <select id="protocol" onchange="onProtocolChange()">
+        <option value="websocket">Native WebSocket (MCP) - Recommended</option>
         <option value="mqtt">MQTT (via WebSocket)</option>
-        <option value="websocket">Native WebSocket (MCP)</option>
       </select>
     </div>
 
     <div class="form-group">
-      <label for="broker" id="urlLabel">MQTT Broker (WebSocket URL):</label>
+      <label for="broker" id="urlLabel">WebSocket Server URL:</label>
       <input
         type="text"
         id="broker"
-        value="wss://broker.emqx.io:8084/mqtt"
-        placeholder="wss://broker.example.com:8084/mqtt"
+        value="wss://api.xiaozhi.me/mcp/?token=YOUR_TOKEN_HERE"
+        placeholder="wss://api.xiaozhi.me/mcp/?token=YOUR_TOKEN_HERE"
       />
-      <small id="urlHint"
-        >Note: Use a WebSocket enabled port (usually 8083/8084)</small
-      >
+      <small id="urlHint">Example: wss://api.xiaozhi.me/mcp/?token=... </small>
     </div>
 
-    <div class="form-group" id="macGroup">
+    <div class="form-group hidden" id="macGroup">
       <label for="mac">Device MAC Address:</label>
       <input type="text" id="mac" placeholder="AA:BB:CC:DD:EE:FF" />
     </div>
 
-    <div class="form-group" id="topicGroup">
+    <div class="form-group hidden" id="topicGroup">
       <label for="topic">Topic Template ({mac} will be replaced):</label>
       <input type="text" id="topic" value="xiaozhi/{mac}/command" />
     </div>
@@ -107,13 +105,30 @@
       <input
         type="text"
         id="otaUrl"
+        value="https://update-ota-firmware.s3.ap-southeast-2.amazonaws.com/merged-binary.bin"
         placeholder="https://your-bucket.s3.amazonaws.com/firmware.bin"
       />
+      <small>Leave empty to use device default URL (MCP only)</small>
     </div>
 
     <div class="form-group">
       <button id="sendBtn" onclick="sendOtaCommand()" disabled>
-        Send OTA Command
+        Send Firmware Update Command (MCP)
+      </button>
+    </div>
+
+    <div class="form-group">
+      <label for="assetsUrl">Assets URL (OTA):</label>
+      <input
+        type="text"
+        id="assetsUrl"
+        placeholder="https://your-bucket.s3.amazonaws.com/assets.bin"
+      />
+    </div>
+
+    <div class="form-group">
+      <button id="sendAssetsBtn" onclick="sendAssetsCommand()" disabled>
+        Send Assets Command
       </button>
     </div>
 
@@ -194,17 +209,20 @@
         const btn = document.getElementById("connectBtn");
         const status = document.getElementById("status");
         const sendBtn = document.getElementById("sendBtn");
+        const sendAssetsBtn = document.getElementById("sendAssetsBtn");
 
         if (isConnected) {
           btn.textContent = "Disconnect";
           status.textContent = "Connected";
           status.className = "status connected";
           sendBtn.disabled = false;
+          sendAssetsBtn.disabled = false;
         } else {
           btn.textContent = "Connect";
           status.textContent = "Disconnected";
           status.className = "status disconnected";
           sendBtn.disabled = true;
+          sendAssetsBtn.disabled = true;
         }
       }
 
@@ -223,6 +241,7 @@
 
           wsClient.onmessage = function (event) {
             log(`Received: ${event.data}`);
+            handleMcpMessage(event.data);
           };
 
           wsClient.onclose = function () {
@@ -236,6 +255,53 @@
           };
         } catch (e) {
           log(`Connection error: ${e.message}`);
+        }
+      }
+
+      function handleMcpMessage(data) {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.method === "initialize") {
+            const response = {
+              jsonrpc: "2.0",
+              id: msg.id,
+              result: {
+                protocolVersion: "2024-11-05",
+                capabilities: { roots: { listChanged: false } },
+                clientInfo: { name: "test-tool", version: "1.0.0" },
+              },
+            };
+            log(`Sending Initialize Response: ${JSON.stringify(response)}`);
+            wsClient.send(JSON.stringify(response));
+
+            // Send initialized notification
+            const initialized = {
+              jsonrpc: "2.0",
+              method: "notifications/initialized",
+            };
+            log(`Sending Initialized: ${JSON.stringify(initialized)}`);
+            wsClient.send(JSON.stringify(initialized));
+          } else if (msg.method === "ping") {
+            const response = {
+              jsonrpc: "2.0",
+              id: msg.id,
+              result: {},
+            };
+            log(`Sending Pong: ${JSON.stringify(response)}`);
+            wsClient.send(JSON.stringify(response));
+          } else if (msg.method === "tools/list") {
+            const response = {
+              jsonrpc: "2.0",
+              id: msg.id,
+              result: {
+                tools: [],
+              },
+            };
+            log(`Sending Tools List: ${JSON.stringify(response)}`);
+            wsClient.send(JSON.stringify(response));
+          }
+        } catch (e) {
+          console.error("Error parsing MCP message", e);
         }
       }
 
@@ -302,19 +368,17 @@
 
       function sendOtaCommand() {
         const otaUrl = document.getElementById("otaUrl").value.trim();
-        if (!otaUrl) {
-          alert("Please enter OTA URL");
-          return;
-        }
-
-        const payload = JSON.stringify({
-          type: "ota_url",
-          url: otaUrl,
-        });
-
         const protocol = document.getElementById("protocol").value;
 
         if (protocol === "mqtt") {
+          if (!otaUrl) {
+            alert("Please enter OTA URL (Required for MQTT)");
+            return;
+          }
+          const payload = JSON.stringify({
+            type: "ota_url",
+            url: otaUrl,
+          });
           const mac = document.getElementById("mac").value.trim();
           const topicTemplate = document.getElementById("topic").value.trim();
           const topic = topicTemplate.replace("{mac}", mac);
@@ -324,9 +388,59 @@
           message.destinationName = topic;
           client.send(message);
         } else {
-          // WebSocket
-          log(`Sending: ${payload}`);
-          wsClient.send(payload);
+          // WebSocket (MCP)
+          // Use tools/call to trigger self.system.firmware_update
+          const request = {
+            jsonrpc: "2.0",
+            id: Math.floor(Math.random() * 10000),
+            method: "tools/call",
+            params: {
+              name: "self.system.firmware_update",
+              arguments: {},
+            },
+          };
+
+          // Only add url argument if provided
+          if (otaUrl) {
+            request.params.arguments.url = otaUrl;
+          }
+
+          log(`Sending MCP Tool Call: ${JSON.stringify(request)}`);
+          wsClient.send(JSON.stringify(request));
+        }
+      }
+
+      function sendAssetsCommand() {
+        const assetsUrl = document.getElementById("assetsUrl").value.trim();
+        if (!assetsUrl) {
+          alert("Please enter Assets URL");
+          return;
+        }
+
+        const protocol = document.getElementById("protocol").value;
+
+        if (protocol === "mqtt") {
+          alert("MQTT not supported for assets update in this tool yet.");
+        } else {
+          // WebSocket (MCP)
+          // Use tools/call to trigger self.assets.set_download_url
+          const request = {
+            jsonrpc: "2.0",
+            id: Math.floor(Math.random() * 10000),
+            method: "tools/call",
+            params: {
+              name: "self.assets.set_download_url",
+              arguments: {
+                url: assetsUrl,
+              },
+            },
+          };
+          log(`Sending MCP Tool Call (Assets): ${JSON.stringify(request)}`);
+          wsClient.send(JSON.stringify(request));
+
+          // Note: The device might need a reboot to apply the assets update
+          // We can send a reboot command if needed, but let's stick to the tool call first.
+          log("Note: Device will check for assets update on next boot.");
         }
       }
     </script>

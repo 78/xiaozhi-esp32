@@ -14,6 +14,9 @@
 #include "settings.h"
 #include "ota_server.h"
 #include "ota.h"
+#include "music/esp32_radio.h"
+#include "music/esp32_sd_music.h"
+#include "sd_card.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -65,6 +68,14 @@ Application::Application()
         .name = "clock_timer",
         .skip_unhandled_events = true};
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+
+    // Initialize Radio and Music
+    radio_ = std::make_unique<Esp32Radio>();
+    radio_->Initialize();
+
+    sd_music_ = std::make_unique<Esp32SdMusic>();
+    // SdMusic initialized later when SD card is available or in Start()
+    // For now we just instantiate it.
 }
 
 Application::~Application()
@@ -446,6 +457,26 @@ void Application::Start()
     /* Wait for the network to be ready */
     board.StartNetwork();
 
+#ifdef CONFIG_SD_CARD_ENABLE
+    auto sd_card = board.GetSdCard();
+    if (sd_card != nullptr)
+    {
+        if (sd_card->Initialize() == ESP_OK)
+        {
+            ESP_LOGI(TAG, "SD card mounted successfully");
+            if (sd_music_ != nullptr)
+            {
+                sd_music_->Initialize(sd_card);
+                sd_music_->loadTrackList();
+            }
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Failed to mount SD card");
+        }
+    }
+#endif
+
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);
 
@@ -522,7 +553,7 @@ void Application::Start()
             display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
         }); });
-    protocol_-> ([this, display](const cJSON *root)
+    protocol_->OnIncomingJson([this, display](const cJSON *root)
                               {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");

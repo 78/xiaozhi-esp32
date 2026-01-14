@@ -13,6 +13,10 @@
 #include <cctype>
 #include <esp_pthread.h>
 #include <driver/gpio.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <fstream>
+#include <sstream>
 
 #include "application.h"
 #include "display.h"
@@ -22,6 +26,8 @@
 #include "lvgl_theme.h"
 #include "lvgl_display.h"
 #include "boards/common/esp32_music.h"
+#include "music/esp32_radio.h"
+#include "music/esp32_sd_music.h"
 #include "era_iot_client.h"
 
 #define TAG "MCP"
@@ -38,6 +44,139 @@ struct EraSmartDevice
     std::string action_on;
     std::string action_off;
 };
+
+#ifdef CONFIG_ENABLE_EXTRACT_DOCUMENTATION
+struct FileSnippet {
+    std::string filename;
+    std::string content;
+};
+
+class FileSearcher {
+private:
+    static const size_t BUFFER_SIZE = 4096;
+    static const size_t OVERLAP_SIZE = 127; // Keep odd/prime? Just enough for word.
+    static const size_t CONTEXT_SIZE = 150;
+
+    static bool EndsWith(const std::string& fullString, const std::string& ending) {
+        if (fullString.length() >= ending.length()) {
+            std::string str_lower = fullString;
+            std::string end_lower = ending;
+            std::transform(str_lower.begin(), str_lower.end(), str_lower.begin(), ::tolower);
+            std::transform(end_lower.begin(), end_lower.end(), end_lower.begin(), ::tolower);
+            return (0 == str_lower.compare(str_lower.length() - end_lower.length(), end_lower.length(), end_lower));
+        }
+        return false;
+    }
+
+    static std::string CleanPdfContent(const std::string& raw) {
+        std::string clean;
+        clean.reserve(raw.size());
+        size_t run_len = 0;
+        for (char c : raw) {
+            // Allow basic printable ascii and some utf-8 continuation bytes?
+            // UTF-8: 0x20-0x7E (ASCII), 0x80-0xFF (Multi-byte).
+            // Control chars: 0x09 (Tab), 0x0A (LF), 0x0D (CR).
+            // PDF binary data can be anything.
+            // Heuristic: If we see many nulls or non-text control chars, it's binary.
+            // But we are processing a snippet that matched a keyword, so it likely contains text.
+            if ((unsigned char)c >= 0x20 || c == '\n' || c == '\r' || c == '\t') {
+                clean += c;
+            } else {
+                 clean += ' '; 
+            }
+        }
+        return clean;
+    }
+
+public:
+    static std::vector<FileSnippet> Search(const std::string& query, const std::string& search_root = "/sdcard") {
+        std::vector<FileSnippet> results;
+        if (query.empty()) return results;
+
+        DIR* dir = opendir(search_root.c_str());
+        if (!dir) {
+            ESP_LOGW("FileSearcher", "Failed to open directory: %s", search_root.c_str());
+            return results;
+        }
+
+        struct dirent* entry;
+        char *buffer = (char*)malloc(BUFFER_SIZE);
+        if (!buffer) {
+            closedir(dir);
+            return results;
+        }
+
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN) continue; // Only files
+            
+            std::string fname = entry->d_name;
+            bool is_pdf = EndsWith(fname, ".pdf");
+            bool is_text = EndsWith(fname, ".txt") || EndsWith(fname, ".md") || EndsWith(fname, ".json");
+
+            if (!is_pdf && !is_text) continue;
+
+            std::string full_path = search_root;
+            if (full_path.back() != '/') full_path += "/";
+            full_path += fname;
+
+            FILE* f = fopen(full_path.c_str(), "rb");
+            if (!f) continue;
+
+            // Stream Read with Overlap
+            size_t overlap_len = 0;
+            memset(buffer, 0, BUFFER_SIZE);
+
+            while (true) {
+                size_t read_start = overlap_len;
+                size_t max_read = BUFFER_SIZE - overlap_len - 1; 
+                size_t bytes_read = fread(buffer + read_start, 1, max_read, f);
+                
+                size_t total_valid = bytes_read + overlap_len;
+                if (total_valid == 0) break;
+                
+                buffer[total_valid] = 0; // Null terminate for safety
+
+                std::string chunk(buffer, total_valid);
+                size_t pos = chunk.find(query);
+                
+                // If not found, try simple case-insensitive? 
+                // For now strict.
+                
+                if (pos != std::string::npos) {
+                     size_t start = (pos > CONTEXT_SIZE) ? (pos - CONTEXT_SIZE) : 0;
+                     size_t len = std::min(CONTEXT_SIZE * 2, total_valid - start);
+                     std::string context = chunk.substr(start, len);
+                     
+                     if (is_pdf) {
+                         context = CleanPdfContent(context);
+                     }
+                     
+                     // Naive UTF-8 validation: ensure we didn't cut in middle of multibyte
+                     // Not critical for snippet, LLM can handle bad edge chars.
+                     
+                     results.push_back({fname, context});
+                     break; // Found one snippet in this file, move to next to save time?
+                }
+
+                if (bytes_read < max_read) break; // EOF
+
+                // Move overlap
+                if (total_valid >= OVERLAP_SIZE) {
+                     memmove(buffer, buffer + total_valid - OVERLAP_SIZE, OVERLAP_SIZE);
+                     overlap_len = OVERLAP_SIZE;
+                } else {
+                     overlap_len = 0;
+                }
+            }
+            fclose(f);
+            if (results.size() >= 3) break; // Max 3 files matched
+        }
+        free(buffer);
+        closedir(dir);
+        return results;
+    }
+};
+#endif
 
 static std::vector<EraSmartDevice> GetEraSmartDevices()
 {
@@ -268,6 +407,384 @@ void McpServer::AddCommonTools()
                 cJSON_AddBoolToObject(json, "connected", is_connected);
                 cJSON_AddStringToObject(json, "status", is_connected ? "Connected" : "Disconnected");
                 return json;
+            });
+#endif
+
+    // ========================================================================
+    // RADIO TOOLS (VOV)
+    // ========================================================================
+    auto radio = Application::GetInstance().GetRadio();
+    if (radio)
+    {
+        AddTool("self.radio.play_station",
+                "Play a radio station by name. Use this tool when user requests to play radio or listen to a specific station."
+                "VOV mộc/mốc/mốt/mậu/máu/một/mút/mót/mục means VOV1 channel.\n"
+                "Args:\n"
+                "  `station_name`: The name of the radio station to play (e.g., 'VOV1', 'BBC', 'NPR').\n"
+                "Return:\n"
+                "  Playback status information. Starts playing the radio station immediately.",
+                PropertyList({
+                    Property("station_name", kPropertyTypeString) // Station name (required)
+                }),
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
+                    auto station_name = properties["station_name"].value<std::string>();
+
+                    if (!radio->PlayStation(station_name))
+                    {
+                        return "{\"success\": false, \"message\": \"Failed to find or play radio station: " + station_name + "\"}";
+                    }
+                    return "{\"success\": true, \"message\": \"Radio station " + station_name + " started playing\"}";
+                });
+
+        AddTool("self.radio.play_url",
+                "Play a radio stream from a custom URL. Use this tool when user provides a specific radio stream URL.\n"
+                "Args:\n"
+                "  `url`: The URL of the radio stream to play (required).\n"
+                "  `name`: Custom name for the radio station (optional).\n"
+                "Return:\n"
+                "  Playback status information. Starts playing the radio stream immediately.",
+                PropertyList({
+                    Property("url", kPropertyTypeString),     // Stream URL (required)
+                    Property("name", kPropertyTypeString, "") // Station name (optional)
+                }),
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
+                    auto url = properties["url"].value<std::string>();
+                    auto name = properties["name"].value<std::string>();
+
+                    if (!radio->PlayUrl(url, name))
+                    {
+                        return "{\"success\": false, \"message\": \"Failed to play radio stream from URL: " + url + "\"}";
+                    }
+                    return "{\"success\": true, \"message\": \"Radio stream started playing\"}";
+                });
+
+        AddTool("self.radio.stop",
+                "Stop the currently playing radio stream.\n"
+                "Return:\n"
+                "  Stop status information.",
+                PropertyList(),
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
+                    if (!radio->Stop())
+                    {
+                        return "{\"success\": false, \"message\": \"Failed to stop radio\"}";
+                    }
+                    return "{\"success\": true, \"message\": \"Radio stopped\"}";
+                });
+
+        AddTool("self.radio.get_stations",
+                "Get the list of available radio stations.\n"
+                "Return:\n"
+                "  JSON array of available radio stations.",
+                PropertyList(),
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
+                    auto stations = radio->GetStationList();
+                    std::string result = "{\"success\": true, \"stations\": [";
+                    for (size_t i = 0; i < stations.size(); ++i)
+                    {
+                        result += "\"" + stations[i] + "\"";
+                        if (i < stations.size() - 1)
+                        {
+                            result += ", ";
+                        }
+                    }
+                    result += "]}";
+                    return result;
+                });
+
+        AddTool("self.radio.set_display_mode",
+                "Set the display mode for radio playback. You can choose to display spectrum or station info.\n"
+                "Args:\n"
+                "  `mode`: Display mode, options are 'spectrum' or 'info'.\n"
+                "Return:\n"
+                "  Setting result information.",
+                PropertyList({
+                    Property("mode", kPropertyTypeString) // Display mode: "spectrum" or "info"
+                }),
+                [radio](const PropertyList &properties) -> ReturnValue
+                {
+                    auto mode_str = properties["mode"].value<std::string>();
+
+                    // Convert to lowercase for comparison
+                    std::transform(mode_str.begin(), mode_str.end(), mode_str.begin(), ::tolower);
+
+                    if (mode_str == "spectrum")
+                    {
+                        // Set to spectrum display mode
+                        auto esp32_radio = static_cast<Esp32Radio *>(radio);
+                        esp32_radio->SetDisplayMode(Esp32Radio::DISPLAY_MODE_SPECTRUM);
+                        return "{\"success\": true, \"message\": \"Switched to spectrum display mode\"}";
+                    }
+                    else if (mode_str == "info")
+                    {
+                        // Set to info display mode
+                        auto esp32_radio = static_cast<Esp32Radio *>(radio);
+                        esp32_radio->SetDisplayMode(Esp32Radio::DISPLAY_MODE_INFO);
+                        return "{\"success\": true, \"message\": \"Switched to info display mode\"}";
+                    }
+                    else
+                    {
+                        return "{\"success\": false, \"message\": \"Invalid display mode, please use 'spectrum' or 'info'\"}";
+                    }
+                });
+    }
+
+#ifdef CONFIG_SD_CARD_ENABLE
+    auto sd_music = Application::GetInstance().GetSdMusic();
+    if (sd_music)
+    {
+        // ================== 1) PLAYBACK CƠ BẢN ==================
+        AddTool("self.sdmusic.playback",
+                "Điều khiển phát nhạc từ THẺ NHỚ (SD card).\n"
+                "action = play | pause | stop | next | prev\n",
+                PropertyList({
+                    Property("action", kPropertyTypeString),
+                }),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    std::string action = props["action"].value<std::string>();
+                    if (!sd_music)
+                    {
+                        if (action == "play")
+                            return "{\"success\": false, \"message\": \"SD music module not available\"}";
+                        return false;
+                    }
+                    if (action == "play")
+                    {
+                        if (sd_music->getTotalTracks() == 0 && !sd_music->loadTrackList())
+                            return "{\"success\": false, \"message\": \"No MP3 files found on SD card\"}";
+                        bool ok = sd_music->play();
+                        return ok ? "{\"success\": true, \"message\": \"Playback started\"}" : "{\"success\": false, \"message\": \"Failed to play\"}";
+                    }
+                    if (action == "pause")
+                    {
+                        sd_music->pause();
+                        return true;
+                    }
+                    if (action == "stop")
+                    {
+                        sd_music->stop();
+                        return true;
+                    }
+                    if (action == "next")
+                        return sd_music->next();
+                    if (action == "prev")
+                        return sd_music->prev();
+                    return "{\"success\":false,\"message\":\"Unknown playback action\"}";
+                });
+
+        // ================== 2) SHUFFLE / REPEAT MODE ==================
+        AddTool("self.sdmusic.mode",
+                "Control playback mode: shuffle and repeat.\n"
+                "action = shuffle | repeat\n",
+                PropertyList({Property("action", kPropertyTypeString), Property("enabled", kPropertyTypeBoolean), Property("mode", kPropertyTypeString)}),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    if (!sd_music)
+                        return "SD music not available";
+                    std::string action = props["action"].value<std::string>();
+                    if (action == "shuffle")
+                    {
+                        bool enabled = props["enabled"].value<bool>();
+                        sd_music->shuffle(enabled);
+                        if (enabled)
+                        {
+                            if (sd_music->getTotalTracks() == 0)
+                                sd_music->loadTrackList();
+                            if (sd_music->getTotalTracks() == 0)
+                                return false;
+                            int idx = rand() % sd_music->getTotalTracks();
+                            sd_music->setTrack(idx);
+                        }
+                        return true;
+                    }
+                    if (action == "repeat")
+                    {
+                        std::string mode = props["mode"].value<std::string>();
+                        if (mode == "none")
+                            sd_music->repeat(Esp32SdMusic::RepeatMode::None);
+                        else if (mode == "one")
+                            sd_music->repeat(Esp32SdMusic::RepeatMode::RepeatOne);
+                        else if (mode == "all")
+                            sd_music->repeat(Esp32SdMusic::RepeatMode::RepeatAll);
+                        else
+                            return "Invalid repeat mode";
+                        return true;
+                    }
+                    return "Unknown mode action";
+                });
+
+        // ================== 3) TRUY CẬP BÀI HÁT ==================
+        AddTool("self.sdmusic.track",
+                "Track-level operations: set, info, list, current\n",
+                PropertyList({Property("action", kPropertyTypeString), Property("index", kPropertyTypeInteger, 0, 0, 9999)}),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    std::string action = props["action"].value<std::string>();
+                    if (!sd_music)
+                        return "SD music module not available";
+                    auto ensure_playlist = [sd_music]()
+                    { if (sd_music->getTotalTracks() == 0) sd_music->loadTrackList(); };
+
+                    if (action == "set")
+                    {
+                        int index = props["index"].value<int>();
+                        ensure_playlist();
+                        return sd_music->setTrack(index);
+                    }
+                    if (action == "info")
+                    {
+                        ensure_playlist();
+                        int index = props["index"].value<int>();
+                        auto info = sd_music->getTrackInfo(index);
+                        cJSON *json = cJSON_CreateObject();
+                        cJSON_AddStringToObject(json, "name", info.name.c_str());
+                        cJSON_AddNumberToObject(json, "duration_ms", info.duration_ms);
+                        return json;
+                    }
+                    if (action == "list")
+                    {
+                        cJSON *o = cJSON_CreateObject();
+                        ensure_playlist();
+                        cJSON_AddNumberToObject(o, "count", (int)sd_music->getTotalTracks());
+                        return o;
+                    }
+                    if (action == "current")
+                    {
+                        ensure_playlist();
+                        return sd_music->getCurrentTrack();
+                    }
+                    return "Unknown track action";
+                });
+
+        // ================== 4) THƯ MỤC ==================
+        AddTool("self.sdmusic.directory",
+                "Directory-level operations: play, list\n",
+                PropertyList({Property("action", kPropertyTypeString), Property("directory", kPropertyTypeString)}),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    std::string action = props["action"].value<std::string>();
+                    if (!sd_music)
+                        return "SD music module not available";
+                    if (action == "play")
+                    {
+                        std::string dir = props["directory"].value<std::string>();
+                        if (!sd_music->playDirectory(dir))
+                            return "{\"success\": false, \"message\": \"Cannot play directory\"}";
+                        return "{\"success\": true, \"message\": \"Playing directory\"}";
+                    }
+                    if (action == "list")
+                    {
+                        cJSON *arr = cJSON_CreateArray();
+                        auto list = sd_music->listDirectories();
+                        for (auto &d : list)
+                            cJSON_AddItemToArray(arr, cJSON_CreateString(d.c_str()));
+                        return arr;
+                    }
+                    return "Unknown directory action";
+                });
+
+        // ================== 5) TÌM KIẾM ==================
+        AddTool("self.sdmusic.search",
+                "Search and play tracks by name.\n",
+                PropertyList({Property("action", kPropertyTypeString), Property("keyword", kPropertyTypeString)}),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    std::string action = props["action"].value<std::string>();
+                    std::string keyword = props["keyword"].value<std::string>();
+                    if (!sd_music)
+                        return "SD music module not available";
+                    auto ensure_playlist = [sd_music]()
+                    { if (sd_music->getTotalTracks() == 0) sd_music->loadTrackList(); };
+
+                    if (action == "search")
+                    {
+                        cJSON *arr = cJSON_CreateArray();
+                        ensure_playlist();
+                        auto list = sd_music->searchTracks(keyword);
+                        for (auto &t : list)
+                        {
+                            cJSON *o = cJSON_CreateObject();
+                            cJSON_AddStringToObject(o, "name", t.name.c_str());
+                            cJSON_AddItemToArray(arr, o);
+                        }
+                        return arr;
+                    }
+                    if (action == "play")
+                    {
+                        if (keyword.empty())
+                            return "{\"success\": false, \"message\": \"Keyword cannot be empty\"}";
+                        ensure_playlist();
+                        bool ok = sd_music->playByName(keyword);
+                        return ok ? "{\"success\": true, \"message\": \"Playing song by name\"}" : "{\"success\": false, \"message\": \"Song not found\"}";
+                    }
+                    return "Unknown search action";
+                });
+
+        // ================== 6) LIBRARY ==================
+        AddTool("self.sdmusic.library",
+                "Library info: count, page\n",
+                PropertyList({Property("action", kPropertyTypeString), Property("page", kPropertyTypeInteger, 1, 1, 10000), Property("page_size", kPropertyTypeInteger, 10, 1, 1000)}),
+                [sd_music](const PropertyList &props) -> ReturnValue
+                {
+                    std::string action = props["action"].value<std::string>();
+                    if (!sd_music)
+                        return "SD music module not available";
+                    auto ensure_playlist = [sd_music]()
+                    { if (sd_music->getTotalTracks() == 0) sd_music->loadTrackList(); };
+
+                    if (action == "page")
+                    {
+                        cJSON *arr = cJSON_CreateArray();
+                        ensure_playlist();
+                        int page = props["page"].value<int>();
+                        int page_size = props["page_size"].value<int>();
+                        size_t page_index = (size_t)(page - 1);
+                        auto list = sd_music->listTracksPage(page_index, (size_t)page_size);
+                        for (auto &t : list)
+                        {
+                            cJSON *o = cJSON_CreateObject();
+                            cJSON_AddStringToObject(o, "name", t.name.c_str());
+                            cJSON_AddItemToArray(arr, o);
+                        }
+                        return arr;
+                    }
+                    return "Unknown library action";
+                });
+    }
+#endif
+
+#ifdef CONFIG_ENABLE_EXTRACT_DOCUMENTATION
+    AddTool("self.knowledge.search_on_sdcard",
+            "Search for documentation/information on the SD card. Use this when the user asks to 'find', 'research', or 'extract' info from files.\n"
+            "This is effective for .md, .txt, and .pdf files stored on the device.\n"
+            "Args:\n"
+            "  `query`: Keywords to search for.\n",
+            PropertyList({Property("query", kPropertyTypeString)}),
+            [](const PropertyList &properties) -> ReturnValue
+            {
+                std::string query = properties["query"].value<std::string>();
+                if (query.empty()) return "{\"error\": \"Query cannot be empty\"}";
+                
+                // Default search path: /sdcard or /sdcard/docs if you want to be specific
+                // We'll search root /sdcard for simplicity as requested.
+                auto results = FileSearcher::Search(query, "/sdcard");
+                
+                if (results.empty()) {
+                    return "{\"message\": \"No matches found in /sdcard.\"}";
+                }
+                
+                cJSON *arr = cJSON_CreateArray();
+                for (const auto& res : results) {
+                    cJSON *item = cJSON_CreateObject();
+                    cJSON_AddStringToObject(item, "file", res.filename.c_str());
+                    cJSON_AddStringToObject(item, "snippet", res.content.c_str());
+                    cJSON_AddItemToArray(arr, item);
+                }
+                return arr;
             });
 #endif
 
@@ -819,17 +1336,14 @@ void McpServer::AddUserOnlyTools()
 
     AddTool("self.system.firmware_update",
             "Update the device firmware from a specific URL. Use this tool when the user asks to update the firmware or system version.",
-            PropertyList({Property("url", kPropertyTypeString)}),
+            PropertyList({Property("url", kPropertyTypeString, std::string(""))}),
             [](const PropertyList &properties) -> ReturnValue
             {
                 std::string url = "https://update-ota-firmware.s3.ap-southeast-2.amazonaws.com/merged-binary.bin";
-                if (properties.count("url"))
+                std::string provided_url = properties["url"].value<std::string>();
+                if (!provided_url.empty())
                 {
-                    std::string provided_url = properties["url"].value<std::string>();
-                    if (!provided_url.empty())
-                    {
-                        url = provided_url;
-                    }
+                    url = provided_url;
                 }
 
                 ESP_LOGI(TAG, "Triggering firmware update from URL: %s", url.c_str());

@@ -120,9 +120,10 @@ private:
             }
             app.ToggleChatState(); });
 
-        audio_wake_button_.OnPressDown([this]() {});
-
-        audio_wake_button_.OnPressUp([this]() {});
+        audio_wake_button_.OnClick([this]()
+                                   {
+            auto &app = Application::GetInstance();
+            app.ToggleChatState(); });
     }
 
     void InitializeLed()
