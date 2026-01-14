@@ -5,7 +5,7 @@
 
 #define TAG "EraIotClient"
 
-static const char *ERA_AUTH_TOKEN = "Token b027d04220a93e1fc1a91be8fcde195ab25bdcd6";
+static const char *ERA_AUTH_TOKEN = "___your__Token";
 static const char *ERA_BASE_URL = "https://backend.eoh.io";
 
 EraIotClient::EraIotClient() : initialized_(false)
