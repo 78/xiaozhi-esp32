@@ -37,6 +37,10 @@ Xiaozhi Assistant -> Camera Configuration -> Enable software camera buffer endia
 ```
 
 **配置摄像头：**
+```
+Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> GC2145 ->  Auto detect GC2145
+
+```
 
 ```
 Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> GC2145 ->  Select default output format for DVP interface (RGB565 800x600 20fps, DVP 8-bit, 20M input) -> RGB565 800x600 20fps, DVP 8-bit, 20M input
