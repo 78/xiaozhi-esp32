@@ -84,12 +84,17 @@ private:
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Print state failed: %s", esp_err_to_name(ret));
         }
-        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0,
-                                                                    IO_EXPANDER_OUTPUT);
+
+        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, IO_EXPANDER_OUTPUT);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Set direction failed: %s", esp_err_to_name(ret));
         }
-        ret = esp_io_expander_set_level(io_expander, 0, 1);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 0);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Set level failed: %s", esp_err_to_name(ret));
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Set level failed: %s", esp_err_to_name(ret));
         }
