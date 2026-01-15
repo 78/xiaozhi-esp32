@@ -11,7 +11,9 @@
 #include <esp_log.h>
 #include <utility>
 #include <font_awesome.h>
- 
+
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+
 static const char *TAG = "RndisBoard"; 
 #define EVENT_GOT_IP_BIT (1 << 0)
 
@@ -242,3 +244,4 @@ std::string RndisBoard::GetDeviceStatusJson() {
     cJSON_Delete(root);
     return result;
 }
+#endif // CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3

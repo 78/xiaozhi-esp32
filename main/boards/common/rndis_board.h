@@ -1,6 +1,6 @@
 #ifndef RNDIS_BOARD_H
 #define RNDIS_BOARD_H
-
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
 #include "board.h"
 #include "iot_eth.h"
 #include "iot_usbh_rndis.h"
@@ -66,5 +66,5 @@ public:
     virtual std::string GetDeviceStatusJson() override;
     
 };
-
-#endif // WIFI_BOARD_H
+#endif // CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+#endif // RNDIS_BOARD_H
