@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "codecs/es8388_audio_codec.h"
+#include "codecs/es8389_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
@@ -1116,7 +1116,7 @@ public:
     virtual AudioCodec *GetAudioCodec() override
     {
 
-        static Es8388AudioCodec audio_codec(
+        static Es8389AudioCodec audio_codec(
             i2c_bus_,
             I2C_NUM_0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -1127,7 +1127,8 @@ public:
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_GPIO,
-            AUDIO_CODEC_ES8388_ADDR);
+            AUDIO_CODEC_ES8389_ADDR,
+            true);
         return &audio_codec;
     }
 
