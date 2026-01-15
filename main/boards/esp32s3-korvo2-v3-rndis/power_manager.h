@@ -65,7 +65,6 @@ private:
             int temp_raw = 0;
             ESP_ERROR_CHECK(adc_oneshot_read(adc_handle_, ADC_CHANNEL_5, &temp_raw));
             adc_sum += temp_raw;
-            vTaskDelay(pdMS_TO_TICKS(10));  // 每次采样间隔10ms
         }
         adc_raw = adc_sum / sample_count;
         
