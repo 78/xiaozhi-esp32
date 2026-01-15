@@ -2,6 +2,7 @@
 #define OLED_DISPLAY_H
 
 #include "lvgl_display.h"
+#include "backlight.h"
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -35,6 +36,17 @@ public:
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
+    virtual void SetPowerSaveMode(bool on) override;
+    void SetContrast(uint8_t contrast);
+};
+
+class OledBacklight : public Backlight {
+public:
+    OledBacklight(OledDisplay* display);
+    virtual void SetBrightnessImpl(uint8_t brightness) override;
+
+private:
+    OledDisplay* display_;
 };
 
 #endif // OLED_DISPLAY_H
