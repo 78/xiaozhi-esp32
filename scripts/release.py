@@ -4,7 +4,7 @@ import json
 import zipfile
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 # Switch to project root directory
 os.chdir(Path(__file__).resolve().parent.parent)
@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
     # Compile mode
     board_type_input: str = args.board
-    name_filter: str | None = args.name
+    name_filter: Union[str, None] = args.name
 
     # Check board_type in CMakeLists
     if board_type_input != "all" and not _board_type_exists(board_type_input):
