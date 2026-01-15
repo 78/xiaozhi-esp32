@@ -23,7 +23,7 @@
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
-#define TAG "WaveshareEsp32s3TouchAMOLED1inch8"
+#define TAG "WaveshareEsp32c6TouchAMOLED1inch8"
 
 class Pmic : public Axp2101 {
 public:
@@ -108,7 +108,7 @@ protected:
     }
 };
 
-class WaveshareEsp32s3TouchAMOLED1inch8 : public WifiBoard {
+class WaveshareEsp32c6TouchAMOLED1inch8 : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Pmic* pmic_ = nullptr;
@@ -283,7 +283,7 @@ private:
     }
 
 public:
-    WaveshareEsp32s3TouchAMOLED1inch8() :
+    WaveshareEsp32c6TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitializeCodecI2c();
@@ -332,4 +332,4 @@ public:
     }
 };
 
-DECLARE_BOARD(WaveshareEsp32s3TouchAMOLED1inch8);
+DECLARE_BOARD(WaveshareEsp32c6TouchAMOLED1inch8);
