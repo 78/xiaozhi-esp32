@@ -97,6 +97,7 @@ private:
     XL9555 *xl9555_;
     Esp32Camera *camera_;
     GpioLed *pwm_led_;                     // 添加PWM LED成员变量
+    esp_timer_handle_t volume_timer_ = nullptr; // 音量调节去抖定时器
     PwmLedController *pwm_led_controller_; // 新增：PWM LED 控制器指针
     UartComm *uart_comm_;                  // 新增：串口通信成员
     esp_timer_handle_t boot_breath_timer_ = nullptr;
@@ -494,6 +495,22 @@ private:
     void InitializeEncoder()
     {      
         if (!encoder_) {
+            // 创建音量调节去抖定时器
+            esp_timer_create_args_t volume_timer_args = {
+                .callback = [](void* arg) {
+                    auto* self = static_cast<ai_martube_esp32s3*>(arg);
+                    auto& app = Application::GetInstance();
+                    if (self->current_volume_ >= 100) {
+                        app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                    } else {
+                        app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
+                    }
+                },
+                .arg = this,
+                .name = "volume_timer"
+            };
+            ESP_ERROR_CHECK(esp_timer_create(&volume_timer_args, &volume_timer_));
+
             // 初始化旋钮：GPIO A/B
             encoder_ = new Ec11Encoder(ENCODER_A_GPIO, ENCODER_B_GPIO);
             encoder_->SetCallback([this](int step) {
@@ -514,17 +531,22 @@ private:
                 } else {
  
                     int delta = step * 5;
-                    auto& app = Application::GetInstance();
                     int v = current_volume_ + delta;
-                    ESP_LOGI(TAG, "##################Volume change: %d%%", v);
+                    bool hit_max = false;
+
                     if (v > 100) {
                         v = 100;
-                        app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                        hit_max = true;
                     }
                     if (v < 0) v = 0;
+
                     if (v != current_volume_) {
                         OnVolumeChange(v);
-                        if(v != 100)app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
+                        esp_timer_stop(volume_timer_);
+                        esp_timer_start_once(volume_timer_, 200000);
+                    } else if (hit_max && delta > 0) {
+                         esp_timer_stop(volume_timer_);
+                         esp_timer_start_once(volume_timer_, 200000);
                     }
                 }
 

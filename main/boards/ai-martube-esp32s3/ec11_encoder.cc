@@ -35,6 +35,11 @@ void Ec11Encoder::Start() {
         xSemaphore_ = xSemaphoreCreateBinary();
     }
 
+    // Initialize last_state_ with current pin levels
+    int a_state = gpio_get_level(pin_a_);
+    int b_state = gpio_get_level(pin_b_);
+    last_state_ = (a_state << 1) | b_state;
+
     // Install ISR service if not already installed (checked by return value)
     if (gpio_install_isr_service(0) != ESP_OK) {
         ESP_LOGW(TAG, "ISR service might already be installed");
@@ -68,30 +73,44 @@ void IRAM_ATTR Ec11Encoder::gpio_isr_handler(void* arg) {
 
 void Ec11Encoder::ec11_encoder_task(void* arg) {
     auto* self = static_cast<Ec11Encoder*>(arg);
+    int accumulator = 0;
+    
+    // Transition table for full quadrature decoding
+    static const int8_t TRANSITION_TABLE[16] = {
+        0, -1,  1,  0, // 00 -> ...
+        1,  0,  0, -1, // 01 -> ...
+       -1,  0,  0,  1, // 10 -> ...
+        0,  1, -1,  0  // 11 -> ...
+    };
+
+    // Initialize last_state_ with current pin levels to prevent startup jump
+    int a_state = gpio_get_level(self->pin_a_);
+    int b_state = gpio_get_level(self->pin_b_);
+    self->last_state_ = (a_state << 1) | b_state;
+
     while (1) {
         if (xSemaphoreTake(self->xSemaphore_, portMAX_DELAY) == pdTRUE) {
-            int a_state = gpio_get_level(self->pin_a_);
-            int b_state = gpio_get_level(self->pin_b_);
+            a_state = gpio_get_level(self->pin_a_);
+            b_state = gpio_get_level(self->pin_b_);
             int current_state = (a_state << 1) | b_state;
 
-            // ESP_LOGD(TAG, "Current State: %d", current_state);
+            int idx = (self->last_state_ << 2) | current_state;
+            int direction = TRANSITION_TABLE[idx & 0x0F];
 
-            int direction = 0;
-            if (self->last_state_ == 0b01 && current_state == 0b00) {
-                self->encoder_position_++;
-                direction = 1; // Clockwise
-                ESP_LOGI(TAG, "Rotated Clockwise, Position: %d", self->encoder_position_);
-            } else if (self->last_state_ == 0b10 && current_state == 0b00) {
-                self->encoder_position_--;
-                direction = -1; // Counter-clockwise
-                ESP_LOGI(TAG, "Rotated Counterclockwise, Position: %d", self->encoder_position_);
+            if (direction != 0) {
+                accumulator += direction;
+                // 2x resolution: Trigger every 2 steps
+                if (abs(accumulator) >= 2) {
+                    int report_dir = (accumulator > 0) ? 1 : -1;
+                    self->encoder_position_ += report_dir;
+                    // ESP_LOGI(TAG, "Rotated, Position: %d", self->encoder_position_);
+                    if (self->callback_) {
+                        self->callback_(report_dir);
+                    }
+                    accumulator = 0;
+                }
             }
-
             self->last_state_ = current_state;
-
-            if (direction != 0 && self->callback_) {
-                self->callback_(direction);
-            }
         }
     }
 }
