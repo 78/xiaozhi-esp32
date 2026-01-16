@@ -11,6 +11,8 @@
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <driver/ledc.h>
+#include <driver/gpio.h>
+#include <cJSON.h>
 
 #include "display/lcd_display.h"
 #include <esp_lcd_panel_vendor.h>
@@ -281,8 +283,9 @@ private:
         auto &mcp_server = McpServer::GetInstance();
 
         // Basic Control
-        mcp_server.AddTool("self.dog.basic_control", "Control the robot dog's movements and emotions. Available actions:\n"
+        mcp_server.AddTool("self.dog.basic_control", "Control the robot dog's movements and emotions. IMPORTANT: Execute silently without ANY verbal confirmation before or after.\n"
                                                      "- Movement: 'forward' (tiến lên, đi tới, đi thẳng), 'backward' (lùi lại, đi lùi), 'turn_left' (quay trái, rẽ trái), 'turn_right' (quay phải, rẽ phải), 'stop' (dừng lại, đứng yên).\n"
+                                                     "- Parameter 'steps' (1-20): Number of steps for movement commands. REQUIRED for accurate movement.\n"
                                                      "- Emotions/Actions:\n"
                                                      "  - 'wag_tail': vẫy đuôi, mừng rỡ.\n"
                                                      "  - 'happy': vui vẻ, nhảy múa, phấn khích.\n"
@@ -299,10 +302,15 @@ private:
                                                      "- Maintenance: 'calibrate' (cân chỉnh, kiểm tra chân, calib).",
                            PropertyList({
                                Property("action", kPropertyTypeString),
+                               Property("steps", kPropertyTypeInteger, 4, 1, 20),
                            }),
                            [this](const PropertyList &properties) -> ReturnValue
                            {
                                std::string action = properties["action"].value<std::string>();
+                               
+                               // Get steps from properties (default is 4, range 1-20)
+                               int steps = properties["steps"].value<int>();
+                               
                                // Normalize action string to handle synonyms if the LLM passes raw text
                                if (action == "go_forward" || action == "move_forward" || action == "tiến lên" || action == "đi tới" || action == "đi thẳng" || action == "tới luôn")
                                    action = "forward";
@@ -348,7 +356,7 @@ private:
                                if (action == "forward")
                                {
                                    cmd.type = 0;
-                                   cmd.steps = 4;
+                                   cmd.steps = steps;
                                    cmd.period = 1000;
                                    cmd.dir = FORWARD;
                                    xQueueSend(puppy_queue_, &cmd, 0);
@@ -356,7 +364,7 @@ private:
                                else if (action == "backward")
                                {
                                    cmd.type = 0;
-                                   cmd.steps = 4;
+                                   cmd.steps = steps;
                                    cmd.period = 1000;
                                    cmd.dir = BACKWARD;
                                    xQueueSend(puppy_queue_, &cmd, 0);
@@ -364,7 +372,7 @@ private:
                                else if (action == "turn_left")
                                {
                                    cmd.type = 1;
-                                   cmd.steps = 4;
+                                   cmd.steps = steps;
                                    cmd.period = 1000;
                                    cmd.dir = LEFT;
                                    xQueueSend(puppy_queue_, &cmd, 0);
@@ -372,7 +380,7 @@ private:
                                else if (action == "turn_right")
                                {
                                    cmd.type = 1;
-                                   cmd.steps = 4;
+                                   cmd.steps = steps;
                                    cmd.period = 1000;
                                    cmd.dir = RIGHT;
                                    xQueueSend(puppy_queue_, &cmd, 0);
@@ -492,6 +500,81 @@ private:
                     led_on_ = true;
                     SetLedColor(r, g, b);
                     return true; });
+
+        // ========================================================================
+        // BLUETOOTH KCX_BT_EMITTER MCP TOOLS
+        // ========================================================================
+        // Initialize Bluetooth GPIO pins
+        static bool bt_gpio_initialized = false;
+        if (!bt_gpio_initialized)
+        {
+            gpio_config_t bt_io_conf = {};
+            bt_io_conf.intr_type = GPIO_INTR_DISABLE;
+            bt_io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            bt_io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+
+            // CONNECT pin (Output, default HIGH - active LOW pulse to trigger)
+            bt_io_conf.mode = GPIO_MODE_OUTPUT;
+            bt_io_conf.pin_bit_mask = (1ULL << BT_EMITTER_CONNECT_PIN);
+            gpio_config(&bt_io_conf);
+            gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
+
+            // LINK pin (Input with pull-up)
+            bt_io_conf.mode = GPIO_MODE_INPUT;
+            bt_io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+            bt_io_conf.pin_bit_mask = (1ULL << BT_EMITTER_LINK_PIN);
+            gpio_config(&bt_io_conf);
+
+            bt_gpio_initialized = true;
+            ESP_LOGI(TAG, "Bluetooth GPIO initialized: CONNECT=%d, LINK=%d",
+                     BT_EMITTER_CONNECT_PIN, BT_EMITTER_LINK_PIN);
+        }
+
+        // Bluetooth Connect - Short press (100ms) to activate pairing
+        mcp_server.AddTool("self.bluetooth.connect",
+                           "Kết nối Bluetooth với loa/thiết bị âm thanh. Kích hoạt chế độ ghép nối (pairing). "
+                           "Dùng khi người dùng yêu cầu: kết nối bluetooth, bật bluetooth, ghép nối loa.",
+                           PropertyList(),
+                           [](const PropertyList &properties) -> ReturnValue
+                           {
+                               ESP_LOGI(TAG, "Bluetooth: Activating pairing mode (short press)");
+                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 0);
+                               vTaskDelay(pdMS_TO_TICKS(100));
+                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
+                               return "Đã kích hoạt chế độ ghép nối Bluetooth";
+                           });
+
+        // Bluetooth Disconnect - Long press (3s) to disconnect and clear memory
+        mcp_server.AddTool("self.bluetooth.disconnect",
+                           "Ngắt kết nối Bluetooth và xóa bộ nhớ ghép nối. "
+                           "Dùng khi người dùng yêu cầu: ngắt bluetooth, tắt bluetooth, hủy ghép nối.",
+                           PropertyList(),
+                           [](const PropertyList &properties) -> ReturnValue
+                           {
+                               ESP_LOGI(TAG, "Bluetooth: Disconnecting (long press 3s)");
+                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 0);
+                               vTaskDelay(pdMS_TO_TICKS(3000));
+                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
+                               return "Đã ngắt kết nối Bluetooth và xóa bộ nhớ ghép nối";
+                           });
+
+        // Bluetooth Get Status - Read LINK pin
+        mcp_server.AddTool("self.bluetooth.get_status",
+                           "Kiểm tra trạng thái kết nối Bluetooth hiện tại. "
+                           "Dùng khi người dùng hỏi: bluetooth đã kết nối chưa, trạng thái bluetooth.",
+                           PropertyList(),
+                           [](const PropertyList &properties) -> ReturnValue
+                           {
+                               int link_status = gpio_get_level(BT_EMITTER_LINK_PIN);
+                               bool is_connected = (link_status == 1);
+                               ESP_LOGI(TAG, "Bluetooth status: %s (LINK pin=%d)",
+                                        is_connected ? "Connected" : "Disconnected", link_status);
+
+                               cJSON *json = cJSON_CreateObject();
+                               cJSON_AddBoolToObject(json, "connected", is_connected);
+                               cJSON_AddStringToObject(json, "status", is_connected ? "Đã kết nối" : "Chưa kết nối");
+                               return json;
+                           });
     }
 
 public:
