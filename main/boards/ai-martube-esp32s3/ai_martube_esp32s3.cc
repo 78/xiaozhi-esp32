@@ -1003,6 +1003,10 @@ public:
         // 新增：初始化串口通信模块，并设置数据解析回调
         uart_comm_ = new UartComm(BOARD_UART_PORT, BOARD_UART_TX, BOARD_UART_RX, BOARD_UART_BAUD);
         uart_comm_->Begin();
+        uint8_t cmd_off[4] = {0xA5, 0x00, 0x02, 0x06};
+        if (uart_comm_ && uart_comm_->IsReady()) {
+            uart_comm_->Send(cmd_off, sizeof(cmd_off));
+        }
         uart_comm_->SetParser([this](const uint8_t *data, size_t len)
         {
             // 按长度输出十六进制字符串，避免把二进制当作 %s 打印
