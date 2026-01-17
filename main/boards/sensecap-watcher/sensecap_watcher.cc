@@ -20,7 +20,6 @@
 #include <driver/spi_master.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include <iot_button.h>
 #include <iot_knob.h>
 #include <esp_io_expander_tca95xx_16bit.h>
@@ -263,11 +262,13 @@ private:
         
         iot_button_register_cb(btns, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<SensecapWatcher*>(usr_data);
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
-            }
             self->power_save_timer_->WakeUp();
+
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
+            }
             app.ToggleChatState();
         }, this);
         
@@ -625,11 +626,11 @@ public:
         return &led;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {

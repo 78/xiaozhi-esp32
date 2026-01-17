@@ -8,7 +8,8 @@ config OTA_URL
 
 choice
     prompt "Flash Assets"
-    default FLASH_DEFAULT_ASSETS
+    default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
+    default FLASH_EXPRESSION_ASSETS if USE_EMOTE_MESSAGE_STYLE
     help
         Select the assets to flash.
 
@@ -16,8 +17,12 @@ choice
         bool "Do not flash assets"
     config FLASH_DEFAULT_ASSETS
         bool "Flash Default Assets"
+        depends on !USE_EMOTE_MESSAGE_STYLE
     config FLASH_CUSTOM_ASSETS
         bool "Flash Custom Assets"
+    config FLASH_EXPRESSION_ASSETS
+        bool "Flash Emote Assets"
+        depends on USE_EMOTE_MESSAGE_STYLE
 endchoice
 
 config CUSTOM_ASSETS_FILE
@@ -150,6 +155,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_SPARKBOT
         bool "Espressif SparkBot"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP_SENSAIRSHUTTLE
+        bool "Espressif ESP-SensairShuttle"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_ESP_SPOT_S3
         bool "Espressif Spot-S3"
         depends on IDF_TARGET_ESP32S3
@@ -273,11 +281,17 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_C6_LCD_1_69
         bool "Waveshare ESP32-C6-LCD-1.69"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_LCD_1_83
+        bool "Waveshare ESP32-C6-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_32
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.32"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_8
+        bool "Waveshare ESP32-C6-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_32
         bool "Waveshare ESP32-S3-Touch-AMOLOED-1.32"
@@ -290,6 +304,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_ePaper_1_54
         bool "Waveshare ESP32-S3-ePaper-1.54"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_RLCD_4_2
+        bool "Waveshare ESP32-S3-RLCD-4.2"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5B
         bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
@@ -330,6 +347,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MOVECALL_MOJI_ESP32S3
         bool "Movecall Moji 小智AI衍生版"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MOVECALL_MOJI2_ESP32C5
+        bool "Movecall Moji2.0 小智AI衍生版"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_MOVECALL_CUICAN_ESP32S3
         bool "Movecall CuiCan 璀璨·AI吊坠"
         depends on IDF_TARGET_ESP32S3
@@ -576,7 +596,9 @@ choice DISPLAY_STYLE
 
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
-        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3
+        depends on BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_3 \
+            || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3 \
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
 
 choice WAKE_WORD_TYPE
@@ -654,7 +676,7 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83\
         || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
-        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49)
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_S3_RLCD_4_2)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
@@ -671,18 +693,35 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+menu "WiFi Configuration Method"
+    help
+        WiFi Configuration Method Selection
+    config USE_HOTSPOT_WIFI_PROVISIONING
+        bool "Hotspot"
+        default y
+        help
+            Use WiFi Hotspot to transmit WiFi configuration data
+    config USE_ACOUSTIC_WIFI_PROVISIONING
+        bool "Acoustic"
+        help
+            Use audio signal to transmit WiFi configuration data
+
+    config USE_ESP_BLUFI_WIFI_PROVISIONING
+        bool "Esp Blufi"
+        help
+            Use esp blufi protocol to transmit WiFi configuration data
+        select BT_ENABLED
+        select BT_BLE_42_FEATURES_SUPPORTED
+        select BT_BLE_BLUFI_ENABLE
+        select MBEDTLS_DHM_C
+endmenu
+
 config AUDIO_DEBUG_UDP_SERVER
     string "Audio Debug UDP Server Address"
     default "192.168.2.100:8000"
     depends on USE_AUDIO_DEBUGGER
     help
         UDP server address, format: IP:PORT, used to receive audio debugging data
-
-config USE_ACOUSTIC_WIFI_PROVISIONING
-    bool "Enable Acoustic WiFi Provisioning"
-    default n
-    help
-        Enable acoustic WiFi provisioning, use audio signal to transmit WiFi configuration data
 
 config RECEIVE_CUSTOM_MESSAGE
     bool "Enable Custom Message Reception"
@@ -694,7 +733,7 @@ menu "Camera Configuration"
     depends on !IDF_TARGET_ESP32
 
     comment "Warning: Please read the help text before modifying these settings."
-    
+
     config XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
         bool "Allow JPEG Input"
         default n

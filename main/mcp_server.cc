@@ -159,9 +159,7 @@ void McpServer::AddUserOnlyTools() {
             
             auto& app = Application::GetInstance();
             app.Schedule([url, &app]() {
-                auto ota = std::make_unique<Ota>();
-                
-                bool success = app.UpgradeFirmware(*ota, url);
+                bool success = app.UpgradeFirmware(url);
                 if (!success) {
                     ESP_LOGE(TAG, "Firmware upgrade failed");
                 }

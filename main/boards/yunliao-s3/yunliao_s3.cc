@@ -1,22 +1,22 @@
-#include "lvgl_theme.h"
-#include "dual_network_board.h"
-#include "codecs/es8388_audio_codec.h"
-#include "display/lcd_display.h"
-#include "application.h"
-#include "button.h"
-#include "config.h"
-#include "power_save_timer.h"
-#include "power_manager.h"
-#include "assets/lang_config.h"
-#include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
-
+#include <esp_log.h>
+#include "settings.h"
+#include "application.h"
+#include "assets/lang_config.h"
+#include "button.h"
+#include "codecs/es8388_audio_codec.h"
+#include "config.h"
+#include "display/lcd_display.h"
+#include "dual_network_board.h"
+#include "lvgl_theme.h"
+#include "power_manager.h"
+#include "power_save_timer.h"
+#include "mcp_server.h"
 
 #define TAG "YunliaoS3"
 
 class YunliaoS3 : public DualNetworkBoard {
-private:
+   private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     SpiLcdDisplay* display_;
@@ -50,9 +50,10 @@ private:
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
+            .flags =
+                {
+                    .enable_internal_pullup = 1,
+                },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
@@ -64,8 +65,10 @@ private:
         buscfg.sclk_io_num = DISPLAY_SPI_PIN_SCLK;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(DISPLAY_SPI_LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        buscfg.max_transfer_sz =
+            DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
+        ESP_ERROR_CHECK(
+            spi_bus_initialize(DISPLAY_SPI_LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
     void InitializeButtons() {
@@ -77,23 +80,26 @@ private:
         boot_button_.OnDoubleClick([this]() {
             ESP_LOGI(TAG, "Button OnDoubleClick");
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
             }
-        });  
-        boot_button_.OnMultipleClick([this]() {
-            ESP_LOGI(TAG, "Button OnThreeClick");
-            if (GetNetworkType() == NetworkType::WIFI) {
-                auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                wifi_board.ResetWifiConfiguration();
-            }
-        },3);  
+        });
+        boot_button_.OnMultipleClick(
+            [this]() {
+                ESP_LOGI(TAG, "Button OnThreeClick");
+                if (GetNetworkType() == NetworkType::WIFI) {
+                    auto& wifi_board =
+                        static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.EnterWifiConfigMode();
+                }
+            }, 3);
         boot_button_.OnLongPress([this]() {
             ESP_LOGI(TAG, "Button LongPress to Sleep");
             display_->SetStatus(Lang::Strings::PLEASE_WAIT);
             vTaskDelay(pdMS_TO_TICKS(2000));
             power_manager_->Sleep();
-        });    
+        });
     }
     void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
@@ -108,19 +114,23 @@ private:
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(DISPLAY_SPI_LCD_HOST, &io_config, &panel_io));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(DISPLAY_SPI_LCD_HOST,
+                                                 &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片ST7789
         ESP_LOGD(TAG, "Install LCD driver");
+        Settings settings("display", false);
+        bool currentIpsMode = settings.GetBool("ips_mode", DISPLAY_INVERT_COLOR);
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_SPI_PIN_LCD_RST;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER_COLOR;
         panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        
+        ESP_ERROR_CHECK(
+            esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
+        esp_lcd_panel_invert_color(panel, currentIpsMode);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH,
@@ -133,12 +143,50 @@ private:
             display_->SetTheme(theme);
         }
     }
+    void InitializeTools(){
+        auto& mcp_server = McpServer::GetInstance();
+        
+        mcp_server.AddTool("self.system.set_aec",
+            "Enable or disable voice interruption mode (AEC:Acoustic Echo Cancellation). When enabled, the device can detect voice interruptions and respond accordingly.",
+            PropertyList({
+                Property("enable", kPropertyTypeBoolean)
+            }), [this](const PropertyList& properties) {
+                bool enable = properties["enable"].value<bool>();
+                SetAecMode(enable);
+                return true;
+            });
 
-public:
-    YunliaoS3() :
-        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0),
-        boot_button_(BOOT_BUTTON_PIN),
-        power_manager_(new PowerManager()){
+        mcp_server.AddTool("self.system.switch_TFT",
+            "Switch TFT display mode between normal and inverted colors. This will toggle the IPS mode and reboot the device.",
+            PropertyList(), [this](const PropertyList& properties) {
+                SwitchTFT();
+                return true;
+            });
+    }
+    void SetAecMode(bool enable) {
+        AecMode newMode = enable ? kAecOnDeviceSide : kAecOff;
+        auto& app = Application::GetInstance();
+        app.StopListening();
+        app.SetDeviceState(kDeviceStateIdle);
+        app.SetAecMode(newMode);
+        Settings settings("aec", true);
+        settings.SetInt("mode", newMode);
+    }
+    void SwitchTFT() {
+        Settings settings("display", true);
+        bool currentIpsMode = settings.GetBool("ips_mode", false);
+        settings.SetBool("ips_mode", !currentIpsMode);
+        ESP_LOGI(TAG, "IPS mode toggled to %s", !currentIpsMode ? "enabled" : "disabled");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        auto& app = Application::GetInstance();
+        app.Reboot();
+    }
+
+   public:
+    YunliaoS3()
+        : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0),
+          boot_button_(BOOT_BUTTON_PIN),
+          power_manager_(new PowerManager()) {
         power_manager_->Start5V();
         power_manager_->Initialize();
         InitializeI2c();
@@ -147,7 +195,7 @@ public:
         InitializeSpi();
         InitializeSt7789Display();
         power_manager_->OnChargingStatusDisChanged([this](bool is_discharging) {
-            if(power_save_timer_){
+            if (power_save_timer_) {
                 if (is_discharging) {
                     power_save_timer_->SetEnabled(true);
                 } else {
@@ -155,57 +203,52 @@ public:
                 }
             }
         });
-        if(GetNetworkType() == NetworkType::WIFI){
+        if (GetNetworkType() == NetworkType::WIFI) {
             power_manager_->Shutdown4G();
-        }else{
+        } else {
             power_manager_->Start4G();
         }
         GetBacklight()->RestoreBrightness();
-        while(gpio_get_level(BOOT_BUTTON_PIN) == 0){
+        while (gpio_get_level(BOOT_BUTTON_PIN) == 0) {
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         InitializeButtons();
+        Settings settings("aec", false);
+        auto& app = Application::GetInstance();
+        app.SetAecMode(settings.GetInt("mode",kAecOnDeviceSide) == kAecOnDeviceSide ? kAecOnDeviceSide : kAecOff);
+        InitializeTools();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
         static Es8388AudioCodec audio_codec(
-            codec_i2c_bus_, 
-            I2C_NUM_0, 
-            AUDIO_INPUT_SAMPLE_RATE, 
-            AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, 
-            AUDIO_I2S_GPIO_BCLK, 
-            AUDIO_I2S_GPIO_WS, 
-            AUDIO_I2S_GPIO_DOUT, 
-            AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, 
-            AUDIO_CODEC_ES8388_ADDR,
-            AUDIO_INPUT_REFERENCE
-        );
+            codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE,
+            AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
+            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
+            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8388_ADDR, AUDIO_INPUT_REFERENCE);
         return &audio_codec;
     }
 
-    virtual Display* GetDisplay() override {
-        return display_;
-    }
-    
+    virtual Display* GetDisplay() override { return display_; }
+
     virtual Backlight* GetBacklight() override {
-        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN,
+                                      DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
 
-    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging,
+                                 bool& discharging) override {
         level = power_manager_->GetBatteryLevel();
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        DualNetworkBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveLevel(level);
     }
 };
 

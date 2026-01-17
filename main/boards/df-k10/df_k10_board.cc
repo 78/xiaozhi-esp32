@@ -15,7 +15,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 
 #include "esp_io_expander_tca95xx_16bit.h"
 
@@ -85,12 +84,17 @@ private:
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Print state failed: %s", esp_err_to_name(ret));
         }
-        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0,
-                                                                    IO_EXPANDER_OUTPUT);
+
+        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, IO_EXPANDER_OUTPUT);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Set direction failed: %s", esp_err_to_name(ret));
         }
-        ret = esp_io_expander_set_level(io_expander, 0, 1);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 0);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Set level failed: %s", esp_err_to_name(ret));
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 1);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Set level failed: %s", esp_err_to_name(ret));
         }
@@ -119,8 +123,9 @@ private:
         iot_button_register_cb(btn_a, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         }, this);
@@ -149,8 +154,9 @@ private:
         iot_button_register_cb(btn_b, BUTTON_SINGLE_CLICK, nullptr, [](void* button_handle, void* usr_data) {
             auto self = static_cast<Df_K10Board*>(usr_data);
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                self->ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                self->EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         }, this);

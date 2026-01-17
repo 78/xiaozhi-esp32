@@ -12,7 +12,6 @@
 #include "config.h"
 #include "esp32_camera.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <inttypes.h>
 #include <driver/i2c_master.h>
@@ -81,10 +80,12 @@ private:
         boot_button_.OnClick([this]()
                              {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
-            app.ToggleChatState(); });
+            app.ToggleChatState();
+        });
     }
 
     void InitializeTouch()
