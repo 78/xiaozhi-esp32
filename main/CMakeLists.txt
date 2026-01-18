@@ -737,6 +737,18 @@ idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
+                    REQUIRES
+                        esp_pm
+                        esp_psram
+                        esp_driver_gpio
+                        esp_driver_uart
+                        esp_driver_spi
+                        esp_driver_i2c
+                        esp_driver_i2s
+                        esp_app_format
+                        app_update
+                        spi_flash
+                        efuse
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
