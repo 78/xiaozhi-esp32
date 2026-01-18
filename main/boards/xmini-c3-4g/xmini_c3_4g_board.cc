@@ -10,6 +10,7 @@
 #include "sleep_timer.h"
 #include "adc_battery_monitor.h"
 #include "press_to_talk_mcp_tool.h"
+#include "assets/lang_config.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -32,7 +33,7 @@ private:
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
 
     void InitializeBatteryMonitor() {
-        adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_4, 100000, 100000, GPIO_NUM_12);
+        adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_4, 100000, 100000, CHARGING_PIN);
         adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
                 sleep_timer_->SetEnabled(false);
@@ -88,6 +89,8 @@ private:
     }
 
     void InitializeSsd1306Display() {
+        // display_ = new NoDisplay();
+        // return;
         // SSD1306 config
         esp_lcd_panel_io_i2c_config_t io_config = {
             .dev_addr = 0x3C,
@@ -137,6 +140,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
+            // app.PlaySound(Lang::Sounds::OGG_BOOT);
             if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
                 app.ToggleChatState();
             }

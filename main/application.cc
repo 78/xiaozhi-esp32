@@ -243,7 +243,7 @@ void Application::DismissAlert() {
     if (device_state_ == kDeviceStateIdle) {
         auto display = Board::GetInstance().GetDisplay();
         display->SetStatus(Lang::Strings::STANDBY);
-        display->SetEmotion("neutral");
+display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
     }
 }
@@ -338,7 +338,7 @@ void Application::StopListening() {
     // If not valid, do nothing
     if (std::find(valid_states.begin(), valid_states.end(), device_state_) == valid_states.end()) {
         return;
-    }
+}
 
     Schedule([this]() {
         if (device_state_ == kDeviceStateListening) {
@@ -362,6 +362,9 @@ void Application::Start() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
+
+    // 播放开机音效 - 移到AudioService初始化之后
+    audio_service_.PlaySound(Lang::Sounds::OGG_START);
 
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {
@@ -514,7 +517,7 @@ void Application::Start() {
                 Alert(status->valuestring, message->valuestring, emotion->valuestring, Lang::Sounds::OGG_VIBRATION);
             } else {
                 ESP_LOGW(TAG, "Alert command requires status, message and emotion");
-            }
+}
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -541,8 +544,8 @@ void Application::Start() {
         std::string message = std::string(Lang::Strings::VERSION) + ota.GetCurrentVersion();
         display->ShowNotification(message.c_str());
         display->SetChatMessage("system", "");
-        // Play the success sound to indicate the device is ready
-        audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
+        // Play the network ok sound to indicate the device is connected
+        audio_service_.PlaySound(Lang::Sounds::OGG_NET_OK);
     }
 }
 
@@ -633,7 +636,7 @@ void Application::OnWakeWordDetected() {
 
         auto wake_word = audio_service_.GetLastWakeWord();
         ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_SEND_WAKE_WORD_DATA
+#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD
         // Encode and send the wake word data to the server
         while (auto packet = audio_service_.PopWakeWordPacket()) {
             protocol_->SendAudio(std::move(packet));
@@ -643,8 +646,8 @@ void Application::OnWakeWordDetected() {
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
 #else
         SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-        // Play the pop up sound to indicate the wake word is detected
-        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+        // Play the wake sound to indicate the wake word is detected
+        audio_service_.PlaySound(Lang::Sounds::OGG_WAKE);
 #endif
     } else if (device_state_ == kDeviceStateSpeaking) {
         AbortSpeaking(kAbortReasonWakeWordDetected);
@@ -716,7 +719,12 @@ void Application::SetDeviceState(DeviceState state) {
                 // Only AFE wake word can be detected in speaking mode
                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
-            audio_service_.ResetDecoder();
+            
+            // 只有在不是播放系统音效时才重置解码器
+            // 避免在播放boot.ogg等系统音效时中断播放
+            if (previous_state != kDeviceStateIdle) {
+                audio_service_.ResetDecoder();
+            }
             break;
         default:
             // Do nothing

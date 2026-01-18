@@ -1,6 +1,8 @@
 #include "es8311_audio_codec.h"
+#include "settings.h"  // 添加Settings类头文件
 
 #include <esp_log.h>
+#include <cmath>  // 添加数学库头文件，用于sqrt和pow函数
 
 #define TAG "Es8311AudioCodec"
 
@@ -55,6 +57,21 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
         ESP_LOGE(TAG, "Failed to create Es8311AudioCodec");
     } else {
         ESP_LOGI(TAG, "Es8311AudioCodec initialized");
+        
+        // 系统启动时自动加载之前保存的音量设置
+        Settings settings("audio", true);
+        int saved_volume = settings.GetInt("output_volume", output_volume_);
+        
+        // 应用映射后的音量到设备
+        if (saved_volume != output_volume_) {
+            output_volume_ = saved_volume;
+            ESP_LOGI(TAG, "Loaded saved volume: %d", output_volume_);
+            
+            // 确保设备已初始化并应用音量
+            UpdateDeviceState();
+            // 修复：移除重复的音量设置，因为UpdateDeviceState已经处理了
+            // 原来的重复设置逻辑会导致设备初始化时音量被覆盖
+        }
     }
 }
 
@@ -86,7 +103,11 @@ void Es8311AudioCodec::UpdateDeviceState() {
         };
         ESP_ERROR_CHECK(esp_codec_dev_open(dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, input_gain_));
-        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, output_volume_));
+        
+        // 修复：使用映射后的音量值而不是原始值
+        int mapped_volume = MapVolumeForBetterLinearity(output_volume_);
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, mapped_volume));
+        ESP_LOGI(TAG, "Device initialized with volume: %d (mapped to %d)", output_volume_, mapped_volume);
     } else if (!input_enabled_ && !output_enabled_ && dev_ != nullptr) {
         esp_codec_dev_close(dev_);
         dev_ = nullptr;
@@ -154,8 +175,52 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 }
 
 void Es8311AudioCodec::SetOutputVolume(int volume) {
-    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, volume));
-    AudioCodec::SetOutputVolume(volume);
+    // 确保设备已初始化
+    if (dev_ == nullptr) {
+        ESP_LOGE(TAG, "Audio device not initialized, calling UpdateDeviceState");
+        UpdateDeviceState();
+        if (dev_ == nullptr) {
+            ESP_LOGE(TAG, "Failed to initialize audio device");
+            return;
+        }
+    }
+    
+    // 自定义音量映射函数，让前60%的音量变化更明显
+    int mapped_volume = MapVolumeForBetterLinearity(volume);
+    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, mapped_volume));
+    
+    // 更新基类的音量值
+    output_volume_ = volume;
+    ESP_LOGI(TAG, "Set output volume to %d (mapped to %d)", output_volume_, mapped_volume);
+    
+    // 保存设置到配置文件
+    Settings settings("audio", true);
+    settings.SetInt("output_volume", output_volume_);
+}
+
+// 新增音量映射函数 - 极强版本
+// 新增音量映射函数 - 大幅差异化版本
+int Es8311AudioCodec::MapVolumeForBetterLinearity(int volume) {
+    if (volume <= 50) {
+        // 前50%使用极强放大：y = (x/50)^0.05 * 70
+        // 0.05次方会让低音量部分极大幅提升，50%时达到70%
+        double normalized = volume / 50.0;
+        double mapped = std::pow(normalized, 0.1); // 使用0.05次方极大幅放大低音量
+        return (int)(mapped * 70);
+    } else if (volume <= 60) {
+        // 50-60%线性过渡到80%
+        double normalized = (volume - 50) / 10.0;
+        return 70 + (int)(normalized * 10);
+    } else if (volume <= 90) {
+        // 60-90%使用线性过渡：y = 80 + (x-60)/30 * 15
+        double normalized = (volume - 60) / 30.0;
+        return 80 + (int)(normalized * 15);
+    } else {
+        // 90-100%使用0.8次方平滑过渡：y = 95 + (x-90)/10 * 5
+        double normalized = (volume - 90) / 10.0;
+        double mapped = std::pow(normalized, 0.8);
+        return 95 + (int)(mapped * 5);
+    }
 }
 
 void Es8311AudioCodec::EnableInput(bool enable) {

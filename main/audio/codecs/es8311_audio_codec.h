@@ -24,6 +24,7 @@ private:
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
     void UpdateDeviceState();
+    int MapVolumeForBetterLinearity(int volume);  // 新增音量映射函数声明
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;

@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "https://api.tenclass.net/xiaozhi/ota/"
+    default "http://58.59.40.154:8001/xiaozhi/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
@@ -117,6 +117,9 @@ choice BOARD_TYPE
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
+    config BOARD_TYPE_ALLAN_TEST
+        bool "BOARD ALLAN TEST(我的测试板)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "Bread Compact WiFi (面包板)"
         depends on IDF_TARGET_ESP32S3
@@ -491,7 +494,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_ALLAN_TEST ||BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_WAVESHARE_P4_NANO || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help

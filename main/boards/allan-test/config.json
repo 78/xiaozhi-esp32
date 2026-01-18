@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "allan-test",
+            "sdkconfig_append": []
+        }
+    ]
+}
