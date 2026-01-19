@@ -13,7 +13,9 @@ enum DeviceState {
     kDeviceStateActivating,
     kDeviceStateAudioTesting,
     kDeviceStateStreaming,
+    kDeviceStateQuiz,
     kDeviceStateFatalError
 };
+
 
 #endif // _DEVICE_STATE_H_ 

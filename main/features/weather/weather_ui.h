@@ -4,6 +4,10 @@
 #include "weather_model.h"
 #include <lvgl.h>
 
+#ifdef CONFIG_QUIZ_ENABLE
+#include "application.h"
+#endif
+
 class WeatherUI
 {
 public:
@@ -43,6 +47,11 @@ private:
 
     lv_obj_t *pm25_label_;
     lv_obj_t *pm25_icon_label_;
+
+#ifdef CONFIG_QUIZ_ENABLE
+    lv_obj_t *quiz_button_;
+    lv_obj_t *quiz_icon_;
+#endif
 
     int screen_width_;
     int screen_height_;

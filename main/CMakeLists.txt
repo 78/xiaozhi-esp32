@@ -48,6 +48,16 @@ if(CONFIG_USE_ERA_SMART_HOME)
     list(APPEND SOURCES "era_iot_client.cc")
 endif()
 
+# Quiz feature sources
+if(CONFIG_QUIZ_ENABLE)
+    list(APPEND SOURCES 
+        "features/quiz/quiz_manager.cc"
+        "features/quiz/quiz_ui.cc"
+    )
+    list(APPEND INCLUDE_DIRS "features/quiz")
+endif()
+
+
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols" "features/weather" "music")
 
 # Add board common files

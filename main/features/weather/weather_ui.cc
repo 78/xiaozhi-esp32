@@ -253,6 +253,39 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     // We will just create it but hide it to avoid null pointer crashes in UpdateIdleDisplay
     pm25_label_ = lv_label_create(uv_box);
     lv_obj_add_flag(pm25_label_, LV_OBJ_FLAG_HIDDEN);
+
+#ifdef CONFIG_QUIZ_ENABLE
+    // --- Quiz Button (Corner floating button) ---
+    quiz_button_ = lv_btn_create(idle_panel_);
+    lv_obj_set_size(quiz_button_, 40, 40);
+    lv_obj_align(quiz_button_, LV_ALIGN_BOTTOM_RIGHT, -10, -100);  // Above bottom grid
+    lv_obj_set_style_bg_color(quiz_button_, COLOR_NEON_GREEN, 0);
+    lv_obj_set_style_bg_opa(quiz_button_, LV_OPA_80, 0);
+    lv_obj_set_style_radius(quiz_button_, 20, 0);  // Circle
+    lv_obj_set_style_shadow_width(quiz_button_, 12, 0);
+    lv_obj_set_style_shadow_color(quiz_button_, COLOR_NEON_GREEN, 0);
+    lv_obj_set_style_shadow_spread(quiz_button_, 2, 0);
+    lv_obj_set_style_shadow_opa(quiz_button_, LV_OPA_50, 0);
+    lv_obj_set_style_border_width(quiz_button_, 0, 0);
+    
+    // Pressed style
+    lv_obj_set_style_bg_color(quiz_button_, lv_color_darken(COLOR_NEON_GREEN, LV_OPA_30), LV_STATE_PRESSED);
+    
+    // Quiz icon (book/document icon)
+    quiz_icon_ = lv_label_create(quiz_button_);
+    lv_obj_set_style_text_font(quiz_icon_, &BUILTIN_ICON_FONT, 0);
+    lv_obj_set_style_text_color(quiz_icon_, lv_color_hex(0x000000), 0);  // Black text on green
+    lv_label_set_text(quiz_icon_, "\uf02d");  // FA book icon
+    lv_obj_center(quiz_icon_);
+    
+    // Button click handler
+    lv_obj_add_event_cb(quiz_button_, [](lv_event_t* e) {
+        ESP_LOGI(TAG, "Quiz button pressed, starting quiz mode");
+        Application::GetInstance().Schedule([]() {
+            Application::GetInstance().StartQuizMode();
+        });
+    }, LV_EVENT_CLICKED, NULL);
+#endif
 }
 
 void WeatherUI::ShowIdleCard(const IdleCardInfo &info)

@@ -788,6 +788,22 @@ void McpServer::AddCommonTools()
             });
 #endif
 
+
+
+#ifdef CONFIG_QUIZ_ENABLE
+    AddTool("self.quiz.start",
+            "Start the quiz mode. Use this tool when the user asks to start a quiz, play a game, or checking knowledge.",
+            PropertyList(),
+            [](const PropertyList &properties) -> ReturnValue
+            {
+                // Schedule this on the main thread to safely interact with UI
+                Application::GetInstance().Schedule([]() {
+                    Application::GetInstance().StartQuizMode();
+                });
+                return "{\"success\": true, \"message\": \"Quiz mode started\"}";
+            });
+#endif
+
 #ifdef HAVE_LVGL
     auto display = board.GetDisplay();
     if (display && display->GetTheme() != nullptr)

@@ -320,6 +320,10 @@ private:
     if (g_lvgl_display != NULL)
     {
       ESP_LOGI(TAG, "LVGL display handle stored for rotation control");
+      
+      // Set default rotation to 270° (landscape mode)
+      lv_display_set_rotation(g_lvgl_display, LV_DISPLAY_ROTATION_270);
+      ESP_LOGI(TAG, "🔄 Display default rotation set to 270° (landscape mode)");
     }
 
     // Add touch event callback to screen
@@ -350,7 +354,7 @@ private:
     // Double-tap detection variables
     static int64_t last_tap_time = 0;
     static const int64_t DOUBLE_TAP_WINDOW = 500000; // 500ms window for double-tap
-    static int rotation_state = 0;                   // 0=0°, 1=90°, 2=180°, 3=270°
+    static int rotation_state = 3;                   // 0=0°, 1=90°, 2=180°, 3=270° (default 270° landscape)
 
     // Two-finger detection variables
     static bool two_finger_detected = false;
@@ -671,6 +675,14 @@ public:
     InitializeLcdDisplay();
 #ifdef CONFIG_TOUCH_PANEL_ENABLE
     InitializeTouch();
+#else
+    // Set default rotation to 270° (landscape mode) even without touch
+    lv_display_t *disp = lv_display_get_default();
+    if (disp != NULL)
+    {
+      lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_270);
+      ESP_LOGI(TAG, "🔄 Display default rotation set to 270° (landscape mode)");
+    }
 #endif
     InitializeButtons();
     InitializeTools();

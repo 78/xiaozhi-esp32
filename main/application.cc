@@ -18,6 +18,11 @@
 #include "music/esp32_sd_music.h"
 #include "sd_card.h"
 
+#ifdef CONFIG_QUIZ_ENABLE
+#include "features/quiz/quiz_manager.h"
+#include "features/quiz/quiz_ui.h"
+#endif
+
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
@@ -25,6 +30,7 @@
 #include <arpa/inet.h>
 #include <font_awesome.h>
 #include <thread>
+#include <algorithm>
 
 #define TAG "Application"
 
@@ -40,6 +46,7 @@ static const char *const STATE_STRINGS[] = {
     "activating",
     "audio_testing",
     "streaming",
+    "quiz",
     "fatal_error",
     "invalid_state"};
 
@@ -589,8 +596,16 @@ void Application::Start()
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                Schedule([this, display, message = std::string(text->valuestring)]() {
-                    display->SetChatMessage("user", message.c_str());
+                std::string stt_text = text->valuestring;
+                Schedule([this, display, stt_text]() {
+                    display->SetChatMessage("user", stt_text.c_str());
+                    
+#ifdef CONFIG_QUIZ_ENABLE
+                    // Check for quiz keywords or answers
+                    if (HandleQuizVoiceInput(stt_text)) {
+                        return; // Handled by quiz system
+                    }
+#endif
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -963,6 +978,17 @@ void Application::SetDeviceState(DeviceState state)
         // Disable voice processing and wake word during WiFi config
         audio_service_.EnableVoiceProcessing(false);
         audio_service_.EnableWakeWordDetection(false);
+        break;
+    case kDeviceStateQuiz:
+        display->SetStatus("Quiz Mode");
+        display->SetEmotion("neutral");
+        // Keep wake word detection for quiz voice answers
+        audio_service_.EnableVoiceProcessing(false);
+#ifdef CONFIG_QUIZ_VOICE_ANSWER
+        audio_service_.EnableWakeWordDetection(true);
+#else
+        audio_service_.EnableWakeWordDetection(false);
+#endif
         break;
     default:
         // Do nothing
@@ -1369,3 +1395,275 @@ void Application::UpdateIdleDisplay()
     }
 #endif
 }
+
+// ==================== Quiz Mode Implementation ====================
+#ifdef CONFIG_QUIZ_ENABLE
+
+void Application::StartQuizMode(const std::string& quiz_file)
+{
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+    
+    // Create quiz manager if not exists
+    if (!quiz_manager_) {
+        quiz_manager_ = std::make_unique<QuizManager>();
+        
+        // Create UI if not exists
+        if (!quiz_ui_) {
+            quiz_ui_ = std::make_unique<QuizUI>();
+        }
+        
+        // Setup UI
+        // Note: We need to cast display to lv_obj_t* parent. 
+        // Assuming GetDisplay() returns a Display* which wraps the LVGL object.
+        // If display->GetLvglScreen() or similar exists, use that.
+        // Looking at display implementation, usually we can get the active screen from LVGL directly
+        // or the Display class handles it.
+        // For now, let's assume we can get the active screen using lv_scr_act() if display doesn't provide it
+        // Or if SetupQuizUI takes the raw display object.
+        // Checking quiz_ui.cc: void SetupQuizUI(lv_obj_t* parent, int width, int height);
+        
+        quiz_ui_->SetupQuizUI(lv_scr_act(), display->width(), display->height());
+        
+        // Connect UI callbacks
+        quiz_ui_->SetOnAnswerPress([this](char answer) {
+            ESP_LOGI(TAG, "UI Answer pressed: %c", answer);
+            if (quiz_manager_) {
+                quiz_manager_->SubmitAnswer(answer);
+            }
+        });
+
+        // Set up callbacks
+        quiz_manager_->SetOnQuestionReady([this, display](const QuizQuestion& question) {
+            Schedule([this, display, question]() {
+                // Hide emoji during quiz mode
+                display->SetEmotion("");
+                
+                // Show question on UI
+                if (quiz_ui_) {
+                    int total = quiz_manager_->GetTotalQuestions();
+                    quiz_ui_->ShowQuestion(question, question.question_number - 1, total);
+                }
+                
+                display->SetChatMessage("system", ""); // Clear chat message as we use custom UI
+                
+                // Build TTS text: question + options
+                std::string tts_text = "Câu " + std::to_string(question.question_number) + ". ";
+                tts_text += question.question_text + ". ";
+                tts_text += "A: " + question.options[0] + ". ";
+                tts_text += "B: " + question.options[1] + ". ";
+                tts_text += "C: " + question.options[2] + ". ";
+                tts_text += "D: " + question.options[3] + ".";
+                
+                // Use SendText to trigger server-side TTS (treated as user prompt to read aloud)
+                if (protocol_ && protocol_->IsAudioChannelOpened()) {
+                    // Send a natural language "Read this" command
+                    std::string prompt = "Hãy đọc to và chậm rãi nội dung sau đây để người dùng làm trắc nghiệm: " + tts_text;
+                    protocol_->SendText(prompt);
+                }
+                
+                ESP_LOGI(TAG, "Quiz Q%d displayed", question.question_number);
+            });
+        });
+        
+        quiz_manager_->SetOnAnswerChecked([this, display](const UserAnswer& answer, bool is_last) {
+            Schedule([this, display, answer, is_last]() {
+                
+                // Show feedback on UI
+                if (quiz_ui_) {
+                    quiz_ui_->ShowAnswerFeedback(answer.selected_answer, answer.correct_answer, answer.is_correct);
+                }
+                
+                ESP_LOGI(TAG, "Answer: %c, Correct: %c, Result: %s", 
+                         answer.selected_answer, answer.correct_answer,
+                         answer.is_correct ? "CORRECT" : "WRONG");
+                
+                if (!is_last) {
+                    // Wait then move to next question
+                    // Use a timer or delay in a separate task to avoid blocking main loop
+                     xTaskCreate([](void* arg) {
+                        vTaskDelay(pdMS_TO_TICKS(2000));
+                        Application::GetInstance().Schedule([]() {
+                             auto manager = Application::GetInstance().GetQuizManager();
+                             if (manager) manager->NextQuestion();
+                        });
+                        vTaskDelete(NULL);
+                    }, "quiz_delay", 2048, NULL, 5, NULL);
+                }
+            });
+        });
+        
+        quiz_manager_->SetOnQuizComplete([this, display](const QuizSession& session) {
+            Schedule([this, display, &session]() {
+                
+                std::string summary = quiz_manager_->GenerateResultSummary();
+                
+                // Show results on UI
+                if (quiz_ui_) {
+                    std::string details = ""; // You can format details here if needed
+                    auto wrong_answers = quiz_manager_->GetWrongAnswers();
+                    for (const auto& wa : wrong_answers) {
+                        details += "Câu " + std::to_string(wa.question_number) + ": " + 
+                                   std::string(1, wa.correct_answer) + "\n";
+                    }
+                    if (details.empty()) details = "Xuất sắc!";
+                    
+                    quiz_ui_->ShowResults(session.GetCorrectCount(), session.questions.size(), details);
+                }
+                
+                // Speak results
+                if (protocol_ && protocol_->IsAudioChannelOpened()) {
+                    std::string prompt = "Hãy đọc thông báo kết quả sau: " + summary;
+                    protocol_->SendText(prompt);
+                }
+                
+                ESP_LOGI(TAG, "Quiz complete! Score: %d/%d", 
+                         session.GetCorrectCount(), static_cast<int>(session.questions.size()));
+                
+                // Return to idle after showing results
+                 xTaskCreate([](void* arg) {
+                    vTaskDelay(pdMS_TO_TICKS(10000));
+                    Application::GetInstance().Schedule([]() {
+                         Application::GetInstance().StopQuizMode();
+                    });
+                    vTaskDelete(NULL);
+                }, "quiz_finish", 2048, NULL, 5, NULL);
+            });
+        });
+        
+        quiz_manager_->SetOnError([this, display](const std::string& error) {
+            Schedule([this, display, error]() {
+                display->SetChatMessage("system", error.c_str());
+                Alert(Lang::Strings::ERROR, error.c_str(), "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+                StopQuizMode();
+            });
+        });
+    }
+    
+    // Find quiz file
+    std::string file_path = quiz_file;
+    if (file_path.empty()) {
+        // Find first available quiz file
+        auto files = QuizManager::FindQuizFiles();
+        if (files.empty()) {
+            Alert(Lang::Strings::ERROR, "Không tìm thấy file quiz trên thẻ nhớ!", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+            return;
+        }
+        file_path = files[0];
+    }
+    
+    ESP_LOGI(TAG, "Starting Quiz Mode with file: %s", file_path.c_str());
+    
+    SetDeviceState(kDeviceStateQuiz);
+    //display->SetStatus("Loading Quiz..."); // UI will handle this
+    audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    
+    if (quiz_ui_) quiz_ui_->Show();
+
+    if (!quiz_manager_->StartQuiz(file_path)) {
+        Alert(Lang::Strings::ERROR, "Không thể mở file quiz!", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+        SetDeviceState(kDeviceStateIdle);
+        return;
+    }
+}
+
+void Application::StopQuizMode()
+{
+    if (quiz_manager_) {
+        quiz_manager_->StopQuiz();
+    }
+    
+    if (quiz_ui_) {
+        quiz_ui_->Hide();
+        // Don't delete it immediately to avoid reallocation if restarted, 
+        // or delete it if you want to save RAM. 
+        // For now, let's keep it but hide it.
+        // Actually, to be safe and save RAM:
+        quiz_ui_.reset(); 
+    }
+    
+    SetDeviceState(kDeviceStateIdle);
+    
+    auto display = Board::GetInstance().GetDisplay();
+    display->SetStatus(Lang::Strings::STANDBY);
+    display->SetChatMessage("system", "");
+}
+
+bool Application::HandleQuizVoiceInput(const std::string& text)
+{
+    // Check for quiz trigger keywords (Vietnamese)
+    static const std::vector<std::string> quiz_keywords = {
+        "tài liệu", "tai lieu",
+        "kiểm tra", "kiem tra",
+        "làm bài tập", "lam bai tap",
+        "bài tập", "bai tap",
+        "làm quiz", "lam quiz",
+        "quiz", "test"
+    };
+    
+    // Convert text to lowercase for comparison
+    std::string lower_text = text;
+    std::transform(lower_text.begin(), lower_text.end(), lower_text.begin(), ::tolower);
+    
+    // If in idle state, check for quiz trigger
+    if (device_state_ == kDeviceStateIdle) {
+        for (const auto& keyword : quiz_keywords) {
+            if (lower_text.find(keyword) != std::string::npos) {
+                ESP_LOGI(TAG, "Quiz trigger keyword detected: %s", keyword.c_str());
+                StartQuizMode();
+                return true;
+            }
+        }
+    }
+    
+    // If in quiz mode, check for answer input
+    if (device_state_ == kDeviceStateQuiz && quiz_manager_ && quiz_manager_->IsActive()) {
+        // Check for answer patterns
+        static const std::vector<std::pair<std::string, char>> answer_patterns = {
+            {"đáp án a", 'A'}, {"dap an a", 'A'}, {"chọn a", 'A'}, {"chon a", 'A'}, {" a ", 'A'}, {"câu a", 'A'},
+            {"đáp án b", 'B'}, {"dap an b", 'B'}, {"chọn b", 'B'}, {"chon b", 'B'}, {" b ", 'B'}, {"câu b", 'B'},
+            {"đáp án c", 'C'}, {"dap an c", 'C'}, {"chọn c", 'C'}, {"chon c", 'C'}, {" c ", 'C'}, {"câu c", 'C'},
+            {"đáp án d", 'D'}, {"dap an d", 'D'}, {"chọn d", 'D'}, {"chon d", 'D'}, {" d ", 'D'}, {"câu d", 'D'},
+        };
+        
+        // Pad with spaces for single letter detection
+        std::string padded_text = " " + lower_text + " ";
+        
+        for (const auto& pattern : answer_patterns) {
+            if (padded_text.find(pattern.first) != std::string::npos) {
+                ESP_LOGI(TAG, "Quiz answer detected: %c", pattern.second);
+                quiz_manager_->SubmitAnswer(pattern.second);
+                
+                // Schedule next question
+                Schedule([this]() {
+                    vTaskDelay(pdMS_TO_TICKS(1500));
+                    if (quiz_manager_ && quiz_manager_->IsActive()) {
+                        quiz_manager_->NextQuestion();
+                    }
+                });
+                return true;
+            }
+        }
+        
+        // Also check for single letters at start or end
+        if (!lower_text.empty()) {
+            char first = lower_text.front();
+            if (first >= 'a' && first <= 'd' && lower_text.length() <= 3) {
+                char answer = first - 'a' + 'A';
+                ESP_LOGI(TAG, "Quiz answer (single letter): %c", answer);
+                quiz_manager_->SubmitAnswer(answer);
+                Schedule([this]() {
+                    vTaskDelay(pdMS_TO_TICKS(1500));
+                    if (quiz_manager_ && quiz_manager_->IsActive()) {
+                        quiz_manager_->NextQuestion();
+                    }
+                });
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+#endif // CONFIG_QUIZ_ENABLE

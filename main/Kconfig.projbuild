@@ -149,6 +149,29 @@ config ENABLE_EXTRACT_DOCUMENTATION
     help
         Enable extracting documentation from SD card for MCP.
 
+config QUIZ_ENABLE
+    bool "Enable Documentation Quiz Feature"
+    default n
+    depends on SD_CARD_ENABLE
+    help
+        Enable the documentation quiz feature that reads questions from SD card
+        and allows users to answer via touch or voice.
+
+config QUIZ_MAX_QUESTIONS
+    int "Maximum questions per quiz"
+    default 50
+    depends on QUIZ_ENABLE
+    range 5 100
+    help
+        Maximum number of questions supported in a single quiz file.
+
+config QUIZ_VOICE_ANSWER
+    bool "Enable voice answer recognition"
+    default y
+    depends on QUIZ_ENABLE
+    help
+        Allow users to answer questions using voice commands (A, B, C, D).
+
 menu "ERA Smart Home Devices"
     depends on USE_ERA_SMART_HOME
 

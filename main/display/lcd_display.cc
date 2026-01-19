@@ -404,18 +404,19 @@ void LcdDisplay::SetupUI()
 
     /* Container */
     container_ = lv_obj_create(screen);
-    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_size(container_, LV_PCT(100), LV_PCT(100));  // Use percentage for rotation support
     lv_obj_set_style_radius(container_, 0, 0);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_border_color(container_, lvgl_theme->border_color(), 0);
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
+    lv_obj_set_size(status_bar_, LV_PCT(100), LV_SIZE_CONTENT);  // Use percentage for rotation support
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_text_color(status_bar_, lvgl_theme->text_color(), 0);
@@ -423,7 +424,7 @@ void LcdDisplay::SetupUI()
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
     lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_width(content_, LV_PCT(100));  // Use percentage for rotation support
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_style_pad_all(content_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(content_, 0, 0);
@@ -845,18 +846,19 @@ void LcdDisplay::SetupUI()
 
     /* Container */
     container_ = lv_obj_create(screen);
-    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_size(container_, LV_PCT(100), LV_PCT(100));  // Use percentage for rotation support
     lv_obj_set_style_radius(container_, 0, 0);
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_border_color(container_, lvgl_theme->border_color(), 0);
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
+    lv_obj_set_size(status_bar_, LV_PCT(100), LV_SIZE_CONTENT);  // Use percentage for rotation support
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_text_color(status_bar_, lvgl_theme->text_color(), 0);
@@ -867,12 +869,14 @@ void LcdDisplay::SetupUI()
     lv_obj_set_style_pad_right(status_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_flex_align(status_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_width(content_, LV_PCT(100));  // Use percentage for rotation support
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_style_pad_all(content_, 0, 0);
     lv_obj_set_style_border_width(content_, 0, 0);
@@ -886,11 +890,13 @@ void LcdDisplay::SetupUI()
     lv_obj_set_style_bg_opa(emoji_box_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_pad_all(emoji_box_, 0, 0);
     lv_obj_set_style_border_width(emoji_box_, 0, 0);
+    lv_obj_set_scrollbar_mode(emoji_box_, LV_SCROLLBAR_MODE_OFF);
 
     emoji_label_ = lv_label_create(emoji_box_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
     lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_obj_center(emoji_label_);  // Center the label inside emoji_box
 
     emoji_image_ = lv_img_create(emoji_box_);
     lv_obj_center(emoji_image_);
@@ -903,7 +909,7 @@ void LcdDisplay::SetupUI()
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, width_ * 0.9);                       // 限制宽度为屏幕宽度的 90%
+    lv_obj_set_width(chat_message_label_, LV_PCT(90));                         // Use percentage for rotation support
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);           // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);

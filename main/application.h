@@ -20,6 +20,11 @@
 class Esp32Radio;
 class Esp32SdMusic;
 
+#ifdef CONFIG_QUIZ_ENABLE
+class QuizManager;
+class QuizUI;
+#endif
+
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
 #define MAIN_EVENT_WAKE_WORD_DETECTED (1 << 2)
@@ -78,6 +83,14 @@ public:
     Esp32Radio *GetRadio() const { return radio_.get(); }
     Esp32SdMusic *GetSdMusic() const { return sd_music_.get(); }
 
+#ifdef CONFIG_QUIZ_ENABLE
+    // Quiz Mode Methods
+    void StartQuizMode(const std::string& quiz_file = "");
+    void StopQuizMode();
+    bool HandleQuizVoiceInput(const std::string& text);
+    QuizManager* GetQuizManager() const { return quiz_manager_.get(); }
+#endif
+
 private:
     Application();
     ~Application();
@@ -96,6 +109,11 @@ private:
     // Music & Radio Instances
     std::unique_ptr<Esp32Radio> radio_;
     std::unique_ptr<Esp32SdMusic> sd_music_;
+
+#ifdef CONFIG_QUIZ_ENABLE
+    std::unique_ptr<QuizManager> quiz_manager_;
+    std::unique_ptr<QuizUI> quiz_ui_;
+#endif
 
     bool has_server_time_ = false;
     bool aborted_ = false;

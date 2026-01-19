@@ -1,0 +1,19 @@
+# QUIZ: CÂU HỎI CÔNG BINH	
+# SUBJECT: QUÂN ĐỘI
+# TOTAL: 2
+
+---Q1---
+Công binh Việt Nam có nhiệm vụ chính nào sau đây?
+A. Trinh sát chiến lược
+B. Bảo đảm công trình, cầu đường trong chiến đấu
+C. Tác chiến điện tử
+D. Thông tin liên lạc
+ANSWER: B
+
+---Q2---
+Bộ đội công binh thường thực hiện nhiệm vụ nào?
+A. Phòng không
+B. Công tác hậu cần
+C. Rà phá bom mìn
+D. Quân y
+ANSWER: C
