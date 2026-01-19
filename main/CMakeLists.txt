@@ -730,6 +730,7 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              "display/lvgl_display/jpg/jpeg_to_image.c"
+                             "boards/common/nt26_board.cc"
                              )
 endif()
 
@@ -745,9 +746,11 @@ idf_component_register(SRCS ${SOURCES}
                         esp_driver_spi
                         esp_driver_i2c
                         esp_driver_i2s
+                        esp_driver_jpeg
                         esp_app_format
                         app_update
                         spi_flash
+                        console
                         efuse
                     )
 
