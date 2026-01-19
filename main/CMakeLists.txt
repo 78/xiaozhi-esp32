@@ -41,9 +41,28 @@ set(SOURCES "audio/audio_codec.cc"
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
 
 # Add board common files
-file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
-list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
+list(APPEND SOURCES
+    "boards/common/board.cc"
+    "boards/common/wifi_board.cc"
+    "boards/common/ml307_board.cc"
+    "boards/common/nt26_board.cc"
+    "boards/common/dual_network_board.cc"
+    "boards/common/adc_battery_monitor.cc"
+    "boards/common/afsk_demod.cc"
+    "boards/common/axp2101.cc"
+    "boards/common/backlight.cc"
+    "boards/common/button.cc"
+    "boards/common/esp32_camera.cc"
+    "boards/common/i2c_device.cc"
+    "boards/common/knob.cc"
+    "boards/common/power_save_timer.cc"
+    "boards/common/press_to_talk_mcp_tool.cc"
+    "boards/common/sleep_timer.cc"
+    "boards/common/sy6970.cc"
+    "boards/common/system_reset.cc"
+)
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
 # Function to find component dynamically by pattern
@@ -727,9 +746,9 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
-                             "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              "display/lvgl_display/jpg/jpeg_to_image.c"
+                             "boards/common/esp32_camera.cc"
                              "boards/common/nt26_board.cc"
                              )
 endif()
