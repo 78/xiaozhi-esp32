@@ -23,7 +23,7 @@ dependencies:
   espressif/esp_audio_codec: ~2.4.0
   78/esp-ml307: ~3.5.3
   78/uart-eth-modem:
-    version: ~0.1.0
+    version: ~0.1.3
     rules:
     - if: target in [esp32s3]
   78/xiaozhi-fonts: ~1.5.5
