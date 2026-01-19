@@ -8,6 +8,7 @@
 #include <string>
 #include <functional>
 #include <network_interface.h>
+#include <driver/gpio.h>
 
 #include "led/led.h"
 #include "backlight.h"
@@ -46,6 +47,7 @@ using NetworkEventCallback = std::function<void(NetworkEvent event, const std::s
 void* create_board();
 class AudioCodec;
 class Display;
+class RFModule;
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
@@ -57,6 +59,13 @@ protected:
 
     // 软件生成的设备唯一标识
     std::string uuid_;
+    
+#if CONFIG_BOARD_HAS_RF_PINS
+    // RF模块实例（在板子构造函数中初始化）
+    RFModule* rf_module_ = nullptr;
+    // 初始化RF模块（板子应在构造函数中调用，确保虚函数GetRFPinConfig()正常工作）
+    void InitializeRFModule();
+#endif
 
 public:
     static Board& GetInstance() {
@@ -64,7 +73,7 @@ public:
         return *instance;
     }
 
-    virtual ~Board() = default;
+    virtual ~Board();
     virtual std::string GetBoardType() = 0;
     virtual std::string GetUuid() { return uuid_; }
     virtual Backlight* GetBacklight() { return nullptr; }
@@ -82,6 +91,14 @@ public:
     virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
+    virtual RFModule* GetRFModule();
+    
+#if CONFIG_BOARD_HAS_RF_PINS
+    // 获取RF引脚配置（板子可以重写此方法提供自定义引脚）
+    // 默认实现尝试使用 config.h 中的宏定义
+    virtual bool GetRFPinConfig(gpio_num_t& tx_433, gpio_num_t& rx_433, 
+                                 gpio_num_t& tx_315, gpio_num_t& rx_315);
+#endif
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

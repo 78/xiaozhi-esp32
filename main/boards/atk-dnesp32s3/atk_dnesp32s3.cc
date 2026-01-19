@@ -189,6 +189,11 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeCamera();
+#if CONFIG_BOARD_HAS_RF_PINS
+        // Initialize RF module after constructor completes
+        // This ensures GetRFPinConfig() virtual function works correctly
+        InitializeRFModule();
+#endif
     }
 
     virtual Led* GetLed() override {
@@ -220,6 +225,21 @@ public:
     virtual Camera* GetCamera() override {
         return camera_;
     }
+    
+#if CONFIG_BOARD_HAS_RF_PINS
+    virtual bool GetRFPinConfig(gpio_num_t& tx_433, gpio_num_t& rx_433, 
+                                 gpio_num_t& tx_315, gpio_num_t& rx_315) override {
+        #ifdef RF_TX_315_PIN
+        tx_433 = RF_TX_433_PIN;
+        rx_433 = RF_RX_433_PIN;
+        tx_315 = RF_TX_315_PIN;
+        rx_315 = RF_RX_315_PIN;
+        return true;
+        #else
+        return false;
+        #endif
+    }
+#endif
 };
 
 DECLARE_BOARD(atk_dnesp32s3);
