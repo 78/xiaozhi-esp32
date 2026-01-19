@@ -41,9 +41,28 @@ set(SOURCES "audio/audio_codec.cc"
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
 
 # Add board common files
-file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
-list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
+list(APPEND SOURCES
+    "boards/common/board.cc"
+    "boards/common/wifi_board.cc"
+    "boards/common/ml307_board.cc"
+    "boards/common/nt26_board.cc"
+    "boards/common/dual_network_board.cc"
+    "boards/common/adc_battery_monitor.cc"
+    "boards/common/afsk_demod.cc"
+    "boards/common/axp2101.cc"
+    "boards/common/backlight.cc"
+    "boards/common/button.cc"
+    "boards/common/esp32_camera.cc"
+    "boards/common/i2c_device.cc"
+    "boards/common/knob.cc"
+    "boards/common/power_save_timer.cc"
+    "boards/common/press_to_talk_mcp_tool.cc"
+    "boards/common/sleep_timer.cc"
+    "boards/common/sy6970.cc"
+    "boards/common/system_reset.cc"
+)
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
 # Function to find component dynamically by pattern
@@ -72,6 +91,10 @@ if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_NT26)
+    set(BOARD_TYPE "bread-compact-nt26")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
@@ -732,9 +755,10 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio/codecs/es8388_audio_codec.cc"
                              "audio/codecs/es8389_audio_codec.cc"
                              "led/gpio_led.cc"
-                             "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc"
                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              "display/lvgl_display/jpg/jpeg_to_image.c"
+                             "boards/common/esp32_camera.cc"
+                             "boards/common/nt26_board.cc"
                              )
 endif()
 
@@ -742,6 +766,21 @@ idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
+                    PRIV_REQUIRES
+                        esp_pm
+                        esp_psram
+                        esp_driver_gpio
+                        esp_driver_uart
+                        esp_driver_spi
+                        esp_driver_i2c
+                        esp_driver_i2s
+                        esp_driver_jpeg
+                        esp_driver_ppa
+                        esp_app_format
+                        app_update
+                        spi_flash
+                        console
+                        efuse
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
