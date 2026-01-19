@@ -247,9 +247,8 @@ display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
     }
 }
-
 void Application::ToggleChatState() {
-    if (device_state_ == kDeviceStateActivating) {
+if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
         return;
     } else if (device_state_ == kDeviceStateWifiConfiguring) {
@@ -546,6 +545,12 @@ void Application::Start() {
         display->SetChatMessage("system", "");
         // Play the network ok sound to indicate the device is connected
         audio_service_.PlaySound(Lang::Sounds::OGG_NET_OK);
+        
+        // 网络连接成功后，只有在设备处于空闲状态时才自动进入监听
+        // 避免在系统升级等过程中被打断
+        if (device_state_ == kDeviceStateIdle) {
+            ToggleChatState();
+        }
     }
 }
 
@@ -845,7 +850,6 @@ bool Application::CanEnterSleepMode() {
     if (device_state_ != kDeviceStateIdle) {
         return false;
     }
-
     if (protocol_ && protocol_->IsAudioChannelOpened()) {
         return false;
     }

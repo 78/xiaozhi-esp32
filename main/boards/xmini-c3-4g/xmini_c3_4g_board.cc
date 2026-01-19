@@ -37,6 +37,8 @@ private:
         adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
                 sleep_timer_->SetEnabled(false);
+                // 插入充电器时播放charging.ogg音效
+                Application::GetInstance().PlaySound(Lang::Sounds::OGG_CHARGING);
             } else {
                 sleep_timer_->SetEnabled(true);
             }
@@ -138,21 +140,88 @@ private:
     }
 
     void InitializeButtons() {
+        // 添加时间戳变量来精确区分单击和长按
+        static int64_t press_down_time = 0;
+        static const int64_t LONG_PRESS_THRESHOLD_MS = 500; // 长按阈值300ms
+        
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            // app.PlaySound(Lang::Sounds::OGG_BOOT);
+            
             if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
-                app.ToggleChatState();
+                // 连续对话模式下的新交互逻辑
+                DeviceState current_state = app.GetDeviceState();
+                
+                if (current_state == kDeviceStateIdle) {
+                    // 设备处于非监听状态，先播放wake.ogg再进入监听
+                    app.PlaySound(Lang::Sounds::OGG_WAKE);
+                    // 延迟一小段时间让音效播放完毕
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    app.ToggleChatState();
+                } else if (current_state == kDeviceStateListening) {
+                    // 设备处于监听状态，播放bye.ogg再退出监听
+                    app.PlaySound(Lang::Sounds::OGG_BYE);
+                    // 延迟一小段时间让音效播放完毕
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    app.ToggleChatState();
+                } else {
+                    // 其他状态保持原有逻辑
+                    app.ToggleChatState();
+                }
+            } else {
+                // 长按对话模式下，只有在按下时间小于长按阈值时才播放音效
+                int64_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
+                int64_t press_duration = current_time - press_down_time;
+                
+                if (press_duration < LONG_PRESS_THRESHOLD_MS) {
+                    // 真正的单击操作，播放音效
+                    app.PlaySound(Lang::Sounds::OGG_MODE_PTT_BTN_SOUND);
+                }
+                // 否则是长按操作，不播放音效
             }
         });
         boot_button_.OnPressDown([this]() {
+            // 记录按下时间
+            press_down_time = esp_timer_get_time() / 1000; // 转换为毫秒
+            
             if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+                // 长按对话模式下，长按BOOT按钮时不播放音效，直接开始监听
                 Application::GetInstance().StartListening();
             }
         });
         boot_button_.OnPressUp([this]() {
             if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+                // 长按对话模式下，释放BOOT按钮时停止监听，不播放音效
                 Application::GetInstance().StopListening();
+            }
+        });
+    
+        // 添加双击事件处理
+        boot_button_.OnDoubleClick([this]() {
+            if (press_to_talk_tool_) {
+                bool current_mode = press_to_talk_tool_->IsPressToTalkEnabled();
+                bool new_mode = !current_mode; // 切换模式
+                
+                // 使用Settings类直接保存设置，确保立即生效
+                Settings settings("vendor", true);
+                settings.SetInt("press_to_talk", new_mode ? 1 : 0);
+                
+                // 重新初始化工具
+                delete press_to_talk_tool_;
+                press_to_talk_tool_ = new PressToTalkMcpTool();
+                press_to_talk_tool_->Initialize();
+                
+                auto& app = Application::GetInstance();
+                auto display = Board::GetInstance().GetDisplay();
+                
+                if (new_mode) {
+                    display->ShowNotification("已切换到长按说话模式");
+                    app.PlaySound(Lang::Sounds::OGG_MODE_PTT);
+                } else {
+                    display->ShowNotification("已切换到单击说话模式");
+                    app.PlaySound(Lang::Sounds::OGG_MODE_CONTINUOUS);
+                }
+                
+                ESP_LOGI(TAG, "Press to talk mode switched to: %s", new_mode ? "press_to_talk" : "click_to_talk");
             }
         });
     }
