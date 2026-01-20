@@ -1,7 +1,8 @@
 #pragma once
 #include "sdkconfig.h"
+// esp32_camera (使用 esp_video 组件) 用于 ESP32-P4，或 ESP32-S3 选择使用 esp_video 时
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || (defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_XIAOZHI_USE_ESP_VIDEO))
 
-#ifndef CONFIG_IDF_TARGET_ESP32
 #include <lvgl.h>
 #include <thread>
 #include <memory>
