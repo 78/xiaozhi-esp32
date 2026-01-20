@@ -11,6 +11,7 @@
 
 #include "camera.h"
 #include "esp_camera.h"
+#include "jpg/image_to_jpeg.h"
 
 struct JpegChunk
 {
@@ -21,15 +22,6 @@ struct JpegChunk
 class Esp32Camera : public Camera
 {
 private:
-    struct FrameBuffer
-    {
-        uint8_t *data = nullptr;
-        size_t len = 0;
-        uint16_t width = 0;
-        uint16_t height = 0;
-        pixformat_t format = PIXFORMAT_RGB565;
-    } frame_;
-
     bool streaming_on_ = false;
     std::string explain_url_;
     std::string explain_token_;
