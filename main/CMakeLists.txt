@@ -52,8 +52,6 @@ list(APPEND SOURCES
     "boards/common/axp2101.cc"
     "boards/common/backlight.cc"
     "boards/common/button.cc"
-    "boards/common/esp32_camera.cc"
-    "boards/common/esp32s3_camera.cc"
     "boards/common/i2c_device.cc"
     "boards/common/knob.cc"
     "boards/common/power_save_timer.cc"
@@ -758,29 +756,18 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "led/gpio_led.cc"
                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              "display/lvgl_display/jpg/jpeg_to_image.c"
-                             "boards/common/esp32_camera.cc"
-                             "boards/common/esp32s3_camera.cc"
                              "boards/common/nt26_board.cc"
                              )
 endif()
 
-# ESP32-S3: 根据 Kconfig 选择使用哪个摄像头组件
-if(CONFIG_IDF_TARGET_ESP32S3)
-    if(CONFIG_XIAOZHI_USE_ESP_CAMERA)
-        # 使用 esp_camera 组件，排除 esp32_camera.cc
-        list(REMOVE_ITEM SOURCES "boards/common/esp32_camera.cc")
-    elseif(CONFIG_XIAOZHI_USE_ESP_VIDEO)
-        # 使用 esp_video 组件，排除 esp32s3_camera.cc
-        list(REMOVE_ITEM SOURCES "boards/common/esp32s3_camera.cc")
-    else()
-        # 默认使用 esp_camera 组件
-        list(REMOVE_ITEM SOURCES "boards/common/esp32_camera.cc")
-    endif()
+# Include EspVideo if target is ESP32S3 or ESP32P4
+if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
 endif()
 
-# ESP32-P4: 只能使用 esp_video 组件，排除 esp32s3_camera.cc
-if(CONFIG_IDF_TARGET_ESP32P4)
-    list(REMOVE_ITEM SOURCES "boards/common/esp32s3_camera.cc")
+# Include Esp32Camera if target is ESP32S3
+if(CONFIG_IDF_TARGET_ESP32S3)
+    list(APPEND SOURCES "boards/common/esp32_camera.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

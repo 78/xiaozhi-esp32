@@ -12,7 +12,7 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include "esp32s3_camera.h"
+#include "esp32_camera.h"
 
 #define TAG "kevin-sp-v3"
 
@@ -22,7 +22,7 @@ private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
-    Esp32S3Camera* camera_;
+    Esp32Camera* camera_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -116,7 +116,7 @@ private:
             .sccb_i2c_port = (i2c_port_t)1,
         };
 
-        camera_ = new Esp32S3Camera(camera_config);
+        camera_ = new Esp32Camera(camera_config);
     }
 
 public:

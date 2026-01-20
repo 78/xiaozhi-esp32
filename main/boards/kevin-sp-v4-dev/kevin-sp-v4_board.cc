@@ -10,7 +10,7 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include "esp32s3_camera.h"
+#include "esp32_camera.h"
 
 #define TAG "kevin-sp-v4"
 
@@ -19,7 +19,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_;
-    Esp32S3Camera* camera_;
+    Esp32Camera* camera_;
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
@@ -130,7 +130,7 @@ private:
             .sccb_i2c_port = (i2c_port_t)1,
         };
 
-        camera_ = new Esp32S3Camera(camera_config);
+        camera_ = new Esp32Camera(camera_config);
     }
 
 public:
