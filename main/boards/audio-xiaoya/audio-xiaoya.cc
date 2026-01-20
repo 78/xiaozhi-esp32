@@ -7,6 +7,7 @@
 #include "application.h"
 #include "button.h"
 #include "mcp_server.h"
+#include "mcp_tools.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
@@ -27,8 +28,8 @@ private:
     FogSeekLedController led_controller_;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
+    bool is_intercom_mode_active_ = false;
 
-    // 初始化电源管理器
     void InitializePowerManager()
     {
         power_pin_config_t power_pin_config = {
@@ -39,7 +40,6 @@ private:
         power_manager_.Initialize(&power_pin_config);
     }
 
-    // 初始化LED控制器
     void InitializeLedController()
     {
         led_pin_config_t led_pin_config = {
@@ -48,52 +48,79 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
     }
 
-    // 初始化音频输出控制
     void InitializeAudioOutputControl()
     {
         auto codec = GetAudioCodec();
-        codec->SetOutputVolume(0); // 功放不支持使能控制，通过设置音量来替代使能，避免USB插入时自动播放声音
+        codec->SetOutputVolume(0);
     }
 
-    // 初始化按键回调
     void InitializeButtonCallbacks()
     {
+        // 对讲模式：按下开始录音，松开结束录音
+        ctrl_button_.OnPressDown([this]()
+                                 {
+            auto &app = Application::GetInstance();
+            
+            is_intercom_mode_active_ = true;
+            app.GetAudioService().EnableVoiceProcessing(false);
+            
+            if (app.GetDeviceState() != DeviceState::kDeviceStateListening) {
+                app.StartListening();
+            }
+            
+            ESP_LOGI(TAG, "Intercom mode started - button pressed down, VAD disabled"); });
+
+        ctrl_button_.OnPressUp([this]()
+                               {
+            if (is_intercom_mode_active_) {
+                auto &app = Application::GetInstance();
+                
+                is_intercom_mode_active_ = false;
+                
+                if (app.GetDeviceState() == DeviceState::kDeviceStateListening) {
+                    app.StopListening();
+                }
+                
+                app.GetAudioService().EnableVoiceProcessing(true);
+                ESP_LOGI(TAG, "Intercom mode ended - button released, VAD enabled");
+            } });
+
+        // 单击：切换聊天状态
         ctrl_button_.OnClick([this]()
                              {
+                                 if (is_intercom_mode_active_) return;
+
                                  auto &app = Application::GetInstance();
-                                 app.ToggleChatState(); // 切换聊天状态（打断）
-                             });
+                                 app.ToggleChatState(); });
+
+        // 双击：进入WiFi配置模式
         ctrl_button_.OnDoubleClick([this]()
                                    {
+            if (is_intercom_mode_active_) return;
+            
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting)
+            if (app.GetDeviceState() == DeviceState::kDeviceStateStarting)
             {
                 EnterWifiConfigMode();
                 return;
             } });
-        ctrl_button_.OnLongPress([this]()
-                                 {
-            // 切换电源状态
-            if (!power_manager_.IsPowerOn()) {
-                PowerOn();
-            } else {
-                PowerOff();
-            } });
+
+        // 三击：关机
+        ctrl_button_.OnMultipleClick([this]()
+                                     {
+            auto &app = Application::GetInstance();
+            if (is_intercom_mode_active_) return;
+            
+            ESP_LOGI(TAG, "Triple click detected, powering off device");
+            app.Alert("INFO", "关机中...", "neutral", "");
+            PowerOff(); }, 3);
     }
 
-    // 处理自动唤醒逻辑
     void HandleAutoWake()
     {
         auto &app = Application::GetInstance();
         if (app.GetDeviceState() == DeviceState::kDeviceStateIdle)
         {
-            auto &app = Application::GetInstance();
-            // USB充电状态下开机需要播放音效
-            if (power_manager_.IsUsbPowered())
-            {
-                app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-                vTaskDelay(pdMS_TO_TICKS(500)); // 延时500ms播放音效
-            }
             app.Schedule([]()
                          {
                             auto &app = Application::GetInstance();
@@ -101,7 +128,6 @@ private:
         }
         else
         {
-            // 设备尚未进入空闲状态，500ms后再次检查，使用定时器异步检查，不阻塞当前任务
             esp_timer_handle_t check_timer;
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
@@ -112,36 +138,40 @@ private:
             timer_args.arg = this;
             timer_args.name = "check_idle_timer";
             esp_timer_create(&timer_args, &check_timer);
-            esp_timer_start_once(check_timer, 500000); // 500ms = 500000微秒
+            esp_timer_start_once(check_timer, 500000);
         }
     }
 
-    // 开机流程
     void PowerOn()
     {
-        power_manager_.PowerOn();                        // 更新电源状态
-        led_controller_.UpdateLedStatus(power_manager_); // 更新LED灯状态
+        power_manager_.PowerOn();
+        led_controller_.UpdateLedStatus(power_manager_);
 
         auto codec = GetAudioCodec();
-        codec->SetOutputVolume(70); // 开机后将音量设置为默认值
+        codec->SetOutputVolume(70);
 
         ESP_LOGI(TAG, "Device powered on.");
 
-        HandleAutoWake(); // 开机自动唤醒
+        HandleAutoWake();
     }
 
-    // 关机流程
     void PowerOff()
     {
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
 
         auto codec = GetAudioCodec();
-        codec->SetOutputVolume(0); // 关机后将音量设置为默0
+        codec->SetOutputVolume(0);
 
-        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
+        Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle);
 
         ESP_LOGI(TAG, "Device powered off.");
+    }
+
+    void InitializeMCP()
+    {
+        auto &mcp_server = McpServer::GetInstance();
+        InitializeSystemMCP(mcp_server, power_manager_);
     }
 
 public:
@@ -151,8 +181,9 @@ public:
         InitializeLedController();
         InitializeAudioOutputControl();
         InitializeButtonCallbacks();
+        PowerOn();
+        InitializeMCP();
 
-        // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
@@ -169,18 +200,15 @@ public:
         return &audio_codec;
     }
 
-    // 重写StartNetwork方法，实现自定义Wi-Fi热点名称
     virtual void StartNetwork() override
     {
         auto &wifi_manager = WifiManager::GetInstance();
 
-        // Initialize WiFi manager with custom SSID prefix
         WifiManagerConfig config;
         config.ssid_prefix = "XiaoYa";
         config.language = Lang::CODE;
         wifi_manager.Initialize(config);
 
-        // Set unified event callback - forward to NetworkEvent with SSID data
         wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event)
                                       {
             std::string ssid = wifi_manager.GetSsid();
@@ -205,7 +233,6 @@ public:
                     break;
             } });
 
-        // Try to connect or enter config mode
         TryWifiConnect();
     }
 

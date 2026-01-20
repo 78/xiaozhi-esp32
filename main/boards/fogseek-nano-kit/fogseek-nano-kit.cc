@@ -19,7 +19,7 @@
 
 #define TAG "FogSeekNanoKit"
 
-class FogeSeekNano : public WifiBoard
+class FogSeekNanoKit : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -139,7 +139,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogeSeekNano *>(arg);
+                auto instance = static_cast<FogSeekNanoKit *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -180,7 +180,7 @@ private:
     }
 
 public:
-    FogeSeekNano() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekNanoKit() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -212,7 +212,7 @@ public:
         return &audio_codec;
     }
 
-    ~FogeSeekNano()
+    ~FogSeekNanoKit()
     {
         if (i2c_bus_)
         {
@@ -221,4 +221,4 @@ public:
     }
 };
 
-DECLARE_BOARD(FogeSeekNano);
+DECLARE_BOARD(FogSeekNanoKit);

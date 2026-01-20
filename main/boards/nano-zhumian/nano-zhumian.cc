@@ -264,6 +264,9 @@ private:
 
         // 初始化RGB LED MCP 工具
         InitializeRgbLedMCP(mcp_server, rgb_led_strip_);
+
+        // 初始化系统级MCP工具（如关机功能）
+        InitializeSystemMCP(mcp_server, power_manager_);
     }
 
 public:

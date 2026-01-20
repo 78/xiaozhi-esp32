@@ -4,6 +4,7 @@
 #include "mcp_server.h"
 #include "led/gpio_led.h"
 #include "led/circular_strip.h" // 添加CircularStrip头文件
+#include "power_manager.h"
 
 /**
  * @brief 初始化灯光控制 MCP 工具函数
@@ -28,5 +29,14 @@ void InitializeLightMCP(
 void InitializeRgbLedMCP(
     McpServer &mcp_server,
     CircularStrip *rgb_strip);
+
+/**
+ * @brief 初始化系统控制 MCP 工具函数
+ * @param mcp_server MCP 服务器实例
+ * @param power_manager 电源管理器实例
+ */
+void InitializeSystemMCP(
+    McpServer &mcp_server,
+    FogSeekPowerManager &power_manager);
 
 #endif // _FOGSEEK_MCP_TOOLS_H_

@@ -18,9 +18,9 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "NanoLinkBitVison4G"
+#define TAG "NanoLinkBitVision4G"
 
-class NanoLinkBitVison4G : public DualNetworkBoard
+class NanoLinkBitVision4G : public DualNetworkBoard
 {
 private:
     Button boot_button_;
@@ -200,7 +200,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<NanoLinkBitVison4G *>(arg);
+                auto instance = static_cast<NanoLinkBitVision4G *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -245,8 +245,8 @@ private:
     }
 
 public:
-    NanoLinkBitVison4G() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
-                           boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    NanoLinkBitVision4G() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN),
+                            boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -286,7 +286,7 @@ public:
         return &audio_codec;
     }
 
-    ~NanoLinkBitVison4G()
+    ~NanoLinkBitVision4G()
     {
         if (i2c_bus_)
         {
@@ -295,4 +295,4 @@ public:
     }
 };
 
-DECLARE_BOARD(NanoLinkBitVison4G);
+DECLARE_BOARD(NanoLinkBitVision4G);
