@@ -78,6 +78,11 @@ void Protocol::SendMcpMessage(const std::string& payload) {
     SendText(message);
 }
 
+void Protocol::SendDeviceReport(const std::string& device_info) {
+    // 基类默认实现：调用SendText方法发送设备信息
+    SendText(device_info);
+}
+
 bool Protocol::IsTimeout() const {
     const int kTimeoutSeconds = 120;
     auto now = std::chrono::steady_clock::now();

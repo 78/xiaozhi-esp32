@@ -792,3 +792,17 @@ menu "TAIJIPAI_S3_CONFIG"
 endmenu
 
 endmenu
+
+config ENABLE_DEVICE_REPORT
+    bool "Enable device status reporting"
+    default y
+    help
+        Enable periodic device status reporting via MQTT
+
+config DEVICE_REPORT_INTERVAL
+    int "Device report interval (minutes)"
+    depends on ENABLE_DEVICE_REPORT
+    default 5
+    range 1 60
+    help
+        Interval in minutes for device status reporting

@@ -75,6 +75,57 @@ bool WebsocketProtocol::IsAudioChannelOpened() const {
     return websocket_ != nullptr && websocket_->IsConnected() && !error_occurred_ && !IsTimeout();
 }
 
+void WebsocketProtocol::SendDeviceReport(const std::string& device_info) {
+    // 创建临时的MQTT客户端
+    auto network = Board::GetInstance().GetNetwork();
+    auto mqtt_client = network->CreateMqtt(0);
+    if (mqtt_client == nullptr) {
+        ESP_LOGE(TAG, "无法创建MQTT客户端发送设备上报");
+        return;
+    }
+    
+    // 使用默认的MQTT配置
+    std::string endpoint = "47.99.39.131:1883";
+    std::string username = "/device:admin";
+    std::string password = "admin";
+    std::string device_report_topic = "ai/device/report";
+    
+    // 连接MQTT服务器
+    std::string broker_address;
+    int broker_port = 1883;
+    size_t pos = endpoint.find(':');
+    if (pos != std::string::npos) {
+        broker_address = endpoint.substr(0, pos);
+        broker_port = std::stoi(endpoint.substr(pos + 1));
+    } else {
+        broker_address = endpoint;
+    }
+    
+    if (!mqtt_client->Connect(broker_address, broker_port, "1", username, password)) {
+        ESP_LOGE(TAG, "MQTT连接失败，无法发送设备上报");
+        return;
+    }
+    
+    // 等待连接建立
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    
+    if (!mqtt_client->IsConnected()) {
+        ESP_LOGE(TAG, "MQTT未连接，无法发送设备上报");
+        return;
+    }
+    
+    // 发送设备上报
+    if (!mqtt_client->Publish(device_report_topic, device_info)) {
+        ESP_LOGE(TAG, "Failed to publish device report: %s", device_info.c_str());
+        return;
+    }
+    
+    ESP_LOGI(TAG, "成功推送MQTT设备上报消息: %s", device_info.c_str());
+    
+    // 断开连接
+    mqtt_client->Disconnect();
+}
+
 void WebsocketProtocol::CloseAudioChannel() {
     websocket_.reset();
 }

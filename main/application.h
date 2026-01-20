@@ -24,7 +24,7 @@
 #define MAIN_EVENT_ERROR (1 << 4)
 #define MAIN_EVENT_CHECK_NEW_VERSION_DONE (1 << 5)
 #define MAIN_EVENT_CLOCK_TICK (1 << 6)
-
+#define MAIN_EVENT_DEVICE_REPORT (1 << 7)  // 新增设备上报事件
 
 enum AecMode {
     kAecOff,
@@ -62,7 +62,8 @@ public:
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
-    AudioService& GetAudioService() { return audio_service_; }
+    AudioService& GetAudioService() { return audio_service_; }  // 添加音频服务访问方法
+    void SendDeviceReport();  // 新增设备上报方法
 
 private:
     Application();
@@ -73,6 +74,7 @@ private:
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
+    esp_timer_handle_t report_timer_handle_ = nullptr;  // 新增上报定时器
     volatile DeviceState device_state_ = kDeviceStateUnknown;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
@@ -82,6 +84,7 @@ private:
     bool has_server_time_ = false;
     bool aborted_ = false;
     int clock_ticks_ = 0;
+    int report_count_ = 0;  // 上报计数器
     TaskHandle_t check_new_version_task_handle_ = nullptr;
     TaskHandle_t main_event_loop_task_handle_ = nullptr;
 
@@ -90,6 +93,9 @@ private:
     void CheckAssetsVersion();
     void ShowActivationCode(const std::string& code, const std::string& message);
     void SetListeningMode(ListeningMode mode);
+    void StartDeviceReportTimer();  // 启动设备上报定时器
+    void SendDeviceReportInternal();  // 内部上报方法
+    std::string GetDeviceInfoJson();  // 获取设备信息JSON
 };
 
 

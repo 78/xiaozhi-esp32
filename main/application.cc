@@ -59,12 +59,29 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+
+    // 设备上报定时器
+    esp_timer_create_args_t report_timer_args = {
+        .callback = [](void* arg) {
+            Application* app = (Application*)arg;
+            xEventGroupSetBits(app->event_group_, MAIN_EVENT_DEVICE_REPORT);
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "report_timer",
+        .skip_unhandled_events = true
+    };
+    esp_timer_create(&report_timer_args, &report_timer_handle_);
 }
 
 Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
+    }
+    if (report_timer_handle_ != nullptr) {
+        esp_timer_stop(report_timer_handle_);
+        esp_timer_delete(report_timer_handle_);
     }
     vEventGroupDelete(event_group_);
 }
@@ -237,6 +254,101 @@ void Application::Alert(const char* status, const char* message, const char* emo
     if (!sound.empty()) {
         audio_service_.PlaySound(sound);
     }
+}
+
+void Application::StartDeviceReportTimer() {
+    ESP_LOGI(TAG, "Initializing device report timer");
+    
+    // 如果定时器已存在，先停止并删除
+    if (report_timer_handle_ != nullptr) {
+        esp_timer_stop(report_timer_handle_);
+        esp_timer_delete(report_timer_handle_);
+        report_timer_handle_ = nullptr;
+    }
+    
+    // 创建设备上报定时器
+    esp_timer_create_args_t report_timer_args = {
+        .callback = [](void* arg) {
+            Application* app = static_cast<Application*>(arg);
+            app->SendDeviceReportInternal();
+        },
+        .arg = this,
+        .name = "device_report_timer"
+    };
+    
+    if (esp_timer_create(&report_timer_args, &report_timer_handle_) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create device report timer");
+        return;
+    }
+    
+    // 启动定时器，每2分钟上报一次
+    uint64_t interval = 2 * 60 * 1000000;
+    if (esp_timer_start_periodic(report_timer_handle_, interval) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start device report timer");
+        esp_timer_delete(report_timer_handle_);
+        report_timer_handle_ = nullptr;
+        return;
+    }
+}
+
+void Application::SendDeviceReport() {
+    Schedule([this]() {
+        SendDeviceReportInternal();
+    });
+}
+
+void Application::SendDeviceReportInternal() {
+    auto& board = Board::GetInstance();
+    std::string device_info = GetDeviceInfoJson();
+    if (device_info.empty()) {
+        ESP_LOGE(TAG, "Failed to generate device info JSON");
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Device report JSON generated: %s", device_info.c_str());
+    protocol_->SendDeviceReport(device_info);
+    report_count_++;
+    ESP_LOGI(TAG, "Device report sent successfully, report count: %d", report_count_);
+    // 每2次上报检查一次休眠条件
+    if (report_count_ % 2 == 0) {
+        ESP_LOGI(TAG, "Reached 2nd report, checking sleep conditions");
+        if (CanEnterSleepMode()) {
+            ESP_LOGI(TAG, "Sleep conditions met, enabling sleep timer for light sleep mode");
+            auto& board = Board::GetInstance();
+            board.SetPowerSaveMode(true); // 启用省电模式，这会启用SleepTimer
+        } else {
+            ESP_LOGI(TAG, "Sleep conditions not met, continuing normal operation");
+        }
+    }
+}
+
+std::string Application::GetDeviceInfoJson() {
+    auto& board = Board::GetInstance();
+    std::string system_info_json = board.GetSystemInfoJson();
+    if (system_info_json.empty()) {
+        ESP_LOGE(TAG, "Failed to get system info JSON from board");
+        return "";
+    }
+    // 解析现有的系统信息JSON
+    cJSON* root = cJSON_Parse(system_info_json.c_str());
+    if (!root) {
+        ESP_LOGE(TAG, "Failed to parse system info JSON");
+        return "";
+    }
+    
+    // 添加额外的设备状态信息
+    cJSON_AddNumberToObject(root, "device_state", device_state_);
+    cJSON_AddNumberToObject(root, "free_heap", esp_get_free_heap_size());
+    cJSON_AddNumberToObject(root, "report_count", report_count_);
+    
+    // 添加时间戳
+    cJSON_AddNumberToObject(root, "timestamp", time(nullptr));
+    
+    std::string json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    ESP_LOGI(TAG, "Device info JSON generated successfully, length: %zu bytes", json_str.length());
+    return json_str;
 }
 
 void Application::DismissAlert() {
@@ -551,6 +663,13 @@ void Application::Start() {
         if (device_state_ == kDeviceStateIdle) {
             ToggleChatState();
         }
+        
+        // 开机后立即上报一次设备信息
+        ESP_LOGI(TAG, "设备启动完成，发送开机设备上报");
+        SendDeviceReport();
+        
+        // 启动设备上报定时器（新增）
+        StartDeviceReportTimer();
     }
 }
 
@@ -847,18 +966,24 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
 }
 
 bool Application::CanEnterSleepMode() {
+    ESP_LOGI(TAG, "Checking sleep conditions...");
+    // 检查设备状态
     if (device_state_ != kDeviceStateIdle) {
+        ESP_LOGI(TAG, "Sleep condition failed: device state is %s (not idle)", STATE_STRINGS[device_state_]);
         return false;
     }
+    
+    // 检查音频通道是否关闭
     if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        ESP_LOGI(TAG, "Sleep condition failed: audio channel is open");
         return false;
     }
-
+    
+    // 检查音频服务是否空闲
     if (!audio_service_.IsIdle()) {
+        ESP_LOGI(TAG, "Sleep condition failed: audio service is not idle");
         return false;
     }
-
-    // Now it is safe to enter sleep mode
     return true;
 }
 

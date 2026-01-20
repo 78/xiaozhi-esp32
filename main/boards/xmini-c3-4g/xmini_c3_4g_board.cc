@@ -91,8 +91,8 @@ private:
     }
 
     void InitializeSsd1306Display() {
-        // display_ = new NoDisplay();
-        // return;
+        display_ = new NoDisplay();
+        return;
         // SSD1306 config
         esp_lcd_panel_io_i2c_config_t io_config = {
             .dev_addr = 0x3C,
