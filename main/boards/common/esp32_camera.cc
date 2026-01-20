@@ -1,3 +1,7 @@
+#include "sdkconfig.h"
+
+// esp32_camera (使用 esp_video 组件) 用于 ESP32-P4，或 ESP32-S3 选择使用 esp_video 时
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || (defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_XIAOZHI_USE_ESP_VIDEO))
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -1037,3 +1041,4 @@ std::string Esp32Camera::Explain(const std::string& question) {
              (int)frame_.len, (int)total_sent, (int)remain_stack_size, question.c_str(), result.c_str());
     return result;
 }
+#endif // CONFIG_IDF_TARGET_ESP32P4 || (CONFIG_IDF_TARGET_ESP32S3 && CONFIG_XIAOZHI_USE_ESP_VIDEO)

@@ -32,10 +32,15 @@ dependencies:
   espressif/esp-sr: ~2.2.0
   espressif/button: ~4.1.3
   espressif/knob: ^1.0.0
+  espressif/esp32-camera:
+    version: ^2.0.15
+    rules:
+    - if: target in [esp32s3]
   espressif/esp_video:
     version: ==1.3.1   # for compatibility. update version may need to modify this project code.
     rules:
-    - if: target not in [esp32]
+    - if: target in [esp32p4, esp32s3]
+  
   espressif/esp_image_effects:
     version: ^1.0.1
     rules:
@@ -111,5 +116,5 @@ dependencies:
 
   ## Required IDF version
   idf:
-    version: '>=5.5.2'
+    version: '>=5.5.1'
   espressif/esp_lcd_touch_st7123: ^1.0.0

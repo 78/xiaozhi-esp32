@@ -4,6 +4,7 @@
         {
             "name": "esp32s3-korvo2-v3",
             "sdkconfig_append": [
+                "CONFIG_XIAOZHI_USE_ESP_CAMERA=y",
                 "CONFIG_CAMERA_OV2640=y",
                 "CONFIG_CAMERA_OV3660=y",
                 "CONFIG_CAMERA_OV3660_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
