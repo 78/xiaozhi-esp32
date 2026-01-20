@@ -5,7 +5,7 @@
 #include "button.h"
 #include "led/single_led.h"
 #include "pin_config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include "config.h"
 
@@ -27,7 +27,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     //add support ev board lcd
     esp_io_expander_handle_t expander = NULL;
@@ -218,7 +218,7 @@ private:
         esp_video_init_config_t video_config = {
             .usb_uvc = &usb_uvc_config,
         };
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
     }
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 

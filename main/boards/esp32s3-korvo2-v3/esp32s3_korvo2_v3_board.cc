@@ -13,7 +13,7 @@
 #include <esp_lcd_ili9341.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include "esp32s3_camera.h"
+#include "esp32_camera.h"
 #include "power_manager.h"
 #include "power_save_timer.h"
 
@@ -60,7 +60,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
     esp_io_expander_handle_t io_expander_ = NULL;
-    Esp32S3Camera* camera_;
+    Esp32Camera* camera_;
     PowerSaveTimer* power_save_timer_;
     PowerManager* power_manager_;
     void InitializePowerManager() {
@@ -385,7 +385,7 @@ private:
             .sccb_i2c_port = (i2c_port_t)1,
         };
 
-        camera_ = new Esp32S3Camera(camera_config);
+        camera_ = new Esp32Camera(camera_config);
         if(camera_ != nullptr)
         {
             camera_->SetVFlip(true);

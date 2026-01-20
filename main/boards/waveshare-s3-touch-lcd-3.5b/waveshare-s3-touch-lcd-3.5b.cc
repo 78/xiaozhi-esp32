@@ -28,7 +28,7 @@
 
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #define TAG "waveshare_lcd_3_5b"
 
@@ -108,7 +108,7 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     PowerSaveTimer* power_save_timer_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -212,7 +212,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         
     }
 

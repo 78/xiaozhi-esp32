@@ -737,31 +737,6 @@ menu "Camera Configuration"
 
     comment "Warning: Please read the help text before modifying these settings."
 
-    choice XIAOZHI_CAMERA_COMPONENT
-        prompt "Camera Component Selection"
-        default XIAOZHI_USE_ESP_VIDEO if IDF_TARGET_ESP32S3
-        default XIAOZHI_USE_ESP_VIDEO if IDF_TARGET_ESP32P4
-        help
-            Select the camera component to use.
-            ESP32-S3 can choose between esp_camera (legacy) or esp_video (new).
-            ESP32-P4 only supports esp_video.
-
-        config XIAOZHI_USE_ESP_CAMERA
-            bool "Use esp_camera (legacy component)"
-            depends on IDF_TARGET_ESP32S3
-            help
-                Use the legacy esp32-camera component.
-                This is the traditional camera driver for ESP32-S3.
-
-        config XIAOZHI_USE_ESP_VIDEO
-            bool "Use esp_video (new component)"
-            depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4
-            help
-                Use the new esp_video component.
-                This component provides V4L2-like interface and is required for ESP32-P4.
-                On ESP32-S3, it provides additional features but may require different camera configuration.
-    endchoice
-
     config XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
         bool "Allow JPEG Input"
         default n

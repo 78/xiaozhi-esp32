@@ -6,7 +6,7 @@
 #include "button.h"
 #include "config.h"
 
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "esp_video_init.h"
 #include "esp_cam_sensor_xclk.h"
 
@@ -27,7 +27,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay *display_;
-    Esp32Camera* camera_ = nullptr;
+    EspVideo* camera_ = nullptr;
 
     esp_err_t i2c_device_probe(uint8_t addr) {
         return i2c_master_probe(i2c_bus_, addr, 100);
@@ -189,7 +189,7 @@ private:
             .csi      = &base_csi_config,
         };
 
-        camera_ = new Esp32Camera(cam_config);
+        camera_ = new EspVideo(cam_config);
     }
     void InitializeButtons() {
         boot_button_.OnClick([this]() {

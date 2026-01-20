@@ -8,7 +8,7 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #define TAG "AtomS3R CAM/M12 + EchoBase"
 
@@ -38,7 +38,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Pi4ioe* pi4ioe_ = nullptr;
     bool is_echo_base_connected_ = false;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -166,7 +166,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         camera_->SetHMirror(false);
     }
 

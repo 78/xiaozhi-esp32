@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4)
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S3)
 // ESP32-P4 使用 esp_video 组件提供的 V4L2 头文件
 #include <linux/videodev2.h>
 #else
