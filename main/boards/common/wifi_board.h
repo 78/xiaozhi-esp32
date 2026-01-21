@@ -6,7 +6,7 @@
 class WifiBoard : public Board {
 protected:
     bool wifi_config_mode_ = false;
-    void EnterWifiConfigMode();
+    void EnterWifiConfigMode(const std::string_view& sound = {});
     virtual std::string GetBoardJson() override;
 
 public:

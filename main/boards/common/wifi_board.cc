@@ -32,7 +32,7 @@ std::string WifiBoard::GetBoardType() {
     return "wifi";
 }
 
-void WifiBoard::EnterWifiConfigMode() {
+void WifiBoard::EnterWifiConfigMode(const std::string_view& sound) {
     auto& application = Application::GetInstance();
     application.SetDeviceState(kDeviceStateWifiConfiguring);
 
@@ -52,7 +52,9 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += "\n\n";
     
     // 播报配置 WiFi 的提示
-    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+    // 如果未指定声音，使用默认的 OGG_WIFICONFIG
+    auto sound_to_play = sound.empty() ? Lang::Sounds::OGG_WIFICONFIG : sound;
+    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", sound_to_play);
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
@@ -74,7 +76,7 @@ void WifiBoard::EnterWifiConfigMode() {
 void WifiBoard::StartNetwork() {
     // User can press BOOT button while starting to enter WiFi configuration mode
     if (wifi_config_mode_) {
-        EnterWifiConfigMode();
+        EnterWifiConfigMode(Lang::Sounds::OGG_WIFICONFIG);
         return;
     }
 
@@ -83,7 +85,7 @@ void WifiBoard::StartNetwork() {
     auto ssid_list = ssid_manager.GetSsidList();
     if (ssid_list.empty()) {
         wifi_config_mode_ = true;
-        EnterWifiConfigMode();
+        EnterWifiConfigMode(Lang::Sounds::OGG_FIRSTCONNECT);
         return;
     }
 
@@ -111,7 +113,7 @@ void WifiBoard::StartNetwork() {
     if (!wifi_station.WaitForConnected(60 * 1000)) {
         wifi_station.Stop();
         wifi_config_mode_ = true;
-        EnterWifiConfigMode();
+        EnterWifiConfigMode(Lang::Sounds::OGG_DISCONNECTREMIND);
         return;
     }
 }

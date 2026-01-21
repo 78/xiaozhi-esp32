@@ -30,6 +30,7 @@
 #include <esp_rom_sys.h>
 #include <esp_sleep.h>
 #include "assets/lang_config.h"
+#include <ssid_manager.h>
 
 #define TAG "ai_martube_esp32s3"
 // 旋转编码器轻量去抖窗口（微秒）
@@ -232,7 +233,6 @@ private:
             }
             vTaskDelay(pdMS_TO_TICKS(500));
             // 提醒用户关机
-            gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
             gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
             app.PlaySound(Lang::Sounds::OGG_POWEROFF);
             vTaskDelay(pdMS_TO_TICKS(1000));
@@ -286,8 +286,6 @@ private:
 
                 
                 // 切到蓝牙模式
-                gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
-                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
                 uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x05};
                 if (uart_comm_ && uart_comm_->IsReady()) {
                     uart_comm_->Send(cmd, sizeof(cmd));
@@ -298,13 +296,11 @@ private:
                 bluetooth_mode_ = true;
             } else {
                 // 提醒用户切换到 AI 模式
-                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                 app.PlaySound(Lang::Sounds::OGG_AIMODE);
                 vTaskDelay(pdMS_TO_TICKS(2000));
 
                 
                 // 切到 AI 模式
-                gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                 uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x06};
                 if (uart_comm_ && uart_comm_->IsReady()) {
                     uart_comm_->Send(cmd, sizeof(cmd));
@@ -323,7 +319,7 @@ private:
     }
 
 
-    // 初始化3个音频切换IO(SWITCH_INPUT_GPIO、SWITCH_OUTPUT_GPIO、AUDIO_CODEC_PA_GPIO)：配置为输出模式，上电后设置为高电平（ESP32S3使用）
+    // 初始化功放PA-IO(AUDIO_CODEC_PA_GPIO)
     void InitializeAudioSwitch()
     {
         gpio_config_t audio_switch_init_struct = {0};
@@ -331,12 +327,10 @@ private:
         audio_switch_init_struct.mode = GPIO_MODE_OUTPUT;
         audio_switch_init_struct.pull_up_en = GPIO_PULLUP_DISABLE;
         audio_switch_init_struct.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        audio_switch_init_struct.pin_bit_mask = 1ull << SWITCH_INPUT_GPIO | 1ull << SWITCH_OUTPUT_GPIO | 1ull << AUDIO_CODEC_PA_GPIO;
+        audio_switch_init_struct.pin_bit_mask = 1ull << AUDIO_CODEC_PA_GPIO;
         ESP_ERROR_CHECK(gpio_config(&audio_switch_init_struct));
         
         // 上电后设置为高电平，使用蓝牙音频
-        gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
-        gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
         gpio_set_level(AUDIO_CODEC_PA_GPIO, 1);
         
     }
@@ -791,7 +785,6 @@ private:
                 std::string_view low_battery_off_sound(_binary_low_battery_off_ogg_start, 
                                                        _binary_low_battery_off_ogg_end - _binary_low_battery_off_ogg_start);
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                 gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYOFF);
@@ -817,7 +810,6 @@ private:
                 std::string_view low_battery_remind_sound(_binary_low_battery_remind_ogg_start, 
                                                           _binary_low_battery_remind_ogg_end - _binary_low_battery_remind_ogg_start);
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                 gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
@@ -838,7 +830,6 @@ private:
                                                           _binary_low_battery_remind_ogg_end - _binary_low_battery_remind_ogg_start);
 
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
                 gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
                 vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
@@ -1020,13 +1011,19 @@ public:
             ESP_LOGI(TAG, "UART received %d bytes: %s", (int)len, hex.c_str());
             // 如果收到16进制数据：AA 00 01 01
             if (len == 4 && data[0] == 0xAA && data[1] == 0x00 && data[2] == 0x01 && data[3] == 0x01) {
-                
                 auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateIdle && !bluetooth_mode_) {
-                    gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-                    gpio_set_level(SWITCH_OUTPUT_GPIO, AUDIO_SWITCH_ESP32S3_LEVEL);
-
-                    
+                auto& wifi_station = WifiStation::GetInstance();
+                if (!wifi_station.IsConnected()) {
+                    auto& ssid_manager = SsidManager::GetInstance();
+                    auto ssid_list = ssid_manager.GetSsidList();
+                    if (ssid_list.empty()) {
+                        app.PlaySound(Lang::Sounds::OGG_FIRSTCONNECT);
+                    }
+                    else{
+                        app.PlaySound(Lang::Sounds::OGG_DISCONNECTREMIND);
+                    }
+                }
+                else if (app.GetDeviceState() == kDeviceStateIdle && !bluetooth_mode_) {
                     std::string wake_word = "你好小王子";
                     ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
                     app.WakeWordInvoke(wake_word);
@@ -1064,8 +1061,6 @@ public:
                                 first_connect_reminder = false;
                             }
 
-                            // 进入待机状态时，切换到蓝牙模式
-                            gpio_set_level(SWITCH_INPUT_GPIO, AUDIO_SWITCH_BLUETOOTH_LEVEL);
                             ESP_LOGI(TAG, "Device state changed to idle, switching to Bluetooth audio mode");
                         }
                         
