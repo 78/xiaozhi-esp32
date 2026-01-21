@@ -45,138 +45,8 @@ struct EraSmartDevice
     std::string action_off;
 };
 
-#ifdef CONFIG_ENABLE_EXTRACT_DOCUMENTATION
-struct FileSnippet {
-    std::string filename;
-    std::string content;
-};
+// Legacy FileSearcher removed
 
-class FileSearcher {
-private:
-    static const size_t BUFFER_SIZE = 4096;
-    static const size_t OVERLAP_SIZE = 127; // Keep odd/prime? Just enough for word.
-    static const size_t CONTEXT_SIZE = 150;
-
-    static bool EndsWith(const std::string& fullString, const std::string& ending) {
-        if (fullString.length() >= ending.length()) {
-            std::string str_lower = fullString;
-            std::string end_lower = ending;
-            std::transform(str_lower.begin(), str_lower.end(), str_lower.begin(), ::tolower);
-            std::transform(end_lower.begin(), end_lower.end(), end_lower.begin(), ::tolower);
-            return (0 == str_lower.compare(str_lower.length() - end_lower.length(), end_lower.length(), end_lower));
-        }
-        return false;
-    }
-
-    static std::string CleanPdfContent(const std::string& raw) {
-        std::string clean;
-        clean.reserve(raw.size());
-        size_t run_len = 0;
-        for (char c : raw) {
-            // Allow basic printable ascii and some utf-8 continuation bytes?
-            // UTF-8: 0x20-0x7E (ASCII), 0x80-0xFF (Multi-byte).
-            // Control chars: 0x09 (Tab), 0x0A (LF), 0x0D (CR).
-            // PDF binary data can be anything.
-            // Heuristic: If we see many nulls or non-text control chars, it's binary.
-            // But we are processing a snippet that matched a keyword, so it likely contains text.
-            if ((unsigned char)c >= 0x20 || c == '\n' || c == '\r' || c == '\t') {
-                clean += c;
-            } else {
-                 clean += ' '; 
-            }
-        }
-        return clean;
-    }
-
-public:
-    static std::vector<FileSnippet> Search(const std::string& query, const std::string& search_root = "/sdcard") {
-        std::vector<FileSnippet> results;
-        if (query.empty()) return results;
-
-        DIR* dir = opendir(search_root.c_str());
-        if (!dir) {
-            ESP_LOGW("FileSearcher", "Failed to open directory: %s", search_root.c_str());
-            return results;
-        }
-
-        struct dirent* entry;
-        char *buffer = (char*)malloc(BUFFER_SIZE);
-        if (!buffer) {
-            closedir(dir);
-            return results;
-        }
-
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN) continue; // Only files
-            
-            std::string fname = entry->d_name;
-            bool is_pdf = EndsWith(fname, ".pdf");
-            bool is_text = EndsWith(fname, ".txt") || EndsWith(fname, ".md") || EndsWith(fname, ".json");
-
-            if (!is_pdf && !is_text) continue;
-
-            std::string full_path = search_root;
-            if (full_path.back() != '/') full_path += "/";
-            full_path += fname;
-
-            FILE* f = fopen(full_path.c_str(), "rb");
-            if (!f) continue;
-
-            // Stream Read with Overlap
-            size_t overlap_len = 0;
-            memset(buffer, 0, BUFFER_SIZE);
-
-            while (true) {
-                size_t read_start = overlap_len;
-                size_t max_read = BUFFER_SIZE - overlap_len - 1; 
-                size_t bytes_read = fread(buffer + read_start, 1, max_read, f);
-                
-                size_t total_valid = bytes_read + overlap_len;
-                if (total_valid == 0) break;
-                
-                buffer[total_valid] = 0; // Null terminate for safety
-
-                std::string chunk(buffer, total_valid);
-                size_t pos = chunk.find(query);
-                
-                // If not found, try simple case-insensitive? 
-                // For now strict.
-                
-                if (pos != std::string::npos) {
-                     size_t start = (pos > CONTEXT_SIZE) ? (pos - CONTEXT_SIZE) : 0;
-                     size_t len = std::min(CONTEXT_SIZE * 2, total_valid - start);
-                     std::string context = chunk.substr(start, len);
-                     
-                     if (is_pdf) {
-                         context = CleanPdfContent(context);
-                     }
-                     
-                     // Naive UTF-8 validation: ensure we didn't cut in middle of multibyte
-                     // Not critical for snippet, LLM can handle bad edge chars.
-                     
-                     results.push_back({fname, context});
-                     break; // Found one snippet in this file, move to next to save time?
-                }
-
-                if (bytes_read < max_read) break; // EOF
-
-                // Move overlap
-                if (total_valid >= OVERLAP_SIZE) {
-                     memmove(buffer, buffer + total_valid - OVERLAP_SIZE, OVERLAP_SIZE);
-                     overlap_len = OVERLAP_SIZE;
-                } else {
-                     overlap_len = 0;
-                }
-            }
-            fclose(f);
-            if (results.size() >= 3) break; // Max 3 files matched
-        }
-        free(buffer);
-        closedir(dir);
-        return results;
-    }
-};
-#endif
 
 static std::vector<EraSmartDevice> GetEraSmartDevices()
 {
@@ -342,9 +212,8 @@ void McpServer::AddCommonTools()
                 });
     }
 
-    // Bluetooth KCX_BT_EMITTER Hardware Control
-    // Initialize GPIO pins for Bluetooth control
-#ifndef CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3
+
+#if !defined(CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3) && !defined(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
     static bool bluetooth_gpio_initialized = false;
     if (!bluetooth_gpio_initialized)
     {
@@ -369,7 +238,7 @@ void McpServer::AddCommonTools()
     }
 #endif
 
-#ifndef CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3
+#if !defined(CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3) && !defined(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
     AddTool("self.bluetooth.connect",
             "Activate Bluetooth pairing mode or connect to a nearby Bluetooth device. Use this when user asks to connect, pair, or turn on Bluetooth.",
             PropertyList(),
@@ -757,36 +626,7 @@ void McpServer::AddCommonTools()
     }
 #endif
 
-#ifdef CONFIG_ENABLE_EXTRACT_DOCUMENTATION
-    AddTool("self.knowledge.search_on_sdcard",
-            "Search for documentation/information on the SD card. Use this when the user asks to 'find', 'research', or 'extract' info from files.\n"
-            "This is effective for .md, .txt, and .pdf files stored on the device.\n"
-            "Args:\n"
-            "  `query`: Keywords to search for.\n",
-            PropertyList({Property("query", kPropertyTypeString)}),
-            [](const PropertyList &properties) -> ReturnValue
-            {
-                std::string query = properties["query"].value<std::string>();
-                if (query.empty()) return "{\"error\": \"Query cannot be empty\"}";
-                
-                // Default search path: /sdcard or /sdcard/docs if you want to be specific
-                // We'll search root /sdcard for simplicity as requested.
-                auto results = FileSearcher::Search(query, "/sdcard");
-                
-                if (results.empty()) {
-                    return "{\"message\": \"No matches found in /sdcard.\"}";
-                }
-                
-                cJSON *arr = cJSON_CreateArray();
-                for (const auto& res : results) {
-                    cJSON *item = cJSON_CreateObject();
-                    cJSON_AddStringToObject(item, "file", res.filename.c_str());
-                    cJSON_AddStringToObject(item, "snippet", res.content.c_str());
-                    cJSON_AddItemToArray(arr, item);
-                }
-                return arr;
-            });
-#endif
+// Tool self.knowledge.search_on_sdcard removed (Legacy)
 
 
 

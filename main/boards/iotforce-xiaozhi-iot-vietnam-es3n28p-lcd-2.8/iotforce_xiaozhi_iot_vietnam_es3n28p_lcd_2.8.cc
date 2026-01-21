@@ -161,7 +161,10 @@ private:
 
       // Toggle chat state like boot button
       auto &app = Application::GetInstance();
-      app.ToggleChatState();
+      if (app.GetDeviceState() != kDeviceStateQuiz)
+      {
+        app.ToggleChatState();
+      }
     }
     else if (code == LV_EVENT_PRESSING)
     {
@@ -634,7 +637,10 @@ private:
           // Single tap - toggle chat state
           ESP_LOGI(TAG, "🖐️ Touch TAP detected at (%d, %d) - Toggling chat!", touch_start_x, touch_start_y);
           auto &app = Application::GetInstance();
-          app.ToggleChatState();
+          if (app.GetDeviceState() != kDeviceStateQuiz)
+          {
+            app.ToggleChatState();
+          }
 
           last_tap_time = current_time; // Record for double-tap detection
         }

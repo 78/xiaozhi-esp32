@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xiaozhi Management Hub</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        /* Base Theme */
+        body { 
+            background-color: #0d0612; /* Deep Violet Black */
+            background-image: 
+                linear-gradient(rgba(139, 111, 181, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(139, 111, 181, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+            color: #E2E8F0; 
+            font-family: 'Segoe UI', sans-serif; 
+        }
+
+        /* Neon Utilities */
+        .neon-text { 
+            text-shadow: 0 0 10px rgba(213, 0, 249, 0.7), 0 0 20px rgba(139, 111, 181, 0.5); 
+            color: #d500f9; 
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(0, 229, 255, 0.7);
+            color: #00e5ff;
+        }
+        
+        /* Glassmorphism Card */
+        .card { 
+            background: rgba(30, 20, 40, 0.6); 
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(139, 111, 181, 0.3);
+            border-radius: 16px; 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(213, 0, 249, 0.5), transparent);
+        }
+        .card:hover { 
+            transform: translateY(-4px); 
+            border-color: rgba(213, 0, 249, 0.6);
+            box-shadow: 0 10px 40px rgba(139, 111, 181, 0.2);
+        }
+
+        /* Buttons */
+        .btn-primary { 
+            background: linear-gradient(135deg, #7c3aed, #d500f9);
+            color: white; 
+            font-weight: bold; 
+            padding: 0.6rem 1.2rem; 
+            border-radius: 8px; 
+            transition: all 0.2s; 
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn-primary:hover { 
+            filter: brightness(1.2);
+            box-shadow: 0 0 15px rgba(213, 0, 249, 0.6); 
+        }
+        
+        .btn-danger { 
+            background: rgba(239, 68, 68, 0.2); 
+            color: #FCA5A5; 
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            padding: 0.5rem 1rem; 
+            border-radius: 6px; 
+        }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.4); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d0612; }
+        ::-webkit-scrollbar-thumb { background: #4a2f5c; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8b6fb5; }
+
+        /* Icon Glow */
+        .icon-glow { filter: drop-shadow(0 0 5px rgba(0, 229, 255, 0.5)); }
+        .icon-glow-purple { filter: drop-shadow(0 0 8px rgba(213, 0, 249, 0.6)); }
+
+        input {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            box-shadow: 0 0 10px rgba(139, 111, 181, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen flex flex-col items-center p-4">
+        
+        <!-- Auth Screen -->
+        <div v-if="!token" class="w-full max-w-md mt-20 relative z-10">
+            <!-- Floating Orb Effect -->
+            <div class="absolute -top-20 -left-20 w-64 h-64 bg-purple-600 rounded-full blur-[100px] opacity-20"></div>
+            
+            <h1 class="text-5xl font-bold text-center mb-10 neon-text tracking-tighter">XIAOZHI<span class="text-white text-lg block tracking-widest mt-2 opacity-80 h-1">MANAGEMENT HUB</span></h1>
+            
+            <div class="card p-8 border-t border-purple-500/50">
+                <div class="flex justify-center gap-6 mb-8 border-b border-purple-900/50 pb-4">
+                    <button @click="authMode = 'login'" class="text-lg transition-all" :class="authMode === 'login' ? 'text-purple-400 font-bold border-b-2 border-purple-500 pb-1' : 'text-slate-500 hover:text-slate-300'">Login</button>
+                    <button @click="authMode = 'register'" class="text-lg transition-all" :class="authMode === 'register' ? 'text-purple-400 font-bold border-b-2 border-purple-500 pb-1' : 'text-slate-500 hover:text-slate-300'">Register</button>
+                </div>
+                
+                <form @submit.prevent="handleAuth">
+                    <div class="mb-5">
+                        <label class="block text-xs uppercase text-purple-300 mb-2 tracking-wider">Username</label>
+                        <div class="relative">
+                            <i class="ri-user-line absolute left-3 top-3 text-purple-400"></i>
+                            <input v-model="authForm.username" type="text" class="w-full bg-slate-900/50 border border-purple-900/50 rounded-lg py-2.5 pl-10 text-white focus:border-purple-500 outline-none" placeholder="Enter username" required>
+                        </div>
+                    </div>
+                    <div class="mb-8">
+                        <label class="block text-xs uppercase text-purple-300 mb-2 tracking-wider">Password</label>
+                        <div class="relative">
+                            <i class="ri-lock-line absolute left-3 top-3 text-purple-400"></i>
+                            <input v-model="authForm.password" type="password" class="w-full bg-slate-900/50 border border-purple-900/50 rounded-lg py-2.5 pl-10 text-white focus:border-purple-500 outline-none" placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full btn-primary text-lg shadow-lg">{{ authMode === 'login' ? 'Access System' : 'Create Account' }}</button>
+                    <p v-if="authError" class="text-red-400 text-sm mt-4 text-center bg-red-900/20 p-2 rounded border border-red-900/50">{{ authError }}</p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div v-else class="w-full max-w-7xl z-10 relative">
+             <div class="absolute -top-10 -right-10 w-96 h-96 bg-blue-600 rounded-full blur-[120px] opacity-10 pointer-events-none"></div>
+
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-10 pb-4 border-b border-purple-900/30">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center shadow-lg icon-glow-purple">
+                        <i class="ri-dashboard-3-line text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white tracking-tight">Xiaozhi Hub</h1>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_#22c55e]"></span>
+                            <span class="text-xs text-purple-300">System Operational</span>
+                            <span v-if="isAdmin" class="bg-red-500/20 text-red-300 border border-red-500/50 text-[10px] px-2 py-0.5 rounded ml-2 uppercase tracking-bold shadow-[0_0_10px_rgba(239,68,68,0.3)]">Admin Mode</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-6 bg-slate-900/40 px-4 py-2 rounded-full border border-purple-500/20 backdrop-blur-md">
+                    <div class="flex items-center gap-3">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm text-white font-bold">{{ username }}</p>
+                            <p class="text-xs text-purple-400">Authorized User</p>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-purple-800 flex items-center justify-center border border-purple-500 text-purple-200">
+                            {{ username.charAt(0).toUpperCase() }}
+                        </div>
+                    </div>
+                    <button @click="logout" class="text-slate-400 hover:text-white transition-colors" title="Logout">
+                        <i class="ri-logout-box-r-line text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats & Actions -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <!-- Stat Card 1 -->
+                <div class="card p-6 flex items-center justify-between group">
+                    <div>
+                        <span class="text-5xl font-bold bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent block">{{ devices.length }}</span>
+                        <span class="text-purple-300 text-xs uppercase tracking-widest font-bold mt-1 block group-hover:text-white transition-colors">Active Devices</span>
+                    </div>
+                    <div class="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center group-hover:bg-purple-500/20 transition-all icon-glow-purple">
+                        <i class="ri-cpu-line text-3xl text-purple-400"></i>
+                    </div>
+                </div>
+
+                <!-- Action Card -->
+                <div class="card p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-800/80 border-2 border-dashed border-purple-500/30 hover:border-purple-400 group" @click="showAddDevice = true">
+                    <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-lg">
+                        <i class="ri-add-line text-2xl text-purple-400"></i>
+                    </div>
+                    <p class="text-slate-300 font-bold group-hover:text-white group-hover:shadow-[0_0_10px_rgba(255,255,255,0.3)] transition-all">Link New Device</p>
+                </div>
+                
+                <!-- Stat Card 2 (System) -->
+                <div class="card p-6 flex flex-col justify-center relative overflow-hidden">
+                    <div class="absolute -right-4 -bottom-4 opacity-10 rotate-12">
+                        <i class="ri-database-2-line text-8xl text-purple-500"></i>
+                    </div>
+                    <p class="text-purple-300 text-sm font-bold uppercase mb-2">Storage Status</p>
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="ri-cloud-check-line text-green-400"></i>
+                        <span class="text-white font-mono text-lg">S3 Connected</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div class="bg-gradient-to-r from-purple-500 to-cyan-400 h-full w-full animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device List Header -->
+            <div class="flex items-center justify-between mb-6">
+                 <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span class="w-1 h-6 bg-cyan-400 rounded-full shadow-[0_0_8px_#22d3ee]"></span>
+                    My Devices
+                 </h2>
+                 <div class="bg-slate-900/50 px-3 py-1 rounded-lg border border-slate-700 text-xs text-slate-400">
+                    <i class="ri-search-line mr-1"></i> {{ devices.length }} items linked
+                 </div>
+            </div>
+            
+            <!-- Loader -->
+            <div v-if="loading" class="text-center py-20 bg-slate-900/20 rounded-xl border border-dashed border-slate-800">
+                <i class="ri-loader-4-line animate-spin text-4xl text-purple-500"></i>
+                <p class="text-slate-500 mt-2">Syncing with Cloud...</p>
+            </div>
+            
+            <!-- Grid -->
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <div v-for="device in devices" :key="device.deviceId" class="card p-0 flex flex-col h-full group">
+                    <div class="p-6 flex-1 relative z-10">
+                        <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button @click.stop="openDevice(device)" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-purple-600 hover:text-white text-slate-400 flex items-center justify-center transition-colors shadow">
+                                <i class="ri-settings-4-line"></i>
+                             </button>
+                        </div>
+                        
+                        <div class="flex items-start gap-4 mb-4">
+                            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-black flex items-center justify-center border border-slate-700 shadow-inner group-hover:border-purple-500/50 transition-colors">
+                                <i class="ri-robot-2-line text-3xl text-cyan-400 icon-glow"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg text-white group-hover:text-purple-300 transition-colors truncate w-40">{{ device.name.split('[Owner')[0] }}</h3>
+                                <p class="text-xs font-mono text-slate-500 bg-black/40 px-2 py-0.5 rounded inline-block border border-slate-800 mt-1">
+                                    ID: {{ device.deviceId.toUpperCase() }}
+                                </p>
+                                <!-- Admin View Owner -->
+                                <p v-if="device.name.includes('[Owner')" class="text-[10px] text-red-300 mt-1 flex items-center gap-1">
+                                    <i class="ri-user-star-line"></i> {{ device.name.split('[Owner')[1].replace(']', '') }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bottom Actions -->
+                    <div class="flex border-t border-purple-900/30 divide-x divide-purple-900/30 bg-black/20">
+                        <button @click="openDevice(device, 'quiz')" class="flex-1 py-3 text-sm text-slate-300 hover:text-white hover:bg-purple-900/20 transition-colors flex items-center justify-center gap-2 group/btn">
+                            <i class="ri-edit-line text-purple-400 group-hover/btn:scale-110 transition-transform"></i> Edit Quiz
+                        </button>
+                        <button @click="openDevice(device, 'history')" class="flex-1 py-3 text-sm text-slate-300 hover:text-white hover:bg-purple-900/20 transition-colors flex items-center justify-center gap-2 group/btn">
+                            <i class="ri-history-line text-cyan-400 group-hover/btn:scale-110 transition-transform"></i> History
+                        </button>
+                    </div>
+                    
+                    <!-- Decorative corner -->
+                    <div class="absolute bottom-0 right-0 w-16 h-16 bg-gradient-to-tl from-purple-500/10 to-transparent pointer-events-none"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div v-if="devices.length === 0" class="col-span-full py-20 text-center border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/20">
+                    <div class="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
+                        <i class="ri-link-unlink-m text-3xl text-slate-600"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-400">No devices connected</h3>
+                    <p class="text-slate-600 mb-6">Link your first ESP32 device to get started</p>
+                    <button @click="showAddDevice = true" class="btn-primary">Connect Device</button>
+                </div>
+            </div>
+
+            <!-- MODALS -->
+
+            <!-- Add Device Modal -->
+            <div v-if="showAddDevice" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-md">
+                <div class="card p-8 w-full max-w-md bg-[#0d0612] border border-purple-500/30 shadow-2xl shadow-purple-900/20">
+                    <h3 class="text-2xl font-bold mb-6 text-white border-l-4 border-cyan-400 pl-3">Link New Device</h3>
+                    <div class="mb-5">
+                        <label class="block text-xs uppercase text-slate-400 mb-2 font-bold tracking-wider">Device Identity</label>
+                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700 flex items-center gap-3">
+                             <input v-model="newDevice.id" maxlength="6" placeholder="A1B2C3" class="bg-transparent w-full text-white font-mono uppercase text-lg focus:outline-none placeholder-slate-700">
+                             <span class="text-xs text-slate-500 bg-black px-2 py-1 rounded border border-slate-800">HEX</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Enter the last 6 characters of MAC Address.</p>
+                    </div>
+                    <div class="mb-8">
+                        <label class="block text-xs uppercase text-slate-400 mb-2 font-bold tracking-wider">Friendly Name</label>
+                        <input v-model="newDevice.name" placeholder="e.g. Living Room Bot" class="w-full bg-slate-900/80 border border-slate-700 p-3 rounded-lg text-white focus:border-cyan-400 outline-none transition-colors">
+                    </div>
+                    <div class="flex justify-end gap-3 border-t border-slate-800 pt-6">
+                        <button @click="showAddDevice = false" class="text-slate-400 hover:text-white px-4">Cancel</button>
+                        <button @click="addDevice" class="btn-primary" :disabled="!newDevice.id">
+                            Link Device <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Detail Modal (Full Screen Layout) -->
+            <div v-if="selectedDevice" class="fixed inset-0 bg-[#000000]/95 flex items-center justify-center p-4 z-50 backdrop-blur-xl overflow-hidden">
+                <div class="w-full max-w-5xl h-[90vh] bg-[#0d0612] rounded-2xl border border-purple-900/50 flex flex-col shadow-2xl relative overflow-hidden">
+                    
+                    <!-- Decorative Background -->
+                    <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+                    <!-- Modal Header -->
+                    <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md relative z-10">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                                <i class="ri-equalizer-line text-white text-xl"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-white tracking-tight">{{ selectedDevice.name }}</h2>
+                                <p class="text-xs text-cyan-400 font-mono tracking-wider flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
+                                    {{ selectedDevice.deviceId.toUpperCase() }}
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="selectedDevice = null" class="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-colors border border-white/5">
+                            <i class="ri-close-line text-xl"></i>
+                        </button>
+                    </div>
+
+                    <!-- Layout: Sidebar + Content -->
+                    <div class="flex flex-1 overflow-hidden relative z-10">
+                        <!-- Sidebar -->
+                        <div class="w-64 bg-black/20 border-r border-white/5 flex flex-col p-4 gap-2">
+                             <button @click="activeTab = 'quiz'" class="text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium" :class="activeTab === 'quiz' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'text-slate-400 hover:text-white hover:bg-white/5'">
+                                <i class="ri-file-list-3-line"></i> Quiz Editor
+                             </button>
+                             <button @click="activeTab = 'history'" class="text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium" :class="activeTab === 'history' ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'text-slate-400 hover:text-white hover:bg-white/5'">
+                                <i class="ri-time-line"></i> History
+                             </button>
+                             <div class="flex-1"></div>
+                             <button @click="activeTab = 'settings'" class="text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium text-red-400 hover:bg-red-900/10" :class="activeTab === 'settings' ? 'bg-red-900/20' : ''">
+                                <i class="ri-delete-bin-2-line"></i> Settings
+                             </button>
+                        </div>
+
+                        <!-- Main Content Area -->
+                        <div class="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-transparent to-purple-900/5">
+                            
+                            <!-- QUIZ EDITOR -->
+                            <div v-if="activeTab === 'quiz'" class="max-w-3xl mx-auto anime-fade-in">
+                                <div class="flex justify-between items-end mb-8">
+                                    <div>
+                                        <h3 class="text-3xl font-bold text-white mb-2">Quiz Questions</h3>
+                                        <p class="text-slate-400">Manage the Q&A database for this robot.</p>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <button @click="addQuestion" class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/5 backdrop-blur flex items-center gap-2 transition-all">
+                                            <i class="ri-add-line"></i> Add Question
+                                        </button>
+                                        <button @click="saveQuiz" class="bg-gradient-to-r from-purple-600 to-cyan-500 hover:brightness-110 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-900/50 flex items-center gap-2 transition-all">
+                                            <i class="ri-save-3-line"></i> Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div v-if="loadingQuiz" class="text-center py-20"><i class="ri-loader-4-line animate-spin text-4xl text-purple-500"></i></div>
+
+                                <div v-else class="space-y-6 pb-20">
+                                    <div v-for="(q, index) in currentQuiz" :key="index" class="bg-slate-900/60 p-6 rounded-2xl border border-white/5 relative group hover:border-purple-500/30 transition-colors shadow-lg">
+                                        <div class="absolute -left-3 top-6 w-6 h-6 bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white z-20">
+                                            {{ index + 1 }}
+                                        </div>
+                                        
+                                        <button @click="removeQuestion(index)" class="absolute top-4 right-4 text-slate-600 hover:text-red-400 p-2 rounded-lg hover:bg-red-900/10 transition-colors opacity-0 group-hover:opacity-100">
+                                            <i class="ri-delete-bin-line text-lg"></i>
+                                        </button>
+
+                                        <div class="pl-4">
+                                            <!-- Question Input -->
+                                            <div class="mb-4">
+                                                <label class="block text-xs uppercase text-slate-500 mb-1 font-bold">Question</label>
+                                                <textarea rows="2" v-model="q.question" placeholder="Type the question content..." class="w-full bg-black/20 border border-slate-700 rounded-lg p-3 text-white text-lg focus:border-purple-500 focus:bg-black/40 outline-none transition-all resize-none"></textarea>
+                                            </div>
+                                            
+                                            <!-- Options -->
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div v-for="opt in ['A','B','C','D']" :key="opt" 
+                                                     class="flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:bg-white/5"
+                                                     :class="q.correct === opt ? 'bg-green-900/10 border-green-500/50' : 'bg-black/20 border-slate-800'"
+                                                     @click="q.correct = opt">
+                                                    
+                                                    <div class="w-8 h-8 rounded-full border flex items-center justify-center font-bold text-sm transition-colors"
+                                                         :class="q.correct === opt ? 'bg-green-500 border-green-500 text-black' : 'border-slate-600 text-slate-500'">
+                                                        {{ opt }}
+                                                    </div>
+                                                    
+                                                    <input v-model="q.options[opt.charCodeAt(0) - 65]" class="bg-transparent w-full text-sm text-slate-300 outline-none placeholder-slate-600" :placeholder="'Answer for ' + opt">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- HISTORY TABLE -->
+                            <div v-if="activeTab === 'history'" class="max-w-4xl mx-auto anime-fade-in">
+                                <h3 class="text-3xl font-bold text-white mb-6">Activity Log</h3>
+                                <div class="bg-slate-900/60 rounded-2xl border border-white/5 overflow-hidden shadow-xl">
+                                    <div v-if="loadingHistory" class="text-center py-20"><i class="ri-loader-4-line animate-spin text-3xl"></i></div>
+                                    <div v-else-if="history.length === 0" class="text-slate-500 text-center py-20">No history data available.</div>
+                                    <table v-else class="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr class="text-slate-500 text-xs uppercase bg-black/20 border-b border-white/5">
+                                                <th class="py-4 px-6 font-bold tracking-wider">Timestamp</th>
+                                                <th class="py-4 px-6 font-bold tracking-wider">Performance</th>
+                                                <th class="py-4 px-6 font-bold tracking-wider">Time Taken</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-white/5">
+                                            <tr v-for="h in history" :key="h.date" class="hover:bg-white/5 transition-colors">
+                                                <td class="py-4 px-6 text-slate-300 font-mono text-sm border-l-2 border-transparent hover:border-cyan-500">
+                                                    {{ new Date(h.date).toLocaleString([], {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}
+                                                </td>
+                                                <td class="py-4 px-6">
+                                                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border" 
+                                                          :class="h.score === h.total ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-slate-800 text-slate-300 border-slate-700'">
+                                                        <i v-if="h.score === h.total" class="ri-trophy-line"></i>
+                                                        {{ h.score }} / {{ h.total }} Correct
+                                                    </span>
+                                                </td>
+                                                <td class="py-4 px-6 text-slate-400 text-sm flex items-center gap-2">
+                                                    <i class="ri-timer-line"></i> {{ h.durationSeconds }}s
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- SETTINGS -->
+                            <div v-if="activeTab === 'settings'" class="max-w-lg mx-auto mt-20 text-center anime-fade-in">
+                                <div class="p-8 bg-red-500/5 border border-red-500/30 rounded-2xl backdrop-blur-sm relative overflow-hidden">
+                                    <div class="absolute inset-0 bg-red-500/5 rotate-12 scale-150 blur-xl"></div>
+                                    <i class="ri-alert-line text-5xl text-red-500 mb-4 inline-block"></i>
+                                    <h4 class="text-2xl font-bold text-white mb-2">Danger Zone</h4>
+                                    <p class="text-slate-400 mb-6">Removing this device will unlink it from your account. The local data on the device will not be affected, but you will lose access to its management.</p>
+                                    <button @click="deleteDevice" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-red-900/50 transition-all active:scale-95">
+                                        Unlink Device Permanently
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                // ... (Logic remains identical to previous version) ...
+                // Re-pasting standard logic to ensure functionality
+               const token = ref(localStorage.getItem('token'));
+                const username = ref(localStorage.getItem('username'));
+                const isAdmin = ref(localStorage.getItem('isAdmin') === 'true');
+                const authMode = ref('login');
+                const authForm = reactive({ username: '', password: '' });
+                const authError = ref('');
+                
+                const devices = ref([]);
+                const loading = ref(false);
+                
+                const showAddDevice = ref(false);
+                const newDevice = reactive({ id: '', name: '' });
+
+                const selectedDevice = ref(null);
+                const activeTab = ref('quiz');
+                
+                const currentQuiz = ref([]);
+                const loadingQuiz = ref(false);
+                
+                const history = ref([]);
+                const loadingHistory = ref(false);
+
+                const api = async (endpoint, method = 'GET', body = null) => {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (token.value) headers['Authorization'] = `Bearer ${token.value}`;
+                    const res = await fetch('/api' + endpoint, { method, headers, body: body ? JSON.stringify(body) : null });
+                    if (res.status === 401 || res.status === 403) { logout(); return null; }
+                    return res;
+                };
+
+                const handleAuth = async () => {
+                    authError.value = '';
+                    const endpoint = authMode.value === 'login' ? '/auth/login' : '/auth/register';
+                    try {
+                        const res = await api(endpoint, 'POST', authForm);
+                        const data = await res.json();
+                        if (res.ok) {
+                            if (authMode.value === 'register') {
+                                authMode.value = 'login';
+                                authError.value = 'Account created! Please login.';
+                            } else {
+                                token.value = data.token; username.value = data.username; isAdmin.value = data.isAdmin || false;
+                                localStorage.setItem('token', data.token); localStorage.setItem('username', data.username); localStorage.setItem('isAdmin', isAdmin.value);
+                                fetchDevices();
+                            }
+                        } else { authError.value = data.error; }
+                    } catch (e) { authError.value = "Network error"; }
+                };
+
+                const logout = () => {
+                    token.value = null; localStorage.removeItem('token'); localStorage.removeItem('username'); localStorage.removeItem('isAdmin'); isAdmin.value = false;
+                };
+
+                const fetchDevices = async () => {
+                    loading.value = true;
+                    const res = await api('/devices');
+                    if (res && res.ok) devices.value = await res.json();
+                    loading.value = false;
+                };
+
+                const addDevice = async () => {
+                    const res = await api('/devices', 'POST', { deviceId: newDevice.id, name: newDevice.name });
+                    if (res && res.ok) { showAddDevice.value = false; newDevice.id = ''; newDevice.name = ''; fetchDevices(); }
+                };
+
+                const openDevice = (device, tab = 'quiz') => {
+                    selectedDevice.value = device; activeTab.value = tab;
+                    loadQuizData(device.deviceId); loadHistory(device.deviceId);
+                };
+
+                const loadQuizData = async (deviceId) => {
+                    loadingQuiz.value = true;
+                    const res = await api(`/quiz/${deviceId}`);
+                    if (res && res.ok) currentQuiz.value = await res.json();
+                    loadingQuiz.value = false;
+                };
+
+                const saveQuiz = async () => {
+                    if (!selectedDevice.value) return;
+                    const valid = currentQuiz.value.every(q => q.question && q.correct && q.options.length === 4);
+                    if(!valid) { alert("Please ensure all questions have text and a correct answer marked."); return; }
+                    const res = await api('/quiz/json', 'POST', { deviceId: selectedDevice.value.deviceId, questions: currentQuiz.value });
+                    if (res && res.ok) alert("Quiz saved successfully!");
+                };
+
+                const loadHistory = async (deviceId) => {
+                    loadingHistory.value = true;
+                    const res = await api(`/history/${deviceId}`);
+                    if (res && res.ok) history.value = await res.json();
+                    loadingHistory.value = false;
+                };
+
+                const deleteDevice = async () => {
+                     if(!confirm("Are you sure?")) return;
+                     const res = await api(`/devices/${selectedDevice.value.deviceId}`, 'DELETE');
+                     if (res && res.ok) { selectedDevice.value = null; fetchDevices(); }
+                };
+
+                const addQuestion = () => {
+                    currentQuiz.value.push({ id: Date.now(), question: "", options: ["", "", "", ""], correct: "A" });
+                };
+
+                const removeQuestion = (idx) => { currentQuiz.value.splice(idx, 1); };
+
+                onMounted(() => { if (token.value) fetchDevices(); });
+
+                return {
+                    token, username, isAdmin, authMode, authForm, authError, handleAuth, logout,
+                    devices, loading, showAddDevice, newDevice, addDevice,
+                    selectedDevice, activeTab, openDevice,
+                    currentQuiz, loadingQuiz, addQuestion, removeQuestion, saveQuiz,
+                    history, loadingHistory, deleteDevice
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

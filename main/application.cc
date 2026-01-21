@@ -550,12 +550,17 @@ void Application::Start()
                                     {
         board.SetPowerSaveMode(true);
         Schedule([this]() {
-            // Don't change to idle if currently streaming music
+            // Don't change to idle if currently streaming music or in quiz mode
             if (device_state_ == kDeviceStateStreaming) {
                 ESP_LOGI(TAG, "Audio channel closed but music is streaming, keeping streaming state");
                 return;
             }
             
+            if (device_state_ == kDeviceStateQuiz) {
+                ESP_LOGI(TAG, "Audio channel closed but in Quiz Mode, ignoring state reset");
+                return;
+            }
+
             auto display = Board::GetInstance().GetDisplay();
             display->SetChatMessage("system", "");
             SetDeviceState(kDeviceStateIdle);
@@ -729,7 +734,14 @@ void Application::MainEventLoop()
 
         if (bits & MAIN_EVENT_ERROR)
         {
-            SetDeviceState(kDeviceStateIdle);
+            if (device_state_ != kDeviceStateQuiz)
+            {
+                SetDeviceState(kDeviceStateIdle);
+            }
+            else
+            {
+                ESP_LOGW(TAG, "Network error occurred but keeping Quiz Mode active");
+            }
             Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
         }
 
@@ -1423,7 +1435,7 @@ void Application::StartQuizMode(const std::string& quiz_file)
         // Or if SetupQuizUI takes the raw display object.
         // Checking quiz_ui.cc: void SetupQuizUI(lv_obj_t* parent, int width, int height);
         
-        quiz_ui_->SetupQuizUI(lv_scr_act(), display->width(), display->height());
+        quiz_ui_->SetupQuizUI(lv_scr_act(), display->width(), display->height(), display);
         
         // Connect UI callbacks
         quiz_ui_->SetOnAnswerPress([this](char answer) {
@@ -1540,28 +1552,19 @@ void Application::StartQuizMode(const std::string& quiz_file)
         });
     }
     
-    // Find quiz file
-    std::string file_path = quiz_file;
-    if (file_path.empty()) {
-        // Find first available quiz file
-        auto files = QuizManager::FindQuizFiles();
-        if (files.empty()) {
-            Alert(Lang::Strings::ERROR, "Không tìm thấy file quiz trên thẻ nhớ!", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
-            return;
-        }
-        file_path = files[0];
-    }
+    // Start Quiz Mode (Server Based)
+    // No more SD card file searching needed
     
-    ESP_LOGI(TAG, "Starting Quiz Mode with file: %s", file_path.c_str());
+    ESP_LOGI(TAG, "Starting Quiz Mode (Connecting to Server...)");
     
     SetDeviceState(kDeviceStateQuiz);
-    //display->SetStatus("Loading Quiz..."); // UI will handle this
     audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
     
     if (quiz_ui_) quiz_ui_->Show();
 
-    if (!quiz_manager_->StartQuiz(file_path)) {
-        Alert(Lang::Strings::ERROR, "Không thể mở file quiz!", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
+    // Call StartQuiz without arguments (uses configured URL)
+    if (!quiz_manager_->StartQuiz()) {
+        Alert(Lang::Strings::ERROR, "Không thể kết nối Server Quiz!", "circle_xmark", Lang::Sounds::OGG_EXCLAMATION);
         SetDeviceState(kDeviceStateIdle);
         return;
     }
@@ -1571,15 +1574,15 @@ void Application::StopQuizMode()
 {
     if (quiz_manager_) {
         quiz_manager_->StopQuiz();
+        // Do not reset quiz_manager_ here. A background thread might still be running 
+        // and accessing members. Ideally we should use shared_ptr/weak_ptr or join threads.
+        // For now, keeping the instance alive is a safer quick fix.
+        // quiz_manager_.reset(); 
     }
     
     if (quiz_ui_) {
         quiz_ui_->Hide();
-        // Don't delete it immediately to avoid reallocation if restarted, 
-        // or delete it if you want to save RAM. 
-        // For now, let's keep it but hide it.
-        // Actually, to be safe and save RAM:
-        quiz_ui_.reset(); 
+        // quiz_ui_.reset(); // Keep UI object too, or reset if sure no callbacks pending
     }
     
     SetDeviceState(kDeviceStateIdle);
