@@ -11,6 +11,9 @@
 
 static const char *TAG = "Ml307Board";
 
+extern "C" __attribute__((weak)) void board_ml307_pre_start_network(AtModem*) {}
+extern "C" __attribute__((weak)) bool board_ml307_on_network_failure(AtModem*, NetworkStatus) { return false; }
+
 Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin) : tx_pin_(tx_pin), rx_pin_(rx_pin), dtr_pin_(dtr_pin) {
 }
 
@@ -31,6 +34,8 @@ void Ml307Board::StartNetwork() {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
+    board_ml307_pre_start_network(modem_.get());
+
     modem_->OnNetworkStateChanged([this, &application](bool network_ready) {
         if (network_ready) {
             ESP_LOGI(TAG, "Network is ready");
@@ -49,6 +54,11 @@ void Ml307Board::StartNetwork() {
     display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
     while (true) {
         auto result = modem_->WaitForNetworkReady();
+        if (result != NetworkStatus::Ready) {
+            if (board_ml307_on_network_failure(modem_.get(), result)) {
+                continue;
+            }
+        }
         if (result == NetworkStatus::ErrorInsertPin) {
             application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
         } else if (result == NetworkStatus::ErrorRegistrationDenied) {

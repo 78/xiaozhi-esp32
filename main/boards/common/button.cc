@@ -110,7 +110,18 @@ void Button::OnMultipleClick(std::function<void()> callback, uint8_t click_count
     if (button_handle_ == nullptr) {
         return;
     }
-    on_multiple_click_ = callback;
+    if (click_count == 0) {
+        return;
+    }
+
+    for (auto& handler : multiple_click_handlers_) {
+        if (handler.click_count == click_count) {
+            handler.callback = std::move(callback);
+            return;
+        }
+    }
+
+    multiple_click_handlers_.push_back({click_count, std::move(callback)});
     button_event_args_t event_args = {
         .multiple_clicks = {
             .clicks = click_count
@@ -118,8 +129,17 @@ void Button::OnMultipleClick(std::function<void()> callback, uint8_t click_count
     };
     iot_button_register_cb(button_handle_, BUTTON_MULTIPLE_CLICK, &event_args, [](void* handle, void* usr_data) {
         Button* button = static_cast<Button*>(usr_data);
-        if (button->on_multiple_click_) {
-            button->on_multiple_click_();
+        if (!button) {
+            return;
+        }
+        uint8_t repeat = iot_button_get_repeat(static_cast<button_handle_t>(handle));
+        for (auto& handler : button->multiple_click_handlers_) {
+            if (handler.click_count == repeat) {
+                if (handler.callback) {
+                    handler.callback();
+                }
+                break;
+            }
         }
     }, this);
 }

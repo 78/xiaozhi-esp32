@@ -1,3 +1,4 @@
+#include "dual_network_board.h"
 #include "wifi_board.h"
 #include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
@@ -38,6 +39,172 @@
 
 #define BOARD_TAG "JiuchuanDevBoard"
 
+// 音量控制宏定义
+#define VOLUME_MAX 100           // 音量上限
+#define VOLUME_MIN 0             // 音量下限
+#define VOLUME_LEVELS 10         // 音量等级数量
+#define VOLUME_STEP (VOLUME_MAX / VOLUME_LEVELS)  // 音量步长 = 100 / 10 = 10
+namespace {
+constexpr int kMl307SimSlot0 = 0;  // USIM0
+constexpr int kMl307SimSlot1 = 1;  // USIM1
+
+enum class Ml307SimPresence : uint8_t {
+    Unknown = 0,
+    NoSim = 1,
+    Present = 2,
+};
+
+Ml307SimPresence g_ml307_sim_presence[2] = {Ml307SimPresence::Unknown, Ml307SimPresence::Unknown};
+int g_ml307_current_sim_slot = -1;
+bool g_ml307_fallback_tried = false;
+
+const char* Ml307SimPresenceToString(Ml307SimPresence presence) {
+    switch (presence) {
+        case Ml307SimPresence::NoSim:
+            return "no_sim";
+        case Ml307SimPresence::Present:
+            return "present";
+        default:
+            return "unknown";
+    }
+}
+
+bool Ml307SelectSimSlot(const std::shared_ptr<AtUart>& at_uart, int slot) {
+    if (!at_uart || (slot != kMl307SimSlot0 && slot != kMl307SimSlot1)) {
+        return false;
+    }
+    bool ok = at_uart->SendCommand("AT+SINGLESIM=" + std::to_string(slot), 3000);
+    if (ok) {
+        g_ml307_current_sim_slot = slot;
+    }
+    return ok;
+}
+
+Ml307SimPresence Ml307DetectSimPresence(const std::shared_ptr<AtUart>& at_uart, int retries) {
+    if (!at_uart) {
+        return Ml307SimPresence::Unknown;
+    }
+
+    for (int attempt = 0; attempt < retries; ++attempt) {
+        bool ok = at_uart->SendCommand("AT+CPIN?", 3000);
+        if (ok) {
+            return Ml307SimPresence::Present;
+        }
+        if (at_uart->GetCmeErrorCode() == 10) {
+            return Ml307SimPresence::NoSim;
+        }
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+    return Ml307SimPresence::Unknown;
+}
+
+Ml307SimPresence Ml307ProbeSimSlot(const std::shared_ptr<AtUart>& at_uart, int slot) {
+    if (!at_uart || (slot != kMl307SimSlot0 && slot != kMl307SimSlot1)) {
+        return Ml307SimPresence::Unknown;
+    }
+
+    (void)Ml307SelectSimSlot(at_uart, slot);
+    vTaskDelay(pdMS_TO_TICKS(300));
+    Ml307SimPresence presence = Ml307DetectSimPresence(at_uart, 3);
+    g_ml307_sim_presence[slot] = presence;
+    return presence;
+}
+
+int Ml307OtherSimSlot(int slot) {
+    return (slot == kMl307SimSlot0) ? kMl307SimSlot1 : kMl307SimSlot0;
+}
+}  // namespace
+
+extern "C" bool board_ml307_on_network_failure(AtModem* modem, NetworkStatus result) {
+    if (!modem) {
+        return false;
+    }
+    auto at_uart = modem->GetAtUart();
+    if (!at_uart) {
+        return false;
+    }
+
+    if (g_ml307_fallback_tried) {
+        return false;
+    }
+
+    if (result != NetworkStatus::ErrorInsertPin && result != NetworkStatus::ErrorRegistrationDenied) {
+        return false;
+    }
+
+    int current_slot = g_ml307_current_sim_slot;
+    if (current_slot != kMl307SimSlot0 && current_slot != kMl307SimSlot1) {
+        current_slot = kMl307SimSlot1;
+    }
+    int other_slot = Ml307OtherSimSlot(current_slot);
+
+    if (g_ml307_sim_presence[other_slot] == Ml307SimPresence::NoSim) {
+        ESP_LOGW(BOARD_TAG, "ML307 network failure (%d) on SIM slot %d; SIM slot %d has no SIM, skip fallback",
+                 static_cast<int>(result), current_slot, other_slot);
+        g_ml307_fallback_tried = true;
+        return false;
+    }
+
+    ESP_LOGW(BOARD_TAG, "ML307 network failure (%d) on SIM slot %d; trying SIM slot %d",
+             static_cast<int>(result), current_slot, other_slot);
+
+    g_ml307_fallback_tried = true;
+
+    if (!Ml307SelectSimSlot(at_uart, other_slot)) {
+        ESP_LOGW(BOARD_TAG, "Failed to switch ML307 SIM slot: %d (cme=%d)", other_slot, at_uart->GetCmeErrorCode());
+        return false;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(300));
+    Ml307SimPresence presence = Ml307DetectSimPresence(at_uart, 2);
+    g_ml307_sim_presence[other_slot] = presence;
+    ESP_LOGI(BOARD_TAG, "ML307 SIM slot %d probe after switch: %s", other_slot, Ml307SimPresenceToString(presence));
+
+    if (presence == Ml307SimPresence::NoSim) {
+        ESP_LOGW(BOARD_TAG, "No SIM detected on ML307 SIM slot %d; restoring SIM slot %d", other_slot, current_slot);
+        (void)Ml307SelectSimSlot(at_uart, current_slot);
+        return false;
+    }
+
+    ESP_LOGI(BOARD_TAG, "Switched ML307 SIM slot to %d; retrying network registration", other_slot);
+    return true;
+}
+
+extern "C" void board_ml307_pre_start_network(AtModem* modem) {
+    if (!modem) {
+        return;
+    }
+    auto at_uart = modem->GetAtUart();
+    if (!at_uart) {
+        return;
+    }
+
+    g_ml307_sim_presence[kMl307SimSlot0] = Ml307SimPresence::Unknown;
+    g_ml307_sim_presence[kMl307SimSlot1] = Ml307SimPresence::Unknown;
+    g_ml307_current_sim_slot = -1;
+    g_ml307_fallback_tried = false;
+
+    // Prefer USIM1; fall back to USIM0 if USIM1 is not inserted.
+    Ml307SimPresence sim1 = Ml307ProbeSimSlot(at_uart, kMl307SimSlot1);
+    ESP_LOGI(BOARD_TAG, "ML307 SIM slot %d probe: %s", kMl307SimSlot1, Ml307SimPresenceToString(sim1));
+
+    int selected_slot = kMl307SimSlot1;
+    if (sim1 == Ml307SimPresence::NoSim) {
+        Ml307SimPresence sim0 = Ml307ProbeSimSlot(at_uart, kMl307SimSlot0);
+        ESP_LOGI(BOARD_TAG, "ML307 SIM slot %d probe: %s", kMl307SimSlot0, Ml307SimPresenceToString(sim0));
+        if (sim0 != Ml307SimPresence::NoSim) {
+            selected_slot = kMl307SimSlot0;
+        }
+    }
+
+    if (g_ml307_current_sim_slot != selected_slot) {
+        if (!Ml307SelectSimSlot(at_uart, selected_slot)) {
+            ESP_LOGW(BOARD_TAG, "Failed to select ML307 SIM slot: %d (cme=%d)", selected_slot, at_uart->GetCmeErrorCode());
+            return;
+        }
+    }
+    ESP_LOGI(BOARD_TAG, "Selected ML307 SIM slot: %d", selected_slot);
+}
 
 // 九川版AudioCodec：手动控制PA引脚（参考立创版）
 class JiuchuanAudioCodec : public BoxAudioCodec {
@@ -112,7 +279,7 @@ public:
     }
 };
 
-class JiuchuanDevBoard : public WifiBoard {
+class JiuchuanDevBoard : public DualNetworkBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
@@ -125,15 +292,40 @@ private:
     esp_lcd_panel_io_handle_t panel_io = NULL;
     esp_lcd_panel_handle_t panel = NULL;
 
-    // 音量映射函数：将内部音量(0-80)映射为显示音量(0-100%)
+    // 音量映射函数：将内部音量映射为显示音量(0-100%)
     int MapVolumeForDisplay(int internal_volume) {
         // 确保输入在有效范围内
-        if (internal_volume < 0) internal_volume = 0;
-        if (internal_volume > 80) internal_volume = 80;
-        
-        // 将0-80映射到0-100
-        // 公式: 显示音量 = (内部音量 / 80) * 100
-        return (internal_volume * 100) / 80;
+        if (internal_volume < VOLUME_MIN) internal_volume = VOLUME_MIN;
+        if (internal_volume > VOLUME_MAX) internal_volume = VOLUME_MAX;
+
+        // 将内部音量直接映射到显示音量
+        return internal_volume;
+    }
+
+    void Enable4GModule() {
+        if (ML307_POWER_PIN == GPIO_NUM_NC) {
+            return;
+        }
+        gpio_reset_pin(ML307_POWER_PIN);
+        gpio_set_direction(ML307_POWER_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(ML307_POWER_PIN, ML307_POWER_OUTPUT_INVERT ? 0 : 1);
+    }
+
+    void Disable4GModule() {
+        if (ML307_POWER_PIN == GPIO_NUM_NC) {
+            return;
+        }
+        gpio_reset_pin(ML307_POWER_PIN);
+        gpio_set_direction(ML307_POWER_PIN, GPIO_MODE_OUTPUT);
+        gpio_set_level(ML307_POWER_PIN, ML307_POWER_OUTPUT_INVERT ? 1 : 0);
+    }
+
+    void CheckNetType() {
+        if (GetNetworkType() == NetworkType::WIFI) {
+            Disable4GModule();
+        } else if (GetNetworkType() == NetworkType::ML307) {
+            Enable4GModule();
+        }
     }
     
         // SDMMC模式初始化函数
@@ -362,11 +554,26 @@ private:
         });
 
         // 电源键三击：重置WiFi
-        pwr_button_.OnMultipleClick([this]()
-                                    {
-            ESP_LOGI(TAG, "Power button triple click: 重置WiFi");
+        pwr_button_.OnMultipleClick([this]() {
+            ESP_LOGI(TAG, "Power button triple click");
             power_save_timer_->WakeUp();
-            ResetWifiConfiguration(); }, 3);
+            if (GetNetworkType() == NetworkType::WIFI) {
+                auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                ESP_LOGI(TAG, "Reset WiFi configuration (WiFi mode)");
+                GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
+                wifi_board.ResetWifiConfiguration();
+            } else {
+                ESP_LOGI(TAG, "Currently in 4G mode, WiFi reset skipped");
+                GetDisplay()->ShowNotification(Lang::Strings::SWITCH_TO_WIFI_NETWORK);
+            }
+        }, 3);
+        
+        // 电源键五击：切换 WiFi/4G
+        pwr_button_.OnMultipleClick([this]() {
+            ESP_LOGI(TAG, "Power button five click");
+            power_save_timer_->WakeUp();
+            DualNetworkBoard::SwitchNetworkType();
+        }, 5);
 
         wifi_button.OnPressDown([this]()
                             {
@@ -375,7 +582,7 @@ private:
 
             auto codec = GetAudioCodec();
             int current_vol = codec->output_volume(); // 获取实际当前音量
-            current_vol = (current_vol + 8 > 80) ? 80 : current_vol + 8;
+            current_vol = (current_vol + VOLUME_STEP > VOLUME_MAX) ? VOLUME_MAX : current_vol + VOLUME_STEP;
             
             codec->SetOutputVolume(current_vol);
 
@@ -390,12 +597,12 @@ private:
 
             auto codec = GetAudioCodec();
             int current_vol = codec->output_volume(); // 获取实际当前音量
-            current_vol = (current_vol - 8 < 0) ? 0 : current_vol - 8;
+            current_vol = (current_vol - VOLUME_STEP < VOLUME_MIN) ? VOLUME_MIN : current_vol - VOLUME_STEP;
             
             codec->SetOutputVolume(current_vol);
 
             ESP_LOGI(TAG, "Current volume: %d", current_vol);
-            if (current_vol == 0) {
+            if (current_vol == VOLUME_MIN) {
                 GetDisplay()->ShowNotification(Lang::Strings::MUTED);
             } else {
                 int display_volume = MapVolumeForDisplay(current_vol);
@@ -421,7 +628,7 @@ private:
         io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = 3;
-        io_config.pclk_hz = 80 * 1000 * 1000;
+        io_config.pclk_hz = 75 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -463,11 +670,13 @@ private:
 
 public:
     JiuchuanDevBoard() :
+        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 1),
         boot_button_(BOOT_BUTTON_GPIO),
-        pwr_button_(PWR_BUTTON_GPIO,true),
+        pwr_button_(PWR_BUTTON_GPIO, true, 0, 350),
         wifi_button(WIFI_BUTTON_GPIO),
         cmd_button(CMD_BUTTON_GPIO) {
-
+        
+        CheckNetType();
         InitializeI2c();
         InitializePowerManager();
         InitializePowerSaveTimer();
@@ -534,7 +743,7 @@ public:
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 

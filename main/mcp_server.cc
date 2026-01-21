@@ -18,6 +18,7 @@
 #include "settings.h"
 #include "lvgl_theme.h"
 #include "lvgl_display.h"
+#include "assets/lang_config.h"
 
 #define TAG "MCP"
 
@@ -61,6 +62,49 @@ void McpServer::AddCommonTools() {
         [&board](const PropertyList& properties) -> ReturnValue {
             auto codec = board.GetAudioCodec();
             codec->SetOutputVolume(properties["volume"].value<int>());
+            return true;
+        });
+
+    AddTool("self.network.set_mode",
+        "Set network mode to WiFi or 4G (ML307).\n"
+        "mode must be one of: \"wifi\" | \"4g\".\n"
+        "**CAUTION** This will reboot the device when a mode change is needed; ask the user to confirm before calling.",
+        PropertyList({
+            Property("mode", kPropertyTypeString),
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            std::string mode = properties["mode"].value<std::string>();
+            std::string mode_lower;
+            mode_lower.reserve(mode.size());
+            for (unsigned char ch : mode) {
+                if (!std::isspace(ch)) {
+                    mode_lower.push_back(static_cast<char>(std::tolower(ch)));
+                }
+            }
+
+            int target_type = -1;  // 0=WiFi, 1=ML307
+            if (mode_lower == "wifi" || mode_lower == "wi-fi") {
+                target_type = 0;
+            } else if (mode_lower == "4g" || mode_lower == "ml307") {
+                target_type = 1;
+            } else {
+                throw std::runtime_error("Invalid mode. Use: wifi | 4g");
+            }
+
+            auto& app = Application::GetInstance();
+            app.Schedule([target_type]() {
+                Settings settings("network", true);
+                int current_type = settings.GetInt("type", 1);
+                if (current_type == target_type) {
+                    Board::GetInstance().GetDisplay()->ShowNotification(target_type == 0 ? "已是WiFi模式" : "已是4G模式");
+                    return;
+                }
+
+                settings.SetInt("type", target_type);
+                Board::GetInstance().GetDisplay()->ShowNotification(target_type == 1 ? Lang::Strings::SWITCH_TO_4G_NETWORK
+                                                                                    : Lang::Strings::SWITCH_TO_WIFI_NETWORK);
+                Application::GetInstance().Reboot();
+            });
             return true;
         });
      // Local music playback (SD card)

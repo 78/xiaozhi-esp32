@@ -82,7 +82,8 @@ void WifiBoard::EnterWifiConfigMode() {
         ESP_LOGW(TAG, "Serial number not available; QR code serialnumber will be empty");
     }
     std::string url = "https://app.boilon.cn/?mac=" + mac + "&serialnumber=" + serial_number;
-    GetDisplay()->ShowQRCode(url.c_str(), "请使用微信扫描二维码");
+    // WifiBoard can be used as a sub-board (e.g. DualNetworkBoard). In that case it doesn't own the display.
+    Board::GetInstance().GetDisplay()->ShowQRCode(url.c_str(), "请使用微信扫描二维码");
     // Wait forever until reset after configuration
     while (true) {
         int free_sram = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
@@ -231,13 +232,13 @@ void WifiBoard::ResetWifiConfiguration() {
 
     // Best-effort: stop audio + disable speaker amp before reboot to reduce "pop" noise.
     Application::GetInstance().GetAudioService().Stop();
-    if (auto codec = GetAudioCodec(); codec != nullptr) {
+    if (auto codec = Board::GetInstance().GetAudioCodec(); codec != nullptr) {
         codec->EnableOutput(false);
         codec->EnableInput(false);
     }
     vTaskDelay(pdMS_TO_TICKS(50));
 
-    GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
+    Board::GetInstance().GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
     vTaskDelay(pdMS_TO_TICKS(300));
     // Reboot the device
     esp_restart();

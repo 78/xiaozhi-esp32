@@ -7,6 +7,7 @@
 #include <button_adc.h>
 #include <button_gpio.h>
 #include <functional>
+#include <vector>
 
 class Button {
 public:
@@ -30,7 +31,12 @@ protected:
     std::function<void()> on_long_press_;
     std::function<void()> on_click_;
     std::function<void()> on_double_click_;
-    std::function<void()> on_multiple_click_;
+    
+    struct MultipleClickHandler {
+        uint8_t click_count = 0;
+        std::function<void()> callback;
+    };
+    std::vector<MultipleClickHandler> multiple_click_handlers_;
 };
 
 #if CONFIG_SOC_ADC_SUPPORTED

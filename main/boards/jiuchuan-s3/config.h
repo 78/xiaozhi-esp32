@@ -51,6 +51,11 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_46
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
+#define ML307_TX_PIN GPIO_NUM_17
+#define ML307_RX_PIN GPIO_NUM_18  
+#define ML307_POWER_PIN GPIO_NUM_45
+#define ML307_POWER_OUTPUT_INVERT false
+
 // LCD驱动类型配置
 // 通过 Kconfig 配置: menuconfig -> 九川S3配置 -> LCD驱动类型
 // 1 = GC9301/GC9309NA
