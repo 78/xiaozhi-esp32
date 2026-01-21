@@ -7,9 +7,12 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     EMBED_TXTFILES
-        "assets/wifi_configuration.html"
-        "assets/wifi_configuration_done.html"
-        "assets/wifi_configuration_advanced.html"
+        "assets/wifi_config.html"
+        "assets/wifi_config_done.html"
+        "assets/wifi_config_advanced.html"
+    EMBED_FILES
+        "assets/wifi_config.jpg"
+        "assets/wifi_config_success.jpg"
     REQUIRES
     	"esp_timer"
         "esp_http_server"

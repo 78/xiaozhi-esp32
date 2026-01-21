@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>配置完成</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .bg-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        
+        .message {
+            text-align: center;
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.6;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            max-width: 200px;
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <img src="wifi_config_success.jpg" alt="" class="bg-image">
+    <div class="message">
+        网络配置成功，时空对话之旅将在设备重启后开启！
+    </div>
+    
+    <script>
+        // Fix iOS Safari viewport height issue
+        function setViewportHeight() {
+            const height = window.innerHeight;
+            document.documentElement.style.height = height + 'px';
+            document.body.style.height = height + 'px';
+            const bgImage = document.querySelector('.bg-image');
+            if (bgImage) {
+                bgImage.style.height = height + 'px';
+            }
+        }
+        
+        setViewportHeight();
+        window.addEventListener('resize', setViewportHeight);
+        window.addEventListener('orientationchange', function() {
+            setTimeout(setViewportHeight, 100);
+        });
+        
+        window.addEventListener('load', function() {
+            setViewportHeight();
+            let count = 3;
+            
+            const timer = setInterval(function() {
+                count--;
+                
+                if (count <= 0) {
+                    clearInterval(timer);
+                    fetch('/reboot', {
+                        method: 'POST'
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            console.log('重启指令已发送');
+                        } else {
+                            console.error('发送重启指令失败');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

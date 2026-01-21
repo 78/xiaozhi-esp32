@@ -102,24 +102,3 @@ void SsidManager::AddSsid(const std::string& ssid, const std::string& password) 
     ssid_list_.insert(ssid_list_.begin(), {ssid, password});
     SaveToNvs();
 }
-
-void SsidManager::RemoveSsid(int index) {
-    if (index < 0 || index >= ssid_list_.size()) {
-        ESP_LOGW(TAG, "Invalid index %d", index);
-        return;
-    }
-    ssid_list_.erase(ssid_list_.begin() + index);
-    SaveToNvs();
-}
-
-void SsidManager::SetDefaultSsid(int index) {
-    if (index < 0 || index >= ssid_list_.size()) {
-        ESP_LOGW(TAG, "Invalid index %d", index);
-        return;
-    }
-    // Move the ssid at index to the front of the list
-    auto item = ssid_list_[index];
-    ssid_list_.erase(ssid_list_.begin() + index);
-    ssid_list_.insert(ssid_list_.begin(), item);
-    SaveToNvs();
-}

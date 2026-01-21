@@ -21,9 +21,13 @@
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-extern const char index_html_start[] asm("_binary_wifi_configuration_html_start");
-extern const char done_html_start[] asm("_binary_wifi_configuration_done_html_start");
-extern const char advanced_html_start[] asm("_binary_wifi_configuration_advanced_html_start");
+extern const char index_html_start[] asm("_binary_wifi_config_html_start");
+extern const char done_html_start[] asm("_binary_wifi_config_done_html_start");
+extern const char advanced_html_start[] asm("_binary_wifi_config_advanced_html_start");
+extern const char wifi_config_jpg_start[] asm("_binary_wifi_config_jpg_start");
+extern const char wifi_config_jpg_end[] asm("_binary_wifi_config_jpg_end");
+extern const char wifi_config_success_jpg_start[] asm("_binary_wifi_config_success_jpg_start");
+extern const char wifi_config_success_jpg_end[] asm("_binary_wifi_config_success_jpg_end");
 
 WifiConfigurationAp& WifiConfigurationAp::GetInstance() {
     static WifiConfigurationAp instance;
@@ -236,6 +240,38 @@ void WifiConfigurationAp::StartWebServer()
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &index_html));
 
+    // Register the wifi_config.jpg image file
+    httpd_uri_t wifi_config_jpg = {
+        .uri = "/wifi_config.jpg",
+        .method = HTTP_GET,
+        .handler = [](httpd_req_t *req) -> esp_err_t {
+            size_t image_size = wifi_config_jpg_end - wifi_config_jpg_start;
+            httpd_resp_set_type(req, "image/jpeg");
+            httpd_resp_set_hdr(req, "Connection", "close");
+            httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=3600");
+            httpd_resp_send(req, (const char*)wifi_config_jpg_start, image_size);
+            return ESP_OK;
+        },
+        .user_ctx = NULL
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &wifi_config_jpg));
+
+    // Register the wifi_config_success.jpg image file
+    httpd_uri_t wifi_config_success_jpg = {
+        .uri = "/wifi_config_success.jpg",
+        .method = HTTP_GET,
+        .handler = [](httpd_req_t *req) -> esp_err_t {
+            size_t image_size = wifi_config_success_jpg_end - wifi_config_success_jpg_start;
+            httpd_resp_set_type(req, "image/jpeg");
+            httpd_resp_set_hdr(req, "Connection", "close");
+            httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=3600");
+            httpd_resp_send(req, (const char*)wifi_config_success_jpg_start, image_size);
+            return ESP_OK;
+        },
+        .user_ctx = NULL
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &wifi_config_success_jpg));
+
     httpd_uri_t advanced_html = {
         .uri = "/advanced",
         .method = HTTP_GET,
@@ -248,74 +284,22 @@ void WifiConfigurationAp::StartWebServer()
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &advanced_html));
 
-    // Register the /saved/list URI
-    httpd_uri_t saved_list = {
-        .uri = "/saved/list",
-        .method = HTTP_GET,
+    // Register the /saved/clear URI
+    httpd_uri_t saved_clear = {
+        .uri = "/saved/clear",
+        .method = HTTP_POST,
         .handler = [](httpd_req_t *req) -> esp_err_t {
-            auto ssid_list = SsidManager::GetInstance().GetSsidList();
-            std::string json_str = "[";
-            for (const auto& ssid : ssid_list) {
-                json_str += "\"" + ssid.ssid + "\",";
-            }
-            if (json_str.length() > 1) {
-                json_str.pop_back(); // Remove the last comma
-            }
-            json_str += "]";
+            ESP_LOGI(TAG, "Clear all saved WiFi SSIDs");
+            SsidManager::GetInstance().Clear();
+            // send {"success":true}
             httpd_resp_set_type(req, "application/json");
             httpd_resp_set_hdr(req, "Connection", "close");
-            httpd_resp_send(req, json_str.c_str(), HTTPD_RESP_USE_STRLEN);
+            httpd_resp_send(req, "{\"success\":true}", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         },
         .user_ctx = NULL
     };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &saved_list));
-
-    // Register the /saved/set_default URI
-    httpd_uri_t saved_set_default = {
-        .uri = "/saved/set_default",
-        .method = HTTP_GET,
-        .handler = [](httpd_req_t *req) -> esp_err_t {
-            std::string uri = req->uri;
-            auto pos = uri.find("?index=");
-            if (pos != std::string::npos) {
-                int index = -1;
-                sscanf(&req->uri[pos+7], "%d", &index);
-                ESP_LOGI(TAG, "Set default item %d", index);
-                SsidManager::GetInstance().SetDefaultSsid(index);
-            }
-            // send {}
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_set_hdr(req, "Connection", "close");
-            httpd_resp_send(req, "{}", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        },
-        .user_ctx = NULL
-    };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &saved_set_default));
-
-    // Register the /saved/delete URI
-    httpd_uri_t saved_delete = {
-        .uri = "/saved/delete",
-        .method = HTTP_GET,
-        .handler = [](httpd_req_t *req) -> esp_err_t {
-            std::string uri = req->uri;
-            auto pos = uri.find("?index=");
-            if (pos != std::string::npos) {
-                int index = -1;
-                sscanf(&req->uri[pos+7], "%d", &index);
-                ESP_LOGI(TAG, "Delete saved list item %d", index);
-                SsidManager::GetInstance().RemoveSsid(index);
-            }
-            // send {}
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_set_hdr(req, "Connection", "close");
-            httpd_resp_send(req, "{}", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        },
-        .user_ctx = NULL
-    };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &saved_delete));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &saved_clear));
 
     // Register the /scan URI
     httpd_uri_t scan = {
@@ -405,7 +389,7 @@ void WifiConfigurationAp::StartWebServer()
             auto *this_ = static_cast<WifiConfigurationAp *>(req->user_ctx);
             if (!this_->ConnectToWifi(ssid_str, password_str)) {
                 cJSON_Delete(json);
-                httpd_resp_send(req, "{\"success\":false,\"error\":\"Failed to connect to the Access Point\"}", HTTPD_RESP_USE_STRLEN);
+                httpd_resp_send(req, "{\"success\":false,\"error\":\"连接失败，请检查网络或密码！\"}", HTTPD_RESP_USE_STRLEN);
                 return ESP_OK;
             }
 

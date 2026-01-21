@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WiFi配置</title>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="referrer no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <style type="text/css">
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .bg-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+        
+        .form-container {
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        
+        form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            width: 66.67%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #000;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            color: #333;
+        }
+        
+        input::placeholder {
+            color: #999;
+        }
+        
+        select option {
+            color: #333;
+        }
+        
+        select option:first-child {
+            color: #999;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #000;
+        }
+        
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath fill='%23333' d='M10.293 0.293a1 1 0 0 1 0 1.414L6.707 5.414a1 1 0 0 1-1.414 0L1.707 1.707a1 1 0 0 1 1.414-1.414L6 4.586l3.586-3.586a1 1 0 0 1 1.414 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 35px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            width: 66.67%;
+        }
+        
+        button[type="submit"],
+        .btn-reset {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            height: auto;
+        }
+        
+        button[type="submit"] {
+            background-color: #FFD700;
+            color: #fff;
+            border: none;
+        }
+        
+        button[type="submit"]:hover:not(:disabled) {
+            background-color: #FFC700;
+        }
+        
+        button[type="submit"]:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-reset {
+            background-color: white;
+            color: #999;
+            border: 1px solid #000;
+        }
+        
+        .btn-reset:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .error {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+            z-index: 100;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            width: 66.67%;
+        }
+        
+        .error:not(:empty) {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+        <img src="wifi_config.jpg" alt="" class="bg-image">
+        <div class="form-container">
+        <p class="error" id="error"></p>
+        <form action="/submit" method="post" onsubmit="submitForm(event)">
+            <div class="form-group">
+                <select id="ssid" name="ssid" required style="color: #999;">
+                    <option value="" style="color: #999;">选择网络</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="password" name="password" placeholder="输入密码">
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" id="button">确定</button>
+                <button type="button" class="btn-reset" onclick="resetForm()">重置</button>
+            </div>
+        </form>
+    </div>
+
+    <script type="text/javascript">
+        const button = document.getElementById('button');
+        const error = document.getElementById('error');
+        const ssid = document.getElementById('ssid');
+        
+        // 保存当前的 WiFi 列表数据，用于提交时判断是否需要密码
+        let currentWiFiList = [];
+
+        function resetForm() {
+            const ssidSelect = document.getElementById('ssid');
+            ssidSelect.value = '';
+            ssidSelect.style.color = '#999';
+            document.getElementById('password').value = '';
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+        }
+
+        // 处理 WiFi 列表数据：同一 SSID 只保留信号最好的（rssi 值最大的）
+        function deduplicateWiFiList(data) {
+            const wifiMap = new Map();
+            
+            data.forEach(ap => {
+                const ssid = ap.ssid;
+                if (!ssid) return; // 跳过空 SSID
+                
+                if (!wifiMap.has(ssid)) {
+                    wifiMap.set(ssid, ap);
+                } else {
+                    const existing = wifiMap.get(ssid);
+                    // 保留 rssi 值更大的（信号更好的）
+                    if (ap.rssi > existing.rssi) {
+                        wifiMap.set(ssid, ap);
+                    }
+                }
+            });
+            
+            return Array.from(wifiMap.values());
+        }
+
+        function loadAPList() {
+            if (button.disabled) {
+                return;
+            }
+
+            fetch('/scan')
+                .then(response => response.json())
+                .then(data => {
+                    const ssidSelect = document.getElementById('ssid');
+                    const currentValue = ssidSelect.value;
+                    
+                    ssidSelect.innerHTML = '<option value="">选择网络</option>';
+                    
+                    // 去重处理
+                    const uniqueData = deduplicateWiFiList(data);
+                    
+                    // 保存到全局变量
+                    currentWiFiList = uniqueData;
+                    
+                    // 按 SSID 字典序排序
+                    uniqueData.sort((a, b) => {
+                        return a.ssid.localeCompare(b.ssid, 'zh-CN', { numeric: true, sensitivity: 'base' });
+                    });
+                    
+                    // 添加 WiFi 网络
+                    uniqueData.forEach(ap => {
+                        const option = document.createElement('option');
+                        option.value = ap.ssid;
+                        let text = ap.ssid;
+                        if (ap.authmode !== 0) {
+                            text += ' 🔒';
+                        }
+                        option.textContent = text;
+                        ssidSelect.appendChild(option);
+                    });
+                    
+                    // 恢复之前选择的值
+                    if (currentValue) {
+                        ssidSelect.value = currentValue;
+                        ssidSelect.style.color = '#333';
+                    } else {
+                        ssidSelect.style.color = '#999';
+                    }
+                    
+                    setTimeout(loadAPList, 5000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // 请求失败时，清空列表并继续尝试
+                    currentWiFiList = [];
+                    setTimeout(loadAPList, 5000);
+                });
+        }
+
+        function updateErrorPosition() {
+            const errorEl = document.getElementById('error');
+            const firstFormGroup = document.querySelector('.form-group');
+            if (errorEl && firstFormGroup) {
+                const formContainer = document.querySelector('.form-container');
+                const formContainerRect = formContainer.getBoundingClientRect();
+                const firstFormGroupRect = firstFormGroup.getBoundingClientRect();
+                const topPosition = firstFormGroupRect.top - formContainerRect.top - 45;
+                errorEl.style.top = topPosition + 'px';
+            }
+        }
+
+        // Fix iOS Safari viewport height issue
+        function setViewportHeight() {
+            const height = window.innerHeight;
+            document.documentElement.style.height = height + 'px';
+            document.body.style.height = height + 'px';
+            const bgImage = document.querySelector('.bg-image');
+            if (bgImage) {
+                bgImage.style.height = height + 'px';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            setViewportHeight();
+            window.addEventListener('resize', setViewportHeight);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(setViewportHeight, 100);
+            });
+            
+            loadAPList();
+            updateErrorPosition();
+            
+            // 当下拉框选择改变时，更新文字颜色
+            const ssidSelect = document.getElementById('ssid');
+            ssidSelect.addEventListener('change', function() {
+                if (this.value) {
+                    this.style.color = '#333';
+                } else {
+                    this.style.color = '#999';
+                }
+            });
+            
+            // 监听窗口大小变化，重新计算位置
+            window.addEventListener('resize', function() {
+                setViewportHeight();
+                updateErrorPosition();
+            });
+        });
+
+        async function submitForm(event) {
+            event.preventDefault();
+            button.disabled = true;
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+
+            const ssidValue = ssid.value.trim();
+            const passwordValue = document.getElementById('password').value.trim();
+
+            if (!ssidValue) {
+                errorEl.textContent = '请选择WiFi网络';
+                errorEl.style.display = 'block';
+                updateErrorPosition();
+                button.disabled = false;
+                return;
+            }
+
+            // 查找所选 WiFi 网络的 authmode
+            const selectedWiFi = currentWiFiList.find(ap => ap.ssid === ssidValue);
+            
+            // 如果网络需要密码（authmode !== 0），则验证密码是否为空
+            if (selectedWiFi && selectedWiFi.authmode !== 0 && !passwordValue) {
+                errorEl.textContent = '请输入 WiFi 密码';
+                errorEl.style.display = 'block';
+                updateErrorPosition();
+                button.disabled = false;
+                return;
+            }
+
+            const payload = {
+                ssid: ssidValue,
+                password: passwordValue
+            };
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '连接失败');
+                }
+
+                button.disabled = false;
+                window.location.href = '/done.html';
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                updateErrorPosition();
+                button.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
