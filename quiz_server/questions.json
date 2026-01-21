@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "question": "ESP32-S3 sử dụng kiến trúc vi xử lý nào?",
+    "options": ["ARM Cortex-M4", "Xtensa LX7", "MIPS32", "RISC-V"],
+    "correct": "B"
+  },
+  {
+    "id": 2,
+    "question": "Điện áp hoạt động logic của ESP32 là bao nhiêu?",
+    "options": ["5V", "3.3V", "1.8V", "12V"],
+    "correct": "B"
+  },
+  {
+    "id": 3,
+    "question": "Giao thức nào thường dùng để giao tiếp với cảm biến I2C?",
+    "options": ["UART", "SPI", "I2C", "CAN"],
+    "correct": "C"
+  },
+  {
+    "id": 4,
+    "question": "Chân GPIO nào trên ESP32 thường là strapping pin?",
+    "options": ["GPIO 0", "GPIO 4", "GPIO 15", "Tất cả"],
+    "correct": "D"
+  },
+  {
+    "id": 5,
+    "question": "FreeRTOS là gì?",
+    "options": ["Một IDE", "Một hệ điều hành thời gian thực", "Một thư viện đồ họa", "Một phần cứng"],
+    "correct": "B"
+  },
+    {
+    "id": 6,
+    "question": "Chức năng chính của bootloader là gì?",
+    "options": ["Chạy ứng dụng", "Khởi tạo phần cứng và nạp OS", "Debug code", "Quản lý Wi-Fi"],
+    "correct": "B"
+  },
+  {
+    "id": 7,
+    "question": "ESP-IDF là viết tắt của gì?",
+    "options": ["ESP Integrated Development Framework", "ESP IoT Development Framework", "ESP Internal Data Format", "ESP IoT Data Flow"],
+    "correct": "B"
+  },
+  {
+    "id": 8,
+    "question": "Dung lượng Flash tối đa ESP32 hỗ trợ là bao nhiêu?",
+    "options": ["4MB", "16MB", "32MB", "128MB"],
+    "correct": "B"
+  },
+  {
+    "id": 9,
+    "question": "Trong C++, từ khóa nào dùng để định nghĩa lớp trừu tượng?",
+    "options": ["virtual", "abstract", "interface", "static"],
+    "correct": "A"
+  },
+  {
+    "id": 10,
+    "question": "LittleFS là gì?",
+    "options": ["Một loại RAM", "Hệ thống tệp tin cho vi điều khiển", "Giao thức mạng", "Thư viện âm thanh"],
+    "correct": "B"
+  }
+]
