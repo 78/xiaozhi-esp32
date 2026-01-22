@@ -1,5 +1,25 @@
 # M5Stack Sticks3
 
+
+
+-------
+## 概述
+
+* MCU:ESP32-S3
+    * PSRAM: 8MB
+    * Flash：8MB
+* 显示屏
+    * 分辨率：135x240
+    * 屏幕驱动：ST7789
+    * 驱动接口：SPI
+* 按键
+    * 电源按键 PWR
+    * 用户按键 Button1
+    * 用户按键 Button2
+* 电池
+
+
+----------
 ## 硬件配置
 
 * SYS_I2C/I2C0
