@@ -6,7 +6,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include "led/circular_strip.h"
 #include "assets/lang_config.h"
@@ -27,7 +27,7 @@ private:
     LcdDisplay *display_;
     button_handle_t btn_a;
     button_handle_t btn_b;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     button_driver_t* btn_a_driver_ = nullptr;
     button_driver_t* btn_b_driver_ = nullptr;
@@ -209,7 +209,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
     }
 
     void InitializeIli9341Display() {
