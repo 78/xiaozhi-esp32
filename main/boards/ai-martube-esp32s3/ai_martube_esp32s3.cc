@@ -231,13 +231,9 @@ private:
             if (app.GetDeviceState() != kDeviceStateIdle)  {
                 app.SetDeviceState(kDeviceStateIdle);
             }
-            vTaskDelay(pdMS_TO_TICKS(500));
             // 提醒用户关机
-            gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
             app.PlaySound(Lang::Sounds::OGG_POWEROFF);
             vTaskDelay(pdMS_TO_TICKS(1000));
-            gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
-            vTaskDelay(pdMS_TO_TICKS(100));
             SetPowerState(false);
         });
 
@@ -289,10 +285,12 @@ private:
                 uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x05};
                 if (uart_comm_ && uart_comm_->IsReady()) {
                     uart_comm_->Send(cmd, sizeof(cmd));
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                    uart_comm_->Send(cmd, sizeof(cmd));
                 } else {
                     ESP_LOGW(TAG, "UART not ready, skip sending BT command");
                 }
-                ESP_LOGI(TAG, "Long press: switch to Bluetooth mode, sent A5 00 02 07");
+                ESP_LOGI(TAG, "Long press: switch to Bluetooth mode, sent A5 00 02 05");
                 bluetooth_mode_ = true;
             } else {
                 // 提醒用户切换到 AI 模式
@@ -304,10 +302,12 @@ private:
                 uint8_t cmd[4] = {0xA5, 0x00, 0x02, 0x06};
                 if (uart_comm_ && uart_comm_->IsReady()) {
                     uart_comm_->Send(cmd, sizeof(cmd));
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                    uart_comm_->Send(cmd, sizeof(cmd));
                 } else {
                     ESP_LOGW(TAG, "UART not ready, skip sending AI command");
                 }
-                ESP_LOGI(TAG, "Long press: switch to AI mode, sent A5 00 02 08");
+                ESP_LOGI(TAG, "Long press: switch to AI mode, sent A5 00 02 06");
                 bluetooth_mode_ = false;
                 std::string wake_word = "你好小王子";
                 ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
@@ -495,7 +495,9 @@ private:
                     auto* self = static_cast<ai_martube_esp32s3*>(arg);
                     auto& app = Application::GetInstance();
                     if (self->current_volume_ >= 100) {
-                        app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                        if (!self->bluetooth_mode_) {
+                            app.PlaySound(Lang::Sounds::OGG_MAXSOUND);
+                        }
                     } else {
                         app.PlaySound(Lang::Sounds::OGG_SOUNDSET);
                     }
@@ -785,11 +787,8 @@ private:
                 std::string_view low_battery_off_sound(_binary_low_battery_off_ogg_start, 
                                                        _binary_low_battery_off_ogg_end - _binary_low_battery_off_ogg_start);
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
-                vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYOFF);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
                 // 5秒后关机
                 xTaskCreate([](void* arg) {
                     auto* self = static_cast<ai_martube_esp32s3*>(arg);
@@ -810,11 +809,8 @@ private:
                 std::string_view low_battery_remind_sound(_binary_low_battery_remind_ogg_start, 
                                                           _binary_low_battery_remind_ogg_end - _binary_low_battery_remind_ogg_start);
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
-                vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
 
             }
             // 低于10% - 第一次提醒
@@ -830,11 +826,8 @@ private:
                                                           _binary_low_battery_remind_ogg_end - _binary_low_battery_remind_ogg_start);
 
                 // 切换esp32s3 音频输出通道
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_ENABLE_LEVEL);
-                vTaskDelay(pdMS_TO_TICKS(50));
                 app.PlaySound(Lang::Sounds::OGG_BATTERYREMIND);
                 vTaskDelay(pdMS_TO_TICKS(2000));
-                gpio_set_level(AUDIO_CODEC_PA_GPIO, AUDIO_CODEC_PA_GPIO_DISABLE_LEVEL);
 
             }
             
@@ -952,7 +945,6 @@ public:
                             pwm_led_controller_(nullptr)
     {
         InitializePowerControl();
-        InitializeAudioSwitch();
         InitializeMotor();
         InitializeChargeStatus();
         InitializeBatteryMonitor();
@@ -994,10 +986,6 @@ public:
         // 新增：初始化串口通信模块，并设置数据解析回调
         uart_comm_ = new UartComm(BOARD_UART_PORT, BOARD_UART_TX, BOARD_UART_RX, BOARD_UART_BAUD);
         uart_comm_->Begin();
-        uint8_t cmd_off[4] = {0xA5, 0x00, 0x02, 0x06};
-        if (uart_comm_ && uart_comm_->IsReady()) {
-            uart_comm_->Send(cmd_off, sizeof(cmd_off));
-        }
         uart_comm_->SetParser([this](const uint8_t *data, size_t len)
         {
             // 按长度输出十六进制字符串，避免把二进制当作 %s 打印
