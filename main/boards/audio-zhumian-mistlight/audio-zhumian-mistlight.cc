@@ -2,8 +2,7 @@
 #include "config.h"
 #include "power_manager.h"
 #include "led_controller.h"
-#include "servo_controller.h"
-#include "codecs/es8389_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -11,47 +10,28 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "led/circular_strip.h"
+#include "led/gpio_led.h"
 #include "assets/lang_config.h"
 #include "adc_battery_monitor.h"
-#include "device_state_machine.h"
 #include "mcp_tools.h"
+#include "device_state_machine.h"
 #include <esp_log.h>
 #include <driver/rtc_io.h>
-#include <driver/i2c_master.h>
-#include <driver/gpio.h>
 
-#define TAG "NanoZhumian"
+#define TAG "AudioZhumianMistLight"
 
-class NanoZhumian : public WifiBoard
+class AudioZhumianMistLight : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
     FogSeekLedController led_controller_;
-    FogSeekServoController servo_controller_;
     CircularStrip *rgb_led_strip_ = nullptr;
-    i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
 
-    // 初始化I2C外设
-    void InitializeI2c()
-    {
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = (i2c_port_t)0,
-            .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
-            .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
-        };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-    }
+    bool motor_state_ = false;
 
     // 初始化电源管理器
     void InitializePowerManager()
@@ -73,57 +53,38 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
 
         // 初始化RGB灯带
-        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
+        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 16);
     }
 
-    // 初始化舵机控制器
-    void InitializeServoController()
+    // 初始化额外的GPIO控制引脚
+    void InitializeGpioControls()
     {
-        // 使用配置文件中定义的舵机控制引脚 (GPIO_NUM_5)
-        servo_controller_.Initialize(SERVO_BODY_GPIO);
+        gpio_config_t io_conf_led1 = {};
+        io_conf_led1.intr_type = GPIO_INTR_DISABLE;
+        io_conf_led1.mode = GPIO_MODE_OUTPUT;
+        io_conf_led1.pin_bit_mask = (1ULL << MOTOR_GPIO);
+        io_conf_led1.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf_led1.pull_up_en = GPIO_PULLUP_DISABLE;
+        gpio_config(&io_conf_led1);
 
-        // 设置舵机初始位置
-        servo_controller_.SetAngle(90); // 90度位置（中间）
+        gpio_set_level(MOTOR_GPIO, 0);
 
-        ESP_LOGI(TAG, "Servo controller initialized on GPIO %d.", SERVO_BODY_GPIO);
+        ESP_LOGI(TAG, "GPIO controls initialized: MOTOR=%d", MOTOR_GPIO);
     }
 
-    // 初始化音频功放引脚并默认关闭功放
-    void InitializeAudioAmplifier()
+    // 切换电机状态
+    void ToggleMotor()
     {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << AUDIO_CODEC_PA_PIN);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetAudioAmplifierState(false); // 默认关闭功放
+        motor_state_ = !motor_state_;
+        gpio_set_level(MOTOR_GPIO, motor_state_);
+        ESP_LOGI(TAG, "MOTOR state changed to: %s", motor_state_ ? "HIGH" : "LOW");
     }
 
-    // 设置音频功放状态
-    void SetAudioAmplifierState(bool enable)
+    // 初始化音频输出控制
+    void InitializeAudioOutputControl()
     {
-        gpio_set_level(AUDIO_CODEC_PA_PIN, enable ? 1 : 0);
-    }
-
-    // 初始化扩展板电源使能引脚
-    void InitializeExtensionPowerEnable()
-    {
-        gpio_config_t io_conf;
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << EXT_POWER_ENABLE_GPIO);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        SetExtensionPowerEnableState(false); // 默认关闭扩展板电源使能
-    }
-
-    // 设置扩展板电源使能状态
-    void SetExtensionPowerEnableState(bool enable)
-    {
-        gpio_set_level(EXT_POWER_ENABLE_GPIO, enable ? 1 : 0);
+        auto codec = GetAudioCodec();
+        codec->SetOutputVolume(0); // 功放不支持使能控制，通过设置音量来替代使能，避免USB插入时自动播放声音
     }
 
     // 初始化按键回调
@@ -131,10 +92,10 @@ private:
     {
         ctrl_button_.OnClick([this]()
                              {
-                                 servo_controller_.SetAngle(45);
-                                 // 延时500ms后返回到90度位置
-                                 vTaskDelay(pdMS_TO_TICKS(500));
-                                 servo_controller_.SetAngle(90);
+                                 motor_state_ = !motor_state_;
+
+                                 gpio_set_level(MOTOR_GPIO, motor_state_);
+                                 ESP_LOGI(TAG, "LED1 state changed to: %s", motor_state_ ? "HIGH" : "LOW");
 
                                  // 循环切换RGB灯带颜色
                                  static int color_index = 0;
@@ -169,13 +130,13 @@ private:
                              });
         ctrl_button_.OnDoubleClick([this]()
                                    {
-                                    rgb_led_strip_->SetAllColor({0, 0, 0}); // 关灯
-                                    auto &app = Application::GetInstance();
-                                    if (app.GetDeviceState() == kDeviceStateStarting)
-                                    {
-                                        EnterWifiConfigMode();
-                                        return;
-                                    } });
+                                    rgb_led_strip_->SetAllColor({0, 0, 0}); // 白色
+            auto &app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting)
+            {
+                EnterWifiConfigMode();
+                return;
+            } });
         ctrl_button_.OnLongPress([this]()
                                  {
             // 切换电源状态
@@ -211,7 +172,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<NanoZhumian *>(arg);
+                auto instance = static_cast<AudioZhumianMistLight *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -229,9 +190,6 @@ private:
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(70); // 开机后将音量设置为默认值
-        SetAudioAmplifierState(true);
-
-        SetExtensionPowerEnableState(true); // 开机时打开扩展板电源使能
 
         ESP_LOGI(TAG, "Device powered on.");
 
@@ -241,15 +199,12 @@ private:
     // 关机流程
     void PowerOff()
     {
-        SetExtensionPowerEnableState(false); // 关机时关闭扩展板电源使能
-        rgb_led_strip_->SetAllColor({0, 0, 0});
-
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
+        rgb_led_strip_->SetAllColor({0, 0, 0}); // 白色
 
         auto codec = GetAudioCodec();
         codec->SetOutputVolume(0); // 关机后将音量设置为默0
-        SetAudioAmplifierState(false);
 
         Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
 
@@ -264,24 +219,19 @@ private:
 
         // 初始化RGB LED MCP 工具
         InitializeRgbLedMCP(mcp_server, rgb_led_strip_);
-
-        // 初始化系统级MCP工具（如关机功能）
-        InitializeSystemMCP(mcp_server, power_manager_);
     }
 
 public:
-    NanoZhumian() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    AudioZhumianMistLight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
-        InitializeI2c();
         InitializePowerManager();
         InitializeLedController();
-        InitializeAudioAmplifier();
-        InitializeExtensionPowerEnable();
+        InitializeAudioOutputControl();
+        InitializeGpioControls();
         InitializeButtonCallbacks();
         InitializeMCP();
-        InitializeServoController();
 
-        // 设置电源状态变化回调函数
+        // 设置电源状态变化回调函数，充电时，充电状态变化更新指示灯
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
                                              { led_controller_.UpdateLedStatus(power_manager_); });
     }
@@ -293,37 +243,14 @@ public:
 
     virtual AudioCodec *GetAudioCodec() override
     {
-        static Es8389AudioCodec audio_codec(
-            i2c_bus_,
-            (i2c_port_t)0,
-            AUDIO_INPUT_SAMPLE_RATE,
-            AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK,
-            AUDIO_I2S_GPIO_BCLK,
-            AUDIO_I2S_GPIO_WS,
-            AUDIO_I2S_GPIO_DOUT,
-            AUDIO_I2S_GPIO_DIN,
-            GPIO_NUM_NC,
-            AUDIO_CODEC_ES8389_ADDR,
-            true,
-            true);
+        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+                                              AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
         return &audio_codec;
     }
 
-    ~NanoZhumian()
+    ~AudioZhumianMistLight()
     {
-        if (i2c_bus_)
-        {
-            i2c_del_master_bus(i2c_bus_);
-        }
-
-        // 删除RGB灯带对象
-        if (rgb_led_strip_)
-        {
-            delete rgb_led_strip_;
-            rgb_led_strip_ = nullptr;
-        }
     }
 };
 
-DECLARE_BOARD(NanoZhumian);
+DECLARE_BOARD(AudioZhumianMistLight);

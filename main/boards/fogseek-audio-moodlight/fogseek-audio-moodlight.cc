@@ -17,9 +17,9 @@
 #include <esp_log.h>
 #include <driver/rtc_io.h>
 
-#define TAG "FogSeekAudioMoodlight"
+#define TAG "FogSeekAudioMoodLight"
 
-class FogSeekAudioMoodlight : public WifiBoard
+class FogSeekAudioMoodLight : public WifiBoard
 {
 private:
     Button boot_button_;
@@ -109,7 +109,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<FogSeekAudioMoodlight *>(arg);
+                auto instance = static_cast<FogSeekAudioMoodLight *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -164,7 +164,7 @@ private:
     }
 
 public:
-    FogSeekAudioMoodlight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    FogSeekAudioMoodLight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializePowerManager();
         InitializeLedController();
@@ -188,9 +188,9 @@ public:
         return &audio_codec;
     }
 
-    ~FogSeekAudioMoodlight()
+    ~FogSeekAudioMoodLight()
     {
     }
 };
 
-DECLARE_BOARD(FogSeekAudioMoodlight);
+DECLARE_BOARD(FogSeekAudioMoodLight);

@@ -2,6 +2,7 @@
 #include "config.h"
 #include "power_manager.h"
 #include "led_controller.h"
+#include "servo_controller.h"
 #include "codecs/es8389_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
@@ -19,15 +20,16 @@
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
 
-#define TAG "NanoGlowbies"
+#define TAG "NanoZhumianMistLight"
 
-class NanoGlowbies : public WifiBoard
+class NanoZhumianMistLight : public WifiBoard
 {
 private:
     Button boot_button_;
     Button ctrl_button_;
     FogSeekPowerManager power_manager_;
     FogSeekLedController led_controller_;
+    FogSeekServoController servo_controller_;
     CircularStrip *rgb_led_strip_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
@@ -71,7 +73,19 @@ private:
         led_controller_.InitializeLeds(power_manager_, &led_pin_config);
 
         // 初始化RGB灯带
-        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 19);
+        rgb_led_strip_ = new CircularStrip((gpio_num_t)LED_RGB_GPIO, 8);
+    }
+
+    // 初始化舵机控制器
+    void InitializeServoController()
+    {
+        // 使用配置文件中定义的舵机控制引脚 (GPIO_NUM_5)
+        servo_controller_.Initialize(SERVO_BODY_GPIO);
+
+        // 设置舵机初始位置
+        servo_controller_.SetAngle(90); // 90度位置（中间）
+
+        ESP_LOGI(TAG, "Servo controller initialized on GPIO %d.", SERVO_BODY_GPIO);
     }
 
     // 初始化音频功放引脚并默认关闭功放
@@ -117,6 +131,11 @@ private:
     {
         ctrl_button_.OnClick([this]()
                              {
+                                 servo_controller_.SetAngle(45);
+                                 // 延时500ms后返回到90度位置
+                                 vTaskDelay(pdMS_TO_TICKS(500));
+                                 servo_controller_.SetAngle(90);
+
                                  // 循环切换RGB灯带颜色
                                  static int color_index = 0;
                                  switch (color_index)
@@ -192,7 +211,7 @@ private:
             esp_timer_create_args_t timer_args = {};
             timer_args.callback = [](void *arg)
             {
-                auto instance = static_cast<NanoGlowbies *>(arg);
+                auto instance = static_cast<NanoZhumianMistLight *>(arg);
                 instance->HandleAutoWake();
             };
             timer_args.arg = this;
@@ -245,10 +264,13 @@ private:
 
         // 初始化RGB LED MCP 工具
         InitializeRgbLedMCP(mcp_server, rgb_led_strip_);
+
+        // 初始化系统级MCP工具（如关机功能）
+        InitializeSystemMCP(mcp_server, power_manager_);
     }
 
 public:
-    NanoGlowbies() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    NanoZhumianMistLight() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -257,6 +279,7 @@ public:
         InitializeExtensionPowerEnable();
         InitializeButtonCallbacks();
         InitializeMCP();
+        InitializeServoController();
 
         // 设置电源状态变化回调函数
         power_manager_.SetPowerStateCallback([this](FogSeekPowerManager::PowerState state)
@@ -280,14 +303,14 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN,
+            GPIO_NUM_NC,
             AUDIO_CODEC_ES8389_ADDR,
             true,
             true);
         return &audio_codec;
     }
 
-    ~NanoGlowbies()
+    ~NanoZhumianMistLight()
     {
         if (i2c_bus_)
         {
@@ -303,4 +326,4 @@ public:
     }
 };
 
-DECLARE_BOARD(NanoGlowbies);
+DECLARE_BOARD(NanoZhumianMistLight);

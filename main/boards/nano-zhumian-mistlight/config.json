@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "nano-zhumian",
+            "name": "nano-zhumian-mistlight",
             "sdkconfig_append": [
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
