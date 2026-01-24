@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "fogseek-audio-aiya",
+            "sdkconfig_append": [
+                "CONFIG_LANGUAGE_ZH_CN_XY=y",
+                "CONFIG_SR_WN_WN9_XIAOYAXIAOYA_TTS2=y",
+                "CONFIG_OTA_URL=\"https://api.aiyainfo.com:8002/xiaoya/ota/\""
+            ]
+        }
+    ]
+}
