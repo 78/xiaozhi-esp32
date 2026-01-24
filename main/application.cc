@@ -823,6 +823,12 @@ void Application::HandleStateChangedEvent() {
 
             // Make sure the audio processor is running
             if (!audio_service_.IsAudioProcessorRunning()) {
+                // For auto mode, wait for playback queue to be empty before enabling voice processing
+                // This prevents audio truncation when STOP arrives late due to network jitter
+                if (listening_mode_ == kListeningModeAutoStop) {
+                    audio_service_.WaitForPlaybackQueueEmpty();
+                }
+                
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
                 audio_service_.EnableVoiceProcessing(true);
