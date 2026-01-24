@@ -6,6 +6,9 @@
 // 按钮相关配置
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 #define CTRL_BUTTON_GPIO GPIO_NUM_18
+#define VOLUME_UP_GPIO GPIO_NUM_8
+#define VOLUME_DOWN_GPIO GPIO_NUM_44
+#define BT_WIFI_CONNECT_GPIO GPIO_NUM_43
 
 // 电源相关配置
 #define PWR_HOLD_GPIO GPIO_NUM_39
@@ -17,7 +20,6 @@
 // LED相关配置
 #define LED_RED_GPIO GPIO_NUM_48
 #define LED_GREEN_GPIO GPIO_NUM_47
-
 #define LED_RGB_GPIO GPIO_NUM_9
 
 // 音频相关配置

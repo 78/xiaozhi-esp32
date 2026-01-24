@@ -26,12 +26,18 @@ class NanoGlowbies : public WifiBoard
 private:
     Button boot_button_;
     Button ctrl_button_;
+    Button volume_up_button_;
+    Button volume_down_button_;
+    Button bt_wifi_connect_button_;
     FogSeekPowerManager power_manager_;
     FogSeekLedController led_controller_;
     CircularStrip *rgb_led_strip_ = nullptr;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     AudioCodec *audio_codec_ = nullptr;
     esp_timer_handle_t check_idle_timer_ = nullptr;
+
+    // 当前音量值
+    int current_volume_ = 70; // 默认音量70
 
     // 初始化I2C外设
     void InitializeI2c()
@@ -115,6 +121,66 @@ private:
     // 初始化按键回调
     void InitializeButtonCallbacks()
     {
+        // 音量增加按钮回调
+        volume_up_button_.OnClick([this]()
+                                  {
+                                      current_volume_ += 10;
+                                      if (current_volume_ > 100)
+                                      {
+                                          current_volume_ = 100;
+                                      }
+                                      ESP_LOGI(TAG, "Volume increased to: %d", current_volume_);
+                                      
+                                      auto codec = GetAudioCodec();
+                                      codec->SetOutputVolume(current_volume_); });
+
+        // 音量减少按钮回调
+        volume_down_button_.OnClick([this]()
+                                    {
+                                        current_volume_ -= 10;
+                                        if (current_volume_ < 0)
+                                        {
+                                            current_volume_ = 0;
+                                        }
+                                        ESP_LOGI(TAG, "Volume decreased to: %d", current_volume_);
+                                        
+                                        auto codec = GetAudioCodec();
+                                        codec->SetOutputVolume(current_volume_); });
+
+        // 蓝牙WiFi连接按钮回调
+        bt_wifi_connect_button_.OnClick([this]()
+                                        {
+                                            // 循环切换RGB灯带颜色
+                                            static int color_index = 0;
+                                            switch (color_index)
+                                            {
+                                            case 0:
+                                                rgb_led_strip_->SetAllColor({255, 0, 255}); // 紫色
+                                                break;
+                                            case 1:
+                                                rgb_led_strip_->SetAllColor({0, 255, 0}); // 绿色
+                                                break;
+                                            case 2:
+                                                rgb_led_strip_->SetAllColor({255, 255, 0}); // 黄色
+                                                break;
+                                            case 3:
+                                                rgb_led_strip_->SetAllColor({0, 0, 255}); // 蓝色
+                                                break;
+                                            case 4:
+                                                rgb_led_strip_->SetAllColor({255, 165, 0}); // 橙色
+                                                break;
+                                            case 5:
+                                                rgb_led_strip_->SetAllColor({0, 255, 255}); // 青色
+                                                break;
+                                            default:
+                                                rgb_led_strip_->SetAllColor({255, 255, 255}); // 白色
+                                                break;
+                                            }
+                                            color_index = (color_index + 1) % 7; // 循环使用7种颜色
+                                            ESP_LOGI(TAG, "Bluetooth/WiFi connect button pressed");
+                                            // 可以在这里添加蓝牙或WiFi连接逻辑
+                                        });
+
         ctrl_button_.OnClick([this]()
                              {
                                  // 循环切换RGB灯带颜色
@@ -208,10 +274,7 @@ private:
         power_manager_.PowerOn();                        // 更新电源状态
         led_controller_.UpdateLedStatus(power_manager_); // 更新LED灯状态
 
-        auto codec = GetAudioCodec();
-        codec->SetOutputVolume(70); // 开机后将音量设置为默认值
         SetAudioAmplifierState(true);
-
         SetExtensionPowerEnableState(true); // 开机时打开扩展板电源使能
 
         ESP_LOGI(TAG, "Device powered on.");
@@ -228,8 +291,6 @@ private:
         power_manager_.PowerOff();
         led_controller_.UpdateLedStatus(power_manager_);
 
-        auto codec = GetAudioCodec();
-        codec->SetOutputVolume(0); // 关机后将音量设置为默0
         SetAudioAmplifierState(false);
 
         Application::GetInstance().SetDeviceState(DeviceState::kDeviceStateIdle); // 关机后将设备状态设置为空闲，便于下次开机自动唤醒
@@ -248,7 +309,11 @@ private:
     }
 
 public:
-    NanoGlowbies() : boot_button_(BOOT_BUTTON_GPIO), ctrl_button_(CTRL_BUTTON_GPIO)
+    NanoGlowbies() : boot_button_(BOOT_BUTTON_GPIO),
+                     ctrl_button_(CTRL_BUTTON_GPIO),
+                     volume_up_button_(VOLUME_UP_GPIO),
+                     volume_down_button_(VOLUME_DOWN_GPIO),
+                     bt_wifi_connect_button_(BT_WIFI_CONNECT_GPIO)
     {
         InitializeI2c();
         InitializePowerManager();
@@ -280,7 +345,7 @@ public:
             AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN,
+            GPIO_NUM_NC,
             AUDIO_CODEC_ES8389_ADDR,
             true,
             true);

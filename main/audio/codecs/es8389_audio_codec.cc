@@ -186,11 +186,11 @@ void Es8389AudioCodec::EnableOutput(bool enable)
         ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
 
-        if (input_reference_)
-        {
-            uint8_t dac_gain = 0xB9; // AEC模式：-6dB
-            ESP_ERROR_CHECK_WITHOUT_ABORT(ctrl_if_->write_reg(ctrl_if_, 0x46, 1, &dac_gain, 1));
-        }
+        // if (input_reference_)
+        // {
+        //     uint8_t dac_gain = 0xB9; // AEC模式：-6dB
+        //     ESP_ERROR_CHECK_WITHOUT_ABORT(ctrl_if_->write_reg(ctrl_if_, 0x46, 1, &dac_gain, 1));
+        // }
 
         if (pa_pin_ != GPIO_NUM_NC)
         {
