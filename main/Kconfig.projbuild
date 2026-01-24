@@ -36,6 +36,8 @@ choice
 
     config LANGUAGE_ZH_CN
         bool "Chinese"
+    config LANGUAGE_ZH_CN_XY
+        bool "Chinese (xiaoya)"
     config LANGUAGE_ZH_TW
         bool "Chinese Traditional"
     config LANGUAGE_EN_US
@@ -145,34 +147,61 @@ choice BOARD_TYPE
         bool "Xmini C3"
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_FOGSEEK_AUDIO
-        bool "雾岸科技 Audio"
+        bool "Fogseek Audio"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_AUDIO_LINKBIT
-        bool "雾岸科技 LinkBit"
+    config BOARD_TYPE_FOGSEEK_NANO
+        bool "Fogseek Nano"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_NANO_LCD1_8
+        bool "Fogseek Nano-LCD1.8"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_NANO_KIT
+        bool "Fogseek Nano-Kit"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOGSEEK_TRIAL_LCD1_8
+        bool "Fogseek Trial-LCD1.8"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_FOGSEEK_AUDIO_MOODLIGHT
-        bool "雾岸科技 MoodLight"
+        bool "Fogseek MoodLight"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_AUDIO_XIAOYA
-        bool "小雅小雅"
+    config BOARD_TYPE_AUDIO_LINKBIT
+        bool "Linkbit"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE
-        bool "雾岸科技 Edge"
-        depends on IDF_TARGET_ESP32S3 
-    config BOARD_TYPE_FOGSEEK_EDGE_BUBBLEPAL
-        bool "雾岸科技 BubblePal"
+    config BOARD_TYPE_NANO_LINKBIT
+        bool "Linkbit Pro"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G
-        bool "雾岸科技 Edge-ES8389-4G"
+    config BOARD_TYPE_NANO_LINKBIT_LUMI
+        bool "Linkbit Lumi"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI
-        bool "雾岸科技 Edge-ES8389-WiFi"
+    config BOARD_TYPE_NANO_LINKBIT_LUMI_4G
+        bool "Linkbit Lumi 4G"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_LCD1_5
-        bool "雾岸科技 Edge-LCD1.5"
+    config BOARD_TYPE_NANO_LINKBIT_VISION
+        bool "Linkbit Vision"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_FOGSEEK_EDGE_LCD1_8
-        bool "雾岸科技 Edge-LCD1.8"
+    config BOARD_TYPE_NANO_LINKBIT_VISION_4G
+        bool "Linkbit Vision 4G"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_AUDIO_XIAOYA
+        bool "XiaoYa"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_NANO_XIAOYA
+        bool "XiaoYa Pro"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_NANO_SPIN
+        bool "Spin Robot"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_NANO_SPIN_4G
+        bool "Spin Robot 4G"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_AUDIO_ZHUMIAN_MISTLIGHT
+        bool "Zhumian MistLight"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_NANO_ZHUMIAN_MISTLIGHT
+        bool "Zhumian MistLight Pro"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_NANO_GLOWBIES
+        bool "Glowbies"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_KORVO2_V3
         bool "Espressif Korvo2 V3"
@@ -694,7 +723,9 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49 \
-        || BOARD_TYPE_FOGSEEK_EDGE_BUBBLEPAL || BOARD_TYPE_FOGSEEK_EDGE_ES8389_WIFI || BOARD_TYPE_FOGSEEK_EDGE_ES8389_4G)
+        || BOARD_TYPE_FOGSEEK_NANO || BOARD_TYPE_FOGSEEK_NANO_KIT || BOARD_TYPE_FOGSEEK_NANO_LCD1_8 \
+        || BOARD_TYPE_NANO_LINKBIT || BOARD_TYPE_NANO_LINKBIT_LUMI || BOARD_TYPE_NANO_LINKBIT_LUMI_4G || BOARD_TYPE_NANO_LINKBIT_VISION || BOARD_TYPE_NANO_LINKBIT_VISION_4G \
+        || BOARD_TYPE_NANO_SPIN || BOARD_TYPE_NANO_SPIN_4G || BOARD_TYPE_NANO_XIAOYA || BOARD_TYPE_NANO_ZHUMIAN_MISTLIGHT || BOARD_TYPE_NANO_GLOWBIES)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 

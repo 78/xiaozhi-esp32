@@ -1,8 +1,43 @@
 #include "mcp_tools.h"
 #include <esp_log.h>
 #include <cJSON.h>
+#include "mcp_server.h"
+#include "application.h"
+#include "board.h"
+#include "display.h"
+#include "esp_sleep.h"
+#include "power_manager.h"
 
 static const char *TAG = "FogSeekMCPTools";
+
+void InitializeSystemMCP(
+    McpServer &mcp_server,
+    FogSeekPowerManager &power_manager)
+{
+    // 添加系统关机的工具函数
+    mcp_server.AddUserOnlyTool("self.shutdown",
+                               "Shutdown the system. Command words examples: 关机, 关闭设备, 设备关机, 关闭系统",
+                               PropertyList(),
+                               [&power_manager](const PropertyList &properties) -> ReturnValue
+                               {
+                                   auto &app = Application::GetInstance();
+                                   auto &board = Board::GetInstance();
+
+                                   app.Schedule([&app, &board, &power_manager]()
+                                                {
+                                                    ESP_LOGW(TAG, "User requested shutdown");
+
+                                                    // 显示关机通知
+                                                    auto display = board.GetDisplay();
+                                                    if (display)
+                                                    {
+                                                        display->ShowNotification("正在关机...", 3000);
+                                                    }
+
+                                                    power_manager.PowerOff(); });
+                                   return true;
+                               });
+}
 
 void InitializeLightMCP(
     McpServer &mcp_server,

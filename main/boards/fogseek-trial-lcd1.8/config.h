@@ -1,0 +1,65 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+// 按钮相关配置
+#define BOOT_BUTTON_GPIO GPIO_NUM_0
+#define CTRL_BUTTON_GPIO GPIO_NUM_15
+
+// 电源相关配置
+#define PWR_HOLD_GPIO GPIO_NUM_39
+#define PWR_CHARGE_DONE_GPIO GPIO_NUM_21
+#define PWR_CHARGING_GPIO GPIO_NUM_18
+#define BATTERY_ADC_GPIO GPIO_NUM_10 // 电池电压检测ADC1_CH9
+
+// LED相关配置
+#define LED_RED_GPIO GPIO_NUM_48
+#define LED_GREEN_GPIO GPIO_NUM_47
+
+// 音频相关配置
+#define AUDIO_INPUT_SAMPLE_RATE 24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+#define AUDIO_INPUT_REFERENCE true
+
+#define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_8 // I2C时钟线
+#define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_9 // I2C数据线
+
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_38 // 主时钟
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_16 // 位时钟
+#define AUDIO_I2S_GPIO_WS GPIO_NUM_14   // 帧时钟
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_13 // 数据输出（扬声器）
+#define AUDIO_I2S_GPIO_DIN GPIO_NUM_17  // 数据输入（麦克风）
+
+#define AUDIO_CODEC_PA_PIN GPIO_NUM_41                    // NS4150B功放使能引脚
+#define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR // ES8311默认I2C地址 (0x18)
+
+// LCD 屏幕相关配置
+#define BOARD_LCD_TYPE LCD_TYPE_WLK_1_8_INCH // LCD 屏幕类型
+
+#define DISPLAY_WIDTH 360
+#define DISPLAY_HEIGHT 360
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
+#define DISPLAY_OFFSET_X 0
+#define DISPLAY_OFFSET_Y 0
+
+#define LCD_H_RES (360)
+#define LCD_V_RES (360)
+#define LCD_BIT_PER_PIXEL (16)
+#define LCD_HOST SPI2_HOST
+
+#define LCD_BL_GPIO GPIO_NUM_1    // Backlight
+#define LCD_IM0_GPIO GPIO_NUM_43  // IM0
+#define LCD_IM2_GPIO GPIO_NUM_44  // IM2
+#define LCD_IO3_GPIO GPIO_NUM_2   // IO3
+#define LCD_IO2_GPIO GPIO_NUM_3   // IO2
+#define LCD_IO1_GPIO GPIO_NUM_4   // IO1
+#define LCD_IO0_GPIO GPIO_NUM_5   // IO0
+#define LCD_SCL_GPIO GPIO_NUM_6   // SCL
+#define LCD_RESET_GPIO GPIO_NUM_7 // RST
+#define LCD_CS_GPIO GPIO_NUM_11   // CS
+#define LCD_DC_GPIO GPIO_NUM_NC   // DC
+
+#endif
