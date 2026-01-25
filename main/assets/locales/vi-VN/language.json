@@ -11,6 +11,7 @@
         "INITIALIZING": "Đang khởi tạo...",
         "PIN_ERROR": "Vui lòng cắm thẻ SIM",
         "REG_ERROR": "Không thể truy cập mạng, vui lòng kiểm tra trạng thái thẻ SIM",
+        "MODEM_INIT_ERROR": "Khởi tạo modem thất bại",
         "DETECTING_MODULE": "Đang phát hiện module...",
         "REGISTERING_NETWORK": "Đang chờ mạng...",
         "CHECKING_NEW_VERSION": "Đang kiểm tra phiên bản mới...",

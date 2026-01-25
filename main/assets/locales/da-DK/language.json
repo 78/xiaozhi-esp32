@@ -11,6 +11,7 @@
         "INITIALIZING": "Initialiserer...",
         "PIN_ERROR": "Indsæt venligst SIM-kort",
         "REG_ERROR": "Kan ikke få adgang til netværket, tjek venligst SIM-kortets status",
+        "MODEM_INIT_ERROR": "Modeminitialisering mislykkedes",
         "DETECTING_MODULE": "Detekterer modul...",
         "REGISTERING_NETWORK": "Venter på netværk...",
         "CHECKING_NEW_VERSION": "Tjekker for ny version...",

@@ -11,6 +11,7 @@
         "INITIALIZING": "Inicijalizacija...",
         "PIN_ERROR": "Molimo umetnite SIM karticu",
         "REG_ERROR": "Nije moguć pristup mreži, molimo provjerite status SIM kartice",
+        "MODEM_INIT_ERROR": "Inicijalizacija modema nije uspjela",
         "DETECTING_MODULE": "Otkrivanje modula...",
         "REGISTERING_NETWORK": "Čekanje mreže...",
         "CHECKING_NEW_VERSION": "Provjera nove verzije...",

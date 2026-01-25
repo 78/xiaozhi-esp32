@@ -11,6 +11,7 @@
         "INITIALIZING": "Inicialitzant...",
         "PIN_ERROR": "Si us plau, inseriu la targeta SIM",
         "REG_ERROR": "No es pot accedir a la xarxa, si us plau comproveu l'estat de la targeta SIM",
+        "MODEM_INIT_ERROR": "La inicialització del mòdem ha fallat",
         "DETECTING_MODULE": "Detectant mòdul...",
         "REGISTERING_NETWORK": "Esperant la xarxa...",
         "CHECKING_NEW_VERSION": "Comprovant nova versió...",
