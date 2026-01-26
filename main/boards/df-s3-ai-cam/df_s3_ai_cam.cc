@@ -5,6 +5,8 @@
 #include "button.h"
 #include "config.h"
 #include "esp_video.h"
+#include "mcp_server.h"
+#include "settings.h"
 
 #include "led/gpio_led.h"
 #include <esp_log.h>
@@ -71,14 +73,42 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
         };
 
         camera_ = new EspVideo(video_config);
-        camera_->SetVFlip(1);
+
+        Settings settings("sparkbot", false);
+        bool camera_type = static_cast<bool>(settings.GetInt("camera_type", 1));
+        camera_->SetVFlip(camera_type);
+        camera_->SetHMirror(camera_type);
     }
+
+    void InitializeTools() {
+        auto& mcp_server = McpServer::GetInstance();
+#if (CONFIG_CAMERA_OV2640)
+        mcp_server.AddTool("self.camera.switch_camera_ov2640", "切换摄像头为OV2640", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("camera", true);
+            camera_->SetHMirror(false);
+            camera_->SetVFlip(false);
+            settings.SetInt("camera_type", 0);
+            return true;
+        });
+#endif
+
+#if (CONFIG_CAMERA_OV3660)
+        mcp_server.AddTool("self.camera.switch_camera_ov3660", "切换摄像头为OV3660", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            Settings settings("camera", true);
+            camera_->SetHMirror(true);
+            camera_->SetVFlip(true);
+            settings.SetInt("camera_type", 1);
+            return true;
+        });
+    }
+#endif
 
  public:
     DfrobotEsp32S3AiCam() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializeButtons();
         InitializeCamera();
+        InitializeTools();
     }
 
     // Wakenet model only

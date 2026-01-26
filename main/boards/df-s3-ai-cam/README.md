@@ -15,6 +15,10 @@ ESP32-S3 AI CAM是一款基于ESP32-S3芯片设计的智能摄像头模组，专
 ## 按键配置
 * BOOT：短按-打断/唤醒
 
+## MCP指令
+* **切换摄像头为OV2640**
+* **切换摄像头为OV3660**(默认)
+
 ## 编译配置命令
 
 **配置编译目标为 ESP32S3：**
@@ -45,6 +49,28 @@ Component config -> ESP PSRAM -> SPI RAM config -> Mode (QUAD/OCT) -> Octal Mode
 
 ```
 Component config -> PHY -> (10)Max WiFi TX power (dBm)
+```
+
+**配置摄像头：**
+
+* **OV3660**
+```
+Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> OV3660 ->  Auto detect OV3660
+
+```
+
+```
+Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> OV3660 ->  Select default output format for DVP interface (YUV422 240x240 24fps, DVP 8-bit, 20M input)
+```
+
+* **OV2640**
+```
+Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> OV2640 ->  Auto detect OV2640
+
+```
+
+```
+Component config -> Espressif Camera Sensors Configurations -> Camera Sensor Configuration -> Select and Set Camera Sensor -> OV2640 ->  Select default output format for DVP interface (YUV422 240x240 25fps, DVP 8-bit, 20M input)
 ```
 
 **编译：**
