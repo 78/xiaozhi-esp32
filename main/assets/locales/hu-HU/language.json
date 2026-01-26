@@ -11,6 +11,7 @@
         "INITIALIZING": "Inicializálás...",
         "PIN_ERROR": "Kérjük, helyezze be a SIM kártyát",
         "REG_ERROR": "A hálózat nem érhető el, kérjük, ellenőrizze a SIM kártya állapotát",
+        "MODEM_INIT_ERROR": "A modem inicializálása sikertelen",
         "DETECTING_MODULE": "Modul észlelése...",
         "REGISTERING_NETWORK": "Várakozás a hálózatra...",
         "CHECKING_NEW_VERSION": "Új verzió keresése...",

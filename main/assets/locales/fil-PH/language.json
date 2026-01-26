@@ -11,6 +11,7 @@
         "INITIALIZING": "Nag-i-initialize...",
         "PIN_ERROR": "Mangyaring ilagay ang SIM card",
         "REG_ERROR": "Hindi ma-access ang network, mangyaring tingnan ang estado ng SIM card",
+        "MODEM_INIT_ERROR": "Nabigo ang pag-initialize ng modem",
         "DETECTING_MODULE": "Tinutuklas ang module...",
         "REGISTERING_NETWORK": "Naghihintay ng network...",
         "CHECKING_NEW_VERSION": "Sinusuri ang bagong bersyon...",

@@ -11,6 +11,7 @@
         "INITIALIZING": "מאתחל...",
         "PIN_ERROR": "אנא הכנס כרטיס SIM",
         "REG_ERROR": "לא ניתן לגשת לרשת, אנא בדוק את מצב כרטיס ה-SIM",
+        "MODEM_INIT_ERROR": "אתחול המודם נכשל",
         "DETECTING_MODULE": "מזהה מודול...",
         "REGISTERING_NETWORK": "ממתין לרשת...",
         "CHECKING_NEW_VERSION": "בודק גרסה חדשה...",

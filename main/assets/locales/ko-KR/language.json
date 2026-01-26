@@ -11,6 +11,7 @@
         "INITIALIZING": "초기화 중...",
         "PIN_ERROR": "SIM 카드를 삽입하세요",
         "REG_ERROR": "네트워크에 접속할 수 없습니다. SIM 카드 상태를 확인하세요",
+        "MODEM_INIT_ERROR": "모뎀 초기화에 실패했습니다",
         "DETECTING_MODULE": "모듈 감지 중...",
         "REGISTERING_NETWORK": "네트워크 대기 중...",
         "CHECKING_NEW_VERSION": "새 버전 확인 중...",

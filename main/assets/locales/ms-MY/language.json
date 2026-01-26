@@ -11,6 +11,7 @@
         "INITIALIZING": "Memulakan...",
         "PIN_ERROR": "Sila masukkan kad SIM",
         "REG_ERROR": "Tidak dapat mengakses rangkaian, sila semak status kad SIM",
+        "MODEM_INIT_ERROR": "Penginitialan modem gagal",
         "DETECTING_MODULE": "Mengesan modul...",
         "REGISTERING_NETWORK": "Menunggu rangkaian...",
         "CHECKING_NEW_VERSION": "Memeriksa versi baharu...",

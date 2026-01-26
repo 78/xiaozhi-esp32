@@ -11,6 +11,7 @@
         "INITIALIZING": "Initialiseren...",
         "PIN_ERROR": "Plaats een SIM-kaart",
         "REG_ERROR": "Geen toegang tot netwerk, controleer de SIM-kaartstatus",
+        "MODEM_INIT_ERROR": "Modem initialisatie mislukt",
         "DETECTING_MODULE": "Module detecteren...",
         "REGISTERING_NETWORK": "Wachten op netwerk...",
         "CHECKING_NEW_VERSION": "Controleren op nieuwe versie...",
