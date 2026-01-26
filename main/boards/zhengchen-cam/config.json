@@ -1,0 +1,17 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "zhengchen-cam",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
+				"CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=48",
+				"CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32",
+				"CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=n",
+				"CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y",
+				"CONFIG_LV_USE_FONT_COMPRESSED=y",
+				"CONFIG_LV_USE_FONT_PLACEHOLDER=y"
+            ]
+        }
+    ]
+}
