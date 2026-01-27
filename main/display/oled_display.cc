@@ -195,6 +195,8 @@ void OledDisplay::SetupUI_128x64() {
 
     chat_message_label_ = lv_label_create(content_right_);
     lv_label_set_text(chat_message_label_, "");
+    // Enable LVGL inline recolor tags: #RRGGBB ...#
+    lv_label_set_recolor(chat_message_label_, true);
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_LEFT, 0);
     lv_obj_set_width(chat_message_label_, width_ - 32);
@@ -327,6 +329,8 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_pad_left(chat_message_label_, 2, 0);
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(chat_message_label_, "");
+    // Enable LVGL inline recolor tags: #RRGGBB ...#
+    lv_label_set_recolor(chat_message_label_, true);
 
     // 延迟一定的时间后开始滚动字幕
     static lv_anim_t a;

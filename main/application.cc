@@ -494,7 +494,19 @@ void Application::Start() {
                 if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     Schedule([this, display, message = std::string(text->valuestring)]() {
-                        display->SetChatMessage("assistant", message.c_str());
+                        static constexpr const char* kAiGeneratedDisclaimer = "此内容由AI生成";
+                        std::string display_message = message;
+                        if (!display_message.empty() &&
+                            display_message.find(kAiGeneratedDisclaimer) == std::string::npos) {
+                            if (display_message.back() != '\n') {
+                                display_message.push_back('\n');
+                            }
+                            // 使用LVGL文本颜色标记为免责声明添加黄色
+                            display_message.append("#FFFF00 ");
+                            display_message.append(kAiGeneratedDisclaimer);
+                            display_message.append("#");
+                        }
+                        display->SetChatMessage("assistant", display_message.c_str());
                     });
                 }
             }

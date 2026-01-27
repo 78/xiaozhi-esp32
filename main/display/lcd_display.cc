@@ -531,6 +531,8 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // Create the message text
     lv_obj_t* msg_text = lv_label_create(msg_bubble);
     lv_label_set_text(msg_text, content);
+    // 启用LVGL文本着色功能，支持#RRGGBB颜色标记
+    lv_label_set_recolor(msg_text, true);
     
     // 计算文本实际宽度
     lv_coord_t text_width = lv_txt_get_width(content, strlen(content), text_font, 0);
@@ -831,6 +833,8 @@ void LcdDisplay::SetupUI() {
     // 聊天消息文本 - 固定在表情下方,使用顶部对齐
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
+    // Enable LVGL inline recolor tags: #RRGGBB ...#
+    lv_label_set_recolor(chat_message_label_, true);
     lv_obj_set_width(chat_message_label_, width_ * 0.9); // 限制宽度为屏幕宽度的 90%
     // 限制最大高度,避免超出屏幕
     lv_obj_set_height(chat_message_label_, 78);
