@@ -353,12 +353,11 @@ private:
     }
 
     void InitializeCamera() {
-         // ESP32-S3 使用 esp_camera 组件
         camera_config_t camera_config = {
             .pin_pwdn = CAMERA_PIN_PWDN,
             .pin_reset = CAMERA_PIN_RESET,
             .pin_xclk = CAMERA_PIN_XCLK,
-            .pin_sccb_sda = -1, // 使用已初始化的 I2C
+            .pin_sccb_sda = -1, // Use initialized I2C
             .pin_sccb_scl = -1,
             .pin_d7 = CAMERA_PIN_D7,
             .pin_d6 = CAMERA_PIN_D6,
@@ -386,8 +385,7 @@ private:
         };
 
         camera_ = new Esp32Camera(camera_config);
-        if(camera_ != nullptr)
-        {
+        if(camera_ != nullptr) {
             camera_->SetVFlip(true);
         }
     }
