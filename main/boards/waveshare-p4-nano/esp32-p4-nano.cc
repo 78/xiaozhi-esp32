@@ -4,7 +4,6 @@
 #include "display/lcd_display.h"
 // #include "display/no_display.h"
 #include "button.h"
-#include "config.h"
 
 #include "esp_video.h"
 #include "esp_video_init.h"
@@ -15,7 +14,8 @@
 #include "esp_ldo_regulator.h"
 
 #include "esp_lcd_mipi_dsi.h"
-#include "esp_lcd_jd9365_10_1.h"
+#include "esp_lcd_jd9365.h"
+#include "config.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -33,11 +33,7 @@ protected:
 
     virtual void SetBrightnessImpl(uint8_t brightness) override {
         uint8_t i2c_address = 0x45;     // 7-bit address
-#if CONFIG_LCD_TYPE_800_1280_10_1_INCH
-        uint8_t reg = 0x86;
-#elif CONFIG_LCD_TYPE_800_1280_10_1_INCH_A
         uint8_t reg = 0x96;
-#endif
         uint8_t data[2] = {reg, brightness};
 
         i2c_master_dev_handle_t dev_handle;
@@ -105,6 +101,23 @@ private:
     }
 
     void InitializeLCD() {
+
+        uint8_t chip_addr = 0x45;
+        uint8_t write_cmds[4][2] = {{0x95, 0x11}, {0x95, 0x17}, {0x96, 0x00}, {0x96, 0xFF}};
+        i2c_device_config_t i2c_dev_conf = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = chip_addr,
+            .scl_speed_hz = 100000,
+        };
+        i2c_master_dev_handle_t dev_handle = NULL;
+        if (i2c_master_bus_add_device(codec_i2c_bus_, &i2c_dev_conf, &dev_handle) == ESP_OK)
+        {
+            for (uint8_t i = 0; i < 4; i++)
+            {
+                i2c_master_transmit(dev_handle, write_cmds[i], 2, 50);
+            }
+            i2c_master_bus_rm_device(dev_handle);
+        }
         bsp_enable_dsi_phy_power();
         esp_lcd_panel_io_handle_t io = NULL;
         esp_lcd_panel_handle_t disp_panel = NULL;
@@ -143,14 +156,12 @@ private:
         };
 
         jd9365_vendor_config_t vendor_config = {
-
+            .init_cmds = jd9365_vendor_specific_init_default,
+            .init_cmds_size = sizeof(jd9365_vendor_specific_init_default) / sizeof(jd9365_vendor_specific_init_default[0]),
             .mipi_config = {
                 .dsi_bus = mipi_dsi_bus,
                 .dpi_config = &dpi_config,
                 .lane_num = 2,
-            },
-            .flags = {
-                .use_mipi_interface = 1,
             },
         };
 
