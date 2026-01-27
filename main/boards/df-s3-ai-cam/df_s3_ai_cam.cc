@@ -5,6 +5,8 @@
 #include "button.h"
 #include "config.h"
 #include "esp_video.h"
+#include "mcp_server.h"
+#include "settings.h"
 
 #include "led/gpio_led.h"
 #include <esp_log.h>
@@ -71,7 +73,14 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
         };
 
         camera_ = new EspVideo(video_config);
-        camera_->SetVFlip(1);
+
+#if ( CONFIG_CAMERA_OV3660 )
+            camera_->SetVFlip(true);
+            camera_->SetHMirror(true);
+#elif ( CONFIG_CAMERA_OV2640 )
+            camera_->SetVFlip(false);
+            camera_->SetHMirror(false);
+#endif
     }
 
  public:
