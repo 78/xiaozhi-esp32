@@ -10,7 +10,6 @@
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -29,7 +28,7 @@
 
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #define TAG "waveshare_lcd_3_5b"
 
@@ -109,7 +108,7 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
     PowerSaveTimer* power_save_timer_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -213,7 +212,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         
     }
 
@@ -260,8 +259,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -353,11 +353,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 #endif
 };

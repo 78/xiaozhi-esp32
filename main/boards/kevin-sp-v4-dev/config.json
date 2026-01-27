@@ -3,7 +3,8 @@
     "builds": [
         {
             "name": "kevin-sp-v4-dev",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+            ]
         }
     ]
 }

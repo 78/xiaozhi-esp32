@@ -10,13 +10,12 @@
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
 #include <esp_timer.h>
 #include "esp_io_expander_tca95xx_16bit.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "led/circular_strip.h"
 #include "esp_lcd_jd9853.h"
 
@@ -32,7 +31,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -148,8 +147,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -192,7 +192,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
 
     }
 public:

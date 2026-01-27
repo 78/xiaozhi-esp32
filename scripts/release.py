@@ -113,6 +113,48 @@ def _find_board_config(board_type: str) -> Optional[str]:
             return config
     return None
 
+
+# Kconfig "select" entries are not automatically applied when we simply append
+# sdkconfig lines from config.json, so add the required dependencies here to
+# mimic menuconfig behaviour.
+_AUTO_SELECT_RULES: dict[str, list[str]] = {
+    "CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING": [
+        "CONFIG_BT_ENABLED=y",
+        "CONFIG_BT_BLUEDROID_ENABLED=y",
+        "CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y",
+        "CONFIG_BT_BLE_50_FEATURES_SUPPORTED=n",
+        "CONFIG_BT_BLE_BLUFI_ENABLE=y",
+        "CONFIG_MBEDTLS_DHM_C=y",
+    ],
+}
+
+
+def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
+    """Apply hardcoded auto-select rules to sdkconfig_append."""
+    items: list[str] = []
+    existing_keys: set[str] = set()
+
+    def _append_if_missing(entry: str) -> None:
+        key = entry.split("=", 1)[0]
+        if key not in existing_keys:
+            items.append(entry)
+            existing_keys.add(key)
+
+    # Preserve original order while tracking keys
+    for entry in sdkconfig_append:
+        _append_if_missing(entry)
+
+    # Apply auto-select rules
+    for key, deps in _AUTO_SELECT_RULES.items():
+        for entry in sdkconfig_append:
+            name, _, value = entry.partition("=")
+            if name == key and value.lower().startswith("y"):
+                for dep in deps:
+                    _append_if_missing(dep)
+                break
+
+    return items
+
 ################################################################################
 # Check board_type in CMakeLists
 ################################################################################
@@ -167,6 +209,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
         board_type_config = _find_board_config(board_type)
         sdkconfig_append = [f"{board_type_config}=y"]
         sdkconfig_append.extend(build.get("sdkconfig_append", []))
+        sdkconfig_append = _apply_auto_selects(sdkconfig_append)
 
         print("-" * 80)
         print(f"name: {name}")
@@ -235,7 +278,7 @@ if __name__ == "__main__":
 
     # Compile mode
     board_type_input: str = args.board
-    name_filter: str | None = args.name
+    name_filter: Optional[str] = args.name
 
     # Check board_type in CMakeLists
     if board_type_input != "all" and not _board_type_exists(board_type_input):

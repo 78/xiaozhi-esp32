@@ -13,8 +13,9 @@
 #include <esp_lcd_ili9341.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "esp32_camera.h"
+#include "power_manager.h"
+#include "power_save_timer.h"
 
 #define TAG "esp32s3_korvo2_v3"
 /* ADC Buttons */
@@ -60,6 +61,24 @@ private:
     LcdDisplay* display_;
     esp_io_expander_handle_t io_expander_ = NULL;
     Esp32Camera* camera_;
+    PowerSaveTimer* power_save_timer_;
+    PowerManager* power_manager_;
+    void InitializePowerManager() {
+        // PowerManager需要复用按钮的ADC句柄，所以在InitializeButtons之后调用
+        // 传入按钮的ADC句柄指针，让PowerManager复用
+        power_manager_ = new PowerManager(GPIO_NUM_NC, &bsp_adc_handle);
+    }
+    
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(true);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(false);
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -231,18 +250,19 @@ private:
 
         auto set_button = adc_button_[BSP_ADC_BUTTON_SET];
         set_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+            EnterWifiConfigMode();
         });
 
         auto rec_button = adc_button_[BSP_ADC_BUTTON_REC];
         rec_button->OnClick([this]() {
-             ESP_LOGI(TAG, "TODO %s:%d\n", __func__, __LINE__);
+             Application::GetInstance().ToggleChatState();
         });
         boot_button_.OnClick([this]() {});
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -333,54 +353,56 @@ private:
     }
 
     void InitializeCamera() {
-        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
-            .data_width = CAM_CTLR_DATA_WIDTH_8,
-            .data_io = {
-                [0] = CAMERA_PIN_D0,
-                [1] = CAMERA_PIN_D1,
-                [2] = CAMERA_PIN_D2,
-                [3] = CAMERA_PIN_D3,
-                [4] = CAMERA_PIN_D4,
-                [5] = CAMERA_PIN_D5,
-                [6] = CAMERA_PIN_D6,
-                [7] = CAMERA_PIN_D7,
-            },
-            .vsync_io = CAMERA_PIN_VSYNC,
-            .de_io = CAMERA_PIN_HREF,
-            .pclk_io = CAMERA_PIN_PCLK,
-            .xclk_io = CAMERA_PIN_XCLK,
+         // ESP32-S3 使用 esp_camera 组件
+        camera_config_t camera_config = {
+            .pin_pwdn = CAMERA_PIN_PWDN,
+            .pin_reset = CAMERA_PIN_RESET,
+            .pin_xclk = CAMERA_PIN_XCLK,
+            .pin_sccb_sda = -1, // 使用已初始化的 I2C
+            .pin_sccb_scl = -1,
+            .pin_d7 = CAMERA_PIN_D7,
+            .pin_d6 = CAMERA_PIN_D6,
+            .pin_d5 = CAMERA_PIN_D5,
+            .pin_d4 = CAMERA_PIN_D4,
+            .pin_d3 = CAMERA_PIN_D3,
+            .pin_d2 = CAMERA_PIN_D2,
+            .pin_d1 = CAMERA_PIN_D1,
+            .pin_d0 = CAMERA_PIN_D0,
+            .pin_vsync = CAMERA_PIN_VSYNC,
+            .pin_href = CAMERA_PIN_HREF,
+            .pin_pclk = CAMERA_PIN_PCLK,
+
+            .xclk_freq_hz = XCLK_FREQ_HZ,
+            .ledc_timer = LEDC_TIMER_0,
+            .ledc_channel = LEDC_CHANNEL_0,
+
+            .pixel_format = PIXFORMAT_RGB565,
+            .frame_size = FRAMESIZE_QVGA,
+            .jpeg_quality = 12,
+            .fb_count = 2,
+            .fb_location = CAMERA_FB_IN_PSRAM,
+            .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+            .sccb_i2c_port = (i2c_port_t)1,
         };
 
-        esp_video_init_sccb_config_t sccb_config = {
-            .init_sccb = false,
-            .i2c_handle = i2c_bus_,
-            .freq = 100000,
-        };
-
-        esp_video_init_dvp_config_t dvp_config = {
-            .sccb_config = sccb_config,
-            .reset_pin = CAMERA_PIN_RESET,
-            .pwdn_pin = CAMERA_PIN_PWDN,
-            .dvp_pin = dvp_pin_config,
-            .xclk_freq = XCLK_FREQ_HZ,
-        };
-
-        esp_video_init_config_t video_config = {
-            .dvp = &dvp_config,
-        };
-
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new Esp32Camera(camera_config);
+        if(camera_ != nullptr)
+        {
+            camera_->SetVFlip(true);
+        }
     }
 
 public:
     Esp32S3Korvo2V3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         ESP_LOGI(TAG, "Initializing esp32s3_korvo2_v3 Board");
+        InitializePowerSaveTimer();
         InitializeI2c();
         I2cDetect();
         InitializeTca9554();
         InitializeCamera();
         InitializeSpi();
-        InitializeButtons();
+        InitializeButtons();  // 先初始化按钮（创建ADC1句柄）
+        InitializePowerManager();  // 后初始化PowerManager（复用ADC1句柄）
         #ifdef LCD_TYPE_ILI9341_SERIAL
         InitializeIli9341Display(); 
         #else
@@ -410,6 +432,24 @@ public:
     }
     virtual Camera* GetCamera() override {
         return camera_;
+    }
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+        level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

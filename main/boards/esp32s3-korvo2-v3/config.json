@@ -3,7 +3,8 @@
     "builds": [
         {
             "name": "esp32s3-korvo2-v3",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+            ]
         }
     ]
 }

@@ -6,7 +6,7 @@
 #include "button.h"
 #include "config.h"
 
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "esp_video_init.h"
 #include "esp_cam_sensor_xclk.h"
 
@@ -16,7 +16,6 @@
 
 #include "esp_lcd_ek79007.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
@@ -28,7 +27,11 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay *display_;
-    Esp32Camera* camera_ = nullptr;
+    EspVideo* camera_ = nullptr;
+
+    esp_err_t i2c_device_probe(uint8_t addr) {
+        return i2c_master_probe(i2c_bus_, addr, 100);
+    }
 
     esp_err_t i2c_device_probe(uint8_t addr) {
         return i2c_master_probe(i2c_bus_, addr, 100);
@@ -190,15 +193,18 @@ private:
             .csi      = &base_csi_config,
         };
 
-        camera_ = new Esp32Camera(cam_config);
+        camera_ = new EspVideo(cam_config);
     }
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
-            app.ToggleChatState(); });
+            app.ToggleChatState();
+        });
     }
 
 public:
