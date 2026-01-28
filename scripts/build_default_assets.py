@@ -222,6 +222,19 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
     
     emoji_list = []
     
+    # Check if this is otto-gif collection
+    is_otto_gif = 'otto-emoji-gif-component' in emoji_collection_dir or emoji_collection_dir.endswith('otto-gif')
+    
+    # Otto GIF emoji aliases mapping
+    otto_gif_aliases = {
+        "staticstate": ["neutral", "relaxed", "sleepy", "idle"],
+        "happy": ["laughing", "funny", "loving", "confident", "winking", "cool", "delicious", "kissy", "silly"],
+        "sad": ["crying"],
+        "anger": ["angry"],
+        "scare": ["surprised", "shocked"],
+        "buxue": ["thinking", "confused", "embarrassed"]
+    }
+    
     # Copy each image from input directory to build/assets directory
     for root, dirs, files in os.walk(emoji_collection_dir):
         for file in files:
@@ -233,11 +246,19 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
                     # Get filename without extension
                     filename_without_ext = os.path.splitext(file)[0]
                     
-                    # Add to emoji list
+                    # Add main emoji entry
                     emoji_list.append({
                         "name": filename_without_ext,
                         "file": file
                     })
+                    
+                    # Add aliases for otto-gif emojis
+                    if is_otto_gif and filename_without_ext in otto_gif_aliases:
+                        for alias in otto_gif_aliases[filename_without_ext]:
+                            emoji_list.append({
+                                "name": alias,
+                                "file": file
+                            })
     
     return emoji_list
 
@@ -682,14 +703,33 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
         return None
 
 
-def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path):
+def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, project_root=None):
     """
     Get the emoji collection path if needed
     Returns the emoji directory path or None if no emoji collection is needed
+    
+    Supports:
+    - PNG emoji collections from xiaozhi-fonts (e.g., emojis_32)
+    - Otto GIF emoji collection (otto-gif)
     """
     if not default_emoji_collection:
         return None
     
+    # Special handling for otto-gif collection
+    if default_emoji_collection == 'otto-gif':
+        if project_root:
+            otto_gif_path = os.path.join(project_root, 'managed_components', 
+                                        'txp666__otto-emoji-gif-component', 'gifs')
+            if os.path.exists(otto_gif_path):
+                return otto_gif_path
+            else:
+                print(f"Warning: Otto GIF emoji collection directory not found: {otto_gif_path}")
+                return None
+        else:
+            print("Warning: project_root not provided, cannot locate otto-gif collection")
+            return None
+    
+    # Default behavior for PNG emoji collections
     emoji_path = os.path.join(xiaozhi_fonts_path, 'png', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
@@ -828,7 +868,10 @@ def main():
     text_font_path = get_text_font_path(args.builtin_text_font, args.xiaozhi_fonts_path)
     
     # Get emoji collection path if needed
-    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.xiaozhi_fonts_path)
+    # Calculate project root from script location for otto-gif support
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.xiaozhi_fonts_path, project_root)
     
     # Get extra files path if provided
     extra_files_path = args.extra_files

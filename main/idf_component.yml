@@ -58,7 +58,7 @@ dependencies:
   espressif/adc_mic: ^0.2.1
   espressif/esp_mmap_assets: '>=1.2'
   txp666/otto-emoji-gif-component:
-    version: ^1.0.3
+    version: ^1.0.5
     rules:
     - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.0
