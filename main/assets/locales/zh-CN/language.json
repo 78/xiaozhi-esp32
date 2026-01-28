@@ -11,6 +11,7 @@
         "INITIALIZING": "正在初始化...",
         "PIN_ERROR": "请插入 SIM 卡",
         "REG_ERROR": "无法接入网络，请检查流量卡状态",
+        "MODEM_INIT_ERROR": "模组初始化失败",
         "DETECTING_MODULE": "检测模组...",
         "REGISTERING_NETWORK": "等待网络...",
         "CHECKING_NEW_VERSION": "检查新版本...",

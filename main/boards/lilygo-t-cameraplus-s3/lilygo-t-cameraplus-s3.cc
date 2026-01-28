@@ -8,7 +8,7 @@
 #include "i2c_device.h"
 #include "sy6970.h"
 #include "pin_config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "ir_filter_controller.h"
 
 #include <esp_log.h>
@@ -73,7 +73,7 @@ private:
     Button boot_button_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
@@ -270,7 +270,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         camera_->SetVFlip(1);
         camera_->SetHMirror(1);
     }

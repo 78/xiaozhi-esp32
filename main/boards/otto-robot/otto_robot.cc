@@ -18,7 +18,7 @@
 #include "power_manager.h"
 #include "system_reset.h"
 #include "wifi_board.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "websocket_control_server.h"
 
 #define TAG "OttoRobot"
@@ -34,7 +34,7 @@ private:
     HardwareConfig hw_config_;
     AudioCodec* audio_codec_;
     i2c_master_bus_handle_t i2c_bus_;
-    Esp32Camera *camera_;
+    EspVideo *camera_;
     bool has_camera_;
     
     bool DetectHardwareVersion() {
@@ -247,7 +247,7 @@ private:
                 .dvp = &dvp_config,
             };
 
-            camera_ = new Esp32Camera(video_config);
+            camera_ = new EspVideo(video_config);
             camera_->SetVFlip(true);
             return true;
         } catch (...) {

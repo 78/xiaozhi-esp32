@@ -8,7 +8,7 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -65,7 +65,7 @@ private:
  
     Button boot_button_;
     LcdDisplay* display_;
-     Esp32Camera* camera_;
+     EspVideo* camera_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -165,7 +165,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         camera_->SetHMirror(false);
     }
 
