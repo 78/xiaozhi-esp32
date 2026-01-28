@@ -1,6 +1,7 @@
 # Define source files
 set(SOURCES "audio/audio_codec.cc"
             "audio/audio_service.cc"
+            "audio/demuxer/ogg_demuxer.cc"
             "audio/codecs/no_audio_codec.cc"
             "audio/codecs/box_audio_codec.cc"
             "audio/codecs/es8311_audio_codec.cc"
@@ -38,7 +39,7 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
 
 # Add board common files
 list(APPEND SOURCES
