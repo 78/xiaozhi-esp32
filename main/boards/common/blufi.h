@@ -21,6 +21,12 @@ public:
     static Blufi &GetInstance();
 
     /**
+     * @brief Get the Bluetooth name for Blufi provisioning("BLUFI_Xiaozhi_XXXX")
+     * @return Bluetooth name
+     */
+    std::string GetBlufiBleName();
+
+    /**
      * @brief Start WiFi scan for Blufi provisioning
      * This method intelligently handles WiFi scanning based on current WiFi state:
      * - If WiFi config mode is active, it uses the existing scan results from WifiConfigurationAp
@@ -48,6 +54,7 @@ public:
 
 private:
     bool inited_ = false;
+    std::string blufi_ble_name_;
 
     Blufi();
 

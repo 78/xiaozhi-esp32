@@ -55,6 +55,10 @@ enum PropertyType {
     kPropertyTypeString
 };
 
+struct Description {
+    std::string description;
+};
+
 class Property {
 private:
     std::string name_;
@@ -63,27 +67,30 @@ private:
     bool has_default_value_;
     std::optional<int> min_value_;  // 新增：整数最小值
     std::optional<int> max_value_;  // 新增：整数最大值
+    std::string description_;       // 新增：属性描述
 
 public:
     // Required field constructor
-    Property(const std::string& name, PropertyType type)
-        : name_(name), type_(type), has_default_value_(false) {}
+    Property(const std::string& name, PropertyType type, const Description& desc = Description{})
+        : name_(name), type_(type), has_default_value_(false) { if (!desc.description.empty()) description_ = desc.description; }
 
     // Optional field constructor with default value
     template<typename T>
-    Property(const std::string& name, PropertyType type, const T& default_value)
+    Property(const std::string& name, PropertyType type, const T& default_value, const Description& desc = Description{})
         : name_(name), type_(type), has_default_value_(true) {
         value_ = default_value;
+        if (!desc.description.empty()) description_ = desc.description;
     }
 
-    Property(const std::string& name, PropertyType type, int min_value, int max_value)
+    Property(const std::string& name, PropertyType type, int min_value, int max_value, const Description& desc = Description{})
         : name_(name), type_(type), has_default_value_(false), min_value_(min_value), max_value_(max_value) {
         if (type != kPropertyTypeInteger) {
             throw std::invalid_argument("Range limits only apply to integer properties");
         }
+        if (!desc.description.empty()) description_ = desc.description;
     }
 
-    Property(const std::string& name, PropertyType type, int default_value, int min_value, int max_value)
+    Property(const std::string& name, PropertyType type, int default_value, int min_value, int max_value, const Description& desc = Description{})
         : name_(name), type_(type), has_default_value_(true), min_value_(min_value), max_value_(max_value) {
         if (type != kPropertyTypeInteger) {
             throw std::invalid_argument("Range limits only apply to integer properties");
@@ -92,6 +99,7 @@ public:
             throw std::invalid_argument("Default value must be within the specified range");
         }
         value_ = default_value;
+        if (!desc.description.empty()) description_ = desc.description;
     }
 
     inline const std::string& name() const { return name_; }
@@ -99,7 +107,9 @@ public:
     inline bool has_default_value() const { return has_default_value_; }
     inline bool has_range() const { return min_value_.has_value() && max_value_.has_value(); }
     inline int min_value() const { return min_value_.value_or(0); }
-    inline int max_value() const { return max_value_.value_or(0); }
+    inline int max_value() const { return max_value_.value_or(0); }    
+    inline const std::string& description() const { return description_; }
+    inline bool has_description() const { return !description_.empty(); }
 
     template<typename T>
     inline T value() const {
@@ -144,6 +154,10 @@ public:
             if (has_default_value_) {
                 cJSON_AddStringToObject(json, "default", value<std::string>().c_str());
             }
+        }
+        
+        if (has_description()) {
+            cJSON_AddStringToObject(json, "description", description_.c_str());
         }
         
         char *json_str = cJSON_PrintUnformatted(json);
