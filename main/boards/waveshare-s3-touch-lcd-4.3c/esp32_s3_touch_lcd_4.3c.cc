@@ -111,10 +111,10 @@ private:
                 .h_res = BSP_LCD_H_RES,
                 .v_res = BSP_LCD_V_RES,
                 .hsync_pulse_width = 4,
-                .hsync_back_porch = 8,
+                .hsync_back_porch = 4,
                 .hsync_front_porch = 8,
                 .vsync_pulse_width = 4,
-                .vsync_back_porch = 8,
+                .vsync_back_porch = 4,
                 .vsync_front_porch = 8,
                 .flags = {
                     .pclk_active_neg = true
