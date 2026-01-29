@@ -13,7 +13,7 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
 
-#include "esp_lcd_jd9365_10_1.h"
+#include "esp_lcd_jd9365.h"
 #include "config.h"
 
 #include <esp_log.h>
@@ -105,9 +105,6 @@ private:
                 .dsi_bus = mipi_dsi_bus,
                 .dpi_config = &dpi_config,
                 .lane_num = 2,
-            },
-            .flags = {
-                .use_mipi_interface = 1,
             },
         };
 
