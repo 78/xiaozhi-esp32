@@ -513,19 +513,23 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
         if (first_child != nullptr) {
             lv_obj_del(first_child);
+            // Refresh child count after deletion
+            child_count = lv_obj_get_child_cnt(content_);
         }
         // Scroll to the last message immediately
-        if (last_child != nullptr) {
+        if (last_child != nullptr && lv_obj_is_valid(last_child)) {
             lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
         }
     }
     
     // Collapse system messages (if it's a system message, check if the last message is also a system message)
     if (strcmp(role, "system") == 0) {
+        // Refresh child count to get accurate count after potential deletion above
+        child_count = lv_obj_get_child_cnt(content_);
         if (child_count > 0) {
             // Get the last message container
             lv_obj_t* last_container = lv_obj_get_child(content_, child_count - 1);
-            if (last_container != nullptr && lv_obj_get_child_cnt(last_container) > 0) {
+            if (last_container != nullptr && lv_obj_is_valid(last_container) && lv_obj_get_child_cnt(last_container) > 0) {
                 // Get the bubble inside the container
                 lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
                 if (last_bubble != nullptr) {
