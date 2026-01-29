@@ -510,15 +510,17 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (child_count >= MAX_MESSAGES) {
         // Delete the oldest message (first child object)
         lv_obj_t* first_child = lv_obj_get_child(content_, 0);
-        lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
         if (first_child != nullptr) {
             lv_obj_del(first_child);
             // Refresh child count after deletion
             child_count = lv_obj_get_child_cnt(content_);
         }
-        // Scroll to the last message immediately
-        if (last_child != nullptr && lv_obj_is_valid(last_child)) {
-            lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
+        // Scroll to the last message immediately (get last_child after deletion)
+        if (child_count > 0) {
+            lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
+            if (last_child != nullptr && lv_obj_is_valid(last_child)) {
+                lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
+            }
         }
     }
     
@@ -532,7 +534,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
             if (last_container != nullptr && lv_obj_is_valid(last_container) && lv_obj_get_child_cnt(last_container) > 0) {
                 // Get the bubble inside the container
                 lv_obj_t* last_bubble = lv_obj_get_child(last_container, 0);
-                if (last_bubble != nullptr) {
+                if (last_bubble != nullptr && lv_obj_is_valid(last_bubble)) {
                     // Check if bubble type is system message
                     void* bubble_type_ptr = lv_obj_get_user_data(last_bubble);
                     if (bubble_type_ptr != nullptr && strcmp((const char*)bubble_type_ptr, "system") == 0) {
