@@ -21,8 +21,6 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_rgb.h>
 
-#include <esp_ota_ops.h>  // New addition: For partition switching
-
 #define TAG "WaveshareEsp32s3TouchLCD43c"
 
 class CustomBacklight : public Backlight {
