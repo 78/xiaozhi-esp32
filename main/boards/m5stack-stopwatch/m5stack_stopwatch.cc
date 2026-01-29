@@ -77,53 +77,53 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     M5PM1* pmic_;
     M5IOE1* ioe_;
-    bool pa_pin_configured = false;
-
     esp_err_t PaInit(bsp_pa_mode_t mode) {
-        if (!pa_pin_configured) {
-            gpio_config_t pa_io_conf = {
-                .pin_bit_mask = (1ULL << AUDIO_CODEC_GPIO_PA),
-                .mode = GPIO_MODE_OUTPUT,
-                .pull_up_en = GPIO_PULLUP_DISABLE,
-                .pull_down_en = GPIO_PULLDOWN_DISABLE,
-                .intr_type = GPIO_INTR_DISABLE,
-            };
-            gpio_config(&pa_io_conf);
-            gpio_set_level(AUDIO_CODEC_GPIO_PA, 1);
-            pa_pin_configured = true;
-        }
+        // if (!ioe_) {
+        //     ESP_LOGE(TAG, "IOE1 not initialized for PA control");
+        //     return ESP_ERR_INVALID_STATE;
+        // }
 
-        if (mode < BSP_PA_MODE_1 || mode > BSP_PA_MODE_4) {
-            ESP_LOGE(TAG, "Invalid PA mode: %d", mode);
-            return ESP_ERR_INVALID_ARG;
-        }
-        
-        if (!pa_pin_configured) {
-            ESP_LOGE(TAG, "PA pin not configured");
-            return ESP_ERR_INVALID_STATE;
-        }
-        
-        ESP_LOGI(TAG, "Setting PA mode to %d", mode);
-        
-        // Step 1: Keep PA pin low for more than 1ms
-        gpio_set_level(AUDIO_CODEC_GPIO_PA, 0);
-        vTaskDelay(pdMS_TO_TICKS(2)); // 2ms delay to ensure >1ms
-        
-        // Step 2: Send the required number of rising edge pulses
-        // Each pulse: 0.75us < TL, TH < 10us
-        for (int i = 0; i < mode; i++) {
-            // Rising edge: Low -> High -> Low
-            gpio_set_level(AUDIO_CODEC_GPIO_PA, 1);
-            esp_rom_delay_us(5); // 5us high time (within 0.75us < TH < 10us)
-            gpio_set_level(AUDIO_CODEC_GPIO_PA, 0);
-            esp_rom_delay_us(5); // 5us low time (within 0.75us < TL < 10us)
-        }
+        // if (mode < BSP_PA_MODE_1 || mode > BSP_PA_MODE_4) {
+        //     ESP_LOGE(TAG, "Invalid PA mode: %d", mode);
+        //     return ESP_ERR_INVALID_ARG;
+        // }
 
-        // Final state: keep PA pin low
-        gpio_set_level(AUDIO_CODEC_GPIO_PA, 0);
-        vTaskDelay(pdMS_TO_TICKS(10)); 
-        
-        ESP_LOGI(TAG, "PA mode %d set successfully", mode);
+        // m5ioe1_aw8737a_pulse_num_t pulse = M5IOE1_AW8737A_PULSE_NUM_1;
+        // switch (mode) {
+        //     case BSP_PA_MODE_1:
+        //         pulse = M5IOE1_AW8737A_PULSE_NUM_1;
+        //         break;
+        //     case BSP_PA_MODE_2:
+        //         pulse = M5IOE1_AW8737A_PULSE_NUM_2;
+        //         break;
+        //     case BSP_PA_MODE_3:
+        //         pulse = M5IOE1_AW8737A_PULSE_NUM_3;
+        //         break;
+        //     case BSP_PA_MODE_4:
+        //         pulse = M5IOE1_AW8737A_PULSE_NUM_3;
+        //         ESP_LOGW(TAG, "PA mode 4 maps to 3 pulses on AW8737A");
+        //         break;
+        //     default:
+        //         return ESP_ERR_INVALID_ARG;
+        // }
+
+        // ESP_LOGI(TAG, "Setting AW8737A pulse to %d on IOE1 pin %d", pulse, AUDIO_CODEC_AW8737A_PIN);
+        // m5ioe1_err_t err = ioe_->setAw8737aPulse(
+        //     AUDIO_CODEC_AW8737A_PIN,
+        //     pulse,
+        //     M5IOE1_AW8737A_REFRESH_NOW);
+        // if (err != M5IOE1_OK) {
+        //     ESP_LOGE(TAG, "Failed to set AW8737A pulse: %d", err);
+        //     return ESP_FAIL;
+        // }
+
+        // vTaskDelay(pdMS_TO_TICKS(10));
+        // ESP_LOGI(TAG, "PA on"); 
+
+        ioe_->pinMode(AUDIO_CODEC_AW8737A_PIN, OUTPUT);
+        ioe_->setDriveMode(AUDIO_CODEC_AW8737A_PIN, M5IOE1_DRIVE_PUSHPULL);
+        ioe_->digitalWrite(AUDIO_CODEC_AW8737A_PIN, HIGH); // Set PA on
+
         return ESP_OK;
     }
 
