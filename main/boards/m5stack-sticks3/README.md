@@ -1,60 +1,48 @@
 # M5Stack Sticks3
 
+* MCU: ESP32-S3
+* PSRAM: 8MB
+* Flash: 8MB
+* Display: 1.14Inch, 135x240 LCD.
 
 
--------
-## 概述
-
-* MCU:ESP32-S3
-    * PSRAM: 8MB
-    * Flash：8MB
-* 显示屏
-    * 分辨率：135x240
-    * 屏幕驱动：ST7789
-    * 驱动接口：SPI
-* 按键
-    * 电源按键 PWR
-    * 用户按键 Button1
-    * 用户按键 Button2
-* 电池
-
-
-----------
-## 硬件配置
+-----------
+## Hardware
 
 * SYS_I2C/I2C0
     * SCL -- G48
     * SDA -- G47
-* 按键
-    * KEY1 -- G11
+* PMIC: M5PM1
+    * Interface: I2C0@0x6E
 * LCD
-    * Power: PM1_G2 高电平使能
+    * Power: M5PM1_G2 高电平使能
     * Resolution: 135x240
-    * Driver IC: ST7789
-    * MOSI -- G39
-    * SCLK -- G40
-    * CS   -- G41
-    * RS   -- G45
-    * BL   -- G38
-* IMU
-    * BMI270@0x68
-        * Interface: SYS_I2C
-* IR
-    * TX -- G46
-    * RX -- G42
+    * Driver: CO5300
+    * Interface: SPI
+        * MOSI -- G39
+        * SCLK -- G40
+        * CS   -- G41
+        * RS   -- G45
+    * BL -- G38
 * Audio
-    * Power: PM1_G2 高电平使能
+    * Power: M5PM1_G2 高电平使能
     * ES8311@0x18
         * Control Interface: SYS_I2C
-        * Interface: I2S0
+        * Data Interface: I2S0
             * MCLK   -- G18
             * BCLK   -- G17
             * ASDOUT -- G16
             * LRCK   -- G15
             * DSDIN  -- G14
     * PA -- PM1_G3
-* PMIC
-    * PM1@0x6E (SYS_I2C)
+* Key
+    * KEY1 -- G11
+* IMU
+    * BMI270@0x68
+        * Interface: SYS_I2C
+* IR
+    * TX -- G46
+    * RX -- G42
 
 ## 编译固件
 

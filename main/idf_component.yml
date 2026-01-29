@@ -110,3 +110,5 @@ dependencies:
     version: '>=5.4.0'
   espressif/esp_lcd_touch_st7123: ^1.0.0
   espressif/esp_lcd_co5300: ^2.0.3
+  m5stack/m5pm1: ^1.0.3
+  m5stack/m5ioe1: ^1.0.3

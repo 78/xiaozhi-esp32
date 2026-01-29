@@ -20,7 +20,7 @@
 #define AUDIO_I2S_GPIO_WS           GPIO_NUM_15
 #define AUDIO_I2S_GPIO_DOUT         GPIO_NUM_21
 #define AUDIO_I2S_GPIO_DIN          GPIO_NUM_16
-#define AUDIO_CODEC_GPIO_PA         GPIO_NUM_14  // AW8737A PA
+#define AUDIO_CODEC_GPIO_PA         GPIO_NUM_14 // AW8737A PA
 
 // Display QSPI Configuration (CO5300, 466x466 circular)
 #define DISPLAY_QSPI_SCK            GPIO_NUM_40
@@ -30,8 +30,7 @@
 #define DISPLAY_QSPI_D2             GPIO_NUM_46
 #define DISPLAY_QSPI_D3             GPIO_NUM_45
 #define DISPLAY_TE                  GPIO_NUM_38  // Tearing Effect
-#define DISPLAY_RST                 GPIO_NUM_NC  // Controlled via PYIO_G5
-
+#define DISPLAY_RST                 GPIO_NUM_NC  // Controlled via M5IO1E1_G5
 // Display Parameters
 #define DISPLAY_WIDTH               466
 #define DISPLAY_HEIGHT              466

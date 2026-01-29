@@ -17,42 +17,42 @@
 #include <wifi_manager.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include "M5PM1.h"
 
 #define TAG "M5StackSticks3"
 
+// reduce the output volume to 60%
+class Sticks3AudioCodec : public Es8311AudioCodec {
+public:
+    Sticks3AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
+        gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
+        gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk = true, bool pa_inverted = false)
+        : Es8311AudioCodec(i2c_master_handle, i2c_port, input_sample_rate, output_sample_rate,
+                          mclk, bclk, ws, dout, din, pa_pin, es8311_addr, use_mclk, pa_inverted) {}
 
-// class Sticks3AudioCodec : public Es8311AudioCodec {
-// public:
-//     Sticks3AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-//         gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-//         gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk = true, bool pa_inverted = false)
-//         : Es8311AudioCodec(i2c_master_handle, i2c_port, input_sample_rate, output_sample_rate,
-//                           mclk, bclk, ws, dout, din, pa_pin, es8311_addr, use_mclk, pa_inverted) {}
+    virtual void SetOutputVolume(int volume) override {
+        if (volume > 100) {
+            volume = 100;
+        }
+        if (volume < 0) {
+            volume = 0;
+        }
 
-//     virtual void SetOutputVolume(int volume) override {
+        // Scale volume to 60% (x 0.6)
+        int scaled_volume = (int)(volume * 0.6f + 0.5f); // Round to nearest integer
+        ESP_LOGI(TAG, "Requested output volume: %d%%, scaled to hardware: %d%%", volume, scaled_volume);
 
-//         if (volume > 100) {
-//             volume = 100;
-//         }
-//         if (volume < 0) {
-//             volume = 0;
-//         }
-
-//         int scaled_volume = (int)(volume * 0.6f + 0.5f); // Round to nearest integer
-//         ESP_LOGI(TAG, "Requested output volume: %d", volume);
-
-//         // Call parent's SetOutputVolume with scaled value for hardware
-//         // This will set the hardware volume and save to settings
-//         Es8311AudioCodec::SetOutputVolume(scaled_volume); // Es8311 max volume is 60
+        // Call parent's SetOutputVolume with scaled value for hardware
+        Es8311AudioCodec::SetOutputVolume(scaled_volume);
         
-//         // Update output_volume_ to original value for display
-//         output_volume_ = volume;
+        // Update output_volume_ to original value for display
+        output_volume_ = volume;
         
-//         // Save original value to settings
-//         Settings settings("audio", true);
-//         settings.SetInt("output_volume", volume);
-//     }
-// };
+        // Save original value to settings
+        Settings settings("audio", true);
+        settings.SetInt("output_volume", volume);
+    }
+};
 
 // PM1 register addresses
 #define PM1_REG_GPIO_FUNC   0x16 // GPIO function register
@@ -196,7 +196,7 @@ private:
     Button user_button_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_;
-    Pm1Device* pm1_;
+    M5PM1* pmic_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral (SYS_I2C/I2C0)
@@ -217,30 +217,25 @@ private:
 
     void InitializePm1() {
         // Initialize PM1 device
-        ESP_LOGI(TAG, "Initialize PM1 PMIC");
-        pm1_ = new Pm1Device(i2c_bus_, PM1_I2C_ADDR);
-
-        // Configure PM1_G0 as input for charging status
-        ESP_LOGI(TAG, "Configure charging status input (PM1_G0)");
-        pm1_->ConfigureGpioInput(0);
-
-        // Configure PM1_G2 (LCD/Audio Power) as output high
+        ESP_LOGI(TAG, "M5Stack PMIC Init.");
+        pmic_ = new M5PM1();
+        ESP_ERROR_CHECK(pmic_->begin(i2c_bus_, M5PM1_DEFAULT_ADDR));
+        ESP_LOGI(TAG, "Enabling charge");
+        pmic_->setChargeEnable(true);
+        pmic_->setBoostEnable(true);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        // Configure PM1 G0 as input for charging status detection
+        // PM1 G0: low = charging, high = not charging
+        ESP_LOGI(TAG, "PM1 G0 configured as input for charging status");
+        pmic_->pinMode(0, INPUT);
+        
+        // Configure PM1 G2 (LCD/Audio Power) as output high
         ESP_LOGI(TAG, "Enable LCD/Audio Power (PM1_G2)");
-        pm1_->ConfigureGpioOutput(2, true);
+        pmic_->pinMode(2, OUTPUT);
+        pmic_->gpioSetDrive(M5PM1_GPIO_NUM_2, M5PM1_GPIO_DRIVE_PUSHPULL);
+        pmic_->digitalWrite(2, HIGH);
         vTaskDelay(pdMS_TO_TICKS(20));
-
-        // Configure PM1_G3 (PA Control) -- aw8737a max output power to 0.6W
-        ESP_LOGI(TAG, "Initialize PA Control (PM1_G3)");
-        pm1_->ConfigureGpioOutput(3, false);
-        vTaskDelay(pdMS_TO_TICKS(2));
-        pm1_->WriteRegister(0x53, 0xE3);
-        // pm1_->SetGpioOutput(3, true);
-        vTaskDelay(pdMS_TO_TICKS(3));
-        // pm1_->SetGpioOutput(3, false);
-
-        // Disable 5V output initially
-        ESP_LOGI(TAG, "Disable 5V output");
-        pm1_->Set5VOutput(false);
     }
 
     void InitializeSpi() {
@@ -311,8 +306,8 @@ private:
             if (codec) {
                 // Use base AudioCodec::SetOutputVolume to update stored value
                 // without touching hardware that may not be initialized yet.
-                codec->SetOutputVolume(80);
-                codec->AudioCodec::SetOutputVolume(80);
+                codec->SetOutputVolume(60);
+                codec->AudioCodec::SetOutputVolume(60);
                 ESP_LOGI(TAG, "User button pressed: stored volume set to 80%%");
             } else {
                 ESP_LOGW(TAG, "User button pressed but codec is not available yet");
@@ -321,23 +316,26 @@ private:
     }
 
     void EnablePa() {
-        if (pm1_) {
+        if (pmic_) {
             ESP_LOGI(TAG, "Enable PA (PM1_G3)");
-            pm1_->SetGpioOutput(3, true);
+            pmic_->digitalWrite(3, HIGH);
         }
     }
 
     void DisablePa() {
-        if (pm1_) {
+        if (pmic_) {
             ESP_LOGI(TAG, "Disable PA (PM1_G3)");
-            pm1_->SetGpioOutput(3, false);
+            pmic_->digitalWrite(3, LOW);
         }
     }
 
 public:
     M5StackSticks3Board() :
         boot_button_(BOOT_BUTTON_GPIO),
-        user_button_(USER_BUTTON_GPIO) {
+        user_button_(USER_BUTTON_GPIO),
+        display_(nullptr),
+        i2c_bus_(nullptr),
+        pmic_(nullptr) {
         InitializeI2c();
         InitializePm1();  // Initialize PM1 after I2C, before LCD/Audio
         InitializeSpi();
@@ -349,7 +347,7 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec audio_codec(
+        static Sticks3AudioCodec audio_codec(
             i2c_bus_,
             I2C_NUM_0,
             AUDIO_INPUT_SAMPLE_RATE,
@@ -375,16 +373,23 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        if (!pm1_) {
+        if (!pmic_) {
             return false;
         }
 
-        // Get charging status (PM1_G0: low=charging, high=not charging)
-        charging = pm1_->IsCharging();
-        discharging = !charging;
-
         // Get battery voltage in mV
-        int voltage_mv = pm1_->GetBatteryVoltage();
+        uint16_t voltage_mv = 0;
+        if (pmic_->readVbat(&voltage_mv) != M5PM1_OK) {
+            return false;
+        }
+
+        // Get charging status from PM1_G0 (low = charging, high = not charging)
+        int pm1_g0_level = pmic_->digitalRead(0);
+        if (pm1_g0_level < 0) {
+            return false;
+        }
+        charging = (pm1_g0_level == 0);  // Low level means charging
+        discharging = !charging;
 
         // Convert voltage to battery level percentage
         // Typical Li-ion battery: 3.0V (0%) to 4.2V (100%)
@@ -399,7 +404,7 @@ public:
             level = ((voltage_mv - BATTERY_MIN_VOLTAGE) * 100) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE);
         }
 
-        ESP_LOGD(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
+        ESP_LOGI(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
         return true;
     }
 };

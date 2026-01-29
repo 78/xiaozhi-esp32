@@ -16,8 +16,8 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <wifi_manager.h>
-#include "m5stack_ioe1.h"
-#include "m5stack_pm1.h"
+#include "M5IOE1.h"
+#include "M5PM1.h"
 #include "esp_timer.h"
 #include "lvgl.h"
 
@@ -55,9 +55,8 @@ public:
         DisplayLockGuard lock(this);
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*0.2, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*0.2, 0);
-        lv_obj_set_style_pad_top(status_bar_, 30, 0);
+        lv_obj_set_style_pad_top(status_bar_, 20, 0);
         lv_obj_set_style_pad_bottom(status_bar_, 0, 0);
-        // lv_obj_set_style_pad_bottom(content_, LV_HOR_RES*0.1, 0);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
 };
@@ -69,18 +68,6 @@ typedef enum {
     BSP_PA_MODE_4 = 4, /*!< PA Mode 4 - 4 rising edge pulses */
 } bsp_pa_mode_t;
 
-// AMOLED displays are self-emissive and don't need backlight control
-// This is a dummy implementation to satisfy the framework interface
-class DummyBacklight : public Backlight {
-public:
-    DummyBacklight() : Backlight() {}
-
-    void SetBrightnessImpl(uint8_t brightness) override {
-        // AMOLED doesn't need backlight control, do nothing
-        brightness_ = brightness;
-    }
-};
-
 class M5StackStopWatchBoard : public WifiBoard {
 private:
     
@@ -88,12 +75,11 @@ private:
     Button button2_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_;
-    m5pm1_handle_t pmic_;
-    m5ioe1_handle_t ioe_;
-    DummyBacklight* backlight_;
+    M5PM1* pmic_;
+    M5IOE1* ioe_;
     bool pa_pin_configured = false;
 
-    esp_err_t bsp_audio_set_pa_mode(bsp_pa_mode_t mode) {
+    esp_err_t PaInit(bsp_pa_mode_t mode) {
         if (!pa_pin_configured) {
             gpio_config_t pa_io_conf = {
                 .pin_bit_mask = (1ULL << AUDIO_CODEC_GPIO_PA),
@@ -156,26 +142,42 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-
-        I2cDetect();
-
-        ioe_ = m5ioe1_create(i2c_bus_, M5IOE1_I2C_ADDRESS_DEFAULT);
-
+    
         ESP_LOGI(TAG, "M5Stack PMIC Init.");
-        pmic_ = m5pm1_create(i2c_bus_, M5PM1_I2C_ADDRESS_DEFAULT, GPIO_NUM_NC);
-        ESP_LOGI(TAG, "PMIC Version: %d.%d", m5pm1_get_hw_revision(pmic_) >> 4, m5pm1_get_hw_revision(pmic_) & 0x0F);
+        pmic_ = new M5PM1();
+        ESP_ERROR_CHECK(pmic_->begin(i2c_bus_, M5PM1_DEFAULT_ADDR));
         ESP_LOGI(TAG, "Enabling charge");
-        m5pm1_set_charging(pmic_, true);
-        m5pm1_set_5v_boost(pmic_, true);
-        
-        // Configure PM1_G2 as input for charging status detection (low = charging)
-        // PM1_G2 is already configured as input by default, no need to configure
-
-        // Audio Power enable (PYIO_G3 equivalent)
-        m5ioe1_pin_mode(ioe_, 3, true);
-        m5ioe1_set_drive_mode(ioe_, 3, false);  // 推挽输出
-        m5ioe1_digital_write(ioe_, 3, true);
+        pmic_->setChargeEnable(true);
+        pmic_->setBoostEnable(true);
         vTaskDelay(pdMS_TO_TICKS(100));
+        
+        // Configure PM1 G2 as input for charging status detection
+        // PM1 G2: low = charging, high = not charging
+        ESP_LOGI(TAG, "PM1 G2 configured as input for charging status");
+        pmic_->pinMode(2, INPUT);
+    
+        ioe_ = new M5IOE1();
+        ESP_ERROR_CHECK(ioe_->begin(i2c_bus_, M5IOE1_DEFAULT_ADDR));
+        
+        // Configure IOE1 G3, G5, G8 as output, high level
+        ESP_LOGI(TAG, "Configuring IOE1 G3, G5, G8 as output high");
+        // Audio Power enable (M5IOE1 G3)
+        ioe_->pinMode(M5IOE1_PIN_3, OUTPUT);
+        ioe_->setDriveMode(M5IOE1_PIN_3, M5IOE1_DRIVE_PUSHPULL);
+        ioe_->digitalWrite(M5IOE1_PIN_3, HIGH);
+        
+        // LCD Reset (M5IOE1 G5)
+        ioe_->pinMode(M5IOE1_PIN_5, OUTPUT);
+        ioe_->setDriveMode(M5IOE1_PIN_5, M5IOE1_DRIVE_PUSHPULL);
+        ioe_->digitalWrite(M5IOE1_PIN_5, HIGH);
+        
+        // LCD Power enable (M5IOE1 G8)
+        ioe_->pinMode(M5IOE1_PIN_8, OUTPUT);
+        ioe_->setDriveMode(M5IOE1_PIN_8, M5IOE1_DRIVE_PUSHPULL);
+        ioe_->digitalWrite(M5IOE1_PIN_8, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(20));
+   
+        I2cDetect();
     }
 
     void I2cDetect() {
@@ -215,20 +217,6 @@ private:
     void InitializeCo5300Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-
-        ESP_LOGI(TAG, "Enabling LCD feature...");
-        // OLED VBat Power enable - M5IOE1_G8
-        m5ioe1_pin_mode(ioe_, 8, true);
-        m5ioe1_set_drive_mode(ioe_, 8, false); // 推挽输出
-        m5ioe1_digital_write(ioe_, 8, true);
-        // OLED Reset - M5IOE1_G5
-        m5ioe1_pin_mode(ioe_, 5, true);
-        m5ioe1_set_drive_mode(ioe_, 5, false); // 推挽输出
-        m5ioe1_digital_write(ioe_, 5, false); 
-        vTaskDelay(pdMS_TO_TICKS(10));
-        m5ioe1_digital_write(ioe_, 5, true);
-        vTaskDelay(pdMS_TO_TICKS(100));
-
         ESP_LOGI(TAG, "Install panel IO (QSPI)");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_QSPI_CS;
@@ -256,8 +244,8 @@ private:
             {0x63, (uint8_t []){0xFF}, 1, 10},
             {0x2A, (uint8_t []){0x00, 0x00, 0x01, 0xD1}, 4, 0}, // Column address: 0-465 (466 pixels: 0x0000 to 0x01D1)
             {0x2B, (uint8_t []){0x00, 0x00, 0x01, 0xD1}, 4, 0}, // Row address: 0-465 (466 pixels: 0x0000 to 0x01D1)
-            {0x11, (uint8_t []){0x00}, 0, 120}, // Exit sleep (增加延迟确保稳定)
-            {0x29, (uint8_t []){0x00}, 0, 20},  // Display on (增加延迟)
+            {0x11, (uint8_t []){0x00}, 0, 120}, // Exit sleep
+            {0x29, (uint8_t []){0x00}, 0, 20},  // Display on 
         };
 
         co5300_vendor_config_t vendor_config = {
@@ -268,25 +256,22 @@ private:
             },
         };
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;  // Reset controlled via IOE1
+        panel_config.reset_gpio_num = GPIO_NUM_NC; // Reset controlled via M5IOE1_G5
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
         panel_config.bits_per_pixel = 16;
         panel_config.vendor_config = (void *)&vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_co5300(panel_io, &panel_config, &panel));
-
-        // Hardware reset already done via IOE1_G5
-        // Since reset_gpio_num = GPIO_NUM_NC, this will execute software reset command
+ 
         ESP_LOGI(TAG, "Resetting CO5300 panel...");
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_set_gap(panel, 7, 0); // (480-466)/2 = 7
         esp_lcd_panel_disp_on_off(panel, true);
-        
         ESP_LOGI(TAG, "CO5300 panel initialized successfully");
-
+    
         display_ = new CustomLcdDisplay(panel_io, panel,
-                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-                                        DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
+                                    DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -325,17 +310,15 @@ public:
     M5StackStopWatchBoard() :
         boot_button_(GPIO_NUM_1),
         button2_(BUTTON_2_GPIO),
+        display_(nullptr),
+        i2c_bus_(nullptr),
         pmic_(nullptr),
-        ioe_(nullptr),
-        backlight_(nullptr) {
+        ioe_(nullptr) {
         InitializeI2c();
         InitializeQspi();
         InitializeCo5300Display();
         InitializeButtons();
-        bsp_audio_set_pa_mode(BSP_PA_MODE_2);  // Use mode 2 for 1W speaker
-        // Initialize dummy backlight (AMOLED doesn't need it, but keep for compatibility)
-        backlight_ = new DummyBacklight();
-        backlight_->RestoreBrightness();
+        PaInit(BSP_PA_MODE_2);  // Use mode 2 for 1W speaker
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -359,21 +342,23 @@ public:
         return display_;
     }
 
-    virtual Backlight* GetBacklight() override {
-        return backlight_;
-    }
-
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
         if (!pmic_) {
             return false;
         }
 
         // Get battery voltage in mV
-        uint16_t voltage_mv = m5pm1_get_battery_voltage(pmic_);
+        uint16_t voltage_mv = 0;
+        if (pmic_->readVbat(&voltage_mv) != M5PM1_OK) {
+            return false;
+        }
 
         // Get charging status from PM1_G2 (low = charging, high = not charging)
-        bool pm1_g2_level = m5pm1_digital_read(pmic_, 2);
-        charging = !pm1_g2_level;  // Low level means charging
+        int pm1_g2_level = pmic_->digitalRead(2);
+        if (pm1_g2_level < 0) {
+            return false;
+        }
+        charging = (pm1_g2_level == 0);  // Low level means charging
         discharging = !charging;
 
         // Convert voltage to battery level percentage
@@ -389,7 +374,7 @@ public:
             level = ((voltage_mv - BATTERY_MIN_VOLTAGE) * 100) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE);
         }
 
-        ESP_LOGD(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
+        ESP_LOGI(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
         return true;
     }
 };
