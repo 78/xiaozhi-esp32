@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "rndis_board.h"
 #include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
@@ -17,7 +17,7 @@
 #include "power_manager.h"
 #include "power_save_timer.h"
 
-#define TAG "esp32s3_korvo2_v3"
+#define TAG "esp32s3_korvo2_v3_rndis"
 /* ADC Buttons */
 typedef enum {
     BSP_ADC_BUTTON_REC,
@@ -50,7 +50,8 @@ static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
     {0, (uint8_t []){0}, 0xff, 0},
 };
 
-class Esp32S3Korvo2V3Board : public WifiBoard {
+// https://github.com/78/xiaozhi-esp32/pull/1655
+class Esp32S3Korvo2V3Board : public RndisBoard {
 private:
     Button boot_button_;
     Button* adc_button_[BSP_ADC_BUTTON_NUM];
@@ -250,7 +251,6 @@ private:
 
         auto set_button = adc_button_[BSP_ADC_BUTTON_SET];
         set_button->OnClick([this]() {
-            EnterWifiConfigMode();
         });
 
         auto rec_button = adc_button_[BSP_ADC_BUTTON_REC];
@@ -260,10 +260,6 @@ private:
         boot_button_.OnClick([this]() {});
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting) {
-                EnterWifiConfigMode();
-                return;
-            }
             app.ToggleChatState();
         });
 
@@ -385,7 +381,7 @@ private:
         };
 
         camera_ = new Esp32Camera(camera_config);
-        if(camera_ != nullptr) {
+        if (camera_ != nullptr) {
             camera_->SetVFlip(true);
         }
     }
@@ -447,7 +443,6 @@ public:
         if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 
