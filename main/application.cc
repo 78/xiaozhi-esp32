@@ -369,11 +369,9 @@ void Application::CheckAssetsVersion() {
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
         bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
-            std::thread([display, progress, speed]() {
-                char buffer[32];
-                snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-                display->SetChatMessage("system", buffer);
-            }).detach();
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+            display->SetChatMessage("system", buffer);
         });
 
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
@@ -922,11 +920,9 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     bool upgrade_success = Ota::Upgrade(upgrade_url, [display](int progress, size_t speed) {
-        std::thread([display, progress, speed]() {
-            char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-            display->SetChatMessage("system", buffer);
-        }).detach();
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+        display->SetChatMessage("system", buffer);
     });
 
     if (!upgrade_success) {
