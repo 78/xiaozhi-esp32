@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
     # Compile mode
     board_type_input: str = args.board
-    name_filter: str | None = args.name
+    name_filter: Optional[str] = args.name
 
     # Check board_type in CMakeLists
     if board_type_input != "all" and not _board_type_exists(board_type_input):

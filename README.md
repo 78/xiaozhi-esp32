@@ -140,6 +140,7 @@ For server deployment on personal computers, refer to the following open-source 
 - [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Python server
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java server
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang server
+- [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golang server
 
 Other client projects using the XiaoZhi communication protocol:
 
@@ -159,7 +160,7 @@ This is an open-source ESP32 project, released under the MIT license, allowing a
 
 We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
 
-If you have any ideas or suggestions, please feel free to raise Issues or join the QQ group: 1011329060
+If you have any ideas or suggestions, please feel free to raise Issues or join our [Discord](https://discord.gg/bXqgAfRm) or QQ group: 994694848
 
 ## Star History
 

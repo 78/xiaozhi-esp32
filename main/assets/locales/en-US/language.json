@@ -11,6 +11,7 @@
         "INITIALIZING": "Initializing...",
         "PIN_ERROR": "Please insert SIM card",
         "REG_ERROR": "Unable to access network, please check SIM card status",
+        "MODEM_INIT_ERROR": "Modem initialization failed",
         "DETECTING_MODULE": "Detecting module...",
         "REGISTERING_NETWORK": "Waiting for network...",
         "CHECKING_NEW_VERSION": "Checking for new version...",

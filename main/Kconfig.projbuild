@@ -8,7 +8,8 @@ config OTA_URL
 
 choice
     prompt "Flash Assets"
-    default FLASH_DEFAULT_ASSETS
+    default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
+    default FLASH_EXPRESSION_ASSETS if USE_EMOTE_MESSAGE_STYLE
     help
         Select the assets to flash.
 
@@ -16,8 +17,12 @@ choice
         bool "Do not flash assets"
     config FLASH_DEFAULT_ASSETS
         bool "Flash Default Assets"
+        depends on !USE_EMOTE_MESSAGE_STYLE
     config FLASH_CUSTOM_ASSETS
         bool "Flash Custom Assets"
+    config FLASH_EXPRESSION_ASSETS
+        bool "Flash Emote Assets"
+        depends on USE_EMOTE_MESSAGE_STYLE
 endchoice
 
 config CUSTOM_ASSETS_FILE
@@ -129,6 +134,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "Bread Compact ML307/EC801E (面包板 4G)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_BREAD_COMPACT_NT26
+        bool "Bread Compact NT26 (面包板 4G)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_ESP32
         bool "Bread Compact ESP32 DevKit (面包板)"
         depends on IDF_TARGET_ESP32
@@ -146,6 +154,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_ESP_KORVO2_V3
         bool "Espressif Korvo2 V3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ESP_KORVO2_V3_RNDIS
+        bool "Espressif Korvo2 V3 RNDIS"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_SPARKBOT
         bool "Espressif SparkBot"
@@ -264,6 +275,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B
         bool "Waveshare ESP32-S3-Touch-LCD-4B"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4_3C
+        bool "Waveshare ESP32-S3-Touch-LCD-4.3C"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
         depends on IDF_TARGET_ESP32S3
@@ -285,6 +299,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_32
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.32"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_C6_TOUCH_AMOLED_1_8
+        bool "Waveshare ESP32-C6-Touch-AMOLED-1.8"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_32
         bool "Waveshare ESP32-S3-Touch-AMOLOED-1.32"
         depends on IDF_TARGET_ESP32S3
@@ -296,6 +313,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_ePaper_1_54
         bool "Waveshare ESP32-S3-ePaper-1.54"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_S3_RLCD_4_2
+        bool "Waveshare ESP32-S3-RLCD-4.2"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_5B
         bool "Waveshare ESP32-S3-Touch-LCD-3.5B"
@@ -414,6 +434,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
         bool "征辰科技1.54(ML307)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ZHENGCHEN_CAM
+        bool "征辰科技AI Camera"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ZHENGCHEN_CAM_ML307
+        bool "征辰科技AI Camera(ML307)"
+	depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "敏思科技K08(DUAL)"
         depends on IDF_TARGET_ESP32S3
@@ -486,7 +512,7 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_NT26 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
@@ -548,7 +574,7 @@ choice DISPLAY_LCD_TYPE
 endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
-    depends on BOARD_TYPE_ESP_KORVO2_V3
+    depends on BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_ESP_KORVO2_V3_RNDIS
     prompt "ESP32S3_KORVO2_V3 LCD Type"
     default ESP32S3_KORVO2_V3_LCD_ST7789
     help
@@ -585,7 +611,9 @@ choice DISPLAY_STYLE
 
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
-        depends on BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_SENSAIRSHUTTLE
+        depends on BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_3 \
+            || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3 \
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
 
 choice WAKE_WORD_TYPE
@@ -663,7 +691,8 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_1_75 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_1_83\
         || BOARD_TYPE_WAVESHARE_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_P4_WIFI6_TOUCH_LCD_XC || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
-        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49)
+        || BOARD_TYPE_ECHOEAR || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_S3_RLCD_4_2 || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \
+        || BOARD_TYPE_WAVESHARE_S3_TOUCH_LCD_4_3C)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 

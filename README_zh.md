@@ -140,6 +140,7 @@ v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版
 - [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Python 服务器
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java 服务器
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang 服务器
+- [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golang 服务器
 
 使用小智通信协议的第三方客户端项目：
 
@@ -155,7 +156,7 @@ v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版
 
 我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
 
-如果你有任何想法或建议，请随时提出 Issues 或加入 QQ 群：1011329060
+如果你有任何想法或建议，请随时提出 Issues 或加入 [Discord](https://discord.gg/bXqgAfRm) 或 QQ 群：1011329060
 
 ## Star History
 
