@@ -12,6 +12,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
+#include <src/misc/cache/lv_cache.h>
 
 #include "board.h"
 

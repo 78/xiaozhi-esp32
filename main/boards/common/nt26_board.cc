@@ -107,6 +107,9 @@ void Nt26Board::StartNetwork() {
                 ScheduleAsyncStop();
                 OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
                 break;
+            case UartEthModem::UartEthModemEvent::InFlightMode:
+                ESP_LOGW(TAG, "Modem in flight mode");
+                break;
         }
     });
 
