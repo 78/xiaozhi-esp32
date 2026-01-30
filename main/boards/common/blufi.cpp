@@ -11,6 +11,7 @@
 #include "esp_wifi.h"
 #include "freertos/task.h"
 #include "wifi_manager.h"
+#include <esp_mac.h>
 
 #define BLUFI_DEVICE_NAME "Xiaozhi-Blufi"
 
@@ -34,7 +35,7 @@ extern void esp_blufi_btc_deinit(void);
 #endif
 
 extern "C" {
-void esp_blufi_adv_start(void);
+void esp_blufi_adv_start_with_name(const char *name);
 
 void esp_blufi_adv_stop(void);
 
@@ -79,6 +80,21 @@ static wifi_mode_t GetWifiModeWithFallback(const WifiManager& wifi) {
 Blufi& Blufi::GetInstance() {
     static Blufi instance;
     return instance;
+}
+
+std::string Blufi::GetBlufiBleName() {
+    if (blufi_ble_name_.empty()) {
+        uint8_t mac[6];
+#if CONFIG_IDF_TARGET_ESP32P4
+        esp_wifi_get_mac(WIFI_IF_AP, mac);
+#else
+        ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP));
+#endif
+        char name[32];
+        snprintf(name, sizeof(name), "BLUFI_Xiaozhi_%02X%02X", mac[4], mac[5]);
+        blufi_ble_name_ = name;
+    }
+    return blufi_ble_name_;
 }
 
 Blufi::Blufi()
@@ -651,7 +667,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
         case ESP_BLUFI_EVENT_INIT_FINISH:
             ESP_LOGI(BLUFI_TAG, "BLUFI init finish");
             esp_ble_gap_set_device_name(BLUFI_DEVICE_NAME);
-            esp_blufi_adv_start();
+            esp_blufi_adv_start_with_name(GetBlufiBleName().c_str());
             break;
         case ESP_BLUFI_EVENT_DEINIT_FINISH:
             ESP_LOGI(BLUFI_TAG, "BLUFI deinit finish");
@@ -667,7 +683,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             m_ble_is_connected = false;
             _security_deinit();
             if (!m_provisioned) {
-                esp_blufi_adv_start();
+                esp_blufi_adv_start_with_name(GetBlufiBleName().c_str());
             } else {
                 esp_blufi_adv_stop();
                 if (!m_deinited) {
