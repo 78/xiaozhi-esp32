@@ -368,12 +368,12 @@ void Application::CheckAssetsVersion() {
         board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
         display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
 
-        bool success = assets.Download(download_url, [display](int progress, size_t speed) -> void {
-            std::thread([display, progress, speed]() {
-                char buffer[32];
-                snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-                display->SetChatMessage("system", buffer);
-            }).detach();
+        bool success = assets.Download(download_url, [this, display](int progress, size_t speed) -> void {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+            Schedule([display, message = std::string(buffer)]() {
+                display->SetChatMessage("system", message.c_str());
+            });
         });
 
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
@@ -921,12 +921,12 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
     audio_service_.Stop();
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    bool upgrade_success = Ota::Upgrade(upgrade_url, [display](int progress, size_t speed) {
-        std::thread([display, progress, speed]() {
-            char buffer[32];
-            snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-            display->SetChatMessage("system", buffer);
-        }).detach();
+    bool upgrade_success = Ota::Upgrade(upgrade_url, [this, display](int progress, size_t speed) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
+        Schedule([display, message = std::string(buffer)]() {
+            display->SetChatMessage("system", message.c_str());
+        });
     });
 
     if (!upgrade_success) {
