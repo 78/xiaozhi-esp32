@@ -1,1 +1,18 @@
-
+{
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "m5stack-corep4",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_ESP_HOSTED_ENABLED=y",
+                "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
+                "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
+                "CONFIG_ESP_HOSTED_IDF_SLAVE_TARGET=\"esp32c6\"",
+                "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH=y",
+                "CONFIG_ESP_HOSTED_SDIO_SLOT_1=y"
+            ]
+        }
+    ]
+}
