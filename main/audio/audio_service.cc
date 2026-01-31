@@ -40,28 +40,9 @@
 AudioService::AudioService() {
     event_group_ = xEventGroupCreate();
 
-    demuxer_.OnDemuxerFinished([this](const uint8_t* data, size_t size){
-        if (!opus_info_.head_seen) {
-            if (size >=8 && memcmp(data, "OpusHead", 8) == 0) {
-                opus_info_.head_seen = true;
-                if (size >= 19) {
-                    opus_info_.sample_rate = data[12] | (data[13] << 8) | (data[14] << 16) | (data[15] << 24);
-                    ESP_LOGI(TAG, "OpusHead found, sample_rate=%d", opus_info_.sample_rate);
-                }
-                return;
-            }
-        }
-
-        if (!opus_info_.tags_seen) {
-            if (size >= 8 && memcmp(data, "OpusTags", 8) == 0) {
-                opus_info_.tags_seen = true;
-                ESP_LOGI(TAG, "OpusTags found.");
-                return;
-            }
-        }
-
+    demuxer_.OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t size){
         auto packet = std::make_unique<AudioStreamPacket>();
-        packet->sample_rate = opus_info_.sample_rate;
+        packet->sample_rate = sample_rate;
         packet->frame_duration = 60;
         packet->payload.resize(size);
         std::memcpy(packet->payload.data(), data, size);
@@ -675,11 +656,7 @@ void AudioService::PlaySound(const std::string_view& ogg) {
 
     const auto* buf = reinterpret_cast<const uint8_t*>(ogg.data());
     size_t size = ogg.size();
-    opus_info_ = {
-        .head_seen = false,
-        .tags_seen = false,
-        .sample_rate = 48000
-    };
+    demuxer_.Reset();
     demuxer_.Process(buf, size);
 }
 

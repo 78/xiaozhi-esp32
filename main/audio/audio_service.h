@@ -102,12 +102,6 @@ struct DebugStatistics {
     uint32_t playback_count = 0;
 };
 
-struct Opus_t {
-    bool    head_seen{false};
-    bool    tags_seen{false};
-    int     sample_rate{48000};
-};
-
 class AudioService {
 public:
     AudioService();
@@ -154,7 +148,6 @@ private:
     esp_ae_rate_cvt_handle_t output_resampler_ = nullptr;
 
     OggDemuxer      demuxer_;
-    Opus_t          opus_info_;
     
     // Encoder/Decoder state
     int encoder_sample_rate_ = 16000;

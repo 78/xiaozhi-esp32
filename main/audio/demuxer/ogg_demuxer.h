@@ -15,6 +15,12 @@ private:
         PARSE_DATA
     };
 
+    struct Opus_t {
+        bool    head_seen{false};
+        bool    tags_seen{false};
+        int     sample_rate{48000};
+    };
+
 
     // 使用固定大小的缓冲区避免动态分配
     struct context_t {
@@ -43,14 +49,15 @@ public:
 
     /// @brief 设置解封装完毕后回调处理函数
     /// @param on_demuxer_finished 
-    void OnDemuxerFinished(std::function<void(const uint8_t* data, size_t len)> on_demuxer_finished) {
+    void OnDemuxerFinished(std::function<void(const uint8_t* data, int sample_rate, size_t len)> on_demuxer_finished) {
         on_demuxer_finished_ = on_demuxer_finished;
     }
 private:
 
     ParseState  state_ = ParseState::FIND_PAGE;
     context_t   ctx_;
-    std::function<void(const uint8_t*, size_t)> on_demuxer_finished_;
+    Opus_t      opus_info_;
+    std::function<void(const uint8_t*, int, size_t)> on_demuxer_finished_;
 };
 
 #endif

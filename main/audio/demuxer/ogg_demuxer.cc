@@ -6,6 +6,12 @@
 /// @brief 重置解封器
 void OggDemuxer::Reset()
 {
+    opus_info_ = {
+        .head_seen = false,
+        .tags_seen = false,
+        .sample_rate = 48000
+    };
+
     state_ = ParseState::FIND_PAGE;
     ctx_.packet_len = 0;
     ctx_.seg_count = 0;
@@ -231,8 +237,42 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
                 
                 if (!seg_continued) {
                     // 包结束
-                    if (ctx_.packet_len && on_demuxer_finished_) {
-                        on_demuxer_finished_(ctx_.packet_buf, ctx_.packet_len);
+                    if (ctx_.packet_len) {
+                        if (!opus_info_.head_seen) {
+                            if (ctx_.packet_len >=8 && memcmp(ctx_.packet_buf, "OpusHead", 8) == 0) {
+                                opus_info_.head_seen = true;
+                                if (ctx_.packet_len >= 19) {
+                                    opus_info_.sample_rate = ctx_.packet_buf[12] | 
+                                                            (ctx_.packet_buf[13] << 8) | 
+                                                            (ctx_.packet_buf[14] << 16) | 
+                                                            (ctx_.packet_buf[15] << 24);
+                                    ESP_LOGI(TAG, "OpusHead found, sample_rate=%d", opus_info_.sample_rate);
+                                }
+                                ctx_.packet_len = 0;
+                                ctx_.packet_continued = false;
+                                ctx_.seg_index++;
+                                ctx_.seg_remaining = 0;
+                                continue;
+                            }
+                        }
+                        if (!opus_info_.tags_seen) {
+                            if (ctx_.packet_len >= 8 && memcmp(ctx_.packet_buf, "OpusTags", 8) == 0) {
+                                opus_info_.tags_seen = true;
+                                ESP_LOGI(TAG, "OpusTags found.");
+                                ctx_.packet_len = 0;
+                                ctx_.packet_continued = false;
+                                ctx_.seg_index++;
+                                ctx_.seg_remaining = 0;
+                                continue;  
+                            }
+                        }
+                        if (opus_info_.head_seen && opus_info_.tags_seen) {
+                            if (on_demuxer_finished_) {
+                                on_demuxer_finished_(ctx_.packet_buf, opus_info_.sample_rate, ctx_.packet_len);
+                            }
+                        } else {
+                            ESP_LOGW(TAG, "当前Ogg容器未解析到OpusHead/OpusTags，丢弃");
+                        }
                     }
                     ctx_.packet_len = 0;
                     ctx_.packet_continued = false;
