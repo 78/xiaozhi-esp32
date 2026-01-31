@@ -92,6 +92,18 @@ private:
         });
     }
 
+    void InitializeBacklight() {
+        gpio_config_t io_conf = {};
+        io_conf.pin_bit_mask = (1ULL << DISPLAY_BACKLIGHT_PIN);
+        io_conf.mode = GPIO_MODE_OUTPUT;
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        ESP_ERROR_CHECK(gpio_config(&io_conf));
+
+        gpio_set_level(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT ? 0 : 1);
+    }
+
 public:
     CardputerAdvBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -100,8 +112,8 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeLcdDisplay();
+        InitializeBacklight();
         InitializeButtons();
-        GetBacklight()->SetBrightness(90);
     }
 
     AudioCodec* GetAudioCodec() override {
@@ -124,11 +136,6 @@ public:
 
     Display* GetDisplay() override {
         return display_;
-    }
-
-    Backlight* GetBacklight() override {
-        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
-        return &backlight;
     }
 };
 

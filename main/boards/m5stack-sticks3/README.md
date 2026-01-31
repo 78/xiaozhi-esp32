@@ -44,76 +44,25 @@
     * TX -- G46
     * RX -- G42
 
-## 编译固件
+---------------
+## Build & Test
 
-**配置编译目标为 ESP32S3**
+1. configuration
 
-```bash
-idf.py set-target esp32s3
-```
-
-**配置**
-
-```bash
+```shell
 idf.py menuconfig
-```
-
-**选择板子**
 
 ```
-Xiaozhi Assistant -> Board Type -> M5Stack Sticks3
-```
 
-**修改 flash 大小**
+2. compile
 
-```
-Serial flasher config -> Flash size -> 8 MB
-```
-
-**选择分区表**
-
-```
-Partition Table -> Custom partition CSV file -> partitions/v2/8m.csv
-```
-
-**编译烧录固件**
-
-```bash
-idf.py build flash monitor
-```
-
-**打包固件**
-
-编译完成后，使用以下命令合并固件：
-
-**方法一：使用 idf.py（推荐）**
-
-```bash
-idf.py merge-bin
-```
-
-合并后的固件文件位于 `build/merged-binary.bin`，可用于 OTA 升级或直接烧录。
-
-**方法二：使用 esptool.py**
-
-```bash
-esptool.py merge_bin -o build/xiaozhi-sticks3.bin \
-    0x0 build/bootloader/bootloader.bin \
-    0x8000 build/partition_table/partition-table.bin \
-    0x20000 build/xiaozhi.bin \
-    0x600000 build/assets.bin
-```
-
-**使用 release 脚本打包（推荐）**
-
-也可以使用 release 脚本自动打包固件：
-
-```bash
-# 打包当前配置的固件
-python scripts/release.py
-
-# 或者指定板型打包
+```shell
 python scripts/release.py m5stack-sticks3
 ```
 
-打包后的固件会生成在 `releases/` 目录下，文件名为 `v{版本号}_{板型名称}.zip`。
+3. flash firmware
+
+```shell
+python -m esptool --before default_reset --after hard_reset write_flash -z 0 build/merged-binary.bin
+```
+

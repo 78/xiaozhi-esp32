@@ -6,9 +6,8 @@
             "sdkconfig_append": [
                 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
-                "CONFIG_USE_AFE_WAKE_WORD=y",
-                "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=n",
-                "CONFIG_SR_WN_WN9_HIMFIVE=y"
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_SPIRAM=y"
             ]
         }
     ]

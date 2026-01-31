@@ -3,6 +3,7 @@
 
 #include <driver/gpio.h>
 
+
 #define AUDIO_INPUT_SAMPLE_RATE  24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 

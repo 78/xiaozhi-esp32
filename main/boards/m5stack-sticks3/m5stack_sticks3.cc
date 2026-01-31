@@ -54,142 +54,6 @@ public:
     }
 };
 
-// PM1 register addresses
-#define PM1_REG_GPIO_FUNC   0x16 // GPIO function register
-#define PM1_REG_GPIO_MODE   0x10 // GPIO mode register (input=0, output=1)
-#define PM1_REG_GPIO_DRIVE  0x13 // GPIO drive mode register (open-drain=1, push-pull=0)
-#define PM1_REG_GPIO_OUTPUT 0x11 // GPIO output register
-#define PM1_REG_GPIO_INPUT  0x12 // GPIO input register
-#define PM1_REG_CHARGE_CTRL 0x06 // Charge control register
-#define PM1_REG_BAT_L       0x22 // Battery voltage low byte
-#define PM1_REG_BAT_H       0x23 // Battery voltage high byte
-#define PM1_REG_I2C_CFG     0x09 // I2C configuration register
-
-class Pm1Device : public I2cDevice {
-public:
-    Pm1Device(i2c_master_bus_handle_t i2c_bus, uint8_t addr) 
-        : I2cDevice(i2c_bus, addr, 100 * 1000) {}
-
-    // Set GPIO pin as GPIO function
-    esp_err_t SetGpioFunction(uint8_t pin, bool enable) {
-        uint8_t reg_val = ReadReg(PM1_REG_GPIO_FUNC);
-        if (enable) {
-            reg_val &= ~(1 << pin); // Clear bit to set as GPIO
-        } else {
-            reg_val |= (1 << pin);  // Set bit to set as other function
-        }
-        WriteReg(PM1_REG_GPIO_FUNC, reg_val);
-        return ESP_OK;
-    }
-
-    // Set GPIO pin mode (input=0, output=1)
-    esp_err_t SetGpioMode(uint8_t pin, bool output) {
-        uint8_t reg_val = ReadReg(PM1_REG_GPIO_MODE);
-        if (output) {
-            reg_val |= (1 << pin);  // Set bit for output
-        } else {
-            reg_val &= ~(1 << pin); // Clear bit for input
-        }
-        WriteReg(PM1_REG_GPIO_MODE, reg_val);
-        return ESP_OK;
-    }
-
-    // Set GPIO drive mode (open-drain=1, push-pull=0)
-    esp_err_t SetGpioDriveMode(uint8_t pin, bool open_drain) {
-        uint8_t reg_val = ReadReg(PM1_REG_GPIO_DRIVE);
-        if (open_drain) {
-            reg_val |= (1 << pin);  // Set bit for open-drain
-        } else {
-            reg_val &= ~(1 << pin); // Clear bit for push-pull
-        }
-        WriteReg(PM1_REG_GPIO_DRIVE, reg_val);
-        return ESP_OK;
-    }
-
-    // Set GPIO output level
-    esp_err_t SetGpioOutput(uint8_t pin, bool high) {
-        uint8_t reg_val = ReadReg(PM1_REG_GPIO_OUTPUT);
-        if (high) {
-            reg_val |= (1 << pin);  // Set bit for high
-        } else {
-            reg_val &= ~(1 << pin); // Clear bit for low
-        }
-        WriteReg(PM1_REG_GPIO_OUTPUT, reg_val);
-        return ESP_OK;
-    }
-
-    // Configure GPIO pin as output push-pull
-    esp_err_t ConfigureGpioOutput(uint8_t pin, bool high) {
-        ESP_LOGI(TAG, "Configuring PM1_G%d as output", pin);
-        ESP_ERROR_CHECK(SetGpioFunction(pin, true));   // Set as GPIO function
-        ESP_ERROR_CHECK(SetGpioMode(pin, true));       // Set as output
-        ESP_ERROR_CHECK(SetGpioDriveMode(pin, false)); // Set as push-pull
-        ESP_ERROR_CHECK(SetGpioOutput(pin, high));     // Set output level
-        return ESP_OK;
-    }
-
-    // Configure GPIO pin as input
-    esp_err_t ConfigureGpioInput(uint8_t pin) {
-        ESP_LOGI(TAG, "Configuring PM1_G%d as input", pin);
-        ESP_ERROR_CHECK(SetGpioFunction(pin, true));   // Set as GPIO function
-        ESP_ERROR_CHECK(SetGpioMode(pin, false));      // Set as input
-        return ESP_OK;
-    }
-
-    // Read GPIO input level
-    bool ReadGpioInput(uint8_t pin) {
-        uint8_t reg_val = ReadReg(PM1_REG_GPIO_INPUT);
-        return (reg_val & (1 << pin)) != 0;
-    }
-
-    // Get charging status (PM1_G0: low=charging, high=not charging)
-    bool IsCharging() {
-        return !ReadGpioInput(0);  // Low = charging
-    }
-
-    // Control charge enable (register 0x06 bit 0: 1=enable, 0=disable)
-    esp_err_t SetChargeEnable(bool enable) {
-        uint8_t reg_val = ReadReg(PM1_REG_CHARGE_CTRL);
-        if (enable) {
-            reg_val |= 0x01;  // Set bit 0
-        } else {
-            reg_val &= ~0x01; // Clear bit 0
-        }
-        WriteReg(PM1_REG_CHARGE_CTRL, reg_val);
-        return ESP_OK;
-    }
-
-    // Control 5V output (register 0x06 bit 3: 1=enable, 0=disable)
-    esp_err_t Set5VOutput(bool enable) {
-        uint8_t reg_val = ReadReg(PM1_REG_CHARGE_CTRL);
-        if (enable) {
-            reg_val |= 0x08;  // Set bit 3
-        } else {
-            reg_val &= ~0x08; // Clear bit 3
-        }
-        WriteReg(PM1_REG_CHARGE_CTRL, reg_val);
-        return ESP_OK;
-    }
-
-    // Get battery voltage in mV
-    int GetBatteryVoltage() {
-        uint8_t buf[2];
-        ReadRegs(PM1_REG_BAT_L, buf, 2);
-        return (buf[1] << 8) | buf[0]; // Format: (BAT_H << 8) | BAT_L, unit: mV
-    }
-
-    // Write register (public method to access protected WriteReg)
-    esp_err_t WriteRegister(uint8_t reg, uint8_t value) {
-        WriteReg(reg, value);
-        return ESP_OK;
-    }
-
-    // Read register (public method to access protected ReadReg)
-    uint8_t ReadRegister(uint8_t reg) {
-        return ReadReg(reg);
-    }
-};
-
 class M5StackSticks3Board : public WifiBoard {
 private:
     Button boot_button_;
@@ -219,19 +83,13 @@ private:
         // Initialize PM1 device
         ESP_LOGI(TAG, "M5Stack PMIC Init.");
         pmic_ = new M5PM1();
-        ESP_ERROR_CHECK(pmic_->begin(i2c_bus_, M5PM1_DEFAULT_ADDR));
-        ESP_LOGI(TAG, "Enabling charge");
+        pmic_->begin(i2c_bus_, M5PM1_DEFAULT_ADDR);
         pmic_->setChargeEnable(true);
-        pmic_->setBoostEnable(true);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        
+        pmic_->setBoostEnable(false);
         // Configure PM1 G0 as input for charging status detection
         // PM1 G0: low = charging, high = not charging
-        ESP_LOGI(TAG, "PM1 G0 configured as input for charging status");
         pmic_->pinMode(0, INPUT);
-        
         // Configure PM1 G2 (LCD/Audio Power) as output high
-        ESP_LOGI(TAG, "Enable LCD/Audio Power (PM1_G2)");
         pmic_->pinMode(2, OUTPUT);
         pmic_->gpioSetDrive(M5PM1_GPIO_NUM_2, M5PM1_GPIO_DRIVE_PUSHPULL);
         pmic_->digitalWrite(2, HIGH);
@@ -282,8 +140,8 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
-                                    DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                     DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeBacklight() {
@@ -404,7 +262,7 @@ public:
             level = ((voltage_mv - BATTERY_MIN_VOLTAGE) * 100) / (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE);
         }
 
-        ESP_LOGI(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
+        ESP_LOGD(TAG, "Battery: %d%% (%dmV), Charging: %s", level, voltage_mv, charging ? "Yes" : "No");
         return true;
     }
 };
