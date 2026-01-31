@@ -93,6 +93,12 @@ private:
         pmic_->pinMode(2, OUTPUT);
         pmic_->gpioSetDrive(M5PM1_GPIO_NUM_2, M5PM1_GPIO_DRIVE_PUSHPULL);
         pmic_->digitalWrite(2, HIGH);
+        // Configure PM1 G3 (PA) as output high
+        pmic_->pinMode(3, OUTPUT);
+        pmic_->gpioSetDrive(M5PM1_GPIO_NUM_3, M5PM1_GPIO_DRIVE_PUSHPULL);
+        pmic_->digitalWrite(3, HIGH);
+        // Enable double click to shutdown
+        pmic_->setDoubleOffDisable(false);       
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 
@@ -144,11 +150,6 @@ private:
                                      DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    void InitializeBacklight() {
-        ESP_LOGI(TAG, "Initialize Backlight");
-        // Backlight is initialized via PwmBacklight in GetBacklight()
-    }
-
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -173,20 +174,6 @@ private:
         });
     }
 
-    void EnablePa() {
-        if (pmic_) {
-            ESP_LOGI(TAG, "Enable PA (PM1_G3)");
-            pmic_->digitalWrite(3, HIGH);
-        }
-    }
-
-    void DisablePa() {
-        if (pmic_) {
-            ESP_LOGI(TAG, "Disable PA (PM1_G3)");
-            pmic_->digitalWrite(3, LOW);
-        }
-    }
-
 public:
     M5StackSticks3Board() :
         boot_button_(BOOT_BUTTON_GPIO),
@@ -195,12 +182,10 @@ public:
         i2c_bus_(nullptr),
         pmic_(nullptr) {
         InitializeI2c();
-        InitializePm1();  // Initialize PM1 after I2C, before LCD/Audio
+        InitializePm1(); // Initialize PM1 after I2C, before LCD/Audio
         InitializeSpi();
         InitializeLcdDisplay();
-        InitializeBacklight();
         InitializeButtons();
-        EnablePa(); // Enable PA after initialization
         GetBacklight()->SetBrightness(60);
     }
 
