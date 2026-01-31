@@ -51,6 +51,9 @@
         "LOADING_ASSETS": "加载资源...",
         "PLEASE_WAIT": "请稍候...",
         "FOUND_NEW_ASSETS": "发现新资源: %s",
-        "HELLO_MY_FRIEND": "你好，我的朋友！"
+        "HELLO_MY_FRIEND": "你好，我的朋友！",
+        "CONNECTION_SUCCESSFUL": "连接成功",
+        "FLIGHT_MODE_OFF": "飞行模式已关闭",
+        "FLIGHT_MODE_ON": "飞行模式已开启"
     }
 }

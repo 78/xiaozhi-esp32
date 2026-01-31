@@ -12,6 +12,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
+#include <src/misc/cache/lv_cache.h>
 
 #include "board.h"
 
@@ -568,28 +569,25 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_t* msg_text = lv_label_create(msg_bubble);
     lv_label_set_text(msg_text, content);
     
-    // Calculate actual text width
-    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), text_font, 0);
-
-    // Calculate bubble width
+    // Calculate bubble width constraints
     lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 85% of screen width
     lv_coord_t min_width = 20;  
-    lv_coord_t bubble_width;
+    
+    // Let LVGL calculate the natural text width first
+    lv_obj_set_width(msg_text, LV_SIZE_CONTENT);
+    lv_obj_update_layout(msg_text);
+    lv_coord_t text_width = lv_obj_get_width(msg_text);
     
     // Ensure text width is not less than minimum width
     if (text_width < min_width) {
         text_width = min_width;
     }
 
-    // If text width is less than max width, use text width
-    if (text_width < max_width) {
-        bubble_width = text_width; 
-    } else {
-        bubble_width = max_width;
-    }
+    // Constrain to max width
+    lv_coord_t bubble_width = (text_width < max_width) ? text_width : max_width;
     
     // Set message text width
-    lv_obj_set_width(msg_text, bubble_width);  // Subtract padding
+    lv_obj_set_width(msg_text, bubble_width);
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
 
     // Set bubble width
@@ -1113,7 +1111,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
         if (lv_obj_get_child_cnt(obj) > 0) {
             // Might be a container, check if it's a user or system message container
             // User and system message containers are transparent
-            lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, 0);
+            lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, LV_PART_MAIN);
             if (bg_opa == LV_OPA_TRANSP) {
                 // This is a user or system message container
                 bubble = lv_obj_get_child(obj, 0);

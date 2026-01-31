@@ -51,6 +51,9 @@
         "LOADING_ASSETS": "กำลังโหลดทรัพยากร...",
         "PLEASE_WAIT": "กรุณารอสักครู่...",
         "FOUND_NEW_ASSETS": "พบทรัพยากรใหม่: %s",
-        "HELLO_MY_FRIEND": "สวัสดี เพื่อนของฉัน!"
+        "HELLO_MY_FRIEND": "สวัสดี เพื่อนของฉัน!",
+        "FLIGHT_MODE_OFF": "โหมดเครื่องบินปิดอยู่",
+        "FLIGHT_MODE_ON": "โหมดเครื่องบินเปิดอยู่",
+        "MODEM_INIT_ERROR": "การเริ่มต้นโมเด็มล้มเหลว"
     }
 }

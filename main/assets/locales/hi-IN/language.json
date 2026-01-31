@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "संसाधन लोड हो रहे हैं...",
         "PLEASE_WAIT": "कृपया प्रतीक्षा करें...",
         "FOUND_NEW_ASSETS": "नए संसाधन मिले: %s",
-        "HELLO_MY_FRIEND": "नमस्ते, मेरे दोस्त!"
+        "HELLO_MY_FRIEND": "नमस्ते, मेरे दोस्त!",
+        "CONNECTION_SUCCESSFUL": "कनेक्शन सफल",
+        "FLIGHT_MODE_OFF": "फ़्लाइट मोड बंद है",
+        "FLIGHT_MODE_ON": "फ़्लाइट मोड चालू है",
+        "MODEM_INIT_ERROR": "मॉडेम आरंभीकरण विफल"
     }
 }

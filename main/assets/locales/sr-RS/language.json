@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Пронађени нови ресурси: %s",
         "DOWNLOAD_ASSETS_FAILED": "Преузимање ресурса није успело",
         "LOADING_ASSETS": "Учитавање ресурса...",
-        "HELLO_MY_FRIEND": "Здраво, пријатељу!"
+        "HELLO_MY_FRIEND": "Здраво, пријатељу!",
+        "FLIGHT_MODE_OFF": "Режим лета је искључен",
+        "FLIGHT_MODE_ON": "Режим лета је укључен",
+        "MODEM_INIT_ERROR": "Иницијализација модема није успела"
     }
 }
-

@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Nieuwe bronnen gevonden: %s",
         "DOWNLOAD_ASSETS_FAILED": "Downloaden van bronnen mislukt",
         "LOADING_ASSETS": "Bronnen laden...",
-        "HELLO_MY_FRIEND": "Hallo, mijn vriend!"
+        "HELLO_MY_FRIEND": "Hallo, mijn vriend!",
+        "FLIGHT_MODE_OFF": "Vliegtuigmodus is uitgeschakeld",
+        "FLIGHT_MODE_ON": "Vliegtuigmodus is ingeschakeld",
+        "MODEM_INIT_ERROR": "Modeminitialisatie mislukt"
     }
 }
-

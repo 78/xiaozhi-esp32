@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Fant nye ressurser: %s",
         "DOWNLOAD_ASSETS_FAILED": "Nedlasting av ressurser mislyktes",
         "LOADING_ASSETS": "Laster ressurser...",
-        "HELLO_MY_FRIEND": "Hei, min venn!"
+        "HELLO_MY_FRIEND": "Hei, min venn!",
+        "FLIGHT_MODE_OFF": "Flymodus er av",
+        "FLIGHT_MODE_ON": "Flymodus er på",
+        "MODEM_INIT_ERROR": "Modeminitialisering mislyktes"
     }
 }
-
