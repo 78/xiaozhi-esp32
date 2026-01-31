@@ -27,7 +27,7 @@ dependencies:
     version: ~0.2.1
     rules:
     - if: target not in [esp32]
-  78/xiaozhi-fonts: ~1.5.5
+  78/xiaozhi-fonts: ~1.6.0
   espressif/led_strip: ~3.0.2
   espressif/esp_codec_dev: ~1.5.4
   espressif/esp-sr: ~2.3.0

@@ -59,6 +59,17 @@ public:
     void SetLoopCount(int32_t count);
 
     /**
+     * Get loop delay in milliseconds (delay between loops)
+     */
+    uint32_t GetLoopDelay() const;
+
+    /**
+     * Set loop delay in milliseconds (delay between loops)
+     * @param delay_ms Delay in milliseconds before starting next loop. 0 means no delay.
+     */
+    void SetLoopDelay(uint32_t delay_ms);
+
+    /**
      * Get GIF dimensions
      */
     uint16_t width() const;
@@ -85,6 +96,11 @@ private:
     // Animation state
     bool playing_;
     bool loaded_;
+    
+    // Loop delay configuration
+    uint32_t loop_delay_ms_;      // Delay between loops in milliseconds
+    bool loop_waiting_;           // Whether we're waiting for the next loop
+    uint32_t loop_wait_start_;    // Timestamp when loop wait started
     
     // Frame update callback
     std::function<void()> frame_callback_;
