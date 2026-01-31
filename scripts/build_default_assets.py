@@ -693,7 +693,10 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
     
     # Convert from basic to common font name
     # e.g., font_puhui_basic_16_4 -> font_puhui_common_16_4.bin
-    font_name = builtin_text_font.replace('basic', 'common') + '.bin'
+    if builtin_text_font.startswith('font_noto_'):
+        font_name = builtin_text_font.replace('basic', 'qwen') + '.bin'
+    else:
+        font_name = builtin_text_font.replace('basic', 'common') + '.bin'
     font_path = os.path.join(xiaozhi_fonts_path, 'cbin', font_name)
     
     if os.path.exists(font_path):
@@ -709,7 +712,8 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
     Returns the emoji directory path or None if no emoji collection is needed
     
     Supports:
-    - PNG emoji collections from xiaozhi-fonts (e.g., emojis_32)
+    - PNG emoji collections from xiaozhi-fonts (e.g., emojis_32, twemoji_64)
+    - GIF emoji collections from xiaozhi-fonts (e.g., noto-emoji_128, noto-emoji_64)
     - Otto GIF emoji collection (otto-gif)
     """
     if not default_emoji_collection:
@@ -729,13 +733,18 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
             print("Warning: project_root not provided, cannot locate otto-gif collection")
             return None
     
-    # Default behavior for PNG emoji collections
+    # Try PNG emoji collections first (e.g., emojis_32, twemoji_64)
     emoji_path = os.path.join(xiaozhi_fonts_path, 'png', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
-    else:
-        print(f"Warning: Emoji collection directory not found: {emoji_path}")
-        return None
+    
+    # Try GIF emoji collections (e.g., noto-emoji_128, noto-emoji_64, noto-emoji_32)
+    emoji_path = os.path.join(xiaozhi_fonts_path, 'gif', default_emoji_collection)
+    if os.path.exists(emoji_path):
+        return emoji_path
+    
+    print(f"Warning: Emoji collection directory not found in png/ or gif/: {default_emoji_collection}")
+    return None
 
 
 def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None):
