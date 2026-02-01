@@ -1,6 +1,7 @@
 #include "application.h"
 #include "board.h"
 #include "display.h"
+#include "misc/lv_types.h"
 #include "system_info.h"
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
@@ -64,6 +65,14 @@ void Application::Initialize() {
 
     // Setup the display
     auto display = board.GetDisplay();
+
+    display->Register_touch_event_callback([this](void *arg, void *param){
+        char *msg = (char *)param;
+        if (strcmp(msg, "emoji touch") == 0)
+        {
+            this->StartListening();
+        }
+    });
 
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());

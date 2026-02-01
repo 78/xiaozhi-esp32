@@ -35,6 +35,10 @@ void Display::ShowNotification(const char* notification, int duration_ms) {
 void Display::UpdateStatusBar(bool update_all) {
 }
 
+void Display::Register_touch_event_callback(std::function<void(void *, void *)> cb)
+{
+
+}
 
 void Display::SetEmotion(const char* emotion) {
     ESP_LOGW(TAG, "SetEmotion: %s", emotion);

@@ -1,5 +1,8 @@
 #include "lcd_display.h"
+#include "esp_lcd_touch.h"
+#include "esp_lvgl_port_touch.h"
 #include "gif/lvgl_gif.h"
+#include "misc/lv_event.h"
 #include "settings.h"
 #include "lvgl_theme.h"
 #include "assets/lang_config.h"
@@ -288,6 +291,23 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     SetupUI();
 }
 
+void LcdDisplay::add_touch_pannel(esp_lcd_touch_handle_t tp)
+{
+    const lvgl_port_touch_cfg_t cfg = {
+        .disp = display_,
+        .handle = tp,
+        .scale = {
+            .x = 0,
+            .y = 0,
+        }
+    };
+
+    indev = lvgl_port_add_touch(&cfg);
+    if (indev == NULL) {
+        ESP_LOGE(TAG, "touch pannel add FAILED");
+    }
+}
+
 LcdDisplay::~LcdDisplay() {
     SetPreviewImage(nullptr);
     
@@ -345,6 +365,10 @@ LcdDisplay::~LcdDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
+
+    if (indev != nullptr) {
+        lvgl_port_remove_touch(indev);
+    }
 }
 
 bool LcdDisplay::Lock(int timeout_ms) {
@@ -353,6 +377,31 @@ bool LcdDisplay::Lock(int timeout_ms) {
 
 void LcdDisplay::Unlock() {
     lvgl_port_unlock();
+}
+
+static void emoji_touch_event_handle(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    LcdDisplay *display = static_cast<LcdDisplay *>(lv_event_get_user_data(e));
+    switch((int)code)
+    {
+        case LV_EVENT_CLICKED:
+        {
+            ESP_LOGI(TAG, "emoji touch event handled");
+
+            display->handle_touch_event(e, (void *)"emoji touch");
+        }
+    }
+}
+
+void LcdDisplay::handle_touch_event(lv_event_t *event, void *param)
+{
+    event_cb(event, param);
+}
+
+void LcdDisplay::Register_touch_event_callback(std::function<void(void *, void *)> cb)
+{
+    event_cb = std::move(cb);
 }
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
@@ -812,8 +861,10 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
 
     emoji_image_ = lv_img_create(emoji_box_);
+    lv_obj_add_event_cb(emoji_image_, emoji_touch_event_handle, LV_EVENT_ALL, this);
     lv_obj_center(emoji_image_);
     lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_CLICKABLE);
 
     /* Middle layer: preview_image_ - centered display */
     preview_image_ = lv_image_create(screen);

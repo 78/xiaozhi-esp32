@@ -1,11 +1,15 @@
 #ifndef LCD_DISPLAY_H
 #define LCD_DISPLAY_H
 
+#include "esp_lcd_touch.h"
 #include "lvgl_display.h"
 #include "gif/lvgl_gif.h"
+#include "misc/lv_types.h"
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
+
+#include <esp_lvgl_port_touch.h>
 #include <font_emoji.h>
 
 #include <atomic>
@@ -15,10 +19,11 @@
 
 
 class LcdDisplay : public LvglDisplay {
+    std::function<void(void *, void *)> event_cb;
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
-    
+    lv_indev_t *indev = nullptr;
     lv_draw_buf_t draw_buf_;
     lv_obj_t* top_bar_ = nullptr;
     lv_obj_t* status_bar_ = nullptr;
@@ -37,7 +42,7 @@ protected:
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
 
     void InitializeLcdThemes();
-    void SetupUI();
+    virtual void SetupUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
@@ -47,6 +52,9 @@ protected:
     
 public:
     ~LcdDisplay();
+    void add_touch_pannel(esp_lcd_touch_handle_t tp);
+    void handle_touch_event(lv_event_t *event, void *param);
+    virtual void Register_touch_event_callback(std::function<void(void *, void *)>) override;
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetChatMessage(const char* role, const char* content) override; 
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;

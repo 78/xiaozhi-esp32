@@ -14,6 +14,7 @@
 
 #include <string>
 #include <chrono>
+#include <functional>
 
 class Theme {
 public:
@@ -39,6 +40,7 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
+    virtual void Register_touch_event_callback(std::function<void(void *, void *)>);
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
