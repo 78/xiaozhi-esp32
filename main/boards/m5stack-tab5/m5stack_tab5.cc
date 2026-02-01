@@ -424,6 +424,20 @@ private:
             InitializeIli9881cDisplay();
             InitializeGt911TouchPad();
         }
+        if (display_ && touch_) {
+            ESP_LOGI(TAG, "add touch pannel");
+            display_->add_touch_pannel(touch_);
+        }
+
+        if (display_ && touch_) {
+            display_->Register_touch_event_callback([](void *arg, void *param){
+            char *msg = (char *)param;
+            if (strcmp(msg, "emoji touch") == 0)
+            {
+                Application::GetInstance().StartListening();
+            }
+            });
+        }
     }
 
     void InitializeCamera() {
