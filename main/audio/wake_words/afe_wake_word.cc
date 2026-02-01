@@ -108,6 +108,9 @@ void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
     if (afe_data_ == nullptr) {
         return;
     }
+    if (!(xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT)) {
+        return;
+    }
     afe_iface_->feed(afe_data_, data.data());
 }
 
