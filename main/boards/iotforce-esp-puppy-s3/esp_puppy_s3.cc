@@ -214,22 +214,100 @@ private:
 
         ESP_LOGI(TAG, "Enabling Puppy Servos...");
         puppy_.Init(FL_GPIO_NUM, FR_GPIO_NUM, BL_GPIO_NUM, BR_GPIO_NUM, TAIL_GPIO_NUM);
-        puppy_.Home();
-
+        
+        // Startup Behavior: Stand active and Wag Tail moved to PuppyTask to avoid concurrency issues
+        
         xTaskCreate([](void *arg)
                     {
             EspPuppyS3 *instance = static_cast<EspPuppyS3 *>(arg);
+            
+            // --- Startup Sequence ---
+            // --- Startup Sequence ---
+            ESP_LOGI(TAG, "Puppy Startup Sequence (Stand for Calibration)");
+            // 1. Force Stand (0 degrees) - This is the "Vertical" position for screwing legs
+            instance->puppy_.Stand(); 
+            vTaskDelay(pdMS_TO_TICKS(500));
+            
+            // 2. Engagement Wiggle (Optional but good for 360 servos to prove they are active/not stuck)
+            // Move slightly out and back to ensuring 0 point is sought.
+            instance->puppy_.MoveToAngle(5, 60);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            instance->puppy_.MoveToAngle(0, 60); // Back to exactly 0 (Vertical)
+            vTaskDelay(pdMS_TO_TICKS(500));
+
+            // 3. Wag to signal ready
+            instance->puppy_.WagTail(500, 30);
+            // ------------------------
+
             OttoCommand cmd;
+            bool is_sitting = false; // Started in Stand
+            int64_t last_activity_time = esp_timer_get_time();
+            const int64_t IDLE_TIMEOUT_US = 20 * 1000000; // 20 seconds
+
+            DeviceState last_state = kDeviceStateUnknown;
+            
             while (true) {
-                if (xQueueReceive(instance->puppy_queue_, &cmd, portMAX_DELAY)) {
+                // Check Application State frequently (e.g. 100ms)
+                auto &app = Application::GetInstance();
+                DeviceState current_state = app.GetDeviceState();
+                
+                // State Transition Logic
+                if (current_state != last_state) {
+                    // Transition TO Idle FROM Interaction (Listening/Speaking/Connecting)
+                    if (current_state == kDeviceStateIdle && 
+                       (last_state == kDeviceStateListening || last_state == kDeviceStateSpeaking || last_state == kDeviceStateConnecting)) 
+                    {
+                        ESP_LOGI(TAG, "Puppy: Interaction Ended -> Sit & Wag");
+                        // User Request: Sit immediately + Wag tail "like sticking to owner"
+                        instance->puppy_.Sit();
+                        vTaskDelay(pdMS_TO_TICKS(500));
+                        instance->puppy_.WagTail(1000, 40); // Slower, friendly wag
+                        is_sitting = true;
+                        
+                        // Force update activity time so we don't trigger the "timeout sit" immediately
+                        last_activity_time = esp_timer_get_time();
+                    }
+                    
+                    // Transition TO Interaction FROM Idle/Sitting
+                    if ((current_state == kDeviceStateListening || current_state == kDeviceStateSpeaking))
+                    {
+                         ESP_LOGI(TAG, "Puppy: Interation Started -> Stand");
+                         instance->puppy_.Stand();
+                         is_sitting = false;
+                    }
+                    
+                    last_state = current_state;
+                }
+
+                // Wait for command with short timeout to allow responsive state checks
+                if (xQueueReceive(instance->puppy_queue_, &cmd, pdMS_TO_TICKS(100))) {
+                    // COMMAND RECEIVED
+                    last_activity_time = esp_timer_get_time();
+                    ESP_LOGI(TAG, "CMD Received: Type=%d Steps=%d Dir=%d", cmd.type, cmd.steps, cmd.dir);
+
+                    
+                    // If we were sitting, stand up first for movements
+                    // Exception: If command is Sit/Rest-like, maybe don't need to stand? 
+                    // But generally, Stand is safe base.
+                    if (is_sitting && cmd.type != 6 && cmd.type != 10 && cmd.type != 13 && cmd.type != 12 && cmd.type != 16) { // Skip Stand for Sad, Sleepy, Comfort, ShakeHands, Sit
+                         ESP_LOGW(TAG, "Auto-Stand Triggered (Sitting->Standing) for Cmd Type %d", cmd.type);
+                         instance->puppy_.Stand();
+                         vTaskDelay(pdMS_TO_TICKS(500));
+                         is_sitting = false;
+                    } else {
+                         ESP_LOGI(TAG, "Auto-Stand Skipped: is_sitting=%d, Cmd Type=%d", is_sitting, cmd.type);
+                    }
+
                     if (cmd.type == 0) { // Walk
+                        ESP_LOGI(TAG, "Executing Walk");
                         instance->puppy_.Walk(cmd.steps, cmd.period, cmd.dir);
                     } else if (cmd.type == 1) { // Turn
+                        ESP_LOGI(TAG, "Executing Turn");
                         instance->puppy_.Turn(cmd.steps, cmd.period, cmd.dir);
                     } else if (cmd.type == 2) { // Home
                         instance->puppy_.Home();
                     } else if (cmd.type == 3) { // Stop
-                        instance->puppy_.Home();
+                        instance->puppy_.Stand(); // Stop -> Stand Active
                     } else if (cmd.type == 4) { // Happy
                         instance->puppy_.Happy();
                     } else if (cmd.type == 5) { // Shake
@@ -254,11 +332,29 @@ private:
                         instance->puppy_.Excited();
                     } else if (cmd.type == 15) { // Cry
                         instance->puppy_.Cry();
+                    } else if (cmd.type == 16) { // Sit
+                        ESP_LOGI(TAG, "Executing Sit");
+                        instance->puppy_.Sit();
+                        is_sitting = true; // Mark as sitting so we don't auto-sit again
+                    }
+                    
+                    last_activity_time = esp_timer_get_time();
+
+                } else {
+                    // NO COMMAND - Fallback Idle Check
+                    // Only check timeout if we are NOT already sitting
+                    if (current_state == kDeviceStateIdle && !is_sitting) {
+                        if (esp_timer_get_time() - last_activity_time > IDLE_TIMEOUT_US) {
+                            ESP_LOGI(TAG, "Puppy: Timeout Idling (Sit)");
+                            instance->puppy_.Sit();
+                            vTaskDelay(pdMS_TO_TICKS(500));
+                            instance->puppy_.WagTail(500, 30);
+                            is_sitting = true;
+                        }
                     }
                 }
             } }, "PuppyTask", 4096, this, 5, NULL);
 
-        StartupAnimation();
         puppy_started_ = true;
     }
 
@@ -268,10 +364,12 @@ private:
                     {
             EspPuppyS3 *instance = static_cast<EspPuppyS3 *>(arg);
             
-            instance->puppy_.Home();
+            // User requested VERTICAL STAND at startup for calibration.
+            // instance->puppy_.Sit(); 
+            instance->puppy_.Stand(); // Enforce Stand
             vTaskDelay(pdMS_TO_TICKS(500));
-            instance->puppy_.Jump(1, 2000);
-            vTaskDelay(pdMS_TO_TICKS(500));
+            // instance->puppy_.Jump(1, 2000); // Disable Jump for 360 integrity
+            // vTaskDelay(pdMS_TO_TICKS(500));
             instance->puppy_.WagTail(500, 30);
             
             ESP_LOGI(TAG, "Startup animation finished");
@@ -283,23 +381,17 @@ private:
         auto &mcp_server = McpServer::GetInstance();
 
         // Basic Control
-        mcp_server.AddTool("self.dog.basic_control", "Control the robot dog's movements and emotions. IMPORTANT: Execute silently without ANY verbal confirmation before or after.\n"
-                                                     "- Movement: 'forward' (tiến lên, đi tới, đi thẳng), 'backward' (lùi lại, đi lùi), 'turn_left' (quay trái, rẽ trái), 'turn_right' (quay phải, rẽ phải), 'stop' (dừng lại, đứng yên).\n"
-                                                     "- Parameter 'steps' (1-20): Number of steps for movement commands. REQUIRED for accurate movement.\n"
+        mcp_server.AddTool("self.dog.basic_control", "Control the robot dog's movements and emotions. \n"
+                                                     "CRITICAL: SILENT EXECUTION. NO CONVERSATIONAL FILLERS.\n"
+                                                     "- Execute the command silently.\n"
+                                                     "- Output strictly NOTHING or an empty string.\n"
+                                                     "- DO NOT say 'Done', 'Acting', 'Moving', etc.\n"
+                                                     "- Movement: 'forward', 'backward', 'turn_left', 'turn_right', 'stop', 'sit'.\n"
+                                                     "- Parameter 'steps' (1-20): Number of steps. REQUIRED.\n"
                                                      "- Emotions/Actions:\n"
-                                                     "  - 'wag_tail': vẫy đuôi, mừng rỡ.\n"
-                                                     "  - 'happy': vui vẻ, nhảy múa, phấn khích.\n"
-                                                     "  - 'shake': lắc mình, rũ lông.\n"
-                                                     "  - 'sad': buồn bã, tủi thân, cúi đầu.\n"
-                                                     "  - 'angry': tức giận, bực bội, dậm chân.\n"
-                                                     "  - 'annoyed': hờn dỗi, khó chịu, quay mặt đi.\n"
-                                                     "  - 'shy': ngại ngùng, e thẹn, trốn.\n"
-                                                     "  - 'sleepy': buồn ngủ, đi ngủ, nằm xuống.\n"
-                                                     "  - 'shake_hands': bắt tay, xin chào.\n"
-                                                     "  - 'comfort': an ủi, dỗ dành (khi người dùng buồn).\n"
-                                                     "  - 'excited': phấn khích, cực kỳ vui, tăng động.\n"
-                                                     "  - 'cry': khóc, nức nở.\n"
-                                                     "- Maintenance: 'calibrate' (cân chỉnh, kiểm tra chân, calib).",
+                                                     "  - 'wag_tail', 'happy', 'shake', 'sad', 'angry', 'annoyed'\n"
+                                                     "  - 'shy', 'sleepy', 'shake_hands', 'comfort', 'excited', 'cry'\n"
+                                                     "- Maintenance: 'calibrate'.",
                            PropertyList({
                                Property("action", kPropertyTypeString),
                                Property("steps", kPropertyTypeInteger, 4, 1, 20),
@@ -320,8 +412,11 @@ private:
                                    action = "turn_left";
                                if (action == "right" || action == "go_right" || action == "sang phải" || action == "rẽ phải" || action == "quay phải")
                                    action = "turn_right";
-                               if (action == "halt" || action == "dừng" || action == "đứng lại" || action == "thôi" || action == "ngừng" || action == "đứng yên")
+                               if (action == "halt" || action == "dừng" || action == "đứng lại" || action == "thôi" || action == "ngừng" || action == "đứng yên" || action == "stand" || action == "đứng")
                                    action = "stop";
+
+                               if (action == "ngồi" || action == "sit" || action == "sit_down" || action == "ngồi xuống")
+                                   action = "sit";
 
                                if (action == "vẫy đuôi" || action == "lắc đuôi" || action == "mừng")
                                    action = "wag_tail";
@@ -388,6 +483,11 @@ private:
                                else if (action == "stop")
                                {
                                    cmd.type = 3;
+                                   xQueueSend(puppy_queue_, &cmd, 0);
+                               }
+                               else if (action == "sit")
+                               {
+                                   cmd.type = 16;
                                    xQueueSend(puppy_queue_, &cmd, 0);
                                }
                                else if (action == "wag_tail")
@@ -460,6 +560,54 @@ private:
                                }
                                return true;
                            });
+
+        // 360 Servo Calibration Tools
+        mcp_server.AddTool("self.dog.calibrate_motors", 
+            "Calibrate 360 Servo Motors. \n"
+            "- 'trim': Set Center/Stop offset (Pulse US). Default 0. Range -100 to 100. \n"
+            "  Use to stop drifting when neutral. \n"
+            "- 'scale': Set Speed Multiplier. Default 1.0. Range 0.5 to 2.0. \n"
+            "  Use to match speeds between motors. \n"
+            "Examples: \n"
+            "  trim: fl=10, fr=-5 \n"
+            "  scale: fl=1.1, bl=0.9",
+            PropertyList({
+                Property("type", kPropertyTypeString), // "trim" or "scale"
+                Property("fl", kPropertyTypeInteger), 
+                Property("fr", kPropertyTypeInteger),
+                Property("bl", kPropertyTypeInteger),
+                Property("br", kPropertyTypeInteger),
+                Property("tail", kPropertyTypeInteger)
+            }),
+            [this](const PropertyList &properties) -> ReturnValue {
+                std::string type = properties["type"].value<std::string>();
+                int fl = properties["fl"].value<int>();
+                int fr = properties["fr"].value<int>();
+                int bl = properties["bl"].value<int>();
+                int br = properties["br"].value<int>();
+                int tail = properties["tail"].value<int>();
+                
+                if (type == "trim") {
+                    puppy_.SetTrims(fl, fr, bl, br, tail);
+                    ESP_LOGI(TAG, "Trims Updated: %d %d %d %d %d", fl, fr, bl, br, tail);
+                    return "Trims updated.";
+                } else if (type == "scale") {
+                    // Integers passed as percentage? e.g. 110 = 1.1? 
+                    // Let's assume input is scaled by 100 for precision if Float not supported easily or just cast.
+                    // PropertyList supports Integers.
+                    // Let's safely assume input 100 = 1.0.
+                    
+                    float s_fl = (fl > 0) ? (float)fl/100.0f : 1.0f;
+                    float s_fr = (fr > 0) ? (float)fr/100.0f : 1.0f;
+                    float s_bl = (bl > 0) ? (float)bl/100.0f : 1.0f;
+                    float s_br = (br > 0) ? (float)br/100.0f : 1.0f;
+                    float s_tail = (tail > 0) ? (float)tail/100.0f : 1.0f;
+                    
+                    puppy_.SetSpeedScales(s_fl, s_fr, s_bl, s_br, s_tail);
+                    return "Speed scales updated (Input/100).";
+                }
+                return "Invalid calibration type.";
+            });
 
         // Tail Control
         mcp_server.AddTool("self.dog.tail_control", "Control the tail servo angle (0-180)",

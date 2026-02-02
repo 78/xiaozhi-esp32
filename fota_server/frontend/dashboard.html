@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIBOX FOTA Cloud</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#8B6FB5',
+                            50: '#F5F3F8',
+                            100: '#DDD6E8',
+                            600: '#7A5EA0',
+                            700: '#6B4F8A',
+                        },
+                        secondary: '#6B7280',
+                        bglight: '#FAFAF9',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #FAFAF9; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .card-shadow { box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1); }
+        .modal-enter { animation: scaleIn 0.2s ease-out forwards; }
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-10 glass">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <i class="fa-solid fa-robot text-xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-700 to-primary">
+                    FOTA Cloud
+                </h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    System Online
+                </div>
+                <button onclick="openAddDeviceModal()" class="bg-primary hover:bg-primary-600 text-white px-5 py-2.5 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 font-medium">
+                    <i class="fa-solid fa-plus"></i> Add Device
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-6 py-8 w-full">
+        <!-- Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-white p-6 rounded-2xl card-shadow border border-gray-100">
+                <p class="text-secondary text-sm font-medium">Total Devices</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-3xl font-bold text-gray-900" id="stat-total">0</h3>
+                    <div class="w-10 h-10 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-server"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl card-shadow border border-gray-100">
+                <p class="text-secondary text-sm font-medium">Online Now</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-3xl font-bold text-green-600" id="stat-online">0</h3>
+                    <div class="w-10 h-10 bg-green-50 text-green-500 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-wifi"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl card-shadow border border-gray-100">
+                <p class="text-secondary text-sm font-medium">Outdated Firmware</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-3xl font-bold text-orange-500" id="stat-outdated">0</h3>
+                    <div class="w-10 h-10 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Grid -->
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-gray-800">Your Devices</h2>
+            <div class="flex gap-2">
+                <input type="text" placeholder="Search MAC or Name..." class="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary text-sm w-64">
+            </div>
+        </div>
+        
+        <div id="devices-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards will be injected here -->
+            <div class="col-span-full py-20 text-center text-gray-400">
+                <i class="fa-solid fa-spinner fa-spin text-3xl mb-4"></i>
+                <p>Connecting to backend...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white/50 backdrop-blur border-t border-gray-200 py-6 text-center text-sm text-gray-500">
+        <p>&copy; 2026 Xiaozhi Project. All rights reserved.</p>
+    </footer>
+
+    <!-- Add Device Modal -->
+    <div id="add-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Add New Device</h3>
+                <button onclick="closeModal('add-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="add-device-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
+                    <input type="text" name="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none" placeholder="e.g. Living Room Robot">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MAC Address</label>
+                    <input type="text" name="mac" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-mono" placeholder="AA:BB:CC:DD:EE:FF">
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('add-modal')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button type="submit" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-700 shadow-md">Add Device</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Update FOTA Modal -->
+    <div id="ota-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-0 overflow-hidden transform scale-95 transition-transform duration-300">
+            <!-- Header -->
+            <div class="bg-gray-50 px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900">Push OTA Update</h3>
+                    <p class="text-sm text-gray-500 mt-1">Target: <span id="ota-target-mac" class="font-mono font-medium text-primary"></span></p>
+                </div>
+                <button onclick="closeModal('ota-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-100">
+                <button onclick="switchOtaTab('s3')" id="tab-s3" class="flex-1 py-4 text-sm font-medium text-primary border-b-2 border-primary bg-primary-50 transition-colors">
+                    <i class="fa-brands fa-aws mr-2"></i> From AWS S3
+                </button>
+                <button onclick="switchOtaTab('upload')" id="tab-upload" class="flex-1 py-4 text-sm font-medium text-secondary hover:text-primary transition-colors">
+                    <i class="fa-solid fa-upload mr-2"></i> Upload File
+                </button>
+            </div>
+
+            <!-- Content S3 -->
+            <div id="content-s3" class="p-8">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Firmware URL (S3) - Optional if updating Assets</label>
+                    <input type="text" id="s3-url" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary bg-gray-50 text-gray-500 font-mono text-sm" 
+                           placeholder="https://s3-ap-southeast-1.amazonaws.com/..." 
+                           value="https://xiaozhi-fota-firmware.s3.ap-southeast-1.amazonaws.com/firmware/xiaozhi-latest.bin">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Assets URL (S3) - Optional</label>
+                    <input type="text" id="s3-assets-url" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary bg-gray-50 text-gray-500 font-mono text-sm" 
+                           placeholder="https://s3-ap-southeast-1.amazonaws.com/.../generated_assets.bin">
+                </div>
+                <div class="p-4 bg-blue-50 rounded-lg border border-blue-100 flex gap-3">
+                    <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+                    <p class="text-sm text-blue-700">Enter Firmware URL, Assets URL, or both. The device will be triggered accordingly.</p>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button onclick="triggerFota('s3')" id="btn-trigger-s3" class="w-full px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-700 shadow-md font-medium flex justify-center items-center gap-2">
+                        <span>🚀 Push Update</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Upload -->
+            <div id="content-upload" class="p-8 hidden">
+                <!-- Firmware Upload -->
+                <div class="mb-2 text-sm font-medium text-gray-700">Firmware File (.bin)</div>
+                <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary hover:bg-primary-50 transition-colors cursor-pointer relative mb-6" id="drop-zone-fw">
+                    <input type="file" id="file-upload" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".bin">
+                    <div id="upload-idle">
+                        <i class="fa-solid fa-microchip text-3xl text-gray-300 mb-2"></i>
+                        <p class="font-medium text-gray-700">Upload Firmware (xiaozhi.bin)</p>
+                    </div>
+                    <div id="upload-selected" class="hidden">
+                        <i class="fa-solid fa-microchip text-3xl text-primary mb-2"></i>
+                        <p id="filename-display" class="font-medium text-gray-800 break-all"></p>
+                        <p class="text-xs text-green-600 mt-1">Ready to upload</p>
+                    </div>
+                </div>
+
+                <!-- Assets Upload -->
+                <div class="mb-2 text-sm font-medium text-gray-700">Assets File (generated_assets.bin)</div>
+                <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary hover:bg-primary-50 transition-colors cursor-pointer relative" id="drop-zone-assets">
+                    <input type="file" id="assets-upload" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".bin">
+                    <div id="assets-idle">
+                        <i class="fa-solid fa-images text-3xl text-gray-300 mb-2"></i>
+                        <p class="font-medium text-gray-700">Upload Assets (Optional)</p>
+                    </div>
+                    <div id="assets-selected" class="hidden">
+                        <i class="fa-solid fa-images text-3xl text-primary mb-2"></i>
+                        <p id="assets-filename-display" class="font-medium text-gray-800 break-all"></p>
+                        <p class="text-xs text-green-600 mt-1">Ready to upload</p>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Version Tag</span>
+                    </div>
+                    <input type="text" id="firmware-version" placeholder="e.g. v1.2.0" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+
+                <div class="mt-6">
+                    <!-- Progress Bar -->
+                    <div id="upload-progress-container" class="hidden mb-4">
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-500">Uploading...</span>
+                            <span class="text-gray-700 font-bold" id="upload-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="upload-bar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <button onclick="triggerFota('upload')" id="btn-trigger-upload" class="w-full px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-700 shadow-md font-medium flex justify-center items-center gap-2">
+                        <span>🚀 Upload & Push Update</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script>
+        // CONFIG
+        const API_URL = 'http://localhost:4001/api';  // Match your backend port
+        const SOCKET_URL = 'http://localhost:4001';
+
+        // State
+        let socket;
+        let devices = [];
+        let currentTargetMac = null;
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+             initSocket();
+             fetchDevices();
+             setupFileUpload('file-upload', 'upload-idle', 'upload-selected', 'filename-display');
+             setupFileUpload('assets-upload', 'assets-idle', 'assets-selected', 'assets-filename-display');
+        });
+
+        // Socket.io
+        function initSocket() {
+            socket = io(SOCKET_URL);
+            
+            socket.on('connect', () => {
+                console.log('Socket Connected');
+            });
+
+            socket.on('device_update', (data) => {
+                console.log('Device Update:', data);
+                const devIndex = devices.findIndex(d => d.mac === data.mac);
+                if (devIndex >= 0) {
+                    devices[devIndex] = { ...devices[devIndex], ...data };
+                    renderDevices();
+                } else {
+                    fetchDevices(); // Reload all if new or unknown
+                }
+            });
+        }
+
+        // Fetch Devices
+        async function fetchDevices() {
+            try {
+                const res = await fetch(`${API_URL}/devices`);
+                const data = await res.json();
+                devices = data;
+                renderDevices();
+            } catch (err) {
+                console.error('Fetch error', err);
+                document.getElementById('devices-grid').innerHTML = `
+                    <div class="col-span-full text-center text-red-500 py-10">
+                        <i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i>
+                        <p>Backend not reachable. Run 'npm start' in backend folder.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render
+        function renderDevices() {
+            const grid = document.getElementById('devices-grid');
+            if (devices.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-20 text-center text-gray-400 bg-white rounded-2xl border border-gray-100 border-dashed">
+                        <i class="fa-regular fa-hard-drive text-4xl mb-4"></i>
+                        <p>No devices found. Click "Add Device" to start.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Update Stats
+            document.getElementById('stat-total').innerText = devices.length;
+            document.getElementById('stat-online').innerText = devices.filter(d => d.status === 'online').length;
+
+            grid.innerHTML = devices.map(device => {
+                const isOnline = device.status === 'online';
+                const statusColor = isOnline ? 'bg-green-500' : 'bg-gray-400';
+                const statusText = isOnline ? 'Online' : 'Offline';
+                const statusBg = isOnline ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500';
+
+                return `
+                <div class="bg-white rounded-2xl p-6 card-shadow border border-gray-100 hover:border-primary-100 transition-colors group">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-robot"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-900 group-hover:text-primary transition-colors">${device.name || 'Unnamed Device'}</h3>
+                                <p class="text-xs text-gray-500 font-mono">${device.mac}</p>
+                            </div>
+                        </div>
+                        <span class="px-2.5 py-1 ${statusBg} rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 ${statusColor} rounded-full"></span>
+                            ${statusText}
+                        </span>
+                    </div>
+
+                    <div class="space-y-3 mb-6">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-secondary">Firmware</span>
+                            <span class="font-mono font-medium text-gray-700">${device.current_version || 'v1.0.0'}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-secondary">Last Seen</span>
+                            <span class="text-gray-700">${device.last_seen ? new Date(device.last_seen).toLocaleTimeString() : 'Never'}</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-4 flex gap-3">
+                        <button onclick="openOtaModal('${device.mac}')" class="flex-1 bg-primary text-white py-2 rounded-lg font-medium text-sm hover:bg-primary-700 transition-colors shadow-md shadow-primary/20 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Update FOTA
+                        </button>
+                        <button class="w-10 h-9 border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors flex items-center justify-center">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Add Device
+        document.getElementById('add-device-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const res = await fetch(`${API_URL}/devices`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) {
+                    closeModal('add-modal');
+                    e.target.reset();
+                    fetchDevices();
+                } else {
+                    alert('Failed to add device');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Backend error');
+            }
+        });
+
+        // Modal Logic
+        function openModal(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('hidden');
+            setTimeout(() => {
+                el.classList.remove('opacity-0');
+                el.children[0].classList.remove('scale-95');
+                el.children[0].classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            el.classList.add('opacity-0');
+            el.children[0].classList.remove('scale-100');
+            el.children[0].classList.add('scale-95');
+            setTimeout(() => el.classList.add('hidden'), 300);
+        }
+
+        function openAddDeviceModal() {
+            openModal('add-modal');
+        }
+
+        function openOtaModal(mac) {
+            currentTargetMac = mac;
+            document.getElementById('ota-target-mac').innerText = mac;
+            openModal('ota-modal');
+        }
+
+        function switchOtaTab(tab) {
+            const contentS3 = document.getElementById('content-s3');
+            const contentUpload = document.getElementById('content-upload');
+            const tabS3 = document.getElementById('tab-s3');
+            const tabUpload = document.getElementById('tab-upload');
+
+            if (tab === 's3') {
+                contentS3.classList.remove('hidden');
+                contentUpload.classList.add('hidden');
+                
+                tabS3.className = 'flex-1 py-4 text-sm font-medium text-primary border-b-2 border-primary bg-primary-50 transition-colors';
+                tabUpload.className = 'flex-1 py-4 text-sm font-medium text-secondary hover:text-primary transition-colors';
+            } else {
+                contentS3.classList.add('hidden');
+                contentUpload.classList.remove('hidden');
+
+                tabUpload.className = 'flex-1 py-4 text-sm font-medium text-primary border-b-2 border-primary bg-primary-50 transition-colors';
+                tabS3.className = 'flex-1 py-4 text-sm font-medium text-secondary hover:text-primary transition-colors';
+            }
+        }
+
+        function setupFileUpload(inputId, idleId, selectedId, nameId) {
+            const input = document.getElementById(inputId);
+            const idle = document.getElementById(idleId);
+            const selected = document.getElementById(selectedId);
+            const name = document.getElementById(nameId);
+
+            input.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    idle.classList.add('hidden');
+                    selected.classList.remove('hidden');
+                    name.innerText = e.target.files[0].name;
+                }
+            });
+        }
+
+        async function triggerFota(mode) {
+            if (!currentTargetMac) return;
+
+            const btn = document.getElementById(`btn-trigger-${mode}`);
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+
+            let targetUrl = '';
+
+            try {
+                if (mode === 's3') {
+                    // Option 1: Direct URL
+                    const fwUrl = document.getElementById('s3-url').value;
+                    const assetsUrl = document.getElementById('s3-assets-url').value;
+                    
+                    if (!fwUrl && !assetsUrl) throw new Error("At least one URL is required");
+                    if (fwUrl) targetUrl = fwUrl;
+                    // Note: If both are present, we'll need to adjust the backend call below
+                    // Current implementation primarily supports one return from 'upload'.
+                    // For S3 we can pass both directly.
+                } else {
+                    // Option 2: Upload File first
+                    const fileInput = document.getElementById('file-upload');
+                    const assetsInput = document.getElementById('assets-upload');
+                    
+                    if (fileInput.files.length === 0 && assetsInput.files.length === 0) throw new Error("No file selected");
+
+                    // Show progress
+                    const progressContainer = document.getElementById('upload-progress-container');
+                    const uploadBar = document.getElementById('upload-bar');
+                    const uploadPercent = document.getElementById('upload-percent');
+                    progressContainer.classList.remove('hidden');
+
+                    // Helper to upload a single file
+                    const uploadOneFile = async (file) => {
+                         const formData = new FormData();
+                         formData.append('file', file);
+                         formData.append('version', document.getElementById('firmware-version').value || '1.0.0');
+                         
+                         return new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('POST', `${API_URL}/upload`, true);
+                            xhr.upload.onprogress = (e) => {
+                                if (e.lengthComputable) {
+                                    const percent = Math.round((e.loaded / e.total) * 100);
+                                    uploadBar.style.width = percent + '%';
+                                    uploadPercent.innerText = `Uploading ${file.name}: ${percent}%`;
+                                }
+                            };
+                            xhr.onload = () => {
+                                if (xhr.status === 200) {
+                                    resolve(JSON.parse(xhr.responseText).url);
+                                } else reject(new Error('Upload failed'));
+                            };
+                            xhr.onerror = () => reject(new Error('Network Error'));
+                            xhr.send(formData);
+                         });
+                    };
+
+                    // Upload Firmware if selected
+                    if (fileInput.files.length > 0) {
+                        targetUrl = await uploadOneFile(fileInput.files[0]);
+                    }
+
+                    // Upload Assets if selected
+                    if (assetsInput.files.length > 0) {
+                        // Reset progress visually for second file logic (simplified)
+                        uploadBar.style.width = '0%';
+                        const assetsUrlVal = await uploadOneFile(assetsInput.files[0]);
+                        // Pass this to next step
+                        window.tempAssetsUrl = assetsUrlVal; 
+                    }
+                }
+
+                // Prepare payloads
+                let payload = { mac: currentTargetMac };
+                
+                if (mode === 's3') {
+                     payload.url = document.getElementById('s3-url').value;
+                     payload.assetsUrl = document.getElementById('s3-assets-url').value;
+                } else {
+                    if (targetUrl) payload.url = targetUrl; // Firmware URL
+                    if (window.tempAssetsUrl) {
+                        payload.assetsUrl = window.tempAssetsUrl;
+                        window.tempAssetsUrl = null; // Clear
+                    }
+                }
+
+                // Step 2: Trigger FOTA command
+                const res = await fetch(`${API_URL}/fota/trigger`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    alert('✅ Update command sent successfully! The device should start updating shortly.');
+                    closeModal('ota-modal');
+                } else {
+                    throw new Error('Failed to send trigger command');
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert('❌ Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                document.getElementById('upload-progress-container').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

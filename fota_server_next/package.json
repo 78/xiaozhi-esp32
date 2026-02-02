@@ -1,0 +1,36 @@
+{
+  "name": "fota_server_next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server/index.js",
+    "build": "next build",
+    "start": "NODE_ENV=production node server/index.js",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1693.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mqtt": "^5.14.1",
+    "multer": "^2.0.2",
+    "multer-s3": "^3.0.1",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -43,8 +43,8 @@
 #define BL_GPIO_NUM GPIO_NUM_39
 #define BR_GPIO_NUM GPIO_NUM_38 
 
-// Servo (Tail) - Moved to accommodate Audio
-#define TAIL_GPIO_NUM GPIO_NUM_12 // Moved from 21 (Conflict) to 12 (Old CLK)
+// Servo (Tail) - Moved to accommodate Audio   
+#define TAIL_GPIO_NUM GPIO_NUM_12               
 
 // Bluetooth KCX_BT_EMITTER Module Configuration
 #define BT_EMITTER_CONNECT_PIN GPIO_NUM_3   // Connect/Pair control (Output, active LOW pulse)

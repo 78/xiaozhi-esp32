@@ -1,24 +1,24 @@
 #include "quiz_manager.h"
-
-#include <cstdio>
-#include <cstring>
-#include <cerrno>
-#include <dirent.h>
-#include <sys/stat.h>
 #include <esp_log.h>
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
+#include <cJSON.h>
+#include <cstring>
+#include <esp_mac.h>
+#include <thread>
+#include <functional>
 
 #define TAG "QuizManager"
 
-// Maximum questions to prevent memory issues
-#ifndef CONFIG_QUIZ_MAX_QUESTIONS
-#define CONFIG_QUIZ_MAX_QUESTIONS 50
-#endif
+// Maximum buffer size for HTTP response
+#define MAX_HTTP_OUTPUT_BUFFER 2048
 
 QuizManager::QuizManager()
     : state_(QuizState::IDLE)
-    , in_question_(false)
+    , client_handle_(nullptr)
 {
-    ESP_LOGI(TAG, "QuizManager created");
+    ESP_LOGI(TAG, "QuizManager created (Server Mode)");
+    session_.Reset();
 }
 
 QuizManager::~QuizManager()
@@ -46,72 +46,375 @@ void QuizManager::ReportError(const std::string& error)
     }
 }
 
-bool QuizManager::StartQuiz(const std::string& file_path)
+// ==================== HTTP Client Logic ====================
+
+std::string QuizManager::GetDeviceId() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (session_.is_active) {
-        ESP_LOGW(TAG, "Quiz already active, stopping first");
-        StopQuizInternal();  // Use internal version - mutex already held
+    uint8_t mac[6];
+    esp_efuse_mac_get_default(mac);
+    char buf[7];
+    // Use last 3 bytes as requested: "mã 6 số" (hex)
+    snprintf(buf, sizeof(buf), "%02x%02x%02x", mac[3], mac[4], mac[5]);
+    return std::string(buf);
+}
+
+bool QuizManager::InitHttpClient()
+{
+    if (client_handle_) {
+        return true; // Already initialized
     }
-    
-    ESP_LOGI(TAG, "Starting quiz from: %s", file_path.c_str());
-    SetState(QuizState::LOADING);
-    
-    session_.Reset();
-    current_file_path_ = file_path;
-    
-    // Reserve space for questions to avoid reallocations
-    session_.questions.reserve(CONFIG_QUIZ_MAX_QUESTIONS);
-    session_.user_answers.reserve(CONFIG_QUIZ_MAX_QUESTIONS);
-    
-    if (!ParseQuizFile(file_path)) {
-        ReportError("Failed to parse quiz file: " + file_path);
+
+    esp_http_client_config_t config = {};
+    config.url = QUIZ_SERVER_URL; // Base URL, will be updated per request
+    config.method = HTTP_METHOD_POST;
+    config.timeout_ms = 5000;
+    config.buffer_size = MAX_HTTP_OUTPUT_BUFFER;
+    config.disable_auto_redirect = true;
+    config.keep_alive_enable = true; // IMPORTANT: Keep-Alive for valid persistent connections
+    config.crt_bundle_attach = esp_crt_bundle_attach; // Enable SSL Certificate Bundle for HTTPS (Render)
+
+    client_handle_ = esp_http_client_init(&config);
+    if (!client_handle_) {
+        ESP_LOGE(TAG, "Failed to initialize HTTP client");
         return false;
     }
     
-    if (session_.questions.empty()) {
-        ReportError("No valid questions found in file");
+    ESP_LOGI(TAG, "HTTP Client initialized with Keep-Alive");
+    return true;
+}
+
+bool QuizManager::SendRequest(const char* endpoint, cJSON* payload, cJSON** response_json)
+{
+    if (!InitHttpClient()) {
+        return false;
+    }
+
+    std::string url = std::string(QUIZ_SERVER_URL) + endpoint;
+    esp_http_client_set_url(client_handle_, url.c_str());
+    esp_http_client_set_method(client_handle_, HTTP_METHOD_POST);
+    esp_http_client_set_header(client_handle_, "Content-Type", "application/json");
+
+    // Add common header or ensure payload has deviceId
+    // For simplicity, we add deviceId to payload in caller functions, not here generic
+    
+    char* payload_str = cJSON_PrintUnformatted(payload);
+    int payload_len = strlen(payload_str);
+
+    ESP_LOGI(TAG, "Sending POST to %s: %s", endpoint, payload_str);
+
+    esp_err_t err = esp_http_client_open(client_handle_, payload_len);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "HTTP Open failed: %s", esp_err_to_name(err));
+        free(payload_str);
+        return false;
+    }
+
+    int wlen = esp_http_client_write(client_handle_, payload_str, payload_len);
+    free(payload_str);
+    if (wlen < 0) {
+        ESP_LOGE(TAG, "HTTP Write failed");
+        esp_http_client_close(client_handle_);
+        return false;
+    }
+
+    int content_len = esp_http_client_fetch_headers(client_handle_);
+    if (content_len < 0) {
+        ESP_LOGE(TAG, "HTTP Fetch Headers failed");
+        // Even if fetch headers failed, we should try to close clean if possible or just rely on init to reset
+        esp_http_client_close(client_handle_); 
+        return false;
+    }
+
+    int status_code = esp_http_client_get_status_code(client_handle_);
+    ESP_LOGI(TAG, "HTTP Status: %d, Content-Len: %d", status_code, content_len);
+
+    if (status_code != 200) {
+        ESP_LOGE(TAG, "Server returned error status: %d", status_code);
+        esp_http_client_close(client_handle_); // Close connection on error
+        return false;
+    }
+
+    if (content_len <= 0) {
+        content_len = MAX_HTTP_OUTPUT_BUFFER; 
+    }
+    
+    // Allocate buffer for response
+    // Check for excessive size
+    if (content_len > 10 * 1024) { 
+        ESP_LOGE(TAG, "Response too large: %d", content_len);
+        esp_http_client_close(client_handle_);
+        return false;
+    }
+
+    char* buffer = (char*)malloc(content_len + 1);
+    if (!buffer) {
+        ESP_LOGE(TAG, "Metrics: malloc failed");
+        esp_http_client_close(client_handle_);
         return false;
     }
     
-    session_.is_active = true;
-    session_.current_question_index = 0;
-    SetState(QuizState::QUESTION_DISPLAY);
+    // Read the response body
+    // In a robust implementation, we might need a loop if read_len < content_len
+    // but for this specific RPC, we usually get it all or standard chunked behavior handled by read_response
+    int read_len = esp_http_client_read_response(client_handle_, buffer, content_len);
     
-    ESP_LOGI(TAG, "Quiz started with %d questions", 
-             static_cast<int>(session_.questions.size()));
-    
-    // Notify first question ready
-    if (on_question_ready_) {
-        on_question_ready_(session_.questions[0]);
+    if (read_len >= 0) {
+        buffer[read_len] = 0; // Null terminate
+        ESP_LOGI(TAG, "Response: %s", buffer);
+        *response_json = cJSON_Parse(buffer);
+        free(buffer);
+        // We do NOT call esp_http_client_close(client_handle_) here to support Keep-Alive
+        // The next InitHttpClient/SendRequest will reuse it if enabled.
+        return (*response_json != nullptr);
+    } else {
+        ESP_LOGE(TAG, "Failed to read response");
+        free(buffer);
+        esp_http_client_close(client_handle_);
+        return false;
+    }
+}
+
+bool QuizManager::ParseQuestionJson(cJSON* q_obj, int display_index, QuizQuestion& out_question)
+{
+    if (!q_obj) return false;
+
+    cJSON* text = cJSON_GetObjectItem(q_obj, "text");
+    cJSON* options = cJSON_GetObjectItem(q_obj, "options");
+
+    if (!text || !cJSON_IsString(text) || !options || !cJSON_IsArray(options)) {
+        return false;
+    }
+
+    out_question.Clear();
+    out_question.question_number = display_index; // Display number 1-based
+    out_question.question_text = text->valuestring;
+
+    int opt_count = cJSON_GetArraySize(options);
+    for (int i = 0; i < opt_count && i < 4; i++) {
+        cJSON* opt = cJSON_GetArrayItem(options, i);
+        if (opt && cJSON_IsString(opt)) {
+            out_question.options[i] = opt->valuestring;
+        }
     }
     
     return true;
 }
 
-void QuizManager::StopQuiz()
+// ==================== Quiz Flow ====================
+
+#include <esp_pthread.h> // Add this include
+
+// Helper to run task in background with sufficient stack size
+template<typename Func>
+void RunInBackground(Func&& func) {
+    auto cfg = esp_pthread_get_default_config();
+    cfg.stack_size = 10 * 1024; // Increase stack to 10KB to safe for HTTPS/SSL
+    cfg.prio = 2; // Lower priority to avoid starving AFE/Audio tasks (who are at 5 or 8)
+    cfg.thread_name = "QuizTask";
+    esp_pthread_set_cfg(&cfg);
+
+    std::thread([func]() {
+        func();
+    }).detach();
+}
+
+bool QuizManager::StartQuiz()
+{
+    // Run in background to prevent blocking AFE/Audio loop
+    RunInBackground([this]() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        if (session_.is_active) {
+            StopQuizInternal();
+        }
+        
+        ESP_LOGI(TAG, "Starting quiz (connecting to server)...");
+        SetState(QuizState::LOADING);
+        
+        cJSON* req = cJSON_CreateObject();
+        if (!req) return;
+
+        cJSON_AddStringToObject(req, "deviceId", GetDeviceId().c_str());
+        
+        cJSON* resp = nullptr;
+        
+        if (SendRequest("/api/quiz/start", req, &resp)) {
+            cJSON_Delete(req);
+            
+            if (resp) {
+                cJSON* sessId = cJSON_GetObjectItem(resp, "sessionId");
+                cJSON* total = cJSON_GetObjectItem(resp, "total");
+                cJSON* question = cJSON_GetObjectItem(resp, "question");
+                
+                if (sessId && cJSON_IsString(sessId) && question) {
+                    session_id_ = sessId->valuestring;
+                    session_.Reset();
+                    session_.is_active = true;
+                    session_.metadata.total_questions = total ? total->valueint : 0;
+                    
+                    QuizQuestion q;
+                    if (ParseQuestionJson(question, 1, q)) {
+                        session_.questions.clear();
+                        session_.questions.push_back(q);
+                        session_.current_question_index = 0;
+                        
+                        SetState(QuizState::QUESTION_DISPLAY);
+                        ESP_LOGI(TAG, "Quiz started. Session: %s", session_id_.c_str());
+                        
+                        if (on_question_ready_) {
+                            on_question_ready_(q);
+                        }
+                    }
+                }
+                cJSON_Delete(resp);
+            }
+        } else {
+            cJSON_Delete(req);
+            ReportError("Failed to start quiz. Check server connection.");
+        }
+    });
+
+    return true; // Return immediately
+}
+
+bool QuizManager::SubmitAnswer(char answer)
+{
+    // Run in background to prevent blocking AFE
+    RunInBackground([this, answer]() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        if (!session_.is_active || session_id_.empty()) {
+            return;
+        }
+
+        // Prevent multiple submissions
+        if (state_ == QuizState::CHECKING_ANSWER || state_ == QuizState::SHOWING_RESULT) {
+            ESP_LOGW(TAG, "Ignored duplicate answer submission in state %d", (int)state_);
+            return;
+        }
+        
+        if (client_handle_ == nullptr) {
+            if (!InitHttpClient()) {
+                 ReportError("Connection lost");
+                 return;
+            }
+        }
+
+        SetState(QuizState::CHECKING_ANSWER);
+        
+        cJSON* req = cJSON_CreateObject();
+        if (!req) return;
+
+        cJSON_AddStringToObject(req, "sessionId", session_id_.c_str());
+        char ansStr[2] = {answer, 0};
+        cJSON_AddStringToObject(req, "answer", ansStr);
+        cJSON_AddStringToObject(req, "deviceId", GetDeviceId().c_str()); 
+        
+        cJSON* resp = nullptr;
+        
+        if (SendRequest("/api/quiz/answer", req, &resp)) {
+            cJSON_Delete(req);
+            
+            if (resp) {
+                cJSON* correct = cJSON_GetObjectItem(resp, "correct");
+                cJSON* correctOption = cJSON_GetObjectItem(resp, "correctOption");
+                cJSON* nextQProto = cJSON_GetObjectItem(resp, "nextQuestion");
+                cJSON* finished = cJSON_GetObjectItem(resp, "finished");
+                
+                bool is_correct = cJSON_IsTrue(correct);
+                char correct_char = 0;
+                if (correctOption && cJSON_IsString(correctOption) && correctOption->valuestring) {
+                     correct_char = correctOption->valuestring[0];
+                }
+
+                if (session_.current_question_index < session_.questions.size()) {
+                    session_.questions[session_.current_question_index].correct_answer = correct_char;
+                }
+                
+                UserAnswer user_answer(session_.current_question_index + 1, answer, correct_char, is_correct);
+                session_.user_answers.push_back(user_answer);
+                
+                bool is_last = cJSON_IsTrue(finished);
+                
+                if (on_answer_checked_) {
+                    on_answer_checked_(user_answer, is_last);
+                }
+                
+                if (is_last) {
+                    SetState(QuizState::SHOWING_RESULT);
+                    if (on_quiz_complete_) {
+                        on_quiz_complete_(session_);
+                    }
+                } else if (nextQProto) {
+                    QuizQuestion nextQ;
+                    int next_display_num = session_.current_question_index + 2; 
+                    
+                    if (ParseQuestionJson(nextQProto, next_display_num, nextQ)) {
+                        if (session_.questions.size() <= session_.current_question_index + 1) {
+                             session_.questions.push_back(nextQ);
+                        }
+                    }
+                }
+                cJSON_Delete(resp);
+            } else {
+                 ReportError("Empty response");
+            }
+        } else {
+            cJSON_Delete(req);
+            ReportError("Failed to submit answer");
+        }
+    });
+
+    return true; 
+}
+
+
+bool QuizManager::StopQuiz()
 {
     std::lock_guard<std::mutex> lock(mutex_);
     StopQuizInternal();
+    return true;
 }
 
 void QuizManager::StopQuizInternal()
 {
-    // PRECONDITION: mutex_ must be held by caller
-    
-    if (!session_.is_active) {
-        return;
+    // Close / Cleanup HTTP Client
+    if (client_handle_) {
+        esp_http_client_cleanup(client_handle_);
+        client_handle_ = nullptr;
     }
     
-    ESP_LOGI(TAG, "Stopping quiz");
-    
     session_.Reset();
-    current_file_path_.clear();
-    in_question_ = false;
-    pending_question_.Clear();
-    
+    session_id_.clear();
     SetState(QuizState::IDLE);
+    ESP_LOGI(TAG, "Quiz Stopped");
+}
+
+bool QuizManager::NextQuestion()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    int next_index = session_.current_question_index + 1;
+    if (next_index < session_.questions.size()) {
+        session_.current_question_index = next_index;
+        SetState(QuizState::QUESTION_DISPLAY);
+        
+        ESP_LOGI(TAG, "Moving to question %d", next_index + 1);
+        
+        if (on_question_ready_) {
+            on_question_ready_(session_.questions[next_index]);
+        }
+        return true;
+    } 
+    
+    ESP_LOGI(TAG, "NextQuestion called but no next question available (Index: %d, Size: %d)", 
+             session_.current_question_index, (int)session_.questions.size());
+             
+    if (state_ == QuizState::SHOWING_RESULT) {
+        return false;
+    }
+    
+    return false;
 }
 
 const QuizQuestion* QuizManager::GetCurrentQuestion() const
@@ -120,120 +423,9 @@ const QuizQuestion* QuizManager::GetCurrentQuestion() const
     return session_.GetCurrentQuestion();
 }
 
-bool QuizManager::SubmitAnswer(char answer)
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (!session_.is_active) {
-        ESP_LOGW(TAG, "Cannot submit answer: quiz not active");
-        return false;
-    }
-    
-    if (answer < 'A' || answer > 'D') {
-        // Try lowercase
-        if (answer >= 'a' && answer <= 'd') {
-            answer = answer - 'a' + 'A';
-        } else {
-            ESP_LOGW(TAG, "Invalid answer: %c", answer);
-            return false;
-        }
-    }
-    
-    const QuizQuestion* current = session_.GetCurrentQuestion();
-    if (!current) {
-        ESP_LOGW(TAG, "No current question");
-        return false;
-    }
-    
-    SetState(QuizState::CHECKING_ANSWER);
-    
-    bool is_correct = (answer == current->correct_answer);
-    UserAnswer user_answer(current->question_number, answer, current->correct_answer, is_correct);
-    session_.user_answers.push_back(user_answer);
-    
-    ESP_LOGI(TAG, "Question %d: User=%c, Correct=%c, %s",
-             current->question_number, answer, current->correct_answer,
-             is_correct ? "CORRECT" : "WRONG");
-    
-    bool is_last = !session_.HasNextQuestion();
-    
-    // Notify answer checked
-    if (on_answer_checked_) {
-        on_answer_checked_(user_answer, is_last);
-    }
-    
-    return true;
-}
-
-bool QuizManager::NextQuestion()
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (!session_.is_active) {
-        return false;
-    }
-    
-    if (session_.HasNextQuestion()) {
-        session_.current_question_index++;
-        SetState(QuizState::QUESTION_DISPLAY);
-        
-        const QuizQuestion* next = session_.GetCurrentQuestion();
-        if (next && on_question_ready_) {
-            on_question_ready_(*next);
-        }
-        
-        return true;
-    } else {
-        // Quiz complete
-        SetState(QuizState::SHOWING_RESULT);
-        
-        ESP_LOGI(TAG, "Quiz complete! Score: %d/%d",
-                 session_.GetCorrectCount(),
-                 static_cast<int>(session_.questions.size()));
-        
-        if (on_quiz_complete_) {
-            on_quiz_complete_(session_);
-        }
-        
-        return false;
-    }
-}
-
-std::string QuizManager::GenerateResultSummary() const
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    int correct = session_.GetCorrectCount();
-    int total = static_cast<int>(session_.questions.size());
-    int wrong = total - correct;
-    
-    std::string summary;
-    summary.reserve(512);  // Pre-allocate to avoid reallocations
-    
-    // Vietnamese result announcement
-    if (wrong == 0) {
-        summary = "Chúc mừng! Bạn đã trả lời đúng tất cả " + 
-                  std::to_string(total) + " câu hỏi!";
-    } else {
-        summary = "Kết quả: Bạn trả lời đúng " + std::to_string(correct) + 
-                  " trên " + std::to_string(total) + " câu. ";
-        summary += "Sai " + std::to_string(wrong) + " câu. ";
-        
-        // List wrong answers
-        auto wrong_answers = GetWrongAnswers();
-        for (const auto& wa : wrong_answers) {
-            summary += "Câu " + std::to_string(wa.question_number) + 
-                       " sai, đáp án đúng là " + std::string(1, wa.correct_answer) + 
-                       ": " + wa.correct_option_text + ". ";
-        }
-    }
-    
-    return summary;
-}
-
 std::vector<QuizManager::WrongAnswerInfo> QuizManager::GetWrongAnswers() const
 {
-    // Note: Called from GenerateResultSummary which already holds mutex
+    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<WrongAnswerInfo> wrong_list;
     
     for (const auto& answer : session_.user_answers) {
@@ -241,11 +433,10 @@ std::vector<QuizManager::WrongAnswerInfo> QuizManager::GetWrongAnswers() const
             WrongAnswerInfo info;
             info.question_number = answer.question_number;
             info.user_answer = answer.selected_answer;
+            info.correct_answer = answer.correct_answer;
             
-            // Find the question to get correct answer text
             for (const auto& q : session_.questions) {
                 if (q.question_number == answer.question_number) {
-                    info.correct_answer = q.correct_answer;
                     info.correct_option_text = q.GetOption(q.correct_answer);
                     break;
                 }
@@ -258,277 +449,20 @@ std::vector<QuizManager::WrongAnswerInfo> QuizManager::GetWrongAnswers() const
     return wrong_list;
 }
 
-// ==================== File Parsing ====================
-
-bool QuizManager::ParseQuizFile(const std::string& file_path)
+std::string QuizManager::GenerateResultSummary() const
 {
-    FILE* file = fopen(file_path.c_str(), "r");
-    if (!file) {
-        ESP_LOGE(TAG, "Cannot open file: %s", file_path.c_str());
-        return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    int total = session_.metadata.total_questions;
+    int correct = session_.GetCorrectCount();
+    
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "Kết quả: Bạn đã trả lời đúng %d trên %d câu hỏi.", correct, total);
+    
+    if (correct == total) {
+        return std::string(buffer) + " Thật tuyệt vời!";
+    } else if (correct >= total / 2) {
+        return std::string(buffer) + " Khá tốt!";
+    } else {
+        return std::string(buffer) + " Hãy cố gắng lần sau nhé.";
     }
-    
-    // Fixed-size buffer for streaming read
-    char line_buffer[QUIZ_FILE_BUFFER_SIZE];
-    in_question_ = false;
-    pending_question_.Clear();
-    
-    int line_count = 0;
-    bool header_parsed = false;
-    (void)header_parsed;  // Suppress unused variable warning
-    
-    while (fgets(line_buffer, sizeof(line_buffer), file)) {
-        line_count++;
-        
-        // Remove trailing newline/carriage return
-        size_t len = strlen(line_buffer);
-        while (len > 0 && (line_buffer[len-1] == '\n' || line_buffer[len-1] == '\r')) {
-            line_buffer[--len] = '\0';
-        }
-        
-        // Skip empty lines
-        if (len == 0) {
-            continue;
-        }
-        
-        // Check for end marker
-        if (strncmp(line_buffer, "---END---", 9) == 0) {
-            // Save pending question if any
-            if (in_question_ && ValidateQuestion(pending_question_)) {
-                session_.questions.push_back(pending_question_);
-            }
-            break;
-        }
-        
-        // Parse header lines (start with #)
-        if (line_buffer[0] == '#') {
-            ParseHeader(line_buffer);
-            header_parsed = true;
-            continue;
-        }
-        
-        // Check for question marker ---Q{n}---
-        if (strncmp(line_buffer, "---Q", 4) == 0) {
-            // Save previous question if valid
-            if (in_question_ && ValidateQuestion(pending_question_)) {
-                session_.questions.push_back(pending_question_);
-                
-                // Check max questions limit
-                if (session_.questions.size() >= CONFIG_QUIZ_MAX_QUESTIONS) {
-                    ESP_LOGW(TAG, "Max questions limit reached: %d", CONFIG_QUIZ_MAX_QUESTIONS);
-                    break;
-                }
-            }
-            
-            // Start new question
-            pending_question_.Clear();
-            in_question_ = true;
-            
-            // Parse question number from ---Q{n}---
-            int q_num = 0;
-            if (sscanf(line_buffer, "---Q%d---", &q_num) == 1) {
-                pending_question_.question_number = q_num;
-            }
-            continue;
-        }
-        
-        // Parse question content
-        if (in_question_) {
-            ParseQuestionLine(line_buffer, pending_question_);
-        }
-    }
-    
-    fclose(file);
-    
-    ESP_LOGI(TAG, "Parsed %d lines, found %d questions",
-             line_count, static_cast<int>(session_.questions.size()));
-    
-    return !session_.questions.empty();
-}
-
-bool QuizManager::ParseHeader(const char* line)
-{
-    if (strncmp(line, "# QUIZ:", 7) == 0) {
-        const char* value = line + 7;
-        while (*value == ' ') value++;  // Skip whitespace
-        session_.metadata.title = value;
-        ESP_LOGI(TAG, "Quiz title: %s", session_.metadata.title.c_str());
-        return true;
-    }
-    
-    if (strncmp(line, "# SUBJECT:", 10) == 0) {
-        const char* value = line + 10;
-        while (*value == ' ') value++;
-        session_.metadata.subject = value;
-        ESP_LOGI(TAG, "Subject: %s", session_.metadata.subject.c_str());
-        return true;
-    }
-    
-    if (strncmp(line, "# TOTAL:", 8) == 0) {
-        session_.metadata.total_questions = atoi(line + 8);
-        ESP_LOGI(TAG, "Total questions hint: %d", session_.metadata.total_questions);
-        return true;
-    }
-    
-    return false;
-}
-
-bool QuizManager::ParseQuestionLine(const char* line, QuizQuestion& question)
-{
-    size_t len = strlen(line);
-    if (len < 2) return false;
-    
-    // Check for ANSWER: line
-    if (strncmp(line, "ANSWER:", 7) == 0) {
-        const char* ans = line + 7;
-        while (*ans == ' ') ans++;
-        if (*ans >= 'A' && *ans <= 'D') {
-            question.correct_answer = *ans;
-        } else if (*ans >= 'a' && *ans <= 'd') {
-            question.correct_answer = *ans - 'a' + 'A';
-        }
-        return true;
-    }
-    
-    // Check for option lines (A. B. C. D.)
-    if ((line[0] >= 'A' && line[0] <= 'D') && line[1] == '.') {
-        int option_index = line[0] - 'A';
-        const char* option_text = line + 2;
-        while (*option_text == ' ') option_text++;
-        
-        // Truncate if too long
-        if (strlen(option_text) > QUIZ_MAX_OPTION_LEN) {
-            question.options[option_index] = std::string(option_text, QUIZ_MAX_OPTION_LEN);
-        } else {
-            question.options[option_index] = option_text;
-        }
-        return true;
-    }
-    
-    // Otherwise, it's question text (possibly multi-line)
-    if (question.question_text.empty()) {
-        // Truncate if too long
-        if (len > QUIZ_MAX_QUESTION_LEN) {
-            question.question_text = std::string(line, QUIZ_MAX_QUESTION_LEN);
-        } else {
-            question.question_text = line;
-        }
-    } else if (question.question_text.length() < QUIZ_MAX_QUESTION_LEN) {
-        // Append for multi-line questions
-        question.question_text += " ";
-        size_t remaining = QUIZ_MAX_QUESTION_LEN - question.question_text.length();
-        if (len > remaining) {
-            question.question_text.append(line, remaining);
-        } else {
-            question.question_text += line;
-        }
-    }
-    
-    return true;
-}
-
-bool QuizManager::ValidateQuestion(const QuizQuestion& question)
-{
-    if (question.question_text.empty()) {
-        ESP_LOGW(TAG, "Q%d: Empty question text", question.question_number);
-        return false;
-    }
-    
-    if (question.correct_answer < 'A' || question.correct_answer > 'D') {
-        ESP_LOGW(TAG, "Q%d: Invalid correct answer: %c", 
-                 question.question_number, question.correct_answer);
-        return false;
-    }
-    
-    // Check at least correct answer option exists
-    int correct_idx = question.correct_answer - 'A';
-    if (question.options[correct_idx].empty()) {
-        ESP_LOGW(TAG, "Q%d: Correct answer option is empty", question.question_number);
-        return false;
-    }
-    
-    return true;
-}
-
-// ==================== File Discovery ====================
-
-std::vector<std::string> QuizManager::FindQuizFiles()
-{
-    std::vector<std::string> files;
-    const char* quiz_dir = "/sdcard/quiz";
-    
-    ESP_LOGI(TAG, "=== Quiz File Discovery ===");
-    ESP_LOGI(TAG, "Searching for quiz files in: %s", quiz_dir);
-    
-    // First check if /sdcard is accessible
-    DIR* sdcard_dir = opendir("/sdcard");
-    if (!sdcard_dir) {
-        ESP_LOGE(TAG, "Cannot access /sdcard - SD card not mounted!");
-        return files;
-    }
-    ESP_LOGI(TAG, "/sdcard is accessible");
-    closedir(sdcard_dir);
-    
-    // Try to open quiz directory
-    DIR* dir = opendir(quiz_dir);
-    if (!dir) {
-        ESP_LOGW(TAG, "Quiz directory not found: %s", quiz_dir);
-        ESP_LOGI(TAG, "Attempting to create quiz directory...");
-        
-        // Try to create the directory
-        if (mkdir(quiz_dir, 0755) == 0) {
-            ESP_LOGI(TAG, "SUCCESS: Created quiz directory: %s", quiz_dir);
-            ESP_LOGI(TAG, ">>> Please copy your quiz .txt files to this directory and restart <<<");
-        } else {
-            ESP_LOGE(TAG, "FAILED: Cannot create quiz directory (errno=%d: %s)", 
-                     errno, strerror(errno));
-        }
-        return files;
-    }
-    
-    ESP_LOGI(TAG, "Quiz directory opened successfully");
-    
-    struct dirent* entry;
-    int total_entries = 0;
-    while ((entry = readdir(dir)) != nullptr) {
-        const char* name = entry->d_name;
-        
-        // Skip . and ..
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-            continue;
-        }
-        
-        total_entries++;
-        size_t len = strlen(name);
-        
-        ESP_LOGI(TAG, "  Entry[%d]: '%s' (len=%d)", total_entries, name, (int)len);
-        
-        // Check for .txt or .TXT extension (case-insensitive)
-        if (len > 4) {
-            const char* ext = name + len - 4;
-            bool is_txt = (ext[0] == '.' &&
-                          (ext[1] == 't' || ext[1] == 'T') &&
-                          (ext[2] == 'x' || ext[2] == 'X') &&
-                          (ext[3] == 't' || ext[3] == 'T'));
-            
-            if (is_txt) {
-                std::string path = std::string(quiz_dir) + "/" + name;
-                files.push_back(path);
-                ESP_LOGI(TAG, "  -> MATCHED as quiz file!");
-            }
-        }
-    }
-    
-    closedir(dir);
-    
-    ESP_LOGI(TAG, "=== Scan Complete ===");
-    ESP_LOGI(TAG, "Total entries: %d, Quiz files found: %d", 
-             total_entries, static_cast<int>(files.size()));
-    
-    if (files.empty()) {
-        ESP_LOGW(TAG, "No quiz files found!");
-        ESP_LOGW(TAG, "Please add .txt files to: %s", quiz_dir);
-    }
-    
-    return files;
 }

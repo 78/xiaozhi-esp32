@@ -60,6 +60,9 @@ public:
 
     // Add theme switching function
     virtual void SetTheme(Theme *theme) override;
+    
+    // Set screen rotation (0, 90, 180, 270)
+    virtual void SetRotation(int rotation);
 };
 
 // SPI LCD显示器

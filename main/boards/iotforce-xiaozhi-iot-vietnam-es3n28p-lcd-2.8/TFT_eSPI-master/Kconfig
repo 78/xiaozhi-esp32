@@ -1,0 +1,407 @@
+menu "TFT_eSPI"
+
+    menu "Hidden menu"
+        visible if false
+
+        config TFT_eSPI_ESPIDF
+            bool "Enable Configuration"
+            default y
+    endmenu
+        
+    choice TFT_DRIVER
+        prompt "Select TFT driver"
+        default TFT_ILI9341_DRIVER
+        help
+            Driver for the TFT LCD screen
+
+        config TFT_ILI9341_DRIVER
+            bool "ILI9341 - 1"
+            help
+                Generic driver for common displays
+        config TFT_ILI9341_2_DRIVER
+            bool "ILI9341 - 2"
+            help
+                Alternative ILI9341 driver, see https://github.com/Bodmer/TFT_eSPI/issues/1172
+        config TFT_ST7735_DRIVER
+            bool "ST7735"
+            help
+                Define additional parameters below for this display
+        config TFT_ILI9163_DRIVER
+            bool "ILI9163"
+            help
+                Define additional parameters below for this display
+        config TFT_S6D02A1_DRIVER
+            bool "S6D02A1"
+        config TFT_HX8357D_DRIVER
+            bool "HX8357D"
+        config TFT_ILI9481_DRIVER
+            bool "ILI9481"
+        config TFT_ILI9486_DRIVER
+            bool "ILI9486"
+        config TFT_ILI9488_DRIVER
+            bool "ILI9488"
+            help
+                WARNING: Do not connect ILI9488 display SDO to MISO if other devices 
+                share the SPI bus (TFT SDO does NOT tristate when CS is high)
+        config TFT_ST7789_DRIVER
+            bool "ST7789 - 1"
+            help
+                Full configuration option, define additional parameters below for this display
+        config TFT_ST7789_2_DRIVER
+            bool "ST7789 - 2"
+            help
+                Minimal configuration option, define additional parameters below for this display
+        config TFT_R61581_DRIVER
+            bool "R61581"
+        config TFT_RM68140_DRIVER
+            bool "RM68140"
+        config TFT_ST7796_DRIVER
+            bool "ST7796"
+        config TFT_SSD1351_DRIVER
+            bool "SSD1351"
+        config TFT_SSD1963_480_DRIVER
+            bool "SSD1963_480"
+        config TFT_SSD1963_800_DRIVER
+            bool "SSD1963_800"
+        config TFT_SSD1963_800ALT_DRIVER
+            bool "SSD1963_800ALT"
+        config TFT_ILI9225_DRIVER
+            bool "ILI9225"
+        config TFT_GC9A01_DRIVER
+            bool "GC9A01"
+    endchoice
+
+    if TFT_ST7735_DRIVER || TFT_ST7789_DRIVER || TFT_ST7789_2_DRIVER || TFT_ILI9341_DRIVER || TFT_ILI9341_2_DRIVER
+        choice TFT_COLOR_ORDER
+            prompt "Define the colour order"
+            help
+                Define the colour order IF the blue and red are swapped on your display
+
+            config TFT_RGB_ORDER
+                bool "RGB"
+            config TFT_BGR_ORDER
+                bool "BGR"
+        endchoice
+    endif
+
+    config TFT_M5STACK
+        bool "M5Stack"
+        depends on TFT_ILI9341_DRIVER || TFT_ILI9341_2_DRIVER
+        help
+            Enable if using M5Stack module with integrated ILI9341
+
+    if TFT_ST7735_DRIVER || TFT_ST7789_DRIVER || TFT_ST7789_2_DRIVER || TFT_ILI9163_DRIVER || TFT_GC9A01_DRIVER
+        config TFT_WIDTH
+            int "LCD pixel width in portrait orientation"
+            default 128
+            range 0 1024
+
+        config TFT_HEIGHT
+            int "LCD pixel height in portrait orientation"
+            default 240
+            range 0 1024
+    endif
+
+    if TFT_ST7735_DRIVER
+        choice TFT_ST7735_TYPE
+            prompt "Define the type of display"
+            help
+                Try out the different options below if the screen does not display graphics
+                correctly,e.g. colours wrong, mirror images, or stray pixels at the edges.
+
+            config TFT_ST7735_INITB
+                bool "INITB"
+            config TFT_ST7735_GREENTAB
+                bool "GREENTAB"
+            config TFT_ST7735_GREENTAB2
+                bool "GREENTAB2"
+            config TFT_ST7735_GREENTAB3
+                bool "GREENTAB3"
+            config TFT_ST7735_GREENTAB128
+                bool "GREENTAB128"
+                help
+                    For 128 x 128 display
+            config TFT_ST7735_GREENTAB160x80
+                bool "GREENTAB160x80"
+                help
+                    For 160 x 80 display (BGR, inverted, 26 offset)
+            config TFT_ST7735_REDTAB
+                bool "REDTAB"
+            config TFT_ST7735_BLACKTAB
+                bool "BLACKTAB"
+            config TFT_ST7735_REDTAB160x80
+                bool "REDTAB160x80"
+                help
+                    For 160 x 80 display with 24 pixel offset
+        endchoice
+    endif
+
+    choice TFT_COLOR_INVERSION
+        prompt "Color inversion correction"
+        help 
+            If colours are inverted (white shows as black) then try changing this option."
+
+        config TFT_INVERSION_DISABLE
+            bool "None"
+        config TFT_INVERSION_ON
+            bool "On"
+        config TFT_INVERSION_OFF
+            bool "Off"
+            
+    endchoice
+
+    choice TFT_INTERFACE
+        prompt "LCD Interface"
+        default TFT_SPI
+        help
+            Communication interface between the microcontroller and the LCD.
+        config TFT_SPI
+            bool "SPI"
+        config TFT_PARALLEL_8_BIT
+            bool "Parallel (8-bit)"
+    endchoice
+    
+    menu "Display Data pins"
+        depends on TFT_PARALLEL_8_BIT
+        config TFT_D0
+            int "Data 0 pin"
+            default -1
+            range -1 31
+
+        config TFT_D1
+            int "Data 1 pin"
+            default -1
+            range -1 31
+
+        config TFT_D2
+            int "Data 2 pin"
+            default -1
+            range -1 31
+        
+        config TFT_D3
+            int "Data 3 pin"
+            default -1
+            range -1 31
+
+        config TFT_D4
+            int "Data 4 pin"
+            default -1
+            range -1 31
+
+        config TFT_D5
+            int "Data 5 pin"
+            default -1
+            range -1 31
+
+        config TFT_D6
+            int "Data 6 pin"
+            default -1
+            range -1 31
+
+        config TFT_D7
+            int "Data 7 pin"
+            default -1
+            range -1 31
+
+        config TFT_WR
+            int "Write strobe pin"
+            default -1
+            range -1 31
+
+        config TFT_RD
+            int "Read strobe pin"
+            default -1
+            range -1 33
+    endmenu
+
+    menu "Display SPI config"
+        depends on TFT_SPI
+    
+        choice TFT_SPI_PORT
+            prompt "SPI port"
+            default TFT_VSPI_PORT
+            help
+                The ESP32 has 2 free SPI ports i.e. VSPI (SPI2) and HSPI (SPI3),
+                the VSPI is the default. If the VSPI port is in use and pins are
+                not accessible (e.g. TTGO T-Beam) then use the HSPI port for the
+                TFT display.
+            config TFT_VSPI_PORT
+                bool "VSPI (SPI2)"
+            config TFT_HSPI_PORT
+                bool "HSPI (SPI3)"
+        endchoice
+
+        config TFT_MISO
+            int "TFT MISO pin"
+            default -1
+            range -1 32 if IDF_TARGET_ESP32
+            range -1 45 if IDF_TARGET_ESP32S2
+            range -1 48 if IDF_TARGET_ESP32S3
+            help
+                Master In Slave Out pin.
+                Can be labelled as SDO in some displays
+
+        config TFT_MOSI
+            int "TFT MOSI pin"
+            default -1
+            range -1 32 if IDF_TARGET_ESP32
+            range -1 45 if IDF_TARGET_ESP32S2
+            range -1 48 if IDF_TARGET_ESP32S3
+            help
+                Master Out Slave In pin.
+                Can be labelled as SDA or SDI in some displays
+            
+        config TFT_SCLK
+            int "TFT Clock pin"
+            default -1
+            range -1 32 if IDF_TARGET_ESP32
+            range -1 45 if IDF_TARGET_ESP32S2
+            range -1 48 if IDF_TARGET_ESP32S3
+            help
+                Labelled in some displays as WR
+
+        config TFT_SDA_READ
+            bool "Use SDA line for reading"
+            default "n"
+            help
+                Some displays support SPI reads via the MISO pin, other displays have a single
+                bi-directional SDA pin and the library will try to read this via the MOSI line
+
+        config TFT_SPI_FREQUENCY
+            int "SPI Frequency (Hz)"
+            default 27000000
+            range 1 80000000
+            help
+                Define the SPI clock frequency, this affects the graphics rendering speed. Too
+                fast and the TFT driver will not keep up and display corruption appears.
+                With an ILI9341 display 40MHz works OK, 80MHz sometimes fails
+                With a ST7735 display more than 27MHz may not work (spurious pixels and lines)
+                With an ILI9163 display 27 MHz works OK.
+
+        config TFT_SPI_READ_FREQ
+            int "SPI Read Frequency (Hz)"
+            default 20000000
+            range -1 80000000
+            help
+                Optional reduced SPI frequency for reading TFT.
+                Set to -1 to use the default frequency
+            
+    endmenu
+
+    menu "Control Pin configuration"
+        config TFT_CS
+            int "TFT Chip Select pin"
+            default -1
+            range -1 33 if IDF_TARGET_ESP32
+            range -1 45 if IDF_TARGET_ESP32S2
+            range -1 48 if IDF_TARGET_ESP32S3
+    
+        config TFT_DC
+            int "TFT Data/Command pin"
+            default -1
+            range -1 31
+            help
+                Labelled as DC or RS (Register Select) in some displays
+    
+        config TFT_RST
+            int "TFT Reset pin"
+            default -1
+            range -1 33 if IDF_TARGET_ESP32
+            range -1 45 if IDF_TARGET_ESP32S2
+            range -1 48 if IDF_TARGET_ESP32S3
+
+        config ENABLE_BL
+            bool "Enable backlight control"
+            default y
+        
+        if ENABLE_BL
+            config TFT_BL
+                int "TFT Backlight pin"
+                default -1
+                range -1 33 if IDF_TARGET_ESP32
+                range -1 45 if IDF_TARGET_ESP32S2
+                range -1 48 if IDF_TARGET_ESP32S3
+                help
+                    Pin for the backlight control signal
+        
+            choice TFT_BACKLIGHT_ON
+                bool "Pin state to activate backlight"
+                default TFT_BACKLIGHT_ON_HIGH
+                help
+                    The backlight will be turned ON when tft.begin() is called, but the library
+                    needs to know if the LEDs are ON with the pin HIGH or LOW.
+        
+                config TFT_BACKLIGHT_ON_HIGH
+                    bool "HIGH"
+                config TFT_BACKLIGHT_ON_LOW
+                    bool "LOW"            
+            endchoice
+        endif
+    
+        config TFT_BACKLIGHT_ON
+            int
+            default 1 if TFT_BACKLIGHT_ON_HIGH
+            default 0 if TFT_BACKLIGHT_ON_LOW
+    endmenu
+
+    menu "Fonts"
+        config TFT_LOAD_GLCD
+            bool "Font 1: Original Adafruit 8 pixel font needs ~1820 bytes in FLASH"
+            default "y"
+
+        config TFT_LOAD_FONT2
+            bool "Font 2: Small 16 pixel high font, needs ~3534 bytes in FLASH, 96 characters"
+            default "y"
+
+        config TFT_LOAD_FONT4
+            bool "Font 4: Medium 26 pixel high font, needs ~5848 bytes in FLASH, 96 characters"
+            default "y"
+
+        config TFT_LOAD_FONT6
+            bool "Font 6: Large 48 pixel font, needs ~2666 bytes in FLASH, only characters 1234567890:-.apm"
+            default "y"
+
+        config TFT_LOAD_FONT7
+            bool "Font 7: 7 segment 48 pixel font, needs ~2438 bytes in FLASH, only characters 1234567890:."
+            default "y"
+
+        config TFT_LOAD_FONT8
+            bool "Font 8: Large 75 pixel font needs ~3256 bytes in FLASH, only characters 1234567890:-."
+            default "y"
+
+        config TFT_LOAD_GFXFF
+            bool "FreeFonts: Include access to the 48 Adafruit_GFX free fonts FF1 to FF48 and custom fonts"
+            default "y"
+
+        config TFT_SMOOTH_FONT
+            bool "Smooth Fonts"
+            default "y"
+    endmenu
+    
+    menu "Touch screen configuration"
+        config ENABLE_TOUCH
+            bool "Enable Touch"
+            default n
+
+        if ENABLE_TOUCH
+            config TOUCH_CS
+                int "Touch chip select pin"
+                default -1
+                range -1 33 if IDF_TARGET_ESP32
+                range -1 45 if IDF_TARGET_ESP32S2
+                range -1 48 if IDF_TARGET_ESP32S3
+
+            config SPI_TOUCH_FREQUENCY
+                int "SPI frequency for XPT2046 chip (Hz)"
+                default 2500000
+                range 1 80000000
+        endif
+    endmenu
+
+    menu "Other settings"
+        config DISABLE_WARNINGS
+            bool "Disable Library warnings"
+            default n
+    endmenu
+
+endmenu

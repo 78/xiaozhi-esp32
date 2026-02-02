@@ -19,3 +19,14 @@ main/mmap_generate_emoji.h
 mmap_generate_*.h
 .clangd
 main/features/weather/weather_config.h
+quiz_server/node_modules/   
+quiz_server/.env
+quiz_server/package-lock.json
+
+# Node Modules
+node_modules/
+**/node_modules/
+fota_server_next/.next/
+fota_server_next/out/
+fota_server_next/build/
+*.log

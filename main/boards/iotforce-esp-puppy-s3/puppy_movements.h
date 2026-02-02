@@ -43,9 +43,11 @@ public:
 
     //-- Oscillator Trims
     void SetTrims(int fl_leg, int fr_leg, int bl_leg, int br_leg, int tail = 0);
+    void SetSpeedScales(float fl, float fr, float bl, float br, float tail);
 
     //-- Predetermined Motion Functions
     void MoveServos(int time, int servo_target[]);
+    void MoveServosVelocity(int time, float servo_velocity[]); // Velocity -1.0 to 1.0
     void MoveSingle(int position, int servo_number);
     void OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int period,
                          double phase_diff[SERVO_COUNT], float cycle);
@@ -59,6 +61,7 @@ public:
     void Walk(float steps = 4, int period = 1000, int dir = FORWARD);
     void Turn(float steps = 4, int period = 1000, int dir = LEFT);
     void Sit();
+    void Stand();
     void WagTail(int period = 500, int amplitude = 30);
     void Jump(float steps = 1, int period = 2000);
     void Happy();
@@ -73,6 +76,10 @@ public:
     void Shy();
     void Sleepy();
     void Calibrate();
+    
+    // Virtual Position Tracking for 360 Servos (Now Public for Calibration)
+    void MoveToAngle(int target_angle, int speed_deg_per_sec);
+    void MoveRelative(int relative_angle, int speed_deg_per_sec);
 
     // -- Servo limiter
     void EnableServoLimit(int speed_limit_degree_per_sec = SERVO_LIMIT_DEFAULT);
@@ -86,7 +93,11 @@ private:
     bool is_puppy_resting_;
     unsigned long final_time_;
     unsigned long partial_time_;
-    float increment_[SERVO_COUNT];
+
+    // Virtual Position Tracking for 360 Servos
+    float estimated_angle_[SERVO_COUNT]; 
+    float servo_speed_scale_[SERVO_COUNT];
+
 };
 
 #endif // __PUPPY_MOVEMENTS_H__

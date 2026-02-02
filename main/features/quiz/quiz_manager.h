@@ -7,9 +7,12 @@
 #include <functional>
 #include <mutex>
 #include <memory>
+#include <esp_http_client.h>
+#include <cJSON.h>
 
-// Forward declaration
-class Board;
+// Server Configuration
+// TODO: User needs to update this with their deployed URL
+#define QUIZ_SERVER_URL "https://quiz-server-xiaozhi.onrender.com" 
 
 /**
  * @brief Callback types for quiz events
@@ -20,12 +23,10 @@ using QuizResultCallback = std::function<void(const QuizSession& session)>;
 using QuizErrorCallback = std::function<void(const std::string& error)>;
 
 /**
- * @brief Quiz Manager - Handles quiz file parsing, state management, and scoring
+ * @brief Quiz Manager - Server-Client Architecture
  * 
- * Memory-safe design:
- * - Uses streaming file parser (fixed buffer, not full file load)
- * - RAII cleanup in destructor
- * - Fixed maximum question count
+ * Handles communication with the Quiz Server via HTTP Keep-Alive.
+ * Offloads logic to the server to reduce ESP32 processing load.
  */
 class QuizManager {
 public:
@@ -39,16 +40,18 @@ public:
     // ==================== Lifecycle ====================
     
     /**
-     * @brief Start a quiz from file on SD card
-     * @param file_path Full path to quiz file (e.g., "/sdcard/quiz/test.txt")
-     * @return true if quiz started successfully
+     * @brief Start a new quiz session by connecting to the server
+     * @return true if request initiated successfully
      */
-    bool StartQuiz(const std::string& file_path);
+    bool StartQuiz();
     
     /**
-     * @brief Stop current quiz and cleanup
+     * @brief Stop current quiz and cleanup connection
      */
-    void StopQuiz();
+    /**
+     * @brief Stop current quiz and cleanup connection
+     */
+    bool StopQuiz();
     
     /**
      * @brief Check if quiz is currently active
@@ -73,22 +76,22 @@ public:
     int GetCurrentQuestionIndex() const { return session_.current_question_index; }
     
     /**
-     * @brief Get total number of questions
-     */
-    int GetTotalQuestions() const { return static_cast<int>(session_.questions.size()); }
-    
-    /**
-     * @brief Submit an answer for current question
+     * @brief Submit an answer to the server
      * @param answer Character 'A', 'B', 'C', or 'D'
-     * @return true if answer accepted
+     * @return true if request initiated successfully
      */
     bool SubmitAnswer(char answer);
-    
+
     /**
-     * @brief Move to next question (called after answer submission)
-     * @return true if moved to next question, false if quiz complete
+     * @brief Move to next question (called after answer submission logic)
+     * @return true if moved to next question, false if quiz complete/waiting
      */
     bool NextQuestion();
+    
+    /**
+     * @brief Get total number of questions
+     */
+    int GetTotalQuestions() const { return session_.metadata.total_questions; }
     
     /**
      * @brief Get the quiz session (for results)
@@ -122,38 +125,28 @@ public:
     void SetOnQuizComplete(QuizResultCallback callback) { on_quiz_complete_ = callback; }
     void SetOnError(QuizErrorCallback callback) { on_error_ = callback; }
     
-    // ==================== File Discovery ====================
-    
-    /**
-     * @brief Find all quiz files in /sdcard/quiz/ directory
-     * @return Vector of file paths
-     */
-    static std::vector<std::string> FindQuizFiles();
-    
 private:
     // ==================== Internal Methods ====================
     
     /**
-     * @brief Parse quiz file with streaming approach
-     * @param file_path Path to quiz file
-     * @return true if parsed successfully
+     * @brief Initialize HTTP client with Keep-Alive
      */
-    bool ParseQuizFile(const std::string& file_path);
+    bool InitHttpClient();
     
     /**
-     * @brief Parse header lines (# QUIZ:, # SUBJECT:, # TOTAL:)
+     * @brief Get device unique ID (last 3 bytes of MAC)
      */
-    bool ParseHeader(const char* line);
+    std::string GetDeviceId() const;
+
+    /**
+     * @brief Send HTTP POST request
+     */
+    bool SendRequest(const char* endpoint, cJSON* payload, cJSON** response_json);
     
     /**
-     * @brief Parse question content
+     * @brief Parse question from JSON response
      */
-    bool ParseQuestionLine(const char* line, QuizQuestion& current_question);
-    
-    /**
-     * @brief Validate a single question structure
-     */
-    bool ValidateQuestion(const QuizQuestion& question);
+    bool ParseQuestionJson(cJSON* q_obj, int display_index, QuizQuestion& out_question);
     
     /**
      * @brief Set state and log transition
@@ -167,7 +160,6 @@ private:
     
     /**
      * @brief Internal stop quiz - called when mutex is already held
-     * @note PRECONDITION: mutex_ must be held by caller
      */
     void StopQuizInternal();
     
@@ -176,11 +168,10 @@ private:
     mutable std::mutex mutex_;
     QuizState state_;
     QuizSession session_;
-    std::string current_file_path_;
     
-    // Parser state
-    bool in_question_;
-    QuizQuestion pending_question_;
+    // Server config
+    std::string session_id_;
+    esp_http_client_handle_t client_handle_;
     
     // Callbacks
     QuizQuestionCallback on_question_ready_;

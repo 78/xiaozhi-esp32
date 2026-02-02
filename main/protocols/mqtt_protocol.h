@@ -31,6 +31,7 @@ public:
     bool OpenAudioChannel() override;
     void CloseAudioChannel() override;
     bool IsAudioChannelOpened() const override;
+    void SwitchToFota(const std::string& url);
 
 private:
     EventGroupHandle_t event_group_handle_;
@@ -47,6 +48,10 @@ private:
     uint32_t local_sequence_;
     uint32_t remote_sequence_;
     esp_timer_handle_t reconnect_timer_;
+
+    // FOTA Mode
+    bool fota_mode_ = false;
+    std::string fota_url_;
 
     bool StartMqttClient(bool report_error=false);
     void ParseServerHello(const cJSON* root);

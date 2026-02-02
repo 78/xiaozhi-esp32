@@ -6,7 +6,10 @@
 #include <esp_log.h>
 #include <cstring>
 #include <arpa/inet.h>
+#include "websocket_protocol.h"
 #include "assets/lang_config.h"
+#include "system_info.h"
+#include <esp_ota_ops.h>
 
 #define TAG "MQTT"
 
@@ -51,17 +54,35 @@ bool MqttProtocol::Start() {
 
 bool MqttProtocol::StartMqttClient(bool report_error) {
     if (mqtt_ != nullptr) {
-        ESP_LOGW(TAG, "Mqtt client already started");
+        if (mqtt_->IsConnected()) {
+            mqtt_->Disconnect();
+        }
+        // Give some time for the disconnect packet to be sent? 
+        // Or just rely on destructor.
         mqtt_.reset();
     }
 
     Settings settings("mqtt", false);
-    auto endpoint = settings.GetString("endpoint");
-    auto client_id = settings.GetString("client_id");
-    auto username = settings.GetString("username");
-    auto password = settings.GetString("password");
-    int keepalive_interval = settings.GetInt("keepalive", 240);
-    publish_topic_ = settings.GetString("publish_topic");
+    std::string endpoint, client_id, username, password;
+    int keepalive_interval = 240;
+
+    if (fota_mode_) {
+        // FOTA Mode: Use provided URL, anonymous/public access or specific FOTA creds
+        endpoint = fota_url_;
+        client_id = SystemInfo::GetMacAddress(); // Use MAC as Client ID
+        username = ""; // Empty for public broker or set specific if needed
+        password = "";
+        publish_topic_ = "device/" + client_id + "/status"; // Just a default
+        ESP_LOGI(TAG, "Starting MQTT in FOTA Mode connecting to %s", endpoint.c_str());
+    } else {
+        // Normal Mode: Load from NVS
+        endpoint = settings.GetString("endpoint");
+        client_id = settings.GetString("client_id");
+        username = settings.GetString("username");
+        password = settings.GetString("password");
+        keepalive_interval = settings.GetInt("keepalive", 240);
+        publish_topic_ = settings.GetString("publish_topic");
+    }
 
     if (endpoint.empty()) {
         ESP_LOGW(TAG, "MQTT endpoint is not specified");
@@ -88,6 +109,24 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
             on_connected_();
         }
         esp_timer_stop(reconnect_timer_);
+
+        // Only run FOTA logic if in FOTA Mode (to avoid ACL disconnect on default broker)
+        if (fota_mode_) {
+            std::string mac = SystemInfo::GetMacAddress();
+            std::string cmd_topic = "device/" + mac + "/command";
+            mqtt_->Subscribe(cmd_topic, 1);
+            ESP_LOGI(TAG, "FOTA Mode: Subscribed to %s", cmd_topic.c_str());
+
+            std::string status_topic = "device/" + mac + "/status";
+            mqtt_->Publish(status_topic, "online", 0);
+            
+            const esp_app_desc_t *app_desc = esp_app_get_description();
+            std::string version = app_desc->version;
+            std::string version_topic = "device/" + mac + "/version";
+            mqtt_->Publish(version_topic, version, 0);
+            
+            ESP_LOGI(TAG, "FOTA Mode: Reported status online, version %s", version.c_str());
+        }
     });
 
     mqtt_->OnMessage([this](const std::string& topic, const std::string& payload) {
@@ -123,12 +162,24 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint.c_str());
     std::string broker_address;
     int broker_port = 8883;
-    size_t pos = endpoint.find(':');
+
+    std::string cleaned_endpoint = endpoint;
+    size_t scheme_pos = cleaned_endpoint.find("://");
+    if (scheme_pos != std::string::npos) {
+        cleaned_endpoint = cleaned_endpoint.substr(scheme_pos + 3);
+    }
+
+    size_t pos = cleaned_endpoint.find(':');
     if (pos != std::string::npos) {
-        broker_address = endpoint.substr(0, pos);
-        broker_port = std::stoi(endpoint.substr(pos + 1));
+        broker_address = cleaned_endpoint.substr(0, pos);
+        try {
+            broker_port = std::stoi(cleaned_endpoint.substr(pos + 1));
+        } catch (const std::exception& e) {
+            ESP_LOGE(TAG, "Invalid port in endpoint parsing: %s", cleaned_endpoint.c_str());
+            // Fallback default
+        }
     } else {
-        broker_address = endpoint;
+        broker_address = cleaned_endpoint;
     }
     if (!mqtt_->Connect(broker_address, broker_port, client_id, username, password)) {
         ESP_LOGE(TAG, "Failed to connect to endpoint");
@@ -369,4 +420,12 @@ std::string MqttProtocol::DecodeHexString(const std::string& hex_string) {
 
 bool MqttProtocol::IsAudioChannelOpened() const {
     return udp_ != nullptr && !error_occurred_ && !IsTimeout();
+}
+
+void MqttProtocol::SwitchToFota(const std::string& url) {
+    ESP_LOGI(TAG, "Switching to FOTA Mode, broker: %s", url.c_str());
+    fota_mode_ = true;
+    fota_url_ = url;
+    // Force restart client
+    StartMqttClient(false);
 }

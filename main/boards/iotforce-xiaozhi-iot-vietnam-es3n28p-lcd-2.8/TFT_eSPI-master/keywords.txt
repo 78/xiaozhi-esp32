@@ -1,0 +1,209 @@
+# TFT_eSPI core library
+
+TFT_eSPI	KEYWORD1
+
+begin	KEYWORD2
+init	KEYWORD2
+drawPixel	KEYWORD2
+drawChar	KEYWORD2
+drawLine	KEYWORD2
+drawFastVLine	KEYWORD2
+drawFastHLine	KEYWORD2
+fillRect	KEYWORD2
+height	KEYWORD2
+width	KEYWORD2
+readPixel	KEYWORD2
+setWindow	KEYWORD2
+pushColor	KEYWORD2
+
+setRotation	KEYWORD2
+getRotation	KEYWORD2
+setOrigin	KEYWORD2
+getOriginX	KEYWORD2
+getOriginY	KEYWORD2
+invertDisplay	KEYWORD2
+setAddrWindow	KEYWORD2
+
+setViewport	KEYWORD2
+checkViewport	KEYWORD2
+resetViewport	KEYWORD2
+getViewportX	KEYWORD2
+getViewportY	KEYWORD2
+getViewportWidth	KEYWORD2
+getViewportHeight	KEYWORD2
+getViewportDatum	KEYWORD2
+frameViewport	KEYWORD2
+resetViewport	KEYWORD2
+clipAddrWindow	KEYWORD2
+clipWindow	KEYWORD2
+pushColors	KEYWORD2
+pushBlock	KEYWORD2
+pushPixels	KEYWORD2
+
+tft_Read_8	KEYWORD2
+begin_SDA_Read	KEYWORD2
+end_SDA_Read	KEYWORD2
+
+fillScreen	KEYWORD2
+
+drawRect	KEYWORD2
+fillRectHGradient	KEYWORD2
+fillRectVGradient	KEYWORD2
+drawRoundRect	KEYWORD2
+fillRoundRect	KEYWORD2
+
+drawCircle	KEYWORD2
+drawCircleHelper	KEYWORD2
+fillCircle	KEYWORD2
+fillCircleHelper	KEYWORD2
+drawEllipse	KEYWORD2
+fillEllipse	KEYWORD2
+drawTriangle	KEYWORD2
+fillTriangle	KEYWORD2
+
+setSwapBytes	KEYWORD2
+getSwapBytes	KEYWORD2
+
+drawBitmap	KEYWORD2
+drawXBitmap	KEYWORD2
+
+setPivot	KEYWORD2
+getPivotX	KEYWORD2
+getPivotY	KEYWORD2
+
+readRect	KEYWORD2
+pushRect	KEYWORD2
+pushImage	KEYWORD2
+pushMaskedImage	KEYWORD2
+readRectRGB	KEYWORD2
+
+drawNumber	KEYWORD2
+drawFloat	KEYWORD2
+drawString	KEYWORD2
+drawCentreString	KEYWORD2
+drawRightString	KEYWORD2
+
+setCursor	KEYWORD2
+getCursorX	KEYWORD2
+getCursorY	KEYWORD2
+setTextColor	KEYWORD2
+setTextSize	KEYWORD2
+setTextWrap	KEYWORD2
+setTextDatum	KEYWORD2
+getTextDatum	KEYWORD2
+setTextPadding	KEYWORD2
+getTextPadding	KEYWORD2
+setFreeFont	KEYWORD2
+setTextFont	KEYWORD2
+textWidth	KEYWORD2
+fontHeight	KEYWORD2
+decodeUTF8	KEYWORD2
+write	KEYWORD2
+setCallback	KEYWORD2
+fontsLoaded	KEYWORD2
+
+spiwrite	KEYWORD2
+writecommand	KEYWORD2
+writeRegister	KEYWORD2
+writedata	KEYWORD2
+commandList	KEYWORD2
+readcommand8	KEYWORD2
+readcommand16	KEYWORD2
+readcommand32	KEYWORD2
+
+color565	KEYWORD2
+color8to16	KEYWORD2
+color16to8	KEYWORD2
+color16to24	KEYWORD2
+color24to16	KEYWORD2
+alphaBlend	KEYWORD2
+alphaBlend24	KEYWORD2
+
+initDMA	KEYWORD2
+deInitDMA	KEYWORD2
+pushImageDMA	KEYWORD2
+pushPixelsDMA	KEYWORD2
+dmaBusy	KEYWORD2
+dmaWait	KEYWORD2
+
+startWrite	KEYWORD2
+writeColor	KEYWORD2
+endWrite	KEYWORD2
+
+setAttribute	KEYWORD2
+getAttribute	KEYWORD2
+getSetup	KEYWORD2
+getSPIinstance	KEYWORD2
+
+
+# Touch functions
+
+getTouchRaw	KEYWORD2
+getTouchRawZ	KEYWORD2
+convertRawXY	KEYWORD2
+getTouch	KEYWORD2
+calibrateTouch	KEYWORD2
+setTouch	KEYWORD2
+
+# Smooth (anti-aliased) graphics functions
+drawSmoothCircle	KEYWORD2
+fillSmoothCircle	KEYWORD2
+drawSmoothRoundRect	KEYWORD2
+fillSmoothRoundRect	KEYWORD2
+drawSmoothArc	KEYWORD2
+drawArc	KEYWORD2
+drawSpot	KEYWORD2
+drawWideLine	KEYWORD2
+drawWedgeLine	KEYWORD2
+
+# Smooth font functions
+
+loadFont	KEYWORD2
+unloadFont	KEYWORD2
+getUnicodeIndex	KEYWORD2
+showFont	KEYWORD2
+
+
+# Button class
+
+TFT_eSPI_Button	KEYWORD1
+
+initButton	KEYWORD2
+initButtonUL	KEYWORD2
+setLabelDatum	KEYWORD2
+drawButton	KEYWORD2
+contains	KEYWORD2
+press	KEYWORD2
+isPressed	KEYWORD2
+justPressed	KEYWORD2
+justReleased	KEYWORD2
+
+
+# Sprite class
+
+TFT_eSprite	KEYWORD1
+
+createSprite	KEYWORD2
+getPointer	KEYWORD2
+created	KEYWORD2
+deleteSprite	KEYWORD2
+frameBuffer	KEYWORD2
+setColorDepth	KEYWORD2
+getColorDepth	KEYWORD2
+createPalette	KEYWORD2
+setPaletteColor	KEYWORD2
+getPaletteColor	KEYWORD2
+setBitmapColor	KEYWORD2
+fillSprite	KEYWORD2
+setScrollRect	KEYWORD2
+scroll	KEYWORD2
+pushRotated	KEYWORD2
+setPivot	KEYWORD2
+getPivotX	KEYWORD2
+getPivotY	KEYWORD2
+getRotatedBounds	KEYWORD2
+readPixelValue	KEYWORD2
+pushToSprite	KEYWORD2
+drawGlyph	KEYWORD2
+printToSprite	KEYWORD2
+pushSprite	KEYWORD2

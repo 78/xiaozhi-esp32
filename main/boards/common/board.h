@@ -50,7 +50,7 @@ public:
     virtual Display *GetDisplay();
     virtual Camera *GetCamera();
     virtual Music *GetMusic();
-    virtual SdCard *GetSdCard() { return nullptr; }
+    virtual SdCard *GetSdCard();
     virtual NetworkInterface *GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual const char *GetNetworkStateIcon() = 0;

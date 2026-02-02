@@ -6,6 +6,7 @@
 //-- (c) txp666 for esp32, 202503
 //-- GPL license
 //--------------------------------------------------------------
+#include "sdkconfig.h"
 #include "oscillator.h"
 
 #include <driver/ledc.h>
@@ -38,7 +39,9 @@ Oscillator::Oscillator(int trim)
     stop_ = false;
     rev_ = false;
 
-    pos_ = 90;
+    pos_ = 0; // Default to 0 (Center)
+    last_pos_ = 0; // Initialize tracking
+    last_written_pos_ = 0; // Initialize estimated physical position
     previous_millis_ = 0;
 }
 
@@ -49,9 +52,21 @@ Oscillator::~Oscillator()
 
 uint32_t Oscillator::AngleToCompare(int angle)
 {
+#ifdef CONFIG_PUPPY_SERVO_TYPE_360_POS
+    // Logic for MG90S 360 Degree (Positional / Winch)
+    // Assumes 500us..2500us maps to -180..180 degrees (360 range)
+    // Target 'angle' is in -90..90 range (from gait engine).
+    // We map -90..90 input to physical angle, then to PWM.
+    // If input 0 -> 1500us.
+    // Input 90 -> 1500 + 90 * (2000/360) = 2000.
+    return (uint32_t)(1500 + (angle * (2000.0 / 360.0)));
+#else
+    // Logic for SG90 180 Degree (Standard)
+    // Assumes 500us..2500us maps to -90..90 degrees (180 range)
     return (angle - SERVO_MIN_DEGREE) * (SERVO_MAX_PULSEWIDTH_US - SERVO_MIN_PULSEWIDTH_US) /
                (SERVO_MAX_DEGREE - SERVO_MIN_DEGREE) +
            SERVO_MIN_PULSEWIDTH_US;
+#endif
 }
 
 bool Oscillator::NextSample()
@@ -168,8 +183,126 @@ void Oscillator::Write(int position)
     position = position + trim_;
     position = std::max(SERVO_MIN_DEGREE, std::min(position, SERVO_MAX_DEGREE));
 
-    uint32_t pulse_width_us = AngleToCompare(position);
+    uint32_t pulse_width_us = 0;
+
+#ifdef CONFIG_PUPPY_SERVO_TYPE_360_CONT
+    // -- Continuous Rotation: Velocity Feedforward Control --
+    // MG90S 360: 1500us=STOP. PWM determines SPEED, not position.
+    
+    // Calculate required velocity to reach target
+    // We rely on 'Refresh' calling this periodically (sampling_period_)
+    // or 'Write' being called with interpolation updates.
+    
+    long now = millis();
+    float dt = (now - previous_servo_command_millis_) / 1000.0f;
+    
+    // Safety: If dt is too large (missed cycles), don't surge.
+    if (dt > 0.5f) dt = 0.03f; // Default to ~30ms if first run
+    if (dt < 0.001f) dt = 0.001f; // Avoid divide by zero
+
+    // Velocity = Change in Position / Time
+    // This represents degrees per second
+    float velocity_deg_s = (float)(position - last_pos_) / dt;
+    
+    // SAFETY CLAMP: Limit max velocity to prevent chaotic movement
+    // 200 deg/s is a reasonable max for walking stability
+    if (velocity_deg_s > 200.0f) velocity_deg_s = 200.0f;
+    if (velocity_deg_s < -200.0f) velocity_deg_s = -200.0f;
+    
+    // Deadband Compensation (Minimum speed to move)
+    const int DEADBAND_US = 50; 
+    const int MAX_PWM_OFFSET = 500; // 1500 +/- 500
+    
+    // Feedforward Gain: Map deg/s to PWM offset
+    // User Config Gain (Default 20) -> Target Kf ~ 1.4
+    // Formula: Kf = ConfigGain / 14.0
+    const float Kf = CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN / 14.0f;
+    
+    int pwm_offset = 0;
+    
+    // Only apply power if we actually want to move
+    if (abs(position - last_pos_) > 0) {
+        // Calculate raw offset
+        int raw_offset = (int)(abs(velocity_deg_s) * Kf);
+        
+        // Clamp to max
+        if (raw_offset > (MAX_PWM_OFFSET - DEADBAND_US)) {
+            raw_offset = MAX_PWM_OFFSET - DEADBAND_US;
+        }
+        
+        // Apply deadband
+        int total_offset = DEADBAND_US + raw_offset;
+        
+        pwm_offset = (velocity_deg_s > 0) ? total_offset : -total_offset;
+    }
+    
+    // Apply Trim as Center Offset
+    // Center is 1500 + trim_
+    pulse_width_us = 1500 + trim_ + pwm_offset;
+    
+    // Update state
+    last_pos_ = position;
+    previous_servo_command_millis_ = now;
+    
+    // Debug log for checking speeds (can be commented out)
+    // if(pwm_offset != 0) ESP_LOGI("Servo", "Vel:%.1f PWM:%d", velocity_deg_s, (int)pulse_width_us);
+
+    // pos_ tracks current target
+    pos_ = position;
+
+#else
+    // -- Standard Positional Logic --
+    // Update last_pos anyway to keep state consistent even if switching modes ideally (though compile time switch)
+    last_pos_ = position; 
+    pulse_width_us = AngleToCompare(position);
+#endif
+
     uint32_t duty = (pulse_width_us * 8192) / 20000;
+    ledc_set_duty(ledc_speed_mode_, ledc_channel_, duty);
+    ledc_update_duty(ledc_speed_mode_, ledc_channel_);
+}
+
+void Oscillator::Neutral()
+{
+    if (!is_attached_) return;
+
+    // For Continuous: 1500us (+trim) is absolute stop.
+    // For Positional: 1500us (+trim) is 0 degrees (Center).
+    // Note: Ideally positional trim is an angle offset, but here we treat it as Pulse offset commonly.
+    
+    // Sync all position trackers to ensure delta is 0 for next movement
+    last_pos_ = pos_;
+    last_written_pos_ = pos_;
+
+    uint32_t pulse_width_us = 1500 + trim_;
+    uint32_t duty = (pulse_width_us * 8192) / 20000;
+    ledc_set_duty(ledc_speed_mode_, ledc_channel_, duty);
+    ledc_update_duty(ledc_speed_mode_, ledc_channel_);
+}
+
+void Oscillator::SetSpeed(float speed)
+{
+    // Clamp speed -1.0 to 1.0
+    if (speed > 1.0f) speed = 1.0f;
+    if (speed < -1.0f) speed = -1.0f;
+    
+    // Deadband Compensation
+    const int DEADBAND_US = 50;
+    // Remaining range after deadband
+    int pwm_range = 1000 - DEADBAND_US; 
+    
+    int pwm_target = 1500;
+    
+    if (abs(speed) > 0.001f) {
+        int offset = DEADBAND_US + (int)(abs(speed) * pwm_range);
+        if (speed > 0) pwm_target = 1500 + offset;
+        else pwm_target = 1500 - offset;
+    }
+
+    // Apply Trim
+    pwm_target += trim_;
+
+    uint32_t duty = (pwm_target * 8192) / 20000;
     ledc_set_duty(ledc_speed_mode_, ledc_channel_, duty);
     ledc_update_duty(ledc_speed_mode_, ledc_channel_);
 }

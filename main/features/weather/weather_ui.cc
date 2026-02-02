@@ -244,39 +244,33 @@ void WeatherUI::SetupIdleUI(lv_obj_t *parent, int screen_width, int screen_heigh
     lv_obj_set_style_text_font(uv_label_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(uv_label_, COLOR_TEXT_MAIN, 0);
     lv_label_set_text(uv_label_, "UV");
-
-    // Initialize unused pointers to null or create dummy objects if needed to prevent crashes
-    // Since we changed layout, some pointers like pm25_label_ might be unused in this specific design
-    // Let's add PM2.5 to the UV box or create a 4th box if space permits.
-    // For now, let's just map pm25_label_ to a hidden object or reuse UV box for simplicity
-    // Or better, let's add it to the UV box as a second line if needed, but for "Sporty" look, less is more.
-    // We will just create it but hide it to avoid null pointer crashes in UpdateIdleDisplay
     pm25_label_ = lv_label_create(uv_box);
     lv_obj_add_flag(pm25_label_, LV_OBJ_FLAG_HIDDEN);
 
 #ifdef CONFIG_QUIZ_ENABLE
-    // --- Quiz Button (Corner floating button) ---
     quiz_button_ = lv_btn_create(idle_panel_);
     lv_obj_set_size(quiz_button_, 40, 40);
-    lv_obj_align(quiz_button_, LV_ALIGN_BOTTOM_RIGHT, -10, -100);  // Above bottom grid
-    lv_obj_set_style_bg_color(quiz_button_, COLOR_NEON_GREEN, 0);
-    lv_obj_set_style_bg_opa(quiz_button_, LV_OPA_80, 0);
-    lv_obj_set_style_radius(quiz_button_, 20, 0);  // Circle
-    lv_obj_set_style_shadow_width(quiz_button_, 12, 0);
-    lv_obj_set_style_shadow_color(quiz_button_, COLOR_NEON_GREEN, 0);
-    lv_obj_set_style_shadow_spread(quiz_button_, 2, 0);
-    lv_obj_set_style_shadow_opa(quiz_button_, LV_OPA_50, 0);
-    lv_obj_set_style_border_width(quiz_button_, 0, 0);
+    lv_obj_align(quiz_button_, LV_ALIGN_TOP_RIGHT, -15, 45); 
     
-    // Pressed style
-    lv_obj_set_style_bg_color(quiz_button_, lv_color_darken(COLOR_NEON_GREEN, LV_OPA_30), LV_STATE_PRESSED);
+    // Transparent style with visible border for debugging/visibility
+    lv_obj_set_style_bg_opa(quiz_button_, LV_OPA_0, 0); // Fully transparent bg
+    lv_obj_set_style_shadow_width(quiz_button_, 0, 0);
+    lv_obj_set_style_border_width(quiz_button_, 2, 0); // 2px border
+    lv_obj_set_style_border_color(quiz_button_, COLOR_NEON_CYAN, 0); // Cyan border
+    lv_obj_set_style_radius(quiz_button_, 10, 0); 
     
-    // Quiz icon (book/document icon)
-    quiz_icon_ = lv_label_create(quiz_button_);
-    lv_obj_set_style_text_font(quiz_icon_, &BUILTIN_ICON_FONT, 0);
-    lv_obj_set_style_text_color(quiz_icon_, lv_color_hex(0x000000), 0);  // Black text on green
-    lv_label_set_text(quiz_icon_, "\uf02d");  // FA book icon
+    // Pressed style - subtle glow
+    lv_obj_set_style_bg_opa(quiz_button_, LV_OPA_20, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(quiz_button_, COLOR_NEON_CYAN, LV_STATE_PRESSED);
+    
+    // Quiz icon (Use Text 'Q' because icon is missing)
+    // Quiz icon - use image from PNG C-array
+    quiz_icon_ = lv_img_create(quiz_button_);
+    lv_img_set_src(quiz_icon_, &ICON_BOOK);
     lv_obj_center(quiz_icon_);
+    
+    // Ensure it's on top of everything else
+    lv_obj_move_foreground(quiz_button_);
     
     // Button click handler
     lv_obj_add_event_cb(quiz_button_, [](lv_event_t* e) {

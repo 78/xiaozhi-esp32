@@ -3,6 +3,7 @@
 #include <cstdio>
 #include "board.h"
 #include "display/lcd_display.h"
+#include "display/display.h"
 #include "lvgl_theme.h"
 #include "application.h"
 
@@ -103,7 +104,7 @@ void QuizUI::Cleanup()
     ESP_LOGI(TAG, "QuizUI cleanup complete");
 }
 
-void QuizUI::SetupQuizUI(lv_obj_t* parent, int screen_width, int screen_height)
+void QuizUI::SetupQuizUI(lv_obj_t* parent, int screen_width, int screen_height, Display* display)
 {
     if (is_initialized_) {
         ESP_LOGW(TAG, "QuizUI already initialized, cleaning up first");
@@ -113,11 +114,16 @@ void QuizUI::SetupQuizUI(lv_obj_t* parent, int screen_width, int screen_height)
     parent_ = parent;
     screen_width_ = screen_width;
     screen_height_ = screen_height;
+    display_ = display;
+
+    // Lock display if possible
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
 
     // Get font from current theme to ensure Vietnamese support
-    auto display = Board::GetInstance().GetDisplay();
-    if (display && display->GetTheme()) {
-        auto theme = static_cast<LvglTheme*>(display->GetTheme());
+    auto board_display = Board::GetInstance().GetDisplay();
+    if (board_display && board_display->GetTheme()) {
+        auto theme = static_cast<LvglTheme*>(board_display->GetTheme());
         if (theme && theme->text_font()) {
             quiz_font_ = theme->text_font()->font();
         }
@@ -206,29 +212,31 @@ void QuizUI::CreateAnswerButtons()
     
     // Use flex for 2x2 grid layout
     lv_obj_set_flex_flow(buttons_container_, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(buttons_container_, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(buttons_container_, 6, 0);
-    lv_obj_set_style_pad_column(buttons_container_, 6, 0);
+    lv_obj_set_flex_align(buttons_container_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(buttons_container_, 10, 0); // Vertical gap between rows
     
-    // Calculate button size (2 columns)
-    int btn_width = (screen_width_ - 40) / 2;
-    int btn_height = 50;
+    // Button dimensions
+    int btn_height = 70;
     
     // Create buttons A, B, C, D
     button_a_ = CreateStyledButton(buttons_container_, "A", OnButtonAClicked, COLOR_BUTTON_A);
-    lv_obj_set_size(button_a_, btn_width, btn_height);
+    lv_obj_set_width(button_a_, LV_PCT(48));
+    lv_obj_set_height(button_a_, btn_height);
     option_labels_[0] = lv_obj_get_child(button_a_, 0);
     
     button_b_ = CreateStyledButton(buttons_container_, "B", OnButtonBClicked, COLOR_BUTTON_B);
-    lv_obj_set_size(button_b_, btn_width, btn_height);
+    lv_obj_set_width(button_b_, LV_PCT(48));
+    lv_obj_set_height(button_b_, btn_height);
     option_labels_[1] = lv_obj_get_child(button_b_, 0);
     
     button_c_ = CreateStyledButton(buttons_container_, "C", OnButtonCClicked, COLOR_BUTTON_C);
-    lv_obj_set_size(button_c_, btn_width, btn_height);
+    lv_obj_set_width(button_c_, LV_PCT(48));
+    lv_obj_set_height(button_c_, btn_height);
     option_labels_[2] = lv_obj_get_child(button_c_, 0);
     
     button_d_ = CreateStyledButton(buttons_container_, "D", OnButtonDClicked, COLOR_BUTTON_D);
-    lv_obj_set_size(button_d_, btn_width, btn_height);
+    lv_obj_set_width(button_d_, LV_PCT(48));
+    lv_obj_set_height(button_d_, btn_height);
     option_labels_[3] = lv_obj_get_child(button_d_, 0);
 }
 
@@ -246,12 +254,18 @@ lv_obj_t* QuizUI::CreateStyledButton(lv_obj_t* parent, const char* label_text,
     
     // Label with neon colored text
     lv_obj_t* label = lv_label_create(btn);
+    // Use theme font to ensure Vietnamese support
     if (quiz_font_) lv_obj_set_style_text_font(label, quiz_font_, 0);
     lv_label_set_text(label, label_text);
     lv_obj_set_style_text_color(label, color, 0);  // Match button neon color
     lv_obj_center(label);
-    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(label, lv_pct(95));
+    
+    // Shrink text using zoom (256 is 100%, 184 is ~72%)
+    lv_obj_set_style_transform_zoom(label, 184, 0);
+    
+    // Enable wrapping for long answers
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(label, lv_pct(120)); // Increase width to compensate for zoom (100% / 0.6 = ~166%, but 120% is safer)
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     
     return btn;
@@ -371,6 +385,9 @@ void QuizUI::HandleButtonClick(char answer)
 
 void QuizUI::Show()
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+
     if (!is_initialized_) {
         ESP_LOGW(TAG, "QuizUI not initialized");
         return;
@@ -383,6 +400,9 @@ void QuizUI::Show()
 
 void QuizUI::Hide()
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+    
     if (!is_initialized_) return;
     
     lv_obj_add_flag(quiz_panel_, LV_OBJ_FLAG_HIDDEN);
@@ -398,6 +418,9 @@ bool QuizUI::IsVisible() const
 
 void QuizUI::ShowQuestion(const QuizQuestion& question, int current_index, int total_questions)
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+
     if (!is_initialized_) return;
     
     // Update progress
@@ -423,6 +446,9 @@ void QuizUI::ShowQuestion(const QuizQuestion& question, int current_index, int t
         if (buttons[i]) {
             lv_color_t colors[] = {COLOR_BUTTON_A, COLOR_BUTTON_B, COLOR_BUTTON_C, COLOR_BUTTON_D};
             lv_obj_set_style_bg_color(buttons[i], colors[i], 0);
+            lv_obj_set_style_border_color(buttons[i], colors[i], 0);
+            lv_obj_set_style_shadow_color(buttons[i], colors[i], 0);
+            lv_obj_set_style_shadow_opa(buttons[i], LV_OPA_50, 0);
         }
     }
     
@@ -442,6 +468,9 @@ void QuizUI::ShowQuestion(const QuizQuestion& question, int current_index, int t
 
 void QuizUI::ShowAnswerFeedback(char selected, char correct, bool is_correct)
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+
     if (!is_initialized_) return;
     
     lv_obj_t* buttons[] = {button_a_, button_b_, button_c_, button_d_};
@@ -470,6 +499,9 @@ void QuizUI::ShowAnswerFeedback(char selected, char correct, bool is_correct)
 
 void QuizUI::ShowResults(int correct_count, int total_count, const std::string& wrong_details)
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+
     if (!is_initialized_) return;
     
     // Update score
@@ -503,6 +535,9 @@ void QuizUI::ShowResults(int correct_count, int total_count, const std::string& 
 
 void QuizUI::SetAnswerButtonsEnabled(bool enabled)
 {
+    std::unique_ptr<DisplayLockGuard> lock;
+    if (display_) lock = std::make_unique<DisplayLockGuard>(display_);
+
     if (!is_initialized_) return;
     
     lv_obj_t* buttons[] = {button_a_, button_b_, button_c_, button_d_};

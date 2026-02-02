@@ -6,6 +6,8 @@
 #include <functional>
 #include <string>
 
+class Display;
+
 /**
  * @brief Callback for answer button press
  */
@@ -34,8 +36,9 @@ public:
      * @param parent Parent LVGL object (usually screen or container)
      * @param screen_width Display width
      * @param screen_height Display height
+     * @param display Display pointer for thread safety
      */
-    void SetupQuizUI(lv_obj_t* parent, int screen_width, int screen_height);
+    void SetupQuizUI(lv_obj_t* parent, int screen_width, int screen_height, Display* display = nullptr);
     
     /**
      * @brief Set callback for when user presses an answer button
@@ -153,6 +156,9 @@ private:
     
     // Theme font
     const lv_font_t* quiz_font_ = nullptr;
+    
+    // Display lock
+    Display* display_ = nullptr;
 };
 
 #endif // QUIZ_UI_H

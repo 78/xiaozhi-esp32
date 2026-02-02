@@ -1,0 +1,22 @@
+{
+  "name": "TFT_eSPI",
+  "version": "2.5.43",
+  "keywords": "Arduino, tft, display, ttgo, LilyPi, WT32-SC01, ePaper, display, Pico, RP2040 Nano Connect, RP2040, STM32, ESP8266, NodeMCU, ESP32, M5Stack, ILI9341, ST7735, ILI9163, S6D02A1, ILI9481, ILI9486, ILI9488, ST7789, ST7796, RM68140, SSD1351, SSD1963, ILI9225, HX8357D, GC9A01, R61581",
+  "description": "A TFT and ePaper (SPI or parallel interface) graphics library with optimisation for Raspberry Pi Pico, RP2040, ESP8266, ESP32 and STM32 processors",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/Bodmer/TFT_eSPI"
+  },
+  "authors":
+  [
+    {
+        "name": "Bodmer",
+        "email": "bodmer@anola.net",
+        "maintainer": true
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "raspberrypi, espressif8266, espressif32, ststm32",
+  "headers": "TFT_eSPI.h"
+}

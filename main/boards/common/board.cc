@@ -5,6 +5,12 @@
 #include "display/oled_display.h"
 #include "assets/lang_config.h"
 #include "boards/common/esp32_music.h"
+#ifdef CONFIG_SD_CARD_MMC_INTERFACE
+#include "boards/common/sdmmc.h"
+#endif
+#ifdef CONFIG_SD_CARD_SPI_INTERFACE
+#include "boards/common/sdspi.h"
+#endif
 
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -173,6 +179,28 @@ Led *Board::GetLed()
 {
     static NoLed led;
     return &led;
+}
+
+SdCard *Board::GetSdCard()
+{
+#ifdef CONFIG_SD_CARD_MMC_INTERFACE
+    static SdMMC sdmmc((gpio_num_t)CONFIG_SD_CARD_MMC_CLK,
+                       (gpio_num_t)CONFIG_SD_CARD_MMC_CMD,
+                       (gpio_num_t)CONFIG_SD_CARD_MMC_D0,
+                       (gpio_num_t)CONFIG_SD_CARD_MMC_D1,
+                       (gpio_num_t)CONFIG_SD_CARD_MMC_D2,
+                       (gpio_num_t)CONFIG_SD_CARD_MMC_D3,
+                       CONFIG_SD_CARD_MMC_WIDTH);
+    return &sdmmc;
+#elif defined(CONFIG_SD_CARD_SPI_INTERFACE)
+    static SdSPI sdspi((gpio_num_t)CONFIG_SD_CARD_SPI_MISO,
+                       (gpio_num_t)CONFIG_SD_CARD_SPI_MOSI,
+                       (gpio_num_t)CONFIG_SD_CARD_SPI_CLK,
+                       (gpio_num_t)CONFIG_SD_CARD_SPI_CS);
+    return &sdspi;
+#else
+    return nullptr;
+#endif
 }
 
 std::string Board::GetSystemInfoJson()

@@ -13,6 +13,7 @@
 #include <esp_lvgl_port.h>
 #include <wifi_station.h>
 #include "application.h"
+#include "protocols/mqtt_protocol.h"
 #include "codecs/no_audio_codec.h"
 #include "codecs/es8311_audio_codec.h"
 #include "button.h"
@@ -666,6 +667,25 @@ private:
         ResetWifiConfiguration();
       }
       app.ToggleChatState(); });
+
+    boot_button_.OnLongPress([this]()
+                             {
+      ESP_LOGI(TAG, "BOOT Button Long Pressed (3s): Switching to FOTA Mode");
+      auto &app = Application::GetInstance();
+      auto protocol = app.GetProtocol();
+      if (protocol) {
+          std::string fota_url = "broker.hivemq.com"; 
+          
+          if (display_) {
+               display_->SetStatus("Entering FOTA");
+               display_->SetChatMessage("system", "Long Press Detected.\nSwitching to FOTA Mode...");
+          }
+           
+          auto mqtt_proto = dynamic_cast<MqttProtocol*>(protocol);
+          if (mqtt_proto) {
+              mqtt_proto->SwitchToFota(fota_url);
+          }
+      } });
   }
 
   void InitializeTools()
@@ -674,7 +694,7 @@ private:
   }
 
 public:
-  XiaozhiAIIoTEs3n28p() : boot_button_(BOOT_BUTTON_GPIO)
+  XiaozhiAIIoTEs3n28p() : boot_button_(BOOT_BUTTON_GPIO, false, 3000)
   {
     InitializeI2c();
     InitializeSpi();

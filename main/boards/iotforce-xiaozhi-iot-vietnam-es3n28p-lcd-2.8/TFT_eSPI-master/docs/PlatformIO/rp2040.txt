@@ -1,0 +1,63 @@
+;PlatformIO User notes:
+
+;It is possible to load settings from the calling program rather than modifying
+;the library for each project by modifying the "platformio.ini" file.
+
+;The User_Setup_Select.h file will not load the user setting header files if
+;USER_SETUP_LOADED is defined.
+
+;Instead of using #define, use the -D prefix, for example:
+
+; PlatformIO Project Configuration File
+;
+;   Build options: build flags, source filter, extra scripting
+;   Upload options: custom port, speed and extra flags
+;   Library options: dependencies, extra library storages
+;
+; Please visit documentation for the other options and examples
+; http://docs.platformio.org/page/projectconf.html
+
+[env:pico]
+platform = https://github.com/maxgerhardt/platform-raspberrypi.git
+board = pico
+framework = arduino
+board_build.core = earlephilhower
+board_build.filesystem_size = 0.5m
+lib_deps = bodmer/TFT_eSPI@^2.5.21
+; change microcontroller
+board_build.mcu = rp2040
+
+; change MCU frequency
+board_build.f_cpu = 133000000L
+
+build_flags =
+  -Os
+  -DUSER_SETUP_LOADED=1
+  ; Define the TFT driver, pins etc. here:
+  -DTFT_PARALLEL_8_BIT=1
+  -DRM68120_DRIVER=1
+  -DRP2040_PIO_CLK_DIV=1
+  -DTFT_DC=28
+  -DTFT_WR=22
+  -DTFT_RST=2
+
+  -DTFT_D0=6
+  -DTFT_D1=7
+  -DTFT_D2=8
+  -DTFT_D3=9
+  -DTFT_D4=10
+  -DTFT_D5=11
+  -DTFT_D6=12
+  -DTFT_D7=13
+
+  -DTFT_BL=16
+  -DTFT_BACKLIGHT_ON=HIGH
+
+  -DLOAD_GLCD=1
+  -DLOAD_FONT2=1
+  -DLOAD_FONT4=1
+  -DLOAD_FONT6=1
+  -DLOAD_FONT7=1
+  -DLOAD_FONT8=1
+  -DLOAD_GFXFF=1
+  -DSMOOTH_FONT=1

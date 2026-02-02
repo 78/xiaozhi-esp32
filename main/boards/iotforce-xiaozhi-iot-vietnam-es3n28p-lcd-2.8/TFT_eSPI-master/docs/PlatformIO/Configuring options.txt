@@ -1,0 +1,52 @@
+;PlatformIO User notes:
+
+;It is possible to load settings from the calling program rather than modifying
+;the library for each project by modifying the "platformio.ini" file.
+
+;The User_Setup_Select.h file will not load the user setting header files if
+;USER_SETUP_LOADED is defined.
+
+;Instead of using #define, use the -D prefix, for example:
+
+; PlatformIO Project Configuration File
+;
+;   Build options: build flags, source filter
+;   Upload options: custom upload port, speed and extra flags
+;   Library options: dependencies, extra library storages
+;   Advanced options: extra scripting
+;
+; Please visit documentation for the other options and examples
+; https://docs.platformio.org/page/projectconf.html
+
+[env:esp32dev]
+platform = https://github.com/platformio/platform-espressif32.git#feature/arduino-upstream
+board = esp32dev
+framework = arduino
+lib_deps = bodmer/TFT_eSPI@^2.4.31
+
+build_flags =
+  -Os
+  -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_DEBUG
+  -DUSER_SETUP_LOADED=1
+  
+  ; Define the TFT driver, pins etc. here:
+  -DST7789_DRIVER=1
+  -DTFT_WIDTH=128
+  -DTFT_HEIGHT=160
+  -DTFT_MISO=19
+  -DTFT_MOSI=23
+  -DTFT_SCLK=18
+  -DTFT_CS=5
+  -DTFT_DC=19
+  -DTFT_RST=4
+  ;-DTFT_BL=21
+  ;-DTOUCH_CS=22
+  -DLOAD_GLCD=1
+  -DLOAD_FONT2=1
+  -DLOAD_FONT4=1
+  -DLOAD_FONT6=1
+  -DLOAD_FONT7=1
+  -DLOAD_FONT8=1
+  -DLOAD_GFXFF=1
+  -DSMOOTH_FONT=1
+  -DSPI_FREQUENCY=27000000

@@ -407,8 +407,9 @@ void McpServer::AddCommonTools()
     {
         // ================== 1) PLAYBACK CƠ BẢN ==================
         AddTool("self.sdmusic.playback",
-                "Điều khiển phát nhạc từ THẺ NHỚ (SD card).\n"
-                "action = play | pause | stop | next | prev\n",
+                "Control music playback from SD CARD (Offline/Local Storage) ONLY.\n"
+                "Use this tool ONLY when user explicitly asks to play from SD card, local storage, or files on device.\n"
+                "action = play | pause | stop | next | prev\n",StartLine:409,TargetContent:
                 PropertyList({
                     Property("action", kPropertyTypeString),
                 }),
@@ -447,8 +448,8 @@ void McpServer::AddCommonTools()
 
         // ================== 2) SHUFFLE / REPEAT MODE ==================
         AddTool("self.sdmusic.mode",
-                "Control playback mode: shuffle and repeat.\n"
-                "action = shuffle | repeat\n",
+                "Control playback mode for SD CARD music: shuffle and repeat.\n"
+                "action = shuffle | repeat\n",StartLine:449,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("enabled", kPropertyTypeBoolean), Property("mode", kPropertyTypeString)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -488,7 +489,7 @@ void McpServer::AddCommonTools()
 
         // ================== 3) TRUY CẬP BÀI HÁT ==================
         AddTool("self.sdmusic.track",
-                "Track-level operations: set, info, list, current\n",
+                "Track-level operations for SD CARD music: set, info, list, current\n",StartLine:490,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("index", kPropertyTypeInteger, 0, 0, 9999)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -531,7 +532,7 @@ void McpServer::AddCommonTools()
 
         // ================== 4) THƯ MỤC ==================
         AddTool("self.sdmusic.directory",
-                "Directory-level operations: play, list\n",
+                "Directory-level operations for SD CARD: play, list\n",StartLine:533,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("directory", kPropertyTypeString)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -558,7 +559,9 @@ void McpServer::AddCommonTools()
 
         // ================== 5) TÌM KIẾM ==================
         AddTool("self.sdmusic.search",
-                "Search and play tracks by name.\n",
+                "Search and play tracks from SD CARD (Local Storage) ONLY.\n"
+                "Use this tool ONLY if the user explicitly asks to search/play from 'SD card', 'memory card', 'offline' or 'local storage'.\n"
+                "For generic music requests (e.g. 'play song X'), DO NOT use this tool, use internet music tools instead.\n",StartLine:560,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("keyword", kPropertyTypeString)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -595,7 +598,7 @@ void McpServer::AddCommonTools()
 
         // ================== 6) LIBRARY ==================
         AddTool("self.sdmusic.library",
-                "Library info: count, page\n",
+                "Library info for SD CARD: count, page\n",StartLine:597,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("page", kPropertyTypeInteger, 1, 1, 10000), Property("page_size", kPropertyTypeInteger, 10, 1, 1000)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -701,10 +704,14 @@ void McpServer::AddCommonTools()
     {
         AddTool(
             "self.music.play_song_with_id",
-            "Play a song by song_id. MUST search first and confirm with user before "
-            "using. Requires song_id from search results, NOT song name.\n"
+            "Play a song by song_id. \n"
+            "CRITICAL INSTRUCTION: If user asks to play a song (e.g. 'Play Son Tung'), you must:\n"
+            "1. Search for the song using any available search tool.\n"
+            "2. IMMEDIATELY pick the first/best result (Default to Original version). DO NOT ASK USER TO CHOOSE.\n"
+            "3. Call this tool with the found song_id.\n"
+            "4. DO NOT confirm with user (e.g. 'I found this, should I play?'). JUST PLAY IT.\n"
             "Parameters:\n"
-            "  `song_id`: Song ID from search results (required). Must be confirmed, Example: ZW78DIEO, UG89Y7RT, etc. Do NOT make up or guess.\n"
+            "  `song_id`: Song ID from search results (required).\n"
             "Returns:\n"
             "  Playback status. Plays immediately.",
             PropertyList({

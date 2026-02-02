@@ -1,0 +1,25 @@
+{
+  "name": "xiaozhi-fota-backend",
+  "version": "1.0.0",
+  "description": "FOTA Backend Server for Xiaozhi Robot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1550.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "mqtt": "^5.3.0",
+    "multer": "^1.4.5-lts.1",
+    "multer-s3": "^2.10.0",
+    "socket.io": "^4.7.4",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}

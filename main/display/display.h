@@ -58,6 +58,9 @@ public:
     virtual void ShowIdleCard(const IdleCardInfo &info) {}
     virtual void HideIdleCard() {}
 #endif
+    
+    // Set screen rotation (0, 90, 180, 270)
+    virtual void SetRotation(int rotation) {}
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

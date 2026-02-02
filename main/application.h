@@ -78,6 +78,8 @@ public:
     // New: Receive external audio data (such as music playback)
     void AddAudioData(AudioStreamPacket &&packet);
     void UpdateIdleDisplay();
+    
+    Protocol* GetProtocol() const { return protocol_.get(); }
 
     // Music & Radio Accessors
     Esp32Radio *GetRadio() const { return radio_.get(); }

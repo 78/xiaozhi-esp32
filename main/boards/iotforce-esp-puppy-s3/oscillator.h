@@ -44,10 +44,13 @@ public:
     void DisableLimiter() { diff_limit_ = 0; };
     int GetTrim() { return trim_; };
     void SetPosition(int position);
+    void SetSpeed(float speed); // speed: -1.0 to 1.0
     void Stop() { stop_ = true; };
     void Play() { stop_ = false; };
     void Reset() { phase_ = 0; };
+    void ResetPosition() { pos_ = 0; last_pos_ = 0; last_written_pos_ = 0; };
     void Refresh();
+    void Neutral(); // Force output to neutral (1500us / Stop)
     int GetPosition() { return pos_; }
 
 private:
@@ -66,6 +69,8 @@ private:
 
     //-- Internal variables
     int pos_;                      //-- Current servo pos
+    int last_pos_;                 //-- Previous servo pos (for velocity calc)
+    int last_written_pos_;         //-- Estimated physical position (for 360 continuous)
     int pin_;                      //-- Pin where the servo is connected
     int trim_;                     //-- Calibration offset
     double phase_;                 //-- Current phase

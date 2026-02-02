@@ -513,6 +513,47 @@ void Application::Start()
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
 
+#ifdef CONFIG_ENABLE_ROTATION_VOICE
+    mcp_server.AddTool("display_rotate", "Rotate the screen orientation. \n- angle: 0 (portrait), 90 (landscape), 180 (portrait inverted), 270 (landscape inverted).", PropertyList({
+                                                                                                                                                                             Property("angle", kPropertyTypeInteger),
+                                                                                                                                                                         }),
+                       [display](const PropertyList &properties) -> ReturnValue
+                       {
+                           int angle = properties["angle"].value<int>();
+                           if (angle != 0 && angle != 90 && angle != 180 && angle != 270)
+                           {
+                               return "Invalid angle. Must be 0, 90, 180, or 270.";
+                           }
+                           display->SetRotation(angle);
+                           return true;
+                       });
+#endif
+
+    mcp_server.AddTool("self.system.enter_fota_mode", "Enter FOTA (Firmware Update) mode. This will disconnect the current MQTT and connect to the update server.",
+                       PropertyList({
+                           Property("url", kPropertyTypeString),
+                       }),
+                       [this](const PropertyList &properties) -> ReturnValue
+                       {
+                           std::string url = properties["url"].value<std::string>();
+                           if (url.empty()) {
+                               // Default fallback if AI doesn't provide one, or report error
+                               return "URL required (e.g. mqtt://broker.hivemq.com:1883)";
+                           }
+                           
+                           Schedule([this, url]() {
+                               if (protocol_) {
+                                   auto mqtt_proto = dynamic_cast<MqttProtocol*>(protocol_.get());
+                                   if (mqtt_proto) {
+                                       mqtt_proto->SwitchToFota(url);
+                                       Board::GetInstance().GetDisplay()->SetStatus("FOTA Mode");
+                                       Board::GetInstance().GetDisplay()->SetChatMessage("system", "Connected to Update Server.\nWaiting for dashboard...");
+                                   }
+                               }
+                           });
+                           return "Switched to FOTA mode. Please check the dashboard.";
+                       });
+
     if (ota.HasMqttConfig())
     {
         protocol_ = std::make_unique<MqttProtocol>();
@@ -656,32 +697,103 @@ void Application::Start()
                 Schedule([this, display, firmware_url]() {
                     display->SetChatMessage("system", "OTA Update Started...");
                     
-                    // Run OTA in a separate thread to avoid blocking the main loop
-                    std::thread([this, display, firmware_url]() {
-                        Ota ota;
-                        bool success = ota.StartUpgradeFromUrl(firmware_url, [this, display](int progress, size_t speed) {
-                            Schedule([display, progress, speed]() {
+                struct OtaTaskArgs {
+                    Application* app;
+                    Display* display;
+                    std::string url;
+                };
+
+                auto args = new OtaTaskArgs{this, display, firmware_url};
+
+                // Create a FreeRTOS task with larger stack size (10KB)
+                xTaskCreate([](void* arg) {
+                    auto args = static_cast<OtaTaskArgs*>(arg);
+                    Application* app = args->app;
+                    Display* display = args->display;
+                    std::string firmware_url = args->url;
+                    delete args; // Free the heap allocated structure
+
+                    Ota ota;
+                    ESP_LOGI(TAG, "Starting OTA update from: %s", firmware_url.c_str());
+                    
+                    bool success = ota.StartUpgradeFromUrl(firmware_url, [app, display](int progress, size_t speed) {
+                        app->Schedule([display, progress, speed]() {
+                            char msg[64];
+                            snprintf(msg, sizeof(msg), "Updating: %d%% %uKB/s", progress, (unsigned int)(speed / 1024));
+                            display->SetChatMessage("system", msg);
+                        });
+                    });
+
+                    if (success) {
+                        app->Schedule([display]() {
+                            display->SetChatMessage("system", "Update Success! Restarting...");
+                        });
+                        vTaskDelay(pdMS_TO_TICKS(2000));
+                        esp_restart();
+                    } else {
+                        app->Schedule([app, display]() {
+                            display->SetChatMessage("system", "Update Failed!");
+                            app->Alert(Lang::Strings::ERROR, "Update Failed", "circle_xmark", Lang::Sounds::OGG_ERR_PIN);
+                        });
+                    }
+                    vTaskDelete(NULL);
+                }, "ota_task", 10240, args, 5, NULL);
+            });
+            }
+        } else if (strcmp(type->valuestring, "assets_url") == 0) {
+            auto url = cJSON_GetObjectItem(root, "url");
+            if (cJSON_IsString(url)) {
+                std::string assets_url = url->valuestring;
+                ESP_LOGI(TAG, "Received Assets URL via Protocol: %s", assets_url.c_str());
+
+                Schedule([this, display, assets_url]() {
+                    display->SetChatMessage("system", "Assets Update Started...");
+
+                    struct AssetsTaskArgs {
+                        Application* app;
+                        Display* display;
+                        std::string url;
+                    };
+
+                    auto args = new AssetsTaskArgs{this, display, assets_url};
+
+                    // Create a FreeRTOS task with larger stack size (10KB) for Assets download
+                    xTaskCreate([](void* arg) {
+                        auto args = static_cast<AssetsTaskArgs*>(arg);
+                        Application* app = args->app;
+                        Display* display = args->display;
+                        std::string assets_url = args->url;
+                        delete args; 
+
+                        auto& assets = Assets::GetInstance();
+                        ESP_LOGI(TAG, "Starting Assets update from: %s", assets_url.c_str());
+                        
+                        bool success = assets.Download(assets_url, [app, display](int progress, size_t speed) {
+                            app->Schedule([display, progress, speed]() {
                                 char msg[64];
-                                snprintf(msg, sizeof(msg), "Updating: %d%% %uKB/s", progress, (unsigned int)(speed / 1024));
+                                snprintf(msg, sizeof(msg), "Assets: %d%% %uKB/s", progress, (unsigned int)(speed / 1024));
                                 display->SetChatMessage("system", msg);
                             });
                         });
 
                         if (success) {
-                            Schedule([display]() {
-                                display->SetChatMessage("system", "Update Success! Restarting...");
+                            app->Schedule([display]() {
+                                display->SetChatMessage("system", "Assets Success! Restarting...");
                             });
                             vTaskDelay(pdMS_TO_TICKS(2000));
                             esp_restart();
                         } else {
-                            Schedule([this, display]() {
-                                display->SetChatMessage("system", "Update Failed!");
-                                Alert(Lang::Strings::ERROR, "Update Failed", "circle_xmark", Lang::Sounds::OGG_ERR_PIN);
+                            app->Schedule([app, display]() {
+                                display->SetChatMessage("system", "Assets Failed!");
+                                app->Alert(Lang::Strings::ERROR, "Assets Update Failed", "circle_xmark", Lang::Sounds::OGG_ERR_PIN);
                             });
                         }
-                    }).detach();
+                        vTaskDelete(NULL);
+                    }, "assets_task", 10240, args, 5, NULL);
                 });
             }
+        } else if (strcmp(type->valuestring, "fota_mode") == 0) { // Internal handler if needed, but mainly via MCP
+             // Logic handled by MCP tool below
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -697,6 +809,7 @@ void Application::Start()
         } else {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         } });
+    
     bool protocol_started = protocol_->Start();
 
     SystemInfo::PrintHeapStats();

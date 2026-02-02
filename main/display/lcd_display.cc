@@ -60,6 +60,71 @@ void LcdDisplay::InitializeLcdThemes()
     auto &theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("light", light_theme);
     theme_manager.RegisterTheme("dark", dark_theme);
+    theme_manager.RegisterTheme("dark", dark_theme);
+}
+
+void LcdDisplay::SetRotation(int rotation) {
+    DisplayLockGuard lock(this);
+    if (!panel_) return;
+
+    bool swap_xy = false;
+    bool mirror_x = false;
+    bool mirror_y = false;
+
+    // Logic based on standard ST7789/ILI9341 behavior
+    // Adjust logic if specific panel mounting differs
+    switch (rotation) {
+        case 0: // Portrait
+            swap_xy = false;
+            mirror_x = false;
+            mirror_y = false;
+            break;
+        case 90: // Landscape
+            swap_xy = true;
+            mirror_x = true;
+            mirror_y = false;
+            break;
+        case 180: // Portrait Inverted
+            swap_xy = false;
+            mirror_x = true;
+            mirror_y = true;
+            break;
+        case 270: // Landscape Inverted
+            swap_xy = true;
+            mirror_x = true; // Use true to fix mirroring on Genu Robot (ILI9341 with specific mounting)
+            mirror_y = true;
+            break;
+        default:
+            ESP_LOGW(TAG, "Invalid rotation %d", rotation);
+            return;
+    }
+
+    ESP_LOGI(TAG, "Rotating display to %d degrees (swap_xy=%d, mirror_x=%d, mirror_y=%d)", 
+             rotation, swap_xy, mirror_x, mirror_y);
+
+    esp_lcd_panel_swap_xy(panel_, swap_xy);
+    esp_lcd_panel_mirror(panel_, mirror_x, mirror_y);
+
+    // Update LVGL display rotation if supported/needed
+    // For now we just update hardware, LVGL might need full revalidation or 
+    // we rely on container sizing relative to screen.
+    // However, changing HW rotation without updating LVGL resolution/orientation 
+    // might cause drawing issues if resolution is asymmetric (e.g. 240x320).
+    
+    // Update LVGL display rotation
+    if (display_) {
+        lv_display_rotation_t lv_rotation = LV_DISPLAY_ROTATION_0;
+        switch (rotation) {
+            case 0: lv_rotation = LV_DISPLAY_ROTATION_0; break;
+            case 90: lv_rotation = LV_DISPLAY_ROTATION_90; break;
+            case 180: lv_rotation = LV_DISPLAY_ROTATION_180; break;
+            case 270: lv_rotation = LV_DISPLAY_ROTATION_270; break;
+        }
+        lv_display_set_rotation(display_, lv_rotation);
+        
+        // Ensure UI is updated
+        lv_obj_invalidate(lv_screen_active());
+    }
 }
 
 LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height)
@@ -141,7 +206,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
+    port_cfg.task_priority = 4;
 #if CONFIG_SOC_CPU_CORES_NUM > 1
     port_cfg.task_affinity = 1;
 #endif
@@ -208,7 +273,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    port_cfg.task_priority = 1;
+    port_cfg.task_priority = 4;
     port_cfg.timer_period_ms = 50;
     lvgl_port_init(&port_cfg);
 
@@ -265,6 +330,7 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    port_cfg.task_priority = 4;
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
