@@ -27,12 +27,12 @@
 
 // IO Expander (M5IOE1)
 #define IOE1_I2C_ADDR           0x6E
-#define IOE1_PIN_LCD_BL         M5IOE1_PIN_9
-#define IOE1_PIN_LCD_PWR        M5IOE1_PIN_10
-#define IOE1_PIN_LCD_RST        M5IOE1_PIN_11
-#define IOE1_PIN_TOUCH_RST      M5IOE1_PIN_8
-#define IOE1_PIN_AUDIO_PWR      M5IOE1_PIN_1
-#define IOE1_PIN_PA_EN          M5IOE1_PIN_3
+#define IOE1_PIN_LCD_BL         9
+#define IOE1_PIN_LCD_PWR        10
+#define IOE1_PIN_LCD_RST        11
+#define IOE1_PIN_TOUCH_RST      8
+#define IOE1_PIN_AUDIO_PWR      1
+#define IOE1_PIN_PA_EN          3
 
 // Touch
 #define TOUCH_INT_PIN           GPIO_NUM_1

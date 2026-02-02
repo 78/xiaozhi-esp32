@@ -5,7 +5,8 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
-#include "M5IOE1.h"
+#include "m5stack_ioe1.h"
+#include "M5PM1.h"
 
 #include <driver/i2c_master.h>
 #include <esp_log.h>
@@ -29,81 +30,83 @@ static const st7102_lcd_init_cmd_t st7102_init_cmds[] = {
     {.cmd = 0xB0, .data = (uint8_t[]){0x22, 0x43, 0x1E, 0x43, 0x2F, 0x57, 0x57}, .data_bytes = 7, .delay_ms = 0},
     {.cmd = 0xB7, .data = (uint8_t[]){0x7D, 0x7D}, .data_bytes = 2, .delay_ms = 0},
     {.cmd = 0xBF, .data = (uint8_t[]){0x7A, 0x7A}, .data_bytes = 2, .delay_ms = 0},
-    {.cmd = 0xC8,
-     .data = (uint8_t[]){0x00, 0x00, 0x13, 0x23, 0x3E, 0x00, 0x6A, 0x03, 0xB0, 0x06, 0x11, 0x0F, 0x07,
-                         0x85, 0x03, 0x21, 0xD5, 0x01, 0x18, 0x00, 0x22, 0x56, 0x0F, 0x98, 0x0A, 0x32,
-                         0xF8, 0x0D, 0x48, 0x0F, 0xF3, 0x80, 0x0F, 0xAC, 0xC1, 0x03, 0xC4},
+    {.cmd        = 0xC8,
+     .data       = (uint8_t[]){0x00, 0x00, 0x13, 0x23, 0x3E, 0x00, 0x6A, 0x03, 0xB0, 0x06, 0x11, 0x0F, 0x07,
+                                      0x85, 0x03, 0x21, 0xD5, 0x01, 0x18, 0x00, 0x22, 0x56, 0x0F, 0x98, 0x0A, 0x32,
+                                      0xF8, 0x0D, 0x48, 0x0F, 0xF3, 0x80, 0x0F, 0xAC, 0xC1, 0x03, 0xC4},
      .data_bytes = 37,
-     .delay_ms = 0},
-    {.cmd = 0xC9,
-     .data = (uint8_t[]){0x00, 0x00, 0x13, 0x23, 0x3E, 0x00, 0x6A, 0x03, 0xB0, 0x06, 0x11, 0x0F, 0x07,
-                         0x85, 0x03, 0x21, 0xD5, 0x01, 0x18, 0x00, 0x22, 0x56, 0x0F, 0x98, 0x0A, 0x32,
-                         0xF8, 0x0D, 0x48, 0x0F, 0xF3, 0x80, 0x0F, 0xAC, 0xC1, 0x03, 0xC4},
+     .delay_ms   = 0},
+    {.cmd        = 0xC9,
+     .data       = (uint8_t[]){0x00, 0x00, 0x13, 0x23, 0x3E, 0x00, 0x6A, 0x03, 0xB0, 0x06, 0x11, 0x0F, 0x07,
+                                      0x85, 0x03, 0x21, 0xD5, 0x01, 0x18, 0x00, 0x22, 0x56, 0x0F, 0x98, 0x0A, 0x32,
+                                      0xF8, 0x0D, 0x48, 0x0F, 0xF3, 0x80, 0x0F, 0xAC, 0xC1, 0x03, 0xC4},
      .data_bytes = 37,
-     .delay_ms = 0},
+     .delay_ms   = 0},
     {.cmd = 0xD7, .data = (uint8_t[]){0x10, 0x0C, 0x02, 0x19, 0x40, 0x40}, .data_bytes = 6, .delay_ms = 0},
-    {.cmd = 0xA3,
-     .data = (uint8_t[]){0x40, 0x03, 0x80, 0xCF, 0x44, 0x00, 0x00, 0x00, 0x02, 0x05, 0x6F,
-                         0x6F, 0x00, 0x1A, 0x00, 0x45, 0x05, 0x00, 0x00, 0x00, 0x00, 0x46,
-                         0x00, 0x00, 0x02, 0x20, 0x52, 0x00, 0x05, 0x00, 0x00, 0xFF},
+    {.cmd        = 0xA3,
+     .data       = (uint8_t[]){0x40, 0x03, 0x80, 0xCF, 0x44, 0x00, 0x00, 0x00, 0x02, 0x05, 0x6F,
+                                      0x6F, 0x00, 0x1A, 0x00, 0x45, 0x05, 0x00, 0x00, 0x00, 0x00, 0x46,
+                                      0x00, 0x00, 0x02, 0x20, 0x52, 0x00, 0x05, 0x00, 0x00, 0xFF},
      .data_bytes = 32,
-     .delay_ms = 0},
+     .delay_ms   = 0},
     {.cmd = 0xA6,
-     .data = (uint8_t[]){0x02, 0x00, 0x24, 0x55, 0x35, 0x00, 0x38, 0x00, 0x97, 0x97, 0x00, 0x24, 0x55, 0x36, 0x00,
-                         0x37, 0x00, 0x97, 0x97, 0x02, 0xAC, 0x51, 0x3A, 0x00, 0x00, 0x00, 0x97, 0x97, 0x00, 0xAC,
-                         0x21, 0x00, 0x0B, 0x00, 0x00, 0x97, 0x97, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00},
+     .data =
+         (uint8_t[]){0x02, 0x00, 0x24, 0x55, 0x35, 0x00, 0x38, 0x00, 0x97, 0x97, 0x00, 0x24, 0x55, 0x36, 0x00,
+                            0x37, 0x00, 0x97, 0x97, 0x02, 0xAC, 0x51, 0x3A, 0x00, 0x00, 0x00, 0x97, 0x97, 0x00, 0xAC,
+                            0x21, 0x00, 0x0B, 0x00, 0x00, 0x97, 0x97, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00},
      .data_bytes = 44,
-     .delay_ms = 0},
-    {.cmd = 0xA7,
-     .data = (uint8_t[]){0x19, 0x19, 0x00, 0x64, 0x40, 0x07, 0x16, 0x40, 0x00, 0x04, 0x03, 0x97,
-                         0x97, 0x00, 0x64, 0x40, 0x25, 0x34, 0x00, 0x00, 0x02, 0x01, 0x97, 0x97,
-                         0x00, 0x64, 0x40, 0x4B, 0x5A, 0x00, 0x00, 0x02, 0x01, 0x97, 0x97, 0x00,
-                         0x24, 0x40, 0x69, 0x78, 0x00, 0x00, 0x00, 0x00, 0x97, 0x97, 0x00, 0x44},
+     .delay_ms   = 0},
+    {.cmd        = 0xA7,
+     .data       = (uint8_t[]){0x19, 0x19, 0x00, 0x64, 0x40, 0x07, 0x16, 0x40, 0x00, 0x04, 0x03, 0x97,
+                                      0x97, 0x00, 0x64, 0x40, 0x25, 0x34, 0x00, 0x00, 0x02, 0x01, 0x97, 0x97,
+                                      0x00, 0x64, 0x40, 0x4B, 0x5A, 0x00, 0x00, 0x02, 0x01, 0x97, 0x97, 0x00,
+                                      0x24, 0x40, 0x69, 0x78, 0x00, 0x00, 0x00, 0x00, 0x97, 0x97, 0x00, 0x44},
      .data_bytes = 48,
-     .delay_ms = 0},
-    {.cmd = 0xAC,
-     .data = (uint8_t[]){0x11, 0x08, 0x13, 0x0A, 0x18, 0x1A, 0x1B, 0x00, 0x06, 0x03, 0x19, 0x1B, 0x1B,
-                         0x1B, 0x18, 0x1B, 0x10, 0x09, 0x12, 0x0B, 0x18, 0x1A, 0x1B, 0x02, 0x06, 0x01,
-                         0x19, 0x1B, 0x1B, 0x1B, 0x18, 0x1B, 0xFF, 0x67, 0xFF, 0x67, 0x00},
+     .delay_ms   = 0},
+    {.cmd        = 0xAC,
+     .data       = (uint8_t[]){0x11, 0x08, 0x13, 0x0A, 0x18, 0x1A, 0x1B, 0x00, 0x06, 0x03, 0x19, 0x1B, 0x1B,
+                                      0x1B, 0x18, 0x1B, 0x10, 0x09, 0x12, 0x0B, 0x18, 0x1A, 0x1B, 0x02, 0x06, 0x01,
+                                      0x19, 0x1B, 0x1B, 0x1B, 0x18, 0x1B, 0xFF, 0x67, 0xFF, 0x67, 0x00},
      .data_bytes = 37,
-     .delay_ms = 0},
+     .delay_ms   = 0},
     {.cmd = 0xAD, .data = (uint8_t[]){0xCC, 0x40, 0x46, 0x11, 0x04, 0x6F, 0x6F}, .data_bytes = 7, .delay_ms = 0},
-    {.cmd = 0xE8,
+    {.cmd  = 0xE8,
      .data = (uint8_t[]){0x30, 0x07, 0x00, 0xB3, 0xB3, 0x9C, 0x00, 0xE2, 0x04, 0x00, 0x00, 0x00, 0x00, 0xEF},
      .data_bytes = 14,
-     .delay_ms = 0},
+     .delay_ms   = 0},
     {.cmd = 0x75, .data = (uint8_t[]){0x03, 0x04}, .data_bytes = 2, .delay_ms = 0},
-    {.cmd = 0xE7,
-     .data = (uint8_t[]){0x8B, 0x3C, 0x00, 0x0C, 0xF0, 0x5D, 0x00, 0x5D, 0x00, 0x5D, 0x00,
-                         0x5D, 0x00, 0xFF, 0x00, 0x08, 0x7B, 0x00, 0x00, 0xC8, 0x6A, 0x5A,
-                         0x08, 0x1A, 0x3C, 0x00, 0x71, 0x01, 0x8C, 0x01, 0x7F, 0xF0, 0x22},
+    {.cmd        = 0xE7,
+     .data       = (uint8_t[]){0x8B, 0x3C, 0x00, 0x0C, 0xF0, 0x5D, 0x00, 0x5D, 0x00, 0x5D, 0x00,
+                                      0x5D, 0x00, 0xFF, 0x00, 0x08, 0x7B, 0x00, 0x00, 0xC8, 0x6A, 0x5A,
+                                      0x08, 0x1A, 0x3C, 0x00, 0x71, 0x01, 0x8C, 0x01, 0x7F, 0xF0, 0x22},
      .data_bytes = 33,
-     .delay_ms = 0},
-    {.cmd = 0xE9,
-     .data = (uint8_t[]){0x3C, 0x7F, 0x08, 0x07, 0x1A, 0x7A, 0x22, 0x1A, 0x33},
+     .delay_ms   = 0},
+    {.cmd        = 0xE9,
+     .data       = (uint8_t[]){0x3C, 0x7F, 0x08, 0x07, 0x1A, 0x7A, 0x22, 0x1A, 0x33},
      .data_bytes = 9,
-     .delay_ms = 0},
+     .delay_ms   = 0},
     {.cmd = 0x11, .data = NULL, .data_bytes = 0, .delay_ms = 20},
     {.cmd = 0x36, .data = (uint8_t[]){0b11}, .data_bytes = 1, .delay_ms = 0},
     {.cmd = 0x29, .data = NULL, .data_bytes = 0, .delay_ms = 20},
     {.cmd = 0x35, .data = (uint8_t[]){0x00}, .data_bytes = 1, .delay_ms = 0},
-    {.cmd = 0x29, .data = NULL, .data_bytes = 0, .delay_ms = 0},
+    {.cmd = 0x29, .data = NULL, .data_bytes = 0, .delay_ms = 0}
 };
 
 class M5IoE1Backlight : public Backlight {
 public:
-    explicit M5IoE1Backlight(M5IOE1* ioe) : ioe_(ioe) {}
+    explicit M5IoE1Backlight(m5ioe1_handle_t ioe) : ioe_(ioe) {}
 
     void SetBrightnessImpl(uint8_t brightness) override {
         if (!ioe_) {
             return;
         }
-        ioe_->setPwmDuty(M5IOE1_PWM_CH1, brightness, false, true);
+        // m5ioe1_pwm_set_duty expects duty cycle 0-100
+        m5ioe1_pwm_set_duty(ioe_, M5IOE1_PWM_CH1, brightness);
         brightness_ = brightness;
     }
 
 private:
-    M5IOE1* ioe_;
+    m5ioe1_handle_t ioe_;
 };
 
 class M5StackCoreP4Board : public WifiBoard {
@@ -111,7 +114,8 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_;
-    M5IOE1* ioe_;
+    m5ioe1_handle_t ioe_;
+    M5PM1* pmic_;
     M5IoE1Backlight* backlight_;
 
     void InitializeI2c() {
@@ -130,59 +134,88 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
 
-    void InitializeIoExpander() {
-        ioe_ = new M5IOE1();
-        ESP_ERROR_CHECK(ioe_->begin(i2c_bus_, IOE1_I2C_ADDR));
-
-        ioe_->pinMode(IOE1_PIN_LCD_PWR, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_LCD_PWR, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_LCD_PWR, HIGH);
-
-        ioe_->pinMode(IOE1_PIN_LCD_RST, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_LCD_RST, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_LCD_RST, LOW);
-        vTaskDelay(pdMS_TO_TICKS(10));
-        ioe_->digitalWrite(IOE1_PIN_LCD_RST, HIGH);
-
-        ioe_->pinMode(IOE1_PIN_TOUCH_RST, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_TOUCH_RST, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_TOUCH_RST, HIGH);
-
-        ioe_->pinMode(IOE1_PIN_AUDIO_PWR, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_AUDIO_PWR, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_AUDIO_PWR, HIGH);
-
-        ioe_->pinMode(IOE1_PIN_PA_EN, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_PA_EN, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_PA_EN, HIGH);
-
-        ioe_->pinMode(IOE1_PIN_LCD_BL, OUTPUT);
-        ioe_->setDriveMode(IOE1_PIN_LCD_BL, M5IOE1_DRIVE_PUSHPULL);
-        ioe_->digitalWrite(IOE1_PIN_LCD_BL, HIGH);
-        ioe_->setPwmFrequency(1000);
-        ioe_->setPwmDuty(M5IOE1_PWM_CH1, 0, false, true);
+    void I2cDetect() {
+        uint8_t address;
+        printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\r\n");
+        for (int i = 0; i < 128; i += 16) {
+            printf("%02x: ", i);
+            for (int j = 0; j < 16; j++) {
+                fflush(stdout);
+                address = i + j;
+                esp_err_t ret = i2c_master_probe(i2c_bus_, address, pdMS_TO_TICKS(200));
+                if (ret == ESP_OK) {
+                    printf("%02x ", address);
+                } else if (ret == ESP_ERR_TIMEOUT) {
+                    printf("UU ");
+                } else {
+                    printf("-- ");
+                }
+            }
+            printf("\r\n");
+        }
     }
 
-    static esp_err_t EnableDsiPhyPower() {
-#if MIPI_DSI_PHY_PWR_LDO_CHAN > 0
+    void InitializePm1() {
+        ESP_LOGI(TAG, "M5Stack PMIC Init.");
+        pmic_ = new M5PM1();
+        pmic_->begin(i2c_bus_, 0x6F);  // M5STP2 address according to README
+        pmic_->setChargeEnable(true);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+
+    void InitializeIoExpander() {
+        ioe_ = m5ioe1_create(i2c_bus_, IOE1_I2C_ADDR);
+
+        // LCD Power enable
+        m5ioe1_pin_mode(ioe_, IOE1_PIN_LCD_PWR, true);
+        m5ioe1_set_drive_mode(ioe_, IOE1_PIN_LCD_PWR, false); // false = 推挽输出
+        m5ioe1_digital_write(ioe_, IOE1_PIN_LCD_PWR, true);
+
+        // LCD Reset
+        m5ioe1_pin_mode(ioe_, IOE1_PIN_LCD_RST, true);
+        m5ioe1_set_drive_mode(ioe_, IOE1_PIN_LCD_RST, false); // false = 推挽输出
+        // m5ioe1_digital_write(ioe_, IOE1_PIN_LCD_RST, false);
+        // vTaskDelay(pdMS_TO_TICKS(10));
+        m5ioe1_digital_write(ioe_, IOE1_PIN_LCD_RST, true);
+        vTaskDelay(pdMS_TO_TICKS(20));
+
+        // Audio Power enable
+        m5ioe1_pin_mode(ioe_, IOE1_PIN_AUDIO_PWR, true);
+        m5ioe1_set_drive_mode(ioe_, IOE1_PIN_AUDIO_PWR, false); // false = 推挽输出
+        m5ioe1_digital_write(ioe_, IOE1_PIN_AUDIO_PWR, true);
+
+        // PA Enable
+        m5ioe1_pin_mode(ioe_, IOE1_PIN_PA_EN, true);
+        m5ioe1_set_drive_mode(ioe_, IOE1_PIN_PA_EN, false); // false = 推挽输出
+        m5ioe1_digital_write(ioe_, IOE1_PIN_PA_EN, true);
+
+        // LCD Backlight (PWM)
+        m5ioe1_pin_mode(ioe_, IOE1_PIN_LCD_BL, true);
+        m5ioe1_set_drive_mode(ioe_, IOE1_PIN_LCD_BL, false); // false = 推挽输出
+        m5ioe1_digital_write(ioe_, IOE1_PIN_LCD_BL, true);
+        m5ioe1_pwm_set_frequency(ioe_, 1000);
+        m5ioe1_pwm_config(ioe_, M5IOE1_PWM_CH1, 0, M5IOE1_PWM_POLARITY_HIGH, true);
+    }
+
+    static esp_err_t bsp_enable_dsi_phy_power() {
         static esp_ldo_channel_handle_t phy_pwr_chan = nullptr;
         esp_ldo_channel_config_t ldo_cfg = {
             .chan_id = MIPI_DSI_PHY_PWR_LDO_CHAN,
             .voltage_mv = MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV,
         };
-        ESP_RETURN_ON_ERROR(esp_ldo_acquire_channel(&ldo_cfg, &phy_pwr_chan), TAG, "Acquire DPHY LDO failed");
+        esp_ldo_acquire_channel(&ldo_cfg, &phy_pwr_chan);
         ESP_LOGI(TAG, "MIPI DSI PHY powered on");
-#endif
         return ESP_OK;
     }
 
     void InitializeDisplay() {
-        ESP_ERROR_CHECK(EnableDsiPhyPower());
-
         esp_lcd_panel_io_handle_t io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
         esp_lcd_dsi_bus_handle_t mipi_dsi_bus = nullptr;
 
+        ESP_ERROR_CHECK(bsp_enable_dsi_phy_power());
+
+        /* create MIPI DSI bus first, it will initialize the DSI PHY as well */
         esp_lcd_dsi_bus_config_t bus_config = {
             .bus_id = 0,
             .num_data_lanes = DISPLAY_MIPI_LANE_NUM,
@@ -191,20 +224,25 @@ private:
         };
         ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus));
 
+        ESP_LOGI(TAG, "Install MIPI DSI LCD control panel");
+        // we use DBI interface to send LCD commands and parameters
         esp_lcd_dbi_io_config_t dbi_config = {
             .virtual_channel = 0,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
+            .lcd_cmd_bits = 8,  // according to the LCD spec
+            .lcd_param_bits = 8,  // according to the LCD spec
         };
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &io));
+
+        // Wait for MIPI DSI PHY to be ready
         vTaskDelay(pdMS_TO_TICKS(50));
 
+        ESP_LOGI(TAG, "Install LCD driver of st7102");
         esp_lcd_dpi_panel_config_t dpi_config = {
             .virtual_channel = 0,
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-            .dpi_clock_freq_mhz = DISPLAY_PIXEL_CLOCK_MHZ,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
-            .num_fbs = 2,
+            .dpi_clock_freq_mhz = DISPLAY_PIXEL_CLOCK_MHZ,  // 480x480 60Hz RGB565
+            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,  // RGB565 for 16 bits_per_pixel
+            .num_fbs = 2,  // Double buffering for better performance
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
                 .v_size = DISPLAY_HEIGHT,
@@ -230,9 +268,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t panel_config = {
-            .bits_per_pixel = 16,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .reset_gpio_num = GPIO_NUM_NC,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .bits_per_pixel = 16,
             .vendor_config = &vendor_config,
         };
 
@@ -241,39 +279,11 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
+        ESP_LOGI(TAG, "Display initialized with resolution %dx%d", DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
         display_ = new MipiLcdDisplay(io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                       DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
                                       DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-    }
-
-    void InitializeTouch() {
-        esp_lcd_touch_handle_t tp;
-        esp_lcd_touch_config_t tp_cfg = {
-            .x_max = DISPLAY_WIDTH,
-            .y_max = DISPLAY_HEIGHT,
-            .rst_gpio_num = GPIO_NUM_NC,
-            .int_gpio_num = TOUCH_INT_PIN,
-            .levels = {
-                .reset = 0,
-                .interrupt = 0,
-            },
-            .flags = {
-                .swap_xy = 0,
-                .mirror_x = 1,
-                .mirror_y = 1,
-            },
-        };
-        esp_lcd_panel_io_handle_t tp_io_handle = nullptr;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_CST3XX_CONFIG();
-        tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_CST3XX_ADDRESS;
-        tp_io_config.scl_speed_hz = 400000;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
-        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst3xx(tp_io_handle, &tp_cfg, &tp));
-        const lvgl_port_touch_cfg_t touch_cfg = {
-            .disp = lv_display_get_default(),
-            .handle = tp,
-        };
-        lvgl_port_add_touch(&touch_cfg);
     }
 
     void InitializeButtons() {
@@ -293,11 +303,13 @@ public:
         display_(nullptr),
         i2c_bus_(nullptr),
         ioe_(nullptr),
+        pmic_(nullptr),
         backlight_(nullptr) {
         InitializeI2c();
+        I2cDetect();
+        InitializePm1();
         InitializeIoExpander();
         InitializeDisplay();
-        InitializeTouch();
         InitializeButtons();
         backlight_ = new M5IoE1Backlight(ioe_);
         backlight_->SetBrightness(90);

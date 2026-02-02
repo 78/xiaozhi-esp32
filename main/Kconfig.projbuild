@@ -251,6 +251,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_TAB5
         bool "M5Stack Tab5"
         depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_M5STACK_ATOM_S3R_ECHO_PYRAMID
+        bool "M5Stack AtomS3R + Echo Pyramid"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_ATOM_S3_ECHO_BASE
         bool "M5Stack AtomS3 + Echo Base"
         depends on IDF_TARGET_ESP32S3
