@@ -130,7 +130,7 @@ app.prepare().then(async () => {
     });
 
     // Default Next.js Handler
-    server.all('*splat', (req, res) => {
+    server.use((req, res) => {
         return handle(req, res);
     });
 

@@ -43,19 +43,19 @@ public:
     void SetLimiter(int diff_limit) { diff_limit_ = diff_limit; };
     void DisableLimiter() { diff_limit_ = 0; };
     int GetTrim() { return trim_; };
-    void SetPosition(int position);
+    void SetPosition(float position);
     void SetSpeed(float speed); // speed: -1.0 to 1.0
     void Stop() { stop_ = true; };
     void Play() { stop_ = false; };
     void Reset() { phase_ = 0; };
-    void ResetPosition() { pos_ = 0; last_pos_ = 0; last_written_pos_ = 0; };
+    void ResetPosition() { pos_ = 0.0f; last_pos_ = 0.0f; last_written_pos_ = 0.0f; };
     void Refresh();
     void Neutral(); // Force output to neutral (1500us / Stop)
-    int GetPosition() { return pos_; }
+    float GetPosition() { return pos_; }
 
 private:
     bool NextSample();
-    void Write(int position);
+    void Write(float position);
     uint32_t AngleToCompare(int angle);
 
 private:
@@ -68,9 +68,9 @@ private:
     double phase0_;          //-- Phase (radians)
 
     //-- Internal variables
-    int pos_;                      //-- Current servo pos
-    int last_pos_;                 //-- Previous servo pos (for velocity calc)
-    int last_written_pos_;         //-- Estimated physical position (for 360 continuous)
+    float pos_;                      //-- Current servo pos
+    float last_pos_;                 //-- Previous servo pos (for velocity calc)
+    float last_written_pos_;         //-- Estimated physical position (for 360 continuous)
     int pin_;                      //-- Pin where the servo is connected
     int trim_;                     //-- Calibration offset
     double phase_;                 //-- Current phase

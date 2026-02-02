@@ -27,7 +27,7 @@ Oscillator::Oscillator(int trim)
     diff_limit_ = 0;
     is_attached_ = false;
 
-    sampling_period_ = 30;
+    sampling_period_ = 20; // 20ms (50Hz) to match Servo PWM for smoother updates
     period_ = 2000;
     number_samples_ = period_ / sampling_period_;
     inc_ = 2 * M_PI / number_samples_;
@@ -39,9 +39,9 @@ Oscillator::Oscillator(int trim)
     stop_ = false;
     rev_ = false;
 
-    pos_ = 0; // Default to 0 (Center)
-    last_pos_ = 0; // Initialize tracking
-    last_written_pos_ = 0; // Initialize estimated physical position
+    pos_ = 0.0f; // Default to 0 (Center)
+    last_pos_ = 0.0f; // Initialize tracking
+    last_written_pos_ = 0.0f; // Initialize estimated physical position
     previous_millis_ = 0;
 }
 
@@ -132,7 +132,7 @@ void Oscillator::SetT(unsigned int period)
     inc_ = 2 * M_PI / number_samples_;
 }
 
-void Oscillator::SetPosition(int position)
+void Oscillator::SetPosition(float position)
 {
     if (is_attached_)
     {
@@ -149,7 +149,9 @@ void Oscillator::Refresh()
             if (!stop_)
             {
                 phase_ = phase_ + inc_;
-                pos_ = round(amplitude_ * sin(phase_ + phase0_) + offset_);
+                // DIRECT FLOAT ASSIGNMENT - NO ROUNDING
+                // This preserves micro-movements for velocity calculation
+                pos_ = amplitude_ * sin(phase_ + phase0_) + offset_;
                 if (rev_)
                     pos_ = -pos_;
             }
@@ -158,17 +160,17 @@ void Oscillator::Refresh()
     }
 }
 
-void Oscillator::Write(int position)
+void Oscillator::Write(float position)
 {
     if (diff_limit_ > 0)
     {
         long now = millis();
-        float dt = (now - previous_servo_command_millis_) / 1000.0;
+        float dt = (now - previous_servo_command_millis_) / 1000.0f;
         if (dt > 0)
         {
-            int max_diff = (int)(diff_limit_ * dt);
-            int diff = position - pos_;
-            if (abs(diff) > max_diff)
+            float max_diff = diff_limit_ * dt;
+            float diff = position - pos_;
+            if (std::abs(diff) > max_diff)
             {
                 if (diff > 0)
                     position = pos_ + max_diff;
@@ -180,81 +182,80 @@ void Oscillator::Write(int position)
     }
 
     pos_ = position;
-    position = position + trim_;
-    position = std::max(SERVO_MIN_DEGREE, std::min(position, SERVO_MAX_DEGREE));
+    // Apply trim effectively? For positional 180, trim is usually angle.
+    // For 360, we handle trim in the pulse calculation.
+    // Let's keep position clean as "Angle" for calculation.
+    float target_pos = position; 
+    
+    // Clamp for safety (logical angles)
+    target_pos = std::max((float)SERVO_MIN_DEGREE, std::min(target_pos, (float)SERVO_MAX_DEGREE));
 
     uint32_t pulse_width_us = 0;
 
-#ifdef CONFIG_PUPPY_SERVO_TYPE_360_CONT
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
     // -- Continuous Rotation: Velocity Feedforward Control --
-    // MG90S 360: 1500us=STOP. PWM determines SPEED, not position.
-    
-    // Calculate required velocity to reach target
-    // We rely on 'Refresh' calling this periodically (sampling_period_)
-    // or 'Write' being called with interpolation updates.
     
     long now = millis();
     float dt = (now - previous_servo_command_millis_) / 1000.0f;
     
-    // Safety: If dt is too large (missed cycles), don't surge.
-    if (dt > 0.5f) dt = 0.03f; // Default to ~30ms if first run
-    if (dt < 0.001f) dt = 0.001f; // Avoid divide by zero
+    // Safety
+    if (dt > 0.5f) dt = 0.03f; 
+    if (dt < 0.001f) dt = 0.001f; 
 
     // Velocity = Change in Position / Time
-    // This represents degrees per second
-    float velocity_deg_s = (float)(position - last_pos_) / dt;
+    // FLOAT PRECISION: Now we can see 0.5 deg change!
+    float velocity_deg_s = (position - last_pos_) / dt;
     
-    // SAFETY CLAMP: Limit max velocity to prevent chaotic movement
-    // 200 deg/s is a reasonable max for walking stability
-    if (velocity_deg_s > 200.0f) velocity_deg_s = 200.0f;
-    if (velocity_deg_s < -200.0f) velocity_deg_s = -200.0f;
+    // SAFETY CLAMP
+    if (velocity_deg_s > 250.0f) velocity_deg_s = 250.0f;
+    if (velocity_deg_s < -250.0f) velocity_deg_s = -250.0f;
     
-    // Deadband Compensation (Minimum speed to move)
+    // Deadband Compensation
     const int DEADBAND_US = 50; 
-    const int MAX_PWM_OFFSET = 500; // 1500 +/- 500
+    const int MAX_PWM_OFFSET = 500; 
     
-    // Feedforward Gain: Map deg/s to PWM offset
-    // User Config Gain (Default 20) -> Target Kf ~ 1.4
-    // Formula: Kf = ConfigGain / 14.0
-    const float Kf = CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN / 14.0f;
+    // Default Gain
+    float k_gain = 20.0f;
+#ifdef CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN
+    k_gain = CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN;
+#endif
+
+    const float Kf = k_gain / 14.0f;
     
     int pwm_offset = 0;
     
-    // Only apply power if we actually want to move
-    if (abs(position - last_pos_) > 0) {
+    // Use a small epsilon for float comparison instead of > 0
+    if (std::abs(position - last_pos_) > 0.001f) {
         // Calculate raw offset
-        int raw_offset = (int)(abs(velocity_deg_s) * Kf);
+        int raw_offset = (int)(std::abs(velocity_deg_s) * Kf);
         
-        // Clamp to max
+        // Clamp
         if (raw_offset > (MAX_PWM_OFFSET - DEADBAND_US)) {
             raw_offset = MAX_PWM_OFFSET - DEADBAND_US;
         }
         
-        // Apply deadband
-        int total_offset = DEADBAND_US + raw_offset;
+        // Apply deadband if significant movement requested
+        // If velocity is extremely low (e.g. < 5 deg/s), maybe don't move? 
+        // No, we want to creep. Let deadband handle it.
         
+        int total_offset = DEADBAND_US + raw_offset;
         pwm_offset = (velocity_deg_s > 0) ? total_offset : -total_offset;
     }
     
-    // Apply Trim as Center Offset
-    // Center is 1500 + trim_
+    // Apply Trim as Center Pulse Offset
     pulse_width_us = 1500 + trim_ + pwm_offset;
     
     // Update state
     last_pos_ = position;
     previous_servo_command_millis_ = now;
     
-    // Debug log for checking speeds (can be commented out)
-    // if(pwm_offset != 0) ESP_LOGI("Servo", "Vel:%.1f PWM:%d", velocity_deg_s, (int)pulse_width_us);
-
-    // pos_ tracks current target
     pos_ = position;
 
 #else
     // -- Standard Positional Logic --
-    // Update last_pos anyway to keep state consistent even if switching modes ideally (though compile time switch)
     last_pos_ = position; 
-    pulse_width_us = AngleToCompare(position);
+    // Convert float position to int angle for standard logic if needed, or update AngleToCompare
+    pulse_width_us = AngleToCompare((int)target_pos); 
 #endif
 
     uint32_t duty = (pulse_width_us * 8192) / 20000;

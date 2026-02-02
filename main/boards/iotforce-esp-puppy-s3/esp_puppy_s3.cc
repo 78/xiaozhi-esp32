@@ -391,7 +391,9 @@ private:
                                                      "- Emotions/Actions:\n"
                                                      "  - 'wag_tail', 'happy', 'shake', 'sad', 'angry', 'annoyed'\n"
                                                      "  - 'shy', 'sleepy', 'shake_hands', 'comfort', 'excited', 'cry'\n"
-                                                     "- Maintenance: 'calibrate'.",
+                                                     "  - 'shy', 'sleepy', 'shake_hands', 'comfort', 'excited', 'cry'\n"
+                                                     "- Maintenance: 'calibrate'.\n"
+                                                     "- Note: 'goodbye' or 'tạm biệt' will automatically make the dog sit.",
                            PropertyList({
                                Property("action", kPropertyTypeString),
                                Property("steps", kPropertyTypeInteger, 4, 1, 20),
@@ -440,8 +442,8 @@ private:
 
                                if (action == "bắt tay" || action == "shake_hand" || action == "shake_hands" || action == "xin chào")
                                    action = "shake_hands";
-                               if (action == "an ủi" || action == "dỗ dành" || action == "comfort" || action == "thương")
-                                   action = "comfort";
+                               if (action == "ngồi" || action == "sit" || action == "sit_down" || action == "ngồi xuống" || action == "fart" || action == "goodbye" || action == "bye" || action == "tạm biệt")
+                                   action = "sit";
                                if (action == "phấn khích" || action == "excited" || action == "quẩy" || action == "tăng động")
                                    action = "excited";
                                if (action == "khóc" || action == "cry" || action == "nức nở")
