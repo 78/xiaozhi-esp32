@@ -41,6 +41,11 @@ Esp32Camera::~Esp32Camera() {
             esp_camera_fb_return(current_fb_);
             current_fb_ = nullptr;
         }
+        if (encode_buf_) {
+            heap_caps_free(encode_buf_);
+            encode_buf_ = nullptr;
+            encode_buf_size_ = 0;
+        }
         esp_camera_deinit();
         streaming_on_ = false;
     }
@@ -72,30 +77,46 @@ bool Esp32Camera::Capture() {
         }
     }
 
-    // Perform byte swapping for RGB565 format and prepare preview image
+    // Prepare encode buffer for RGB565 format (with optional byte swapping)
     if (current_fb_->format == PIXFORMAT_RGB565) {
         size_t pixel_count = current_fb_->width * current_fb_->height;
         size_t data_size = pixel_count * 2;
 
-        uint8_t *preview_data = (uint8_t *)heap_caps_malloc(data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (preview_data == nullptr) {
-            ESP_LOGE(TAG, "Failed to allocate memory for preview image");
-            return false;
+        // Allocate or reallocate encode buffer if needed
+        if (encode_buf_size_ < data_size) {
+            if (encode_buf_) {
+                heap_caps_free(encode_buf_);
+            }
+            encode_buf_ = (uint8_t *)heap_caps_malloc(data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (encode_buf_ == nullptr) {
+                ESP_LOGE(TAG, "Failed to allocate memory for encode buffer");
+                encode_buf_size_ = 0;
+                return false;
+            }
+            encode_buf_size_ = data_size;
         }
 
+        // Copy data to encode buffer with optional byte swapping
         uint16_t *src = (uint16_t *)current_fb_->buf;
-        uint16_t *dst = (uint16_t *)preview_data;
-        for (size_t i = 0; i < pixel_count; i++) {
-            // Copy data from driver buffer to preview buffer with byte swapping
-            dst[i] = __builtin_bswap16(src[i]);
+        uint16_t *dst = (uint16_t *)encode_buf_;
+        if (swap_bytes_enabled_) {
+            for (size_t i = 0; i < pixel_count; i++) {
+                dst[i] = __builtin_bswap16(src[i]);
+            }
+        } else {
+            memcpy(encode_buf_, current_fb_->buf, data_size);
         }
 
-        // Display preview image
-        auto display = dynamic_cast<LvglDisplay *>(Board::GetInstance().GetDisplay());
-        if (display != nullptr) {
-            display->SetPreviewImage(std::make_unique<LvglAllocatedImage>(preview_data, data_size, current_fb_->width, current_fb_->height, current_fb_->width * 2, LV_COLOR_FORMAT_RGB565));
-        } else {
-            heap_caps_free(preview_data);
+        // Allocate separate buffer for preview display
+        uint8_t *preview_data = (uint8_t *)heap_caps_malloc(data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (preview_data != nullptr) {
+            memcpy(preview_data, encode_buf_, data_size);
+            auto display = dynamic_cast<LvglDisplay *>(Board::GetInstance().GetDisplay());
+            if (display != nullptr) {
+                display->SetPreviewImage(std::make_unique<LvglAllocatedImage>(preview_data, data_size, current_fb_->width, current_fb_->height, current_fb_->width * 2, LV_COLOR_FORMAT_RGB565));
+            } else {
+                heap_caps_free(preview_data);
+            }
         }
     } else if (current_fb_->format == PIXFORMAT_JPEG) {
         // JPEG format preview usually requires decoding, skip preview display for now, just log
@@ -123,6 +144,11 @@ bool Esp32Camera::SetVFlip(bool enabled) {
         return false;
     }
     s->set_vflip(s, enabled ? 1 : 0);
+    return true;
+}
+
+bool Esp32Camera::SetSwapBytes(bool enabled) {
+    swap_bytes_enabled_ = enabled;
     return true;
 }
 
@@ -172,7 +198,15 @@ std::string Esp32Camera::Explain(const std::string &question) {
                 return;
         }
 
-        bool ok = image_to_jpeg_cb(current_fb_->buf, current_fb_->len, w, h, enc_fmt, 80,
+        // Use encode buffer for RGB565, otherwise use original frame buffer
+        uint8_t *jpeg_src_buf = current_fb_->buf;
+        size_t jpeg_src_len = current_fb_->len;
+        if (current_fb_->format == PIXFORMAT_RGB565 && encode_buf_ != nullptr) {
+            jpeg_src_buf = encode_buf_;
+            jpeg_src_len = encode_buf_size_;
+        }
+
+        bool ok = image_to_jpeg_cb(jpeg_src_buf, jpeg_src_len, w, h, enc_fmt, 80,
             [](void* arg, size_t index, const void* data, size_t len) -> size_t {
                 auto jpeg_queue = static_cast<QueueHandle_t>(arg);
                 JpegChunk chunk = {.data = nullptr, .len = len};
