@@ -779,6 +779,8 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "display/lvgl_display/jpg/image_to_jpeg.cpp"
                              "display/lvgl_display/jpg/jpeg_to_image.c"
                              "boards/common/nt26_board.cc"
+                             "boards/common/ml307_board.cc"
+                             "boards/common/dual_network_board.cc"
                              )
 endif()
 
