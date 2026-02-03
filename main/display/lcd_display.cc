@@ -15,6 +15,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
+#include <src/misc/cache/lv_cache.h>
 
 #include "board.h"
 
@@ -604,7 +605,6 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     }
 
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
-    auto text_font = lvgl_theme->text_font()->font();
 
     // Create a message bubble
     lv_obj_t* msg_bubble = lv_obj_create(content_);
@@ -617,28 +617,25 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     lv_obj_t* msg_text = lv_label_create(msg_bubble);
     lv_label_set_text(msg_text, content);
     
-    // Calculate actual text width
-    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), text_font, 0);
-
-    // Calculate bubble width
+    // Calculate bubble width constraints
     lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 85% of screen width
     lv_coord_t min_width = 20;  
-    lv_coord_t bubble_width;
+    
+    // Let LVGL calculate the natural text width first
+    lv_obj_set_width(msg_text, LV_SIZE_CONTENT);
+    lv_obj_update_layout(msg_text);
+    lv_coord_t text_width = lv_obj_get_width(msg_text);
     
     // Ensure text width is not less than minimum width
     if (text_width < min_width) {
         text_width = min_width;
     }
 
-    // If text width is less than max width, use text width
-    if (text_width < max_width) {
-        bubble_width = text_width; 
-    } else {
-        bubble_width = max_width;
-    }
+    // Constrain to max width
+    lv_coord_t bubble_width = (text_width < max_width) ? text_width : max_width;
     
     // Set message text width
-    lv_obj_set_width(msg_text, bubble_width);  // Subtract padding
+    lv_obj_set_width(msg_text, bubble_width);
     lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
 
     // Set bubble width
@@ -825,6 +822,26 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     // Auto-scroll to the image bubble
     lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
 }
+
+void LcdDisplay::ClearChatMessages() {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr) {
+        return;
+    }
+    
+    // Use lv_obj_clean to delete all children of content_ (chat message bubbles)
+    lv_obj_clean(content_);
+    
+    // Reset chat_message_label_ as it has been deleted
+    chat_message_label_ = nullptr;
+    
+    // Show the centered AI logo (emoji_label_) again
+    if (emoji_label_ != nullptr) {
+        lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    ESP_LOGI(TAG, "Chat messages cleared");
+}
 #else
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
@@ -944,29 +961,35 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
 
-    /* Top layer: Bottom bar - fixed at bottom, minimum height 48, height can be adaptive */
+    /* Top layer: Bottom bar - fixed height at bottom */
     bottom_bar_ = lv_obj_create(screen);
-    lv_obj_set_width(bottom_bar_, LV_HOR_RES);
-    lv_obj_set_height(bottom_bar_, LV_SIZE_CONTENT);
-    lv_obj_set_style_min_height(bottom_bar_, 48, 0); // Set minimum height 48
+    lv_obj_set_size(bottom_bar_, LV_HOR_RES, text_font->line_height + lvgl_theme->spacing(12));
     lv_obj_set_style_radius(bottom_bar_, 0, 0);
     lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_text_color(bottom_bar_, lvgl_theme->text_color(), 0);
-    lv_obj_set_style_pad_top(bottom_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_bottom(bottom_bar_, lvgl_theme->spacing(2), 0);
+    lv_obj_set_style_pad_all(bottom_bar_, 0, 0);
     lv_obj_set_style_pad_left(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_pad_right(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(bottom_bar_, 0, 0);
+    lv_obj_set_scrollbar_mode(bottom_bar_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    /* chat_message_label_ placed in bottom_bar_ and vertically centered */
+    /* chat_message_label_ placed in bottom_bar_, single-line horizontal scroll */
     chat_message_label_ = lv_label_create(bottom_bar_);
     lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8)); // Subtract left and right padding
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // Auto wrap mode
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // Center text alignment
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8));
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
-    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0); // Vertically and horizontally centered in bottom_bar_
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+
+    // Start scrolling after a delay (short text won't scroll)
+    static lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_delay(&a, 1000);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
+    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -1025,6 +1048,14 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     }
     lv_label_set_text(chat_message_label_, content);
 }
+
+void LcdDisplay::ClearChatMessages() {
+    DisplayLockGuard lock(this);
+    // In non-wechat mode, just clear the chat message label
+    if (chat_message_label_ != nullptr) {
+        lv_label_set_text(chat_message_label_, "");
+    }
+}
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
@@ -1058,6 +1089,8 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
         
         if (gif_controller_->IsLoaded()) {
+            // Set loop delay to 1000ms
+            gif_controller_->SetLoopDelay(3000);
             // Set up frame update callback
             gif_controller_->SetFrameCallback([this]() {
                 lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
@@ -1164,7 +1197,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
         if (lv_obj_get_child_cnt(obj) > 0) {
             // Might be a container, check if it's a user or system message container
             // User and system message containers are transparent
-            lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, 0);
+            lv_opa_t bg_opa = lv_obj_get_style_bg_opa(obj, LV_PART_MAIN);
             if (bg_opa == LV_OPA_TRANSP) {
                 // This is a user or system message container
                 bubble = lv_obj_get_child(obj, 0);

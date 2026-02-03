@@ -56,7 +56,8 @@ public:
     void handle_touch_event(lv_event_t *event, void *param);
     virtual void Register_touch_event_callback(std::function<void(void *, void *)>) override;
     virtual void SetEmotion(const char* emotion) override;
-    virtual void SetChatMessage(const char* role, const char* content) override; 
+    virtual void SetChatMessage(const char* role, const char* content) override;
+    virtual void ClearChatMessages() override;
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
 
     // Add theme switching function

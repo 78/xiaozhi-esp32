@@ -1,25 +1,25 @@
 #include <driver/i2c_master.h>
-#include <driver/spi_common.h>
 #include <driver/ledc.h>
+#include <driver/spi_common.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
 
 #include "application.h"
-#include "codecs/no_audio_codec.h"
 #include "button.h"
+#include "codecs/no_audio_codec.h"
 #include "config.h"
 #include "display/lcd_display.h"
+#include "esp_video.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "mcp_server.h"
 #include "otto_emoji_display.h"
 #include "power_manager.h"
 #include "system_reset.h"
-#include "wifi_board.h"
-#include "esp_video.h"
 #include "websocket_control_server.h"
+#include "wifi_board.h"
 
 #define TAG "OttoRobot"
 
@@ -34,9 +34,10 @@ private:
     HardwareConfig hw_config_;
     AudioCodec* audio_codec_;
     i2c_master_bus_handle_t i2c_bus_;
-    EspVideo *camera_;
+    EspVideo* camera_;
     bool has_camera_;
-    
+    OttoCameraType camera_type_;
+
     bool DetectHardwareVersion() {
         ledc_timer_config_t ledc_timer = {
             .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -49,7 +50,7 @@ private:
         if (ret != ESP_OK) {
             return false;
         }
-        
+
         ledc_channel_config_t ledc_channel = {
             .gpio_num = CAMERA_XCLK,
             .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -63,7 +64,7 @@ private:
         if (ret != ESP_OK) {
             return false;
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(100));
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = I2C_NUM_0,
@@ -73,11 +74,12 @@ private:
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
+            .flags =
+                {
+                    .enable_internal_pullup = 1,
+                },
         };
-        
+
         ret = i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_);
         if (ret != ESP_OK) {
             ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
@@ -85,7 +87,8 @@ private:
         }
         const uint8_t camera_addresses[] = {0x30, 0x3C, 0x21, 0x60};
         bool camera_found = false;
-        
+        uint16_t detected_pid = 0;
+
         for (size_t i = 0; i < sizeof(camera_addresses); i++) {
             uint8_t addr = camera_addresses[i];
             i2c_device_config_t dev_cfg = {
@@ -93,36 +96,71 @@ private:
                 .device_address = addr,
                 .scl_speed_hz = 100000,
             };
-            
+
             i2c_master_dev_handle_t dev_handle;
             ret = i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev_handle);
             if (ret == ESP_OK) {
-                uint8_t reg_addr = 0x0A;
-                uint8_t data[2];
-                ret = i2c_master_transmit_receive(dev_handle, &reg_addr, 1, data, 2, 200);
-                if (ret == ESP_OK) {
+                uint8_t data[2] = {0, 0};
+
+                uint8_t reg_addr_8bit = 0x0A;
+                ret = i2c_master_transmit_receive(dev_handle, &reg_addr_8bit, 1, data, 2, 200);
+                if (ret == ESP_OK && (data[0] != 0 || data[1] != 0)) {
+                    detected_pid = (data[0] << 8) | data[1];
+                    ESP_LOGI(TAG, "检测到摄像头 (OV2640方式) PID=0x%04X (地址=0x%02X)",
+                             detected_pid, addr);
                     camera_found = true;
                     i2c_master_bus_rm_device(dev_handle);
                     break;
                 }
+
+                uint8_t reg_addr_high[2] = {0x30, 0x0A};
+                uint8_t reg_addr_low[2] = {0x30, 0x0B};
+                uint8_t pid_high = 0, pid_low = 0;
+
+                ret = i2c_master_transmit_receive(dev_handle, reg_addr_high, 2, &pid_high, 1, 200);
+                if (ret == ESP_OK) {
+                    ret =
+                        i2c_master_transmit_receive(dev_handle, reg_addr_low, 2, &pid_low, 1, 200);
+                    if (ret == ESP_OK) {
+                        detected_pid = (pid_high << 8) | pid_low;
+                        if (detected_pid != 0) {
+                            ESP_LOGI(TAG, "检测到摄像头 (OV3660方式) PID=0x%04X (地址=0x%02X)",
+                                     detected_pid, addr);
+                            camera_found = true;
+                            i2c_master_bus_rm_device(dev_handle);
+                            break;
+                        }
+                    }
+                }
+
                 i2c_master_bus_rm_device(dev_handle);
             }
         }
-        
+
         if (!camera_found) {
             i2c_del_master_bus(i2c_bus_);
             i2c_bus_ = nullptr;
             ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+            camera_type_ = OTTO_CAMERA_NONE;
+        } else {
+            // 根据 PID 判断摄像头类型
+            if (detected_pid == OV2640_PID_1 || detected_pid == OV2640_PID_2) {
+                camera_type_ = OTTO_CAMERA_OV2640;
+                ESP_LOGI(TAG, "摄像头类型: OV2640 (PID=0x%04X)", detected_pid);
+            } else if (detected_pid == OV3660_PID) {
+                camera_type_ = OTTO_CAMERA_OV3660;
+                ESP_LOGI(TAG, "摄像头类型: OV3660 (PID=0x%04X)", detected_pid);
+            } else {
+                camera_type_ = OTTO_CAMERA_UNKNOWN;
+                ESP_LOGW(TAG, "未知摄像头类型，PID=0x%04X", detected_pid);
+            }
         }
         return camera_found;
     }
-    
+
     void InitializePowerManager() {
-        power_manager_ = new PowerManager(
-            hw_config_.power_charge_detect_pin,
-            hw_config_.power_adc_unit,
-            hw_config_.power_adc_channel
-        );
+        power_manager_ = new PowerManager(hw_config_.power_charge_detect_pin,
+                                          hw_config_.power_adc_unit, hw_config_.power_adc_channel);
     }
 
     void InitializeSpi() {
@@ -163,9 +201,9 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new OttoEmojiDisplay(
-            panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
-            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new OttoEmojiDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                        DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                        DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -179,17 +217,14 @@ private:
         });
     }
 
-    void InitializeOttoController() {
-        ::InitializeOttoController(hw_config_);
-    }
-    
-public:
-    const HardwareConfig& GetHardwareConfig() const {
-        return hw_config_;
-    }
-    
-private:
+    void InitializeOttoController() { ::InitializeOttoController(hw_config_); }
 
+public:
+    const HardwareConfig& GetHardwareConfig() const { return hw_config_; }
+
+    OttoCameraType GetCameraType() const { return camera_type_; }
+
+private:
     void InitializeWebSocketControlServer() {
         ws_control_server_ = new WebSocketControlServer();
         if (!ws_control_server_->Start(8080)) {
@@ -201,7 +236,7 @@ private:
     void StartNetwork() override {
         WifiBoard::StartNetwork();
         vTaskDelay(pdMS_TO_TICKS(1000));
-        
+
         InitializeWebSocketControlServer();
     }
 
@@ -209,20 +244,21 @@ private:
         if (!has_camera_ || i2c_bus_ == nullptr) {
             return false;
         }
-        
+
         try {
             static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
                 .data_width = CAM_CTLR_DATA_WIDTH_8,
-                .data_io = {
-                    [0] = CAMERA_D0,
-                    [1] = CAMERA_D1,
-                    [2] = CAMERA_D2,
-                    [3] = CAMERA_D3,
-                    [4] = CAMERA_D4,
-                    [5] = CAMERA_D5,
-                    [6] = CAMERA_D6,
-                    [7] = CAMERA_D7,
-                },
+                .data_io =
+                    {
+                        [0] = CAMERA_D0,
+                        [1] = CAMERA_D1,
+                        [2] = CAMERA_D2,
+                        [3] = CAMERA_D3,
+                        [4] = CAMERA_D4,
+                        [5] = CAMERA_D5,
+                        [6] = CAMERA_D6,
+                        [7] = CAMERA_D7,
+                    },
                 .vsync_io = CAMERA_VSYNC,
                 .de_io = CAMERA_HSYNC,
                 .pclk_io = CAMERA_PCLK,
@@ -248,86 +284,126 @@ private:
             };
 
             camera_ = new EspVideo(video_config);
-            camera_->SetVFlip(true);
+
+            // 根据摄像头类型设置不同的翻转参数
+            switch (camera_type_) {
+                case OTTO_CAMERA_OV3660:
+                    camera_->SetVFlip(true);
+                    camera_->SetHMirror(true);
+                    ESP_LOGI(TAG, "OV3660: 设置 VFlip=true, HMirror=true");
+                    break;
+                case OTTO_CAMERA_OV2640:
+                default:
+                    camera_->SetVFlip(true);
+                    camera_->SetHMirror(false);
+                    ESP_LOGI(TAG, "OV2640: 设置 VFlip=true, HMirror=false");
+                    break;
+            }
             return true;
         } catch (...) {
             camera_ = nullptr;
             return false;
         }
     }
-    
+
     void InitializeAudioCodec() {
         if (hw_config_.audio_use_simplex) {
             audio_codec_ = new NoAudioCodecSimplex(
-                hw_config_.audio_input_sample_rate,
-                hw_config_.audio_output_sample_rate,
-                hw_config_.audio_i2s_spk_gpio_bclk,
-                hw_config_.audio_i2s_spk_gpio_lrck,
-                hw_config_.audio_i2s_spk_gpio_dout,
-                hw_config_.audio_i2s_mic_gpio_sck,
-                hw_config_.audio_i2s_mic_gpio_ws,
-                hw_config_.audio_i2s_mic_gpio_din
-            );
+                hw_config_.audio_input_sample_rate, hw_config_.audio_output_sample_rate,
+                hw_config_.audio_i2s_spk_gpio_bclk, hw_config_.audio_i2s_spk_gpio_lrck,
+                hw_config_.audio_i2s_spk_gpio_dout, hw_config_.audio_i2s_mic_gpio_sck,
+                hw_config_.audio_i2s_mic_gpio_ws, hw_config_.audio_i2s_mic_gpio_din);
         } else {
             audio_codec_ = new NoAudioCodecDuplex(
-                hw_config_.audio_input_sample_rate,
-                hw_config_.audio_output_sample_rate,
-                hw_config_.audio_i2s_gpio_bclk,
-                hw_config_.audio_i2s_gpio_ws,
-                hw_config_.audio_i2s_gpio_dout,
-                hw_config_.audio_i2s_gpio_din
-            );
+                hw_config_.audio_input_sample_rate, hw_config_.audio_output_sample_rate,
+                hw_config_.audio_i2s_gpio_bclk, hw_config_.audio_i2s_gpio_ws,
+                hw_config_.audio_i2s_gpio_dout, hw_config_.audio_i2s_gpio_din);
         }
     }
 
 public:
-    OttoRobot() : boot_button_(BOOT_BUTTON_GPIO),
-                  audio_codec_(nullptr),
-                  i2c_bus_(nullptr),
-                  camera_(nullptr),
-                  has_camera_(false) {
-        
+    OttoRobot()
+        : boot_button_(BOOT_BUTTON_GPIO),
+          audio_codec_(nullptr),
+          i2c_bus_(nullptr),
+          camera_(nullptr),
+          has_camera_(false),
+          camera_type_(OTTO_CAMERA_NONE) {
+#if OTTO_HARDWARE_VERSION == OTTO_VERSION_AUTO
+        // 自动检测硬件版本（同时检测摄像头类型）
         has_camera_ = DetectHardwareVersion();
-        
-        if (has_camera_) 
+        ESP_LOGI(TAG, "自动检测硬件版本: %s", has_camera_ ? "摄像头版" : "无摄像头版");
+#elif OTTO_HARDWARE_VERSION == OTTO_VERSION_CAMERA
+        // 强制使用摄像头版本，但仍检测具体摄像头类型
+        has_camera_ = DetectHardwareVersion();
+        if (!has_camera_) {
+            // 检测失败时仍使用摄像头配置，但不知道具体类型
+            has_camera_ = true;
+            camera_type_ = OTTO_CAMERA_UNKNOWN;
+            ESP_LOGW(TAG, "强制使用摄像头版本配置，但未能检测到摄像头类型");
+            // 初始化 I2C 总线用于摄像头
+            i2c_master_bus_config_t i2c_bus_cfg = {
+                .i2c_port = I2C_NUM_0,
+                .sda_io_num = CAMERA_VERSION_CONFIG.i2c_sda_pin,
+                .scl_io_num = CAMERA_VERSION_CONFIG.i2c_scl_pin,
+                .clk_source = I2C_CLK_SRC_DEFAULT,
+                .glitch_ignore_cnt = 7,
+                .intr_priority = 0,
+                .trans_queue_depth = 0,
+                .flags =
+                    {
+                        .enable_internal_pullup = 1,
+                    },
+            };
+            i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_);
+        } else {
+            ESP_LOGI(TAG, "强制使用摄像头版本配置");
+        }
+#elif OTTO_HARDWARE_VERSION == OTTO_VERSION_NO_CAMERA
+        // 强制使用无摄像头版本
+        has_camera_ = false;
+        camera_type_ = OTTO_CAMERA_NONE;
+        ESP_LOGI(TAG, "强制使用无摄像头版本配置");
+#else
+#error \
+    "OTTO_HARDWARE_VERSION 设置无效，请使用 OTTO_VERSION_AUTO, OTTO_VERSION_CAMERA 或 OTTO_VERSION_NO_CAMERA"
+#endif
+
+        if (has_camera_)
             hw_config_ = CAMERA_VERSION_CONFIG;
-        else 
+        else
             hw_config_ = NON_CAMERA_VERSION_CONFIG;
-        
-        
+
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
         InitializePowerManager();
         InitializeAudioCodec();
-        
+
         if (has_camera_) {
             if (!InitializeCamera()) {
                 has_camera_ = false;
             }
         }
-        
+
         InitializeOttoController();
         ws_control_server_ = nullptr;
         GetBacklight()->RestoreBrightness();
     }
 
-    virtual AudioCodec *GetAudioCodec() override {
-        return audio_codec_;
-    }
+    virtual AudioCodec* GetAudioCodec() override { return audio_codec_; }
 
-    virtual Display* GetDisplay() override { 
-        return display_; 
-    }
+    virtual Display* GetDisplay() override { return display_; }
 
     virtual Backlight* GetBacklight() override {
         static PwmBacklight* backlight = nullptr;
         if (backlight == nullptr) {
-            backlight = new PwmBacklight(hw_config_.display_backlight_pin, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+            backlight =
+                new PwmBacklight(hw_config_.display_backlight_pin, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         }
         return backlight;
     }
-    
+
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         charging = power_manager_->IsCharging();
         discharging = !charging;
@@ -335,9 +411,7 @@ public:
         return true;
     }
 
-    virtual Camera *GetCamera() override { 
-        return has_camera_ ? camera_ : nullptr; 
-    }
+    virtual Camera* GetCamera() override { return has_camera_ ? camera_ : nullptr; }
 };
 
 DECLARE_BOARD(OttoRobot);

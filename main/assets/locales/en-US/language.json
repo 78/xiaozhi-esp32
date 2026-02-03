@@ -13,6 +13,8 @@
         "REG_ERROR": "Unable to access network, please check SIM card status",
         "MODEM_INIT_ERROR": "Modem initialization failed",
         "DETECTING_MODULE": "Detecting module...",
+        "FLIGHT_MODE_ON": "Flight mode is on",
+        "FLIGHT_MODE_OFF": "Flight mode is off",
         "REGISTERING_NETWORK": "Waiting for network...",
         "CHECKING_NEW_VERSION": "Checking for new version...",
         "CHECK_NEW_VERSION_FAILED": "Check for new version failed, will retry in %d seconds: %s",

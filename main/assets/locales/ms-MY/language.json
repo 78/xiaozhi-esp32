@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Menemui aset baharu: %s",
         "DOWNLOAD_ASSETS_FAILED": "Gagal memuat turun aset",
         "LOADING_ASSETS": "Memuatkan aset...",
-        "HELLO_MY_FRIEND": "Hai, kawan saya!"
+        "HELLO_MY_FRIEND": "Hai, kawan saya!",
+        "FLIGHT_MODE_OFF": "Mod penerbangan dimatikan",
+        "FLIGHT_MODE_ON": "Mod penerbangan dihidupkan",
+        "MODEM_INIT_ERROR": "Modem gagal dimulakan"
     }
 }
-

@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Varlıklar yükleniyor...",
         "PLEASE_WAIT": "Lütfen bekleyin...",
         "FOUND_NEW_ASSETS": "Yeni varlıklar bulundu: %s",
-        "HELLO_MY_FRIEND": "Merhaba, arkadaşım!"
+        "HELLO_MY_FRIEND": "Merhaba, arkadaşım!",
+        "CONNECTION_SUCCESSFUL": "Bağlantı başarılı",
+        "FLIGHT_MODE_OFF": "Uçak modu kapalı",
+        "FLIGHT_MODE_ON": "Uçak modu açık",
+        "MODEM_INIT_ERROR": "Modem başlatma hatası"
     }
 }

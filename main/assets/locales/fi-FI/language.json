@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Ladataan resursseja...",
         "PLEASE_WAIT": "Odota hetki...",
         "FOUND_NEW_ASSETS": "Löydetty uusia resursseja: %s",
-        "HELLO_MY_FRIEND": "Hei, ystäväni!"
+        "HELLO_MY_FRIEND": "Hei, ystäväni!",
+        "CONNECTION_SUCCESSFUL": "Yhteys onnistui",
+        "FLIGHT_MODE_OFF": "Lentotila on pois päältä",
+        "FLIGHT_MODE_ON": "Lentotila on päällä",
+        "MODEM_INIT_ERROR": "Modeemin alustus epäonnistui"
     }
 }

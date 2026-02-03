@@ -18,7 +18,7 @@ public:
     bool Start() override;
     bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) override;
     bool OpenAudioChannel() override;
-    void CloseAudioChannel() override;
+    void CloseAudioChannel(bool send_goodbye = true) override;
     bool IsAudioChannelOpened() const override;
 
 private:

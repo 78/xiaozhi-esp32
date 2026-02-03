@@ -251,6 +251,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_ATOM_ECHOS3R
         bool "M5Stack AtomEchoS3R"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_CARDPUTER_ADV
+        bool "M5Stack Cardputer Adv"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_ATOM_MATRIX_ECHO_BASE
         bool "M5Stack AtomMatrix + Echo Base"
         depends on IDF_TARGET_ESP32
