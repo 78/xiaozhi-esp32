@@ -25,6 +25,13 @@ set(SOURCES "audio/audio_codec.cc"
             "display/lvgl_display/gif/gifdec.c"
             "display/lvgl_display/jpg/image_to_jpeg.cpp"
             "display/lvgl_display/jpg/jpeg_to_image.c"
+            "display/vector_face/vector_face.cc"
+            "display/vector_face/face_bear.cc"
+            "display/vector_face/face_rabbit.cc"
+            "display/vector_face/face_cat.cc"
+            "display/vector_face/face_heart.cc"
+            "display/vector_face/face_manager.cc"
+            "display/vector_face/swipe_detector.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -38,7 +45,7 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
-set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "display/vector_face" "audio" "protocols")
 
 # Add board common files
 list(APPEND SOURCES
@@ -580,8 +587,9 @@ elseif(CONFIG_BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA)
 elseif(CONFIG_BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX)
     set(BOARD_TYPE "sp-esp32-s3-1.28-box")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
-    set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    # LUNA.AI: Use 128px animated emojis for cute faces
+    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)
 elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
     set(BOARD_TYPE "otto-robot")
     set(BUILTIN_TEXT_FONT font_puhui_16_4)

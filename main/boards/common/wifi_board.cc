@@ -54,9 +54,18 @@ void WifiBoard::StartNetwork() {
 
     // Initialize WiFi manager
     WifiManagerConfig config;
-    config.ssid_prefix = "Xiaozhi";
+    config.ssid_prefix = "Luna";  // LUNA.AI branding
     config.language = Lang::CODE;
     wifi_manager.Initialize(config);
+
+    // LUNA.AI: Force WiFi credentials (clear any old settings)
+    auto& ssid_manager = SsidManager::GetInstance();
+    ssid_manager.Clear();  // Clear old settings
+    ESP_LOGI(TAG, "Setting LUNA.AI WiFi credentials");
+    // Primary: iPhoneX hotspot (reliable)
+    ssid_manager.AddSsid("iPhoneX", "$onora98");
+    // Fallback: WebSummitQatar (open network)
+    ssid_manager.AddSsid("#WebSummitQatar", "");
 
     // Set unified event callback - forward to NetworkEvent with SSID data
     wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event) {
@@ -115,6 +124,21 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
 #endif
             in_config_mode_ = false;
             ESP_LOGI(TAG, "Connected to WiFi: %s", data.c_str());
+
+            // LUNA.AI: Always set WebSocket URL to our server
+            {
+                Settings ws_settings("websocket", true);
+                const char* luna_url = "wss://api.heyluna.talk/ws";
+                ESP_LOGI(TAG, "Setting LUNA.AI WebSocket URL: %s", luna_url);
+                ws_settings.SetString("url", luna_url);
+            }
+
+            // LUNA.AI: Announce WiFi connection with voice
+            Application::GetInstance().Schedule([ssid = data]() {
+                std::string msg = Lang::Strings::CONNECTED_TO;
+                msg += ssid;
+                Application::GetInstance().Alert(Lang::Strings::CONNECTED_TO, msg.c_str(), "wifi", Lang::Sounds::OGG_SUCCESS);
+            });
             break;
         case NetworkEvent::Scanning:
             ESP_LOGI(TAG, "WiFi scanning");

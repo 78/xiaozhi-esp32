@@ -488,12 +488,12 @@ void LcdDisplay::SetupUI() {
     emoji_image_ = lv_img_create(screen);
     lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0, text_font->line_height + lvgl_theme->spacing(8));
 
-    // Display AI logo while booting
+    // LUNA.AI: Display red heart logo while booting
     emoji_label_ = lv_label_create(screen);
     lv_obj_center(emoji_label_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
-    lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_obj_set_style_text_color(emoji_label_, lv_color_hex(0xFF0000), 0);  // Red color for LUNA.AI heart
+    lv_label_set_text(emoji_label_, FONT_AWESOME_HEART);
 }
 #if CONFIG_IDF_TARGET_ESP32P4
 #define  MAX_MESSAGES 40
@@ -823,10 +823,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_border_width(emoji_box_, 0, 0);
     lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, 0);
 
+    // LUNA.AI: Red heart logo for simple UI mode
     emoji_label_ = lv_label_create(emoji_box_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
-    lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_obj_set_style_text_color(emoji_label_, lv_color_hex(0xFF0000), 0);  // Red color for LUNA.AI heart
+    lv_label_set_text(emoji_label_, FONT_AWESOME_HEART);
 
     emoji_image_ = lv_img_create(emoji_box_);
     lv_obj_center(emoji_image_);
@@ -1026,6 +1027,13 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         if (utf8 != nullptr && emoji_label_ != nullptr) {
             DisplayLockGuard lock(this);
             lv_label_set_text(emoji_label_, utf8);
+            // LUNA.AI: Set heart icon to red color
+            if (strcmp(emotion, "heart") == 0) {
+                lv_obj_set_style_text_color(emoji_label_, lv_color_hex(0xFF0000), 0);
+            } else {
+                auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+                lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
+            }
             lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
         }
