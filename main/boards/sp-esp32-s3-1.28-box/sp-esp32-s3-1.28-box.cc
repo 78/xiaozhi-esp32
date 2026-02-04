@@ -1,7 +1,7 @@
 #include "wifi_board.h"
 #include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
-#include "display/vector_face/face_manager.h"
+#include "display/emoji_carousel.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -124,34 +124,41 @@ public:
         lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.33, 0);
         lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.33, 0);
 
-        // LUNA.AI: Permanently delete emoji elements - we use vector faces instead
-        // This prevents double rendering with FaceManager
+        // LUNA.AI: Hide emoji elements when using vector faces
         DeleteEmojiElements();
     }
 
-    // Permanently delete emoji elements for vector face mode
+    // Permanently hide emoji elements for vector face mode
     void DeleteEmojiElements() {
-        // Delete emoji elements - they won't be used with vector faces
+        // Move emoji elements off-screen and hide them
+        if (emoji_box_ != nullptr) {
+            lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(emoji_box_, -500, -500);  // Move off-screen
+        }
         if (emoji_label_ != nullptr) {
-            lv_obj_del(emoji_label_);
-            emoji_label_ = nullptr;
+            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_size(emoji_label_, 0, 0);  // Zero size
         }
         if (emoji_image_ != nullptr) {
-            lv_obj_del(emoji_image_);
-            emoji_image_ = nullptr;
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_size(emoji_image_, 0, 0);  // Zero size
         }
-        if (emoji_box_ != nullptr) {
-            lv_obj_del(emoji_box_);
-            emoji_box_ = nullptr;
-        }
-        ESP_LOGI("CustomLcdDisplay", "Deleted emoji elements for vector face mode");
+        ESP_LOGI("CustomLcdDisplay", "Hidden emoji elements for vector face mode");
     }
 
-    // Override SetEmotion to prevent emoji display when vector face is active
+    // Override SetEmotion to prevent emoji display AND re-hide if needed
     virtual void SetEmotion(const char* emotion) override {
         // Don't show emoji - we use vector faces instead
-        // Just log it for debugging
-        ESP_LOGD("CustomLcdDisplay", "SetEmotion ignored (using vector face): %s", emotion ? emotion : "null");
+        // Also re-hide elements in case they got unhidden
+        if (emoji_box_ != nullptr) {
+            lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (emoji_label_ != nullptr) {
+            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (emoji_image_ != nullptr) {
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 };
 
@@ -163,51 +170,44 @@ private:
     Button boot_button_;
     Display* display_ = nullptr;
     esp_timer_handle_t touchpad_timer_ = nullptr;
-    esp_timer_handle_t face_animation_timer_ = nullptr;
     Cst816d* cst816d_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     PowerManager* power_manager_ = nullptr;
-    FaceManager* face_manager_ = nullptr;
-    int animation_frame_ = 0;
+    EmojiCarousel* emoji_carousel_ = nullptr;
 
-    // Swipe detection for face switching
+    // Swipe detection for emoji switching
     int touch_start_x_ = -1;
     int touch_start_y_ = -1;
     static constexpr int SWIPE_THRESHOLD = 50;
 
-    void InitializeFaceManager() {
-        face_manager_ = new FaceManager();
-        face_manager_->Initialize();
+    void InitializeEmojiCarousel() {
+        ESP_LOGI(TAG, "InitializeEmojiCarousel starting...");
 
-        // Create face on display's LVGL screen
-        // Note: emoji elements are already deleted in CustomLcdDisplay constructor
-        lv_obj_t* screen = lv_screen_active();
-        if (screen) {
+        if (!display_) {
+            ESP_LOGE(TAG, "Display not initialized, skipping EmojiCarousel");
+            return;
+        }
+
+        emoji_carousel_ = new EmojiCarousel();
+        if (!emoji_carousel_) {
+            ESP_LOGE(TAG, "Failed to create EmojiCarousel");
+            return;
+        }
+
+        // Create emoji on display's LVGL screen with proper locking
+        {
             DisplayLockGuard lock(display_);
-            face_manager_->CreateFace(screen);
-            ESP_LOGI(TAG, "FaceManager created with %d faces", face_manager_->GetFaceCount());
+            lv_obj_t* screen = lv_screen_active();
+            if (screen) {
+                emoji_carousel_->Create(screen);
+                ESP_LOGI(TAG, "EmojiCarousel created with %d emojis", emoji_carousel_->GetEmojiCount());
+            } else {
+                ESP_LOGE(TAG, "No active screen!");
+            }
         }
 
-        // Create animation timer (30 FPS)
-        esp_timer_create_args_t timer_args = {
-            .callback = face_animation_callback,
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "face_animation",
-            .skip_unhandled_events = true,
-        };
-        if (esp_timer_create(&timer_args, &face_animation_timer_) == ESP_OK) {
-            esp_timer_start_periodic(face_animation_timer_, 33 * 1000); // ~30 FPS
-        }
-    }
-
-    static void face_animation_callback(void* arg) {
-        auto* board = static_cast<Spotpear_ESP32_S3_1_28_BOX*>(arg);
-        if (board && board->face_manager_ && board->display_) {
-            DisplayLockGuard lock(board->display_);
-            board->face_manager_->Animate(board->animation_frame_++);
-        }
+        ESP_LOGI(TAG, "InitializeEmojiCarousel complete");
     }
 
     void InitializePowerSaveTimer() {
@@ -313,16 +313,17 @@ private:
             was_touched = false;
             int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
 
-            // Check for swipe gesture to change face
+            // Check for swipe gesture to change emoji
             int dx = touch_point.x - board->touch_start_x_;
-            if (board->face_manager_ && abs(dx) > SWIPE_THRESHOLD) {
-                // Swipe detected - switch face
+            if (board->emoji_carousel_ && abs(dx) > SWIPE_THRESHOLD) {
+                // Swipe detected - switch emoji
+                DisplayLockGuard lock(board->display_);
                 if (dx > 0) {
-                    board->face_manager_->PreviousFace();
+                    board->emoji_carousel_->PreviousEmoji();
                 } else {
-                    board->face_manager_->NextFace();
+                    board->emoji_carousel_->NextEmoji();
                 }
-                ESP_LOGI(TAG, "Swipe %s, switched face", dx > 0 ? "right" : "left");
+                ESP_LOGI(TAG, "Swipe %s, emoji: %d", dx > 0 ? "right" : "left", board->emoji_carousel_->GetCurrentIndex());
                 return;
             }
 
@@ -480,8 +481,8 @@ public:
             GetBacklight()->RestoreBrightness();
         }
 
-        // Initialize vector face manager (Bear, Rabbit, Cat, Heart faces)
-        InitializeFaceManager();
+        // Initialize emoji carousel (20 funny emojis with swipe)
+        InitializeEmojiCarousel();
 
         // 显示和背光可用后再初始化省电逻辑，避免空指针
         InitializePowerSaveTimer();
@@ -489,14 +490,9 @@ public:
     }
 
     ~Spotpear_ESP32_S3_1_28_BOX() {
-        if (face_animation_timer_) {
-            esp_timer_stop(face_animation_timer_);
-            esp_timer_delete(face_animation_timer_);
-            face_animation_timer_ = nullptr;
-        }
-        if (face_manager_) {
-            delete face_manager_;
-            face_manager_ = nullptr;
+        if (emoji_carousel_) {
+            delete emoji_carousel_;
+            emoji_carousel_ = nullptr;
         }
         if (touchpad_timer_) {
             esp_timer_stop(touchpad_timer_);

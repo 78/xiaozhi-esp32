@@ -58,14 +58,11 @@ void WifiBoard::StartNetwork() {
     config.language = Lang::CODE;
     wifi_manager.Initialize(config);
 
-    // LUNA.AI: Force WiFi credentials (clear any old settings)
+    // LUNA.AI: Force WiFi credentials
     auto& ssid_manager = SsidManager::GetInstance();
-    ssid_manager.Clear();  // Clear old settings
-    ESP_LOGI(TAG, "Setting LUNA.AI WiFi credentials");
-    // Primary: iPhoneX hotspot (reliable)
+    ssid_manager.Clear();
+    ESP_LOGI(TAG, "Setting LUNA.AI WiFi: iPhoneX");
     ssid_manager.AddSsid("iPhoneX", "$onora98");
-    // Fallback: WebSummitQatar (open network)
-    ssid_manager.AddSsid("#WebSummitQatar", "");
 
     // Set unified event callback - forward to NetworkEvent with SSID data
     wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event) {
