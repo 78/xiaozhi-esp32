@@ -138,49 +138,64 @@ void CustomWakeWord::Start() {
 
 void CustomWakeWord::Stop() {
     running_ = false;
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.clear();
 }
 
 void CustomWakeWord::Feed(const std::vector<int16_t>& data) {
-    if (multinet_model_data_ == nullptr || !running_) {
+    if (multinet_model_data_ == nullptr) {
         return;
     }
 
-    esp_mn_state_t mn_state;
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    // Check running state inside lock to avoid TOCTOU race with Stop()
+    if (!running_) {
+        return;
+    }
+
     // If input channels is 2, we need to fetch the left channel data
     if (codec_->input_channels() == 2) {
-        auto mono_data = std::vector<int16_t>(data.size() / 2);
-        for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
-            mono_data[i] = data[j];
+        for (size_t i = 0; i < data.size(); i += 2) {
+            input_buffer_.push_back(data[i]);
         }
-
-        StoreWakeWordData(mono_data);
-        mn_state = multinet_->detect(multinet_model_data_, const_cast<int16_t*>(mono_data.data()));
     } else {
-        StoreWakeWordData(data);
-        mn_state = multinet_->detect(multinet_model_data_, const_cast<int16_t*>(data.data()));
+        input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
     }
     
-    if (mn_state == ESP_MN_STATE_DETECTING) {
-        return;
-    } else if (mn_state == ESP_MN_STATE_DETECTED) {
-        esp_mn_results_t *mn_result = multinet_->get_results(multinet_model_data_);
-        for (int i = 0; i < mn_result->num && running_; i++) {
-            ESP_LOGI(TAG, "Custom wake word detected: command_id=%d, string=%s, prob=%f", 
-                    mn_result->command_id[i], mn_result->string, mn_result->prob[i]);
-            auto& command = commands_[mn_result->command_id[i] - 1];
-            if (command.action == "wake") {
-                last_detected_wake_word_ = command.text;
-                running_ = false;
-                
-                if (wake_word_detected_callback_) {
-                    wake_word_detected_callback_(last_detected_wake_word_);
+    int chunksize = multinet_->get_samp_chunksize(multinet_model_data_);
+    while (input_buffer_.size() >= chunksize) {
+        std::vector<int16_t> chunk(input_buffer_.begin(), input_buffer_.begin() + chunksize);
+        StoreWakeWordData(chunk);
+        
+        esp_mn_state_t mn_state = multinet_->detect(multinet_model_data_, chunk.data());
+        
+        if (mn_state == ESP_MN_STATE_DETECTED) {
+            esp_mn_results_t *mn_result = multinet_->get_results(multinet_model_data_);
+            for (int i = 0; i < mn_result->num && running_; i++) {
+                ESP_LOGI(TAG, "Custom wake word detected: command_id=%d, string=%s, prob=%f", 
+                        mn_result->command_id[i], mn_result->string, mn_result->prob[i]);
+                auto& command = commands_[mn_result->command_id[i] - 1];
+                if (command.action == "wake") {
+                    last_detected_wake_word_ = command.text;
+                    running_ = false;
+                    input_buffer_.clear();
+                    
+                    if (wake_word_detected_callback_) {
+                        wake_word_detected_callback_(last_detected_wake_word_);
+                    }
                 }
             }
+            multinet_->clean(multinet_model_data_);
+        } else if (mn_state == ESP_MN_STATE_TIMEOUT) {
+            ESP_LOGD(TAG, "Command word detection timeout, cleaning state");
+            multinet_->clean(multinet_model_data_);
         }
-        multinet_->clean(multinet_model_data_);
-    } else if (mn_state == ESP_MN_STATE_TIMEOUT) {
-        ESP_LOGD(TAG, "Command word detection timeout, cleaning state");
-        multinet_->clean(multinet_model_data_);
+        
+        if (!running_) {
+            break;
+        }
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunksize);
     }
 }
 

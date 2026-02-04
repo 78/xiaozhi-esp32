@@ -680,6 +680,16 @@ config SEND_WAKE_WORD_DATA
     help
         Send wake word data to the server as the first message of the conversation and wait for response
 
+config WAKE_WORD_DETECTION_IN_LISTENING
+    bool "Enable Wake Word Detection in Listening Mode"
+    default n
+    depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
+    help
+        Enable wake word detection while in listening mode.
+        When enabled, the device can detect wake word during listening,
+        which allows interrupting the current conversation.
+        When disabled (default), wake word detection is turned off during listening.
+
 config USE_AUDIO_PROCESSOR
     bool "Enable Audio Noise Reduction"
     default y
