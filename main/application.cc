@@ -64,7 +64,7 @@ void Application::Initialize() {
 
     // Setup the display
     auto display = board.GetDisplay();
-
+    display->SetupUI();
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
 
