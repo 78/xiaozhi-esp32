@@ -54,11 +54,19 @@ void EspWakeWord::Start() {
 
 void EspWakeWord::Stop() {
     running_ = false;
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
     input_buffer_.clear();
 }
 
 void EspWakeWord::Feed(const std::vector<int16_t>& data) {
-    if (wakenet_data_ == nullptr || !running_) {
+    if (wakenet_data_ == nullptr) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    // Check running state inside lock to avoid TOCTOU race with Stop()
+    if (!running_) {
         return;
     }
 
