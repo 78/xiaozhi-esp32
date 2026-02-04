@@ -1,0 +1,12 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32c6",
+    "builds": [
+        {
+            "name": "esp32-c6-touch-amoled-1.8",
+            "sdkconfig_append": [
+                "CONFIG_USE_ESP_WAKE_WORD=y"
+            ]
+        }
+    ]
+}
