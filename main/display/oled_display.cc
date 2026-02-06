@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "settings.h"
 #include "assets/lang_config.h"
 #include "lvgl_theme.h"
 #include "lvgl_font.h"
@@ -411,6 +412,25 @@ void OledDisplay::SetContrast(uint8_t contrast) {
 
 OledBacklight::OledBacklight(OledDisplay* display) : display_(display) {
     brightness_ = 50;
+}
+
+void OledBacklight::SetBrightness(uint8_t brightness, bool permanent) {
+    if (brightness > 100) {
+        brightness = 100;
+    }
+    if (brightness_ == brightness) {
+        return;
+    }
+
+    if (permanent) {
+        Settings settings("display", true);
+        settings.SetInt("brightness", brightness);
+    }
+
+    brightness_ = brightness;
+    target_brightness_ = brightness;
+    SetBrightnessImpl(brightness);
+    ESP_LOGI(TAG, "Set OLED brightness to %d", brightness);
 }
 
 void OledBacklight::SetBrightnessImpl(uint8_t brightness) {

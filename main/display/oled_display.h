@@ -43,7 +43,8 @@ public:
 class OledBacklight : public Backlight {
 public:
     OledBacklight(OledDisplay* display);
-    virtual void SetBrightnessImpl(uint8_t brightness) override;
+    void SetBrightness(uint8_t brightness, bool permanent = false) override;
+    void SetBrightnessImpl(uint8_t brightness) override;
 
 private:
     OledDisplay* display_;
