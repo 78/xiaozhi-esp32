@@ -28,6 +28,7 @@
 #include "sdkconfig.h"
 #include "puppy_movements.h"
 
+
 #ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
 #include "esp_hi_web_control.h"
 #endif // CONFIG_ESP_HI_WEB_CONTROL_ENABLED
@@ -223,20 +224,24 @@ private:
             
             // --- Startup Sequence ---
             // --- Startup Sequence ---
-            ESP_LOGI(TAG, "Puppy Startup Sequence (Stand for Calibration)");
-            // 1. Force Stand (0 degrees) - This is the "Vertical" position for screwing legs
-            instance->puppy_.Stand(); 
+            ESP_LOGI(TAG, "Puppy Startup Sequence (Gentle Stand & Cool Emoji)");
+            
+            // Show "Cool" emoji (sunglasses)
+            auto display = instance->GetDisplay();
+            if (display) {
+                display->SetEmotion("cool");
+            }
+            
+            // 1. Gentle Stand (0 degrees) - Slowly rise to vertical position
+            // Force it to ensure startup even if internal state is 0
+            instance->puppy_.GentleStand(true); 
             vTaskDelay(pdMS_TO_TICKS(500));
             
-            // 2. Engagement Wiggle (Optional but good for 360 servos to prove they are active/not stuck)
-            // Move slightly out and back to ensuring 0 point is sought.
-            instance->puppy_.MoveToAngle(5, 60);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            instance->puppy_.MoveToAngle(0, 60); // Back to exactly 0 (Vertical)
-            vTaskDelay(pdMS_TO_TICKS(500));
-
-            // 3. Wag to signal ready
-            instance->puppy_.WagTail(500, 30);
+            // 2. Engagement wiggle REMOVED for clarity.
+            // Robot simply stands at 0.
+            
+            // 3. Realistic Welcome Wag (Tail ONLY, Legs Still)
+            instance->puppy_.WelcomeWag();
             // ------------------------
 
             OttoCommand cmd;
@@ -257,14 +262,14 @@ private:
                     if (current_state == kDeviceStateIdle && 
                        (last_state == kDeviceStateListening || last_state == kDeviceStateSpeaking || last_state == kDeviceStateConnecting)) 
                     {
-                        ESP_LOGI(TAG, "Puppy: Interaction Ended -> Sit & Wag");
-                        // User Request: Sit immediately + Wag tail "like sticking to owner"
-                        instance->puppy_.Sit();
+                        ESP_LOGI(TAG, "Puppy: Interaction Ended -> Stand & Wag");
+                        // User Request: Stand upright after interaction ends
+                        instance->puppy_.Stand();
                         vTaskDelay(pdMS_TO_TICKS(500));
-                        instance->puppy_.WagTail(1000, 40); // Slower, friendly wag
-                        is_sitting = true;
+                        // instance->puppy_.WagTail(500, 30); // Removed unwanted wag
+                        is_sitting = false;
                         
-                        // Force update activity time so we don't trigger the "timeout sit" immediately
+                        // Update activity time
                         last_activity_time = esp_timer_get_time();
                     }
                     
@@ -345,17 +350,24 @@ private:
                     // Only check timeout if we are NOT already sitting
                     if (current_state == kDeviceStateIdle && !is_sitting) {
                         if (esp_timer_get_time() - last_activity_time > IDLE_TIMEOUT_US) {
-                            ESP_LOGI(TAG, "Puppy: Timeout Idling (Sit)");
-                            instance->puppy_.Sit();
-                            vTaskDelay(pdMS_TO_TICKS(500));
-                            instance->puppy_.WagTail(500, 30);
-                            is_sitting = true;
+                            // User Request: NEVER SIT AUTOMATICALLY. ALWAYS STAND.
+                            // ESP_LOGI(TAG, "Puppy: Timeout Idling (Sit)");
+                            // instance->puppy_.Sit();
+                            // vTaskDelay(pdMS_TO_TICKS(500));
+                            // instance->puppy_.WagTail(500, 30);
+                            // is_sitting = true;
+                            
+                            // Just reset timer to avoid spamming logs (or do nothing)
+                            // last_activity_time = esp_timer_get_time(); 
                         }
                     }
                 }
             } }, "PuppyTask", 4096, this, 5, NULL);
 
         puppy_started_ = true;
+
+        // Start Web Calibration Tool
+
     }
 
     void StartupAnimation()
@@ -388,10 +400,10 @@ private:
                                                      "- DO NOT say 'Done', 'Acting', 'Moving', etc.\n"
                                                      "- Movement: 'forward', 'backward', 'turn_left', 'turn_right', 'stop', 'sit'.\n"
                                                      "- Parameter 'steps' (1-20): Number of steps. REQUIRED.\n"
-                                                     "- Emotions/Actions:\n"
-                                                     "  - 'wag_tail', 'happy', 'shake', 'sad', 'angry', 'annoyed'\n"
-                                                     "  - 'shy', 'sleepy', 'shake_hands', 'comfort', 'excited', 'cry'\n"
-                                                     "  - 'shy', 'sleepy', 'shake_hands', 'comfort', 'excited', 'cry'\n"
+                                                     "- Emotions/Actions (User says 'I am happy/sad/shy'):\n"
+                                                     "  - 'happy' (Happy Dance + Wag), 'sad' (Crouch Low + Stop Tail)\n"
+                                                     "  - 'shy' (Hide Face + Tuck Tail), 'excess' (Excited), 'cry', 'angry'\n"
+                                                     "  - 'wag_tail', 'shake', 'annoyed', 'sleepy', 'shake_hands', 'comfort'\n"
                                                      "- Maintenance: 'calibrate'.\n"
                                                      "- Note: 'goodbye' or 'tạm biệt' will automatically make the dog sit.",
                            PropertyList({
@@ -652,79 +664,10 @@ private:
                     return true; });
 
         // ========================================================================
-        // BLUETOOTH KCX_BT_EMITTER MCP TOOLS
+        // NOTE: Bluetooth MCP tools are now registered centrally via BtEmitter
+        // component in mcp_server.cc when CONFIG_ENABLE_BLUETOOTH_MODULE is enabled.
+        // Board-specific GPIO pins are configured via Kconfig menuconfig.
         // ========================================================================
-        // Initialize Bluetooth GPIO pins
-        static bool bt_gpio_initialized = false;
-        if (!bt_gpio_initialized)
-        {
-            gpio_config_t bt_io_conf = {};
-            bt_io_conf.intr_type = GPIO_INTR_DISABLE;
-            bt_io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-            bt_io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-
-            // CONNECT pin (Output, default HIGH - active LOW pulse to trigger)
-            bt_io_conf.mode = GPIO_MODE_OUTPUT;
-            bt_io_conf.pin_bit_mask = (1ULL << BT_EMITTER_CONNECT_PIN);
-            gpio_config(&bt_io_conf);
-            gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
-
-            // LINK pin (Input with pull-up)
-            bt_io_conf.mode = GPIO_MODE_INPUT;
-            bt_io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-            bt_io_conf.pin_bit_mask = (1ULL << BT_EMITTER_LINK_PIN);
-            gpio_config(&bt_io_conf);
-
-            bt_gpio_initialized = true;
-            ESP_LOGI(TAG, "Bluetooth GPIO initialized: CONNECT=%d, LINK=%d",
-                     BT_EMITTER_CONNECT_PIN, BT_EMITTER_LINK_PIN);
-        }
-
-        // Bluetooth Connect - Short press (100ms) to activate pairing
-        mcp_server.AddTool("self.bluetooth.connect",
-                           "Kết nối Bluetooth với loa/thiết bị âm thanh. Kích hoạt chế độ ghép nối (pairing). "
-                           "Dùng khi người dùng yêu cầu: kết nối bluetooth, bật bluetooth, ghép nối loa.",
-                           PropertyList(),
-                           [](const PropertyList &properties) -> ReturnValue
-                           {
-                               ESP_LOGI(TAG, "Bluetooth: Activating pairing mode (short press)");
-                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 0);
-                               vTaskDelay(pdMS_TO_TICKS(100));
-                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
-                               return "Đã kích hoạt chế độ ghép nối Bluetooth";
-                           });
-
-        // Bluetooth Disconnect - Long press (3s) to disconnect and clear memory
-        mcp_server.AddTool("self.bluetooth.disconnect",
-                           "Ngắt kết nối Bluetooth và xóa bộ nhớ ghép nối. "
-                           "Dùng khi người dùng yêu cầu: ngắt bluetooth, tắt bluetooth, hủy ghép nối.",
-                           PropertyList(),
-                           [](const PropertyList &properties) -> ReturnValue
-                           {
-                               ESP_LOGI(TAG, "Bluetooth: Disconnecting (long press 3s)");
-                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 0);
-                               vTaskDelay(pdMS_TO_TICKS(3000));
-                               gpio_set_level(BT_EMITTER_CONNECT_PIN, 1);
-                               return "Đã ngắt kết nối Bluetooth và xóa bộ nhớ ghép nối";
-                           });
-
-        // Bluetooth Get Status - Read LINK pin
-        mcp_server.AddTool("self.bluetooth.get_status",
-                           "Kiểm tra trạng thái kết nối Bluetooth hiện tại. "
-                           "Dùng khi người dùng hỏi: bluetooth đã kết nối chưa, trạng thái bluetooth.",
-                           PropertyList(),
-                           [](const PropertyList &properties) -> ReturnValue
-                           {
-                               int link_status = gpio_get_level(BT_EMITTER_LINK_PIN);
-                               bool is_connected = (link_status == 1);
-                               ESP_LOGI(TAG, "Bluetooth status: %s (LINK pin=%d)",
-                                        is_connected ? "Connected" : "Disconnected", link_status);
-
-                               cJSON *json = cJSON_CreateObject();
-                               cJSON_AddBoolToObject(json, "connected", is_connected);
-                               cJSON_AddStringToObject(json, "status", is_connected ? "Đã kết nối" : "Chưa kết nối");
-                               return json;
-                           });
     }
 
 public:

@@ -30,11 +30,11 @@
 #include "music/esp32_sd_music.h"
 #include "era_iot_client.h"
 
-#define TAG "MCP"
+#ifdef CONFIG_ENABLE_BLUETOOTH_MODULE
+#include "bluetooth/bt_emitter.h"
+#endif
 
-// Bluetooth KCX_BT_EMITTER Configuration
-#define BLUETOOTH_CONNECT_PIN GPIO_NUM_18
-#define BLUETOOTH_LINK_PIN GPIO_NUM_19
+#define TAG "MCP"
 
 struct EraSmartDevice
 {
@@ -213,71 +213,220 @@ void McpServer::AddCommonTools()
     }
 
 
-#if !defined(CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3) && !defined(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
-    static bool bluetooth_gpio_initialized = false;
-    if (!bluetooth_gpio_initialized)
-    {
-        // Configure CONNECT pin as output (default HIGH)
-        gpio_config_t io_conf = {};
-        io_conf.intr_type = GPIO_INTR_DISABLE;
-        io_conf.mode = GPIO_MODE_OUTPUT;
-        io_conf.pin_bit_mask = (1ULL << BLUETOOTH_CONNECT_PIN);
-        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-        gpio_config(&io_conf);
-        gpio_set_level(BLUETOOTH_CONNECT_PIN, 1);
+#ifdef CONFIG_ENABLE_BLUETOOTH_MODULE
+    // ========================================================================
+    // BLUETOOTH KCX_BT_EMITTER MCP TOOLS
+    // ========================================================================
+    auto& bt = BtEmitter::GetInstance();
+    if (bt.Initialize()) {
+        ESP_LOGI(TAG, "Bluetooth MCP tools registered");
+        
+        // ----- Basic Control Tools -----
+        
+        AddTool("self.bluetooth.get_status",
+                "Get Bluetooth module status and connection state. "
+                "Returns: state (Idle/Scanning/Connecting/Connected/Disconnecting), connected (bool), device_name (if connected).",
+                PropertyList(),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    cJSON *json = cJSON_CreateObject();
+                    cJSON_AddStringToObject(json, "state", bt.GetStateString());
+                    cJSON_AddBoolToObject(json, "connected", bt.IsConnected());
+                    
+#ifdef CONFIG_BLUETOOTH_MODE_UART
+                    if (bt.IsConnected()) {
+                        auto device = bt.GetConnectedDevice();
+                        if (!device.name.empty()) {
+                            cJSON_AddStringToObject(json, "device_name", device.name.c_str());
+                        }
+                        if (!device.mac_address.empty()) {
+                            cJSON_AddStringToObject(json, "device_mac", device.mac_address.c_str());
+                        }
+                    }
+                    
+                    // Add volume if connected
+                    int vol = bt.GetVolume();
+                    if (vol >= 0) {
+                        cJSON_AddNumberToObject(json, "volume", vol);
+                    }
+#endif
+                    return json;
+                });
 
-        // Configure LINK pin as input
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pin_bit_mask = (1ULL << BLUETOOTH_LINK_PIN);
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-        gpio_config(&io_conf);
+        AddTool("self.bluetooth.pair",
+                "Enter Bluetooth pairing mode to search and connect to nearby audio devices. "
+                "Use when user says: 'kết nối bluetooth', 'bật bluetooth', 'pair bluetooth', 'connect speaker'.",
+                PropertyList(),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    bt.EnterPairingMode();
+                    return "{\"success\": true, \"message\": \"Bluetooth pairing mode activated. Searching for devices...\"}";
+                });
 
-        bluetooth_gpio_initialized = true;
-        ESP_LOGI(TAG, "Bluetooth GPIO initialized: CONNECT=%d, LINK=%d", BLUETOOTH_CONNECT_PIN, BLUETOOTH_LINK_PIN);
+        AddTool("self.bluetooth.disconnect",
+                "Disconnect from current Bluetooth device. "
+                "Args: clear_memory (bool, default true) - if true, also clears pairing memory to prevent auto-reconnect.",
+                PropertyList({
+                    Property("clear_memory", kPropertyTypeBoolean, true)
+                }),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    bool clear = properties["clear_memory"].value<bool>();
+                    bool success = false;
+                    
+                    if (clear) {
+                        bt.DisconnectAndClear();
+                        success = true; // DisconnectAndClear is void but handled internally
+                    } else {
+                        success = bt.Disconnect();
+                    }
+                    
+                    if (success) {
+                         return "{\"success\": true, \"message\": \"Bluetooth disconnected\"}";
+                    }
+                    return "{\"success\": false, \"message\": \"Failed to disconnect\"}";
+                });
+
+#ifdef CONFIG_BLUETOOTH_MODE_UART
+        // ----- Advanced UART Mode Tools -----
+        
+        AddTool("self.bluetooth.scan",
+                "Scan for nearby Bluetooth audio devices (speakers, headphones). "
+                "Returns list of found devices with names and MAC addresses. "
+                "Use when user wants to see available Bluetooth devices before connecting.",
+                PropertyList(),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    ESP_LOGI(TAG, "Starting Bluetooth scan...");
+                    
+                    if (!bt.StartScan(8000)) {
+                        auto devices = bt.GetScannedDevices();
+                        if (devices.empty()) {
+                            return "{\"success\": false, \"message\": \"No Bluetooth devices found nearby\", \"devices\": []}";
+                        }
+                    }
+                    
+                    auto devices = bt.GetScannedDevices();
+                    
+                    cJSON *json = cJSON_CreateObject();
+                    cJSON_AddBoolToObject(json, "success", true);
+                    cJSON_AddNumberToObject(json, "count", (int)devices.size());
+                    cJSON *arr = cJSON_AddArrayToObject(json, "devices");
+                    
+                    for (size_t i = 0; i < devices.size(); ++i) {
+                        cJSON *item = cJSON_CreateObject();
+                        cJSON_AddNumberToObject(item, "index", (int)i);
+                        cJSON_AddStringToObject(item, "name", devices[i].name.empty() ? "Unknown Device" : devices[i].name.c_str());
+                        cJSON_AddStringToObject(item, "mac", devices[i].mac_address.c_str());
+                        cJSON_AddItemToArray(arr, item);
+                    }
+                    
+                    return json;
+                });
+
+        AddTool("self.bluetooth.connect_device",
+                "Connect to a specific Bluetooth device by MAC address or device name. "
+                "IMPORTANT: Run 'self.bluetooth.scan' first to get available devices. "
+                "Args: mac_address (12 hex chars) OR name (device name from scan results). "
+                "Use when user chooses a specific device to connect.",
+                PropertyList({
+                    Property("mac_address", kPropertyTypeString),
+                    Property("name", kPropertyTypeString)
+                }),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    auto mac = properties["mac_address"].value<std::string>();
+                    auto name = properties["name"].value<std::string>();
+                    
+                    bool success = false;
+                    std::string target;
+                    
+                    if (!mac.empty()) {
+                        target = mac;
+                        success = bt.ConnectToDevice(mac);
+                    } else if (!name.empty()) {
+                        target = name;
+                        success = bt.ConnectToDeviceByName(name);
+                    } else {
+                        return "{\"success\": false, \"message\": \"Please provide mac_address or name\"}";
+                    }
+                    
+                    if (success) {
+                        cJSON *json = cJSON_CreateObject();
+                        cJSON_AddBoolToObject(json, "success", true);
+                        cJSON_AddStringToObject(json, "message", "Connected successfully");
+                        cJSON_AddStringToObject(json, "device", target.c_str());
+                        return json;
+                    }
+                    
+                    return "{\"success\": false, \"message\": \"Failed to connect to device\"}";
+                });
+
+
+
+        AddTool("self.bluetooth.favorites",
+                "Manage Bluetooth favorite devices (auto-connect list). "
+                "Actions: 'add' (needs mac/name), 'clear', 'list'.",
+                PropertyList({
+                    Property("action", kPropertyTypeString), // add, clear, list
+                    Property("mac_address", kPropertyTypeString, ""),
+                    Property("name", kPropertyTypeString, "")
+                }),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    auto action = properties["action"].value<std::string>();
+                    
+                    if (action == "list") {
+                        auto list = bt.GetAutoConnectList();
+                        cJSON *json = cJSON_CreateObject();
+                        cJSON_AddBoolToObject(json, "success", true);
+                        cJSON_AddNumberToObject(json, "count", (int)list.size());
+                        cJSON *arr = cJSON_AddArrayToObject(json, "devices");
+                        for (const auto& mac : list) cJSON_AddItemToArray(arr, cJSON_CreateString(mac.c_str()));
+                        return json;
+                    } 
+                    else if (action == "clear") {
+                        if (bt.ClearAutoConnectList()) return "{\"success\": true, \"message\": \"Favorites cleared\"}";
+                        return "{\"success\": false, \"message\": \"Failed to clear\"}";
+                    }
+                    else if (action == "add") {
+                        auto mac = properties["mac_address"].value<std::string>();
+                        auto name = properties["name"].value<std::string>();
+                        bool success = false;
+                        if (!mac.empty()) success = bt.AddToAutoConnect(mac);
+                        else if (!name.empty()) success = bt.AddToAutoConnectByName(name);
+                        else return "{\"success\": false, \"message\": \"MAC or name required for add action\"}";
+                        
+                        return success ? "{\"success\": true, \"message\": \"Added to favorites\"}" : "{\"success\": false, \"message\": \"Failed to add\"}";
+                    }
+                    return "{\"success\": false, \"message\": \"Invalid action. Use add, clear, or list.\"}";
+                });
+
+        AddTool("self.bluetooth.set_volume",
+                "Set Bluetooth audio volume. Range: 0-31.",
+                PropertyList({
+                    Property("level", kPropertyTypeInteger, 15, 0, 31)
+                }),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    int level = properties["level"].value<int>();
+                    
+                    if (bt.SetVolume(level)) {
+                        cJSON *json = cJSON_CreateObject();
+                        cJSON_AddBoolToObject(json, "success", true);
+                        cJSON_AddNumberToObject(json, "volume", level);
+                        return json;
+                    }
+                    return "{\"success\": false, \"message\": \"Failed to set volume\"}";
+                });
+
+        AddTool("self.bluetooth.reset",
+                "Reset the Bluetooth module. Use when module is not responding properly.",
+                PropertyList(),
+                [&bt](const PropertyList &properties) -> ReturnValue {
+                    if (bt.ResetModule()) {
+                        return "{\"success\": true, \"message\": \"Bluetooth module reset successfully\"}";
+                    }
+                    return "{\"success\": false, \"message\": \"Failed to reset module\"}";
+                });
+
+#endif // CONFIG_BLUETOOTH_MODE_UART
     }
-#endif
+#endif // CONFIG_ENABLE_BLUETOOTH_MODULE
 
-#if !defined(CONFIG_BOARD_TYPE_IOTFORCE_ESP_PUPPY_S3) && !defined(CONFIG_BOARD_TYPE_IOTFORCE_XIAOZHI_IOT_VIETNAM_ES3N28P_LCD_2_8)
-    AddTool("self.bluetooth.connect",
-            "Activate Bluetooth pairing mode or connect to a nearby Bluetooth device. Use this when user asks to connect, pair, or turn on Bluetooth.",
-            PropertyList(),
-            [](const PropertyList &properties) -> ReturnValue
-            {
-                ESP_LOGI(TAG, "Bluetooth: Activating pairing mode (short press)");
-                gpio_set_level(BLUETOOTH_CONNECT_PIN, 0);
-                vTaskDelay(pdMS_TO_TICKS(100));
-                gpio_set_level(BLUETOOTH_CONNECT_PIN, 1);
-                return "Bluetooth pairing mode activated";
-            });
-
-    AddTool("self.bluetooth.disconnect",
-            "Disconnect Bluetooth and clear pairing memory. Use this when user asks to disconnect, unpair, or turn off Bluetooth.",
-            PropertyList(),
-            [](const PropertyList &properties) -> ReturnValue
-            {
-                ESP_LOGI(TAG, "Bluetooth: Disconnecting (long press)");
-                gpio_set_level(BLUETOOTH_CONNECT_PIN, 0);
-                vTaskDelay(pdMS_TO_TICKS(3000));
-                gpio_set_level(BLUETOOTH_CONNECT_PIN, 1);
-                return "Bluetooth disconnected and memory cleared";
-            });
-
-    AddTool("self.bluetooth.get_status",
-            "Check if Bluetooth is currently connected to a device. Returns connection status.",
-            PropertyList(),
-            [](const PropertyList &properties) -> ReturnValue
-            {
-                int link_status = gpio_get_level(BLUETOOTH_LINK_PIN);
-                bool is_connected = (link_status == 1);
-                ESP_LOGI(TAG, "Bluetooth status: %s (LINK pin=%d)", is_connected ? "Connected" : "Disconnected", link_status);
-
-                cJSON *json = cJSON_CreateObject();
-                cJSON_AddBoolToObject(json, "connected", is_connected);
-                cJSON_AddStringToObject(json, "status", is_connected ? "Connected" : "Disconnected");
-                return json;
-            });
-#endif
 
     // ========================================================================
     // RADIO TOOLS (VOV)
@@ -409,6 +558,7 @@ void McpServer::AddCommonTools()
         AddTool("self.sdmusic.playback",
                 "Control music playback from SD CARD (Offline/Local Storage) ONLY.\n"
                 "Use this tool ONLY when user explicitly asks to play from SD card, local storage, or files on device.\n"
+                "DO NOT use for general music requests (e.g. 'Play music').\n"
                 "action = play | pause | stop | next | prev\n",StartLine:409,TargetContent:
                 PropertyList({
                     Property("action", kPropertyTypeString),
@@ -561,7 +711,7 @@ void McpServer::AddCommonTools()
         AddTool("self.sdmusic.search",
                 "Search and play tracks from SD CARD (Local Storage) ONLY.\n"
                 "Use this tool ONLY if the user explicitly asks to search/play from 'SD card', 'memory card', 'offline' or 'local storage'.\n"
-                "For generic music requests (e.g. 'play song X'), DO NOT use this tool, use internet music tools instead.\n",StartLine:560,TargetContent:
+                "For generic music requests (e.g. 'play song X'), DO NOT use this tool, use 'self.music.play_song_with_id' instead.\n",StartLine:560,TargetContent:
                 PropertyList({Property("action", kPropertyTypeString), Property("keyword", kPropertyTypeString)}),
                 [sd_music](const PropertyList &props) -> ReturnValue
                 {
@@ -704,18 +854,15 @@ void McpServer::AddCommonTools()
     {
         AddTool(
             "self.music.play_song_with_id",
-            "Play a song by song_id. \n"
-            "CRITICAL INSTRUCTION: If user asks to play a song (e.g. 'Play Son Tung'), you must:\n"
-            "1. Search for the song using any available search tool.\n"
-            "2. IMMEDIATELY pick the first/best result (Default to Original version). DO NOT ASK USER TO CHOOSE.\n"
-            "3. Call this tool with the found song_id.\n"
-            "4. DO NOT confirm with user (e.g. 'I found this, should I play?'). JUST PLAY IT.\n"
+            "Play a song from the Internet (Online Music). \n"
+            "CRITICAL: Use this tool for ALL general music requests (e.g. 'Play [song name]').\n"
+            "This tool streams music from the internet and does NOT use the SD card.\n"
             "Parameters:\n"
-            "  `song_id`: Song ID from search results (required).\n"
+            "  `song_id`: The name of the song to play (e.g., 'Em Cua Ngay Hom Qua').\n"
             "Returns:\n"
-            "  Playback status. Plays immediately.",
+            "  Playback status.",
             PropertyList({
-                Property("song_id", kPropertyTypeString) // Song ID (required)
+                Property("song_id", kPropertyTypeString) // Song ID/Name (required)
             }),
             [music](const PropertyList &properties) -> ReturnValue
             {
@@ -723,8 +870,23 @@ void McpServer::AddCommonTools()
 
                 if (!music->Download(song_id))
                 {
-                    return "{\"success\": false, \"message\": \"Failed to fetch music "
-                           "resource\"}";
+                    // Fix: Return specific error message from the music server/class
+                    std::string error_msg = music->GetDownloadResult();
+                    if (error_msg.empty()) {
+                        error_msg = "Failed to fetch music resource. Possible network error or song not found.";
+                    }
+                    // Sanitize JSON in error message if needed, or just send simpler error
+                    ESP_LOGE(TAG, "Music download failed: %s", error_msg.c_str());
+                    
+                    std::string response = "{\"success\": false, \"message\": \"";
+                    // Simple escape for quotes to prevent JSON breakage
+                    for (char c : error_msg) {
+                        if (c == '"') response += "\\\"";
+                        else if (c == '\n') response += " ";
+                        else response += c;
+                    }
+                    response += "\"}";
+                    return response;
                 }
                 auto download_result = music->GetDownloadResult();
                 ESP_LOGI(TAG, "Music details result: %s", download_result.c_str());

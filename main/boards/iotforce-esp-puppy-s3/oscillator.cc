@@ -192,30 +192,32 @@ void Oscillator::Write(float position)
 
     uint32_t pulse_width_us = 0;
 
-#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // -- Continuous Rotation: Velocity Feedforward Control --
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT)
+    // ========================================
+    // == 360 CONTINUOUS ROTATION (Velocity) ==
+    // ========================================
+    // PWM controls SPEED, not position. Position is simulated.
     
     long now = millis();
     float dt = (now - previous_servo_command_millis_) / 1000.0f;
     
-    // Safety
+    // Safety clamps
     if (dt > 0.5f) dt = 0.03f; 
     if (dt < 0.001f) dt = 0.001f; 
 
     // Velocity = Change in Position / Time
-    // FLOAT PRECISION: Now we can see 0.5 deg change!
     float velocity_deg_s = (position - last_pos_) / dt;
     
-    // SAFETY CLAMP
-    if (velocity_deg_s > 250.0f) velocity_deg_s = 250.0f;
-    if (velocity_deg_s < -250.0f) velocity_deg_s = -250.0f;
+    // Safety clamp velocity (reduced for smoother movement)
+    if (velocity_deg_s > 120.0f) velocity_deg_s = 120.0f;
+    if (velocity_deg_s < -120.0f) velocity_deg_s = -120.0f;
     
     // Deadband Compensation
     const int DEADBAND_US = 50; 
     const int MAX_PWM_OFFSET = 500; 
     
-    // Default Gain
-    float k_gain = 20.0f;
+    // Gain from config (reduced for smoother movement)
+    float k_gain = 12.0f;
 #ifdef CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN
     k_gain = CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN;
 #endif
@@ -224,19 +226,12 @@ void Oscillator::Write(float position)
     
     int pwm_offset = 0;
     
-    // Use a small epsilon for float comparison instead of > 0
     if (std::abs(position - last_pos_) > 0.001f) {
-        // Calculate raw offset
         int raw_offset = (int)(std::abs(velocity_deg_s) * Kf);
         
-        // Clamp
         if (raw_offset > (MAX_PWM_OFFSET - DEADBAND_US)) {
             raw_offset = MAX_PWM_OFFSET - DEADBAND_US;
         }
-        
-        // Apply deadband if significant movement requested
-        // If velocity is extremely low (e.g. < 5 deg/s), maybe don't move? 
-        // No, we want to creep. Let deadband handle it.
         
         int total_offset = DEADBAND_US + raw_offset;
         pwm_offset = (velocity_deg_s > 0) ? total_offset : -total_offset;
@@ -248,13 +243,63 @@ void Oscillator::Write(float position)
     // Update state
     last_pos_ = position;
     previous_servo_command_millis_ = now;
+
+#elif defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
+    // ========================================
+    // == 360 POSITIONAL - SAME AS CONTINUOUS ==
+    // ========================================
+    // Note: MG90S 360 is actually continuous rotation!
+    // Use velocity feedforward control like 360_CONT.
     
-    pos_ = position;
+    long now = millis();
+    float dt = (now - previous_servo_command_millis_) / 1000.0f;
+    
+    if (dt > 0.5f) dt = 0.03f; 
+    if (dt < 0.001f) dt = 0.001f; 
+
+    float velocity_deg_s = (position - last_pos_) / dt;
+    
+    // Safety clamp velocity (reduced for smoother movement)
+    if (velocity_deg_s > 120.0f) velocity_deg_s = 120.0f;
+    if (velocity_deg_s < -120.0f) velocity_deg_s = -120.0f;
+    
+    const int DEADBAND_US = 50; 
+    const int MAX_PWM_OFFSET = 500; 
+    
+    // Gain (reduced for smoother movement)
+    float k_gain = 12.0f;
+#ifdef CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN
+    k_gain = CONFIG_PUPPY_SERVO_CONTINUOUS_GAIN;
+#endif
+
+    const float Kf = k_gain / 14.0f;
+    
+    int pwm_offset = 0;
+    
+    if (std::abs(position - last_pos_) > 0.001f) {
+        int raw_offset = (int)(std::abs(velocity_deg_s) * Kf);
+        
+        if (raw_offset > (MAX_PWM_OFFSET - DEADBAND_US)) {
+            raw_offset = MAX_PWM_OFFSET - DEADBAND_US;
+        }
+        
+        int total_offset = DEADBAND_US + raw_offset;
+        pwm_offset = (velocity_deg_s > 0) ? total_offset : -total_offset;
+    }
+    
+    pulse_width_us = 1500 + trim_ + pwm_offset;
+    
+    last_pos_ = position;
+    previous_servo_command_millis_ = now;
 
 #else
-    // -- Standard Positional Logic --
+    // ========================================
+    // == 180 DEGREE STANDARD (Direct Angle) ==
+    // ========================================
+    // Standard positional servo: PWM directly maps to angle
+    // 500us = -90 degrees, 1500us = 0 degrees, 2500us = +90 degrees
+    
     last_pos_ = position; 
-    // Convert float position to int angle for standard logic if needed, or update AngleToCompare
     pulse_width_us = AngleToCompare((int)target_pos); 
 #endif
 
@@ -306,4 +351,14 @@ void Oscillator::SetSpeed(float speed)
     uint32_t duty = (pwm_target * 8192) / 20000;
     ledc_set_duty(ledc_speed_mode_, ledc_channel_, duty);
     ledc_update_duty(ledc_speed_mode_, ledc_channel_);
+}
+
+void Oscillator::SyncPosition(float position)
+{
+    // Sync all internal trackers to a known position
+    // WITHOUT generating any PWM output.
+    // Use this when you know the physical position (e.g., after calibration)
+    pos_ = position;
+    last_pos_ = position;
+    last_written_pos_ = position;
 }

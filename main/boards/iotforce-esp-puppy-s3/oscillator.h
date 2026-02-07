@@ -51,6 +51,7 @@ public:
     void ResetPosition() { pos_ = 0.0f; last_pos_ = 0.0f; last_written_pos_ = 0.0f; };
     void Refresh();
     void Neutral(); // Force output to neutral (1500us / Stop)
+    void SyncPosition(float position); // Sync internal state without PWM output
     float GetPosition() { return pos_; }
 
 private:

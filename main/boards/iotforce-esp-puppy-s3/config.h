@@ -46,8 +46,9 @@
 // Servo (Tail) - Moved to accommodate Audio   
 #define TAIL_GPIO_NUM GPIO_NUM_12               
 
-// Bluetooth KCX_BT_EMITTER Module Configuration
-#define BT_EMITTER_CONNECT_PIN GPIO_NUM_3   // Connect/Pair control (Output, active LOW pulse)
-#define BT_EMITTER_LINK_PIN    GPIO_NUM_46  // Link status (Input, HIGH = connected)
+// NOTE: Bluetooth KCX_BT_EMITTER pins are now configured via Kconfig menuconfig:
+//   - CONFIG_BLUETOOTH_CONNECT_PIN (default: GPIO 3)
+//   - CONFIG_BLUETOOTH_LINK_PIN (default: GPIO 46)
+// Enable bluetooth module: CONFIG_ENABLE_BLUETOOTH_MODULE=y
 
 #endif // _BOARD_CONFIG_H_

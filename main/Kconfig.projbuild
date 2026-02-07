@@ -930,4 +930,100 @@ menu "GPIO Control"
     endchoice
 endmenu
 
+menu "Bluetooth KCX_BT_EMITTER Module"
+    config ENABLE_BLUETOOTH_MODULE
+        bool "Enable KCX_BT_EMITTER Bluetooth Module"
+        default n
+        help
+            Enable support for KCX_BT_EMITTER Bluetooth 5.3 audio transmitter module.
+            This module can transmit audio to Bluetooth speakers/headphones.
+            Provides MCP tools for scan, connect, disconnect and device management.
+
+    choice BLUETOOTH_CONTROL_MODE
+        prompt "Control Mode"
+        default BLUETOOTH_MODE_UART
+        depends on ENABLE_BLUETOOTH_MODULE
+        help
+            Select the control mode for Bluetooth module.
+        
+        config BLUETOOTH_MODE_GPIO
+            bool "GPIO Only (Basic)"
+            help
+                Use GPIO pins only to control connect/disconnect.
+                Simple but cannot select specific devices.
+        
+        config BLUETOOTH_MODE_UART
+            bool "UART AT Commands (Advanced)"
+            help
+                Use UART AT commands for advanced control.
+                Can scan devices, connect by MAC address, store connection list.
+                Recommended for full control over pairing behavior.
+    endchoice
+
+    menu "GPIO Configuration"
+        depends on ENABLE_BLUETOOTH_MODULE
+        
+        config BLUETOOTH_CONNECT_PIN
+            int "CONNECT Pin GPIO"
+            default 3
+            range 0 48
+            help
+                GPIO pin connected to module CONNECT/PAIR pin.
+                Output pin, active LOW pulse to trigger pairing.
+                Short pulse (100ms) = pair, Long pulse (3s) = disconnect & clear.
+        
+        config BLUETOOTH_LINK_PIN
+            int "LINK Pin GPIO"
+            default 46
+            range 0 48
+            help
+                GPIO pin connected to module LINK status pin.
+                Input pin, HIGH when connected to a Bluetooth device.
+    endmenu
+
+    menu "UART Configuration"
+        depends on ENABLE_BLUETOOTH_MODULE && BLUETOOTH_MODE_UART
+        
+        config BLUETOOTH_UART_TX_PIN
+            int "UART TX Pin GPIO (ESP32 TX -> Module RX)"
+            default 10
+            range 0 48
+            help
+                GPIO pin for UART TX (connects to module RX pin).
+        
+        config BLUETOOTH_UART_RX_PIN
+            int "UART RX Pin GPIO (ESP32 RX <- Module TX)"
+            default 9
+            range 0 48
+            help
+                GPIO pin for UART RX (connects to module TX pin).
+        
+        config BLUETOOTH_UART_BAUD
+            int "UART Baudrate"
+            default 115200
+            range 9600 115200
+            help
+                UART baudrate for AT command communication.
+                KCX_BT_EMITTER V1.7 requires 115200 baud.
+    endmenu
+
+    config BLUETOOTH_AUTO_CONNECT_ENABLED
+        bool "Enable Auto-Connect on Startup"
+        default y
+        depends on ENABLE_BLUETOOTH_MODULE && BLUETOOTH_MODE_UART
+        help
+            Automatically try to connect to last known device on startup.
+            If disabled, module will wait for user command to connect.
+
+    config BLUETOOTH_AUTO_CONNECT_COUNT
+        int "Max Auto-Connect Devices"
+        default 3
+        range 1 10
+        depends on ENABLE_BLUETOOTH_MODULE && BLUETOOTH_MODE_UART
+        help
+            Maximum number of devices to store for auto-connection.
+            Module supports up to 10 devices.
+
+endmenu
+
 endmenu

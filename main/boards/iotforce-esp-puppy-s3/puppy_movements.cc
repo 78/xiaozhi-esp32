@@ -1,5 +1,6 @@
 #include "puppy_movements.h"
 #include <algorithm>
+#include <cmath>
 #include "freertos/idf_additions.h"
 #include "sdkconfig.h"
 
@@ -81,6 +82,10 @@ void Puppy::SetTrims(int fl_leg, int fr_leg, int bl_leg, int br_leg, int tail)
         if (servo_pins_[i] != -1)
         {
             servo_[i].SetTrim(servo_trim_[i]);
+            // Force update PWM signal immediately for feedback
+            if (!is_puppy_resting_) {
+                 servo_[i].Neutral();
+            }
         }
     }
 }
@@ -148,11 +153,9 @@ void Puppy::MoveServos(int time, int servo_target[])
     }
 
 
-    // For Continuous servos, MoveServos (Positional) logic is adapted via Oscillator::Write
-    // which converts position delta to velocity if configured.
-    // CRITICAL: We must STOP the motors after the move is complete, otherwise they keep spinning
-    // at the last calculated velocity.
-#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
+    // For Continuous servos ONLY: Stop motors after move completes
+    // 360_POS and 180 are positional - they hold angle automatically
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT)
     for (int i = 0; i < SERVO_COUNT; i++)
     {
         if (servo_pins_[i] != -1)
@@ -161,7 +164,20 @@ void Puppy::MoveServos(int time, int servo_target[])
         }
     }
 #endif
+
+   
+    // Update estimated angle for ALL servo types (180 and 360)
+    // This allows GentleStand to know the current pose.
+    for (int i = 0; i < SERVO_COUNT; i++)
+    {
+        if (servo_pins_[i] != -1)
+        {
+            estimated_angle_[i] = (float)servo_target[i];
+        }
+    }
+    ESP_LOGD(TAG, "MoveServos: Synced estimated_angle_ to targets");
 }
+
 
 void Puppy::MoveServosVelocity(int time, float servo_velocity[])
 {
@@ -198,6 +214,10 @@ void Puppy::MoveServosVelocity(int time, float servo_velocity[])
     }
 }
 
+// -- SAFE ANGLE LIMITS (-90 to +90 corresponds to 0-180 degree range) --
+#define SERVO_SAFE_MIN -90
+#define SERVO_SAFE_MAX 90
+
 // 360 Servo: Move Relative Time-Based
 void Puppy::MoveRelative(int relative_angle, int speed_deg_per_sec)
 {
@@ -210,16 +230,46 @@ void Puppy::MoveRelative(int relative_angle, int speed_deg_per_sec)
     }
     if(valid_servos == 0) return;
 
-    // Calculate Duration
-    float duration_ms = (abs(relative_angle) / (float)speed_deg_per_sec) * 1000.0f;
+    // --- CLAMPING LOGIC START ---
+    // We must ensure the movement doesn't push ANY leg out of bounds.
+    // Since this moves ALL legs by the same amount, we check the leg that is closest to the limit.
     
-    // Calculate Velocity Direction
-    // Left Side: +Delta = Forward (CCW?) -> Positive PWM
-    // Right Side: +Delta = Forward (CW?) -> Negative PWM (Mirrored)
+    // Find effective relative angle that keeps ALL legs within bounds
+    // But realistically, estimated_angle_ should be similar for all legs in this gait unless drifted.
+    // Let's protect each leg individually if possible, but MoveServosVelocity takes ONE duration.
+    // So we clamp the relative_angle based on the "worst case" leg.
+    
+    int clamped_relative = relative_angle;
+    
+    for(int i=0; i<SERVO_COUNT; i++) {
+        if(servo_pins_[i] == -1 || i == TAIL) continue;
+        
+        float current = estimated_angle_[i];
+        float potential_target = current + relative_angle;
+        
+        if (potential_target > SERVO_SAFE_MAX) {
+            int max_allowable = (int)(SERVO_SAFE_MAX - current);
+            if (max_allowable < clamped_relative) clamped_relative = max_allowable;
+        }
+        if (potential_target < SERVO_SAFE_MIN) {
+            int max_allowable = (int)(SERVO_SAFE_MIN - current);
+            if (max_allowable > clamped_relative) clamped_relative = max_allowable;
+        }
+    }
+    
+    if (abs(clamped_relative) < 1) {
+        ESP_LOGW(TAG, "MoveRelative: Movement blocked by limits (Req=%d)", relative_angle);
+        return; 
+    }
+    
+    // --- CLAMPING LOGIC END ---
+
+    // Calculate Duration using CLAMPED angle
+    float duration_ms = (abs(clamped_relative) / (float)speed_deg_per_sec) * 1000.0f;
     
     float velocities[SERVO_COUNT] = {0};
     
-    float direction = (relative_angle > 0) ? 1.0f : -1.0f;
+    float direction = (clamped_relative > 0) ? 1.0f : -1.0f;
     float pwm_speed = ((float)speed_deg_per_sec / 360.0f) * direction;
     
     // Calculate velocities for each servo
@@ -236,11 +286,15 @@ void Puppy::MoveRelative(int relative_angle, int speed_deg_per_sec)
         }
         velocities[i] = v;
         
-        // Optimistic Update
-        estimated_angle_[i] += relative_angle;
+        // Update estimated angle with CLAMPED value
+        estimated_angle_[i] += clamped_relative;
+        
+        // Double check clamping (floating point drift protection)
+        if (estimated_angle_[i] > SERVO_SAFE_MAX) estimated_angle_[i] = SERVO_SAFE_MAX;
+        if (estimated_angle_[i] < SERVO_SAFE_MIN) estimated_angle_[i] = SERVO_SAFE_MIN;
     }
     
-    ESP_LOGI(TAG, "MoveRelative: Angle=%d Duration=%.0f", relative_angle, duration_ms);
+    ESP_LOGI(TAG, "MoveRelative: Req=%d Eff=%d dur=%.0f", relative_angle, clamped_relative, duration_ms);
     // Execute
     MoveServosVelocity((int)duration_ms, velocities);
 #endif
@@ -269,51 +323,55 @@ void Puppy::MoveRelative(int relative_angle, int speed_deg_per_sec)
 void Puppy::MoveToAngle(int target_angle, int speed_deg_per_sec)
 {
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // For 360 servos, MoveToAngle relies on "estimated_angle_" which drifts.
-    // However, it's useful if we assume we just completed a move.
+    // For 360 servos: Move ALL legs to the same target angle
     
-    // Calculate max delta needed
-    float max_delta = 0;
-    
-    // We can't easily move all legs to different angles with MoveRelative 
-    // unless we implement per-servo relative logic. 
-    // For simplicity, let's treat MoveToAngle as "Move All Legs to this Angle assuming they are roughly synced"
-    // OR, better yet, calculate per-leg delta.
-    
+    // --- CLAMPING LOGIC ---
+    if (target_angle > SERVO_SAFE_MAX) target_angle = SERVO_SAFE_MAX;
+    if (target_angle < SERVO_SAFE_MIN) target_angle = SERVO_SAFE_MIN;
+    // ----------------------
+
     float velocities[SERVO_COUNT] = {0};
     float max_duration = 0;
     
-    if (speed_deg_per_sec <= 0) speed_deg_per_sec = 60;
+    if (speed_deg_per_sec <= 0) speed_deg_per_sec = 30;
 
-    for(int i=0; i<SERVO_COUNT; i++) {
+    for(int i = 0; i < SERVO_COUNT; i++) {
         if(servo_pins_[i] == -1 || i == TAIL) continue;
 
         float current = estimated_angle_[i];
+        
+        // Self-correction: If current estimate is out of bounds, snap it?
+        // Better: calculate delta from current estimate.
+        
         float delta = target_angle - current;
         
-        float duration_ms = (abs(delta) / (float)speed_deg_per_sec) * 1000.0f;
+        // Skip if already at target
+        if(std::abs(delta) < 1.0f) continue;
+        
+        float duration_ms = (std::abs(delta) / (float)speed_deg_per_sec) * 1000.0f;
         if(duration_ms > max_duration) max_duration = duration_ms;
         
+        // Direction
         float direction = (delta > 0) ? 1.0f : -1.0f;
         float pwm = ((float)speed_deg_per_sec / 360.0f) * direction;
         
         // Apply Speed Scale
         pwm *= servo_speed_scale_[i];
         
-        if (i == FR_LEG || i == BR_LEG) pwm = -pwm;
-        
         velocities[i] = pwm;
         estimated_angle_[i] = target_angle;
     }
     
     if (max_duration > 0) {
-        ESP_LOGI(TAG, "MoveToAngle: Target=%d Duration=%.0f", target_angle, max_duration);
+        ESP_LOGI(TAG, "MoveToAngle: Target=%d Duration=%.0fms", target_angle, max_duration);
         MoveServosVelocity((int)max_duration, velocities);
+    } else {
+        ESP_LOGI(TAG, "MoveToAngle: Already at target %d", target_angle);
     }
 #else
     // Fallback for Positional Servos
     int targets[SERVO_COUNT];
-    for(int i=0; i<SERVO_COUNT; i++) targets[i] = target_angle; // This is crude, positional mode usually passes array
+    for(int i=0; i<SERVO_COUNT; i++) targets[i] = target_angle;
     MoveServos(1000, targets);
 #endif
 }
@@ -409,17 +467,14 @@ void Puppy::Home()
         return;
 
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // -- 360 Mode Home --
-    // Move to Stand (0 degrees) to reset any accumulated drift from special actions.
-    ESP_LOGI(TAG, "Home() Triggered. Resetting to Stand (0).");
+    // 360 servos: Use velocity-based movement
+    ESP_LOGI(TAG, "Home() [360] All legs to 0.");
     MoveToAngle(0, 60);
-    // float velocity[SERVO_COUNT] = {0, 0, 0, 0, 0};
-    // MoveServosVelocity(100, velocity);
 #else
-
-
-    int homes[SERVO_COUNT] = {0, 0, 0, 0, 0}; // All servos to 0 degrees (center)
-    MoveServos(1000, homes); // Slow home move (1s)
+    // 180: Direct positional control
+    ESP_LOGI(TAG, "Home() [180] All servos to 0.");
+    int homes[SERVO_COUNT] = {0, 0, 0, 0, 0};
+    MoveServos(1000, homes);
 #endif
     SetRestState(true);
 }
@@ -467,6 +522,9 @@ void Puppy::DisableServoLimit()
 
 void Puppy::Walk(float steps, int period, int dir)
 {
+    // Enforce Standing Pose before starting gait
+    GentleStand();
+
     // Both 180 and 360 servos use OscillateServos
     // For 360: Oscillator::Write converts position delta to velocity automatically
     
@@ -511,6 +569,9 @@ void Puppy::Walk(float steps, int period, int dir)
 
 void Puppy::Turn(float steps, int period, int dir)
 {
+    // Enforce Standing Pose before starting turn
+    GentleStand();
+
     // Both 180 and 360 servos use OscillateServos
     // Turn by moving legs on opposite sides in opposite directions
     
@@ -545,14 +606,22 @@ void Puppy::Sit()
     }
 
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // Action: SIT DOWN
-    // User requested "Forward 90 to Stand". So "Backward 90 to Sit".
-    // We used 60 before. Let's use -60 (Backward).
-    ESP_LOGI(TAG, "Sit() Triggered. Target -60.");
-    MoveToAngle(-60, 45); 
-
+    // 360 servos: Continuous rotation servos cannot "hold" a position like -60 degrees.
+    // If we try to MoveToAngle(-60), they will just spin. 
+    // The best way to "Sit" (or lower chassis) is to Relax/Detach the servos and let gravity work.
+    // Or we could move to 0 (Stand/Home) if we want a known state.
+    // Given the user report of "Spinning", we must STOP driving them.
+    ESP_LOGI(TAG, "Sit() [360] Continuous Servos cannot hold pose. Relaxing motors.");
+    
+    // Option A: Detach (Limp) - True Sit
+    DetachServos();
+    
+    // Option B: Stop (Neutral) - Hold current position (if friction allows)
+    // for(int i=0; i<SERVO_COUNT; i++) servo_[i].Neutral();
 #else
-    int sit_pos[SERVO_COUNT] = {0, 0, 90, 90, 0}; 
+    // 180: Direct positional control
+    ESP_LOGI(TAG, "Sit() [180] All legs to -60.");
+    int sit_pos[SERVO_COUNT] = {-60, -60, -60, -60, 0}; 
     MoveServos(1000, sit_pos);
 #endif
 }
@@ -561,11 +630,68 @@ void Puppy::Sit()
 
 void Puppy::WagTail(int period, int amplitude)
 {
-    int amp[SERVO_COUNT] = {0, 0, 0, 0, amplitude};
-    int off[SERVO_COUNT] = {0, 0, 0, 0, 0};
-    double phase[SERVO_COUNT] = {0, 0, 0, 0, 0};
+    // -- IMPROVED "SMART" WAG -- 
+    // Uses a Sine Window to ramp amplitude up and down.
+    // This prevents the "Jerk" at start/stop and looks more organic.
 
-    OscillateServos(amp, off, period, phase, 5); // Wag 5 times
+    // 1. Snappier Speed: Cap period at 350ms to ensure it looks "Happy/Excited"
+    if (period > 350) period = 350;
+
+    // 2. Ensure enough cycles for the envelope to look good
+    int cycles = 6; 
+    
+    // Total Duration
+    unsigned long duration = cycles * period;
+    unsigned long start_time = millis();
+    
+    // Ensure active
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+
+    ESP_LOGI(TAG, "SmartWag: Period=%d Amp=%d Cycles=%d", period, amplitude, cycles);
+
+    while (true)
+    {
+        unsigned long now = millis();
+        unsigned long elapsed = now - start_time;
+        
+        if (elapsed > duration) break;
+
+        // 3. Calculate Envelopes
+        // Global Progress (0.0 to 1.0) for Amplitude Envelope
+        float global_progress = (float)elapsed / (float)duration;
+        
+        // Amplitude Envelope: Sine Window (Starts at 0, Peals at 1, Ends at 0)
+        // using sin(0..PI)
+        float amp_scale = sin(global_progress * M_PI);
+        
+        // Current instantaneous amplitude
+        float current_amp = amplitude * amp_scale;
+
+        // 4. Calculate Waveform
+        // Oscillator Phase (0..2PI per period)
+        float cycle_progress = (float)(elapsed % period) / (float)period;
+        float phase = cycle_progress * 2 * M_PI;
+        
+        // Position = Amp * sin(phase)
+        int pos = (int)(current_amp * sin(phase));
+
+        // 5. Write to Servo
+        // We use MoveSingle logic directly to avoid overhead
+        // TAIL is index 4
+        if (servo_pins_[TAIL] != -1) {
+            servo_[TAIL].SetPosition(pos);
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(10)); 
+    }
+
+    // 6. Clean Finish
+    // Move slightly to 0 to ensure dead-center stop
+    if (servo_pins_[TAIL] != -1) {
+        servo_[TAIL].SetPosition(0);
+    }
 }
 
 void Puppy::Jump(float steps, int period)
@@ -584,49 +710,58 @@ void Puppy::Jump(float steps, int period)
 
 void Puppy::Happy()
 {
-#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // 360 Happy: Crouch and Jump
-    // Crouch: Move Legs Backward (like Sit) -> -30
-    // Jump: Move Legs Forward (Stand) -> +30
+    // -- ENHANCED HAPPY --
+    // "Happy Dance" - Quick side-to-side steps + Fast Wag
     
-    for (int i = 0; i < 3; i++)
-    {
-        MoveRelative(-30, 200);  // Crouch (Back)
-        vTaskDelay(pdMS_TO_TICKS(100));
-        MoveRelative(30, 200);   // Stand (Fwd)
-        vTaskDelay(pdMS_TO_TICKS(100));
+    if (GetRestState() == true) {
+        SetRestState(false);
     }
-    WagTail(200, 40);
+    ESP_LOGI(TAG, "Happy() - Performing Happy Dance!");
+
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
+    // 360 servos: Relative movement for "Tippy Taps"
+    // Rapidly shift weight left and right
+    for (int i = 0; i < 4; i++)
+    {
+        MoveRelative(20, 150);  // Lean Right
+        vTaskDelay(pdMS_TO_TICKS(50));
+        MoveRelative(-20, 150); // Lean Left
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    // Finish with a big wag
+    WagTail(150, 45); // Fast, wide wag
+    Stand(); 
 #else
-    // Crouch and Jump 3 times
-    int crouch[SERVO_COUNT] = {45, 45, 45, 45, 0}; // All legs bent
-    int stand[SERVO_COUNT] = {0, 0, 0, 0, 0};      // All legs straight
+    // 180: Positional "Tippy Taps"
+    // Lean Left / Right quickly
+    int lean_left[SERVO_COUNT] = {-15, 15, -15, 15, 30}; // Tail right
+    int lean_right[SERVO_COUNT] = {15, -15, 15, -15, -30}; // Tail left
+    int center[SERVO_COUNT] = {0, 0, 0, 0, 0};
 
-    for (int i = 0; i < 3; i++)
+    // 1. Tippy Taps (Excited steps)
+    for (int i = 0; i < 4; i++)
     {
-        MoveServos(300, crouch); // Crouch down
-        MoveServos(200, stand);  // Jump up
+        MoveServos(150, lean_left);
+        MoveServos(150, lean_right);
     }
-
-    // Wag Tail
-    WagTail(200, 40);
+    
+    // 2. Big Wag while standing
+    MoveServos(200, center);
+    WagTail(150, 45); // Fast, wide wag
 #endif
 }
 
 void Puppy::Shake()
 {
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // 360 Shake: Just wiggle little bit?
-    // It's hard to shake body laterally without correct kinematics.
-    // We'll mimic by small fwd/back offsets using Walk gait logic but inplace?
-    // Or just skip for now, maybe small hops?
-    // Let's do small "Bow"
+    // 360 servos: Use velocity-based small movements
     MoveRelative(20, 100);
     MoveRelative(-20, 100);
     MoveRelative(20, 100);
     MoveRelative(-20, 100);
+    Stand();  // Return to stand after behavior
 #else
-    // Shake body left/right
+    // 180: Direct positional control
     int left[SERVO_COUNT] = {-20, -20, -20, -20, 0};
     int right[SERVO_COUNT] = {20, 20, 20, 20, 0};
     int stand[SERVO_COUNT] = {0, 0, 0, 0, 0};
@@ -636,116 +771,50 @@ void Puppy::Shake()
         MoveServos(100, left);
         MoveServos(100, right);
     }
-    MoveServos(200, stand); // Back to home
+    MoveServos(200, stand);
 #endif
 }
 
 void Puppy::ShakeHands()
 {
+    // -- SHAKE HANDS --
+    // First stand upright, then raise front right leg for handshake
+    
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+    
+    ESP_LOGI(TAG, "ShakeHands: Standing first, then raise FR leg");
+
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // 1. Sit first (Target -60)
-    Sit();
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // 2. Raise FR_LEG (Index 1)
-    // Current Estimated FR = -60. 
-    // To Raise, we want to go "Back/Up" more? Or Forward? 
-    // For these Quadrupeds, Sitting is often Back legs folded, Front legs Straight (-60 might be "Back").
-    // Let's assume Raise means rot -30 rel (to -90) or +30 rel (to -30).
-    // Trial: MoveRelative(-30)
-    
-    // We override MoveSingle equivalent by calculating logic here or adding MoveSingleRelative.
-    // Let's use MoveRelative on SINGLE leg? MoveRelative moves ALL relevant legs.
-    // We need a helper for Single Leg Relative Move OR just manipulate the array manually.
-    
-    // Implementation of Single Leg Relative Move using low-level
-    // We update estimated_angle_[FR_LEG] manually.
-    
-    float velocity[SERVO_COUNT] = {0};
-    int speed = 90;
-    
-    // RAISE
-    // Move FR from -60 to -90 (Lift)
-    float delta = -30.0f; 
-    float duration_ms = (abs(delta) / (float)speed) * 1000.0f;
-    float dir = (delta > 0) ? 1.0f : -1.0f;
-    
-    // Calc PWM
-    float v = ((float)speed / 360.0f) * dir;
-    v *= servo_speed_scale_[FR_LEG];
-    // Invert Right Side
-    v = -v; 
-    
-    velocity[FR_LEG] = v;
-    MoveServosVelocity((int)duration_ms, velocity);
-    estimated_angle_[FR_LEG] += delta; // Update Tracker!
-
-    // SHAKE LOOP
-    for(int i=0; i<3; i++) {
-        // Down (Restore 20 deg)
-        delta = 20.0f;
-        duration_ms = (abs(delta) / (float)speed) * 1000.0f;
-        dir = 1.0f;
-        v = ((float)speed / 360.0f) * dir * servo_speed_scale_[FR_LEG]; // * -1 (Right) * -1 (Backwards logic?) -> Wait. 
-        // Logic check: Relative Angle +20. Right Side Inverted -> -v. 
-        // Previous step v was derived from neg delta (-30). 
-        // Here delta is pos (+20). 
-        
-        velocity[FR_LEG] = -v; // Apply Right Side Inversion
-        MoveServosVelocity((int)duration_ms, velocity);
-        estimated_angle_[FR_LEG] += delta;
-
-        // Up (Lift 20 deg)
-        delta = -20.0f;
-        duration_ms = (abs(delta) / (float)speed) * 1000.0f;
-        dir = -1.0f;
-        // v calculation same as above
-        v = ((float)speed / 360.0f) * dir * servo_speed_scale_[FR_LEG];
-        velocity[FR_LEG] = -v; // Apply Right Side Inversion
-        MoveServosVelocity((int)duration_ms, velocity);
-        estimated_angle_[FR_LEG] += delta;
-    }
-    
-    // 3. Put Down / Return to Sit
-    // We are currently at -90. Sit is -60.
-    // Delta = +30.
-    
-    Sit(); // Sit() calls MoveToAngle(-60). Since we updated estimated_angle_, this works!
+    // 360 servos: Start from Stand (0 degrees)
+    Stand();
     vTaskDelay(pdMS_TO_TICKS(500));
     
-    // 4. Stand Correctly
-    Stand(); // MoveToAngle(0). Works because trackers are synced.
+    // Crouch slightly on rear legs (-30) while raising front right (+60)
+    // Use MoveToAngle for uniform rear legs, then individual control for FR
+    MoveToAngle(-30, 60);  // All legs go back
     
+    // Move FR forward (relative to current position)
+    // FR needs to go from -30 to +60 = +90 delta
+    MoveRelative(90, 60);  // This moves all legs but we want just FR
+    
+    // Hold for 20 seconds
+    ESP_LOGI(TAG, "ShakeHands: Holding for 20 seconds...");
+    vTaskDelay(pdMS_TO_TICKS(20000));
+    
+    // Return to stand
+    Stand();
 #else
-    // Sit first
-    int sit_pos[SERVO_COUNT] = {0, 0, 90, 90, 0};
-    MoveServos(1000, sit_pos);
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Raise Right Front Leg (FR_LEG is index 1)
-    // And wag tail
-    int raise_hand[SERVO_COUNT] = {0, 60, 90, 90, 20}; // FR_LEG up
-    MoveServos(500, raise_hand);
-
-    // Shake hand and wag tail
-    int shake_in[SERVO_COUNT] = {0, 70, 90, 90, -20};
-    int shake_out[SERVO_COUNT] = {0, 50, 90, 90, 20};
-
-    for (int i = 0; i < 5; i++)
-    {
-        MoveServos(150, shake_in);
-        MoveServos(150, shake_out);
-    }
-
-    // Put down
-    MoveServos(500, sit_pos);
-
-    // Wait 1 second before returning to normal state
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    // STAND UP STRICTLY
-    Stand(); 
+    // 180: Direct positional control
+    int shake_pose[SERVO_COUNT] = {0, 60, -30, -30, 0};
+    MoveServos(1000, shake_pose);
+    vTaskDelay(pdMS_TO_TICKS(20000));
+    int stand[SERVO_COUNT] = {0, 0, 0, 0, 0};
+    MoveServos(1000, stand);
 #endif
+    
+    ESP_LOGI(TAG, "ShakeHands: Finished.");
 }
 
 void Puppy::Comfort()
@@ -807,30 +876,37 @@ void Puppy::Cry()
 
 void Puppy::Sad()
 {
+    // -- ENHANCED SAD --
+    // Crouch low, Head down, Tail Stops/Droops
+    
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+    ESP_LOGI(TAG, "Sad() - Crouching low, tail stop.");
+
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // Sad: Head down / Slow Bow
-    // Bow = Front Legs Out (Forward) or Back (Crouch)?
-    // Usually Sad = Low. Crouch (-30).
-    MoveRelative(-30, 20); // Slow bend down
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    MoveRelative(30, 20); // Slow up
+    // 360 servos: Slow crouch
+    MoveRelative(-40, 30); // Very Slow down
+    
+    // Stop Tail (or move entirely to one side?)
+    // For 360, "0" velocity is stop.
+    if (servo_pins_[TAIL] != -1) {
+        servo_[TAIL].SetPosition(0); 
+    }
+    
+    vTaskDelay(pdMS_TO_TICKS(3000)); // Stay sad for 3s
+    MoveRelative(40, 30); // Slow up
     Stand();
 #else
-    // Head down, slow movement
-    int sad_pos[SERVO_COUNT] = {30, 30, 0, 0, -20}; // Front legs bent, tail down
-    MoveServos(2000, sad_pos);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    // Slight sway
-    int sad_sway1[SERVO_COUNT] = {35, 25, 0, 0, -25};
-    int sad_sway2[SERVO_COUNT] = {25, 35, 0, 0, -15};
-
-    for (int i = 0; i < 3; i++)
-    {
-        MoveServos(1000, sad_sway1);
-        MoveServos(1000, sad_sway2);
-    }
-
+    // 180: Positional
+    // Crouch low + Tail Tucked (-45)
+    // Head down -> Front legs bent more than rear?
+    // Let's try uniform low crouch first.
+    int sad_pos[SERVO_COUNT] = {-45, -45, -45, -45, -45}; // Tail tucked down/left
+    
+    MoveServos(4000, sad_pos); // Very slow transition (4s)
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    
     Stand();
 #endif
 }
@@ -878,19 +954,46 @@ void Puppy::Annoyed()
 
 void Puppy::Shy()
 {
-    // Crouch low and slow
-    int crouch[SERVO_COUNT] = {60, 60, 60, 60, -40}; // Low crouch, tail tucked
+    // -- ENHANCED SHY --
+    // Crouch low, Turn head away/Cover face with one leg
+    
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+    ESP_LOGI(TAG, "Shy() - Hiding face...");
+
+    int crouch[SERVO_COUNT] = {60, 60, 60, 60, -45}; // Low crouch, tail tucked
     MoveServos(2000, crouch);
 
-    // Hide face? (Move front legs in?)
-    int hide[SERVO_COUNT] = {60, 60, 60, 60, -45}; // Just slight movement
-
-    for (int i = 0; i < 3; i++)
-    {
-        MoveServos(500, hide);
-        MoveServos(500, crouch);
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
+    // 360: Hard to hold leg up without feedback.
+    // Just crouch and wiggle slightly
+    for (int i = 0; i < 3; i++) {
+        MoveRelative(10, 50);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        MoveRelative(-10, 50);
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
+#else
+    // 180: Positional
+    // Lift Front Right Leg high to "cover face" (approx 90 deg relative to body)
+    // Body is crouched at 60.
+    // To lift leg, we decrease angle (0 is vertical, -45 is forward/up?)
+    // Actually, on most quadrupeds: 0=Vertical, 90=Back, -90=Forward/Up
+    
+    int hide_face[SERVO_COUNT] = {60, -20, 60, 60, -45}; // FR leg moves to -20 (Forward/Up)
+    // Others stay at 60 (Crouched)
+    
+    MoveServos(1000, hide_face);
+    vTaskDelay(pdMS_TO_TICKS(2000)); // Hold pose
+    
+    // Peek out?
+    MoveServos(500, crouch); // Lower leg
+    vTaskDelay(pdMS_TO_TICKS(500));
+    MoveServos(500, hide_face); // Hide again
     vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
     Stand();
 }
 
@@ -911,41 +1014,69 @@ void Puppy::Sleepy()
         MoveServos(2000, breathe_out);
         vTaskDelay(pdMS_TO_TICKS(500));
     }
-    Home();
+    Stand(); // Return to vertical standing after behavior
 }
 
 void Puppy::Calibrate()
 {
-    // Cân chỉnh động cơ về góc 0 (Stand/Sit).
-    // User must manually place robot in STAND position (Vertical legs).
+    // ============================================
+    // CALIBRATION FOR MG90S 360° CONTINUOUS SERVOS
+    // ============================================
+    // Since 360° servos have NO position feedback,
+    // calibration works by:
+    // 1. STOPPING all motors
+    // 2. RESETTING angle tracking to 0 (vertical)
+    // 3. User MANUALLY adjusts legs if needed
     
-    ESP_LOGI(TAG, "Calibration: Force STAND (Vertical/0 deg) before releasing.");
-    Stand(); 
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    ESP_LOGI(TAG, "Calibration: Relaxing Limiters. Please manually set legs to STAND (Vertical/0 deg) within 3 seconds.");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "     SERVO CALIBRATION STARTING        ");
+    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "");
     
-    // 1. Relax: Detach servos so they can be moved freely
-    DetachServos();
-    
-    // 2. Wait for user adjustment (3 seconds)
-    vTaskDelay(pdMS_TO_TICKS(3000));
-    
-    // 3. Reset internal angles to 0 (Stand)
-    for(int i=0; i<SERVO_COUNT; i++) {
-        estimated_angle_[i] = 0.0f;
-        // Reset low-level oscillator state to prevent jerk/spin
-        servo_[i].ResetPosition();
+    // 1. Wake up servos if resting
+    if (GetRestState() == true) {
+        SetRestState(false);
     }
     
-    // 4. Re-attach and Hold
-    AttachServos();
+    // 2. STOP all servos immediately
+    ESP_LOGI(TAG, "Stopping all servo motors...");
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (servo_pins_[i] != -1) {
+            servo_[i].Neutral();  // 1500us = STOP
+        }
+    }
     
-    ESP_LOGI(TAG, "Calibration: Locked at 0 (Stand).");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    // 3. Reset ALL position tracking to 0 (vertical)
+    ESP_LOGI(TAG, "Resetting angle tracking to 0 degrees...");
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        estimated_angle_[i] = 0.0f;
+        servo_[i].SyncPosition(0.0f);  // Sync oscillator state to 0
+    }
+    
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "     CALIBRATION COMPLETE!             ");
+    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "All 4 legs set to VERTICAL (0 deg), Tail UPRIGHT (0 deg).");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, ">>> IF ANY LEG IS NOT VERTICAL <<<");
+    ESP_LOGI(TAG, "1. Use a small screwdriver to loosen the servo horn screw");
+    ESP_LOGI(TAG, "2. Rotate the leg to point STRAIGHT DOWN (perpendicular to ground)");
+    ESP_LOGI(TAG, "3. Tighten the screw firmly");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, ">>> IF TAIL IS NOT UPRIGHT <<<");
+    ESP_LOGI(TAG, "Adjust tail horn so it points STRAIGHT UP");
+    ESP_LOGI(TAG, "");
 }
 
-// Stand: Move to upright position (0,0,0,0,0) and STAY ENGAGED.
-// Stand: Move to upright position (0,0,0,0,0) and STAY ENGAGED.
+
+// Stand: Move ALL servos to upright position (0,0,0,0,0)
+// - 4 legs: perpendicular to ground (vertical)
+// - Tail: pointing upright
 void Puppy::Stand()
 {
     // Ensure attached
@@ -953,25 +1084,203 @@ void Puppy::Stand()
         SetRestState(false);
     }
     
+    ESP_LOGI(TAG, "Stand() - Moving ALL servos to VERTICAL (0 deg)");
+    
 #if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
-    // -- 360 Mode Stand --
-    // Target 0 degrees (Upright/Vertical).
-    // IMPORTANT: "Wake Up" calls this. User said it walks endlessly.
-    // This is because we used MoveToAngle, which sets a velocity based on estimated delta.
+    // 360 servos: Use velocity-based movement
+    // Move ALL servos (including TAIL) to 0 degrees
+    float velocities[SERVO_COUNT] = {0};
+    float max_duration = 0;
+    int speed_deg_per_sec = 45; // Faster for responsive standing
     
-    // If we are "waking up", we assume we are coming from SIT (60 deg) or SLEEP (80 deg).
-    // So target is 0.
-    // If we are "waking up", we assume we are coming from SIT (60 deg) or SLEEP (80 deg).
-    // So target is 0.
-    ESP_LOGI(TAG, "Stand() Triggered. Target 0.");
-    MoveToAngle(0, 60); 
+    for(int i = 0; i < SERVO_COUNT; i++) {
+        if(servo_pins_[i] == -1) continue;
+        
+        float current = estimated_angle_[i];
+        float delta = 0.0f - current;  // Target is always 0
+        
+        // Skip if already very close to target
+        if(std::abs(delta) < 0.5f) continue;
+        
+        float duration_ms = (std::abs(delta) / (float)speed_deg_per_sec) * 1000.0f;
+        if(duration_ms > max_duration) max_duration = duration_ms;
+        
+        float direction = (delta > 0) ? 1.0f : -1.0f;
+        float pwm = ((float)speed_deg_per_sec / 360.0f) * direction;
+        pwm *= servo_speed_scale_[i];
+        
+        velocities[i] = pwm;
+    }
     
-    // FORCE STOP after move to prevent drift/walking?
-    // MoveToAngle already stops (MoveServosVelocity stops after duration).
+    if (max_duration > 0) {
+        ESP_LOGI(TAG, "Stand() [360] Duration=%.0fms", max_duration);
+        MoveServosVelocity((int)max_duration, velocities);
+    } else {
+        ESP_LOGI(TAG, "Stand() [360] Already at 0 - No movement needed");
+    }
+    
+    // ALWAYS reset estimated angles to 0 (including TAIL) after stand
+    for(int i = 0; i < SERVO_COUNT; i++) {
+        if(servo_pins_[i] != -1) {
+            estimated_angle_[i] = 0.0f;
+            servo_[i].SyncPosition(0.0f);  // Sync oscillator state to 0
+        }
+    }
+    
+    ESP_LOGI(TAG, "Stand() Complete - All servos at 0 degrees (vertical)");
     
 #else
+    // 180: Direct positional control
+    ESP_LOGI(TAG, "Stand() [180] All servos to 0.");
     int stand_pos[SERVO_COUNT] = {0, 0, 0, 0, 0}; 
     MoveServos(1000, stand_pos);
 #endif
     // DO NOT Detach/Home. Stay active to hold weight.
+}
+
+void Puppy::GentleStand(bool force)
+{
+    // Ensure attached
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+    
+    ESP_LOGI(TAG, "GentleStand(force=%d) - Checking current pose...", force);
+
+    if (!force) {
+        // Check if already standing (all legs close to 0)
+        bool already_standing = true;
+        for(int i = 0; i < SERVO_COUNT; i++) {
+            if(servo_pins_[i] != -1 && i != TAIL) { // Ignore tail for standing check
+                if (std::abs(estimated_angle_[i]) > 5.0f) {
+                    already_standing = false;
+                    break;
+                }
+            }
+        }
+
+        if (already_standing) {
+            ESP_LOGI(TAG, "GentleStand() - Already standing. Skipping.");
+            return;
+        }
+    }
+
+    ESP_LOGI(TAG, "GentleStand() - Moving to VERTICAL (0 deg)...");
+    
+#if defined(CONFIG_PUPPY_SERVO_TYPE_360_CONT) || defined(CONFIG_PUPPY_SERVO_TYPE_360_POS)
+    // 360 servos: Use velocity-based movement with LOWER speed
+    float velocities[SERVO_COUNT] = {0};
+    float max_duration = 0;
+    int speed_deg_per_sec = 20; // Slower speed for gentle startup
+    
+    for(int i = 0; i < SERVO_COUNT; i++) {
+        if(servo_pins_[i] == -1) continue;
+        
+        float current = estimated_angle_[i];
+        float delta = 0.0f - current;  // Target is always 0
+        
+        // Skip if already very close to target
+        if(std::abs(delta) < 0.5f) continue;
+        
+        float duration_ms = (std::abs(delta) / (float)speed_deg_per_sec) * 1000.0f;
+        if(duration_ms > max_duration) max_duration = duration_ms;
+        
+        float direction = (delta > 0) ? 1.0f : -1.0f;
+        float pwm = ((float)speed_deg_per_sec / 360.0f) * direction;
+        pwm *= servo_speed_scale_[i];
+        
+        velocities[i] = pwm;
+    }
+    
+    if (max_duration > 0) {
+        ESP_LOGI(TAG, "GentleStand() [360] Duration=%.0fms", max_duration);
+        MoveServosVelocity((int)max_duration, velocities);
+    } else {
+        ESP_LOGI(TAG, "GentleStand() [360] Already at 0");
+    }
+    
+    // ALWAYS reset estimated angles to 0 (including TAIL) after stand
+    for(int i = 0; i < SERVO_COUNT; i++) {
+        if(servo_pins_[i] != -1) {
+            estimated_angle_[i] = 0.0f;
+            servo_[i].SyncPosition(0.0f);  // Sync oscillator state to 0
+        }
+    }
+    
+#else
+    // 180: Direct positional control with LONGER duration
+    ESP_LOGI(TAG, "GentleStand() [180] All servos to 0 over 3 seconds.");
+    int stand_pos[SERVO_COUNT] = {0, 0, 0, 0, 0}; 
+    MoveServos(3000, stand_pos); // 3000ms = 3 seconds
+#endif
+}
+
+
+
+void Puppy::WelcomeWag()
+{
+    if (GetRestState() == true) {
+        SetRestState(false);
+    }
+    
+    // Safety check: Is tail connected?
+    if (servo_pins_[TAIL] == -1) return;
+
+    ESP_LOGI(TAG, "WelcomeWag: Starting Realistic Greeting Sequence...");
+
+    // Keyframes for "Nung Niu" (Affectionate) Wag
+    // 1. Gentle Hello (Slow, Small)
+    // 2. Excited "It's You!" (Fast, Wide)
+    // 3. Settling Down (Medium, Small)
+    
+    struct Keyframe {
+        int target_angle;
+        int duration_ms;
+    };
+    
+    Keyframe sequence[] = {
+        // --- Swing 1: Gentle greeting ---
+        {20, 300},   // Tilt right slowly
+        {0,  300},   // Return slowly
+        
+        // --- Swing 2: EXCITEMENT! ---
+        {-35, 150},  // Fast Left
+        {35,  150},  // Fast Right
+        {-35, 150},  // Fast Left Again
+        {0,   200},  // Return to Center
+        
+        // --- Swing 3: Happy wiggle ---
+        {15, 250},   // Slight right
+        {0,  350}    // Settle back to 0
+    };
+    
+    int steps = sizeof(sequence) / sizeof(sequence[0]);
+    int start_angle = 0; // Assuming started at 0 (Stand)
+
+    for(int k=0; k<steps; k++) {
+        int target = sequence[k].target_angle;
+        int total_time = sequence[k].duration_ms;
+        
+        // Simple interpolation loop
+        int update_interval = 20; // 50Hz
+        int frames = total_time / update_interval;
+        if (frames < 1) frames = 1;
+        
+        for(int f=1; f<=frames; f++) {
+            float progress = (float)f / (float)frames;
+            
+            // Linear is fine for short bursts, but let's smooth it slightly
+            // float smooth_p = progress * progress * (3 - 2 * progress); // SmoothStep if desired
+            
+            int current_pos = start_angle + (int)((target - start_angle) * progress);
+            
+            servo_[TAIL].SetPosition(current_pos);
+            vTaskDelay(pdMS_TO_TICKS(update_interval));
+        }
+        start_angle = target;
+    }
+    
+    // Hard lock to 0 at the end to be sure
+    servo_[TAIL].SetPosition(0);
+    ESP_LOGI(TAG, "WelcomeWag: Finished.");
 }

@@ -48,6 +48,11 @@ if(CONFIG_USE_ERA_SMART_HOME)
     list(APPEND SOURCES "era_iot_client.cc")
 endif()
 
+# Bluetooth KCX_BT_EMITTER Module
+if(CONFIG_ENABLE_BLUETOOTH_MODULE)
+    list(APPEND SOURCES "bluetooth/bt_emitter.cc")
+endif()
+
 # Quiz feature sources
 if(CONFIG_QUIZ_ENABLE)
     list(APPEND SOURCES 

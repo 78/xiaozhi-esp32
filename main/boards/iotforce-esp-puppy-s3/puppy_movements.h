@@ -63,6 +63,9 @@ public:
     void Sit();
     void Stand();
     void WagTail(int period = 500, int amplitude = 30);
+    void GentleStand(bool force = false);
+    // Realistic Startup Wag
+    void WelcomeWag();
     void Jump(float steps = 1, int period = 2000);
     void Happy();
     void Shake();
