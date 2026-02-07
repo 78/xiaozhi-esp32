@@ -186,9 +186,6 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
 
         // Set analog output volume to 0dB, default is -45dB
         uint8_t reg_val = 30; // 0dB
-        if(input_reference_){
-            reg_val = 27;
-        }
         uint8_t regs[] = { 46, 47, 48, 49 }; // HP_LVOL, HP_RVOL, SPK_LVOL, SPK_RVOL
         for (uint8_t reg : regs) {
             ctrl_if_->write_reg(ctrl_if_, reg, 1, &reg_val, 1);
