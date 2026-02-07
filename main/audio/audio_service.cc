@@ -314,6 +314,7 @@ void AudioService::AudioOutputTask() {
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
             codec_->EnableOutput(true);
         }
+
         codec_->OutputData(task->pcm);
 
         /* Update the last output time */
