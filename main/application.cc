@@ -309,13 +309,15 @@ void Application::HandleActivationDoneEvent() {
     display->ShowNotification(message.c_str());
     display->SetChatMessage("system", "");
 
-    // Play the success sound to indicate the device is ready
-    audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
-
     // Release OTA object after activation is complete
     ota_.reset();
     auto& board = Board::GetInstance();
     board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
+
+    Schedule([this]() {
+        // Play the success sound to indicate the device is ready
+        audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
+    });
 }
 
 void Application::ActivationTask() {
