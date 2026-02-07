@@ -22,9 +22,9 @@ dependencies:
   78/esp-wifi-connect: ~3.0.2
   espressif/esp_audio_effects: ~1.2.1
   espressif/esp_audio_codec: ~2.4.1
-  78/esp-ml307: ~3.6.3
+  78/esp-ml307: ~3.6.4
   78/uart-eth-modem:
-    version: ~0.3.1
+    version: ~0.3.2
     rules:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~1.6.0
