@@ -1032,8 +1032,6 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
         
         if (gif_controller_->IsLoaded()) {
-            // Set loop delay to 1000ms
-            gif_controller_->SetLoopDelay(3000);
             // Set up frame update callback
             gif_controller_->SetFrameCallback([this]() {
                 lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
