@@ -146,8 +146,6 @@ private:
     std::mutex input_resampler_mutex_;
     esp_ae_rate_cvt_handle_t input_resampler_ = nullptr;
     esp_ae_rate_cvt_handle_t output_resampler_ = nullptr;
-
-    OggDemuxer      demuxer_;
     
     // Encoder/Decoder state
     int encoder_sample_rate_ = 16000;

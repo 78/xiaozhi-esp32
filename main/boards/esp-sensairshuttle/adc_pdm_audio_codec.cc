@@ -81,6 +81,7 @@ AdcPdmAudioCodec::AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate
     const i2s_pdm_tx_config_t *p_i2s_cfg = &pdm_cfg_default;
 
     ESP_ERROR_CHECK(i2s_channel_init_pdm_tx_mode(tx_handle_, p_i2s_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
 
     audio_codec_i2s_cfg_t i2s_cfg = {
         .port = I2S_NUM_0,

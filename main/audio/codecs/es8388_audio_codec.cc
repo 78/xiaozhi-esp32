@@ -131,6 +131,8 @@ void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
