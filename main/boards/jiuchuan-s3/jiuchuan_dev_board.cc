@@ -39,17 +39,16 @@ public:
                      bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy)
     {
-
-        DisplayLockGuard lock(this);
-
+    }
+    virtual void SetupUI() override {
+        SpiLcdDisplay::SetupUI();
         // 状态栏容器适配
         lv_obj_set_style_pad_left(top_bar_, LV_HOR_RES * 0.12, 0);  // 左侧填充12%
         lv_obj_set_style_pad_right(top_bar_, LV_HOR_RES * 0.12, 0); // 右侧填充12%
         // 表情容器上移适配
-        lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -50);          // 向上偏移50
+        lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -30);          // 向上偏移30
         // 消息栏适配
-        lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -40);     // 向上偏移40
-
+        lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -20);     // 向上偏移20
     }
 };
 
