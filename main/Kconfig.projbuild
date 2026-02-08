@@ -458,6 +458,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "敏思科技K08(DUAL)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_KINCONY_ESP32_S3_AS
+        bool "Kincony ESP32-S3 AS"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
         depends on IDF_TARGET_ESP32S3
