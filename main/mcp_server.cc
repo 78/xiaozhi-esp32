@@ -30,7 +30,7 @@ McpServer::~McpServer() {
     tools_.clear();
 }
 
-void McpServer::AddCommonTools() {
+void McpServer::AddCommonTools() {/*测试 */
     // *Important* To speed up the response time, we add the common tools to the beginning of
     // the tools list to utilize the prompt cache.
     // **重要** 为了提升响应速度，我们把常用的工具放在前面，利用 prompt cache 的特性。
