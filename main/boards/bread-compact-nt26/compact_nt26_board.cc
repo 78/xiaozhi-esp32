@@ -150,6 +150,13 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+
+        esp_pm_config_t pm_config = {
+            .max_freq_mhz = 240,
+            .min_freq_mhz = 80,
+            .light_sleep_enable = true,
+        };
+        esp_pm_configure(&pm_config);
     }
 
     virtual void StartNetwork() override {

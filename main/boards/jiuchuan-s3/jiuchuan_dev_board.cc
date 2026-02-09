@@ -39,6 +39,13 @@ public:
                      bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy)
     {
+        // Note: UI customization should be done in SetupUI(), not in constructor
+        // to ensure lvgl objects are created before accessing them
+    }
+
+    virtual void SetupUI() override {
+        // Call parent SetupUI() first to create all lvgl objects
+        SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
 
@@ -49,7 +56,6 @@ public:
         lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -50);          // 向上偏移50
         // 消息栏适配
         lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -40);     // 向上偏移40
-
     }
 };
 

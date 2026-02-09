@@ -141,5 +141,7 @@ CustomLcdDisplay::CustomLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_p
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-    SetupUI();
+
+    // Note: SetupUI() should be called by Application::Initialize(), not in constructor
+    // to ensure lvgl objects are created after the display is fully initialized.
 }

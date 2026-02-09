@@ -70,8 +70,14 @@ LvglDisplay::~LvglDisplay() {
 }
 
 void LvglDisplay::SetStatus(const char* status) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetStatus('%s') called before SetupUI() - message will be lost!", status);
+    }
     DisplayLockGuard lock(this);
     if (status_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetStatus('%s') failed: status_label_ is nullptr (SetupUI() was called but label not created)", status);
+        }
         return;
     }
     lv_label_set_text(status_label_, status);
@@ -86,8 +92,14 @@ void LvglDisplay::ShowNotification(const std::string &notification, int duration
 }
 
 void LvglDisplay::ShowNotification(const char* notification, int duration_ms) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "ShowNotification('%s') called before SetupUI() - message will be lost!", notification);
+    }
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "ShowNotification('%s') failed: notification_label_ is nullptr (SetupUI() was called but label not created)", notification);
+        }
         return;
     }
     lv_label_set_text(notification_label_, notification);
