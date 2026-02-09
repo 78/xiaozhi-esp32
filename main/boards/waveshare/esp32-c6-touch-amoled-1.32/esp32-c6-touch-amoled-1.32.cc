@@ -61,9 +61,17 @@ class CustomLcdDisplay : public SpiLcdDisplay {
     CustomLcdDisplay(esp_lcd_panel_io_handle_t io_handle, esp_lcd_panel_handle_t panel_handle, int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy) : 
     SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy), 
     io_handle_(io_handle) {
+        // Note: UI customization should be done in SetupUI(), not in constructor
+        // to ensure lvgl objects are created before accessing them
+        SetMIRROR_XY(0xC0); // Rotate 180 degrees - this is safe as it only operates on hardware
+    }
+
+    virtual void SetupUI() override {
+        // Call parent SetupUI() first to create all lvgl objects
+        SpiLcdDisplay::SetupUI();
+
         DisplayLockGuard lock(this);
         lv_display_add_event_cb(display_, my_draw_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
-        SetMIRROR_XY(0xC0); // Rotate 180 degrees
         lv_obj_invalidate(lv_screen_active());
     }
 };

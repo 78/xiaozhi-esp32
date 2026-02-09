@@ -117,9 +117,8 @@ height_(height)
         return;
     }
 
-    ESP_LOGI(TAG, "ui start");
-
-    SetupUI();
+    // Note: SetupUI() should be called by Application::Initialize(), not in constructor
+    // to ensure lvgl objects are created after the display is fully initialized.
 }
 
 CustomLcdDisplay::~CustomLcdDisplay() {
