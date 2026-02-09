@@ -1,0 +1,10 @@
+{
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "magic-p4-4g",
+            "sdkconfig_append": []
+        }
+    ]
+}
+

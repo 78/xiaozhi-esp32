@@ -49,14 +49,20 @@
 ---------------
 ## Build & Test
 
-### Configuration
+1. configuration
 
 ```shell
 idf.py menuconfig
 ```
 
-### release firmware
+2. compile
 
 ```shell
 python scripts/release.py m5stack-stopwatch
+```
+
+3. flash firmware
+
+```shell
+python -m esptool --before default_reset --after hard_reset write_flash -z 0 build/merged-binary.bin
 ```

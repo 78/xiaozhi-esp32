@@ -1,0 +1,52 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+#define AUDIO_INPUT_SAMPLE_RATE  24000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+
+#define AUDIO_I2S_GPIO_MCLK         GPIO_NUM_34
+#define AUDIO_I2S_GPIO_BCLK         GPIO_NUM_33
+#define AUDIO_I2S_GPIO_WS           GPIO_NUM_31
+#define AUDIO_I2S_GPIO_DIN          GPIO_NUM_32
+#define AUDIO_I2S_GPIO_DOUT         GPIO_NUM_30
+#define AUDIO_CODEC_PA_PIN          GPIO_NUM_22
+#define AUDIO_CODEC_I2C_SDA_PIN     GPIO_NUM_2
+#define AUDIO_CODEC_I2C_SCL_PIN     GPIO_NUM_1
+#define AUDIO_CODEC_ES8311_ADDR     ES8311_CODEC_DEFAULT_ADDR
+
+#define AUDIO_CODEC_ES8311_ADDR  ES8311_CODEC_DEFAULT_ADDR
+
+#define BOOT_BUTTON_GPIO    GPIO_NUM_35
+
+#define DISPLAY_WIDTH   480
+#define DISPLAY_HEIGHT  480
+
+#define LCD_BIT_PER_PIXEL   (16)
+#define PIN_NUM_LCD_RST     GPIO_NUM_NC
+
+#define DELAY_TIME_MS           (3000)
+#define LCD_MIPI_DSI_LANE_NUM   (2)    // 2 data lanes
+
+#define MIPI_DSI_PHY_PWR_LDO_CHAN          (3)
+#define MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV    (2500)
+
+#define DISPLAY_SWAP_XY  false
+#define DISPLAY_MIRROR_X false
+#define DISPLAY_MIRROR_Y false
+
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_NC
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+// ML307 4G module pins
+#define ML307_TX_PIN  GPIO_NUM_29  // G29 (ESP32 TX)
+#define ML307_RX_PIN  GPIO_NUM_28  // G28 (ESP32 RX)
+#define ML307_DTR_PIN GPIO_NUM_NC
+
+#endif // _BOARD_CONFIG_H_
+

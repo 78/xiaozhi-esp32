@@ -17,7 +17,7 @@ dependencies:
   espressif/esp_lcd_spd2010: ==1.0.2
   espressif/esp_io_expander_tca9554: ==2.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
-  78/esp_lcd_nv3023: ~1.0.0
+  # 78/esp_lcd_nv3023: ~1.0.0
   78/esp-wifi-connect: ~3.0.2
   espressif/esp_audio_effects: ~1.2.0
   espressif/esp_audio_codec: ~2.4.0
@@ -70,10 +70,11 @@ dependencies:
     version: '*'
     rules:
     - if: target in [esp32p4]
-  espressif/esp32_p4_function_ev_board:
-    version: ^5.0.3
-    rules:
-    - if: target in [esp32p4]
+  # espressif/esp32_p4_function_ev_board:
+  #   version: ^5.0.3
+  #   rules:
+  #   - if: target in [esp32p4]
+  # Disabled to avoid USB dependency issues
   espressif/esp_lcd_ili9881c:
     version: ^1.0.1
     rules:
@@ -111,3 +112,6 @@ dependencies:
   espressif/esp_lcd_touch_st7123: ^1.0.0
   espressif/esp_lcd_co5300: ^2.0.3
   m5stack/m5pm1: ^1.0.3
+  m5stack/m5ioe1: ^1.0.4
+  espressif/mqtt: ^1.0.0
+  espressif/cjson: ^1.7.19~1
