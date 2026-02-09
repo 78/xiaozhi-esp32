@@ -76,6 +76,18 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
         return;
     }
 
+    // Note: SetupUI() should be called by Application::Initialize(), not in constructor
+    // to ensure lvgl objects are created after the display is fully initialized.
+}
+
+void OledDisplay::SetupUI() {
+    // Prevent duplicate calls - if already called, return early
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    Display::SetupUI();  // Mark SetupUI as called
     if (height_ == 64) {
         SetupUI_128x64();
     } else {

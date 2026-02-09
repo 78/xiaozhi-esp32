@@ -40,14 +40,18 @@ public:
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
-    virtual void SetupUI() { }
+    virtual void SetupUI() { 
+        setup_ui_called_ = true;
+    }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
+    inline bool IsSetupUICalled() const { return setup_ui_called_; }
 
 protected:
     int width_ = 0;
     int height_ = 0;
+    bool setup_ui_called_ = false;  // Track if SetupUI() has been called
 
     Theme* current_theme_ = nullptr;
 

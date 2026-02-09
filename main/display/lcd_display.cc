@@ -352,6 +352,13 @@ void LcdDisplay::Unlock() {
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
+    // Prevent duplicate calls - if already called, return early
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    Display::SetupUI();  // Mark SetupUI as called
     DisplayLockGuard lock(this);
 
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
@@ -495,8 +502,14 @@ void LcdDisplay::SetupUI() {
 #define  MAX_MESSAGES 20
 #endif
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetChatMessage('%s', '%s') called before SetupUI() - message will be lost!", role, content);
+    }
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetChatMessage('%s', '%s') failed: content_ is nullptr (SetupUI() was called but container not created)", role, content);
+        }
         return;
     }
     
@@ -789,6 +802,13 @@ void LcdDisplay::ClearChatMessages() {
 }
 #else
 void LcdDisplay::SetupUI() {
+    // Prevent duplicate calls - if already called, return early
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    Display::SetupUI();  // Mark SetupUI as called
     DisplayLockGuard lock(this);
     LvglTheme* lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
@@ -985,8 +1005,14 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 }
 
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetChatMessage('%s', '%s') called before SetupUI() - message will be lost!", role, content);
+    }
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetChatMessage('%s', '%s') failed: chat_message_label_ is nullptr (SetupUI() was called but label not created)", role, content);
+        }
         return;
     }
     lv_label_set_text(chat_message_label_, content);
@@ -1002,6 +1028,9 @@ void LcdDisplay::ClearChatMessages() {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!", emotion);
+    }
     // Stop any running GIF animation
     if (gif_controller_) {
         DisplayLockGuard lock(this);
@@ -1010,6 +1039,9 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
     
     if (emoji_image_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetEmotion('%s') failed: emoji_image_ is nullptr (SetupUI() was called but emoji image not created)", emotion);
+        }
         return;
     }
 

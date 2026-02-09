@@ -15,17 +15,28 @@
 ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y,
                                            bool swap_xy)
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
-    InitializeElectronEmojis();
     SetupChatLabel();
+}
+
+void ElectronEmojiDisplay::SetupUI() {
+    // Prevent duplicate calls - parent SetupUI() will also check, but check here for early return
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    // Call parent SetupUI() first to create all lvgl objects
+    SpiLcdDisplay::SetupUI();
+    
+    // Set default emotion after UI is initialized
+    SetEmotion("staticstate");
 }
 
 void ElectronEmojiDisplay::InitializeElectronEmojis() {
     ESP_LOGI(TAG, "Electron表情初始化将由Assets系统处理");
     // 表情初始化已移至assets系统,通过DEFAULT_EMOJI_COLLECTION=otto-gif配置
     // assets.cc会从assets分区加载GIF表情并设置到theme
-
-    // 设置默认表情为staticstate
-    SetEmotion("staticstate");
+    // Note: Default emotion is now set in SetupUI() after LVGL objects are created
 }
 
 void ElectronEmojiDisplay::SetupChatLabel() {
