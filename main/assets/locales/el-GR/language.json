@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Βρέθηκαν νέοι πόροι: %s",
         "DOWNLOAD_ASSETS_FAILED": "Αποτυχία λήψης πόρων",
         "LOADING_ASSETS": "Φόρτωση πόρων...",
-        "HELLO_MY_FRIEND": "Γεια σου, φίλε μου!"
+        "HELLO_MY_FRIEND": "Γεια σου, φίλε μου!",
+        "FLIGHT_MODE_OFF": "Η λειτουργία πτήσης είναι απενεργοποιημένη",
+        "FLIGHT_MODE_ON": "Η λειτουργία πτήσης είναι ενεργή",
+        "MODEM_INIT_ERROR": "Αποτυχία αρχικοποίησης modem"
     }
 }
-

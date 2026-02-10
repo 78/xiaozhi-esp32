@@ -4,7 +4,11 @@
         {
             "name": "df-k10",
             "sdkconfig_append": [
-                "CONFIG_SPIRAM_MODE_OCT=y"
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_CAMERA_GC2145=y",
+                "CONFIG_CAMERA_GC2145_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_GC2145_DVP_RGB565_800X600_20FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y"
             ]
         }
     ]

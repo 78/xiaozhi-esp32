@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "S'han trobat nous recursos: %s",
         "DOWNLOAD_ASSETS_FAILED": "No s'han pogut descarregar els recursos",
         "LOADING_ASSETS": "Carregant recursos...",
-        "HELLO_MY_FRIEND": "Hola, amic meu!"
+        "HELLO_MY_FRIEND": "Hola, amic meu!",
+        "FLIGHT_MODE_OFF": "El mode avió està desactivat",
+        "FLIGHT_MODE_ON": "El mode avió està activat",
+        "MODEM_INIT_ERROR": "Error d'inicialització del mòdem"
     }
 }
-

@@ -34,16 +34,6 @@ void AudioCodec::Start() {
         output_volume_ = 10;
     }
 
-    if (tx_handle_ != nullptr) {
-        ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
-    }
-
-    if (rx_handle_ != nullptr) {
-        ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
-    }
-
-    EnableInput(true);
-    EnableOutput(true);
     ESP_LOGI(TAG, "Audio codec started");
 }
 

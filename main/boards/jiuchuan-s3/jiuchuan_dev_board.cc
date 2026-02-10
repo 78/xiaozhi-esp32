@@ -10,7 +10,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "esp_lcd_panel_gc9301.h"
@@ -40,10 +39,23 @@ public:
                      bool swap_xy)
         : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy)
     {
+        // Note: UI customization should be done in SetupUI(), not in constructor
+        // to ensure lvgl objects are created before accessing them
+    }
+
+    virtual void SetupUI() override {
+        // Call parent SetupUI() first to create all lvgl objects
+        SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.167, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.167, 0);
+
+        // 状态栏容器适配
+        lv_obj_set_style_pad_left(top_bar_, LV_HOR_RES * 0.12, 0);  // 左侧填充12%
+        lv_obj_set_style_pad_right(top_bar_, LV_HOR_RES * 0.12, 0); // 右侧填充12%
+        // 表情容器上移适配
+        lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -30);          // 向上偏移30
+        // 消息栏适配
+        lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -20);     // 向上偏移20
     }
 };
 
@@ -230,11 +242,11 @@ private:
             } });
 
         // 电源键三击：重置WiFi
-        pwr_button_.OnMultipleClick([this]()
-                                    {
+        pwr_button_.OnMultipleClick([this]() {
             ESP_LOGI(TAG, "Power button triple click: 重置WiFi");
             power_save_timer_->WakeUp();
-            ResetWifiConfiguration(); }, 3);
+            EnterWifiConfigMode();
+        }, 3);
 
         wifi_button.OnPressDown([this]()
                             {
@@ -372,11 +384,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

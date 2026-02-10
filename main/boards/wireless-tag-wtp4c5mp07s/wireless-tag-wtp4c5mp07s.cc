@@ -12,7 +12,6 @@
 
 #include "esp_lcd_ek79007.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
@@ -73,7 +72,6 @@ private:
         esp_lcd_dsi_bus_config_t bus_config = {
             .bus_id = 0,
             .num_data_lanes = 2,
-            .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
             .lane_bit_rate_mbps = 900,
         };
         esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
@@ -170,10 +168,13 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
-            app.ToggleChatState(); });
+            app.ToggleChatState();
+        });
     }
 
     void InitializeSdCard() {

@@ -75,7 +75,8 @@ bool WebsocketProtocol::IsAudioChannelOpened() const {
     return websocket_ != nullptr && websocket_->IsConnected() && !error_occurred_ && !IsTimeout();
 }
 
-void WebsocketProtocol::CloseAudioChannel() {
+void WebsocketProtocol::CloseAudioChannel(bool send_goodbye) {
+    (void)send_goodbye;  // Websocket doesn't need to send goodbye message
     websocket_.reset();
 }
 
@@ -173,7 +174,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_);
     if (!websocket_->Connect(url.c_str())) {
-        ESP_LOGE(TAG, "Failed to connect to websocket server");
+        ESP_LOGE(TAG, "Failed to connect to websocket server, code=%d", websocket_->GetLastError());
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }

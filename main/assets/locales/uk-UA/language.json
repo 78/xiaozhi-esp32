@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Завантаження ресурсів...",
         "PLEASE_WAIT": "Будь ласка, зачекайте...",
         "FOUND_NEW_ASSETS": "Знайдено нові ресурси: %s",
-        "HELLO_MY_FRIEND": "Привіт, мій друже!"
+        "HELLO_MY_FRIEND": "Привіт, мій друже!",
+        "CONNECTION_SUCCESSFUL": "Підключення успішне",
+        "FLIGHT_MODE_OFF": "Режим польоту вимкнено",
+        "FLIGHT_MODE_ON": "Режим польоту увімкнено",
+        "MODEM_INIT_ERROR": "Помилка ініціалізації модему"
     }
 }

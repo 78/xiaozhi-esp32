@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "載入資源...",
         "PLEASE_WAIT": "請稍候...",
         "FOUND_NEW_ASSETS": "發現新資源: %s",
-        "HELLO_MY_FRIEND": "你好，我的朋友！"
+        "HELLO_MY_FRIEND": "你好，我的朋友！",
+        "CONNECTION_SUCCESSFUL": "連線成功",
+        "FLIGHT_MODE_OFF": "飛航模式已關閉",
+        "FLIGHT_MODE_ON": "飛航模式已開啟",
+        "MODEM_INIT_ERROR": "模組初始化失敗"
     }
 }
