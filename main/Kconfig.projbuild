@@ -215,6 +215,15 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_EDA_TV_PRO
+        bool "EDA课程案例 EDA-TV-Pro"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDA_ROBOT_PRO
+        bool "EDA课程案例 EDA-Robot-Pro"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_EDA_SUPER_BEAR
+        bool "EDA课程案例 EDA-Super-Bear"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DF_K10
         bool "DFRobot 行空板 k10"
         depends on IDF_TARGET_ESP32S3
