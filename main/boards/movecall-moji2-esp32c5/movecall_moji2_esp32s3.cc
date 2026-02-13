@@ -227,16 +227,19 @@ private:
     void InitializeBatteryMonitor() {
         adc_battery_monitor_ = new AdcBatteryMonitor(ADC_UNIT_1, ADC_CHANNEL_3, 5100000, 5100000, GPIO_NUM_NC);
         adc_battery_monitor_->OnChargingStatusChanged([this](bool is_charging) {
-            if (is_charging) {
-                power_save_timer_->SetEnabled(false);
-            } else {
-                power_save_timer_->SetEnabled(true);
+            if (power_save_timer_ != nullptr){
+                if (is_charging) {
+                    power_save_timer_->SetEnabled(false);
+                } else {
+                    power_save_timer_->SetEnabled(true);
+                }
             }
+
         });
     }
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(240, 300);
+        power_save_timer_ = new PowerSaveTimer(240, -1, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
         });
@@ -348,8 +351,8 @@ private:
 public:
     MovecallMoji2ESP32C5() : boot_button_(BOOT_BUTTON_GPIO) {  
         InitializeCodecI2c();
-        InitializeBatteryMonitor();
         InitializePowerSaveTimer();
+        InitializeBatteryMonitor();
         InitializeSpi();
         InitializeSt77916Display();
         InitializeButtons();
