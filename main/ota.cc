@@ -3,6 +3,8 @@
 #include "settings.h"
 #include "assets/lang_config.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <cJSON.h>
 #include <esp_log.h>
 #include <esp_partition.h>
@@ -10,6 +12,7 @@
 #include <esp_app_format.h>
 #include <esp_efuse.h>
 #include <esp_efuse_table.h>
+#include <esp_heap_caps.h>
 #ifdef SOC_HMAC_SUPPORTED
 #include <esp_hmac.h>
 #endif
@@ -292,19 +295,28 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
         return false;
     }
 
-    char buffer[512];
+    constexpr size_t PAGE_SIZE = 4096;
+    char* buffer = (char*)heap_caps_malloc(PAGE_SIZE, MALLOC_CAP_INTERNAL);
+    if (buffer == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate buffer");
+        return false;
+    }
+
+    size_t buffer_offset = 0;  // Current data size in buffer
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
-        int ret = http->Read(buffer, sizeof(buffer));
+        int ret = http->Read(buffer + buffer_offset, PAGE_SIZE - buffer_offset);
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
+            heap_caps_free(buffer);
             return false;
         }
 
         // Calculate speed and progress every second
         recent_read += ret;
         total_read += ret;
+        buffer_offset += ret;
         if (esp_timer_get_time() - last_calc_time >= 1000000 || ret == 0) {
             size_t progress = total_read * 100 / content_length;
             ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %uB/s", progress, total_read, content_length, recent_read);
@@ -315,22 +327,16 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
             recent_read = 0;
         }
 
-        if (ret == 0) {
-            break;
-        }
-
         if (!image_header_checked) {
-            image_header.append(buffer, ret);
+            image_header.append(buffer, buffer_offset);
             if (image_header.size() >= sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
                 esp_app_desc_t new_app_info;
                 memcpy(&new_app_info, image_header.data() + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(esp_app_desc_t));
-                
-                auto current_version = esp_app_get_description()->version;
-                ESP_LOGI(TAG, "Current version: %s, New version: %s", current_version, new_app_info.version);
 
                 if (esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle)) {
                     esp_ota_abort(update_handle);
                     ESP_LOGE(TAG, "Failed to begin OTA");
+                    heap_caps_free(buffer);
                     return false;
                 }
 
@@ -338,14 +344,27 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
                 std::string().swap(image_header);
             }
         }
-        auto err = esp_ota_write(update_handle, buffer, ret);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-            esp_ota_abort(update_handle);
-            return false;
+
+        // Write to flash when buffer is full (4KB) or it's the last chunk
+        bool is_last_chunk = (ret == 0);
+        if (buffer_offset == PAGE_SIZE || (is_last_chunk && buffer_offset > 0)) {
+            auto err = esp_ota_write(update_handle, buffer, buffer_offset);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
+                esp_ota_abort(update_handle);
+                heap_caps_free(buffer);
+                return false;
+            }
+
+            buffer_offset = 0;
+        }
+
+        if (is_last_chunk) {
+            break;
         }
     }
     http->Close();
+    heap_caps_free(buffer);
 
     esp_err_t err = esp_ota_end(update_handle);
     if (err != ESP_OK) {

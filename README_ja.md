@@ -140,6 +140,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 - [xinnan-tech/xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server) Pythonサーバー
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Javaサーバー
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golangサーバー
+- [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golangサーバー
 
 シャオジー通信プロトコルを利用した他のクライアントプロジェクト：
 
@@ -155,7 +156,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 このプロジェクトを通じて、AIハードウェア開発を理解し、急速に進化する大規模言語モデルを実際のハードウェアデバイスに応用できるようになることを目指しています。
 
-ご意見やご提案があれば、いつでもIssueを提出するか、QQグループ：1011329060 にご参加ください。
+ご意見やご提案があれば、いつでもIssueを提出するか、[Discord](https://discord.gg/bXqgAfRm) または QQグループ：1011329060 にご参加ください。
 
 ## スター履歴
 

@@ -173,6 +173,10 @@ private:
         InitializeGc9107Display();
         InitializeButtons();
         GetBacklight()->SetBrightness(100);
+        
+        // Ensure UI is set up before displaying error
+        display_->SetupUI();
+        
         display_->SetStatus(Lang::Strings::ERROR);
         display_->SetEmotion("triangle_exclamation");
         display_->SetChatMessage("system", "Echo Base\nnot connected");

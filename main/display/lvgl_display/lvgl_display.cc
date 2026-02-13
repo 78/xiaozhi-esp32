@@ -70,8 +70,14 @@ LvglDisplay::~LvglDisplay() {
 }
 
 void LvglDisplay::SetStatus(const char* status) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetStatus('%s') called before SetupUI() - message will be lost!", status);
+    }
     DisplayLockGuard lock(this);
     if (status_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetStatus('%s') failed: status_label_ is nullptr (SetupUI() was called but label not created)", status);
+        }
         return;
     }
     lv_label_set_text(status_label_, status);
@@ -86,8 +92,14 @@ void LvglDisplay::ShowNotification(const std::string &notification, int duration
 }
 
 void LvglDisplay::ShowNotification(const char* notification, int duration_ms) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "ShowNotification('%s') called before SetupUI() - message will be lost!", notification);
+    }
     DisplayLockGuard lock(this);
     if (notification_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "ShowNotification('%s') failed: notification_label_ is nullptr (SetupUI() was called but label not created)", notification);
+        }
         return;
     }
     lv_label_set_text(notification_label_, notification);
@@ -162,11 +174,15 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             lv_label_set_text(battery_label_, battery_icon_);
         }
 
-        if (low_battery_popup_ != nullptr) {
+        // Check low battery popup only when clock tick event is triggered
+        // Because when initializing, the battery level is not ready yet.
+        if (low_battery_popup_ != nullptr && !update_all) {
             if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // Show if low battery popup is hidden
                     lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
+                    app.Schedule([&app]() {
+                        app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
+                    });
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty

@@ -54,21 +54,44 @@ void EspWakeWord::Start() {
 
 void EspWakeWord::Stop() {
     running_ = false;
+
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.clear();
 }
 
 void EspWakeWord::Feed(const std::vector<int16_t>& data) {
-    if (wakenet_data_ == nullptr || !running_) {
+    if (wakenet_data_ == nullptr) {
         return;
     }
 
-    int res = wakenet_iface_->detect(wakenet_data_, (int16_t *)data.data());
-    if (res > 0) {
-        last_detected_wake_word_ = wakenet_iface_->get_word_name(wakenet_data_, res);
-        running_ = false;
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    // Check running state inside lock to avoid TOCTOU race with Stop()
+    if (!running_) {
+        return;
+    }
 
-        if (wake_word_detected_callback_) {
-            wake_word_detected_callback_(last_detected_wake_word_);
+    if (codec_->input_channels() == 2) {
+        for (size_t i = 0; i < data.size(); i += 2) {
+            input_buffer_.push_back(data[i]);
         }
+    } else {
+        input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    }
+
+    int chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
+    while (input_buffer_.size() >= chunksize) {
+        int res = wakenet_iface_->detect(wakenet_data_, input_buffer_.data());
+        if (res > 0) {
+            last_detected_wake_word_ = wakenet_iface_->get_word_name(wakenet_data_, res);
+            running_ = false;
+            input_buffer_.clear();
+
+            if (wake_word_detected_callback_) {
+                wake_word_detected_callback_(last_detected_wake_word_);
+            }
+            break;
+        }
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunksize);
     }
 }
 

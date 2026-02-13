@@ -84,47 +84,39 @@ private:
     }
 
     void InitializeCamera() {
-        static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
-            .data_width = CAM_CTLR_DATA_WIDTH_8,
-            .data_io = {
-                [0] = CAMERA_PIN_D0,
-                [1] = CAMERA_PIN_D1,
-                [2] = CAMERA_PIN_D2,
-                [3] = CAMERA_PIN_D3,
-                [4] = CAMERA_PIN_D4,
-                [5] = CAMERA_PIN_D5,
-                [6] = CAMERA_PIN_D6,
-                [7] = CAMERA_PIN_D7,
-            },
-            .vsync_io = CAMERA_PIN_VSYNC,
-            .de_io = CAMERA_PIN_HREF,
-            .pclk_io = CAMERA_PIN_PCLK,
-            .xclk_io = CAMERA_PIN_XCLK,
+         // ESP32-S3 使用 esp_camera 组件
+        camera_config_t camera_config = {
+            .pin_pwdn = CAMERA_PIN_PWDN,
+            .pin_reset = CAMERA_PIN_RESET,
+            .pin_xclk = CAMERA_PIN_XCLK,
+            .pin_sccb_sda = -1, // 使用已初始化的 I2C
+            .pin_sccb_scl = -1,
+            .pin_d7 = CAMERA_PIN_D7,
+            .pin_d6 = CAMERA_PIN_D6,
+            .pin_d5 = CAMERA_PIN_D5,
+            .pin_d4 = CAMERA_PIN_D4,
+            .pin_d3 = CAMERA_PIN_D3,
+            .pin_d2 = CAMERA_PIN_D2,
+            .pin_d1 = CAMERA_PIN_D1,
+            .pin_d0 = CAMERA_PIN_D0,
+            .pin_vsync = CAMERA_PIN_VSYNC,
+            .pin_href = CAMERA_PIN_HREF,
+            .pin_pclk = CAMERA_PIN_PCLK,
+
+            .xclk_freq_hz = XCLK_FREQ_HZ,
+            .ledc_timer = LEDC_TIMER_0,
+            .ledc_channel = LEDC_CHANNEL_0,
+
+            .pixel_format = PIXFORMAT_RGB565,
+            .frame_size = FRAMESIZE_QVGA,
+            .jpeg_quality = 12,
+            .fb_count = 2,
+            .fb_location = CAMERA_FB_IN_PSRAM,
+            .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+            .sccb_i2c_port = (i2c_port_t)1,
         };
 
-        esp_video_init_sccb_config_t sccb_config = {
-            .init_sccb = true,
-            .i2c_config = {
-                .port = 1,
-                .scl_pin = CAMERA_PIN_SIOC,
-                .sda_pin = CAMERA_PIN_SIOD,
-            },
-            .freq = 100000,
-        };
-
-        esp_video_init_dvp_config_t dvp_config = {
-            .sccb_config = sccb_config,
-            .reset_pin = CAMERA_PIN_RESET,
-            .pwdn_pin = CAMERA_PIN_PWDN,
-            .dvp_pin = dvp_pin_config,
-            .xclk_freq = XCLK_FREQ_HZ,
-        };
-
-        esp_video_init_config_t video_config = {
-            .dvp = &dvp_config,
-        };
-
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new Esp32Camera(camera_config);
     }
 
 public:
