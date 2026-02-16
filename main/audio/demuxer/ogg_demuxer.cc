@@ -246,7 +246,7 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
                                                             (ctx_.packet_buf[13] << 8) | 
                                                             (ctx_.packet_buf[14] << 16) | 
                                                             (ctx_.packet_buf[15] << 24);
-                                    ESP_LOGI(TAG, "OpusHead found, sample_rate=%d", opus_info_.sample_rate);
+                                    ESP_LOGD(TAG, "OpusHead found, sample_rate=%d", opus_info_.sample_rate);
                                 }
                                 ctx_.packet_len = 0;
                                 ctx_.packet_continued = false;
@@ -258,7 +258,7 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
                         if (!opus_info_.tags_seen) {
                             if (ctx_.packet_len >= 8 && memcmp(ctx_.packet_buf, "OpusTags", 8) == 0) {
                                 opus_info_.tags_seen = true;
-                                ESP_LOGI(TAG, "OpusTags found.");
+                                ESP_LOGD(TAG, "OpusTags found.");
                                 ctx_.packet_len = 0;
                                 ctx_.packet_continued = false;
                                 ctx_.seg_index++;
