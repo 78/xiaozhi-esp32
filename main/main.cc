@@ -8,7 +8,6 @@
 #include <freertos/task.h>
 
 #include "application.h"
-#include "system_info.h"
 
 #define TAG "main"
 
