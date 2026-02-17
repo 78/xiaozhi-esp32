@@ -126,11 +126,14 @@ def rename_artifact(original_name: str, version: str) -> str:
     - Remove "xiaozhi_" prefix
     - Remove hash suffix (underscore followed by hex string)
     - Add version prefix (e.g., "v2.0.4_")
-    - Change extension to .zip
+    - Add .zip extension
     
-    Example:
-        xiaozhi_atk-dnesp32s3-box0_43ef2f4e7f0957dc62ec7d628ac2819d226127b8.bin
+    Examples:
+        xiaozhi_atk-dnesp32s3-box0_43ef2f4e7f0957dc62ec7d628ac2819d226127b8
         -> v2.0.4_atk-dnesp32s3-box0.zip
+        
+        xiaozhi_waveshare-esp32-p4-nano-10.1-a_43ef2f4e7f0957dc62ec7d628ac2819d226127b8
+        -> v2.0.4_waveshare-esp32-p4-nano-10.1-a.zip
     
     Args:
         original_name: Original artifact name
