@@ -43,7 +43,8 @@ Xiaozhi Assistant -> Board Type -> Waveshare ESP32-S3-ePaper-1.54_v2
 **编译**
 
 ```bash
-python ./scripts/release.py --name waveshare-s3-epaper-1.54-v2 waveshare-s3-epaper-1.54
+python ./scripts/release.py --name esp32-s3-epaper-1.54-v1 waveshare/esp32-s3-epaper-1.54
+python ./scripts/release.py --name esp32-s3-epaper-1.54-v2 waveshare/esp32-s3-epaper-1.54
 ```
 
 **下载并打开串口终端**
