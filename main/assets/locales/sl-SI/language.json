@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Najdeni novi viri: %s",
         "DOWNLOAD_ASSETS_FAILED": "Prenos virov ni uspel",
         "LOADING_ASSETS": "Nalaganje virov...",
-        "HELLO_MY_FRIEND": "Pozdravljeni, moj prijatelj!"
+        "HELLO_MY_FRIEND": "Pozdravljeni, moj prijatelj!",
+        "FLIGHT_MODE_OFF": "Način leta je izklopljen",
+        "FLIGHT_MODE_ON": "Način leta je vklopljen",
+        "MODEM_INIT_ERROR": "Inicializacija modema ni uspela"
     }
 }
-

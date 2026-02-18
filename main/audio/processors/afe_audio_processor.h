@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <mutex>
 
 #include "audio_processor.h"
 #include "audio_codec.h"
@@ -37,6 +38,8 @@ private:
     AudioCodec* codec_ = nullptr;
     int frame_samples_ = 0;
     bool is_speaking_ = false;
+    std::vector<int16_t> input_buffer_;
+    std::mutex input_buffer_mutex_;
     std::vector<int16_t> output_buffer_;
 
     void AudioProcessorTask();

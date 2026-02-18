@@ -1,0 +1,12 @@
+{
+    "manufacturer": "lceda-course-examples",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "eda-super-bear",
+            "sdkconfig_append": [
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/16m.csv\""
+            ]
+        }
+    ]
+}

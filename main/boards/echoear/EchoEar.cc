@@ -6,7 +6,7 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include <esp_log.h>
 
@@ -390,7 +390,7 @@ private:
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
-    Esp32Camera* camera_ = nullptr;
+    EspVideo* camera_ = nullptr;
 
     void InitializeI2c()
     {
@@ -471,7 +471,7 @@ private:
                 auto &app = Application::GetInstance();
                 auto &board = (EchoEar &)Board::GetInstance();
 
-                ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
+                ESP_LOGD(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
                 auto touch_event = touchpad->CheckTouchEvent();
 
@@ -605,7 +605,7 @@ private:
             .usb_uvc = &usb_uvc_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
     }
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 

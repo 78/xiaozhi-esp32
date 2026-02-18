@@ -11,6 +11,7 @@
         "INITIALIZING": "正在初始化...",
         "PIN_ERROR": "请插入 SIM 卡",
         "REG_ERROR": "无法接入网络，请检查流量卡状态",
+        "MODEM_INIT_ERROR": "模组初始化失败",
         "DETECTING_MODULE": "检测模组...",
         "REGISTERING_NETWORK": "等待网络...",
         "CHECKING_NEW_VERSION": "检查新版本...",
@@ -50,6 +51,9 @@
         "LOADING_ASSETS": "加载资源...",
         "PLEASE_WAIT": "请稍候...",
         "FOUND_NEW_ASSETS": "发现新资源: %s",
-        "HELLO_MY_FRIEND": "你好，我的朋友！"
+        "HELLO_MY_FRIEND": "你好，我的朋友！",
+        "CONNECTION_SUCCESSFUL": "连接成功",
+        "FLIGHT_MODE_OFF": "飞行模式已关闭",
+        "FLIGHT_MODE_ON": "飞行模式已开启"
     }
 }

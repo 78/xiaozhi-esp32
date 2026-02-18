@@ -119,7 +119,8 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
                 auto alive = alive_;  // Capture alive flag
                 Application::GetInstance().Schedule([this, alive]() {
                     if (*alive) {
-                        CloseAudioChannel();
+                        // Server initiated goodbye, don't send goodbye back to avoid ping-pong
+                        CloseAudioChannel(false);
                     }
                 });
             }
@@ -188,17 +189,23 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     return udp_->Send(encrypted) > 0;
 }
 
-void MqttProtocol::CloseAudioChannel() {
+void MqttProtocol::CloseAudioChannel(bool send_goodbye) {
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
         udp_.reset();
     }
 
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"goodbye\"";
-    message += "}";
-    SendText(message);
+    ESP_LOGI(TAG, "Closing audio channel, send_goodbye: %d", send_goodbye);
+
+    // Only send goodbye when client initiates the close
+    // Don't send if server already sent goodbye (to avoid ping-pong)
+    if (send_goodbye) {
+        std::string message = "{";
+        message += "\"session_id\":\"" + session_id_ + "\",";
+        message += "\"type\":\"goodbye\"";
+        message += "}";
+        SendText(message);
+    }
 
     if (on_audio_channel_closed_ != nullptr) {
         on_audio_channel_closed_();

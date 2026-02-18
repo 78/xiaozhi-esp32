@@ -51,6 +51,9 @@
         "LOADING_ASSETS": "에셋 로딩 중...",
         "PLEASE_WAIT": "잠시 기다려 주세요...",
         "FOUND_NEW_ASSETS": "새로운 에셋을 발견했습니다: %s",
-        "HELLO_MY_FRIEND": "안녕하세요, 친구!"
+        "HELLO_MY_FRIEND": "안녕하세요, 친구!",
+        "FLIGHT_MODE_OFF": "비행기 모드가 꺼져 있습니다",
+        "FLIGHT_MODE_ON": "비행기 모드가 켜져 있습니다",
+        "MODEM_INIT_ERROR": "모뎀 초기화 실패"
     }
 }

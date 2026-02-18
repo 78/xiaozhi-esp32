@@ -83,7 +83,7 @@ jobs:
           fi
 
   build:
-    name: Build ${{ matrix.name }}
+    name: Build ${{ matrix.full_name }}
     needs: prepare
     if: ${{ needs.prepare.outputs.variants != '[]' }}
     strategy:
@@ -92,7 +92,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:release-v5.5
+      image: espressif/idf:v5.5.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -106,6 +106,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi_${{ matrix.name }}_${{ github.sha }}.bin
+          name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
