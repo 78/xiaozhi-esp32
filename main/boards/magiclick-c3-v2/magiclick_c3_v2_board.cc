@@ -23,16 +23,18 @@ public:
     GC9107Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
         : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
+    }
 
+    void SetupUI() override {
+        SpiLcdDisplay::SetupUI();
+
+        // Apply custom color styles after parent creates all LVGL objects
         DisplayLockGuard lock(this);
-        // 只需要覆盖颜色相关的样式
         auto screen = lv_disp_get_scr_act(lv_disp_get_default());
         lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
-        // 设置容器背景色
         lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
 
-        // 设置状态栏背景色和文本颜色
         lv_obj_set_style_bg_color(status_bar_, lv_color_make(0x1e, 0x90, 0xff), 0);
         lv_obj_set_style_text_color(network_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(notification_label_, lv_color_black(), 0);
@@ -40,12 +42,11 @@ public:
         lv_obj_set_style_text_color(mute_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(battery_label_, lv_color_black(), 0);
 
-        // 设置内容区背景色和文本颜色
         lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
         lv_obj_set_style_border_width(content_, 0, 0);
         lv_obj_set_style_text_color(emoji_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-    }   
+    }
 };
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
