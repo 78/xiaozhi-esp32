@@ -27,10 +27,13 @@ void OttoEmojiDisplay::SetupUI() {
     // Call parent SetupUI() first to create all lvgl objects
     SpiLcdDisplay::SetupUI();
     
-    // Setup preview image after UI is initialized
-    DisplayLockGuard lock(this);
-    lv_obj_set_size(preview_image_, width_ , height_ );
-    
+    // Setup preview image after UI is initialized - release lock before calling SetEmotion
+    // to avoid deadlock (SetEmotion also acquires DisplayLockGuard internally)
+    {
+        DisplayLockGuard lock(this);
+        lv_obj_set_size(preview_image_, width_ , height_ );
+    }
+
     // Set default emotion after UI is initialized
     SetEmotion("staticstate");
 }
