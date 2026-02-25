@@ -323,8 +323,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54
-        bool "Waveshare ESP32-S3-ePaper-1.54"
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v1
+        bool "Waveshare ESP32-S3-ePaper-1.54_v1"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v2
+        bool "Waveshare ESP32-S3-ePaper-1.54_v2"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2
         bool "Waveshare ESP32-S3-RLCD-4.2"
@@ -631,6 +634,17 @@ choice DISPLAY_STYLE
             || BOARD_TYPE_ECHOEAR || BOARD_TYPE_LICHUANG_DEV_S3 \
             || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
+
+config USE_MULTILINE_CHAT_MESSAGE
+    bool "Use multiline chat message display (default mode only)"
+    depends on USE_DEFAULT_MESSAGE_STYLE
+    default n
+    help
+        When enabled, the chat message area in the default display mode shows
+        multiple wrapped lines that grow upward from the bottom of the screen,
+        with auto-adaptive height.
+        When disabled (default), a single-line horizontally scrolling label
+        is shown at the bottom of the screen.
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"

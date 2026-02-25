@@ -171,14 +171,14 @@ elseif(CONFIG_BOARD_TYPE_EDA_SUPER_BEAR)
     set(BOARD_TYPE "eda-super-bear")
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_S3_2P4)
     set(BOARD_TYPE "magiclick-2p4")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_TEXT_FONT font_noto_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+    set(DEFAULT_EMOJI_COLLECTION noto-emoji_64)
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_S3_2P5)
     set(BOARD_TYPE "magiclick-2p5")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_TEXT_FONT font_noto_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+    set(DEFAULT_EMOJI_COLLECTION noto-emoji_64)
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3)
     set(BOARD_TYPE "magiclick-c3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
@@ -351,7 +351,10 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_5B)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v1)
+    set(MANUFACTURER "waveshare")
+    set(BOARD_TYPE "esp32-s3-epaper-1.54")
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v2)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-s3-epaper-1.54")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
@@ -705,17 +708,17 @@ elseif(CONFIG_BOARD_TYPE_HU_087)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 endif()
 
-file(GLOB BOARD_SOURCES
 if(MANUFACTURER)
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.c
-else
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
+    file(GLOB BOARD_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${MANUFACTURER}/${BOARD_TYPE}/*.c
+    )
+else()
+    file(GLOB BOARD_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
+    )
 endif()
-
-    
-)
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 # Select audio processor according to Kconfig

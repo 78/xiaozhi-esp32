@@ -15,6 +15,7 @@
 
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_jd9365.h"
+#include "lcd_init_cmds.h"
 #include "config.h"
 
 #include <esp_log.h>

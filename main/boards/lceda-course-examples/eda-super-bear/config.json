@@ -1,4 +1,5 @@
 {
+    "manufacturer": "lceda-course-examples",
     "target": "esp32s3",
     "builds": [
         {
