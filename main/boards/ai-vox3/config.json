@@ -4,16 +4,14 @@
     {
       "name": "ai-vox3-aec",
       "sdkconfig_append": [
-        "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
-        "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/32m.csv\"",
+        "CONFIG_ESP_CONSOLE_NONE=y",
         "CONFIG_USE_DEVICE_AEC=y"
       ]
     },
     {
       "name": "ai-vox3",
       "sdkconfig_append": [
-        "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
-        "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/32m.csv\"",
+        "CONFIG_ESP_CONSOLE_NONE=y",
         "CONFIG_USE_DEVICE_AEC=n"
       ]
     }
