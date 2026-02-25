@@ -268,7 +268,7 @@ private:
             .x_max = DISPLAY_WIDTH - 1,
             .y_max = DISPLAY_HEIGHT - 1,
             .rst_gpio_num = GPIO_NUM_40,
-            .int_gpio_num = GPIO_NUM_NC,
+            .int_gpio_num = GPIO_NUM_11,
             .levels = {
                 .reset = 0,
                 .interrupt = 0,
