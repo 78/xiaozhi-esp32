@@ -619,6 +619,19 @@ choice DISPLAY_ESP32S3_AUDIO_BOARD
         bool "ST7789 240*320"
 endchoice
 
+choice DISPLAY_ESP32S3_TOUCH_LCD_1_85C
+    depends on BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C
+    prompt "ESP32S3_TOUCH_LCD_1_85C version"
+    default VERSION_2_0 
+    help
+        hardware version
+    config VERSION_1_0
+        bool "version 1.0"
+    config VERSION_2_0
+        bool "version 2.0"
+endchoice
+
+
 choice DISPLAY_STYLE
     prompt "Select display style"
     default USE_DEFAULT_MESSAGE_STYLE
