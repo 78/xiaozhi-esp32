@@ -8,6 +8,13 @@
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
+        },
+        {
+            "name": "esp32-s3-touch-amoled-1.75c",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
         }
     ]
 }
