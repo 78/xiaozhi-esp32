@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-#include "esp_lcd_sh8601.h"
+#include "esp_lcd_co5300.h"
 
 #include "codecs/box_audio_codec.h"
 #include "application.h"
@@ -58,7 +58,7 @@ public:
 #define LCD_OPCODE_READ_CMD (0x03ULL)
 #define LCD_OPCODE_WRITE_COLOR (0x32ULL)
 
-static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
+static const co5300_lcd_init_cmd_t vendor_specific_init[] = {
     // set display to qspi mode
     {0xFE, (uint8_t[]){0x20}, 1, 0},
     {0x19, (uint8_t[]){0x10}, 1, 0},
@@ -223,13 +223,13 @@ private:
 #endif
     }
 
-    void InitializeSH8601Display() {
+    void InitializeDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
 
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
+        esp_lcd_panel_io_spi_config_t io_config = CO5300_PANEL_IO_QSPI_CONFIG(
             EXAMPLE_PIN_NUM_LCD_CS,
             nullptr,
             nullptr);
@@ -237,9 +237,9 @@ private:
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
-        const sh8601_vendor_config_t vendor_config = {
+        const co5300_vendor_config_t vendor_config = {
             .init_cmds = &vendor_specific_init[0],
-            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(sh8601_lcd_init_cmd_t),
+            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(co5300_lcd_init_cmd_t),
             .flags = {
                 .use_qspi_interface = 1,
             }};
@@ -249,7 +249,7 @@ private:
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
         panel_config.vendor_config = (void* )&vendor_config;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_co5300(panel_io, &panel_config, &panel));
         esp_lcd_panel_set_gap(panel, 0x06, 0);
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
@@ -267,8 +267,8 @@ private:
         esp_lcd_touch_config_t tp_cfg = {
             .x_max = DISPLAY_WIDTH - 1,
             .y_max = DISPLAY_HEIGHT - 1,
-            .rst_gpio_num = GPIO_NUM_40,
-            .int_gpio_num = GPIO_NUM_11,
+            .rst_gpio_num = PIN_NUM_TOUCH_RST,
+            .int_gpio_num = PIN_NUM_TOUCH_INT,
             .levels = {
                 .reset = 0,
                 .interrupt = 0,
@@ -309,10 +309,12 @@ public:
     WaveshareEsp32s3TouchAMOLED1inch75() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
         InitializeCodecI2c();
+#if CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75
         InitializeTca9554();
+#endif
         InitializeAxp2101();
         InitializeSpi();
-        InitializeSH8601Display();
+        InitializeDisplay();
         InitializeTouch();
         InitializeButtons();
         InitializeTools();

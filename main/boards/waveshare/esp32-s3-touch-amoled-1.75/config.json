@@ -6,6 +6,15 @@
             "name": "esp32-s3-touch-amoled-1.75",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75=y",
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        },
+        {
+            "name": "esp32-s3-touch-amoled-1.75c",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75C=y",
                 "CONFIG_USE_DEVICE_AEC=y"
             ]
         }
