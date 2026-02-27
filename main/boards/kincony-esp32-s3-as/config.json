@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kincony-esp32-s3-as",
+            "sdkconfig_append": []
+        }
+    ]
+}
