@@ -40,7 +40,7 @@
 
 // 根据PCB版本动态选择屏幕类型和配置 
 #define PCB_VERSION_2_5A  1 // 使用GC9107
-#define PCB_VERSION_2_5A1 2 // 使用ST7789
+#define PCB_VERSION_2_5A1 2 // 使用ST7735
 
 #define DISPLAY_OFFSET_X 0
 #define DISPLAY_OFFSET_Y 0

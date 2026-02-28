@@ -111,10 +111,10 @@ private:
                 .offset_x = 2,
                 .offset_y = 3,
                 .spi_mode = 0,
-                .screen_name = "ST7789"
+                .screen_name = "ST7735"
             };
         } else {
-            ESP_LOGW(TAG, "Unknown PCB version: %d, using default ST7789 configuration", pcb_version_);
+            ESP_LOGW(TAG, "Unknown PCB version: %d, using default ST7735 configuration", pcb_version_);
             return DisplayConfig{
                 .use_gc9107 = false,
                 .mirror_x = true,
@@ -125,7 +125,7 @@ private:
                 .offset_x = 2,
                 .offset_y = 3,
                 .spi_mode = 0,
-                .screen_name = "ST7789 (default)"
+                .screen_name = "ST7735 (default)"
 
             };
         }
