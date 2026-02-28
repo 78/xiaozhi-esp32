@@ -23,7 +23,7 @@ private:
     bool is_low_battery_ = false;
     int ticks_ = 0;
     const int kBatteryAdcInterval = 60;
-    const int kBatteryAdcDataCount = 3;
+    const int kBatteryAdcDataCount = 5;
     const int kLowBatteryLevel = 20;
 
     adc_oneshot_unit_handle_t adc_handle_;
