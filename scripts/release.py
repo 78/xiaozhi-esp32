@@ -6,6 +6,8 @@ import argparse
 from pathlib import Path
 from typing import Optional
 
+from patch_wifi_connect_de import apply_wifi_connect_german_patch
+
 # Switch to project root directory
 os.chdir(Path(__file__).resolve().parent.parent)
 
@@ -202,6 +204,14 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
 
     return items
 
+
+def _has_german_language(sdkconfig_append: list[str]) -> bool:
+    for entry in sdkconfig_append:
+        key, _, value = entry.partition("=")
+        if key == "CONFIG_LANGUAGE_DE_DE" and value.lower().startswith("y"):
+            return True
+    return False
+
 ################################################################################
 # Check board_type in CMakeLists
 ################################################################################
@@ -284,6 +294,14 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
             f.write("# Append by release.py\n")
             for append in sdkconfig_append:
                 f.write(f"{append}\n")
+
+        if os.system("idf.py reconfigure") != 0:
+            print("reconfigure failed")
+            sys.exit(1)
+
+        if _has_german_language(sdkconfig_append):
+            apply_wifi_connect_german_patch()
+
         # Build with macro BOARD_NAME defined to name
         if os.system(f"idf.py -DBOARD_NAME={name} -DBOARD_TYPE={board_type} build") != 0:
             print("build failed")
