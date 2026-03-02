@@ -37,7 +37,7 @@
 #define DISPLAY_SPI_CS_PIN      GPIO_NUM_9
 
 #define DISPLAY_WIDTH   240
-#define DISPLAY_HEIGHT  320
+#define DISPLAY_HEIGHT  296
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY false

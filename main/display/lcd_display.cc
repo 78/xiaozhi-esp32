@@ -169,8 +169,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
-    SetupUI();
 }
 
 
@@ -232,8 +230,6 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
-    SetupUI();
 }
 
 MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
@@ -285,8 +281,6 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
-    SetupUI();
 }
 
 LcdDisplay::~LcdDisplay() {
@@ -358,6 +352,13 @@ void LcdDisplay::Unlock() {
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
+    // Prevent duplicate calls - if already called, return early
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    Display::SetupUI();  // Mark SetupUI as called
     DisplayLockGuard lock(this);
 
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
@@ -501,8 +502,14 @@ void LcdDisplay::SetupUI() {
 #define  MAX_MESSAGES 20
 #endif
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetChatMessage('%s', '%s') called before SetupUI() - message will be lost!", role, content);
+    }
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetChatMessage('%s', '%s') failed: content_ is nullptr (SetupUI() was called but container not created)", role, content);
+        }
         return;
     }
     
@@ -795,6 +802,13 @@ void LcdDisplay::ClearChatMessages() {
 }
 #else
 void LcdDisplay::SetupUI() {
+    // Prevent duplicate calls - if already called, return early
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    Display::SetupUI();  // Mark SetupUI as called
     DisplayLockGuard lock(this);
     LvglTheme* lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
@@ -910,9 +924,33 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
 
+#if CONFIG_USE_MULTILINE_CHAT_MESSAGE
+    /* Bottom bar - auto height, grows upward with wrapped text */
+    bottom_bar_ = lv_obj_create(screen);
+    lv_obj_set_width(bottom_bar_, LV_HOR_RES);
+    lv_obj_set_height(bottom_bar_, LV_SIZE_CONTENT);
+    lv_obj_set_style_radius(bottom_bar_, 0, 0);
+    lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
+    lv_obj_set_style_bg_opa(bottom_bar_, LV_OPA_50, 0);
+    lv_obj_set_style_text_color(bottom_bar_, lvgl_theme->text_color(), 0);
+    lv_obj_set_style_pad_all(bottom_bar_, lvgl_theme->spacing(4), 0);
+    lv_obj_set_style_border_width(bottom_bar_, 0, 0);
+    lv_obj_set_scrollbar_mode(bottom_bar_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    /* chat_message_label_ placed in bottom_bar_, multiline wrapped display */
+    chat_message_label_ = lv_label_create(bottom_bar_);
+    lv_label_set_text(chat_message_label_, "");
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8));
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);  // Hide until there is content
+#else
     /* Top layer: Bottom bar - fixed height at bottom */
     bottom_bar_ = lv_obj_create(screen);
-    lv_obj_set_size(bottom_bar_, LV_HOR_RES, text_font->line_height + lvgl_theme->spacing(12));
+    lv_obj_set_size(bottom_bar_, LV_HOR_RES, text_font->line_height + lvgl_theme->spacing(8));
     lv_obj_set_style_radius(bottom_bar_, 0, 0);
     lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_text_color(bottom_bar_, lvgl_theme->text_color(), 0);
@@ -939,6 +977,8 @@ void LcdDisplay::SetupUI() {
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
     lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
+    lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);  // Hide until there is content
+#endif
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -991,23 +1031,50 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 }
 
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetChatMessage('%s', '%s') called before SetupUI() - message will be lost!", role, content);
+    }
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetChatMessage('%s', '%s') failed: chat_message_label_ is nullptr (SetupUI() was called but label not created)", role, content);
+        }
         return;
     }
     lv_label_set_text(chat_message_label_, content);
+    // Show bottom_bar_ only when there is content (and subtitle is not globally hidden)
+    if (bottom_bar_ != nullptr) {
+        if (content == nullptr || content[0] == '\0') {
+            lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        } else if (!hide_subtitle_) {
+            lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+#if CONFIG_USE_MULTILINE_CHAT_MESSAGE
+    // Re-align bottom_bar_ after text change so it stays anchored to the bottom
+    // as its height adapts to the wrapped content.
+    if (bottom_bar_ != nullptr) {
+        lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    }
+#endif
 }
 
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
-    // In non-wechat mode, just clear the chat message label
+    // In non-wechat mode, just clear the chat message label and hide the bar
     if (chat_message_label_ != nullptr) {
         lv_label_set_text(chat_message_label_, "");
+    }
+    if (bottom_bar_ != nullptr) {
+        lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
     }
 }
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!", emotion);
+    }
     // Stop any running GIF animation
     if (gif_controller_) {
         DisplayLockGuard lock(this);
@@ -1016,6 +1083,9 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
     
     if (emoji_image_ == nullptr) {
+        if (setup_ui_called_) {
+            ESP_LOGW(TAG, "SetEmotion('%s') failed: emoji_image_ is nullptr (SetupUI() was called but emoji image not created)", emotion);
+        }
         return;
     }
 
@@ -1038,8 +1108,6 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
         
         if (gif_controller_->IsLoaded()) {
-            // Set loop delay to 1000ms
-            gif_controller_->SetLoopDelay(3000);
             // Set up frame update callback
             gif_controller_->SetFrameCallback([this]() {
                 lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
@@ -1229,7 +1297,11 @@ void LcdDisplay::SetHideSubtitle(bool hide) {
         if (hide) {
             lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
         } else {
-            lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+            // Only show if there is actual content to display
+            const char* text = (chat_message_label_ != nullptr) ? lv_label_get_text(chat_message_label_) : nullptr;
+            if (text != nullptr && text[0] != '\0') {
+                lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+            }
         }
     }
 }

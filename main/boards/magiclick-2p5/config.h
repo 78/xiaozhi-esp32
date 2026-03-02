@@ -37,9 +37,10 @@
 
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
-#define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y false
-#define DISPLAY_SWAP_XY false
+
+// 根据PCB版本动态选择屏幕类型和配置 
+#define PCB_VERSION_2_5A  1 // 使用GC9107
+#define PCB_VERSION_2_5A1 2 // 使用ST7735
 
 #define DISPLAY_OFFSET_X 0
 #define DISPLAY_OFFSET_Y 0

@@ -1,0 +1,23 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-epaper-1.54-v2",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_USE_MULTILINE_CHAT_MESSAGE=y"
+            ]
+        },
+        {
+            "name": "esp32-s3-epaper-1.54-v1",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
+                "CONFIG_USE_MULTILINE_CHAT_MESSAGE=y"
+            ]
+        }
+    ]
+}

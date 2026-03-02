@@ -42,6 +42,8 @@ static void calBattLife() {
 }
 
 PowerManager::PowerManager(){
+    m_bt_task_handle = nullptr;
+    bt_link_callback_ = nullptr;
 }
 
 void PowerManager::Initialize(){
@@ -57,7 +59,7 @@ void PowerManager::Initialize(){
 
     // 初始化4G控制引脚
     gpio_config_t io_conf_4g = {
-        .pin_bit_mask = 1<<BOOT_4G_PIN,
+        .pin_bit_mask = (1<<BOOT_4G5V_PIN) | (1<<BOOT_4GEN_PIN),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_ENABLE,
@@ -175,19 +177,28 @@ void PowerManager::Shutdown5V() {
 }
 
 void PowerManager::Start4G() {
-    gpio_set_level(BOOT_4G_PIN, 1);
+    gpio_set_level(BOOT_4G5V_PIN, 1);
 }
 
 void PowerManager::Shutdown4G() {
-    gpio_set_level(BOOT_4G_PIN, 0);
+    gpio_set_level(BOOT_4G5V_PIN, 0);
     gpio_set_level(ML307_RX_PIN,1);
     gpio_set_level(ML307_TX_PIN,1);
+}
+
+void PowerManager::Enable4G() {
+    gpio_set_level(BOOT_4GEN_PIN, 1);
+}
+
+void PowerManager::Disable4G() {
+    gpio_set_level(BOOT_4GEN_PIN, 0);
 }
 
 void PowerManager::Sleep() {
     ESP_LOGI(TAG, "Entering deep sleep");
     Settings settings("board", true);
     settings.SetInt("sleep_flag", 1);
+    Disable4G();
     Shutdown4G();
     Shutdown5V();
 
@@ -200,4 +211,68 @@ void PowerManager::Sleep() {
     ESP_ERROR_CHECK(rtc_gpio_pulldown_dis(BOOT_BUTTON_PIN));
     ESP_ERROR_CHECK(rtc_gpio_pullup_en(BOOT_BUTTON_PIN));
     esp_deep_sleep_start();
+}
+
+void PowerManager::InitializeBtModul() {
+    if (MON_BTLINK_PIN == GPIO_NUM_NC) {
+        ESP_LOGW(TAG, "MON_BTLINK_PIN not configured, skipping GPIO polling setup");
+        return;
+    }
+
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.pin_bit_mask = (1ULL << MON_BTLINK_PIN);
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    if (gpio_config(&io_conf) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to configure GPIO %d", MON_BTLINK_PIN);
+        return;
+    }
+    BaseType_t ret = xTaskCreate(BtTask, "bt_task", 2048, this, 10, &m_bt_task_handle);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create BT task");
+        return;
+    }
+}
+
+void PowerManager::DeinitBtModul() {
+    if (MON_BTLINK_PIN == GPIO_NUM_NC) {
+        return;
+    }
+
+    if (m_bt_task_handle != nullptr) {
+        vTaskDelete(m_bt_task_handle);
+        m_bt_task_handle = nullptr;
+    }
+
+    gpio_reset_pin(MON_BTLINK_PIN);
+}
+
+void PowerManager::BtTask(void *arg) {
+    PowerManager *instance = static_cast<PowerManager *>(arg);
+    int last_level = -1;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        int level = gpio_get_level(MON_BTLINK_PIN);
+        if (level != last_level) {
+            last_level = level;
+            if (level == 1) {
+                ESP_LOGI(TAG, "BTLINK %d high - BT connected", MON_BTLINK_PIN);
+                if (instance->bt_link_callback_) {
+                    instance->bt_link_callback_(true);
+                }
+            } else {
+                ESP_LOGI(TAG, "BTLINK %d low - BT disconnected", MON_BTLINK_PIN);
+                if (instance->bt_link_callback_) {
+                    instance->bt_link_callback_(false);
+                }
+            }
+        }
+    }
+    vTaskDelete(NULL);
+}
+
+void PowerManager::OnBtLinkStatusChanged(std::function<void(bool)> callback) {
+    bt_link_callback_ = callback;
 } 

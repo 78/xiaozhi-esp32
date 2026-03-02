@@ -1,6 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
   waveshare/esp_lcd_sh8601: 1.0.2
+  espressif/esp_lcd_co5300: ^2.0.3
   espressif/esp_lcd_ili9341: ==1.2.0
   espressif/esp_lcd_gc9a01: ==2.0.1
   espressif/esp_lcd_st77916: ^1.0.1
@@ -19,12 +20,12 @@ dependencies:
   waveshare/custom_io_expander_ch32v003: ^1.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
-  78/esp-wifi-connect: ~3.0.2
+  78/esp-wifi-connect: ~3.1.1
   espressif/esp_audio_effects: ~1.2.1
   espressif/esp_audio_codec: ~2.4.1
-  78/esp-ml307: ~3.5.3
+  78/esp-ml307: ~3.6.4
   78/uart-eth-modem:
-    version: ~0.2.1
+    version: ~0.3.3
     rules:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~1.6.0
@@ -72,7 +73,7 @@ dependencies:
     - if: target in [esp32s3]
 
   tny-robotics/sh1106-esp-idf: ^1.0.0
-  waveshare/esp_lcd_jd9365_10_1:
+  espressif/esp_lcd_jd9365:
     version: '*'
     rules:
     - if: target in [esp32p4]

@@ -143,6 +143,8 @@ void SensecapAudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, 
 
     std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_RIGHT;
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 

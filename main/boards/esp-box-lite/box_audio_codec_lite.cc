@@ -165,6 +165,8 @@ void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, g
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(rx_handle_, &tdm_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
     ESP_LOGI(TAG, "Duplex channels created");
 }
 

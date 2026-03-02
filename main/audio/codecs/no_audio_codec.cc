@@ -254,6 +254,32 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
     return samples;
 }
 
+void NoAudioCodec::EnableInput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (enable == input_enabled_) {
+        return;
+    }
+    if (enable) {
+        ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    } else {
+        ESP_ERROR_CHECK(i2s_channel_disable(rx_handle_));
+    }
+    AudioCodec::EnableInput(enable);
+}
+
+void NoAudioCodec::EnableOutput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (enable == output_enabled_) {
+        return;
+    }
+    if (enable) {
+        ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    } else {
+        ESP_ERROR_CHECK(i2s_channel_disable(tx_handle_));
+    }
+    AudioCodec::EnableOutput(enable);
+}
+
 // Delegating constructor: calls the main constructor with default slot mask
 NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_din) 
     : NoAudioCodecSimplexPdm(input_sample_rate, output_sample_rate, spk_bclk, spk_ws, spk_dout, I2S_STD_SLOT_LEFT, mic_sck, mic_din) {

@@ -23,7 +23,7 @@
 #include "processors/audio_debugger.h"
 #include "wake_word.h"
 #include "protocol.h"
-
+#include "ogg_demuxer.h"
 
 /*
  * There are two types of audio data flow:
