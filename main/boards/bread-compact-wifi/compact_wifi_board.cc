@@ -9,6 +9,9 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+#include "power_save_timer.h"
+#endif
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -21,6 +24,8 @@
 
 #define TAG "CompactWifiBoard"
 
+static constexpr int kPowerSaveTimeoutSeconds = 60;
+
 class CompactWifiBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
@@ -31,6 +36,20 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+    PowerSaveTimer* power_save_timer_;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, kPowerSaveTimeoutSeconds, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(true);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(false);
+        });
+        power_save_timer_->SetEnabled(true);
+    }
+#endif
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -102,6 +121,9 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
@@ -110,13 +132,22 @@ private:
             app.ToggleChatState();
         });
         touch_button_.OnPressDown([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             Application::GetInstance().StartListening();
         });
         touch_button_.OnPressUp([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             Application::GetInstance().StopListening();
         });
 
         volume_up_button_.OnClick([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -127,11 +158,17 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -142,6 +179,9 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+            power_save_timer_->WakeUp();
+#endif
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
@@ -160,6 +200,9 @@ public:
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializeDisplayI2c();
         InitializeSsd1306Display();
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+        InitializePowerSaveTimer();
+#endif
         InitializeButtons();
         InitializeTools();
     }
@@ -183,6 +226,20 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
+
+    virtual Backlight* GetBacklight() override {
+        static OledBacklight backlight(static_cast<OledDisplay*>(display_));
+        return &backlight;
+    }
+
+#ifdef CONFIG_OLED_AUTO_POWER_SAVE
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveLevel(level);
+    }
+#endif
 };
 
 DECLARE_BOARD(CompactWifiBoard);

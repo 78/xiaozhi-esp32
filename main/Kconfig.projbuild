@@ -555,6 +555,13 @@ choice DISPLAY_OLED_TYPE
         bool "SH1106 128*64"
 endchoice
 
+config OLED_AUTO_POWER_SAVE
+    bool "Enable OLED Auto Power Save"
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI
+    help
+        Automatically turn off the OLED display after a period of inactivity.
+        The screen wakes up on button press or voice activity.
+
 choice DISPLAY_LCD_TYPE
     depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"

@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "settings.h"
 #include "assets/lang_config.h"
 #include "lvgl_theme.h"
 #include "lvgl_font.h"
@@ -405,4 +406,53 @@ void OledDisplay::SetTheme(Theme* theme) {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
+}
+
+void OledDisplay::SetPowerSaveMode(bool on) {
+    LvglDisplay::SetPowerSaveMode(on);
+    if (panel_ != nullptr) {
+        esp_lcd_panel_disp_on_off(panel_, !on);
+    }
+}
+
+void OledDisplay::SetContrast(uint8_t contrast) {
+    if (panel_io_ != nullptr) {
+        ESP_LOGI(TAG, "SetContrast: %d", contrast);
+        esp_lcd_panel_io_tx_param(panel_io_, 0x81, &contrast, 1);
+    }
+}
+
+OledBacklight::OledBacklight(OledDisplay* display) : display_(display) {
+    brightness_ = 50;
+}
+
+void OledBacklight::SetBrightness(uint8_t brightness, bool permanent) {
+    if (brightness > 100) {
+        brightness = 100;
+    }
+    if (brightness_ == brightness) {
+        return;
+    }
+
+    if (permanent) {
+        Settings settings("display", true);
+        settings.SetInt("brightness", brightness);
+    }
+
+    brightness_ = brightness;
+    target_brightness_ = brightness;
+    SetBrightnessImpl(brightness);
+    ESP_LOGI(TAG, "Set OLED brightness to %d", brightness);
+}
+
+void OledBacklight::SetBrightnessImpl(uint8_t brightness) {
+    if (brightness <= 5) {
+        display_->SetPowerSaveMode(true);
+    } else {
+        display_->SetPowerSaveMode(false);
+        // Map 6-100 to 0-255
+        // 5 is min brightness, so we map 5-100 to 0-255 roughly
+        uint8_t contrast = static_cast<uint8_t>((brightness) * 255 / 100);
+        display_->SetContrast(contrast);
+    }
 }
