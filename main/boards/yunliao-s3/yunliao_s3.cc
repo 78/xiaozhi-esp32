@@ -107,6 +107,11 @@ class YunliaoS3 : public DualNetworkBoard {
             if (app.GetDeviceState() == kDeviceStateStarting ||
                 app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
+            }else if(app.GetDeviceState() == kDeviceStateIdle){
+                bool enableAec = app.GetAecMode() == kAecOff;
+                SetAecMode(enableAec);
+                Settings settings("aec", true);
+                settings.SetInt("mode", enableAec);
             }
         });
         boot_button_.OnMultipleClick(
