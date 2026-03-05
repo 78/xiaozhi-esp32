@@ -280,8 +280,8 @@ void AudioService::AudioInputTask() {
             }
         }
 
-        ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
-        break;
+        // Read timeout/error should not terminate the input task.
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGW(TAG, "Audio input task stopped");
@@ -687,7 +687,10 @@ void AudioService::CheckAndUpdateAudioPowerState() {
         codec_->EnableInput(false);
     }
     if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
-        codec_->EnableOutput(false);
+        // Keep TX clock when duplex RX is active; otherwise RX may stall on some boards.
+        if (!(codec_->duplex() && codec_->input_enabled())) {
+            codec_->EnableOutput(false);
+        }
     }
     if (!codec_->input_enabled() && !codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
