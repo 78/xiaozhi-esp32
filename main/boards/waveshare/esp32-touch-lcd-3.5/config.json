@@ -1,4 +1,5 @@
 {
+    "manufacturer": "waveshare",
     "target": "esp32",
     "builds": [
         {
