@@ -28,6 +28,15 @@
   espressif/esp_ipa: '==0.1.0'
 ```
 
+* idf version: v5.5.3
+
+针对 ESP32-P4 Rev <3.0 用户:
+确保你的 sdkconfig.defaults 包含:
+
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+
+否则烧写的时候会出现：'bootloader/bootloader.bin' requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)
+
 2. 使用 release.py 编译
 
 ```shell

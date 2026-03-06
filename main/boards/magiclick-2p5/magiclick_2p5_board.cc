@@ -19,15 +19,11 @@
 #include "power_save_timer.h"
 #include "esp_wifi.h"
 
-#define TAG "magiclick_2p5"
+#include <esp_adc/adc_oneshot.h>
+#include <esp_adc/adc_cali.h>
+#include <esp_adc/adc_cali_scheme.h>
 
-class GC9107Display : public SpiLcdDisplay {
-public:
-    GC9107Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-                int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
-    }
-};
+#define TAG "magiclick_2p5"
 
 static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
@@ -69,13 +65,71 @@ private:
     Button main_button_;
     Button left_button_;
     Button right_button_;
-    GC9107Display* display_;
+    LcdDisplay* display_;
 
     PowerSaveTimer* power_save_timer_;
     PowerManager* power_manager_;
 
-    esp_lcd_panel_io_handle_t panel_io = nullptr;
-    esp_lcd_panel_handle_t panel = nullptr;
+    uint8_t pcb_version_ = 0;
+
+    // 屏幕配置结构体
+    struct DisplayConfig {
+        bool use_gc9107;
+        bool mirror_x;
+        bool mirror_y;
+        bool swap_xy;
+        bool invert_color;
+        lcd_rgb_element_order_t rgb_order;
+        int offset_x;
+        int offset_y;
+        int spi_mode;
+        const char* screen_name;
+    };
+
+    DisplayConfig GetDisplayConfig() {
+        if (pcb_version_ == PCB_VERSION_2_5A) {
+            return DisplayConfig{
+                .use_gc9107 = true,
+                .mirror_x = false,
+                .mirror_y = false,
+                .swap_xy = false,
+                .invert_color = false,
+                .rgb_order = LCD_RGB_ELEMENT_ORDER_RGB,
+                .offset_x = 0,
+                .offset_y = 0,
+                .spi_mode = 0,
+                .screen_name = "GC9107"
+            };
+        } else if (pcb_version_ == PCB_VERSION_2_5A1) {
+            return DisplayConfig{
+                .use_gc9107 = false,
+                .mirror_x = true,
+                .mirror_y = true,
+                .swap_xy = false,
+                .invert_color = true,
+                .rgb_order = LCD_RGB_ELEMENT_ORDER_BGR,
+                .offset_x = 2,
+                .offset_y = 3,
+                .spi_mode = 0,
+                .screen_name = "ST7735"
+            };
+        } else {
+            ESP_LOGW(TAG, "Unknown PCB version: %d, using default ST7735 configuration", pcb_version_);
+            return DisplayConfig{
+                .use_gc9107 = false,
+                .mirror_x = true,
+                .mirror_y = true,
+                .swap_xy = false,
+                .invert_color = true,
+                .rgb_order = LCD_RGB_ELEMENT_ORDER_BGR,
+                .offset_x = 2,
+                .offset_y = 3,
+                .spi_mode = 0,
+                .screen_name = "ST7735 (default)"
+
+            };
+        }
+    }
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(GPIO_NUM_48);
@@ -139,6 +193,44 @@ private:
             Enable4GModule();
         }
         
+    }
+
+    //通过adc读取IO3引脚的电压来获取PCB版本
+    void CheckPCBVersion() {
+        adc_oneshot_unit_handle_t adc1_handle;
+        adc_oneshot_unit_init_cfg_t init_config1 = {
+            .unit_id = ADC_UNIT_1,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+
+        adc_oneshot_chan_cfg_t config = {
+            .atten = ADC_ATTEN_DB_12,
+            .bitwidth = ADC_BITWIDTH_12,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_2, &config));
+
+        //获取10次， 然后求平均
+        int adc_value = 0;
+        int raw_value;
+        for (int i = 0; i < 10; i++) {
+            ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL_2, &raw_value));
+            adc_value += raw_value;
+        }
+        adc_value /= 10;    
+        
+        int voltage = adc_value * (3300 / 4095.0);
+        if (voltage < 100) {
+            // 版本1
+            pcb_version_ = PCB_VERSION_2_5A;
+        } else if (voltage > 3200 ) {
+            // 版本2
+            pcb_version_ = PCB_VERSION_2_5A1;   
+        }
+        // test
+        // pcb_version_ = PCB_VERSION_2_5A1;
+        
+        adc_oneshot_del_unit(adc1_handle);
+        ESP_LOGI(TAG, "io voltage: %d, pcb_version: %d\n", voltage, pcb_version_);
     }
 
     void InitializeButtons() {
@@ -219,44 +311,56 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeGc9107Display(){
-        // esp_lcd_panel_io_handle_t panel_io = nullptr;
-        // esp_lcd_panel_handle_t panel = nullptr;
+    void InitializeLcdDisplay(){
+        esp_lcd_panel_io_handle_t panel_io = nullptr;
+        esp_lcd_panel_handle_t panel = nullptr;
+
+        // 获取屏幕配置
+        DisplayConfig config = GetDisplayConfig();
+        ESP_LOGW(TAG, "PCB Version: %d, Using %s screen", pcb_version_, config.screen_name);
+
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
-        io_config.spi_mode = 0;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.spi_mode = config.spi_mode;
+        io_config.pclk_hz = 20 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
-        // 初始化液晶屏驱动芯片GC9107
-        ESP_LOGD(TAG, "Install LCD driver");        
-        gc9a01_vendor_config_t gc9107_vendor_config = {
-            .init_cmds = gc9107_lcd_init_cmds,
-            .init_cmds_size = sizeof(gc9107_lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
-        };
+        // 初始化液晶屏驱动芯片
+        ESP_LOGD(TAG, "Install LCD driver");  
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = &gc9107_vendor_config;
+        panel_config.rgb_ele_order = config.rgb_order;
+        panel_config.bits_per_pixel = 16; 
+        panel_config.flags.reset_active_high = 0;   
 
-        esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel);
+        if (config.use_gc9107) {
+            gc9a01_vendor_config_t gc9107_vendor_config = {
+                .init_cmds = gc9107_lcd_init_cmds,
+                .init_cmds_size = sizeof(gc9107_lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
+            };
+            panel_config.vendor_config = &gc9107_vendor_config;
+            ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(panel_io, &panel_config, &panel));
+        } else {
+            ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+        }
 
         esp_lcd_panel_reset(panel);
 
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, false);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        esp_lcd_panel_invert_color(panel, config.invert_color);
+        esp_lcd_panel_swap_xy(panel, config.swap_xy);
+        esp_lcd_panel_mirror(panel, config.mirror_x, config.mirror_y);
+
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
-        display_ = new GC9107Display(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+
+        display_ = new SpiLcdDisplay(panel_io, panel,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, config.offset_x, config.offset_y, config.mirror_x, config.mirror_y, config.swap_xy);
     }
 
 public:
@@ -264,14 +368,15 @@ public:
         main_button_(MAIN_BUTTON_GPIO),
         left_button_(LEFT_BUTTON_GPIO), 
         right_button_(RIGHT_BUTTON_GPIO) {
+        CheckPCBVersion();
         InitializeLedPower();
-        CheckNetType();
+        CheckNetType();        
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeCodecI2c();
         InitializeButtons();
         InitializeSpi();
-        InitializeGc9107Display();
+        InitializeLcdDisplay();
         GetBacklight()->RestoreBrightness();
     }
 
