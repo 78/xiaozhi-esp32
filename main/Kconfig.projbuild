@@ -774,7 +774,7 @@ menu "WiFi Configuration Method"
         WiFi Configuration Method Selection
     config USE_HOTSPOT_WIFI_PROVISIONING
         bool "Hotspot"
-        default y
+        default n
         help
             Use WiFi Hotspot to transmit WiFi configuration data
     config USE_ACOUSTIC_WIFI_PROVISIONING
@@ -784,6 +784,7 @@ menu "WiFi Configuration Method"
 
     config USE_ESP_BLUFI_WIFI_PROVISIONING
         bool "Esp Blufi"
+        default y
         help
             Use esp blufi protocol to transmit WiFi configuration data
         select BT_ENABLED

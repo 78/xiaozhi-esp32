@@ -160,40 +160,12 @@ void WifiBoard::StartWifiConfigMode() {
     in_config_mode_ = true;
     // Transition to wifi configuring state
     Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
-#ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
-    auto& wifi_manager = WifiManager::GetInstance();
-
-    wifi_manager.StartConfigAp();
-
-    // Show config prompt after a short delay
-    Application::GetInstance().Schedule([&wifi_manager]() {
-        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
-        hint += wifi_manager.GetApSsid();
-        hint += Lang::Strings::ACCESS_VIA_BROWSER;
-        hint += wifi_manager.GetApWebUrl();
-
-        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
-    });
-#elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
-    auto &blufi = Blufi::GetInstance();
-    // initialize esp-blufi protocol
+#if !CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+#error "Firmware is fixed to BLUFI provisioning. Enable CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING"
+#endif
+    auto& blufi = Blufi::GetInstance();
+    // Fixed provisioning mode: initialize esp-blufi protocol only
     blufi.init();
-#endif
-#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
-    // Start acoustic provisioning task
-    auto codec = Board::GetInstance().GetAudioCodec();
-    int channel = codec ? codec->input_channels() : 1;
-    ESP_LOGI(TAG, "Starting acoustic WiFi provisioning, channels: %d", channel);
-
-    xTaskCreate([](void* arg) {
-        auto ch = reinterpret_cast<intptr_t>(arg);
-        auto& app = Application::GetInstance();
-        auto& wifi = WifiManager::GetInstance();
-        auto disp = Board::GetInstance().GetDisplay();
-        audio_wifi_config::ReceiveWifiCredentialsFromAudio(&app, &wifi, disp, ch);
-        vTaskDelete(NULL);
-    }, "acoustic_wifi", 4096, reinterpret_cast<void*>(channel), 2, NULL);
-#endif
 }
 
 void WifiBoard::EnterWifiConfigMode() {

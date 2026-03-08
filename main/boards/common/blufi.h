@@ -103,6 +103,8 @@ private:
 
     static uint16_t _checksum_func_trampoline(uint8_t iv8, uint8_t *data, int len);
 
+    void _send_sta_mac_to_app_after_security_ready();
+
 #ifdef CONFIG_BT_NIMBLE_ENABLED
     static void _nimble_on_reset(int reason);
     static void _nimble_on_sync();

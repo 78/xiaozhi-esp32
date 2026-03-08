@@ -58,10 +58,19 @@ void esp_blufi_btc_deinit(void);
 #include <wifi_station.h>
 #include "esp_crc.h"
 #include "esp_random.h"
+#include "esp_mac.h"
 #include "mbedtls/md5.h"
 #include "ssid_manager.h"
 
 static const char* BLUFI_TAG = "BLUFI_CLASS";
+
+static constexpr uint8_t kCustomDataProtocolVersion = 0x01;
+static constexpr uint8_t kCustomDataMsgTypeWifiMac = 0x01;
+static constexpr size_t kStaMacLen = 6;
+static constexpr size_t kCustomDataV1PayloadLen = 2 + kStaMacLen;
+static constexpr int kCustomDataSendTimes = 3;
+static constexpr TickType_t kCustomDataSendInterval = pdMS_TO_TICKS(120);
+
 
 static wifi_mode_t GetWifiModeWithFallback(const WifiManager& wifi) {
     if (wifi.IsConfigMode()) {
@@ -381,6 +390,40 @@ void Blufi::_security_deinit() {
     m_sec = nullptr;
 }
 
+void Blufi::_send_sta_mac_to_app_after_security_ready() {
+    if (!m_ble_is_connected) {
+        ESP_LOGW(BLUFI_TAG, "Skip sending STA MAC: BLE is not connected");
+        return;
+    }
+
+    uint8_t sta_mac[kStaMacLen] = {0};
+    esp_err_t mac_ret = esp_read_mac(sta_mac, ESP_MAC_WIFI_STA);
+    if (mac_ret != ESP_OK) {
+        ESP_LOGE(BLUFI_TAG, "Failed to read STA MAC: %s", esp_err_to_name(mac_ret));
+        return;
+    }
+
+    uint8_t custom_data[kCustomDataV1PayloadLen] = {0};
+    custom_data[0] = kCustomDataProtocolVersion;
+    custom_data[1] = kCustomDataMsgTypeWifiMac;
+    memcpy(custom_data + 2, sta_mac, kStaMacLen);
+
+    for (int i = 0; i < kCustomDataSendTimes; ++i) {
+        esp_err_t send_ret = esp_blufi_send_custom_data(custom_data, sizeof(custom_data));
+        if (send_ret != ESP_OK) {
+            ESP_LOGE(BLUFI_TAG, "Failed to send STA MAC custom data (%d/%d): %s", i + 1,
+                     kCustomDataSendTimes, esp_err_to_name(send_ret));
+        } else {
+            ESP_LOGI(BLUFI_TAG, "Sent STA MAC via custom data to app (%d/%d): " MACSTR, i + 1,
+                     kCustomDataSendTimes, MAC2STR(sta_mac));
+        }
+
+        if (i + 1 < kCustomDataSendTimes) {
+            vTaskDelay(kCustomDataSendInterval);
+        }
+    }
+}
+
 void Blufi::_dh_negotiate_data_handler(uint8_t* data, int len, uint8_t** output_data,
                                        int* output_len, bool* need_free) {
     if (m_sec == nullptr) {
@@ -463,6 +506,7 @@ void Blufi::_dh_negotiate_data_handler(uint8_t* data, int len, uint8_t** output_
             *output_len = dhm_len;
             *need_free = false;
             ESP_LOGI(BLUFI_TAG, "DH negotiation completed successfully");
+            _send_sta_mac_to_app_after_security_ready();
 
             free(m_sec->dh_param);
             m_sec->dh_param = nullptr;
