@@ -391,6 +391,8 @@ private:
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
     EspVideo* camera_ = nullptr;
+    TaskHandle_t charge_task_handle_ = nullptr;
+    TaskHandle_t touch_task_handle_ = nullptr;
 
     void InitializeI2c()
     {
@@ -489,14 +491,14 @@ private:
     void InitializeCharge()
     {
         charge_ = new Charge(i2c_bus_, 0x55);
-        xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, NULL, 0);
+        xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, &charge_task_handle_, 0);
     }
 
     void InitializeCst816sTouchPad()
     {
         cst816s_ = new Cst816s(i2c_bus_, 0x15);
 
-        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, cst816s_, 5, NULL, 1);
+        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, cst816s_, 5, &touch_task_handle_, 1);
 
         const gpio_config_t int_gpio_config = {
             .pin_bit_mask = (1ULL << TP_PIN_NUM_INT),
@@ -610,6 +612,34 @@ private:
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 
 public:
+    ~EchoEar() {
+        // Stop tasks
+        if (charge_task_handle_ != nullptr) {
+            vTaskDelete(charge_task_handle_);
+        }
+        if (touch_task_handle_ != nullptr) {
+            vTaskDelete(touch_task_handle_);
+        }
+
+        // Delete objects
+        delete charge_;
+        delete cst816s_;
+        delete display_;
+        // Note: backlight_ (PwmBacklight) and camera_ (EspVideo) are not deleted here
+        // because their base classes (Backlight, Camera) don't have virtual destructors.
+        // Since EchoEar is a singleton that lives for the device lifetime, this is acceptable.
+
+        // Remove GPIO ISR handler
+        gpio_isr_handler_remove(TP_PIN_NUM_INT);
+
+        // Disable temperature sensor
+        if (temp_sensor != NULL) {
+            temperature_sensor_disable(temp_sensor);
+            temperature_sensor_uninstall(temp_sensor);
+            temp_sensor = NULL;
+        }
+    }
+
     EchoEar() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
