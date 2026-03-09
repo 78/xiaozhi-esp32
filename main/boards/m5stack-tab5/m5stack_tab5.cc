@@ -7,7 +7,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "esp_video_init.h"
 #include "esp_cam_sensor_xclk.h"
 
@@ -19,7 +19,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 #include "i2c_device.h"
 #include "esp_lcd_touch_gt911.h"
 #include "esp_lcd_touch_st7123.h"
@@ -90,7 +89,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
-    Esp32Camera* camera_ = nullptr;
+    EspVideo* camera_ = nullptr;
     Pi4ioe1* pi4ioe1_;
     Pi4ioe2* pi4ioe2_;
     esp_lcd_touch_handle_t touch_ = nullptr;
@@ -150,8 +149,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                // ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -463,7 +463,7 @@ private:
             .csi = &csi_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
     }
 
 public:

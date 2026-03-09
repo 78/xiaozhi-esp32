@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Memuat aset...",
         "PLEASE_WAIT": "Mohon tunggu...",
         "FOUND_NEW_ASSETS": "Ditemukan aset baru: %s",
-        "HELLO_MY_FRIEND": "Halo, teman saya!"
+        "HELLO_MY_FRIEND": "Halo, teman saya!",
+        "CONNECTION_SUCCESSFUL": "Koneksi berhasil",
+        "FLIGHT_MODE_OFF": "Mode pesawat nonaktif",
+        "FLIGHT_MODE_ON": "Mode pesawat aktif",
+        "MODEM_INIT_ERROR": "Gagal menginisialisasi modem"
     }
 }

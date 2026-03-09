@@ -17,7 +17,6 @@
 #include "config.h"
 #include "sleep_timer.h"
 #include "wifi_board.h"
-#include "wifi_station.h"
 
 #ifdef IMU_INT_GPIO
 #include <esp_sleep.h>
@@ -217,7 +216,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             HandleUserActivity();
-            ResetWifiConfiguration();
+            EnterWifiConfigMode();
         });
 
         key_button_.OnClick([this]() {
@@ -394,11 +393,11 @@ public:
         return &audio_codec;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
         if (sleep_timer_) {
-            sleep_timer_->SetEnabled(enabled);
+            sleep_timer_->SetEnabled(level == PowerSaveLevel::LOW_POWER);
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {

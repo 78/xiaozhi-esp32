@@ -8,7 +8,6 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/ledc.h>
-#include <wifi_station.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
@@ -503,9 +502,9 @@ private:
             // 只有短触才触发
             if (touch_duration < TOUCH_THRESHOLD_MS) {
                 auto& app = Application::GetInstance();
-                if (app.GetDeviceState() == kDeviceStateStarting && 
-                    !WifiStation::GetInstance().IsConnected()) {
-                    board.ResetWifiConfiguration();
+                if (app.GetDeviceState() == kDeviceStateStarting) {
+                    board.EnterWifiConfigMode();
+                    return;
                 }
                 app.ToggleChatState();
             }

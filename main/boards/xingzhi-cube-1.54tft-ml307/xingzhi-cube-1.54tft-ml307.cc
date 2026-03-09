@@ -12,7 +12,6 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -82,10 +81,11 @@ private:
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                if (app.GetDeviceState() == kDeviceStateStarting) {
                     // cast to WifiBoard
                     auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
+                    wifi_board.EnterWifiConfigMode();
+                    return;
                 }
             }
             app.ToggleChatState();
@@ -201,11 +201,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        DualNetworkBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveLevel(level);
     }
 };
 

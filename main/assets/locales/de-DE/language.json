@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Ressourcen werden geladen...",
         "PLEASE_WAIT": "Bitte warten...",
         "FOUND_NEW_ASSETS": "Neue Ressourcen gefunden: %s",
-        "HELLO_MY_FRIEND": "Hallo, mein Freund!"
+        "HELLO_MY_FRIEND": "Hallo, mein Freund!",
+        "CONNECTION_SUCCESSFUL": "Verbindung erfolgreich",
+        "FLIGHT_MODE_OFF": "Flugmodus ist deaktiviert",
+        "FLIGHT_MODE_ON": "Flugmodus ist aktiviert",
+        "MODEM_INIT_ERROR": "Modem-Initialisierung fehlgeschlagen"
     }
 }

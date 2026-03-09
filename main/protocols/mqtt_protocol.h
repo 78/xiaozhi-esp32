@@ -15,6 +15,8 @@
 #include <string>
 #include <map>
 #include <mutex>
+#include <memory>
+#include <atomic>
 
 #define MQTT_PING_INTERVAL_SECONDS 90
 #define MQTT_RECONNECT_INTERVAL_MS 60000
@@ -29,10 +31,13 @@ public:
     bool Start() override;
     bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) override;
     bool OpenAudioChannel() override;
-    void CloseAudioChannel() override;
+    void CloseAudioChannel(bool send_goodbye = true) override;
     bool IsAudioChannelOpened() const override;
 
 private:
+    // Alive flag for safe scheduled callbacks - set to false in destructor
+    std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
+    
     EventGroupHandle_t event_group_handle_;
 
     std::string publish_topic_;

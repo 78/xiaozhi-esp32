@@ -6,7 +6,7 @@
 #include <memory>
 #include <optional>
 #include <cmath>
-#include "wifi_configuration_ap.h"
+#include "wifi_manager.h"
 #include "application.h"
 
 // Audio signal processing constants for WiFi configuration via audio
@@ -19,7 +19,7 @@ const size_t kWindowSize = 64;
 namespace audio_wifi_config
 {
     // Main function to receive WiFi credentials through audio signal
-    void ReceiveWifiCredentialsFromAudio(Application *app, WifiConfigurationAp *wifi_ap, Display *display, 
+    void ReceiveWifiCredentialsFromAudio(Application *app, WifiManager *wifi_manager, Display *display, 
                                          size_t input_channels = 1);
 
     /**

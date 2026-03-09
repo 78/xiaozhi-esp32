@@ -6,8 +6,8 @@
 #include "button.h"
 #include "config.h"
 #include "backlight.h"
+#include "esp_video.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 
 #include <driver/i2c_master.h>
@@ -380,7 +380,7 @@ private:
     SemaphoreHandle_t touch_isr_mux_;
 };
 
-class EspS3Cat : public WifiBoard {
+class EchoEar : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
@@ -390,6 +390,9 @@ private:
     PwmBacklight* backlight_ = nullptr;
     esp_timer_handle_t touchpad_timer_;
     esp_lcd_touch_handle_t tp;   // LCD touch handle
+    EspVideo* camera_ = nullptr;
+    TaskHandle_t charge_task_handle_ = nullptr;
+    TaskHandle_t touch_task_handle_ = nullptr;
 
     void InitializeI2c()
     {
@@ -415,10 +418,10 @@ private:
     uint8_t DetectPcbVersion()
     {
         esp_err_t ret = i2c_master_probe(i2c_bus_, 0x18, 100);
-        uint8_t pcb_verison = 0;
+        uint8_t pcb_version = 0;
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "PCB verison V1.0");
-            pcb_verison = 0;
+            ESP_LOGI(TAG, "PCB version V1.0");
+            pcb_version = 0;
         } else {
             gpio_config_t gpio_conf = {
                 .pin_bit_mask = (1ULL << GPIO_NUM_48),
@@ -432,8 +435,8 @@ private:
             vTaskDelay(pdMS_TO_TICKS(100));
             ret = i2c_master_probe(i2c_bus_, 0x18, 100);
             if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "PCB verison V1.2");
-                pcb_verison = 1;
+                ESP_LOGI(TAG, "PCB version V1.2");
+                pcb_version = 1;
                 AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
                 AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
                 QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
@@ -445,7 +448,7 @@ private:
 
             }
         }
-        return pcb_verison;
+        return pcb_version;
     }
 
     static void touch_isr_callback(void* arg)
@@ -468,16 +471,15 @@ private:
         while (true) {
             if (touchpad->WaitForTouchEvent()) {
                 auto &app = Application::GetInstance();
-                auto &board = (EspS3Cat &)Board::GetInstance();
+                auto &board = (EchoEar &)Board::GetInstance();
 
-                ESP_LOGI(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
+                ESP_LOGD(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
                 auto touch_event = touchpad->CheckTouchEvent();
 
                 if (touch_event == Cst816s::TOUCH_RELEASE) {
-                    if (app.GetDeviceState() == kDeviceStateStarting &&
-                            !WifiStation::GetInstance().IsConnected()) {
-                        board.ResetWifiConfiguration();
+                    if (app.GetDeviceState() == kDeviceStateStarting) {
+                        board.EnterWifiConfigMode();
                     } else {
                         app.ToggleChatState();
                     }
@@ -489,14 +491,14 @@ private:
     void InitializeCharge()
     {
         charge_ = new Charge(i2c_bus_, 0x55);
-        xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, NULL, 0);
+        xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, &charge_task_handle_, 0);
     }
 
     void InitializeCst816sTouchPad()
     {
         cst816s_ = new Cst816s(i2c_bus_, 0x15);
 
-        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, cst816s_, 5, NULL, 1);
+        xTaskCreatePinnedToCore(touch_event_task, "touch_task", 4 * 1024, cst816s_, 5, &touch_task_handle_, 1);
 
         const gpio_config_t int_gpio_config = {
             .pin_bit_mask = (1ULL << TP_PIN_NUM_INT),
@@ -507,7 +509,7 @@ private:
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EspS3Cat::touch_isr_callback, cst816s_);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EchoEar::touch_isr_callback, cst816s_);
     }
 
     void InitializeSpi()
@@ -521,7 +523,7 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(QSPI_LCD_HOST, &bus_config, SPI_DMA_CH_AUTO));
     }
 
-    void Initializest77916Display(uint8_t pcb_verison)
+    void InitializeSt77916Display(uint8_t pcb_version)
     {
 
         esp_lcd_panel_io_handle_t panel_io = nullptr;
@@ -541,7 +543,7 @@ private:
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = QSPI_LCD_BIT_PER_PIXEL,
             .flags = {
-                .reset_active_high = pcb_verison,
+                .reset_active_high = pcb_version,
             },
             .vendor_config = &vendor_config,
         };
@@ -567,9 +569,10 @@ private:
     {
         boot_button_.OnClick([this]() {
             auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+            if (app.GetDeviceState() == kDeviceStateStarting) {
                 ESP_LOGI(TAG, "Boot button pressed, enter WiFi configuration mode");
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -583,17 +586,73 @@ private:
         gpio_set_level(POWER_CTRL, 0);
     }
 
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    void InitializeCamera() {
+        esp_video_init_usb_uvc_config_t usb_uvc_config = {
+            .uvc = {
+                .uvc_dev_num = 1,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+            .usb = {
+                .init_usb_host_lib = true,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+        };
+
+        esp_video_init_config_t video_config = {
+            .usb_uvc = &usb_uvc_config,
+        };
+
+        camera_ = new EspVideo(video_config);
+    }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+
 public:
-    EspS3Cat() : boot_button_(BOOT_BUTTON_GPIO)
+    ~EchoEar() {
+        // Stop tasks
+        if (charge_task_handle_ != nullptr) {
+            vTaskDelete(charge_task_handle_);
+        }
+        if (touch_task_handle_ != nullptr) {
+            vTaskDelete(touch_task_handle_);
+        }
+
+        // Delete objects
+        delete charge_;
+        delete cst816s_;
+        delete display_;
+        // Note: backlight_ (PwmBacklight) and camera_ (EspVideo) are not deleted here
+        // because their base classes (Backlight, Camera) don't have virtual destructors.
+        // Since EchoEar is a singleton that lives for the device lifetime, this is acceptable.
+
+        // Remove GPIO ISR handler
+        gpio_isr_handler_remove(TP_PIN_NUM_INT);
+
+        // Disable temperature sensor
+        if (temp_sensor != NULL) {
+            temperature_sensor_disable(temp_sensor);
+            temperature_sensor_uninstall(temp_sensor);
+            temp_sensor = NULL;
+        }
+    }
+
+    EchoEar() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
-        uint8_t pcb_verison = DetectPcbVersion();
+        uint8_t pcb_version = DetectPcbVersion();
         InitializeCharge();
         InitializeCst816sTouchPad();
 
         InitializeSpi();
-        Initializest77916Display(pcb_verison);
+        InitializeSt77916Display(pcb_version);
         InitializeButtons();
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+        InitializeCamera();
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     }
 
     virtual AudioCodec* GetAudioCodec() override
@@ -628,6 +687,10 @@ public:
     {
         return backlight_;
     }
+
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
 };
 
-DECLARE_BOARD(EspS3Cat);
+DECLARE_BOARD(EchoEar);

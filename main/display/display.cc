@@ -45,6 +45,10 @@ void Display::SetChatMessage(const char* role, const char* content) {
     ESP_LOGW(TAG, "     %s", content);
 }
 
+void Display::ClearChatMessages() {
+    // Default empty implementation, override in subclasses if needed
+}
+
 void Display::SetTheme(Theme* theme) {
     current_theme_ = theme;
     Settings settings("display", true);

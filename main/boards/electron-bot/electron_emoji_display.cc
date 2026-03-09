@@ -3,95 +3,61 @@
 #include <esp_log.h>
 
 #include <cstring>
+#include <vector>
 
+#include "assets.h"
 #include "assets/lang_config.h"
 #include "display/lvgl_display/emoji_collection.h"
 #include "display/lvgl_display/lvgl_image.h"
 #include "display/lvgl_display/lvgl_theme.h"
-#include "otto_emoji_gif.h"
 
 #define TAG "ElectronEmojiDisplay"
 ElectronEmojiDisplay::ElectronEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y,
                                            bool swap_xy)
     : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
-    InitializeElectronEmojis();
+}
+
+void ElectronEmojiDisplay::SetupUI() {
+    // Prevent duplicate calls - parent SetupUI() will also check, but check here for early return
+    if (setup_ui_called_) {
+        ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
+        return;
+    }
+    
+    // Call parent SetupUI() first to create all lvgl objects (including container_)
+    SpiLcdDisplay::SetupUI();
+
+    // Setup chat label after parent UI is initialized so that container_ is valid
     SetupChatLabel();
+
+    // Set default emotion after UI is initialized
+    SetEmotion("staticstate");
 }
 
 void ElectronEmojiDisplay::InitializeElectronEmojis() {
-    ESP_LOGI(TAG, "初始化Electron GIF表情");
-
-    auto otto_emoji_collection = std::make_shared<EmojiCollection>();
-
-    // 中性/平静类表情 -> staticstate
-    otto_emoji_collection->AddEmoji("staticstate", new LvglRawImage((void*)staticstate.data, staticstate.data_size));
-    otto_emoji_collection->AddEmoji("neutral", new LvglRawImage((void*)staticstate.data, staticstate.data_size));
-    otto_emoji_collection->AddEmoji("relaxed", new LvglRawImage((void*)staticstate.data, staticstate.data_size));
-    otto_emoji_collection->AddEmoji("sleepy", new LvglRawImage((void*)staticstate.data, staticstate.data_size));
-    otto_emoji_collection->AddEmoji("idle", new LvglRawImage((void*)staticstate.data, staticstate.data_size));
-
-    // 积极/开心类表情 -> happy
-    otto_emoji_collection->AddEmoji("happy", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("laughing", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("funny", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("loving", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("confident", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("winking", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("cool", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("delicious", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("kissy", new LvglRawImage((void*)happy.data, happy.data_size));
-    otto_emoji_collection->AddEmoji("silly", new LvglRawImage((void*)happy.data, happy.data_size));
-
-    // 悲伤类表情 -> sad
-    otto_emoji_collection->AddEmoji("sad", new LvglRawImage((void*)sad.data, sad.data_size));
-    otto_emoji_collection->AddEmoji("crying", new LvglRawImage((void*)sad.data, sad.data_size));
-
-    // 愤怒类表情 -> anger
-    otto_emoji_collection->AddEmoji("anger", new LvglRawImage((void*)anger.data, anger.data_size));
-    otto_emoji_collection->AddEmoji("angry", new LvglRawImage((void*)anger.data, anger.data_size));
-
-    // 惊讶类表情 -> scare
-    otto_emoji_collection->AddEmoji("scare", new LvglRawImage((void*)scare.data, scare.data_size));
-    otto_emoji_collection->AddEmoji("surprised", new LvglRawImage((void*)scare.data, scare.data_size));
-    otto_emoji_collection->AddEmoji("shocked", new LvglRawImage((void*)scare.data, scare.data_size));
-
-    // 思考/困惑类表情 -> buxue
-    otto_emoji_collection->AddEmoji("buxue", new LvglRawImage((void*)buxue.data, buxue.data_size));
-    otto_emoji_collection->AddEmoji("thinking", new LvglRawImage((void*)buxue.data, buxue.data_size));
-    otto_emoji_collection->AddEmoji("confused", new LvglRawImage((void*)buxue.data, buxue.data_size));
-    otto_emoji_collection->AddEmoji("embarrassed", new LvglRawImage((void*)buxue.data, buxue.data_size));
-
-    // 将表情集合添加到主题中
-    auto& theme_manager = LvglThemeManager::GetInstance();
-    auto light_theme = theme_manager.GetTheme("light");
-    auto dark_theme = theme_manager.GetTheme("dark");
-
-    if (light_theme != nullptr) {
-        light_theme->set_emoji_collection(otto_emoji_collection);
-    }
-    if (dark_theme != nullptr) {
-        dark_theme->set_emoji_collection(otto_emoji_collection);
-    }
-
-    // 设置默认表情为staticstate
-    SetEmotion("staticstate");
-
-    ESP_LOGI(TAG, "Electron GIF表情初始化完成");
+    ESP_LOGI(TAG, "Electron表情初始化将由Assets系统处理");
+    // 表情初始化已移至assets系统,通过DEFAULT_EMOJI_COLLECTION=otto-gif配置
+    // assets.cc会从assets分区加载GIF表情并设置到theme
+    // Note: Default emotion is now set in SetupUI() after LVGL objects are created
 }
 
 void ElectronEmojiDisplay::SetupChatLabel() {
-    DisplayLockGuard lock(this);
+    // Create/recreate the chat label under the display lock
+    {
+        DisplayLockGuard lock(this);
 
-    if (chat_message_label_) {
-        lv_obj_del(chat_message_label_);
+        if (chat_message_label_) {
+            lv_obj_del(chat_message_label_);
+        }
+
+        chat_message_label_ = lv_label_create(container_);
+        lv_label_set_text(chat_message_label_, "");
+        lv_obj_set_width(chat_message_label_, width_ * 0.9);
+        lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
     }
-
-    chat_message_label_ = lv_label_create(container_);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, width_ * 0.9);                        // 限制宽度为屏幕宽度的 90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);            // 设置为自动换行模式
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);  // 设置文本居中对齐
-    lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
+    // SetTheme acquires DisplayLockGuard internally, so call it after releasing the lock above
     SetTheme(LvglThemeManager::GetInstance().GetTheme("dark"));
 }
 

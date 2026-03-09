@@ -7,7 +7,6 @@
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 #include "led/circular_strip.h"
 
 #define TAG "XX+EchoBase"
@@ -91,8 +90,9 @@ private:
 
             ESP_LOGI(TAG, "  ===>>>  face_button_.OnClick ");
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             } 
             app.ToggleChatState();
         });

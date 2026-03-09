@@ -1,0 +1,15 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-touch-lcd-4.3c",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_ESP32S3_Touch_LCD_4_3C=y",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y",
+                "CONFIG_SPIRAM_RODATA=y"
+            ]
+        }
+    ]
+}

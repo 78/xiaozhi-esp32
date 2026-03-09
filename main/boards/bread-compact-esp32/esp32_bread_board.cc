@@ -1,4 +1,4 @@
-#include "dual_network_board.h"
+#include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
@@ -9,7 +9,6 @@
 #include "led/single_led.h"
 #include "display/oled_display.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
@@ -17,7 +16,7 @@
 
 #define TAG "ESP32-MarsbearSupport"
 
-class CompactWifiBoard : public DualNetworkBoard {
+class CompactWifiBoard : public WifiBoard {
 private:
     Button boot_button_;
     Button touch_button_;
@@ -105,23 +104,12 @@ private:
 
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                    // cast to WifiBoard
-                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
-                }
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             gpio_set_level(BUILTIN_LED_GPIO, 1);
             app.ToggleChatState();
-        });
-
-
-        boot_button_.OnDoubleClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
-                SwitchNetworkType();
-            }
         });
 
         asr_button_.OnClick([this]() {
@@ -145,7 +133,7 @@ private:
     }
 
 public:
-    CompactWifiBoard() : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN), boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
+    CompactWifiBoard() : WifiBoard(), boot_button_(BOOT_BUTTON_GPIO), touch_button_(TOUCH_BUTTON_GPIO), asr_button_(ASR_BUTTON_GPIO)
     {
         InitializeDisplayI2c();
         InitializeSsd1306Display();

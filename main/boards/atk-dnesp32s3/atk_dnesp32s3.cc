@@ -6,13 +6,12 @@
 #include "config.h"
 #include "i2c_device.h"
 #include "led/single_led.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
-#include <wifi_station.h>
 
 #define TAG "atk_dnesp32s3"
 
@@ -50,7 +49,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     XL9555* xl9555_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -87,8 +86,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -179,7 +179,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
     }
 
 public:

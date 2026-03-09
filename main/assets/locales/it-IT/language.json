@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Caricamento risorse...",
         "PLEASE_WAIT": "Attendere prego...",
         "FOUND_NEW_ASSETS": "Trovate nuove risorse: %s",
-        "HELLO_MY_FRIEND": "Ciao, amico mio!"
+        "HELLO_MY_FRIEND": "Ciao, amico mio!",
+        "CONNECTION_SUCCESSFUL": "Connessione riuscita",
+        "FLIGHT_MODE_OFF": "La modalità aereo è disattivata",
+        "FLIGHT_MODE_ON": "La modalità aereo è attiva",
+        "MODEM_INIT_ERROR": "Inizializzazione modem non riuscita"
     }
 }

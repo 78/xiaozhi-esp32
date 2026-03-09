@@ -8,13 +8,12 @@
 #include "i2c_device.h"
 #include "sy6970.h"
 #include "pin_config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 #include "ir_filter_controller.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 
 #define TAG "LilygoTCameraPlusS3Board"
 
@@ -74,7 +73,7 @@ private:
     Button boot_button_;
     Button key1_button_;
     PowerSaveTimer* power_save_timer_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
@@ -209,11 +208,13 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
             power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            // During startup (before connected), pressing BOOT button enters Wi-Fi config mode without reboot
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
+            }
             app.ToggleChatState();
         });
         key1_button_.OnClick([this]() {
@@ -269,7 +270,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         camera_->SetVFlip(1);
         camera_->SetHMirror(1);
     }
@@ -325,11 +326,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
     
     virtual Backlight* GetBacklight() override {

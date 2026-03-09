@@ -82,6 +82,9 @@ GpioLed::GpioLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, led
     };
     ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));
 
+    xTaskCreate(EventTask, "LedEvent", 2048, this, 
+            tskIDLE_PRIORITY + 2, &event_task_handle_);
+
     ledc_initialized_ = true;
 }
 
@@ -194,7 +197,9 @@ void GpioLed::OnFadeEnd() {
 bool IRAM_ATTR GpioLed::FadeCallback(const ledc_cb_param_t *param, void *user_arg) {
     if (param->event == LEDC_FADE_END_EVT) {
         auto led = static_cast<GpioLed*>(user_arg);
-        led->OnFadeEnd();
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        xTaskNotifyFromISR(led->event_task_handle_, 0x01, eSetValueWithOverwrite,
+                           &xHigherPriorityTaskWoken);
     }
     return true;
 }
@@ -245,5 +250,14 @@ void GpioLed::OnStateChanged() {
         default:
             ESP_LOGE(TAG, "Unknown gpio led event: %d", device_state);
             return;
+    }
+}
+
+void GpioLed::EventTask(void* arg) {
+    GpioLed* led = static_cast<GpioLed*>(arg);
+
+    while (1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        led->OnFadeEnd();
     }
 }

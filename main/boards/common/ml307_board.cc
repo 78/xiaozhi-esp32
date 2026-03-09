@@ -1,15 +1,21 @@
 #include "ml307_board.h"
 
-#include "application.h"
+#include "audio_codec.h"
 #include "display.h"
-#include "assets/lang_config.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <font_awesome.h>
-#include <opus_encoder.h>
+#include <utility>
 
 static const char *TAG = "Ml307Board";
+
+// Maximum retry count for modem detection
+static constexpr int MODEM_DETECT_MAX_RETRIES = 30;
+// Maximum retry count for network registration
+static constexpr int NETWORK_REG_MAX_RETRIES = 6;
 
 Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin) : tx_pin_(tx_pin), rx_pin_(rx_pin), dtr_pin_(dtr_pin) {
 }
@@ -18,45 +24,102 @@ std::string Ml307Board::GetBoardType() {
     return "ml307";
 }
 
-void Ml307Board::StartNetwork() {
-    auto& application = Application::GetInstance();
-    auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus(Lang::Strings::DETECTING_MODULE);
+void Ml307Board::SetNetworkEventCallback(NetworkEventCallback callback) {
+    network_event_callback_ = std::move(callback);
+}
 
-    while (true) {
+void Ml307Board::OnNetworkEvent(NetworkEvent event, const std::string& data) {
+    switch (event) {
+        case NetworkEvent::ModemDetecting:
+            ESP_LOGI(TAG, "Detecting modem...");
+            break;
+        case NetworkEvent::Connecting:
+            ESP_LOGI(TAG, "Registering network...");
+            break;
+        case NetworkEvent::Connected:
+            ESP_LOGI(TAG, "Network connected");
+            break;
+        case NetworkEvent::Disconnected:
+            ESP_LOGW(TAG, "Network disconnected");
+            break;
+        case NetworkEvent::ModemErrorNoSim:
+            ESP_LOGE(TAG, "No SIM card detected");
+            break;
+        case NetworkEvent::ModemErrorRegDenied:
+            ESP_LOGE(TAG, "Network registration denied");
+            break;
+        case NetworkEvent::ModemErrorInitFailed:
+            ESP_LOGE(TAG, "Modem initialization failed");
+            break;
+        case NetworkEvent::ModemErrorTimeout:
+            ESP_LOGE(TAG, "Operation timeout");
+            break;
+        default:
+            break;
+    }
+
+    // Notify external callback if set
+    if (network_event_callback_) {
+        network_event_callback_(event, data);
+    }
+}
+
+void Ml307Board::NetworkTask() {
+    // Notify modem detection started
+    OnNetworkEvent(NetworkEvent::ModemDetecting);
+
+    // Try to detect modem with retry limit
+    int detect_retries = 0;
+    while (detect_retries < MODEM_DETECT_MAX_RETRIES) {
         modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, 921600);
         if (modem_ != nullptr) {
             break;
         }
+        detect_retries++;
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    modem_->OnNetworkStateChanged([this, &application](bool network_ready) {
+    if (modem_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to detect modem after %d retries", MODEM_DETECT_MAX_RETRIES);
+        OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
+        return;
+    }
+
+    ESP_LOGI(TAG, "Modem detected successfully");
+
+    // Set up network state change callback
+    // Note: Don't call GetCarrierName() here as it sends AT command and will block ReceiveTask
+    modem_->OnNetworkStateChanged([this](bool network_ready) {
         if (network_ready) {
-            ESP_LOGI(TAG, "Network is ready");
+            OnNetworkEvent(NetworkEvent::Connected);
         } else {
-            ESP_LOGE(TAG, "Network is down");
-            auto device_state = application.GetDeviceState();
-            if (device_state == kDeviceStateListening || device_state == kDeviceStateSpeaking) {
-                application.Schedule([this, &application]() {
-                    application.SetDeviceState(kDeviceStateIdle);
-                });
-            }
+            OnNetworkEvent(NetworkEvent::Disconnected);
         }
     });
 
-    // Wait for network ready
-    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
-    while (true) {
+    // Notify network registration started
+    OnNetworkEvent(NetworkEvent::Connecting);
+
+    // Wait for network ready with retry limit
+    int reg_retries = 0;
+    while (reg_retries < NETWORK_REG_MAX_RETRIES) {
         auto result = modem_->WaitForNetworkReady();
-        if (result == NetworkStatus::ErrorInsertPin) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
-        } else if (result == NetworkStatus::ErrorRegistrationDenied) {
-            application.Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_REG);
-        } else {
+        if (result == NetworkStatus::Ready) {
             break;
+        } else if (result == NetworkStatus::ErrorInsertPin) {
+            OnNetworkEvent(NetworkEvent::ModemErrorNoSim);
+        } else if (result == NetworkStatus::ErrorRegistrationDenied) {
+            OnNetworkEvent(NetworkEvent::ModemErrorRegDenied);
+        } else if (result == NetworkStatus::ErrorTimeout) {
+            OnNetworkEvent(NetworkEvent::ModemErrorTimeout);
         }
+        reg_retries++;
         vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+
+    if (!modem_->network_ready()) {
+        ESP_LOGE(TAG, "Failed to register network after %d retries", NETWORK_REG_MAX_RETRIES);
+        return;
     }
 
     // Print the ML307 modem information
@@ -66,6 +129,15 @@ void Ml307Board::StartNetwork() {
     ESP_LOGI(TAG, "ML307 Revision: %s", module_revision.c_str());
     ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
     ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
+}
+
+void Ml307Board::StartNetwork() {
+    // Create network initialization task and return immediately
+    xTaskCreate([](void* arg) {
+        Ml307Board* board = static_cast<Ml307Board*>(arg);
+        board->NetworkTask();
+        vTaskDelete(NULL);
+    }, "ml307_net", 4096, this, 5, NULL);
 }
 
 NetworkInterface* Ml307Board::GetNetwork() {
@@ -79,13 +151,13 @@ const char* Ml307Board::GetNetworkStateIcon() {
     int csq = modem_->GetCsq();
     if (csq == -1) {
         return FONT_AWESOME_SIGNAL_OFF;
-    } else if (csq >= 0 && csq <= 14) {
+    } else if (csq >= 0 && csq <= 9) {
         return FONT_AWESOME_SIGNAL_WEAK;
-    } else if (csq >= 15 && csq <= 19) {
+    } else if (csq >= 10 && csq <= 14) {
         return FONT_AWESOME_SIGNAL_FAIR;
-    } else if (csq >= 20 && csq <= 24) {
+    } else if (csq >= 15 && csq <= 19) {
         return FONT_AWESOME_SIGNAL_GOOD;
-    } else if (csq >= 25 && csq <= 31) {
+    } else if (csq >= 20 && csq <= 31) {
         return FONT_AWESOME_SIGNAL_STRONG;
     }
 
@@ -106,8 +178,9 @@ std::string Ml307Board::GetBoardJson() {
     return board_json;
 }
 
-void Ml307Board::SetPowerSaveMode(bool enabled) {
-    // TODO: Implement power save mode for ML307
+void Ml307Board::SetPowerSaveLevel(PowerSaveLevel level) {
+    // TODO: Implement power save level for ML307
+    (void)level;
 }
 
 std::string Ml307Board::GetDeviceStatusJson() {

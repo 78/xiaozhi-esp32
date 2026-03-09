@@ -7,7 +7,6 @@
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
 #include <esp_sleep.h>
-#include <wifi_station.h>
 
 #include "application.h"
 #include "button.h"
@@ -136,9 +135,9 @@ class AIPILite : public WifiBoard {
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting &&
-                !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -154,7 +153,7 @@ class AIPILite : public WifiBoard {
             app.SetDeviceState(kDeviceStateWifiConfiguring);
 
             // 重置WiFi配置以确保进入配网模式
-            ResetWifiConfiguration();
+            EnterWifiConfigMode();
         });
 
         power_button_.OnClick([this]() { power_save_timer_->WakeUp(); });
@@ -236,11 +235,11 @@ class AIPILite : public WifiBoard {
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

@@ -51,6 +51,9 @@
         "LOADING_ASSETS": "Đang tải tài nguyên...",
         "PLEASE_WAIT": "Vui lòng đợi...",
         "FOUND_NEW_ASSETS": "Tìm thấy tài nguyên mới: %s",
-        "HELLO_MY_FRIEND": "Xin chào, bạn của tôi!"
+        "HELLO_MY_FRIEND": "Xin chào, bạn của tôi!",
+        "FLIGHT_MODE_OFF": "Chế độ máy bay đang tắt",
+        "FLIGHT_MODE_ON": "Chế độ máy bay đang bật",
+        "MODEM_INIT_ERROR": "Khởi tạo modem thất bại"
     }
 }

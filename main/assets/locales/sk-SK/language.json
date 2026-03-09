@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Nájdené nové zdroje: %s",
         "DOWNLOAD_ASSETS_FAILED": "Sťahovanie zdrojov zlyhalo",
         "LOADING_ASSETS": "Načítavanie zdrojov...",
-        "HELLO_MY_FRIEND": "Ahoj, môj priateľ!"
+        "HELLO_MY_FRIEND": "Ahoj, môj priateľ!",
+        "FLIGHT_MODE_OFF": "Letecký režim je vypnutý",
+        "FLIGHT_MODE_ON": "Letecký režim je zapnutý",
+        "MODEM_INIT_ERROR": "Chyba inicializácie modemu"
     }
 }
-

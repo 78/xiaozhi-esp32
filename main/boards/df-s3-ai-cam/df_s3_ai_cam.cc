@@ -4,10 +4,11 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
+#include "mcp_server.h"
+#include "settings.h"
 
 #include "led/gpio_led.h"
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
@@ -17,13 +18,14 @@
 class DfrobotEsp32S3AiCam : public WifiBoard {
  private:
     Button boot_button_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -70,8 +72,15 @@ class DfrobotEsp32S3AiCam : public WifiBoard {
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
-        camera_->SetVFlip(1);
+        camera_ = new EspVideo(video_config);
+
+#if ( CONFIG_CAMERA_OV3660 )
+            camera_->SetVFlip(true);
+            camera_->SetHMirror(true);
+#elif ( CONFIG_CAMERA_OV2640 )
+            camera_->SetVFlip(false);
+            camera_->SetHMirror(false);
+#endif
     }
 
  public:

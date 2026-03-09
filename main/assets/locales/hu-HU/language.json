@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Új erőforrások találva: %s",
         "DOWNLOAD_ASSETS_FAILED": "Az erőforrások letöltése sikertelen",
         "LOADING_ASSETS": "Erőforrások betöltése...",
-        "HELLO_MY_FRIEND": "Helló, barátom!"
+        "HELLO_MY_FRIEND": "Helló, barátom!",
+        "FLIGHT_MODE_OFF": "A repülési mód ki van kapcsolva",
+        "FLIGHT_MODE_ON": "A repülési mód be van kapcsolva",
+        "MODEM_INIT_ERROR": "A modem inicializálása sikertelen"
     }
 }
-

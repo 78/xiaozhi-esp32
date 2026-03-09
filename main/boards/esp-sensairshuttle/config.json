@@ -1,0 +1,28 @@
+{
+    "target": "esp32c5",
+    "builds": [
+        {
+            "name": "esp-sensairshuttle",
+            "sdkconfig_append": [
+                "CONFIG_IDF_TARGET=\"esp32c5\"",
+                "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=6",
+                "CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n",
+                "CONFIG_ESP_WIFI_ENABLE_WPA3_SAE=n",
+                "CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM=0",
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n",
+                "CONFIG_FREERTOS_IDLE_TASK_STACKSIZE=768",
+                "CONFIG_LWIP_TCPIP_TASK_STACK_SIZE=2048",
+                "CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y",
+                "CONFIG_SPIRAM=y",
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=3072",
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y",
+                "CONFIG_LWIP_IPV6=n",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_SR_WN_WN9S_HIESP=y",
+                "CONFIG_USE_EMOTE_MESSAGE_STYLE=y",
+                "CONFIG_FLASH_CUSTOM_ASSETS=y",
+                "CONFIG_CUSTOM_ASSETS_FILE=\"https://dl.espressif.com/AE/wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-echoear.bin\""
+            ]
+        }
+    ]
+}

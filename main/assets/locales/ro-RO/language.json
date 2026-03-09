@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Se încarcă resursele...",
         "PLEASE_WAIT": "Vă rugăm să așteptați...",
         "FOUND_NEW_ASSETS": "S-au găsit resurse noi: %s",
-        "HELLO_MY_FRIEND": "Salut, prietenul meu!"
+        "HELLO_MY_FRIEND": "Salut, prietenul meu!",
+        "CONNECTION_SUCCESSFUL": "Conexiune reușită",
+        "FLIGHT_MODE_OFF": "Modul avion este dezactivat",
+        "FLIGHT_MODE_ON": "Modul avion este activat",
+        "MODEM_INIT_ERROR": "Inițializarea modemului a eșuat"
     }
 }

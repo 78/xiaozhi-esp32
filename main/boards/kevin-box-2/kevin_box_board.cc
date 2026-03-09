@@ -9,7 +9,6 @@
 #include "axp2101.h"
 #include "assets/lang_config.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
@@ -173,10 +172,10 @@ private:
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                if (app.GetDeviceState() == kDeviceStateStarting) {
                     // cast to WifiBoard
                     auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.ResetWifiConfiguration();
+                    wifi_board.EnterWifiConfigMode();
                 }
             }
         });

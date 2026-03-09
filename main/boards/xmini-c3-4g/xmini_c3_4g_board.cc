@@ -11,7 +11,6 @@
 #include "adc_battery_monitor.h"
 #include "press_to_talk_mcp_tool.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
@@ -193,11 +192,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             sleep_timer_->WakeUp();
         }
-        Ml307Board::SetPowerSaveMode(enabled);
+        Ml307Board::SetPowerSaveLevel(level);
     }
 };
 

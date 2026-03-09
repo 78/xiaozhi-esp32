@@ -4,6 +4,10 @@ Download GitHub Actions artifacts and rename them with version numbers.
 
 Usage:
     python download_github_runs.py 2.0.4 https://github.com/78/xiaozhi-esp32/actions/runs/18866246016
+
+Output:
+    Files are downloaded to releases/<version>/ directory relative to the project root.
+    Example: releases/2.0.4/v2.0.4_atk-dnesp32s3-box0.zip
 """
 
 import argparse
@@ -126,11 +130,14 @@ def rename_artifact(original_name: str, version: str) -> str:
     - Remove "xiaozhi_" prefix
     - Remove hash suffix (underscore followed by hex string)
     - Add version prefix (e.g., "v2.0.4_")
-    - Change extension to .zip
+    - Add .zip extension
     
-    Example:
-        xiaozhi_atk-dnesp32s3-box0_43ef2f4e7f0957dc62ec7d628ac2819d226127b8.bin
+    Examples:
+        xiaozhi_atk-dnesp32s3-box0_43ef2f4e7f0957dc62ec7d628ac2819d226127b8
         -> v2.0.4_atk-dnesp32s3-box0.zip
+        
+        xiaozhi_waveshare-esp32-p4-nano-10.1-a_43ef2f4e7f0957dc62ec7d628ac2819d226127b8
+        -> v2.0.4_waveshare-esp32-p4-nano-10.1-a.zip
     
     Args:
         original_name: Original artifact name
@@ -144,17 +151,33 @@ def rename_artifact(original_name: str, version: str) -> str:
     if name.startswith("xiaozhi_"):
         name = name[len("xiaozhi_"):]
     
-    # Remove extension
-    name_without_ext = os.path.splitext(name)[0]
+    # Remove known extensions only (not using splitext to avoid issues with
+    # names containing dots like "esp32-s3-touch-amoled-2.06")
+    known_extensions = ('.bin', '.zip')
+    for ext in known_extensions:
+        if name.endswith(ext):
+            name = name[:-len(ext)]
+            break
     
     # Remove hash suffix (pattern: underscore followed by 40+ hex characters)
     # This matches Git commit hashes and similar identifiers
-    name_without_hash = re.sub(r'_[a-f0-9]{40,}$', '', name_without_ext)
+    name_without_hash = re.sub(r'_[a-f0-9]{40,}$', '', name)
     
     # Add version prefix and .zip extension
     new_name = f"v{version}_{name_without_hash}.zip"
     
     return new_name
+
+
+def get_default_releases_dir() -> Path:
+    """
+    Get the default releases directory path relative to this script's location.
+    
+    Returns:
+        Path to the releases directory (script_dir/../releases)
+    """
+    script_dir = Path(__file__).resolve().parent
+    return script_dir.parent / "releases"
 
 
 def main():
@@ -172,8 +195,8 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="../releases",
-        help="Output directory for downloaded artifacts (default: ../releases)"
+        default=None,
+        help="Output directory for downloaded artifacts (default: releases/<version> relative to project root)"
     )
     
     args = parser.parse_args()
@@ -208,8 +231,15 @@ def main():
             print(f"  - {artifact['name']}")
         print()
         
+        # Determine output directory
+        if args.output_dir:
+            # User specified custom output directory
+            output_dir = Path(args.output_dir) / args.version
+        else:
+            # Default: releases/<version> relative to script location
+            output_dir = get_default_releases_dir() / args.version
+        
         # Create output directory
-        output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Download and rename each artifact
