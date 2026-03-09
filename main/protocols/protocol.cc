@@ -88,3 +88,8 @@ bool Protocol::IsTimeout() const {
     }
     return timeout;
 }
+
+void Protocol::SendStateChanged(const std::string& state)    {
+    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"state\",\"state\":\"" + state + "\"}";
+    SendText(message);
+}

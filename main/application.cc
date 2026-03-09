@@ -318,6 +318,20 @@ void Application::HandleActivationDoneEvent() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     });
+
+
+    // 设备首次联网后会自动进入监听状态
+    // if (!first_network_connected_) {
+    //     first_network_connected_ = true;
+    //     ESP_LOGI(TAG, "First network connection detected, triggering wake event in 3 seconds");
+    //     // Wait 3 seconds before triggering wake event
+    //     xTaskCreate([](void* arg) {
+    //         Application* app = static_cast<Application*>(arg);
+    //         vTaskDelay(pdMS_TO_TICKS(3000));
+    //         xEventGroupSetBits(app->event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
+    //         vTaskDelete(NULL);
+    //     }, "auto_wake", 2048, this, 1, nullptr);
+    // }
 }
 
 void Application::ActivationTask() {
@@ -576,6 +590,9 @@ void Application::InitializeProtocol() {
                     Schedule([this]() {
                         Reboot();
                     });
+                } else if (strcmp(command->valuestring, "listening") == 0) {
+                    // 进入监听状态
+                    xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
                 } else {
                     ESP_LOGW(TAG, "Unknown system command: %s", command->valuestring);
                 }
@@ -860,7 +877,26 @@ void Application::HandleStateChangedEvent() {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
-    
+
+    // 发送状态变化到服务器
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        const char* state_str = "";
+        switch (new_state) {
+            case kDeviceStateUnknown: state_str = "unknown"; break;
+            case kDeviceStateStarting: state_str = "starting"; break;
+            case kDeviceStateWifiConfiguring: state_str = "wifi_configuring"; break;
+            case kDeviceStateIdle: state_str = "idle"; break;
+            case kDeviceStateConnecting: state_str = "connecting"; break;
+            case kDeviceStateListening: state_str = "listening"; break;
+            case kDeviceStateSpeaking: state_str = "speaking"; break;
+            case kDeviceStateUpgrading: state_str = "upgrading"; break;
+            case kDeviceStateActivating: state_str = "activating"; break;
+            case kDeviceStateAudioTesting: state_str = "audio_testing"; break;
+            case kDeviceStateFatalError: state_str = "fatal_error"; break;
+        }
+        protocol_->SendStateChanged(state_str);
+    }
+
     switch (new_state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
@@ -886,7 +922,7 @@ void Application::HandleStateChangedEvent() {
                 if (listening_mode_ == kListeningModeAutoStop) {
                     audio_service_.WaitForPlaybackQueueEmpty();
                 }
-                
+
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
                 audio_service_.EnableVoiceProcessing(true);
@@ -899,7 +935,7 @@ void Application::HandleStateChangedEvent() {
             // Disable wake word detection in listening mode
             audio_service_.EnableWakeWordDetection(false);
 #endif
-            
+
             // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
             if (play_popup_on_listening_) {
                 play_popup_on_listening_ = false;
