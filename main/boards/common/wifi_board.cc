@@ -149,7 +149,7 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
             // Defer reconnect until config AP teardown has fully completed.
             esp_timer_stop(config_exit_timer_);
             if (esp_timer_start_once(config_exit_timer_, CONFIG_EXIT_RECONNECT_DELAY_US) != ESP_OK) {
-                ESP_LOGW(TAG, "Failed to schedule deferred WiFi reconnect, retrying immediately");
+                ESP_LOGW(TAG, "Failed to schedule deferred WiFi reconnect, attempting immediate connection");
                 TryWifiConnect();
             }
             break;
