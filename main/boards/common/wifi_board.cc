@@ -25,6 +25,8 @@ static const char *TAG = "WifiBoard";
 
 // Connection timeout in seconds
 static constexpr int CONNECT_TIMEOUT_SEC = 60;
+// Give SoftAP/web teardown a brief window to finish before restarting STA mode.
+static constexpr uint64_t CONFIG_EXIT_RECONNECT_DELAY_US = 500000;
 
 WifiBoard::WifiBoard() {
     // Create connection timeout timer
@@ -36,12 +38,25 @@ WifiBoard::WifiBoard() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&timer_args, &connect_timer_);
+
+    esp_timer_create_args_t config_exit_timer_args = {
+        .callback = OnWifiConfigExitReconnect,
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "wifi_cfg_exit_timer",
+        .skip_unhandled_events = true
+    };
+    esp_timer_create(&config_exit_timer_args, &config_exit_timer_);
 }
 
 WifiBoard::~WifiBoard() {
     if (connect_timer_) {
         esp_timer_stop(connect_timer_);
         esp_timer_delete(connect_timer_);
+    }
+    if (config_exit_timer_) {
+        esp_timer_stop(config_exit_timer_);
+        esp_timer_delete(config_exit_timer_);
     }
 }
 
@@ -132,12 +147,11 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
             ESP_LOGI(TAG, "WiFi config mode exited");
             in_config_mode_ = false;
             // Defer reconnect until config AP teardown has fully completed.
-            xTaskCreate([](void* arg) {
-                auto* board = static_cast<WifiBoard*>(arg);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                board->TryWifiConnect();
-                vTaskDelete(NULL);
-            }, "wifi_cfg_exit", 4096, this, 2, NULL);
+            esp_timer_stop(config_exit_timer_);
+            if (esp_timer_start_once(config_exit_timer_, CONFIG_EXIT_RECONNECT_DELAY_US) != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to schedule deferred WiFi reconnect, retrying immediately");
+                TryWifiConnect();
+            }
             break;
         default:
             break;
@@ -159,6 +173,11 @@ void WifiBoard::OnWifiConnectTimeout(void* arg) {
 
     WifiManager::GetInstance().StopStation();
     board->StartWifiConfigMode();
+}
+
+void WifiBoard::OnWifiConfigExitReconnect(void* arg) {
+    auto* board = static_cast<WifiBoard*>(arg);
+    board->TryWifiConnect();
 }
 
 void WifiBoard::StartWifiConfigMode() {
