@@ -131,8 +131,13 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
         case NetworkEvent::WifiConfigModeExit:
             ESP_LOGI(TAG, "WiFi config mode exited");
             in_config_mode_ = false;
-            // Try to connect with the new credentials
-            TryWifiConnect();
+            // Defer reconnect until config AP teardown has fully completed.
+            xTaskCreate([](void* arg) {
+                auto* board = static_cast<WifiBoard*>(arg);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                board->TryWifiConnect();
+                vTaskDelete(NULL);
+            }, "wifi_cfg_exit", 4096, this, 2, NULL);
             break;
         default:
             break;
