@@ -24,7 +24,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-#define TAG "EchoEar"
+#define TAG "ESP-VoCat"
 
 
 temperature_sensor_handle_t temp_sensor = NULL;
@@ -282,7 +282,7 @@ public:
         // Create touch interrupt semaphore
         touch_isr_mux_ = xSemaphoreCreateBinary();
         if (touch_isr_mux_ == NULL) {
-            ESP_LOGE("EchoEar", "Failed to create touch semaphore");
+            ESP_LOGE(TAG, "Failed to create touch semaphore");
         }
     }
 
@@ -319,15 +319,15 @@ public:
             // Press event (transition from not touched to touched)
             press_count_++;
             event = TOUCH_PRESS;
-            ESP_LOGI("EchoEar", "TOUCH PRESS - count: %d, x: %d, y: %d", press_count_, tp_.x, tp_.y);
+            ESP_LOGI(TAG, "TOUCH PRESS - count: %d, x: %d, y: %d", press_count_, tp_.x, tp_.y);
         } else if (!is_touched && was_touched_) {
             // Release event (transition from touched to not touched)
             event = TOUCH_RELEASE;
-            ESP_LOGI("EchoEar", "TOUCH RELEASE - total presses: %d", press_count_);
+            ESP_LOGI(TAG, "TOUCH RELEASE - total presses: %d", press_count_);
         } else if (is_touched && was_touched_) {
             // Continuous touch (hold)
             event = TOUCH_HOLD;
-            ESP_LOGD("EchoEar", "TOUCH HOLD - x: %d, y: %d", tp_.x, tp_.y);
+            ESP_LOGD(TAG, "TOUCH HOLD - x: %d, y: %d", tp_.x, tp_.y);
         }
 
         // Update previous state
@@ -380,7 +380,7 @@ private:
     SemaphoreHandle_t touch_isr_mux_;
 };
 
-class EchoEar : public WifiBoard {
+class EspVocat : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Cst816s* cst816s_;
@@ -471,7 +471,7 @@ private:
         while (true) {
             if (touchpad->WaitForTouchEvent()) {
                 auto &app = Application::GetInstance();
-                auto &board = (EchoEar &)Board::GetInstance();
+                auto &board = (EspVocat &)Board::GetInstance();
 
                 ESP_LOGD(TAG, "Touch event, TP_PIN_NUM_INT: %d", gpio_get_level(TP_PIN_NUM_INT));
                 touchpad->UpdateTouchPoint();
@@ -509,7 +509,7 @@ private:
         gpio_config(&int_gpio_config);
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
-        gpio_isr_handler_add(TP_PIN_NUM_INT, EchoEar::touch_isr_callback, cst816s_);
+        gpio_isr_handler_add(TP_PIN_NUM_INT, EspVocat::touch_isr_callback, cst816s_);
     }
 
     void InitializeSpi()
@@ -612,7 +612,7 @@ private:
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 
 public:
-    ~EchoEar() {
+    ~EspVocat() {
         // Stop tasks
         if (charge_task_handle_ != nullptr) {
             vTaskDelete(charge_task_handle_);
@@ -627,7 +627,7 @@ public:
         delete display_;
         // Note: backlight_ (PwmBacklight) and camera_ (EspVideo) are not deleted here
         // because their base classes (Backlight, Camera) don't have virtual destructors.
-        // Since EchoEar is a singleton that lives for the device lifetime, this is acceptable.
+        // Since EspVocat is a singleton that lives for the device lifetime, this is acceptable.
 
         // Remove GPIO ISR handler
         gpio_isr_handler_remove(TP_PIN_NUM_INT);
@@ -640,7 +640,7 @@ public:
         }
     }
 
-    EchoEar() : boot_button_(BOOT_BUTTON_GPIO)
+    EspVocat() : boot_button_(BOOT_BUTTON_GPIO)
     {
         InitializeI2c();
         uint8_t pcb_version = DetectPcbVersion();
@@ -693,4 +693,4 @@ public:
     }
 };
 
-DECLARE_BOARD(EchoEar);
+DECLARE_BOARD(EspVocat);
