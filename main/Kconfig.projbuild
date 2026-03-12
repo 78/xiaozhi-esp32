@@ -230,6 +230,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI智能摄像头模块"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_DF_S3_NO_CAM
+        bool "DFRobot ESP32-S3 No Camera (OLED)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MARK_ONE
+        bool "Mark One (Generic ESP32-S3-DevKitC-1)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MAGICLICK_S3_2P4
         bool "神奇按钮 Magiclick_2.4"
         depends on IDF_TARGET_ESP32S3

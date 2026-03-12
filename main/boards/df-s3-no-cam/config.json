@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "df-s3-no-cam",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_DF_S3_NO_CAM=y",
+                "CONFIG_USE_AUDIO_PROCESSOR=false",
+                "CONFIG_USE_WAKE_WORD_DETECT=false"
+            ]
+        }
+    ]
+}

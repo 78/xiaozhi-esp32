@@ -1,0 +1,11 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "mark-one",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_MARK_ONE=y"
+            ]
+        }
+    ]
+}
