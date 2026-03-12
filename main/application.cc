@@ -111,6 +111,13 @@ void Application::Initialize() {
                 break;
             case NetworkEvent::Connected:
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
+                // Defer UI update to app scheduler to avoid LVGL lockups in event callback context.
+                this->Schedule([data]() {
+                    auto display = Board::GetInstance().GetDisplay();
+                    std::string msg = Lang::Strings::CONNECTED_TO;
+                    msg += data;
+                    display->SetStatus(msg.c_str());
+                });
                 break;
             case NetworkEvent::Disconnected:
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);

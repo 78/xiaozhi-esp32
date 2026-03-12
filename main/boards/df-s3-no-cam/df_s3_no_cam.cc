@@ -17,6 +17,37 @@
 
 #define TAG "DfrobotEsp32S3NoCam"
 
+class DfS3NoCamSilentCodec : public AudioCodec {
+protected:
+    int Read(int16_t* dest, int samples) override {
+        (void)dest;
+        (void)samples;
+        return 0;
+    }
+
+    int Write(const int16_t* data, int samples) override {
+        (void)data;
+        return samples;
+    }
+
+public:
+    DfS3NoCamSilentCodec() {
+        duplex_ = false;
+        input_sample_rate_ = AUDIO_INPUT_SAMPLE_RATE;
+        output_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
+        input_enabled_ = false;
+        output_enabled_ = false;
+    }
+
+    void EnableInput(bool enable) override {
+        input_enabled_ = enable;
+    }
+
+    void EnableOutput(bool enable) override {
+        output_enabled_ = enable;
+    }
+};
+
 class DfrobotEsp32S3NoCam : public WifiBoard {
 private:
     Button boot_button_;
@@ -108,13 +139,10 @@ private:
 
             if (esp_lcd_panel_reset(panel) != ESP_OK) continue;
             if (esp_lcd_panel_init(panel) != ESP_OK) continue;
-            // Force normal polarity for modules that boot in reverse mode
             esp_lcd_panel_invert_color(panel, false);
             esp_lcd_panel_disp_on_off(panel, true);
 
             display_ = new OledDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-            display_->SetEmotion("happy");
-            display_->SetStatus("DF-S3 NoCam");
             ESP_LOGI(TAG, "OLED initialized at 0x%02X", addr);
             return;
         }
@@ -137,10 +165,7 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodecSimplexPdm audio_codec(
-            AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT,
-            AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_DIN);
+        static DfS3NoCamSilentCodec audio_codec;
         return &audio_codec;
     }
 

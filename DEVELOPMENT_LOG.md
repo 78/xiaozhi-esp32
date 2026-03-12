@@ -51,3 +51,19 @@
   - Device AP provisioning works when `nvs` is reset.
   - Router now shows connected device entry (`espressif`), confirming Wi-Fi join success.
   - Remaining user-visible state likely at cloud activation/binding stage (xiaozhi.me), not local Wi-Fi bring-up.
+
+## 2026-03-12 — Stability fix: OLED + Wi-Fi/login working, audio temporarily disabled
+
+- Symptom chain observed:
+  - Wi-Fi connected and cloud activation progressed, but device rebooted repeatedly.
+  - Logs showed `Display: Failed to lock display` watchdog events and later an audio abort.
+- Key crash identified:
+  - `ESP_ERROR_CHECK failed ... no_audio_codec.cc ... i2s_channel_enable(tx_handle_)` with NULL handle.
+- Fixes applied in this iteration:
+  - Reduced risky display updates in network callback path (deferred/limited UI updates).
+  - Kept OLED enabled and stable in board profile.
+  - Replaced temporary "silent" audio path with a true dummy `AudioCodec` implementation that does not call I2S APIs.
+- Result:
+  - Device now passes initializing/login without reboot loops.
+  - OLED remains operational and system is stable.
+  - Audio (speaker/mic) is intentionally disabled in this stable build; must be re-enabled later with non-conflicting pin map.
