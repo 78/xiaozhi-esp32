@@ -335,6 +335,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v2
         bool "Waveshare ESP32-S3-ePaper-1.54_v2"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_3_97
+        bool "Waveshare ESP32-S3-ePaper-3.97"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2
         bool "Waveshare ESP32-S3-RLCD-4.2"
         depends on IDF_TARGET_ESP32S3

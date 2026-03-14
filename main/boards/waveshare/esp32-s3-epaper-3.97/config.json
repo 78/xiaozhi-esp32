@@ -1,0 +1,12 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-epaper-3.97",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n"
+            ]
+        }
+    ]
+}
