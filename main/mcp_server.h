@@ -61,8 +61,9 @@ private:
     PropertyType type_;
     std::variant<bool, int, std::string> value_;
     bool has_default_value_;
-    std::optional<int> min_value_;  // 新增：整数最小值
-    std::optional<int> max_value_;  // 新增：整数最大值
+    std::optional<int> min_value_;       // Integer minimum
+    std::optional<int> max_value_;       // Integer maximum
+    std::optional<size_t> max_length_;   // String maximum length
 
 public:
     // Required field constructor
@@ -94,27 +95,70 @@ public:
         value_ = default_value;
     }
 
+    // Set max_length for string properties (builder pattern)
+    Property& SetMaxLength(size_t max_length) {
+        if (type_ != kPropertyTypeString) {
+            throw std::invalid_argument("Max length only applies to string properties");
+        }
+        max_length_ = max_length;
+        return *this;
+    }
+
     inline const std::string& name() const { return name_; }
     inline PropertyType type() const { return type_; }
     inline bool has_default_value() const { return has_default_value_; }
     inline bool has_range() const { return min_value_.has_value() && max_value_.has_value(); }
     inline int min_value() const { return min_value_.value_or(0); }
     inline int max_value() const { return max_value_.value_or(0); }
+    inline bool has_max_length() const { return max_length_.has_value(); }
+    inline size_t max_length() const { return max_length_.value_or(0); }
 
     template<typename T>
     inline T value() const {
         return std::get<T>(value_);
     }
 
+    // Validate a value against this property's constraints without setting it.
+    // Returns empty string on success, or an error message on failure.
+    std::string Validate(const std::variant<bool, int, std::string>& val) const {
+        if (type_ == kPropertyTypeInteger && std::holds_alternative<int>(val)) {
+            int v = std::get<int>(val);
+            if (min_value_.has_value() && v < min_value_.value()) {
+                return "Property '" + name_ + "': value " + std::to_string(v) +
+                       " is below minimum " + std::to_string(min_value_.value());
+            }
+            if (max_value_.has_value() && v > max_value_.value()) {
+                return "Property '" + name_ + "': value " + std::to_string(v) +
+                       " exceeds maximum " + std::to_string(max_value_.value());
+            }
+        } else if (type_ == kPropertyTypeString && std::holds_alternative<std::string>(val)) {
+            const auto& s = std::get<std::string>(val);
+            if (max_length_.has_value() && s.size() > max_length_.value()) {
+                return "Property '" + name_ + "': string length " + std::to_string(s.size()) +
+                       " exceeds maximum " + std::to_string(max_length_.value());
+            }
+        }
+        return "";
+    }
+
     template<typename T>
     inline void set_value(const T& value) {
-        // 添加对设置的整数值进行范围检查
+        // Integer range check
         if constexpr (std::is_same_v<T, int>) {
             if (min_value_.has_value() && value < min_value_.value()) {
-                throw std::invalid_argument("Value is below minimum allowed: " + std::to_string(min_value_.value()));
+                throw std::invalid_argument("Property '" + name_ + "': value " + std::to_string(value) +
+                    " is below minimum " + std::to_string(min_value_.value()));
             }
             if (max_value_.has_value() && value > max_value_.value()) {
-                throw std::invalid_argument("Value exceeds maximum allowed: " + std::to_string(max_value_.value()));
+                throw std::invalid_argument("Property '" + name_ + "': value " + std::to_string(value) +
+                    " exceeds maximum " + std::to_string(max_value_.value()));
+            }
+        }
+        // String max_length check
+        if constexpr (std::is_same_v<T, std::string>) {
+            if (max_length_.has_value() && value.size() > max_length_.value()) {
+                throw std::invalid_argument("Property '" + name_ + "': string length " +
+                    std::to_string(value.size()) + " exceeds maximum " + std::to_string(max_length_.value()));
             }
         }
         value_ = value;
@@ -143,6 +187,9 @@ public:
             cJSON_AddStringToObject(json, "type", "string");
             if (has_default_value_) {
                 cJSON_AddStringToObject(json, "default", value<std::string>().c_str());
+            }
+            if (max_length_.has_value()) {
+                cJSON_AddNumberToObject(json, "maxLength", max_length_.value());
             }
         }
         
@@ -334,6 +381,7 @@ private:
 
     void ReplyResult(int id, const std::string& result);
     void ReplyError(int id, const std::string& message);
+    void ReplyError(int id, int code, const std::string& message);
 
     void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools);
     void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
