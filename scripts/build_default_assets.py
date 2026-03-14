@@ -424,7 +424,7 @@ def pack_assets_simple(target_path, include_path, out_file, assets_path, max_nam
     current_year = datetime.now().year
     asset_name = os.path.basename(assets_path)
     header_file_path = os.path.join(include_path, f'mmap_generate_{asset_name}.h')
-    with open(header_file_path, 'w') as output_header:
+    with open(header_file_path, 'w', encoding='utf-8') as output_header:
         output_header.write('/*\n')
         output_header.write(' * SPDX-FileCopyrightText: 2022-{} Espressif Systems (Shanghai) CO LTD\n'.format(current_year))
         output_header.write(' *\n')
@@ -463,7 +463,7 @@ def read_wakenet_from_sdkconfig(sdkconfig_path):
         return []
         
     models = []
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for label in f:
             label = label.strip("\n")
             if 'CONFIG_SR_WN' in label and '#' not in label[0]:
@@ -488,7 +488,7 @@ def read_multinet_from_sdkconfig(sdkconfig_path):
         print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
         return []
         
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         models_string = ''
         for label in f:
             label = label.strip("\n")
@@ -549,7 +549,7 @@ def read_wake_word_type_from_sdkconfig(sdkconfig_path):
         'wake_word_disabled': False
     }
     
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip("\n")
             if line.startswith('#'):
@@ -578,7 +578,7 @@ def read_custom_wake_word_from_sdkconfig(sdkconfig_path):
         return None
         
     config_values = {}
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip("\n")
             if line.startswith('#') or '=' not in line:
@@ -777,7 +777,7 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
         config_path = generate_config_json(temp_build_dir, assets_dir)
         
         # Load config and pack assets
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
         
         # Use simplified packing function
