@@ -17,36 +17,6 @@
 
 #define TAG "DfrobotEsp32S3NoCam"
 
-class DfS3NoCamSilentCodec : public AudioCodec {
-protected:
-    int Read(int16_t* dest, int samples) override {
-        (void)dest;
-        (void)samples;
-        return 0;
-    }
-
-    int Write(const int16_t* data, int samples) override {
-        (void)data;
-        return samples;
-    }
-
-public:
-    DfS3NoCamSilentCodec() {
-        duplex_ = false;
-        input_sample_rate_ = AUDIO_INPUT_SAMPLE_RATE;
-        output_sample_rate_ = AUDIO_OUTPUT_SAMPLE_RATE;
-        input_enabled_ = false;
-        output_enabled_ = false;
-    }
-
-    void EnableInput(bool enable) override {
-        input_enabled_ = enable;
-    }
-
-    void EnableOutput(bool enable) override {
-        output_enabled_ = enable;
-    }
-};
 
 class DfrobotEsp32S3NoCam : public WifiBoard {
 private:
@@ -165,7 +135,10 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static DfS3NoCamSilentCodec audio_codec;
+        static NoAudioCodecSimplex audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT,
+            AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
         return &audio_codec;
     }
 

@@ -67,3 +67,21 @@
   - Device now passes initializing/login without reboot loops.
   - OLED remains operational and system is stable.
   - Audio (speaker/mic) is intentionally disabled in this stable build; must be re-enabled later with non-conflicting pin map.
+
+## 2026-03-13 — INMP441 mic bring-up (working)
+
+- Updated `df-s3-no-cam` mic pin map for INMP441:
+  - SCK -> GPIO38
+  - WS  -> GPIO39
+  - SD  -> GPIO40
+- Re-enabled real audio codec path (replaced temporary dummy/safe audio path) using simplex I2S configuration.
+- Built and flashed successfully.
+- Runtime logs confirm AFE pipeline startup and mic path active:
+  - Wake model loaded: `wn9_nihaoxiaozhi_tts`
+  - Input PCM config: 1 mic @ 16kHz
+  - Audio detection task started
+- User validation: mic is working.
+
+Notes:
+- Current wake phrase for loaded model is Chinese: `你好小智`.
+- OLED remains on SH1106 path with prior orientation/polarity fixes.
