@@ -1,15 +1,14 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/box_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
 #include "button.h"
 #include "led/single_led.h"
 #include "pin_config.h"
+#include "esp_video.h"
 
 #include "config.h"
-#include "iot/thing_manager.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include "esp_lcd_gc9503.h"
@@ -17,19 +16,16 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_io_additions.h>
 
-#include "audio_codecs/box_audio_codec.h"
 #include "esp_io_expander_tca9554.h"
 
 #define TAG "ESP_S3_LCD_EV_Board"
-
-LV_FONT_DECLARE(font_puhui_30_4);
-LV_FONT_DECLARE(font_awesome_30_4);
 
 class ESP_S3_LCD_EV_Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     LcdDisplay* display_;
+    EspVideo* camera_;
 
     //add support ev board lcd
     esp_io_expander_handle_t expander = NULL;
@@ -63,7 +59,6 @@ private:
         esp_lcd_panel_io_3wire_spi_config_t io_config = GC9503_PANEL_IO_3WIRE_SPI_CONFIG(line_config, 0);
         int espok = esp_lcd_new_panel_io_3wire_spi(&io_config, &panel_io);
         ESP_LOGI(TAG, "Install 3-wire SPI  panel IO:%d",espok);
-
 
         ESP_LOGI(TAG, "Install RGB LCD panel driver");
         esp_lcd_panel_handle_t panel_handle = NULL;
@@ -128,13 +123,9 @@ private:
 
         display_ = new RgbLcdDisplay(panel_io, panel_handle,
                                   DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                  {
-                                      .text_font = &font_puhui_30_4,
-                                      .icon_font = &font_awesome_30_4,
-                                      .emoji_font = font_emoji_64_init(),
-                                  });
+                                  DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
+
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -163,8 +154,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         boot_button_.OnPressDown([this]() {
@@ -175,22 +167,41 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    void InitializeCamera() {
+        esp_video_init_usb_uvc_config_t usb_uvc_config = {
+            .uvc = {
+                .uvc_dev_num = 1,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+            .usb = {
+                .init_usb_host_lib = true,
+                .task_stack = 4096,
+                .task_priority = 5,
+                .task_affinity = -1,
+            },
+        };
+
+        esp_video_init_config_t video_config = {
+            .usb_uvc = &usb_uvc_config,
+        };
+
+        camera_ = new EspVideo(video_config);
     }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 
 public:
     ESP_S3_LCD_EV_Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeIot();
         InitializeRGB_GC9503V_Display();
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+        InitializeCamera();
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
     }
 
-
-    //es7210用作音频采集
     virtual AudioCodec* GetAudioCodec() override {
         static BoxAudioCodec audio_codec(
             codec_i2c_bus_, 
@@ -208,8 +219,6 @@ public:
         return &audio_codec;
     }
 
-
-
     virtual Display* GetDisplay() override {
         return display_;
     }
@@ -220,6 +229,11 @@ public:
         return &led;
     }
 
+#ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+    virtual Camera* GetCamera() override {
+        return camera_;
+    }
+#endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 
 };
 

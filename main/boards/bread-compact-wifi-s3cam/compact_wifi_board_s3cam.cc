@@ -1,5 +1,5 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
@@ -7,11 +7,9 @@
 #include "config.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "esp32_camera.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
@@ -62,15 +60,12 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
  
 #define TAG "CompactWifiBoardS3Cam"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class CompactWifiBoardS3Cam : public WifiBoard {
 private:
  
     Button boot_button_;
     LcdDisplay* display_;
-     Esp32Camera* camera_;
+    Esp32Camera* camera_;
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -117,7 +112,6 @@ private:
 #endif
         
         esp_lcd_panel_reset(panel);
- 
 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
@@ -127,16 +121,7 @@ private:
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-#endif
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeCamera() {
@@ -153,14 +138,14 @@ private:
         config.pin_pclk = CAMERA_PIN_PCLK;
         config.pin_vsync = CAMERA_PIN_VSYNC;
         config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = CAMERA_PIN_SIOD;  
+        config.pin_sccb_sda = CAMERA_PIN_SIOD;
         config.pin_sccb_scl = CAMERA_PIN_SIOC;
         config.sccb_i2c_port = 0;
         config.pin_pwdn = CAMERA_PIN_PWDN;
         config.pin_reset = CAMERA_PIN_RESET;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
         config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_QVGA;
+        config.frame_size = FRAMESIZE_VGA;
         config.jpeg_quality = 12;
         config.fb_count = 1;
         config.fb_location = CAMERA_FB_IN_PSRAM;
@@ -172,22 +157,12 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
-    }
-
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-#elif CONFIG_IOT_PROTOCOL_MCP
-
-#endif
     }
 
 public:
@@ -196,7 +171,6 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
-        InitializeIot();
         InitializeCamera();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();

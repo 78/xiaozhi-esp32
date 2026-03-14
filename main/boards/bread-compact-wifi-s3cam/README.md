@@ -20,7 +20,7 @@ idf.py menuconfig
 
 **选择板子：**
 
-```
+```bash
 Xiaozhi Assistant -> Board Type ->面包板新版接线（WiFi）+ LCD + Camera
 ```
 

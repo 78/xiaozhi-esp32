@@ -51,7 +51,7 @@ class ImageConverterApp:
         # 分辨率设置
         ttk.Label(settings_frame, text="分辨率:").grid(row=0, column=0, padx=2)
         ttk.Combobox(settings_frame, textvariable=self.resolution, 
-                    values=["128x128", "64x64", "32x32"], width=8).grid(row=0, column=1, padx=2)
+                    values=["512x512", "256x256", "128x128", "64x64", "32x32"], width=8).grid(row=0, column=1, padx=2)
 
         # 颜色格式
         ttk.Label(settings_frame, text="颜色格式:").grid(row=0, column=2, padx=2)
@@ -64,7 +64,7 @@ class ImageConverterApp:
                     values=["NONE", "RLE"], width=8).grid(row=0, column=5, padx=2)
 
         # 文件操作框架
-        file_frame = ttk.LabelFrame(self.root, text="输入文件")
+        file_frame = ttk.LabelFrame(self.root, text="选取文件")
         file_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
 
         # 文件操作按钮
@@ -77,7 +77,7 @@ class ImageConverterApp:
         # 文件列表（Treeview）
         self.tree = ttk.Treeview(file_frame, columns=("selected", "filename"), 
                                show="headings", height=10)
-        self.tree.heading("selected", text="选中", anchor=tk.W)
+        self.tree.heading("selected", text="选择", anchor=tk.W)
         self.tree.heading("filename", text="文件名", anchor=tk.W)
         self.tree.column("selected", width=60, anchor=tk.W)
         self.tree.column("filename", width=600, anchor=tk.W)

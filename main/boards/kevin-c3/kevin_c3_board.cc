@@ -1,12 +1,11 @@
 #include "wifi_board.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
 #include "led/circular_strip.h"
 #include "led_strip_control.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <esp_efuse_table.h>
 #include <driver/i2c_master.h>
@@ -34,13 +33,22 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+
+        // Print I2C bus info
+        if (i2c_master_probe(codec_i2c_bus_, 0x18, 1000) != ESP_OK) {
+            while (true) {
+                ESP_LOGE(TAG, "Failed to probe I2C bus, please check if you have installed the correct firmware");
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         boot_button_.OnPressDown([this]() {
@@ -52,19 +60,19 @@ private:
     }
 
     // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
+    void InitializeTools() {
         led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 8);
         new LedStripControl(led_strip_);
     }
 
 public:
-    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {  
-        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
-        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
-        
+    KevinBoxBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeButtons();
-        InitializeIot();
+        InitializeTools();
+        
+        // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
+        esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
     }
 
     virtual Led* GetLed() override {

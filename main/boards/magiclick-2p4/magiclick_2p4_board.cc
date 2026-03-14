@@ -1,16 +1,13 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-#include "audio_codecs/es8311_audio_codec.h"
+#include "codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
 #include "led/circular_strip.h"
-#include "iot/thing_manager.h"
 #include "config.h"
-#include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
 
 #include <esp_lcd_panel_vendor.h>
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
@@ -21,29 +18,23 @@
 
 #define TAG "magiclick_2p4"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
-
 class NV3023Display : public SpiLcdDisplay {
 public:
     NV3023Display(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
                 int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy, 
-                    {
-                        .text_font = &font_puhui_16_4,
-                        .icon_font = &font_awesome_16_4,
-                        .emoji_font = font_emoji_32_init(),
-                    }) {
+        : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
+    }
 
+    void SetupUI() override {
+        SpiLcdDisplay::SetupUI();
+
+        // Apply custom color styles after parent creates all LVGL objects
         DisplayLockGuard lock(this);
-        // 只需要覆盖颜色相关的样式
         auto screen = lv_disp_get_scr_act(lv_disp_get_default());
         lv_obj_set_style_text_color(screen, lv_color_black(), 0);
 
-        // 设置容器背景色
         lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
 
-        // 设置状态栏背景色和文本颜色
         lv_obj_set_style_bg_color(status_bar_, lv_color_white(), 0);
         lv_obj_set_style_text_color(network_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(notification_label_, lv_color_black(), 0);
@@ -51,10 +42,9 @@ public:
         lv_obj_set_style_text_color(mute_label_, lv_color_black(), 0);
         lv_obj_set_style_text_color(battery_label_, lv_color_black(), 0);
 
-        // 设置内容区背景色和文本颜色
         lv_obj_set_style_bg_color(content_, lv_color_black(), 0);
         lv_obj_set_style_border_width(content_, 0, 0);
-        lv_obj_set_style_text_color(emotion_label_, lv_color_white(), 0);
+        lv_obj_set_style_text_color(emoji_label_, lv_color_white(), 0);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
     }
 };
@@ -73,7 +63,6 @@ private:
     esp_lcd_panel_io_handle_t panel_io = nullptr;
     esp_lcd_panel_handle_t panel = nullptr;
 
-
     void InitializePowerManager() {
         power_manager_ = new PowerManager(GPIO_NUM_48);
         power_manager_->OnChargingStatusChanged([this](bool is_charging) {
@@ -88,14 +77,11 @@ private:
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(240, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
-            ESP_LOGI(TAG, "Enabling sleep mode");
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("sleepy");
+            GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);
         });
         power_save_timer_->OnExitSleepMode([this]() {
-            display_->SetChatMessage("system", "");
-            display_->SetEmotion("neutral");
+            GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
          
@@ -122,8 +108,9 @@ private:
     void InitializeButtons() {
         main_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         main_button_.OnPressDown([this]() {
@@ -137,8 +124,9 @@ private:
         left_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
@@ -225,13 +213,6 @@ private:
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-    }
-
 public:
     magiclick_2p4() :
         main_button_(MAIN_BUTTON_GPIO),
@@ -244,9 +225,7 @@ public:
         InitializeButtons();
         InitializeSpi();
         InitializeNv3023Display();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
-        
     }
 
     virtual Led* GetLed() override {
@@ -282,11 +261,11 @@ public:
         return true;
     }
 
-    virtual void SetPowerSaveMode(bool enabled) override {
-        if (!enabled) {
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 

@@ -4,8 +4,6 @@
 #include "settings.h"
 
 #include <esp_log.h>
-#include <ml307_mqtt.h>
-#include <ml307_udp.h>
 #include <cstring>
 #include <arpa/inet.h>
 #include "assets/lang_config.h"
@@ -14,17 +12,44 @@
 
 MqttProtocol::MqttProtocol() {
     event_group_handle_ = xEventGroupCreate();
+
+    // Initialize reconnect timer
+    esp_timer_create_args_t reconnect_timer_args = {
+        .callback = [](void* arg) {
+            MqttProtocol* protocol = (MqttProtocol*)arg;
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateIdle) {
+                ESP_LOGI(TAG, "Reconnecting to MQTT server");
+                auto alive = protocol->alive_;  // Capture alive flag
+                app.Schedule([protocol, alive]() {
+                    if (*alive) {
+                        protocol->StartMqttClient(false);
+                    }
+                });
+            }
+        },
+        .arg = this,
+    };
+    esp_timer_create(&reconnect_timer_args, &reconnect_timer_);
 }
 
 MqttProtocol::~MqttProtocol() {
     ESP_LOGI(TAG, "MqttProtocol deinit");
-    if (udp_ != nullptr) {
-        delete udp_;
+    
+    // Mark as dead first to prevent any pending scheduled tasks from executing
+    *alive_ = false;
+    
+    if (reconnect_timer_ != nullptr) {
+        esp_timer_stop(reconnect_timer_);
+        esp_timer_delete(reconnect_timer_);
     }
-    if (mqtt_ != nullptr) {
-        delete mqtt_;
+
+    udp_.reset();
+    mqtt_.reset();
+    
+    if (event_group_handle_ != nullptr) {
+        vEventGroupDelete(event_group_handle_);
     }
-    vEventGroupDelete(event_group_handle_);
 }
 
 bool MqttProtocol::Start() {
@@ -34,7 +59,7 @@ bool MqttProtocol::Start() {
 bool MqttProtocol::StartMqttClient(bool report_error) {
     if (mqtt_ != nullptr) {
         ESP_LOGW(TAG, "Mqtt client already started");
-        delete mqtt_;
+        mqtt_.reset();
     }
 
     Settings settings("mqtt", false);
@@ -42,7 +67,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto client_id = settings.GetString("client_id");
     auto username = settings.GetString("username");
     auto password = settings.GetString("password");
-    int keepalive_interval = settings.GetInt("keepalive", 120);
+    int keepalive_interval = settings.GetInt("keepalive", 240);
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint.empty()) {
@@ -53,11 +78,23 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         return false;
     }
 
-    mqtt_ = Board::GetInstance().CreateMqtt();
+    auto network = Board::GetInstance().GetNetwork();
+    mqtt_ = network->CreateMqtt(0);
     mqtt_->SetKeepAlive(keepalive_interval);
 
     mqtt_->OnDisconnected([this]() {
-        ESP_LOGI(TAG, "Disconnected from endpoint");
+        if (on_disconnected_ != nullptr) {
+            on_disconnected_();
+        }
+        ESP_LOGI(TAG, "MQTT disconnected, schedule reconnect in %d seconds", MQTT_RECONNECT_INTERVAL_MS / 1000);
+        esp_timer_start_once(reconnect_timer_, MQTT_RECONNECT_INTERVAL_MS * 1000);
+    });
+
+    mqtt_->OnConnected([this]() {
+        if (on_connected_ != nullptr) {
+            on_connected_();
+        }
+        esp_timer_stop(reconnect_timer_);
     });
 
     mqtt_->OnMessage([this](const std::string& topic, const std::string& payload) {
@@ -79,8 +116,12 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
             auto session_id = cJSON_GetObjectItem(root, "session_id");
             ESP_LOGI(TAG, "Received goodbye message, session_id: %s", session_id ? session_id->valuestring : "null");
             if (session_id == nullptr || session_id_ == session_id->valuestring) {
-                Application::GetInstance().Schedule([this]() {
-                    CloseAudioChannel();
+                auto alive = alive_;  // Capture alive flag
+                Application::GetInstance().Schedule([this, alive]() {
+                    if (*alive) {
+                        // Server initiated goodbye, don't send goodbye back to avoid ping-pong
+                        CloseAudioChannel(false);
+                    }
                 });
             }
         } else if (on_incoming_json_ != nullptr) {
@@ -101,7 +142,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         broker_address = endpoint;
     }
     if (!mqtt_->Connect(broker_address, broker_port, client_id, username, password)) {
-        ESP_LOGE(TAG, "Failed to connect to endpoint");
+        ESP_LOGE(TAG, "Failed to connect to endpoint, code=%d", mqtt_->GetLastError());
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }
@@ -122,25 +163,25 @@ bool MqttProtocol::SendText(const std::string& text) {
     return true;
 }
 
-bool MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
+bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     std::lock_guard<std::mutex> lock(channel_mutex_);
     if (udp_ == nullptr) {
         return false;
     }
 
     std::string nonce(aes_nonce_);
-    *(uint16_t*)&nonce[2] = htons(packet.payload.size());
-    *(uint32_t*)&nonce[8] = htonl(packet.timestamp);
+    *(uint16_t*)&nonce[2] = htons(packet->payload.size());
+    *(uint32_t*)&nonce[8] = htonl(packet->timestamp);
     *(uint32_t*)&nonce[12] = htonl(++local_sequence_);
 
     std::string encrypted;
-    encrypted.resize(aes_nonce_.size() + packet.payload.size());
+    encrypted.resize(aes_nonce_.size() + packet->payload.size());
     memcpy(encrypted.data(), nonce.data(), nonce.size());
 
     size_t nc_off = 0;
     uint8_t stream_block[16] = {0};
-    if (mbedtls_aes_crypt_ctr(&aes_ctx_, packet.payload.size(), &nc_off, (uint8_t*)nonce.c_str(), stream_block,
-        (uint8_t*)packet.payload.data(), (uint8_t*)&encrypted[nonce.size()]) != 0) {
+    if (mbedtls_aes_crypt_ctr(&aes_ctx_, packet->payload.size(), &nc_off, (uint8_t*)nonce.c_str(), stream_block,
+        (uint8_t*)packet->payload.data(), (uint8_t*)&encrypted[nonce.size()]) != 0) {
         ESP_LOGE(TAG, "Failed to encrypt audio data");
         return false;
     }
@@ -148,20 +189,23 @@ bool MqttProtocol::SendAudio(const AudioStreamPacket& packet) {
     return udp_->Send(encrypted) > 0;
 }
 
-void MqttProtocol::CloseAudioChannel() {
+void MqttProtocol::CloseAudioChannel(bool send_goodbye) {
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
-        if (udp_ != nullptr) {
-            delete udp_;
-            udp_ = nullptr;
-        }
+        udp_.reset();
     }
 
-    std::string message = "{";
-    message += "\"session_id\":\"" + session_id_ + "\",";
-    message += "\"type\":\"goodbye\"";
-    message += "}";
-    SendText(message);
+    ESP_LOGI(TAG, "Closing audio channel, send_goodbye: %d", send_goodbye);
+
+    // Only send goodbye when client initiates the close
+    // Don't send if server already sent goodbye (to avoid ping-pong)
+    if (send_goodbye) {
+        std::string message = "{";
+        message += "\"session_id\":\"" + session_id_ + "\",";
+        message += "\"type\":\"goodbye\"";
+        message += "}";
+        SendText(message);
+    }
 
     if (on_audio_channel_closed_ != nullptr) {
         on_audio_channel_closed_();
@@ -194,10 +238,8 @@ bool MqttProtocol::OpenAudioChannel() {
     }
 
     std::lock_guard<std::mutex> lock(channel_mutex_);
-    if (udp_ != nullptr) {
-        delete udp_;
-    }
-    udp_ = Board::GetInstance().CreateUdp();
+    auto network = Board::GetInstance().GetNetwork();
+    udp_ = network->CreateUdp(2);
     udp_->OnMessage([this](const std::string& data) {
         /*
          * UDP Encrypted OPUS Packet Format:
@@ -227,12 +269,12 @@ bool MqttProtocol::OpenAudioChannel() {
         uint8_t stream_block[16] = {0};
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
-        AudioStreamPacket packet;
-        packet.sample_rate = server_sample_rate_;
-        packet.frame_duration = server_frame_duration_;
-        packet.timestamp = timestamp;
-        packet.payload.resize(decrypted_size);
-        int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet.payload.data());
+        auto packet = std::make_unique<AudioStreamPacket>();
+        packet->sample_rate = server_sample_rate_;
+        packet->frame_duration = server_frame_duration_;
+        packet->timestamp = timestamp;
+        packet->payload.resize(decrypted_size);
+        int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet->payload.data());
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to decrypt audio data, ret: %d", ret);
             return;
@@ -262,9 +304,7 @@ std::string MqttProtocol::GetHelloMessage() {
 #if CONFIG_USE_SERVER_AEC
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
-#if CONFIG_IOT_PROTOCOL_MCP
     cJSON_AddBoolToObject(features, "mcp", true);
-#endif
     cJSON_AddItemToObject(root, "features", features);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");

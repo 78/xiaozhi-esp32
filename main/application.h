@@ -8,25 +8,30 @@
 
 #include <string>
 #include <mutex>
-#include <list>
-#include <vector>
-#include <condition_variable>
+#include <deque>
 #include <memory>
-
-#include <opus_encoder.h>
-#include <opus_decoder.h>
-#include <opus_resampler.h>
 
 #include "protocol.h"
 #include "ota.h"
-#include "background_task.h"
-#include "audio_processor.h"
-#include "wake_word.h"
-#include "audio_debugger.h"
+#include "audio_service.h"
+#include "device_state.h"
+#include "device_state_machine.h"
 
-#define SCHEDULE_EVENT (1 << 0)
-#define SEND_AUDIO_EVENT (1 << 1)
-#define CHECK_NEW_VERSION_DONE_EVENT (1 << 2)
+// Main event bits
+#define MAIN_EVENT_SCHEDULE             (1 << 0)
+#define MAIN_EVENT_SEND_AUDIO           (1 << 1)
+#define MAIN_EVENT_WAKE_WORD_DETECTED   (1 << 2)
+#define MAIN_EVENT_VAD_CHANGE           (1 << 3)
+#define MAIN_EVENT_ERROR                (1 << 4)
+#define MAIN_EVENT_ACTIVATION_DONE      (1 << 5)
+#define MAIN_EVENT_CLOCK_TICK           (1 << 6)
+#define MAIN_EVENT_NETWORK_CONNECTED    (1 << 7)
+#define MAIN_EVENT_NETWORK_DISCONNECTED (1 << 8)
+#define MAIN_EVENT_TOGGLE_CHAT          (1 << 9)
+#define MAIN_EVENT_START_LISTENING      (1 << 10)
+#define MAIN_EVENT_STOP_LISTENING       (1 << 11)
+#define MAIN_EVENT_STATE_CHANGED        (1 << 12)
+
 
 enum AecMode {
     kAecOff,
@@ -34,111 +39,151 @@ enum AecMode {
     kAecOnServerSide,
 };
 
-enum DeviceState {
-    kDeviceStateUnknown,
-    kDeviceStateStarting,
-    kDeviceStateWifiConfiguring,
-    kDeviceStateIdle,
-    kDeviceStateConnecting,
-    kDeviceStateListening,
-    kDeviceStateSpeaking,
-    kDeviceStateUpgrading,
-    kDeviceStateActivating,
-    kDeviceStateAudioTesting,
-    kDeviceStateFatalError
-};
-
-#define OPUS_FRAME_DURATION_MS 60
-#define MAX_AUDIO_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
-#define AUDIO_TESTING_MAX_DURATION_MS 10000
-
 class Application {
 public:
     static Application& GetInstance() {
         static Application instance;
         return instance;
     }
-    // 删除拷贝构造函数和赋值运算符
+    // Delete copy constructor and assignment operator
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
 
-    void Start();
-    DeviceState GetDeviceState() const { return device_state_; }
-    bool IsVoiceDetected() const { return voice_detected_; }
-    void Schedule(std::function<void()> callback);
-    void SetDeviceState(DeviceState state);
+    /**
+     * Initialize the application
+     * This sets up display, audio, network callbacks, etc.
+     * Network connection starts asynchronously.
+     */
+    void Initialize();
+
+    /**
+     * Run the main event loop
+     * This function runs in the main task and never returns.
+     * It handles all events including network, state changes, and user interactions.
+     */
+    void Run();
+
+    DeviceState GetDeviceState() const { return state_machine_.GetState(); }
+    bool IsVoiceDetected() const { return audio_service_.IsVoiceDetected(); }
+    
+    /**
+     * Request state transition
+     * Returns true if transition was successful
+     */
+    bool SetDeviceState(DeviceState state);
+
+    /**
+     * Schedule a callback to be executed in the main task
+     */
+    void Schedule(std::function<void()>&& callback);
+
+    /**
+     * Alert with status, message, emotion and optional sound
+     */
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
     void DismissAlert();
+
     void AbortSpeaking(AbortReason reason);
+
+    /**
+     * Toggle chat state (event-based, thread-safe)
+     * Sends MAIN_EVENT_TOGGLE_CHAT to be handled in Run()
+     */
     void ToggleChatState();
+
+    /**
+     * Start listening (event-based, thread-safe)
+     * Sends MAIN_EVENT_START_LISTENING to be handled in Run()
+     */
     void StartListening();
+
+    /**
+     * Stop listening (event-based, thread-safe)
+     * Sends MAIN_EVENT_STOP_LISTENING to be handled in Run()
+     */
     void StopListening();
-    void UpdateIotStates();
+
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
-    void PlaySound(const std::string_view& sound);
+    bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode);
-    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     AecMode GetAecMode() const { return aec_mode_; }
-    BackgroundTask* GetBackgroundTask() const { return background_task_; }
+    void PlaySound(const std::string_view& sound);
+    AudioService& GetAudioService() { return audio_service_; }
+    
+    /**
+     * Reset protocol resources (thread-safe)
+     * Can be called from any task to release resources allocated after network connected
+     * This includes closing audio channel, resetting protocol and ota objects
+     */
+    void ResetProtocol();
 
 private:
     Application();
     ~Application();
 
-    std::unique_ptr<WakeWord> wake_word_;
-    std::unique_ptr<AudioProcessor> audio_processor_;
-    std::unique_ptr<AudioDebugger> audio_debugger_;
     std::mutex mutex_;
-    std::list<std::function<void()>> main_tasks_;
+    std::deque<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
-    volatile DeviceState device_state_ = kDeviceStateUnknown;
+    DeviceStateMachine state_machine_;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
+    std::string last_error_message_;
+    AudioService audio_service_;
+    std::unique_ptr<Ota> ota_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;
-    bool voice_detected_ = false;
-    bool busy_decoding_audio_ = false;
+    bool assets_version_checked_ = false;
+    bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;
-    TaskHandle_t check_new_version_task_handle_ = nullptr;
+    TaskHandle_t activation_task_handle_ = nullptr;
 
-    // Audio encode / decode
-    TaskHandle_t audio_loop_task_handle_ = nullptr;
-    BackgroundTask* background_task_ = nullptr;
-    std::chrono::steady_clock::time_point last_output_time_;
-    std::list<AudioStreamPacket> audio_send_queue_;
-    std::list<AudioStreamPacket> audio_decode_queue_;
-    std::condition_variable audio_decode_cv_;
-    std::list<AudioStreamPacket> audio_testing_queue_;
 
-    // 新增：用于维护音频包的timestamp队列
-    std::list<uint32_t> timestamp_queue_;
-    std::mutex timestamp_mutex_;
+    // Event handlers
+    void HandleStateChangedEvent();
+    void HandleToggleChatEvent();
+    void HandleStartListeningEvent();
+    void HandleStopListeningEvent();
+    void HandleNetworkConnectedEvent();
+    void HandleNetworkDisconnectedEvent();
+    void HandleActivationDoneEvent();
+    void HandleWakeWordDetectedEvent();
+    void ContinueOpenAudioChannel(ListeningMode mode);
+    void ContinueWakeWordInvoke(const std::string& wake_word);
 
-    std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
-    std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
+    // Activation task (runs in background)
+    void ActivationTask();
 
-    OpusResampler input_resampler_;
-    OpusResampler reference_resampler_;
-    OpusResampler output_resampler_;
-
-    void MainEventLoop();
-    void OnAudioInput();
-    void OnAudioOutput();
-    void ResetDecoder();
-    void SetDecodeSampleRate(int sample_rate, int frame_duration);
-    void CheckNewVersion(Ota& ota);
+    // Helper methods
+    void CheckAssetsVersion();
+    void CheckNewVersion();
+    void InitializeProtocol();
     void ShowActivationCode(const std::string& code, const std::string& message);
-    void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
-    void AudioLoop();
-    void EnterAudioTestingMode();
-    void ExitAudioTestingMode();
+    ListeningMode GetDefaultListeningMode() const;
+    
+    // State change handler called by state machine
+    void OnStateChanged(DeviceState old_state, DeviceState new_state);
+};
+
+
+class TaskPriorityReset {
+public:
+    TaskPriorityReset(BaseType_t priority) {
+        original_priority_ = uxTaskPriorityGet(NULL);
+        vTaskPrioritySet(NULL, priority);
+    }
+    ~TaskPriorityReset() {
+        vTaskPrioritySet(NULL, original_priority_);
+    }
+
+private:
+    BaseType_t original_priority_;
 };
 
 #endif // _APPLICATION_H_

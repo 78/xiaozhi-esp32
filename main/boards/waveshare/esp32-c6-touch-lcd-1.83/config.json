@@ -1,0 +1,13 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32c6",
+    "builds": [
+        {
+            "name": "esp32-c6-touch-lcd-1.83",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        }
+    ]
+}

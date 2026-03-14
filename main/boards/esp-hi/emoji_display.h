@@ -6,7 +6,7 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include "anim_player.h"
-#include "mmap_generate_emoji.h"
+#include "assets.h"
 
 namespace anim {
 
@@ -20,7 +20,7 @@ public:
     EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     ~EmojiPlayer();
 
-    void StartPlayer(int aaf, bool repeat, int fps);
+    void StartPlayer(const std::string& asset_name, bool repeat, int fps);
     void StopPlayer();
 
 private:
@@ -28,7 +28,6 @@ private:
     static void OnFlush(anim_player_handle_t handle, int x_start, int y_start, int x_end, int y_end, const void *color_data);
 
     anim_player_handle_t player_handle_;
-    mmap_assets_handle_t assets_handle_;
 };
 
 class EmojiWidget : public Display {
@@ -38,6 +37,8 @@ public:
 
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetStatus(const char* status) override;
+    virtual void SetChatMessage(const char* role, const char* content) override {}
+
     anim::EmojiPlayer* GetPlayer()
     {
         return player_.get();

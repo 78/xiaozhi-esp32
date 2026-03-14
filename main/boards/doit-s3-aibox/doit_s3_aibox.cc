@@ -1,12 +1,10 @@
 #include "wifi_board.h"
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/gpio_led.h"
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/gpio.h>
@@ -37,8 +35,9 @@ private:
                 check_time = 0;
             }
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
             app.ToggleChatState();
         });
@@ -47,13 +46,13 @@ private:
             ESP_LOGI(TAG, "DoubleClick times %d", click_times);
             if(click_times==3) {
                 click_times = 0;
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
             }
         });
 
         boot_button_.OnLongPress([this]() {
             if(click_times>=3) {
-                ResetWifiConfiguration();
+                EnterWifiConfigMode();
             } else {
                 click_times = 0;
                 check_time = 0;
@@ -100,13 +99,6 @@ private:
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-    }
-
-
     void InitializeGpio(gpio_num_t gpio_num_) {
         gpio_config_t config = {
             .pin_bit_mask = (1ULL << gpio_num_),
@@ -128,7 +120,6 @@ public:
         // 上拉io48 置高电平
         InitializeGpio(GPIO_NUM_48);
         InitializeButtons();
-        InitializeIot();
     }
 
     virtual Led* GetLed() override {

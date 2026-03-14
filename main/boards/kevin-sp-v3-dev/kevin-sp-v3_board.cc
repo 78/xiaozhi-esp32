@@ -1,26 +1,20 @@
 #include "wifi_board.h"
 #include "ml307_board.h"
 
-#include "audio_codecs/no_audio_codec.h"
+#include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "iot/thing_manager.h"
 #include "led/single_led.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
-#include <wifi_station.h>
 #include "esp32_camera.h"
 
 #define TAG "kevin-sp-v3"
-
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
-
 
 // class KEVIN_SP_V3Board : public Ml307Board {
 class KEVIN_SP_V3Board : public WifiBoard {
@@ -44,8 +38,9 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+                return;
             }
         });
         boot_button_.OnPressDown([this]() {
@@ -85,53 +80,43 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
 
         display_ = new SpiLcdDisplay(panel_io, panel,
-                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                            {
-                                .text_font = &font_puhui_20_4,
-                                .icon_font = &font_awesome_20_4,
-                                .emoji_font = font_emoji_64_init(),
-                            });
+                            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeCamera() {
-        // Open camera power
+         // ESP32-S3 使用 esp_camera 组件
+        camera_config_t camera_config = {
+            .pin_pwdn = CAMERA_PIN_PWDN,
+            .pin_reset = CAMERA_PIN_RESET,
+            .pin_xclk = CAMERA_PIN_XCLK,
+            .pin_sccb_sda = -1, // 使用已初始化的 I2C
+            .pin_sccb_scl = -1,
+            .pin_d7 = CAMERA_PIN_D7,
+            .pin_d6 = CAMERA_PIN_D6,
+            .pin_d5 = CAMERA_PIN_D5,
+            .pin_d4 = CAMERA_PIN_D4,
+            .pin_d3 = CAMERA_PIN_D3,
+            .pin_d2 = CAMERA_PIN_D2,
+            .pin_d1 = CAMERA_PIN_D1,
+            .pin_d0 = CAMERA_PIN_D0,
+            .pin_vsync = CAMERA_PIN_VSYNC,
+            .pin_href = CAMERA_PIN_HREF,
+            .pin_pclk = CAMERA_PIN_PCLK,
 
-        camera_config_t config = {};
-        config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
-        config.ledc_timer = LEDC_TIMER_2; // LEDC timer选择  用于生成XCLK时钟 但是S3不用
-        config.pin_d0 = CAMERA_PIN_D0;
-        config.pin_d1 = CAMERA_PIN_D1;
-        config.pin_d2 = CAMERA_PIN_D2;
-        config.pin_d3 = CAMERA_PIN_D3;
-        config.pin_d4 = CAMERA_PIN_D4;
-        config.pin_d5 = CAMERA_PIN_D5;
-        config.pin_d6 = CAMERA_PIN_D6;
-        config.pin_d7 = CAMERA_PIN_D7;
-        config.pin_xclk = CAMERA_PIN_XCLK;
-        config.pin_pclk = CAMERA_PIN_PCLK;
-        config.pin_vsync = CAMERA_PIN_VSYNC;
-        config.pin_href = CAMERA_PIN_HREF;
-        config.pin_sccb_sda = CAMERA_PIN_SIOD;   // 这里写-1 表示使用已经初始化的I2C接口
-        config.pin_sccb_scl = CAMERA_PIN_SIOC;
-        config.sccb_i2c_port = 1;
-        config.pin_pwdn = CAMERA_PIN_PWDN;
-        config.pin_reset = CAMERA_PIN_RESET;
-        config.xclk_freq_hz = XCLK_FREQ_HZ;
-        config.pixel_format = PIXFORMAT_RGB565;
-        config.frame_size = FRAMESIZE_VGA;
-        config.jpeg_quality = 12;
-        config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_PSRAM;
-        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+            .xclk_freq_hz = XCLK_FREQ_HZ,
+            .ledc_timer = LEDC_TIMER_0,
+            .ledc_channel = LEDC_CHANNEL_0,
 
-        camera_ = new Esp32Camera(config);
-    }
-    // 物联网初始化，添加对 AI 可见设备
-    void InitializeIot() {
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        thing_manager.AddThing(iot::CreateThing("Speaker"));
-        thing_manager.AddThing(iot::CreateThing("Screen"));
-        thing_manager.AddThing(iot::CreateThing("Lamp"));
+            .pixel_format = PIXFORMAT_RGB565,
+            .frame_size = FRAMESIZE_QVGA,
+            .jpeg_quality = 12,
+            .fb_count = 2,
+            .fb_location = CAMERA_FB_IN_PSRAM,
+            .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+            .sccb_i2c_port = (i2c_port_t)1,
+        };
+
+        camera_ = new Esp32Camera(camera_config);
     }
 
 public:
@@ -141,10 +126,8 @@ public:
         InitializeButtons();
         InitializeSt7789Display();  
         InitializeCamera();
-        InitializeIot();
         GetBacklight()->RestoreBrightness();
     }
-    
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);

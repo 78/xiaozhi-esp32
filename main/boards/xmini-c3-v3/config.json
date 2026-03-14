@@ -1,0 +1,14 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "xmini-c3-v3",
+            "sdkconfig_append": [
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        }
+    ]
+}

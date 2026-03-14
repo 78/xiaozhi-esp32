@@ -4,16 +4,12 @@
         {
             "name": "bread-compact-esp32",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\"",
                 "CONFIG_OLED_SSD1306_128X64=y"
             ]
         },
         {
             "name": "bread-compact-esp32-128x32",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
-                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v1/4m.csv\"",
                 "CONFIG_OLED_SSD1306_128X32=y"
             ]
         }

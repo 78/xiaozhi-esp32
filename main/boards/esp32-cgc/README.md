@@ -29,18 +29,6 @@ Xiaozhi Assistant -> Board Type -> ESP32 CGC
 Xiaozhi Assistant -> LCD Type -> "ST7735, 分辨率128*128"
 ```
 
-**修改 flash 大小：**
-
-```
-Serial flasher config -> Flash size -> 4 MB
-```
-
-**修改分区表：**
-
-```
-Partition Table -> Custom partition CSV file -> partitions/v1/4m.csv
-```
-
 **编译：**
 
 ```bash
