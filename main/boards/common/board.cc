@@ -159,7 +159,7 @@ std::string Board::GetSystemInfoJson() {
     auto display = GetDisplay();
     if (display) {
         json += R"("display":{)";
-        if (dynamic_cast<OledDisplay*>(display)) {
+        if (display->IsOledDisplay()) {
             json += R"("monochrome":)" + std::string("true") + R"(,)";
         } else {
             json += R"("monochrome":)" + std::string("false") + R"(,)";

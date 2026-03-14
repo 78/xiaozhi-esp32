@@ -11,7 +11,10 @@
 class WakeWord {
 public:
     virtual ~WakeWord() = default;
-    
+
+    // Type checking method (for safe casting without RTTI)
+    virtual bool IsAfeWakeWord() const { return false; }
+
     virtual bool Initialize(AudioCodec* codec, srmodel_list_t* models_list) = 0;
     virtual void Feed(const std::vector<int16_t>& data) = 0;
     virtual void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) = 0;

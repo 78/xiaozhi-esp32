@@ -32,6 +32,10 @@ public:
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
     ~OledDisplay();
 
+    bool IsOledDisplay() const override { return true; }
+    OledDisplay* AsOledDisplay() override { return this; }
+    const OledDisplay* AsOledDisplay() const override { return this; }
+
     virtual void SetupUI() override;
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetEmotion(const char* emotion) override;

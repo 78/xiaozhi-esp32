@@ -46,6 +46,11 @@ protected:
     
 public:
     ~LcdDisplay();
+
+    bool IsLcdDisplay() const override { return true; }
+    LcdDisplay* AsLcdDisplay() override { return this; }
+    const LcdDisplay* AsLcdDisplay() const override { return this; }
+
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void ClearChatMessages() override;

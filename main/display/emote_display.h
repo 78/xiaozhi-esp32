@@ -14,6 +14,10 @@ public:
     EmoteDisplay(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io, int width, int height);
     virtual ~EmoteDisplay();
 
+    bool IsEmoteDisplay() const override { return true; }
+    emote::EmoteDisplay* AsEmoteDisplay() override { return this; }
+    const emote::EmoteDisplay* AsEmoteDisplay() const override { return this; }
+
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetStatus(const char* status) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
