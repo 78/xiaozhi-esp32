@@ -1079,6 +1079,11 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     if (gif_controller_) {
         DisplayLockGuard lock(this);
         gif_controller_->Stop();
+        // Hide image before destroying GIF controller to prevent LVGL from
+        // accessing freed image data during rendering between lock scopes
+        if (emoji_image_) {
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        }
         gif_controller_.reset();
     }
     
