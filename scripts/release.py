@@ -18,7 +18,7 @@ def get_board_type_from_compile_commands() -> Optional[str]:
     compile_file = Path("build/compile_commands.json")
     if not compile_file.exists():
         return None
-    with compile_file.open() as f:
+    with compile_file.open(encoding='utf-8') as f:
         data = json.load(f)
     for item in data:
         if not item["file"].endswith("main.cc"):
@@ -31,7 +31,7 @@ def get_board_type_from_compile_commands() -> Optional[str]:
 
 def get_project_version() -> Optional[str]:
     """Read set(PROJECT_VER "x.y.z") from root CMakeLists.txt"""
-    with Path("CMakeLists.txt").open() as f:
+    with Path("CMakeLists.txt").open(encoding='utf-8') as f:
         for line in f:
             if line.startswith("set(PROJECT_VER"):
                 return line.split("\"")[1]
@@ -87,7 +87,7 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
         board = board_dir.relative_to(_BOARDS_DIR).as_posix()
 
         try:
-            with cfg_path.open() as f:
+            with cfg_path.open(encoding='utf-8') as f:
                 cfg = json.load(f)
 
             manufacturer = _get_manufacturer(cfg)
@@ -232,7 +232,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
     project_version = get_project_version()
     print(f"Project Version: {project_version} ({cfg_path})")
 
-    with cfg_path.open() as f:
+    with cfg_path.open(encoding='utf-8') as f:
         cfg = json.load(f)
     target = cfg["target"]
     manufacturer = _get_manufacturer(cfg)
@@ -279,7 +279,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
             sys.exit(1)
 
         # Append sdkconfig
-        with Path("sdkconfig").open("a") as f:
+        with Path("sdkconfig").open("a", encoding='utf-8') as f:
             f.write("\n")
             f.write("# Append by release.py\n")
             for append in sdkconfig_append:

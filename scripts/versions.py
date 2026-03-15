@@ -236,11 +236,11 @@ def main():
                 target_dir = os.path.join("firmwares", tag)
                 info["tag"] = tag
                 info["url"] = os.path.join(os.environ['OSS_BUCKET_URL'], target_dir, "xiaozhi.bin")
-                open(info_path, "w").write(json.dumps(info, indent=4))
+                open(info_path, "w", encoding="utf-8").write(json.dumps(info, indent=4))
                 # upload all file to oss
                 upload_dir_to_oss(folder, target_dir)
                 # read info.json
-                info = json.load(open(info_path))
+                info = json.load(open(info_path, encoding="utf-8"))
                 # post info.json to server
                 post_info_to_server(info)
 
