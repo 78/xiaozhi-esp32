@@ -256,8 +256,12 @@ public:
     
     //添加彩灯显示状态，如果亮度太暗可以去更改默认亮度值 DEFAULT_BRIGHTNESS 在led的sigle_led.cc中
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
+        if (BUILTIN_LED_GPIO != GPIO_NUM_NC) {
+            static SingleLed led(BUILTIN_LED_GPIO);
+            return &led;
+        }
+        static NoLed no_led;
+        return &no_led;
     }
 
 #ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE

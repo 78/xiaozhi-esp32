@@ -198,8 +198,12 @@ class AIPILite : public WifiBoard {
     }
 
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
+        if (BUILTIN_LED_GPIO != GPIO_NUM_NC) {
+            static SingleLed led(BUILTIN_LED_GPIO);
+            return &led;
+        }
+        static NoLed no_led;
+        return &no_led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {

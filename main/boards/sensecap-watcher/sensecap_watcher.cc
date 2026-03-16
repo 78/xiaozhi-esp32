@@ -629,8 +629,12 @@ public:
     // RGB LED型号为 ws2813 mini, 连接在GPIO 40，供电电压 3.3v, 没有连接 BIN 双信号线
     // 可以直接兼容SingleLED采用的ws2812
     virtual Led* GetLed() override {
-        static SingleLed led(BUILTIN_LED_GPIO);
-        return &led;
+        if (BUILTIN_LED_GPIO != GPIO_NUM_NC) {
+            static SingleLed led(BUILTIN_LED_GPIO);
+            return &led;
+        }
+        static NoLed no_led;
+        return &no_led;
     }
 
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
