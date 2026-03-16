@@ -139,9 +139,7 @@ void InitializePowerManager() {
 
     // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {
-        if (LAMP_GPIO != GPIO_NUM_NC) {
-            static LampController lamp(LAMP_GPIO);
-        }
+        static LampController lamp(LAMP_GPIO);
     }
 
 public:

@@ -300,12 +300,8 @@ public:
     }
 
     virtual Led* GetLed() override {
-        if (BUILTIN_LED_GPIO != GPIO_NUM_NC) {
-            static SingleLed led(BUILTIN_LED_GPIO);
-            return &led;
-        }
-        static NoLed no_led;
-        return &no_led;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging)  override {

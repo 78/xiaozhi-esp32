@@ -149,9 +149,7 @@ private:
 
     // 物联网初始化，逐步迁移到 MCP 协议
     void InitializeTools() {
-        if (LAMP_GPIO != GPIO_NUM_NC) {
-            static LampController lamp(LAMP_GPIO);
-        }
+        static LampController lamp(LAMP_GPIO);
     }
 
 public:
@@ -167,12 +165,8 @@ public:
     }
 
     virtual Led* GetLed() override {
-        if (BUILTIN_LED_GPIO != GPIO_NUM_NC) {
-            static SingleLed led(BUILTIN_LED_GPIO);
-            return &led;
-        }
-        static NoLed no_led;
-        return &no_led;
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
