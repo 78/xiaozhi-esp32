@@ -45,7 +45,6 @@ SingleLed::SingleLed(gpio_num_t gpio) {
 SingleLed::~SingleLed() {
     if (blink_timer_ != nullptr) {
         esp_timer_stop(blink_timer_);
-        esp_timer_delete(blink_timer_);
     }
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
