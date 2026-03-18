@@ -15,6 +15,8 @@
 
 #if CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4B
 #include "esp_lcd_st7703.h"
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3
+#include "esp_lcd_st7701.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
 #include "esp_lcd_ek79007.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C \
@@ -136,6 +138,46 @@ private:
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_st7703(io, &lcd_dev_config, &disp_panel);
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3
+    esp_lcd_dpi_panel_config_t dpi_config = {                                                 
+        .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,  
+        .dpi_clock_freq_mhz = 30,                     
+        .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,                    
+        .num_fbs = 1,                                 
+        .video_timing = {                             
+            .h_size = 480,                            
+            .v_size = 800,                            
+            .hsync_pulse_width = 12,                  
+            .hsync_back_porch = 42,                   
+            .hsync_front_porch = 42,                  
+            .vsync_pulse_width = 8,                   
+            .vsync_back_porch = 2,                    
+            .vsync_front_porch = 60,                  
+        },                                            
+        .flags = {
+            .use_dma2d = true,
+        },                  
+    };
+    st7701_vendor_config_t vendor_config = {
+        .init_cmds = vendor_specific_init_default,
+        .init_cmds_size = sizeof(vendor_specific_init_default) / sizeof(st7701_lcd_init_cmd_t),
+        .mipi_config = {
+            .dsi_bus = mipi_dsi_bus,
+            .dpi_config = &dpi_config,
+        },
+        .flags = {
+            .use_mipi_interface = 1,
+        },
+
+    };
+
+    const esp_lcd_panel_dev_config_t lcd_dev_config = {
+            .reset_gpio_num = PIN_NUM_LCD_RST,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .bits_per_pixel = 16,
+            .vendor_config = &vendor_config,
+    };
+    esp_lcd_new_panel_st7701(io, &lcd_dev_config, &disp_panel);
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
