@@ -17,6 +17,10 @@ public:
     LvglDisplay();
     virtual ~LvglDisplay();
 
+    bool IsLvglDisplay() const override { return true; }
+    LvglDisplay* AsLvglDisplay() override { return this; }
+    const LvglDisplay* AsLvglDisplay() const override { return this; }
+
     virtual void SetStatus(const char* status);
     virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string &notification, int duration_ms = 3000);

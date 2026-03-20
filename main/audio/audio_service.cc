@@ -727,7 +727,7 @@ void AudioService::SetModelsList(srmodel_list_t* models_list) {
 
 bool AudioService::IsAfeWakeWord() {
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
-    return wake_word_ != nullptr && dynamic_cast<AfeWakeWord*>(wake_word_.get()) != nullptr;
+    return wake_word_ != nullptr && wake_word_->IsAfeWakeWord();
 #else
     return false;
 #endif

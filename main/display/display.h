@@ -15,6 +15,12 @@
 #include <string>
 #include <chrono>
 
+// Forward declarations for safe casting return types
+class LvglDisplay;
+class OledDisplay;
+class LcdDisplay;
+namespace emote { class EmoteDisplay; }
+
 class Theme {
 public:
     Theme(const std::string& name) : name_(name) {}
@@ -47,6 +53,22 @@ public:
     inline int width() const { return width_; }
     inline int height() const { return height_; }
     inline bool IsSetupUICalled() const { return setup_ui_called_; }
+
+    // Type checking methods (for boolean checks)
+    virtual bool IsLvglDisplay() const { return false; }
+    virtual bool IsOledDisplay() const { return false; }
+    virtual bool IsLcdDisplay() const { return false; }
+    virtual bool IsEmoteDisplay() const { return false; }
+
+    // Safe casting methods - returns nullptr if type doesn't match
+    virtual class LvglDisplay* AsLvglDisplay() { return nullptr; }
+    virtual const class LvglDisplay* AsLvglDisplay() const { return nullptr; }
+    virtual class OledDisplay* AsOledDisplay() { return nullptr; }
+    virtual const class OledDisplay* AsOledDisplay() const { return nullptr; }
+    virtual class LcdDisplay* AsLcdDisplay() { return nullptr; }
+    virtual const class LcdDisplay* AsLcdDisplay() const { return nullptr; }
+    virtual class emote::EmoteDisplay* AsEmoteDisplay() { return nullptr; }
+    virtual const class emote::EmoteDisplay* AsEmoteDisplay() const { return nullptr; }
 
 protected:
     int width_ = 0;
