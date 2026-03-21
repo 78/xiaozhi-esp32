@@ -50,8 +50,8 @@ bool Assets::FindPartition(Assets* assets) {
     return true;
 }
 
-bool Assets::Apply() {
-    return strategy_ ? strategy_->Apply(this) : false;
+bool Assets::Apply(bool refresh_display_theme) {
+    return strategy_ ? strategy_->Apply(this, refresh_display_theme) : false;
 }
 
 bool Assets::InitializePartition() {
@@ -211,7 +211,7 @@ bool Assets::LvglStrategy::GetAssetData(Assets* assets, const std::string& name,
     return true;
 }
 
-bool Assets::LvglStrategy::Apply(Assets* assets) {
+bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
     void* ptr = nullptr;
     size_t size = 0;
     if (!assets->GetAssetData("index.json", ptr, size)) {
@@ -332,22 +332,24 @@ bool Assets::LvglStrategy::Apply(Assets* assets) {
         }
     }
 
-    auto display = Board::GetInstance().GetDisplay();
-    ESP_LOGI(TAG, "Refreshing display theme...");
+    if (refresh_display_theme) {
+        auto display = Board::GetInstance().GetDisplay();
+        ESP_LOGI(TAG, "Refreshing display theme...");
 
-    auto current_theme = display->GetTheme();
-    if (current_theme != nullptr) {
-        display->SetTheme(current_theme);
-    }
+        auto current_theme = display->GetTheme();
+        if (current_theme != nullptr) {
+            display->SetTheme(current_theme);
+        }
 
-    // Parse hide_subtitle configuration
-    cJSON* hide_subtitle = cJSON_GetObjectItem(root, "hide_subtitle");
-    if (cJSON_IsBool(hide_subtitle)) {
-        bool hide = cJSON_IsTrue(hide_subtitle);
-        auto lcd_display = dynamic_cast<LcdDisplay*>(display);
-        if (lcd_display != nullptr) {
-            lcd_display->SetHideSubtitle(hide);
-            ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
+        // Parse hide_subtitle configuration
+        cJSON* hide_subtitle = cJSON_GetObjectItem(root, "hide_subtitle");
+        if (cJSON_IsBool(hide_subtitle)) {
+            bool hide = cJSON_IsTrue(hide_subtitle);
+            auto lcd_display = dynamic_cast<LcdDisplay*>(display);
+            if (lcd_display != nullptr) {
+                lcd_display->SetHideSubtitle(hide);
+                ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
+            }
         }
     }
     
@@ -411,7 +413,7 @@ bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name
     return false;
 }
 
-bool Assets::EmoteStrategy::Apply(Assets* assets) {
+bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
     Assets::LoadSrmodelsFromIndex(assets);
 
     auto display = Board::GetInstance().GetDisplay();
