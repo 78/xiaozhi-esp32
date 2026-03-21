@@ -327,251 +327,164 @@ void EDARobotDog::LiftRightRearLeg(int period, int height) {
 //-- DOG GAIT MOVEMENTS -----------------------------------------//
 ///////////////////////////////////////////////////////////////////
 
-void EDARobotDog::Turn(float steps, int period, int dir) {
+// 舵机方向分析（从 Stretch/Sleep 推断物理前后方向）：
+//
+//   Stretch: LF=0, LR=180, RF=180, RR=0
+//   → 前腿向前伸，后腿向后伸
+//
+//   LEFT_FRONT_LEG  (0): 减小=向前, 增大=向后
+//   LEFT_REAR_LEG   (1): 减小=向前, 增大=向后
+//   RIGHT_FRONT_LEG (2): 增大=向前, 减小=向后
+//   RIGHT_REAR_LEG  (3): 增大=向前, 减小=向后
+//
+//   即：左侧两腿同向（减=前），右侧两腿同向（增=前）
+//   对角线A: 左前 + 右后 → 前进时左前减小, 右后减小（都是各自的"向前"）
+//   对角线B: 左后 + 右前 → 前进时左后减小, 右前增大（都是各自的"向前"）
+//
+//   抬腿方向（从 Lift 函数）：
+//   LEFT_FRONT_LEG:  0°   (减小=抬)
+//   LEFT_REAR_LEG:   180° (增大=抬)
+//   RIGHT_FRONT_LEG: 180° (增大=抬)
+//   RIGHT_REAR_LEG:  0°   (减小=抬)
 
-  if (GetRestState() == true) {
-    SetRestState(false);
-  }
-
-  for (int step = 0; step < (int)steps; step++) {
-    if (dir == LEFT) {
-
-      int current_pos[SERVO_COUNT];
-      for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-          current_pos[i] = servo_[i].GetPosition();
-        } else {
-          current_pos[i] = LEG_HOME_POSITION;
-        }
-      }
-
-      current_pos[RIGHT_REAR_LEG] = 140; // servo3
-      current_pos[LEFT_REAR_LEG] = 40;   // servo2
-      MoveServos(100, current_pos);
-
-      current_pos[RIGHT_FRONT_LEG] = 40; // servo4
-      current_pos[LEFT_FRONT_LEG] = 140; // servo1
-      MoveServos(100, current_pos);
-
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      MoveServos(100, current_pos);
-
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_FRONT_LEG] = 140; // servo4
-      current_pos[LEFT_FRONT_LEG] = 40;   // servo1
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 40; // servo3
-      current_pos[LEFT_REAR_LEG] = 140; // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      MoveServos(100, current_pos);
-      
-
+// 辅助：获取当前所有舵机位置
+void EDARobotDog::GetCurrentPositions(int pos[SERVO_COUNT]) {
+  for (int i = 0; i < SERVO_COUNT; i++) {
+    if (servo_pins_[i] != -1) {
+      pos[i] = servo_[i].GetPosition();
     } else {
-
-// 获取当前位置
-      int current_pos[SERVO_COUNT];
-      for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-          current_pos[i] = servo_[i].GetPosition();
-        } else {
-          current_pos[i] = LEG_HOME_POSITION;
-        }
-      }
-
-
-      current_pos[LEFT_REAR_LEG] = 140; // servo2
-      current_pos[RIGHT_REAR_LEG] = 40; // servo3
-      MoveServos(100, current_pos);
-
-      current_pos[LEFT_FRONT_LEG] = 40;   // servo1
-      current_pos[RIGHT_FRONT_LEG] = 140; // servo4
-      MoveServos(100, current_pos);
-
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      MoveServos(100, current_pos);
-
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 140; // servo1
-      current_pos[RIGHT_FRONT_LEG] = 40; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_REAR_LEG] = 40;   // servo2
-      current_pos[RIGHT_REAR_LEG] = 140; // servo3
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      MoveServos(100, current_pos);
-
+      pos[i] = LEG_HOME_POSITION;
     }
   }
 }
 
-void EDARobotDog::Walk(float steps, int period, int dir) {
-
+void EDARobotDog::Turn(float steps, int period, int dir) {
   if (GetRestState() == true) {
     SetRestState(false);
   }
 
+  // 转弯 = 左侧后退 + 右侧前进（左转），或反过来（右转）
+  // 从 Walk 的已验证方向推导：
+  //   前进: LF=90-s, LR=90-s, RF=90+s, RR=90+s
+  //   后退: LF=90+s, LR=90+s, RF=90-s, RR=90-s
+  //
+  // 左转(d=1): 左侧后退+右侧前进
+  //   LF=90+s, LR=90+s, RF=90+s, RR=90+s → 全部 90+s
+  //   地面反推: 全部 90-s
+  //
+  // 右转(d=-1): 左侧前进+右侧后退
+  //   LF=90-s, LR=90-s, RF=90-s, RR=90-s → 全部 90-s
+  //   地面反推: 全部 90+s
+
+  const int swing = 60;
+  const int lift = 25;
+  int t = period / 6;
+  if (t < 50) t = 50;
+
+  int d = (dir == LEFT) ? -1 : 1;
 
   for (int step = 0; step < (int)steps; step++) {
-    if (dir == FORWARD) {
+    int pos[SERVO_COUNT];
+    GetCurrentPositions(pos);
 
-// 获取当前位置
-      int current_pos[SERVO_COUNT];
-      for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-          current_pos[i] = servo_[i].GetPosition();
-        } else {
-          current_pos[i] = LEG_HOME_POSITION;
-        }
-      }
+    // 拍1: 抬A（LF+RR）
+    pos[LEFT_FRONT_LEG]  = 90 - lift;
+    pos[RIGHT_REAR_LEG]  = 90 - lift;
+    MoveServos(t, pos);
 
-  
-      current_pos[LEFT_FRONT_LEG] = 100;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 100; // servo4
-      MoveServos(100, current_pos);
+    // 拍2: A空中摆 + B地面反推
+    pos[LEFT_FRONT_LEG]  = 90 - lift + d * swing;  // LF空中
+    pos[RIGHT_REAR_LEG]  = 90 - lift + d * swing;  // RR空中
+    pos[LEFT_REAR_LEG]   = 90 - d * swing;         // LR地面反推
+    pos[RIGHT_FRONT_LEG] = 90 - d * swing;         // RF地面反推
+    MoveServos(t, pos);
 
-      
-      current_pos[RIGHT_REAR_LEG] = 60; // servo3
-      current_pos[LEFT_REAR_LEG] = 60;  // servo2
-      MoveServos(100, current_pos);
+    // 拍3: 放下A
+    pos[LEFT_FRONT_LEG]  = 90 + d * swing;
+    pos[RIGHT_REAR_LEG]  = 90 + d * swing;
+    MoveServos(t / 2, pos);
 
-   
-      current_pos[LEFT_FRONT_LEG] = 140;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 140; // servo4
-      MoveServos(100, current_pos);
+    // 拍4: 抬B（LR+RF）
+    pos[LEFT_REAR_LEG]   = 90 + lift;
+    pos[RIGHT_FRONT_LEG] = 90 + lift;
+    MoveServos(t, pos);
 
-    
-      current_pos[RIGHT_REAR_LEG] = 40; // servo3
-      current_pos[LEFT_REAR_LEG] = 40;  // servo2
-      MoveServos(100, current_pos);
+    // 拍5: B空中摆 + A地面反推
+    pos[LEFT_REAR_LEG]   = 90 + lift + d * swing;  // LR空中
+    pos[RIGHT_FRONT_LEG] = 90 + lift + d * swing;  // RF空中
+    pos[LEFT_FRONT_LEG]  = 90 - d * swing;         // LF地面反推
+    pos[RIGHT_REAR_LEG]  = 90 - d * swing;         // RR地面反推
+    MoveServos(t, pos);
 
- 
-
-      current_pos[RIGHT_REAR_LEG] = 90;  // servo3
-      current_pos[LEFT_REAR_LEG] = 90;   // servo2
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 80;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 80; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 120; // servo3
-      current_pos[LEFT_REAR_LEG] = 120;  // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 140; // servo3
-      current_pos[LEFT_REAR_LEG] = 140;  // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      MoveServos(100, current_pos);
-    } else {
-
-      // 每次只移动指定的舵机，然后延时100ms
-      // 获取当前位置
-      int current_pos[SERVO_COUNT];
-      for (int i = 0; i < SERVO_COUNT; i++) {
-        if (servo_pins_[i] != -1) {
-          current_pos[i] = servo_[i].GetPosition();
-        } else {
-          current_pos[i] = LEG_HOME_POSITION;
-        }
-      }
-
-
-      current_pos[LEFT_FRONT_LEG] = 80;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 80; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 120; // servo3
-      current_pos[LEFT_REAR_LEG] = 120;  // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 40;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 40; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 140; // servo3
-      current_pos[LEFT_REAR_LEG] = 140;  // servo2
-      MoveServos(100, current_pos);
-
-      current_pos[RIGHT_REAR_LEG] = 90;  // servo3
-      current_pos[LEFT_REAR_LEG] = 90;   // servo2
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 100;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 100; // servo4
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 60; // servo3
-      current_pos[LEFT_REAR_LEG] = 60;  // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[LEFT_FRONT_LEG] = 90;  // servo1
-      current_pos[RIGHT_FRONT_LEG] = 90; // servo4
-      MoveServos(100, current_pos);
-
-      current_pos[RIGHT_REAR_LEG] = 40; // servo3
-      current_pos[LEFT_REAR_LEG] = 40;  // servo2
-      MoveServos(100, current_pos);
-
-
-      current_pos[RIGHT_REAR_LEG] = 90; // servo3
-      current_pos[LEFT_REAR_LEG] = 90;  // servo2
-      MoveServos(100, current_pos);
-      
-    }
+    // 拍6: 放下B
+    pos[LEFT_REAR_LEG]   = 90 + d * swing;
+    pos[RIGHT_FRONT_LEG] = 90 + d * swing;
+    MoveServos(t / 2, pos);
   }
+
+  // 结束回中
+  int home[SERVO_COUNT] = {90, 90, 90, 90};
+  MoveServos(150, home);
+}
+
+void EDARobotDog::Walk(float steps, int period, int dir) {
+  if (GetRestState() == true) {
+    SetRestState(false);
+  }
+
+  // Trot 对角步态
+  // 方向: LF减=前, LR减=前, RF增=前, RR增=前
+  // 抬腿: LF减=抬, LR增=抬, RF增=抬, RR减=抬
+
+  const int lift = 25;
+  const int swing = 30;
+  int t = period / 6;
+  if (t < 50) t = 50;
+
+  int fwd = (dir == FORWARD) ? 1 : -1;
+
+  for (int step = 0; step < (int)steps; step++) {
+    int pos[SERVO_COUNT];
+    GetCurrentPositions(pos);
+
+    // 拍1: 抬起对角线A（LF+RR）
+    pos[LEFT_FRONT_LEG]  = 90 - lift;
+    pos[RIGHT_REAR_LEG]  = 90 - lift;
+    MoveServos(t, pos);
+
+    // 拍2: A空中前摆 + B地面后推（同时）
+    pos[LEFT_FRONT_LEG]  = 90 - lift - fwd * swing;  // LF: 保持抬 + 前摆
+    pos[RIGHT_REAR_LEG]  = 90 - lift + fwd * swing;  // RR: 保持抬 + 前摆(增=前)
+    pos[LEFT_REAR_LEG]   = 90 + fwd * swing;         // LR: 地面后推(增=后)
+    pos[RIGHT_FRONT_LEG] = 90 - fwd * swing;         // RF: 地面后推(减=后)
+    MoveServos(t, pos);
+
+    // 拍3: 放下A（着地到前摆位置）
+    pos[LEFT_FRONT_LEG]  = 90 - fwd * swing;
+    pos[RIGHT_REAR_LEG]  = 90 + fwd * swing;
+    MoveServos(t / 2, pos);
+
+    // 拍4: 抬起对角线B（LR+RF）
+    pos[LEFT_REAR_LEG]   = 90 + lift;
+    pos[RIGHT_FRONT_LEG] = 90 + lift;
+    MoveServos(t, pos);
+
+    // 拍5: B空中前摆 + A地面后推（同时）
+    pos[LEFT_REAR_LEG]   = 90 + lift - fwd * swing;  // LR: 保持抬 + 前摆(减=前)
+    pos[RIGHT_FRONT_LEG] = 90 + lift + fwd * swing;  // RF: 保持抬 + 前摆(增=前)
+    pos[LEFT_FRONT_LEG]  = 90 + fwd * swing;         // LF: 地面后推(增=后)
+    pos[RIGHT_REAR_LEG]  = 90 - fwd * swing;         // RR: 地面后推(减=后)
+    MoveServos(t, pos);
+
+    // 拍6: 放下B（不回中，直接衔接下一步）
+    pos[LEFT_REAR_LEG]   = 90 - fwd * swing;
+    pos[RIGHT_FRONT_LEG] = 90 + fwd * swing;
+    MoveServos(t / 2, pos);
+  }
+
+  // 结束回中
+  int home[SERVO_COUNT] = {90, 90, 90, 90};
+  MoveServos(150, home);
 }
 
 void EDARobotDog::Sit(int period) {
