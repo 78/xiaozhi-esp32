@@ -1,0 +1,10 @@
+# ESP-IDF Partition Table — 16MB Flash, 单 OTA 分区 + 大 assets（约 12MB）
+# 用于 generated_assets.bin > 8MB 时；无 ota_1，失去 A/B 无缝回滚，OTA 仍可向 ota_0 写入。
+# 使用：menuconfig → Partition Table → Custom partition CSV file → partitions/v2/16m_large_assets.csv
+#
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,    0x4000,
+otadata,  data, ota,     0xd000,    0x2000,
+phy_init, data, phy,     0xf000,    0x1000,
+ota_0,    app,  ota_0,   0x20000,   0x3f0000,
+assets,   data, spiffs,  0x410000,  12224K

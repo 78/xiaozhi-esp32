@@ -57,6 +57,10 @@ The `assets` partition stores:
 - `ota_1`: 4MB
 - `assets`: 8MB
 
+### 16MB Flash Devices (`16m_large_assets.csv`) - Large default assets (Windows / full SR pack)
+- Same `ota_0` size as standard (4MB); **no `ota_1`** (single OTA slot, no A/B rollback).
+- `assets`: ~12MB from `0x410000` to end of flash — use when `generated_assets.bin` exceeds **8MB** (e.g. multiple Multinet models + large fonts/emojis). See `README-Lichuang-S3-Windows.md` in repo root.
+
 ### 16MB Flash Devices (`16m_c3.csv`) - ESP32-C3 Optimized
 - `nvs`: 16KB
 - `otadata`: 8KB

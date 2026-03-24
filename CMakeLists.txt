@@ -2,6 +2,10 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
+# ccache on Windows may panic with "Permission denied" (Os error 5) when spawning
+# xtensa-esp-elf-gcc — common with AV/policy. Disable so ninja invokes GCC directly.
+set(CCACHE_ENABLE 0 CACHE BOOL "" FORCE)
+
 # Add this line to disable the specific warning
 add_compile_options(-Wno-missing-field-initializers)
 
