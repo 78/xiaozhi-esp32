@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "freenove-esp32s3-display-2.8-lcd",
+            "sdkconfig_append": []
+        }
+    ]
+}
