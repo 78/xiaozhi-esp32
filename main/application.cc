@@ -432,15 +432,15 @@ void Application::CheckNewVersion() {
         retry_count = 0;
         retry_delay = 10; // Reset retry delay
 
+        // Mark the current version as valid to prevent boot loops if we are in PENDING_VERIFY state
+        ota_->MarkCurrentVersionValid();
+
         if (ota_->HasNewVersion()) {
             if (UpgradeFirmware(ota_->GetFirmwareUrl(), ota_->GetFirmwareVersion())) {
                 return; // This line will never be reached after reboot
             }
             // If upgrade failed, continue to normal operation
         }
-
-        // No new version, mark the current version as valid
-        ota_->MarkCurrentVersionValid();
         if (!ota_->HasActivationCode() && !ota_->HasActivationChallenge()) {
             // Exit the loop if done checking new version
             break;
@@ -743,8 +743,8 @@ void Application::HandleStartListeningEvent() {
     }
     
     if (state == kDeviceStateIdle) {
+        SetDeviceState(kDeviceStateConnecting);
         if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
             // Schedule to let the state change be processed first (UI update)
             Schedule([this]() {
                 ContinueOpenAudioChannel(kListeningModeManualStop);
@@ -786,8 +786,8 @@ void Application::HandleWakeWordDetectedEvent() {
         audio_service_.EncodeWakeWord();
         auto wake_word = audio_service_.GetLastWakeWord();
 
+        SetDeviceState(kDeviceStateConnecting);
         if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
             // Schedule to let the state change be processed first (UI update),
             // then continue with OpenAudioChannel which may block for ~1 second
             Schedule([this, wake_word]() {
@@ -1113,4 +1113,3 @@ void Application::ResetProtocol() {
         protocol_.reset();
     });
 }
-
