@@ -26,7 +26,8 @@
                 "CONFIG_NEWLIB_NANO_FORMAT=y",
                 "CONFIG_ESP_CONSOLE_NONE=y",
                 "CONFIG_USE_ESP_WAKE_WORD=y",
-                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y"
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y",
+                "CONFIG_CODEC_DATA_ADC_SUPPORT=y"
             ]
         }
     ]
