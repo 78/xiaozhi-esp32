@@ -5,18 +5,15 @@
 #include "button.h"
 #include "esp_video.h"
 #include "esp_video_init.h"
-#include "esp_cam_sensor_xclk.h"
-#include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
-#include "esp_ldo_regulator.h"
-#include <driver/spi_master.h>
+#include <driver/spi_master.h> 
 #include "esp_lcd_st7796.h"
 #include "config.h"
-#include "lcd_init_cmds.h"
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lvgl_port.h>
 #include "esp_lcd_touch_ft5x06.h"
+
 #define TAG "WaveshareEsp32p4"
 
 class WaveshareEsp32p4 : public WifiBoard {
@@ -46,21 +43,6 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
-    }
-
-    static esp_err_t bsp_enable_dsi_phy_power(void) {
-#if MIPI_DSI_PHY_PWR_LDO_CHAN > 0
-        // Turn on the power for MIPI DSI PHY, so it can go from "No Power" state to "Shutdown" state
-        static esp_ldo_channel_handle_t phy_pwr_chan = NULL;
-        esp_ldo_channel_config_t ldo_cfg = {
-            .chan_id = MIPI_DSI_PHY_PWR_LDO_CHAN,
-            .voltage_mv = MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV,
-        };
-        esp_ldo_acquire_channel(&ldo_cfg, &phy_pwr_chan);
-        ESP_LOGI(TAG, "MIPI DSI PHY Powered on");
-#endif // BSP_MIPI_DSI_PHY_PWR_LDO_CHAN > 0
-
-        return ESP_OK;
     }
 
     void InitializeLCD() {
