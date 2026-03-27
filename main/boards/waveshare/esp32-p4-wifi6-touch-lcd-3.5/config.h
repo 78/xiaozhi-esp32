@@ -35,14 +35,6 @@
 #define LCD_SPI_CS_PIN                  GPIO_NUM_23
 #define LCD_SPI_DC_PIN                  GPIO_NUM_26
 
-
-#define LCD_BIT_PER_PIXEL               (16)
-#define DELAY_TIME_MS                   (3000)
-#define LCD_MIPI_DSI_LANE_NUM           (2)    // 2 data lanes
-
-#define MIPI_DSI_PHY_PWR_LDO_CHAN       (3)
-#define MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV (2500)
-
 #define DISPLAY_SWAP_XY                 false
 #define DISPLAY_MIRROR_X                true
 #define DISPLAY_MIRROR_Y                false
