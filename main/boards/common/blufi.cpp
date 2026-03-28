@@ -851,16 +851,19 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             m_sta_config.sta.bssid_set = true;
             ESP_LOGI(BLUFI_TAG, "Recv STA BSSID");
             break;
-        case ESP_BLUFI_EVENT_RECV_STA_SSID:
-            strncpy((char*)m_sta_config.sta.ssid, (char*)param->sta_ssid.ssid,
-                    param->sta_ssid.ssid_len);
-            m_sta_config.sta.ssid[param->sta_ssid.ssid_len] = '\0';
+        case ESP_BLUFI_EVENT_RECV_STA_SSID: {
+            size_t ssid_copy_len = std::min((size_t)param->sta_ssid.ssid_len,
+                                            sizeof(m_sta_config.sta.ssid) - 1);
+            strncpy((char*)m_sta_config.sta.ssid, (char*)param->sta_ssid.ssid, ssid_copy_len);
+            m_sta_config.sta.ssid[ssid_copy_len] = '\0';
             ESP_LOGI(BLUFI_TAG, "Recv STA SSID: %s", m_sta_config.sta.ssid);
             break;
-        case ESP_BLUFI_EVENT_RECV_STA_PASSWD:
-            strncpy((char*)m_sta_config.sta.password, (char*)param->sta_passwd.passwd,
-                    param->sta_passwd.passwd_len);
-            m_sta_config.sta.password[param->sta_passwd.passwd_len] = '\0';
+        }
+        case ESP_BLUFI_EVENT_RECV_STA_PASSWD: {
+            size_t passwd_copy_len = std::min((size_t)param->sta_passwd.passwd_len,
+                                              sizeof(m_sta_config.sta.password) - 1);
+            strncpy((char*)m_sta_config.sta.password, (char*)param->sta_passwd.passwd, passwd_copy_len);
+            m_sta_config.sta.password[passwd_copy_len] = '\0';
             ESP_LOGI(BLUFI_TAG, "Recv STA PASSWORD : %s", m_sta_config.sta.password);
             break;
         case ESP_BLUFI_EVENT_GET_WIFI_LIST: {

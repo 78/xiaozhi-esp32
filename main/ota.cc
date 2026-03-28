@@ -195,16 +195,21 @@ esp_err_t Ota::CheckVersion() {
             // 设置系统时间
             struct timeval tv;
             double ts = timestamp->valuedouble;
-            
+
             // 如果有时区偏移，计算本地时间
             if (cJSON_IsNumber(timezone_offset)) {
                 ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
             }
-            
-            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
-            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
-            settimeofday(&tv, NULL);
-            has_server_time_ = true;
+
+            // 验证时间戳范围（1970-01-01 到 9999-12-31）
+            if (ts <= 0 || ts > 253402300799000.0) {
+                ESP_LOGE(TAG, "Invalid server timestamp: %f", ts);
+            } else {
+                tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
+                tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+                settimeofday(&tv, nullptr);
+                has_server_time_ = true;
+            }
         }
     } else {
         ESP_LOGW(TAG, "No server_time section found!");
