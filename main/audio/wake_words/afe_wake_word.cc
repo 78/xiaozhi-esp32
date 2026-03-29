@@ -94,7 +94,18 @@ void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
 }
 
 void AfeWakeWord::Start() {
+<<<<<<< Updated upstream
     xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
+=======
+    last_start_time_ = esp_timer_get_time();
+    printf("AfeWakeWord::Start() called\n");
+    xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
+    index1_count_ = 0;
+    last_trigger_time_ = 0;
+    if (afe_data_ != nullptr) {
+        afe_iface_->enable_wakenet(afe_data_);
+    }
+>>>>>>> Stashed changes
 }
 
 void AfeWakeWord::Stop() {
@@ -150,9 +161,17 @@ void AfeWakeWord::AudioDetectionTask() {
         StoreWakeWordData(res->data, res->data_size / sizeof(int16_t));
 
         if (res->wakeup_state == WAKENET_DETECTED) {
+            ESP_LOGI(TAG, "Wake word detected, waiting for stability...");
+            
+            // Wait for a few more frames to ensure the wake word is fully processed
+            // and the audio stream is ready for the next state.
+            for (int i = 0; i < 5; i++) {
+                res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
+                if (res == nullptr || res->ret_value == ESP_FAIL) break;
+            }
+            
             Stop();
             last_detected_wake_word_ = wake_words_[res->wakenet_model_index - 1];
-
             if (wake_word_detected_callback_) {
                 wake_word_detected_callback_(last_detected_wake_word_);
             }

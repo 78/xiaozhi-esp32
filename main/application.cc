@@ -482,8 +482,8 @@ void Application::InitializeProtocol() {
     } else if (ota_->HasWebsocketConfig()) {
         protocol_ = std::make_unique<WebsocketProtocol>();
     } else {
-        ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
-        protocol_ = std::make_unique<MqttProtocol>();
+        ESP_LOGI(TAG, "No protocol specified in the OTA config, using Websocket as fallback");
+        protocol_ = std::make_unique<WebsocketProtocol>();
     }
 
     protocol_->OnConnected([this]() {
@@ -525,7 +525,8 @@ void Application::InitializeProtocol() {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
-                    aborted_ = false;
+                    audio_service_.Mute(true);
+                    Board::GetInstance().GetDisplay()->SetMuteState(true);
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
@@ -672,6 +673,12 @@ void Application::StopListening() {
 }
 
 void Application::HandleToggleChatEvent() {
+    auto now = esp_timer_get_time() / 1000;
+    if (now - last_wake_word_time_ < 500) {
+        ESP_LOGW(TAG, "Ignore ToggleChatEvent due to wake-word cooldown (%lld ms)", now - last_wake_word_time_);
+        return;
+    }
+
     auto state = GetDeviceState();
     
     if (state == kDeviceStateActivating) {
@@ -779,6 +786,7 @@ void Application::HandleWakeWordDetectedEvent() {
     }
 
     auto state = GetDeviceState();
+    last_wake_word_time_ = esp_timer_get_time() / 1000;
     auto wake_word = audio_service_.GetLastWakeWord();
     ESP_LOGI(TAG, "Wake word detected: %s (state: %d)", wake_word.c_str(), (int)state);
 
@@ -868,12 +876,18 @@ void Application::HandleStateChangedEvent() {
             display->ClearChatMessages();  // Clear messages first
             display->SetEmotion("neutral"); // Then set emotion (wechat mode checks child count)
             audio_service_.EnableVoiceProcessing(false);
+            // Wait for any deactivation/error sounds to finish
+            audio_service_.WaitForPlaybackQueueEmpty();
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            audio_service_.Mute(false);
+            Board::GetInstance().GetDisplay()->SetMuteState(false);
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
+            audio_service_.EnableWakeWordDetection(false);
             break;
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
@@ -886,6 +900,16 @@ void Application::HandleStateChangedEvent() {
                 if (listening_mode_ == kListeningModeAutoStop) {
                     audio_service_.WaitForPlaybackQueueEmpty();
                 }
+
+                if (last_listening_trigger_ == "server-command") {
+                    // Mandatory 2.5s delay to prevent hearing own voice echoes
+                    vTaskDelay(pdMS_TO_TICKS(2500));
+                }
+                
+                // Clear all buffers before starting to listen
+                audio_service_.Mute(false);
+                Board::GetInstance().GetDisplay()->SetMuteState(false);
+                audio_service_.Reset();
                 
                 // Send the start listening command
                 protocol_->SendStartListening(listening_mode_);
@@ -911,10 +935,10 @@ void Application::HandleStateChangedEvent() {
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
-                // Only AFE wake word can be detected in speaking mode
-                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
+                // Disable wake word detection during speaking to avoid acoustic feedback
+                audio_service_.EnableWakeWordDetection(false);
             }
-            audio_service_.ResetDecoder();
+            audio_service_.Reset();
             break;
         case kDeviceStateWifiConfiguring:
             audio_service_.EnableVoiceProcessing(false);

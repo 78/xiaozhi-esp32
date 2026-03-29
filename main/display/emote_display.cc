@@ -29,6 +29,8 @@
 #include "gfx.h"
 #include "expression_emote.h"
 
+LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+
 
 namespace emote {
 
@@ -124,6 +126,32 @@ EmoteDisplay::EmoteDisplay(const esp_lcd_panel_handle_t panel, const esp_lcd_pan
         .on_color_trans_done = OnFlushIoReady,
     };
     esp_lcd_panel_io_register_event_callbacks(panel_io, &cbs, emote_handle_);
+
+    // Create chat label
+    chat_label_ = lv_label_create(lv_layer_top());
+    lv_obj_set_width(chat_label_, width - 20);
+    lv_obj_set_style_text_align(chat_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(chat_label_, &BUILTIN_TEXT_FONT, 0);
+    lv_obj_set_style_text_color(chat_label_, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(chat_label_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(chat_label_, LV_OPA_70, 0);
+    lv_obj_set_style_radius(chat_label_, 5, 0);
+    lv_obj_set_style_pad_all(chat_label_, 5, 0);
+    lv_obj_align(chat_label_, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_label_set_long_mode(chat_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_clear_flag(chat_label_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(chat_label_, LV_OBJ_FLAG_HIDDEN);
+
+    // Create mute indicator
+    mute_indicator_ = lv_label_create(lv_layer_top());
+    lv_obj_set_style_text_font(mute_indicator_, &BUILTIN_TEXT_FONT, 0);
+    lv_obj_set_style_text_color(mute_indicator_, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_set_style_bg_color(mute_indicator_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(mute_indicator_, LV_OPA_50, 0);
+    lv_obj_set_style_pad_all(mute_indicator_, 2, 0);
+    lv_obj_align(mute_indicator_, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_label_set_text(mute_indicator_, "MUTE");
+    lv_obj_add_flag(mute_indicator_, LV_OBJ_FLAG_HIDDEN);
 }
 
 EmoteDisplay::~EmoteDisplay()
@@ -131,6 +159,9 @@ EmoteDisplay::~EmoteDisplay()
     if (emote_handle_) {
         emote_deinit(emote_handle_);
         emote_handle_ = nullptr;
+    }
+    if (chat_timer_) {
+        lv_timer_del(chat_timer_);
     }
 }
 
@@ -153,8 +184,53 @@ void EmoteDisplay::SetChatMessage(const char* const role, const char* const cont
             std::replace(new_content, new_content + len, static_cast<char>(0x0A), static_cast<char>(0x20));
             emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SYS, new_content);
             delete[] new_content;
-        } else {
+        } else if (std::strcmp(role, "assistant") == 0) {
             emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SPEAK, content);
+            
+            // Show transcript on screen
+            if (chat_label_ != nullptr) {
+                lv_label_set_text(chat_label_, content);
+                lv_obj_clear_flag(chat_label_, LV_OBJ_FLAG_HIDDEN);
+                
+                if (chat_timer_ != nullptr) {
+                    lv_timer_reset(chat_timer_);
+                    lv_timer_resume(chat_timer_);
+                } else {
+                    chat_timer_ = lv_timer_create([](lv_timer_t* t) {
+                        lv_obj_t* label = (lv_obj_t*)lv_timer_get_user_data(t);
+                        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+                        lv_timer_pause(t);
+                    }, 10000, chat_label_);
+                }
+            }
+        } else {
+            // User role - just show transcript, don't trigger "speak" animation
+            if (chat_label_ != nullptr) {
+                std::string user_msg = ">> " + std::string(content);
+                lv_label_set_text(chat_label_, user_msg.c_str());
+                lv_obj_clear_flag(chat_label_, LV_OBJ_FLAG_HIDDEN);
+                
+                if (chat_timer_ != nullptr) {
+                    lv_timer_reset(chat_timer_);
+                    lv_timer_resume(chat_timer_);
+                } else {
+                    chat_timer_ = lv_timer_create([](lv_timer_t* t) {
+                        lv_obj_t* label = (lv_obj_t*)lv_timer_get_user_data(t);
+                        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+                        lv_timer_pause(t);
+                    }, 5000, chat_label_);
+                }
+            }
+        }
+    }
+}
+
+void EmoteDisplay::SetMuteState(bool muted) {
+    if (mute_indicator_ != nullptr) {
+        if (muted) {
+            lv_obj_clear_flag(mute_indicator_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(mute_indicator_, LV_OBJ_FLAG_HIDDEN);
         }
     }
 }
