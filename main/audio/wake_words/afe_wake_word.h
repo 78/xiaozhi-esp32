@@ -57,6 +57,9 @@ private:
 
     void StoreWakeWordData(const int16_t* data, size_t size);
     void AudioDetectionTask();
+    int64_t last_start_time_ = 0;
+    int index1_count_ = 0;
+    int64_t last_trigger_time_ = 0;
 };
 
 #endif

@@ -17,6 +17,7 @@ public:
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetStatus(const char* status) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
+    virtual void SetMuteState(bool muted) override;
     virtual void SetTheme(Theme* theme) override;
     virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;
     virtual void UpdateStatusBar(bool update_all = false) override;
@@ -36,7 +37,9 @@ private:
     virtual void Unlock() override;
 
     emote_handle_t emote_handle_ = nullptr;
-
+    lv_obj_t* chat_label_ = nullptr;
+    lv_timer_t* chat_timer_ = nullptr;
+    lv_obj_t* mute_indicator_ = nullptr;
 };
 
 } // namespace emote

@@ -270,11 +270,13 @@ void AudioService::AudioInputTask() {
             int samples = 160; // 10ms
             std::vector<int16_t> data;
             if (ReadAudioData(data, 16000, samples)) {
-                if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
-                    wake_word_->Feed(data);
-                }
-                if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
-                    audio_processor_->Feed(std::move(data));
+                if (!muted_) {
+                    if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
+                        wake_word_->Feed(data);
+                    }
+                    if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
+                        audio_processor_->Feed(std::move(data));
+                    }
                 }
                 continue;
             }
@@ -679,6 +681,22 @@ void AudioService::ResetDecoder() {
     audio_queue_cv_.notify_all();
 }
 
+void AudioService::Reset() {
+    ResetDecoder();
+    {
+        std::lock_guard<std::mutex> lock(input_resampler_mutex_);
+        if (input_resampler_ != nullptr) {
+            esp_ae_rate_cvt_reset(input_resampler_);
+        }
+    }
+    if (wake_word_) {
+        wake_word_->Stop();
+    }
+    if (audio_processor_) {
+        audio_processor_->Stop();
+    }
+}
+
 void AudioService::CheckAndUpdateAudioPowerState() {
     auto now = std::chrono::steady_clock::now();
     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
@@ -731,4 +749,8 @@ bool AudioService::IsAfeWakeWord() {
 #else
     return false;
 #endif
+}
+
+void AudioService::Mute(bool on) {
+    muted_ = on;
 }
