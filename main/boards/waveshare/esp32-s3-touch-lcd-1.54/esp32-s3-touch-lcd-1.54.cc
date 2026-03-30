@@ -135,7 +135,7 @@ private:
                 .dc_low_on_data = 0,
                 .disable_control_phase = 1,
             },
-        }
+        };
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
 
         esp_lcd_touch_config_t tp_cfg = {
