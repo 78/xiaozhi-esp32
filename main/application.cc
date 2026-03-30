@@ -602,6 +602,19 @@ void Application::InitializeProtocol() {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
             }
 #endif
+        } else if (strcmp(type->valuestring, "listen") == 0) {
+            auto state = cJSON_GetObjectItem(root, "state");
+            if (cJSON_IsString(state)) {
+                if (strcmp(state->valuestring, "start") == 0) {
+                    Schedule([this]() {
+                        StartListening();
+                    });
+                } else if (strcmp(state->valuestring, "stop") == 0) {
+                    Schedule([this]() {
+                        StopListening();
+                    });
+                }
+            }
         } else {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }

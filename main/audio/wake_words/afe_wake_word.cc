@@ -94,9 +94,6 @@ void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
 }
 
 void AfeWakeWord::Start() {
-<<<<<<< Updated upstream
-    xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
-=======
     last_start_time_ = esp_timer_get_time();
     printf("AfeWakeWord::Start() called\n");
     xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
@@ -105,14 +102,15 @@ void AfeWakeWord::Start() {
     if (afe_data_ != nullptr) {
         afe_iface_->enable_wakenet(afe_data_);
     }
->>>>>>> Stashed changes
 }
 
 void AfeWakeWord::Stop() {
+    printf("AfeWakeWord::Stop() called\n");
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
 
     std::lock_guard<std::mutex> lock(input_buffer_mutex_);
     if (afe_data_ != nullptr) {
+        afe_iface_->disable_wakenet(afe_data_);
         afe_iface_->reset_buffer(afe_data_);
     }
     input_buffer_.clear();
@@ -128,8 +126,18 @@ void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
     if (!(xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT)) {
         return;
     }
-    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
-    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    std::vector<int16_t> mono_data;
+    if (codec_->input_channels() == 2) {
+        mono_data.resize(data.size() / 2);
+        for (size_t i = 0; i < mono_data.size(); ++i) {
+            mono_data[i] = data[i * 2]; // Left channel
+        }
+    } else {
+        mono_data = data;
+    }
+    
+    input_buffer_.insert(input_buffer_.end(), mono_data.begin(), mono_data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_);
     while (input_buffer_.size() >= chunk_size) {
         afe_iface_->feed(afe_data_, input_buffer_.data());
         input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
