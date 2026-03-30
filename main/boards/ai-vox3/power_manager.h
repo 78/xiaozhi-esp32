@@ -5,7 +5,7 @@
 #include <esp_timer.h>
 
 class PowerManager {
-  private:
+private:
     static constexpr uint32_t BATTERY_LEVEL_MIN = 2048;
     static constexpr uint32_t BATTERY_LEVEL_MAX = 2330;
     static constexpr size_t ADC_VALUES_COUNT = 10;
@@ -59,7 +59,8 @@ class PowerManager {
 
         CalculateBatteryLevel(average_adc);
 
-        ESP_LOGI("PowerManager", "ADC值: %d 平均值: %ld 电量: %u%%", adc_value, average_adc, battery_level_);
+        ESP_LOGI("PowerManager", "ADC值: %d 平均值: %ld 电量: %u%%", adc_value, average_adc,
+                 battery_level_);
     }
 
     void CalculateBatteryLevel(uint32_t average_adc) {
@@ -68,13 +69,15 @@ class PowerManager {
         } else if (average_adc >= BATTERY_LEVEL_MAX) {
             battery_level_ = 100;
         } else {
-            float ratio = static_cast<float>(average_adc - BATTERY_LEVEL_MIN) / (BATTERY_LEVEL_MAX - BATTERY_LEVEL_MIN);
+            float ratio = static_cast<float>(average_adc - BATTERY_LEVEL_MIN) /
+                          (BATTERY_LEVEL_MAX - BATTERY_LEVEL_MIN);
             battery_level_ = ratio * 100;
         }
     }
 
-  public:
-    PowerManager(gpio_num_t adc_pin_, gpio_num_t charging_pin) : adc_pin_(adc_pin_), charging_pin_(charging_pin) {
+public:
+    PowerManager(gpio_num_t adc_pin_, gpio_num_t charging_pin)
+        : adc_pin_(adc_pin_), charging_pin_(charging_pin) {
         // 初始化充电引脚
         if (charging_pin_ != GPIO_NUM_NC) {
             gpio_config_t io_conf = {};
@@ -88,8 +91,8 @@ class PowerManager {
 
         esp_timer_create_args_t timer_args = {
             .callback =
-                [](void *arg) {
-                    PowerManager *self = static_cast<PowerManager *>(arg);
+                [](void* arg) {
+                    PowerManager* self = static_cast<PowerManager*>(arg);
                     self->CheckBatteryStatus();
                 },
             .arg = this,
@@ -98,7 +101,7 @@ class PowerManager {
             .skip_unhandled_events = true,
         };
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &timer_handle_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(timer_handle_, 1000000)); // 1秒
+        ESP_ERROR_CHECK(esp_timer_start_periodic(timer_handle_, 1000000));  // 1秒
 
         InitializeAdc();
     }

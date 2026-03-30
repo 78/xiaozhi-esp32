@@ -224,6 +224,7 @@ private:
         SetLedColor(0x00, 0x00, 0x00);
 
 #ifdef CONFIG_ESP_HI_WEB_CONTROL_ENABLED
+        esp_event_loop_create_default();
         ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED,
                                                  &wifi_event_handler, this));
 #endif //CONFIG_ESP_HI_WEB_CONTROL_ENABLED

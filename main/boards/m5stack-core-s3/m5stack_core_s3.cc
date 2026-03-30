@@ -13,7 +13,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_ili9341.h>
 #include <esp_timer.h>
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #define TAG "M5StackCoreS3Board"
 
@@ -123,7 +123,7 @@ private:
     Aw9523* aw9523_;
     Ft6336* ft6336_;
     LcdDisplay* display_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
     esp_timer_handle_t touchpad_timer_;
     PowerSaveTimer* power_save_timer_;
 
@@ -326,7 +326,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
         camera_->SetHMirror(false);
     }
 

@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "جاري تحميل الموارد...",
         "PLEASE_WAIT": "يرجى الانتظار...",
         "FOUND_NEW_ASSETS": "تم العثور على موارد جديدة: %s",
-        "HELLO_MY_FRIEND": "مرحباً، صديقي!"
+        "HELLO_MY_FRIEND": "مرحباً، صديقي!",
+        "CONNECTION_SUCCESSFUL": "تم الاتصال بنجاح",
+        "FLIGHT_MODE_OFF": "وضع الطيران معطل",
+        "FLIGHT_MODE_ON": "وضع الطيران قيد التشغيل",
+        "MODEM_INIT_ERROR": "فشل تهيئة المودم"
     }
 }

@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "נמצאו משאבים חדשים: %s",
         "DOWNLOAD_ASSETS_FAILED": "הורדת משאבים נכשלה",
         "LOADING_ASSETS": "טוען משאבים...",
-        "HELLO_MY_FRIEND": "שלום, ידידי!"
+        "HELLO_MY_FRIEND": "שלום, ידידי!",
+        "FLIGHT_MODE_OFF": "מצב טיסה כבוי",
+        "FLIGHT_MODE_ON": "מצב טיסה מופעל",
+        "MODEM_INIT_ERROR": "אתחול המודם נכשל"
     }
 }
-

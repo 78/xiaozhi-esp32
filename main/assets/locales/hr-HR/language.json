@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Pronađeni novi resursi: %s",
         "DOWNLOAD_ASSETS_FAILED": "Preuzimanje resursa nije uspjelo",
         "LOADING_ASSETS": "Učitavanje resursa...",
-        "HELLO_MY_FRIEND": "Bok, moj prijatelju!"
+        "HELLO_MY_FRIEND": "Bok, moj prijatelju!",
+        "FLIGHT_MODE_OFF": "Način rada u zrakoplovu je isključen",
+        "FLIGHT_MODE_ON": "Način rada u zrakoplovu je uključen",
+        "MODEM_INIT_ERROR": "Neuspjela inicijalizacija modema"
     }
 }
-

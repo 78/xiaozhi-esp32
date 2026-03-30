@@ -14,7 +14,7 @@
 #include <driver/uart.h>
 #include <cstring>
 
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #define TAG "esp_sparkbot"
 
@@ -45,7 +45,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
     Display* display_;
-    Esp32Camera* camera_;
+    EspVideo* camera_;
     light_mode_t light_mode_ = LIGHT_MODE_ALWAYS_ON;
 
     void InitializeI2c() {
@@ -162,7 +162,7 @@ private:
             .dvp = &dvp_config,
         };
         
-        camera_ = new Esp32Camera(video_config);
+        camera_ = new EspVideo(video_config);
 
         Settings settings("sparkbot", false);
         // 考虑到部分复刻使用了不可动摄像头的设计，默认启用翻转

@@ -15,11 +15,35 @@
 
 #define TAG "YunliaoS3"
 
+class YunliaoDisplay : public SpiLcdDisplay {
+public:
+    YunliaoDisplay(esp_lcd_panel_io_handle_t io_handle,
+                     esp_lcd_panel_handle_t panel_handle,
+                     int width,
+                     int height,
+                     int offset_x,
+                     int offset_y,
+                     bool mirror_x,
+                     bool mirror_y,
+                     bool swap_xy)
+        : SpiLcdDisplay(io_handle, panel_handle, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
+    }
+
+    virtual void SetupUI() override {
+        SpiLcdDisplay::SetupUI();
+        auto& theme_manager = LvglThemeManager::GetInstance();
+        auto theme = theme_manager.GetTheme("dark");
+        if (theme != nullptr) {
+            SetTheme(theme);
+        }
+    }
+};
+
 class YunliaoS3 : public DualNetworkBoard {
    private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
-    SpiLcdDisplay* display_;
+    YunliaoDisplay* display_;
     PowerSaveTimer* power_save_timer_;
     PowerManager* power_manager_;
 
@@ -83,6 +107,11 @@ class YunliaoS3 : public DualNetworkBoard {
             if (app.GetDeviceState() == kDeviceStateStarting ||
                 app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
+            }else if(app.GetDeviceState() == kDeviceStateIdle){
+                bool enableAec = app.GetAecMode() == kAecOff;
+                SetAecMode(enableAec);
+                Settings settings("aec", true);
+                settings.SetInt("mode", enableAec);
             }
         });
         boot_button_.OnMultipleClick(
@@ -133,15 +162,10 @@ class YunliaoS3 : public DualNetworkBoard {
         esp_lcd_panel_invert_color(panel, currentIpsMode);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH,
+        display_ = new YunliaoDisplay(panel_io, panel, DISPLAY_WIDTH,
                                      DISPLAY_HEIGHT, DISPLAY_OFFSET_X,
                                      DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
                                      DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
-        auto& theme_manager = LvglThemeManager::GetInstance();
-        auto theme = theme_manager.GetTheme("dark");
-        if (theme != nullptr) {
-            display_->SetTheme(theme);
-        }
     }
     void InitializeTools(){
         auto& mcp_server = McpServer::GetInstance();
@@ -153,6 +177,8 @@ class YunliaoS3 : public DualNetworkBoard {
             }), [this](const PropertyList& properties) {
                 bool enable = properties["enable"].value<bool>();
                 SetAecMode(enable);
+                Settings settings("aec", true);
+                settings.SetInt("mode", enable);
                 return true;
             });
 
@@ -169,8 +195,6 @@ class YunliaoS3 : public DualNetworkBoard {
         app.StopListening();
         app.SetDeviceState(kDeviceStateIdle);
         app.SetAecMode(newMode);
-        Settings settings("aec", true);
-        settings.SetInt("mode", newMode);
     }
     void SwitchTFT() {
         Settings settings("display", true);
@@ -203,11 +227,6 @@ class YunliaoS3 : public DualNetworkBoard {
                 }
             }
         });
-        if (GetNetworkType() == NetworkType::WIFI) {
-            power_manager_->Shutdown4G();
-        } else {
-            power_manager_->Start4G();
-        }
         GetBacklight()->RestoreBrightness();
         while (gpio_get_level(BOOT_BUTTON_PIN) == 0) {
             vTaskDelay(pdMS_TO_TICKS(10));
@@ -216,6 +235,27 @@ class YunliaoS3 : public DualNetworkBoard {
         Settings settings("aec", false);
         auto& app = Application::GetInstance();
         app.SetAecMode(settings.GetInt("mode",kAecOnDeviceSide) == kAecOnDeviceSide ? kAecOnDeviceSide : kAecOff);
+        power_manager_->Start4G();
+        if (GetNetworkType() == NetworkType::WIFI) {
+            power_manager_->Disable4G();
+        }else{
+            power_manager_->Enable4G();
+        }
+        power_manager_->OnBtLinkStatusChanged([this](bool is_connected) {
+            auto& app = Application::GetInstance();
+            if (is_connected) {
+                if (app.GetAecMode() != kAecOff) {
+                    SetAecMode(false);
+                }
+            } else {
+                Settings settings("aec", false);
+                int storedMode = settings.GetInt("mode", kAecOnDeviceSide);
+                if (storedMode != kAecOff && app.GetAecMode() == kAecOff) {
+                    SetAecMode(storedMode == kAecOnDeviceSide);
+                }
+            }
+        });
+        power_manager_->InitializeBtModul();
         InitializeTools();
     }
 

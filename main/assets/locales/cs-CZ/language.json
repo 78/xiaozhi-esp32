@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Načítání prostředků...",
         "PLEASE_WAIT": "Prosím čekejte...",
         "FOUND_NEW_ASSETS": "Nalezeny nové prostředky: %s",
-        "HELLO_MY_FRIEND": "Ahoj, můj příteli!"
+        "HELLO_MY_FRIEND": "Ahoj, můj příteli!",
+        "CONNECTION_SUCCESSFUL": "Připojení úspěšné",
+        "FLIGHT_MODE_OFF": "Letecký režim je vypnutý",
+        "FLIGHT_MODE_ON": "Letecký režim je zapnutý",
+        "MODEM_INIT_ERROR": "Chyba inicializace modemu"
     }
 }

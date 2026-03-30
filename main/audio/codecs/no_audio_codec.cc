@@ -239,10 +239,10 @@ int NoAudioCodec::Write(const int16_t* data, int samples) {
 
 int NoAudioCodec::Read(int16_t* dest, int samples) {
     size_t bytes_read;
+    constexpr TickType_t kReadTimeoutTicks = pdMS_TO_TICKS(200);
 
     std::vector<int32_t> bit32_buffer(samples);
-    if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples * sizeof(int32_t), &bytes_read, portMAX_DELAY) != ESP_OK) {
-        ESP_LOGE(TAG, "Read Failed!");
+    if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples * sizeof(int32_t), &bytes_read, kReadTimeoutTicks) != ESP_OK) {
         return 0;
     }
 
@@ -252,6 +252,32 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
     return samples;
+}
+
+void NoAudioCodec::EnableInput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (enable == input_enabled_) {
+        return;
+    }
+    if (enable) {
+        ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    } else {
+        ESP_ERROR_CHECK(i2s_channel_disable(rx_handle_));
+    }
+    AudioCodec::EnableInput(enable);
+}
+
+void NoAudioCodec::EnableOutput(bool enable) {
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (enable == output_enabled_) {
+        return;
+    }
+    if (enable) {
+        ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+    } else {
+        ESP_ERROR_CHECK(i2s_channel_disable(tx_handle_));
+    }
+    AudioCodec::EnableOutput(enable);
 }
 
 // Delegating constructor: calls the main constructor with default slot mask

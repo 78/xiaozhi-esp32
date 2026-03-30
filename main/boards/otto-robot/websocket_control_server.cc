@@ -88,6 +88,7 @@ bool WebSocketControlServer::Start(int port) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.max_open_sockets = 7;
+    config.ctrl_port = 32769;
 
     httpd_uri_t ws_uri = {
         .uri = "/ws",

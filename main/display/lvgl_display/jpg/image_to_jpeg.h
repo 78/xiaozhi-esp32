@@ -6,62 +6,78 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S3)
+// ESP32-P4 使用 esp_video 组件提供的 V4L2 头文件
 #include <linux/videodev2.h>
-
-typedef uint32_t v4l2_pix_fmt_t; // see linux/videodev2.h for details
-
-#ifdef __cplusplus
-extern "C" {
+#else
+// ESP32-S3 等其他芯片：定义常用的 V4L2 像素格式
+#define V4L2_PIX_FMT_RGB565 0x50424752  // 'RGBP'
+#define V4L2_PIX_FMT_RGB565X 0x52474250 // 'PRGB'
+#define V4L2_PIX_FMT_RGB24 0x33424752   // 'RGB3'
+#define V4L2_PIX_FMT_YUYV 0x56595559    // 'YUYV'
+#define V4L2_PIX_FMT_YUV422P 0x36315559 // 'YU16'
+#define V4L2_PIX_FMT_YUV420 0x32315559  // 'YU12'
+#define V4L2_PIX_FMT_GREY 0x59455247    // 'GREY'
+#define V4L2_PIX_FMT_UYVY 0x59565955    // 'UYVY'
+#define V4L2_PIX_FMT_JPEG 0x4745504A    // 'JPEG'
 #endif
 
-// JPEG输出回调函数类型
-// arg: 用户自定义参数, index: 当前数据索引, data: JPEG数据块, len: 数据块长度
-// 返回: 实际处理的字节数
-typedef size_t (*jpg_out_cb)(void *arg, size_t index, const void *data, size_t len);
+typedef uint32_t v4l2_pix_fmt_t;
 
-/**
- * @brief 将图像格式高效转换为JPEG
- * 
- * 这个函数使用优化的JPEG编码器进行编码，主要特点：
- * - 节省约8KB的SRAM使用（静态变量改为堆分配）
- * - 支持多种图像格式输入
- * - 高质量JPEG输出
- * 
- * @param src       源图像数据
- * @param src_len   源图像数据长度
- * @param width     图像宽度
- * @param height    图像高度  
- * @param format    图像格式 (PIXFORMAT_RGB565, PIXFORMAT_RGB888, 等)
- * @param quality   JPEG质量 (1-100)
- * @param out       输出JPEG数据指针 (需要调用者释放)
- * @param out_len   输出JPEG数据长度
- * 
- * @return true 成功, false 失败
- */
-bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, 
-                   v4l2_pix_fmt_t format, uint8_t quality, uint8_t **out, size_t *out_len);
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-/**
- * @brief 将图像格式转换为JPEG（回调版本）
- * 
- * 使用回调函数处理JPEG输出数据，适合流式传输或分块处理：
- * - 节省约8KB的SRAM使用（静态变量改为堆分配）
- * - 支持流式输出，无需预分配大缓冲区
- * - 通过回调函数逐块处理JPEG数据
- * 
- * @param src       源图像数据
- * @param src_len   源图像数据长度
- * @param width     图像宽度
- * @param height    图像高度
- * @param format    图像格式
- * @param quality   JPEG质量 (1-100)
- * @param cb        输出回调函数
- * @param arg       传递给回调函数的用户参数
- * 
- * @return true 成功, false 失败
- */
-bool image_to_jpeg_cb(uint8_t *src, size_t src_len, uint16_t width, uint16_t height, 
-                      v4l2_pix_fmt_t format, uint8_t quality, jpg_out_cb cb, void *arg);
+    // JPEG输出回调函数类型
+    // arg: 用户自定义参数, index: 当前数据索引, data: JPEG数据块, len: 数据块长度
+    // 返回: 实际处理的字节数
+    typedef size_t (*jpg_out_cb)(void *arg, size_t index, const void *data, size_t len);
+
+    /**
+     * @brief 将图像格式高效转换为JPEG
+     *
+     * 这个函数使用优化的JPEG编码器进行编码，主要特点：
+     * - 节省约8KB的SRAM使用（静态变量改为堆分配）
+     * - 支持多种图像格式输入
+     * - 高质量JPEG输出
+     *
+     * @param src       源图像数据
+     * @param src_len   源图像数据长度
+     * @param width     图像宽度
+     * @param height    图像高度
+     * @param format    图像格式 (PIXFORMAT_RGB565, PIXFORMAT_RGB888, 等)
+     * @param quality   JPEG质量 (1-100)
+     * @param out       输出JPEG数据指针 (需要调用者释放)
+     * @param out_len   输出JPEG数据长度
+     *
+     * @return true 成功, false 失败
+     */
+    bool image_to_jpeg(uint8_t *src, size_t src_len, uint16_t width, uint16_t height,
+                       v4l2_pix_fmt_t format, uint8_t quality, uint8_t **out, size_t *out_len);
+
+    /**
+     * @brief 将图像格式转换为JPEG（回调版本）
+     *
+     * 使用回调函数处理JPEG输出数据，适合流式传输或分块处理：
+     * - 节省约8KB的SRAM使用（静态变量改为堆分配）
+     * - 支持流式输出，无需预分配大缓冲区
+     * - 通过回调函数逐块处理JPEG数据
+     *
+     * @param src       源图像数据
+     * @param src_len   源图像数据长度
+     * @param width     图像宽度
+     * @param height    图像高度
+     * @param format    图像格式
+     * @param quality   JPEG质量 (1-100)
+     * @param cb        输出回调函数
+     * @param arg       传递给回调函数的用户参数
+     *
+     * @return true 成功, false 失败
+     */
+    bool image_to_jpeg_cb(uint8_t *src, size_t src_len, uint16_t width, uint16_t height,
+                          v4l2_pix_fmt_t format, uint8_t quality, jpg_out_cb cb, void *arg);
 
 #ifdef __cplusplus
 }

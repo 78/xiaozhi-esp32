@@ -3,17 +3,12 @@
   "builds": [
     {
       "name": "ai-vox3-aec",
-      "sdkconfig_append": [
-        "CONFIG_ESP_CONSOLE_NONE=y",
-        "CONFIG_USE_DEVICE_AEC=y"
-      ]
+      "sdkconfig_append": ["CONFIG_ESP_CONSOLE_NONE=y", "CONFIG_USE_DEVICE_AEC=y"]
     },
+
     {
       "name": "ai-vox3",
-      "sdkconfig_append": [
-        "CONFIG_ESP_CONSOLE_NONE=y",
-        "CONFIG_USE_DEVICE_AEC=n"
-      ]
+      "sdkconfig_append": ["CONFIG_ESP_CONSOLE_NONE=y", "CONFIG_USE_DEVICE_AEC=n"]
     }
   ]
 }

@@ -4,13 +4,6 @@
         {
             "name": "kevin-sp-v4-dev",
             "sdkconfig_append": [
-                "CONFIG_CAMERA_OV2640=y",
-                "CONFIG_CAMERA_OV3660=y",
-                "CONFIG_CAMERA_OV3660_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
-                "CONFIG_CAMERA_OV3660_DVP_RGB565_240X240_24FPS=y",
-                "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
-                "CONFIG_CAMERA_OV2640_DVP_RGB565_240X240_25FPS=y",
-                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y"
             ]
         }
     ]

@@ -2,6 +2,7 @@ tmp/
 components/
 managed_components/
 build/
+dist/
 .vscode/
 .devcontainer/
 sdkconfig.old

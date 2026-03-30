@@ -8,11 +8,11 @@
 #include "audio/audio_codec.h"
 
 class AIVOX3AudioCodec : public AudioCodec {
-  private:
-    const audio_codec_data_if_t *data_if_ = nullptr;
-    const audio_codec_ctrl_if_t *ctrl_if_ = nullptr;
-    const audio_codec_if_t *codec_if_ = nullptr;
-    const audio_codec_gpio_if_t *gpio_if_ = nullptr;
+private:
+    const audio_codec_data_if_t* data_if_ = nullptr;
+    const audio_codec_ctrl_if_t* ctrl_if_ = nullptr;
+    const audio_codec_if_t* codec_if_ = nullptr;
+    const audio_codec_gpio_if_t* gpio_if_ = nullptr;
 
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
@@ -22,7 +22,8 @@ class AIVOX3AudioCodec : public AudioCodec {
     int read_pos_ = 0;
     int write_pos_ = 0;
 
-    void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+    void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout,
+                              gpio_num_t din) {
         assert(input_sample_rate_ == output_sample_rate_);
 
         i2s_chan_config_t chan_cfg = {
@@ -59,16 +60,17 @@ class AIVOX3AudioCodec : public AudioCodec {
         ESP_LOGI("AIVOX3AudioCodec", "Duplex channels created");
     }
 
-    virtual int Read(int16_t *dest, int samples) override {
+    virtual int Read(int16_t* dest, int samples) override {
         if (input_enabled_) {
             if (!input_reference_) {
-                ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void *)dest, samples * sizeof(int16_t)));
+                ESP_ERROR_CHECK_WITHOUT_ABORT(
+                    esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
             } else {
                 int size = samples / input_channels_;
                 std::vector<int16_t> data(size);
                 // read mic data
-                ESP_ERROR_CHECK_WITHOUT_ABORT(
-                    esp_codec_dev_read(input_dev_, (void *)data.data(), data.size() * sizeof(int16_t)));
+                ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)data.data(),
+                                                                 data.size() * sizeof(int16_t)));
                 int j = 0;
                 int i = 0;
                 while (i < samples) {
@@ -86,10 +88,11 @@ class AIVOX3AudioCodec : public AudioCodec {
         return samples;
     }
 
-    virtual int Write(const int16_t *data, int samples) override {
+    virtual int Write(const int16_t* data, int samples) override {
         if (output_enabled_) {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void *)data, samples * sizeof(int16_t)));
-            if (input_reference_) { // 板子不支持硬件回采，采用缓存播放缓存来实现回声消除
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+            if (input_reference_) {  // 板子不支持硬件回采，采用缓存播放缓存来实现回声消除
                 if (write_pos_ - read_pos_ + samples > ref_buffer_.size()) {
                     assert(ref_buffer_.size() >= samples);
                     // 写溢出，只保留最近的数据
@@ -110,12 +113,13 @@ class AIVOX3AudioCodec : public AudioCodec {
         return samples;
     }
 
-  public:
-    AIVOX3AudioCodec(void *i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-                     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-                     uint8_t es8311_addr, bool input_reference = false) {
-        duplex_ = true;                     // 是否双工
-        input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
+public:
+    AIVOX3AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate,
+                     int output_sample_rate, gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws,
+                     gpio_num_t dout, gpio_num_t din, uint8_t es8311_addr,
+                     bool input_reference = false) {
+        duplex_ = true;                      // 是否双工
+        input_reference_ = input_reference;  // 是否使用参考输入，实现回声消除
         if (input_reference) {
             ref_buffer_.resize(960 * 2);
         }

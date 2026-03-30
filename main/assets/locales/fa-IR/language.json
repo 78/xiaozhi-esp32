@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "منابع جدید یافت شد: %s",
         "DOWNLOAD_ASSETS_FAILED": "دانلود منابع ناموفق بود",
         "LOADING_ASSETS": "بارگذاری منابع...",
-        "HELLO_MY_FRIEND": "سلام، دوست من!"
+        "HELLO_MY_FRIEND": "سلام، دوست من!",
+        "FLIGHT_MODE_OFF": "حالت پرواز خاموش است",
+        "FLIGHT_MODE_ON": "حالت پرواز روشن است",
+        "MODEM_INIT_ERROR": "خطا در راه‌اندازی مودم"
     }
 }
-

@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "Ładowanie zasobów...",
         "PLEASE_WAIT": "Proszę czekać...",
         "FOUND_NEW_ASSETS": "Znaleziono nowe zasoby: %s",
-        "HELLO_MY_FRIEND": "Cześć, mój przyjacielu!"
+        "HELLO_MY_FRIEND": "Cześć, mój przyjacielu!",
+        "CONNECTION_SUCCESSFUL": "Połączenie udane",
+        "FLIGHT_MODE_OFF": "Tryb samolotowy jest wyłączony",
+        "FLIGHT_MODE_ON": "Tryb samolotowy jest włączony",
+        "MODEM_INIT_ERROR": "Inicjalizacja modemu nie powiodła się"
     }
 }

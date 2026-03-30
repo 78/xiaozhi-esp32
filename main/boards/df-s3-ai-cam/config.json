@@ -6,7 +6,13 @@
             "sdkconfig_append": [
                 "CONFIG_ESP_PHY_MAX_WIFI_TX_POWER=10",
                 "CONFIG_ESP_PHY_MAX_TX_POWER=10",
-                "CONFIG_SPIRAM_MODE_OCT=y"
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_CAMERA_OV2640=n",
+                "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV2640_DVP_YUV422_240X240_25FPS=y",
+                "CONFIG_CAMERA_OV3660=y",
+                "CONFIG_CAMERA_OV3660_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV3660_DVP_YUV422_240X240_24FPS=y"
             ]
         }
     ]

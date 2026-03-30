@@ -10,7 +10,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "esp32_camera.h"
+#include "esp_video.h"
 
 #include <esp_log.h>
 #include <inttypes.h>
@@ -45,7 +45,7 @@ private:
     Button boot_button_;
     LcdDisplay *display_ = nullptr;
     esp_lcd_touch_handle_t tp_ = nullptr;
-    Esp32Camera* camera_ = nullptr;
+    EspVideo* camera_ = nullptr;
 
     void InitializeI2cBuses()
     {
@@ -115,7 +115,7 @@ private:
             ESP_LOGE(TAG, "Failed to initialize BSP camera: %s", esp_err_to_name(ret));
             ESP_LOGI(TAG, "Attempting alternative camera initialization");
 
-            // Alternative: Direct Esp32Camera initialization if BSP fails
+            // Alternative: Direct EspVideo initialization if BSP fails
             // This provides more control over camera configuration
             static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
                 .data_width = CAM_CTLR_DATA_WIDTH_8,
@@ -154,7 +154,7 @@ private:
             };
 
             // Try to create camera with direct configuration
-            camera_ = new Esp32Camera(video_config);
+            camera_ = new EspVideo(video_config);
             ESP_LOGI(TAG, "Camera initialized with direct configuration");
         } else {
             ESP_LOGI(TAG, "Camera initialized successfully via BSP");

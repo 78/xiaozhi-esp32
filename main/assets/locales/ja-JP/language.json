@@ -50,6 +50,10 @@
         "LOADING_ASSETS": "アセットを読み込み中...",
         "PLEASE_WAIT": "お待ちください...",
         "FOUND_NEW_ASSETS": "新しいアセットが見つかりました: %s",
-        "HELLO_MY_FRIEND": "こんにちは、友達！"
+        "HELLO_MY_FRIEND": "こんにちは、友達！",
+        "CONNECTION_SUCCESSFUL": "接続成功",
+        "FLIGHT_MODE_OFF": "機内モードがオフです",
+        "FLIGHT_MODE_ON": "機内モードがオンです",
+        "MODEM_INIT_ERROR": "モデムの初期化に失敗しました"
     }
 }

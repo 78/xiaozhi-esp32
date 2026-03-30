@@ -1,12 +1,13 @@
 #include "circular_strip.h"
 #include "application.h"
 #include <esp_log.h>
+#include <algorithm>
 
 #define TAG "CircularStrip"
 
 #define BLINK_INFINITE -1
 
-CircularStrip::CircularStrip(gpio_num_t gpio, uint8_t max_leds) : max_leds_(max_leds) {
+CircularStrip::CircularStrip(gpio_num_t gpio, uint16_t max_leds) : max_leds_(max_leds) {
     // If the gpio is not connected, you should use NoLed class
     assert(gpio != GPIO_NUM_NC);
 
@@ -63,6 +64,17 @@ void CircularStrip::SetSingleColor(uint8_t index, StripColor color) {
     esp_timer_stop(strip_timer_);
     colors_[index] = color;
     led_strip_set_pixel(led_strip_, index, color.red, color.green, color.blue);
+    led_strip_refresh(led_strip_);
+}
+
+void CircularStrip::SetMultiColors(const std::vector<StripColor>& colors) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    esp_timer_stop(strip_timer_);
+    int count = std::min(max_leds_, static_cast<int>(colors.size()));
+    for (int i = 0; i < count; i++) {
+        colors_[i] = colors[i];
+        led_strip_set_pixel(led_strip_, i, colors[i].red, colors[i].green, colors[i].blue);
+    }
     led_strip_refresh(led_strip_);
 }
 

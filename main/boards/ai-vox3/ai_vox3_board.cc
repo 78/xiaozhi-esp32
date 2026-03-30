@@ -18,15 +18,17 @@
 #define TAG "AIVOX3"
 
 class AIVOX3 : public DualNetworkBoard {
-  private:
+private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    PowerManager *power_manager_;
+    PowerManager* power_manager_;
     i2c_master_bus_handle_t codec_i2c_bus_;
-    LcdDisplay *display_;
+    LcdDisplay* display_;
 
-    void InitializePowerManager() { power_manager_ = new PowerManager(BATTERY_LEVEL_PIN, BATTERY_CHARGING_PIN); }
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(BATTERY_LEVEL_PIN, BATTERY_CHARGING_PIN);
+    }
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -87,18 +89,19 @@ class AIVOX3 : public DualNetworkBoard {
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
-                                     DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                     DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                     DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            auto &app = Application::GetInstance();
+            auto& app = Application::GetInstance();
             if (GetNetworkType() == NetworkType::WIFI) {
                 if (app.GetDeviceState() == kDeviceStateStarting ||
                     app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                     // cast to WifiBoard
-                    auto &wifi_board = static_cast<WifiBoard &>(GetCurrentBoard());
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
                     wifi_board.EnterWifiConfigMode();
                 }
             }
@@ -106,15 +109,16 @@ class AIVOX3 : public DualNetworkBoard {
         });
 
         boot_button_.OnLongPress([this]() {
-            auto &app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
             }
         });
 
 #if CONFIG_USE_DEVICE_AEC
         boot_button_.OnDoubleClick([this]() {
-            auto &app = Application::GetInstance();
+            auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateIdle) {
                 app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
             }
@@ -155,10 +159,12 @@ class AIVOX3 : public DualNetworkBoard {
     // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {}
 
-  public:
+public:
     AIVOX3()
-        : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0), boot_button_(BOOT_BUTTON_GPIO),
-          volume_up_button_(VOLUME_UP_BUTTON_GPIO), volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        : DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, GPIO_NUM_NC, 0),
+          boot_button_(BOOT_BUTTON_GPIO),
+          volume_up_button_(VOLUME_UP_BUTTON_GPIO),
+          volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeLcdDisplay();
@@ -168,27 +174,27 @@ class AIVOX3 : public DualNetworkBoard {
         GetBacklight()->RestoreBrightness();
     }
 
-    virtual Led *GetLed() override {
+    virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);
         return &led;
     }
 
-    virtual AudioCodec *GetAudioCodec() override {
-        static AIVOX3AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE,
-                                            AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
-                                            AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-                                            AUDIO_CODEC_ES8311_ADDR, AUDIO_INPUT_REFERENCE);
+    virtual AudioCodec* GetAudioCodec() override {
+        static AIVOX3AudioCodec audio_codec(
+            codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_ES8311_ADDR, AUDIO_INPUT_REFERENCE);
         return &audio_codec;
     }
 
-    virtual Display *GetDisplay() override { return display_; }
+    virtual Display* GetDisplay() override { return display_; }
 
-    virtual Backlight *GetBacklight() override {
+    virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
 
-    virtual bool GetBatteryLevel(int &level, bool &charging, bool &discharging) override {
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         charging = power_manager_->IsCharging();
         discharging = power_manager_->IsDischarging();
         level = power_manager_->GetBatteryLevel();

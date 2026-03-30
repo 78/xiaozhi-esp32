@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Nakahanap ng mga bagong assets: %s",
         "DOWNLOAD_ASSETS_FAILED": "Nabigo ang pag-download ng mga assets",
         "LOADING_ASSETS": "Nilo-load ang mga assets...",
-        "HELLO_MY_FRIEND": "Kumusta, kaibigan ko!"
+        "HELLO_MY_FRIEND": "Kumusta, kaibigan ko!",
+        "FLIGHT_MODE_OFF": "Naka-off ang flight mode",
+        "FLIGHT_MODE_ON": "Naka-on ang flight mode",
+        "MODEM_INIT_ERROR": "Nabigo ang pag-initialize ng modem"
     }
 }
-

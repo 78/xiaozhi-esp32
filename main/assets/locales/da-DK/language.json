@@ -51,7 +51,9 @@
         "FOUND_NEW_ASSETS": "Fandt nye ressourcer: %s",
         "DOWNLOAD_ASSETS_FAILED": "Download af ressourcer mislykkedes",
         "LOADING_ASSETS": "Indlæser ressourcer...",
-        "HELLO_MY_FRIEND": "Hej, min ven!"
+        "HELLO_MY_FRIEND": "Hej, min ven!",
+        "FLIGHT_MODE_OFF": "Flytilstand er slukket",
+        "FLIGHT_MODE_ON": "Flytilstand er tændt",
+        "MODEM_INIT_ERROR": "Modeminitialisering mislykkedes"
     }
 }
-

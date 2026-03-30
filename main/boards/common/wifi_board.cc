@@ -59,17 +59,16 @@ void WifiBoard::StartNetwork() {
     wifi_manager.Initialize(config);
 
     // Set unified event callback - forward to NetworkEvent with SSID data
-    wifi_manager.SetEventCallback([this, &wifi_manager](WifiEvent event) {
-        std::string ssid = wifi_manager.GetSsid();
+    wifi_manager.SetEventCallback([this](WifiEvent event, const std::string& data) {
         switch (event) {
             case WifiEvent::Scanning:
                 OnNetworkEvent(NetworkEvent::Scanning);
                 break;
             case WifiEvent::Connecting:
-                OnNetworkEvent(NetworkEvent::Connecting, ssid);
+                OnNetworkEvent(NetworkEvent::Connecting, data);
                 break;
             case WifiEvent::Connected:
-                OnNetworkEvent(NetworkEvent::Connected, ssid);
+                OnNetworkEvent(NetworkEvent::Connected, data);
                 break;
             case WifiEvent::Disconnected:
                 OnNetworkEvent(NetworkEvent::Disconnected);
@@ -175,8 +174,7 @@ void WifiBoard::StartWifiConfigMode() {
 
         Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
     });
-#endif
-#if CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+#elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
     auto &blufi = Blufi::GetInstance();
     // initialize esp-blufi protocol
     blufi.init();

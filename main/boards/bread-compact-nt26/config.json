@@ -1,0 +1,11 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "bread-compact-nt26",
+            "sdkconfig_append": [
+                "CONFIG_OLED_SSD1306_128X32=y"
+            ]
+        }
+    ]
+}
