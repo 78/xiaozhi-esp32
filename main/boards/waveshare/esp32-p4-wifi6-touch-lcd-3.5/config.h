@@ -27,7 +27,6 @@
 #define PIN_NUM_LCD_RST                 GPIO_NUM_27
 #define DISPLAY_BACKLIGHT_PIN           GPIO_NUM_28
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
-#define LCD_MIPI_DSI_LANE_BITRATE_MBPS  (0)
 #define TOUCH_RST_PIN                   GPIO_NUM_29
 #define TOUCH_INT_PIN                   GPIO_NUM_50
 #define LCD_SPI_MOSI_PIN                GPIO_NUM_20
