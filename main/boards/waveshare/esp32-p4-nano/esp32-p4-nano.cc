@@ -201,7 +201,8 @@ private:
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = {
-	        .control_phase_bytes = 1,
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, 
+            .control_phase_bytes = 1,
             .dc_bit_offset = 0,
             .lcd_cmd_bits = 16,                            
             .flags =
