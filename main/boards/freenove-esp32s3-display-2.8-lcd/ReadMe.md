@@ -1,14 +1,5 @@
-# Freenove Media Kit for ESP32-S3
+# Freenove ESP32-S3 ESP32 S3 Capacitive Touch Display CYD WiFi BT, 2.8 Inch 240x320 IPS Screen
 
-> 一基于ESP32-S3的多媒体开发设备
+[product](https://store.freenove.com/products/fnk0104)
 
-<img src="./_static/ReadMe/media-kit-2.8-lcd-top.jpg" alt="media-kit-2.8-lcd-top" width='30%' />
-
-<img src="./_static/ReadMe/media-kit-2.8-lcd-sideview.jpg" alt="media-kit-2.8-lcd-sideview" width='30%'/>
-
-Freenove Media Kit 是一个传统的多媒体设备，用于ESP32-S3的开发学习。
-
-# 代码基于ESP-IDF V5.5.0开发
-
-
- 
+Official github: [freenove-esp32s3-display-2.8-lcd](https://github.com/Freenove/Freenove_ESP32_S3_Display)
