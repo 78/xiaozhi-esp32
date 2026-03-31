@@ -18,3 +18,8 @@ main/mmap_generate_emoji.h
 *.bin
 mmap_generate_*.h
 .clangd
+xiaozhi-proxy/.device_creds.json
+xiaozhi-proxy/mosquitto/passwd
+xiaozhi-proxy/__pycache__/
+xiaozhi-proxy/proxy/__pycache__/
+xiaozhi-proxy/.idea/

@@ -601,6 +601,21 @@ void Application::InitializeProtocol() {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
             }
 #endif
+        } else if (strcmp(type->valuestring, "server_push") == 0) {
+            auto text = cJSON_GetObjectItem(root, "text");
+            if (cJSON_IsString(text)) {
+                ESP_LOGI(TAG, "Server push: %s", text->valuestring);
+            }
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateIdle) {
+                    SetDeviceState(kDeviceStateConnecting);
+                    if (protocol_->OpenAudioChannel()) {
+                        SetDeviceState(kDeviceStateSpeaking);
+                    } else {
+                        SetDeviceState(kDeviceStateIdle);
+                    }
+                }
+            });
         } else {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }

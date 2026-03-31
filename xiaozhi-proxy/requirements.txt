@@ -1,0 +1,5 @@
+aiohttp>=3.8.0
+aiomqtt>=2.0.0
+websockets>=10.0
+pycryptodome
+pyyaml>=6.0

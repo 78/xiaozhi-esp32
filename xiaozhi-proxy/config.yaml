@@ -1,0 +1,41 @@
+# XiaoZhi Transparent Proxy Configuration
+
+proxy:
+  host: "0.0.0.0"
+  # Public IP/domain that the device can reach (used in OTA response & UDP hello)
+  public_host: "YOUR_PUBLIC_IP"
+
+ota:
+  port: 28765
+  # The real XiaoZhi OTA endpoint to forward requests to
+  upstream_url: "https://api.tenclass.net/xiaozhi/ota/"
+
+mqtt:
+  broker_host: "127.0.0.1"
+  broker_port: 1883          # Use 8883 for TLS in production
+  # Credentials the proxy uses to connect to Mosquitto as a bridge client
+  bridge_username: "proxy_bridge"
+  bridge_password: "proxy_bridge_secret"
+  # Credentials injected into OTA response for the device
+  device_username: "xiaozhi_device"
+  device_password: "xiaozhi_device_secret"
+  # Topics
+  device_up_topic: "device/up"
+  device_down_topic: "device/down"
+
+udp:
+  port: 8889
+
+websocket:
+  # Stored dynamically from OTA response; these are fallback defaults
+  url: ""
+  token: ""
+
+openclaw:
+  base_url: "http://106.14.252.226:19184/"
+  api_key: ""
+  agent_id: ""
+  session_key: "xiaozhi-proxy"
+
+push:
+  webhook_port: 8081
