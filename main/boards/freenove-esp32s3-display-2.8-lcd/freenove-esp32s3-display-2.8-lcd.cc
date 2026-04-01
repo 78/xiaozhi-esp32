@@ -69,17 +69,15 @@ class FreenoveESP32S3Display : public WifiBoard {
   static void TouchTask(void *arg) {
     auto *self = static_cast<FreenoveESP32S3Display*>(arg);
     auto display = self->GetDisplay();
-    auto backlight = self->GetBacklight();
-    auto codec = Board::GetInstance().GetAudioCodec();
     auto &app = Application::GetInstance();
 
     uint32_t last_tap = 0;
     uint32_t down_start = 0;
     bool down = false;
+
     int16_t sx = 0, sy = 0;
     int16_t last_x = 0, last_y = 0;
 
-    const int SWIPE_THRESHOLD = 60;
     const int TAP_MOVE_TOLERANCE = 20;
 
     while (true) {
@@ -109,6 +107,7 @@ class FreenoveESP32S3Display : public WifiBoard {
       if (t) {
         last_x = nx;
         last_y = ny;
+
         if (!down) {
           down = true;
           down_start = now;
@@ -120,56 +119,24 @@ class FreenoveESP32S3Display : public WifiBoard {
       if (!t && down) {
         down = false;
 
-        int16_t dx = last_x - sx;
-        int16_t dy = last_y - sy;
-        int adx = dx >= 0 ? dx : -dx;
-        int ady = dy >= 0 ? dy : -dy;
+        int dx = last_x - sx;
+        int dy = last_y - sy;
 
-        bool vertical = ady > SWIPE_THRESHOLD && ady > adx;
-        bool horizontal = adx > SWIPE_THRESHOLD && adx > ady;
-        bool tap_like = adx < TAP_MOVE_TOLERANCE && ady < TAP_MOVE_TOLERANCE;
-
-        if (vertical) {
-          if (dy > 0) {
-            int v = codec->output_volume() + 10;
-            if (v > 100) v = 100;
-            codec->SetOutputVolume(v);
-            display->ShowNotification("Volume " + std::to_string(v / 10));
-          } else {
-            int v = codec->output_volume() - 10;
-            if (v < 0) v = 0;
-            codec->SetOutputVolume(v);
-            display->ShowNotification("Volume " + std::to_string(v / 10));
-          }
-          vTaskDelay(pdMS_TO_TICKS(50));
-          continue;
-        }
-
-        if (horizontal) {
-          if (dx < 0) {
-            int b = backlight->brightness() - 10;
-            if (b < 10) b = 10;
-            backlight->SetBrightness(b, true);
-            display->ShowNotification("Brightness " + std::to_string(b));
-          } else {
-            int b = backlight->brightness() + 10;
-            if (b > 100) b = 100;
-            backlight->SetBrightness(b, true);
-            display->ShowNotification("Brightness " + std::to_string(b));
-          }
-          vTaskDelay(pdMS_TO_TICKS(50));
-          continue;
-        }
+        bool tap_like = (abs(dx) < TAP_MOVE_TOLERANCE && abs(dy) < TAP_MOVE_TOLERANCE);
 
         if (tap_like) {
           uint32_t press = now - down_start;
+
+          // long tap
           if (press > 3000) {
             self->EnterWifiConfigMode();
           } else {
+            // double tap
             if (now - last_tap < 250) {
               app.StartListening();
               last_tap = 0;
             } else {
+              // single tap
               app.ToggleChatState();
               last_tap = now;
             }
