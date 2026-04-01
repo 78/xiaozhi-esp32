@@ -531,7 +531,7 @@ choice BOARD_TYPE
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_AI_VOX3
-        bool "AI-VOX3"
+        bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
 endchoice
 
