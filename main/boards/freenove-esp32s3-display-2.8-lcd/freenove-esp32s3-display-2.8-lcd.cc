@@ -14,6 +14,9 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_timer.h>
 
 #include "led/single_led.h"
 #include "system_reset.h"
@@ -21,11 +24,167 @@
 
 #define TAG "FreenoveESP32S3Display"
 
+class TouchDriver {
+ public:
+  TouchDriver() : dev_(nullptr) {}
+
+  bool Init(i2c_master_bus_handle_t bus, uint8_t addr) {
+    i2c_device_config_t cfg = {
+      .device_address = addr,
+      .scl_speed_hz = 400000,
+      .scl_wait_us = 0,
+    };
+    return i2c_master_bus_add_device(bus, &cfg, &dev_) == ESP_OK;
+  }
+
+  bool Read(bool &touched, uint16_t &x, uint16_t &y) {
+    touched = false;
+    x = y = 0;
+    if (!dev_) return false;
+
+    uint8_t reg = 0x02;
+    uint8_t buf[5];
+    if (i2c_master_transmit_receive(dev_, &reg, 1, buf, 5, 50) != ESP_OK) return false;
+
+    uint8_t points = buf[0] & 0x0F;
+    if (points == 0) return true;
+
+    touched = true;
+    x = ((buf[1] & 0x0F) << 8) | buf[2];
+    y = ((buf[3] & 0x0F) << 8) | buf[4];
+    return true;
+  }
+
+ private:
+  i2c_master_dev_handle_t dev_;
+};
+
 class FreenoveESP32S3Display : public WifiBoard {
  private:
   Button boot_button_;
   LcdDisplay *display_;
   i2c_master_bus_handle_t codec_i2c_bus_;
+  TouchDriver touch_;
+
+  static void TouchTask(void *arg) {
+    auto *self = static_cast<FreenoveESP32S3Display*>(arg);
+    auto display = self->GetDisplay();
+    auto backlight = self->GetBacklight();
+    auto codec = Board::GetInstance().GetAudioCodec();
+    auto &app = Application::GetInstance();
+
+    uint32_t last_tap = 0;
+    uint32_t down_start = 0;
+    bool down = false;
+    int16_t sx = 0, sy = 0;
+    int16_t last_x = 0, last_y = 0;
+
+    const int SWIPE_THRESHOLD = 60;
+    const int TAP_MOVE_TOLERANCE = 20;
+
+    while (true) {
+      bool t;
+      uint16_t x, y;
+      self->touch_.Read(t, x, y);
+
+      uint16_t nx = x;
+      uint16_t ny = y;
+
+#if DISPLAY_SWAP_XY
+      {
+        uint16_t tmp = nx;
+        nx = ny;
+        ny = tmp;
+      }
+#endif
+#if DISPLAY_MIRROR_X
+      nx = DISPLAY_WIDTH - nx;
+#endif
+#if DISPLAY_MIRROR_Y
+      ny = DISPLAY_HEIGHT - ny;
+#endif
+
+      uint32_t now = esp_timer_get_time() / 1000;
+
+      if (t) {
+        last_x = nx;
+        last_y = ny;
+        if (!down) {
+          down = true;
+          down_start = now;
+          sx = nx;
+          sy = ny;
+        }
+      }
+
+      if (!t && down) {
+        down = false;
+
+        int16_t dx = last_x - sx;
+        int16_t dy = last_y - sy;
+        int adx = dx >= 0 ? dx : -dx;
+        int ady = dy >= 0 ? dy : -dy;
+
+        bool vertical = ady > SWIPE_THRESHOLD && ady > adx;
+        bool horizontal = adx > SWIPE_THRESHOLD && adx > ady;
+        bool tap_like = adx < TAP_MOVE_TOLERANCE && ady < TAP_MOVE_TOLERANCE;
+
+        if (vertical) {
+          if (dy > 0) {
+            int v = codec->output_volume() + 10;
+            if (v > 100) v = 100;
+            codec->SetOutputVolume(v);
+            display->ShowNotification("Volume " + std::to_string(v / 10));
+          } else {
+            int v = codec->output_volume() - 10;
+            if (v < 0) v = 0;
+            codec->SetOutputVolume(v);
+            display->ShowNotification("Volume " + std::to_string(v / 10));
+          }
+          vTaskDelay(pdMS_TO_TICKS(50));
+          continue;
+        }
+
+        if (horizontal) {
+          if (dx < 0) {
+            int b = backlight->brightness() - 10;
+            if (b < 10) b = 10;
+            backlight->SetBrightness(b, true);
+            display->ShowNotification("Brightness " + std::to_string(b));
+          } else {
+            int b = backlight->brightness() + 10;
+            if (b > 100) b = 100;
+            backlight->SetBrightness(b, true);
+            display->ShowNotification("Brightness " + std::to_string(b));
+          }
+          vTaskDelay(pdMS_TO_TICKS(50));
+          continue;
+        }
+
+        if (tap_like) {
+          uint32_t press = now - down_start;
+          if (press > 3000) {
+            self->EnterWifiConfigMode();
+          } else {
+            if (now - last_tap < 250) {
+              app.StartListening();
+              last_tap = 0;
+            } else {
+              app.ToggleChatState();
+              last_tap = now;
+            }
+          }
+        }
+      }
+
+      vTaskDelay(pdMS_TO_TICKS(50));
+    }
+  }
+
+  void InitializeTouch() {
+    if (!touch_.Init(codec_i2c_bus_, 0x38)) return;
+    xTaskCreatePinnedToCore(TouchTask, "touch_task", 4096, this, 5, nullptr, 0);
+  }
 
   void InitializeI2c() {
       i2c_master_bus_config_t i2c_bus_cfg = {
@@ -110,6 +269,7 @@ class FreenoveESP32S3Display : public WifiBoard {
     InitializeI2c();
     InitializeSpi();
     InitializeLcdDisplay();
+    InitializeTouch();
     InitializeButtons();
     InitializeTools();
     GetBacklight()->SetBrightness(100);
