@@ -24,6 +24,9 @@
 
 #define TAG "FreenoveESP32S3Display"
 
+// ----------------------
+// Touch driver FT6336U
+// ----------------------
 class TouchDriver {
  public:
   TouchDriver() : dev_(nullptr) {}
@@ -66,80 +69,48 @@ class FreenoveESP32S3Display : public WifiBoard {
   i2c_master_bus_handle_t codec_i2c_bus_;
   TouchDriver touch_;
 
+  // ----------------------
+  // Touch task (only tap / double tap / long tap)
+  // ----------------------
   static void TouchTask(void *arg) {
     auto *self = static_cast<FreenoveESP32S3Display*>(arg);
-    auto display = self->GetDisplay();
     auto &app = Application::GetInstance();
 
     uint32_t last_tap = 0;
     uint32_t down_start = 0;
     bool down = false;
 
-    int16_t sx = 0, sy = 0;
-    int16_t last_x = 0, last_y = 0;
-
-    const int TAP_MOVE_TOLERANCE = 20;
-
     while (true) {
       bool t;
       uint16_t x, y;
       self->touch_.Read(t, x, y);
 
-      uint16_t nx = x;
-      uint16_t ny = y;
-
-#if DISPLAY_SWAP_XY
-      {
-        uint16_t tmp = nx;
-        nx = ny;
-        ny = tmp;
-      }
-#endif
-#if DISPLAY_MIRROR_X
-      nx = DISPLAY_WIDTH - nx;
-#endif
-#if DISPLAY_MIRROR_Y
-      ny = DISPLAY_HEIGHT - ny;
-#endif
-
       uint32_t now = esp_timer_get_time() / 1000;
 
       if (t) {
-        last_x = nx;
-        last_y = ny;
-
         if (!down) {
           down = true;
           down_start = now;
-          sx = nx;
-          sy = ny;
         }
       }
 
       if (!t && down) {
         down = false;
 
-        int dx = last_x - sx;
-        int dy = last_y - sy;
+        uint32_t press = now - down_start;
 
-        bool tap_like = (abs(dx) < TAP_MOVE_TOLERANCE && abs(dy) < TAP_MOVE_TOLERANCE);
-
-        if (tap_like) {
-          uint32_t press = now - down_start;
-
-          // long tap
-          if (press > 3000) {
-            self->EnterWifiConfigMode();
+        // long tap
+        if (press > 600) {
+          self->EnterWifiConfigMode();
+        } else {
+          // double tap
+          if (now - last_tap < 250) {
+            app.StartListening();
+            last_tap = 0;
           } else {
-            // double tap
-            if (now - last_tap < 250) {
-              app.StartListening();
-              last_tap = 0;
-            } else {
-              // single tap
-              app.ToggleChatState();
-              last_tap = now;
-            }
+            // single tap
+            app.ToggleChatState();
+            last_tap = now;
           }
         }
       }
