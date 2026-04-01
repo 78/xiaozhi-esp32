@@ -24,11 +24,10 @@
 #include "esp_lcd_touch_cst816s.h"
 #include "touch.h"
 
-#if CONFIG_IDF_TARGET_ESP32S3
 extern "C" {
+#include "touch_button_sensor.h"
 #include "touch_slider_sensor.h"
 }
-#endif
 
 #include "driver/temperature_sensor.h"
 #include <freertos/FreeRTOS.h>
@@ -449,9 +448,8 @@ private:
     TaskHandle_t touch_slider_task_handle_ = nullptr;
     esp_timer_handle_t emotion_reset_timer_ = nullptr;
     bool bmi270_ready_ = false;
-#if CONFIG_IDF_TARGET_ESP32S3
     touch_slider_handle_t touch_slider_handle_ = nullptr;
-#endif
+    touch_button_handle_t touch_button_handle_ = nullptr;
 
     static void emotion_reset_timer_callback(void* arg)
     {
@@ -471,6 +469,18 @@ private:
             esp_timer_stop(emotion_reset_timer_);
             esp_timer_start_once(emotion_reset_timer_, static_cast<uint64_t>(duration_ms) * 1000ULL);
         }
+    }
+
+    void ShowHappyTouchFeedback()
+    {
+        static int64_t s_last_us = 0;
+        constexpr int64_t kCooldownUs = 1200000;
+        const int64_t now = esp_timer_get_time();
+        if ((now - s_last_us) < kCooldownUs) {
+            return;
+        }
+        s_last_us = now;
+        ShowTemporaryEmotion("happy", 2000);
     }
 
     static void imu_event_task(void* arg)
@@ -652,8 +662,6 @@ private:
         }
     }
 
-#if CONFIG_IDF_TARGET_ESP32S3
-    
     static uint32_t TouchChannelFromPadGpio(gpio_num_t gpio)
     {
         if (gpio == GPIO_NUM_NC) {
@@ -687,76 +695,112 @@ private:
             return;
         }
 
-        static int64_t s_last_emotion_us = 0;
-        constexpr int64_t kEmotionCooldownUs = 1200000;
-        const int64_t now_us = esp_timer_get_time();
-        if ((now_us - s_last_emotion_us) < kEmotionCooldownUs) {
-            return;
-        }
-        s_last_emotion_us = now_us;
-
-        self->ShowTemporaryEmotion("happy", 2000);
+        self->ShowHappyTouchFeedback();
     }
 
-    static void touch_slider_poll_task(void* arg)
+    static void touch_button_event_callback(touch_button_handle_t handle, uint32_t channel, touch_state_t state, void* cb_arg)
+    {
+        (void)handle;
+        auto* self = static_cast<EspVocat*>(cb_arg);
+        if (self == nullptr || self->display_ == nullptr) {
+            return;
+        }
+        if (state == TOUCH_STATE_ACTIVE) {
+            ESP_LOGI(TAG, "Touch button ACTIVE ch=%" PRIu32, channel);
+            self->ShowHappyTouchFeedback();
+        }
+    }
+
+    static void touch_cap_poll_task(void* arg)
     {
         auto* self = static_cast<EspVocat*>(arg);
         while (true) {
-            if (self != nullptr && self->touch_slider_handle_ != nullptr) {
-                touch_slider_sensor_handle_events(self->touch_slider_handle_);
+            if (self != nullptr) {
+                if (self->touch_slider_handle_ != nullptr) {
+                    touch_slider_sensor_handle_events(self->touch_slider_handle_);
+                } else if (self->touch_button_handle_ != nullptr) {
+                    touch_button_sensor_handle_events(self->touch_button_handle_);
+                }
             }
             vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
 
-    void InitializeTouchSlider()
+    void InitializeCapacitiveTouchPads()
     {
-        if (TOUCH_PAD1 == GPIO_NUM_NC || TOUCH_PAD2 == GPIO_NUM_NC) {
-            ESP_LOGW(TAG, "Touch slider disabled: TOUCH_PAD1/TOUCH_PAD2 not connected (e.g. PCB v1.0)");
+        if (TOUCH_PAD1 == GPIO_NUM_NC) {
+            ESP_LOGW(TAG, "Capacitive touch disabled: TOUCH_PAD1 NC");
             return;
         }
 
         const uint32_t ch1 = TouchChannelFromPadGpio(TOUCH_PAD1);
-        const uint32_t ch2 = TouchChannelFromPadGpio(TOUCH_PAD2);
-        if (ch1 == 0 || ch2 == 0) {
-            ESP_LOGW(TAG, "Touch slider: GPIO %d / %d are not touch channels on ESP32-S3 (expect GPIO1..GPIO14)",
-                     (int)TOUCH_PAD1, (int)TOUCH_PAD2);
+        if (ch1 == 0) {
+            ESP_LOGW(TAG, "TOUCH_PAD1 GPIO %d is not a touch channel (expect GPIO1..GPIO14)", (int)TOUCH_PAD1);
             return;
         }
 
-        static uint32_t channel_list[2];
-        static float channel_threshold[2];
-        channel_list[0] = ch1;
-        channel_list[1] = ch2;
-        // 0.02f было слишком грубо: слабый канал (часто GPIO7 / pad1) не входил в touch, свайп не считался.
-        channel_threshold[0] = 0.004f;
-        channel_threshold[1] = 0.006f;
+        if (TOUCH_PAD2 != GPIO_NUM_NC) {
+            const uint32_t ch2 = TouchChannelFromPadGpio(TOUCH_PAD2);
+            if (ch2 == 0) {
+                ESP_LOGW(TAG, "TOUCH_PAD2 GPIO %d is not a touch channel", (int)TOUCH_PAD2);
+                return;
+            }
 
-        touch_slider_config_t cfg = {
-            .channel_num = 2,
-            .channel_list = channel_list,
-            .channel_threshold = channel_threshold,
+            static uint32_t slider_ch[2];
+            static float slider_thr[2];
+            slider_ch[0] = ch1;
+            slider_ch[1] = ch2;
+            slider_thr[0] = 0.004f;
+            slider_thr[1] = 0.006f;
+
+            touch_slider_config_t sld_cfg = {
+                .channel_num = 2,
+                .channel_list = slider_ch,
+                .channel_threshold = slider_thr,
+                .channel_gold_value = nullptr,
+                .debounce_times = 1,
+                .filter_reset_times = 5,
+                .position_range = 10000,
+                .calculate_window = 2,
+                .swipe_threshold = 28.f,
+                .swipe_hysterisis = 22.f,
+                .swipe_alpha = 0.9f,
+                .skip_lowlevel_init = false,
+            };
+            esp_err_t err = touch_slider_sensor_create(&sld_cfg, &touch_slider_handle_, touch_slider_event_callback, this);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "touch_slider_sensor_create failed: %s", esp_err_to_name(err));
+                touch_slider_handle_ = nullptr;
+                return;
+            }
+            xTaskCreatePinnedToCore(touch_cap_poll_task, "touch_cap", 3072, this, 3, &touch_slider_task_handle_, 1);
+            ESP_LOGI(TAG, "Touch slider (PCB v1.2+): PAD1 GPIO%d ch%u, PAD2 GPIO%d ch%u",
+                     (int)TOUCH_PAD1, (unsigned)slider_ch[0], (int)TOUCH_PAD2, (unsigned)slider_ch[1]);
+            return;
+        }
+
+        static uint32_t btn_ch[1];
+        static float btn_thr[1];
+        btn_ch[0] = ch1;
+        btn_thr[0] = 0.004f;
+
+        touch_button_config_t btn_cfg = {
+            .channel_num = 1,
+            .channel_list = btn_ch,
+            .channel_threshold = btn_thr,
             .channel_gold_value = nullptr,
-            .debounce_times = 1,
-            .filter_reset_times = 5,
-            .position_range = 10000,
-            .calculate_window = 2,
-            .swipe_threshold = 28.f,
-            .swipe_hysterisis = 22.f,
-            .swipe_alpha = 0.9f,
+            .debounce_times = 2,
             .skip_lowlevel_init = false,
         };
-        esp_err_t err = touch_slider_sensor_create(&cfg, &touch_slider_handle_, touch_slider_event_callback, this);
+        esp_err_t err = touch_button_sensor_create(&btn_cfg, &touch_button_handle_, touch_button_event_callback, this);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "touch_slider_sensor_create failed: %s", esp_err_to_name(err));
-            touch_slider_handle_ = nullptr;
+            ESP_LOGW(TAG, "touch_button_sensor_create failed: %s", esp_err_to_name(err));
+            touch_button_handle_ = nullptr;
             return;
         }
-        xTaskCreatePinnedToCore(touch_slider_poll_task, "touch_sld", 3072, this, 3, &touch_slider_task_handle_, 1);
-        ESP_LOGI(TAG, "Touch slider: TOUCH_PAD1(GPIO%d ch%u), TOUCH_PAD2(GPIO%d ch%u)",
-                 (int)TOUCH_PAD1, (unsigned)channel_list[0], (int)TOUCH_PAD2, (unsigned)channel_list[1]);
+        xTaskCreatePinnedToCore(touch_cap_poll_task, "touch_cap", 3072, this, 3, &touch_slider_task_handle_, 1);
+        ESP_LOGI(TAG, "Touch button (PCB v1.0): TOUCH_PAD1 GPIO%d ch%u", (int)TOUCH_PAD1, (unsigned)btn_ch[0]);
     }
-#endif
 
     void InitializeSpi()
     {
@@ -873,12 +917,14 @@ public:
             vTaskDelete(touch_slider_task_handle_);
             touch_slider_task_handle_ = nullptr;
         }
-#if CONFIG_IDF_TARGET_ESP32S3
         if (touch_slider_handle_ != nullptr) {
             touch_slider_sensor_delete(touch_slider_handle_);
             touch_slider_handle_ = nullptr;
         }
-#endif
+        if (touch_button_handle_ != nullptr) {
+            touch_button_sensor_delete(touch_button_handle_);
+            touch_button_handle_ = nullptr;
+        }
 
         // Delete objects
         delete charge_;
@@ -924,9 +970,7 @@ public:
         InitializeSpi();
         InitializeSt77916Display(pcb_version);
         InitializeButtons();
-#if CONFIG_IDF_TARGET_ESP32S3
-        InitializeTouchSlider();
-#endif
+        InitializeCapacitiveTouchPads();
 #ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
         InitializeCamera();
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
