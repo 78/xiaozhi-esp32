@@ -1,0 +1,9 @@
+{
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "nulllab-ai-vox-v3",
+      "sdkconfig_append": ["CONFIG_ESP_CONSOLE_NONE=y"]
+    }
+  ]
+}

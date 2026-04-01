@@ -160,7 +160,7 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_C3)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 elseif(CONFIG_BOARD_TYPE_EDA_TV_PRO)
     set(MANUFACTURER "lceda-course-examples")
-    set(BOARD_TYPE "eda-tv-pro")    
+    set(BOARD_TYPE "eda-tv-pro")
 elseif(CONFIG_BOARD_TYPE_EDA_ROBOT_PRO)
     set(MANUFACTURER "lceda-course-examples")
     set(BOARD_TYPE "eda-robot-pro")
@@ -622,12 +622,12 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_METAL_1_54_WIFI)
     set(BOARD_TYPE "xingzhi-metal-1.54-wifi")
     set(BUILTIN_TEXT_FONT font_noto_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
-    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)  
+    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)
 elseif(CONFIG_BOARD_TYPE_XINGZHI_ABS_2_0)
     set(BOARD_TYPE "xingzhi-abs-2.0")
     set(BUILTIN_TEXT_FONT font_noto_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
-    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)  
+    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)
 elseif(CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER)
     set(BOARD_TYPE "sensecap-watcher")
     set(BUILTIN_TEXT_FONT font_noto_basic_30_4)
@@ -687,7 +687,7 @@ elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_CAM_ML307)
     set(BOARD_TYPE "zhengchen-cam-ml307")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)    
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
@@ -752,6 +752,11 @@ elseif(CONFIG_BOARD_TYPE_HU_087)
     set(BOARD_TYPE "hu-087")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_AI_VOX3)
+    set(BOARD_TYPE "nulllab-ai-vox-v3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 
 if(MANUFACTURER)
@@ -873,14 +878,14 @@ file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/*.o
 # If not en-US, collect en-US audio files as fallback for missing files
 if(NOT LANG_DIR STREQUAL "en-US")
     file(GLOB EN_US_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/*.ogg)
-    
+
     # Extract filenames (without path) from current language
     set(EXISTING_NAMES "")
     foreach(SOUND_FILE ${LANG_SOUNDS})
         get_filename_component(FILENAME ${SOUND_FILE} NAME)
         list(APPEND EXISTING_NAMES ${FILENAME})
     endforeach()
-    
+
     # Only add en-US audio files that are missing in current language
     foreach(EN_SOUND ${EN_US_SOUNDS})
         get_filename_component(FILENAME ${EN_SOUND} NAME)
@@ -1002,7 +1007,7 @@ list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
 foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
     set(LOCAL_FILE "${EMOJI_DIR}/${FILENAME}")
-    
+
     # Check if local file exists
     if(EXISTS ${LOCAL_FILE})
         message(STATUS "File ${FILENAME} already exists, skipping download")
@@ -1024,31 +1029,31 @@ endif()
 function(build_default_assets_bin)
     # Set output path for generated assets.bin
     set(GENERATED_ASSETS_BIN "${CMAKE_BINARY_DIR}/generated_assets.bin")
-    
+
     # Prepare arguments for build script
     set(BUILD_ARGS
         "--sdkconfig" "${SDKCONFIG}"
         "--output" "${GENERATED_ASSETS_BIN}"
     )
-    
+
     # Add builtin text font if defined
     if(BUILTIN_TEXT_FONT)
         list(APPEND BUILD_ARGS "--builtin_text_font" "${BUILTIN_TEXT_FONT}")
     endif()
-    
+
     # Add default emoji collection if defined
     if(DEFAULT_EMOJI_COLLECTION)
         list(APPEND BUILD_ARGS "--emoji_collection" "${DEFAULT_EMOJI_COLLECTION}")
     endif()
-    
+
     # Add default assets extra files if defined
     if(DEFAULT_ASSETS_EXTRA_FILES)
         list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES}")
     endif()
-    
+
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
     list(APPEND BUILD_ARGS "--xiaozhi_fonts_path" "${XIAOZHI_FONTS_PATH}")
-    
+
     # Create custom command to build assets
     add_custom_command(
         OUTPUT ${GENERATED_ASSETS_BIN}
@@ -1059,15 +1064,15 @@ function(build_default_assets_bin)
         COMMENT "Building default assets.bin based on configuration"
         VERBATIM
     )
-    
+
     # Create target for generated assets
     add_custom_target(generated_default_assets ALL
         DEPENDS ${GENERATED_ASSETS_BIN}
     )
-    
+
     # Set the generated file path in parent scope
     set(GENERATED_ASSETS_LOCAL_FILE ${GENERATED_ASSETS_BIN} PARENT_SCOPE)
-    
+
     message(STATUS "Default assets build configured: ${GENERATED_ASSETS_BIN}")
 endfunction()
 
@@ -1080,18 +1085,18 @@ function(get_assets_local_file assets_source assets_local_file_var)
         get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
         set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
         set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
-        
+
         # Check if local file exists
         if(EXISTS ${ASSETS_LOCAL_FILE})
             message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
         else()
             message(STATUS "Downloading ${ASSETS_FILENAME}")
-            
+
             # Clean up any existing temp file
             if(EXISTS ${ASSETS_TEMP_FILE})
                 file(REMOVE ${ASSETS_TEMP_FILE})
             endif()
-            
+
             # Download to temporary file first
             file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
                  STATUS DOWNLOAD_STATUS)
@@ -1103,7 +1108,7 @@ function(get_assets_local_file assets_source assets_local_file_var)
                 endif()
                 message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
             endif()
-            
+
             # Move temp file to final location (atomic operation)
             file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
             message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
@@ -1115,15 +1120,15 @@ function(get_assets_local_file assets_source assets_local_file_var)
         else()
             set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
         endif()
-        
+
         # Check if local file exists
         if(NOT EXISTS ${ASSETS_LOCAL_FILE})
             message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
         endif()
-        
+
         message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
     endif()
-    
+
     set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
 endfunction()
 
