@@ -24,9 +24,6 @@
 
 #define TAG "FreenoveESP32S3Display"
 
-// ----------------------
-// Touch driver FT6336U
-// ----------------------
 class TouchDriver {
  public:
   TouchDriver() : dev_(nullptr) {}
@@ -69,9 +66,6 @@ class FreenoveESP32S3Display : public WifiBoard {
   i2c_master_bus_handle_t codec_i2c_bus_;
   TouchDriver touch_;
 
-  // ----------------------
-  // Touch task (only tap / double tap / long tap)
-  // ----------------------
   static void TouchTask(void *arg) {
     auto *self = static_cast<FreenoveESP32S3Display*>(arg);
     auto &app = Application::GetInstance();
@@ -100,7 +94,7 @@ class FreenoveESP32S3Display : public WifiBoard {
         uint32_t press = now - down_start;
 
         // long tap
-        if (press > 600) {
+        if (press > 3000) {
           self->EnterWifiConfigMode();
         } else {
           // double tap
