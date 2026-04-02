@@ -269,6 +269,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_TOUCH_LCD_3_5
         bool "Waveshare ESP32-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX
+        bool "Waveshare ESP32-S3-CAM"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_AUDIO_BOARD
         bool "Waveshare ESP32-S3-Audio-Board"
         depends on IDF_TARGET_ESP32S3
@@ -632,6 +635,25 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ST7789 240*280"
     config ESP32S3_KORVO2_V3_LCD_ILI9341
         bool "ILI9341 240*320"
+endchoice
+
+choice DISPLAY_ESP32S3_CAM_XXXX
+    depends on BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX
+    prompt "ESP32S3_CAM LCD Type"
+    default BSP_LCD_SIZE_2INCH
+    help
+        LCD Display Type
+    config BSP_LCD_SIZE_2INCH
+        bool "2inch Touch LCD Module"
+
+    config BSP_LCD_SIZE_2_8INCH
+        bool "2.8inch Touch LCD Module"
+
+    config BSP_LCD_SIZE_3_5INCH
+        bool "3.5inch Touch LCD Module"
+
+    config BSP_LCD_SIZE_1_83INCH
+        bool "1.83inch Touch LCD Module"
 endchoice
 
 choice DISPLAY_ESP32S3_AUDIO_BOARD
