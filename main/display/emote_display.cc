@@ -78,6 +78,16 @@ static emote_handle_t InitializeEmote(const esp_lcd_panel_handle_t panel, const 
         return nullptr;
     }
 
+    lv_init();
+    
+    // Task 2: Create a formal LVGL 9 display handle
+    lv_display_t* disp = lv_display_create(width, height);
+    if (!disp) {
+        ESP_LOGE(TAG, "Failed to create LVGL display");
+        return nullptr;
+    }
+    ESP_LOGI(TAG, "LVGL 9 Display created: %dx%d", width, height);
+
     emote_config_t emote_cfg = {
         .flags = {
             .swap = true,
@@ -116,7 +126,8 @@ static emote_handle_t InitializeEmote(const esp_lcd_panel_handle_t panel, const 
 // ============================================================================
 
 EmoteDisplay::EmoteDisplay(const esp_lcd_panel_handle_t panel, const esp_lcd_panel_io_handle_t panel_io,
-                           const int width, const int height)
+                           const int width, const int height, Backlight* backlight, AudioCodec* codec)
+    : backlight_(backlight), codec_(codec)
 {
     emote_handle_ = InitializeEmote(panel, width, height);
 
@@ -164,13 +175,13 @@ void EmoteDisplay::SetStatus(const char* const status)
     ESP_LOGI(TAG, "SetStatus: %s", status);
     if (emote_handle_ && status && strlen(status) > 0) {
         if (std::strcmp(status, Lang::Strings::LISTENING) == 0) {
-            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_LISTEN, NULL);
+            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_LISTEN, status);
         } else if (std::strcmp(status, Lang::Strings::STANDBY) == 0) {
-            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_IDLE, NULL);
+            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_IDLE, status);
         } else if (std::strcmp(status, Lang::Strings::SPEAKING) == 0) {
-            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SPEAK, NULL);
+            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SPEAK, status);
         } else if (std::strcmp(status, Lang::Strings::ERROR) == 0) {
-            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SET, NULL);
+            emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_SET, status);
         }
     }
 }
@@ -189,13 +200,40 @@ void EmoteDisplay::UpdateStatusBar(bool update_all)
     if (!emote_handle_) {
         return;
     }
+
+    auto& board = Board::GetInstance();
+    int level;
+    bool charging, discharging;
+    if (board.GetBatteryLevel(level, charging, discharging)) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d,%d", charging ? 1 : 0, level);
+        emote_set_event_msg(emote_handle_, EMOTE_MGR_EVT_BAT, buf);
+    }
 }
 
 void EmoteDisplay::SetPowerSaveMode(bool on)
 {
     ESP_LOGI(TAG, "SetPowerSaveMode: %s", on ? "ON" : "OFF");
-    if (!emote_handle_) {
-        return;
+    if (backlight_ != nullptr) {
+        if (on) {
+            backlight_->SetBrightness(20);
+        } else {
+            backlight_->RestoreBrightness();
+        }
+    }
+}
+
+void EmoteDisplay::SetBrightness(int level)
+{
+    if (backlight_) {
+        backlight_->SetBrightness(level);
+    }
+}
+
+void EmoteDisplay::SetVolume(int level)
+{
+    if (codec_) {
+        codec_->SetOutputVolume(level);
     }
 }
 
