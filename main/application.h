@@ -111,6 +111,7 @@ public:
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
+    void PlayAudioUrl(const std::string& url, const std::string& song_name = "", const std::string& artists = "");
     AudioService& GetAudioService() { return audio_service_; }
     
     /**

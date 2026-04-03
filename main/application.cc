@@ -10,7 +10,9 @@
 #include "assets.h"
 #include "settings.h"
 
+#include <algorithm>
 #include <cstring>
+#include <thread>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
@@ -565,7 +567,62 @@ void Application::InitializeProtocol() {
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             if (cJSON_IsObject(payload)) {
-                McpServer::GetInstance().ParseMessage(payload);
+                auto method = cJSON_GetObjectItem(payload, "method");
+                auto params = cJSON_GetObjectItem(payload, "params");
+                auto result = cJSON_GetObjectItem(payload, "result");
+                bool handled_media = false;
+
+                if (cJSON_IsString(method) && strcmp(method->valuestring, "tools/call") == 0 && cJSON_IsObject(params)) {
+                    auto tool_name = cJSON_GetObjectItem(params, "name");
+                    auto arguments = cJSON_GetObjectItem(params, "arguments");
+                    if (cJSON_IsString(tool_name) && strcmp(tool_name->valuestring, "self.audio.play_url") == 0 && cJSON_IsObject(arguments)) {
+                        auto audio_url = cJSON_GetObjectItem(arguments, "audio_url");
+                        auto song_name = cJSON_GetObjectItem(arguments, "song_name");
+                        auto artists = cJSON_GetObjectItem(arguments, "artists");
+                        if (cJSON_IsString(audio_url) && strlen(audio_url->valuestring) > 0) {
+                            std::string url = audio_url->valuestring;
+                            std::string name = cJSON_IsString(song_name) ? song_name->valuestring : "";
+                            std::string artist_text = cJSON_IsString(artists) ? artists->valuestring : "";
+                            PlayAudioUrl(url, name, artist_text);
+                            handled_media = true;
+                        }
+                    }
+                }
+
+                if (!handled_media && cJSON_IsObject(result)) {
+                    auto content = cJSON_GetObjectItem(result, "content");
+                    if (cJSON_IsArray(content) && cJSON_GetArraySize(content) > 0) {
+                        auto first = cJSON_GetArrayItem(content, 0);
+                        auto text = cJSON_GetObjectItem(first, "text");
+                        if (cJSON_IsString(text)) {
+                            cJSON* text_json = cJSON_Parse(text->valuestring);
+                            if (cJSON_IsObject(text_json)) {
+                                auto action = cJSON_GetObjectItem(text_json, "action");
+                                auto response_type = cJSON_GetObjectItem(text_json, "response_type");
+                                auto payload_result = cJSON_GetObjectItem(text_json, "result");
+                                if (cJSON_IsString(action) && strcmp(action->valuestring, "play_audio") == 0 &&
+                                    cJSON_IsString(response_type) && strcmp(response_type->valuestring, "media") == 0 &&
+                                    cJSON_IsObject(payload_result)) {
+                                    auto audio_url = cJSON_GetObjectItem(payload_result, "audio_url");
+                                    auto title = cJSON_GetObjectItem(payload_result, "title");
+                                    auto artist = cJSON_GetObjectItem(payload_result, "artist");
+                                    if (cJSON_IsString(audio_url) && strlen(audio_url->valuestring) > 0) {
+                                        std::string url = audio_url->valuestring;
+                                        std::string name = cJSON_IsString(title) ? title->valuestring : "";
+                                        std::string artist_text = cJSON_IsString(artist) ? artist->valuestring : "";
+                                        PlayAudioUrl(url, name, artist_text);
+                                        handled_media = true;
+                                    }
+                                }
+                            }
+                            cJSON_Delete(text_json);
+                        }
+                    }
+                }
+
+                if (!handled_media) {
+                    McpServer::GetInstance().ParseMessage(payload);
+                }
             }
         } else if (strcmp(type->valuestring, "system") == 0) {
             auto command = cJSON_GetObjectItem(root, "command");
@@ -1104,6 +1161,77 @@ void Application::SetAecMode(AecMode mode) {
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+void Application::PlayAudioUrl(const std::string& url, const std::string& song_name, const std::string& artists) {
+    if (url.empty()) {
+        ESP_LOGW(TAG, "PlayAudioUrl called with empty URL");
+        return;
+    }
+
+    auto display = Board::GetInstance().GetDisplay();
+    std::string meta = song_name;
+    if (!artists.empty()) {
+        if (!meta.empty()) {
+            meta += " - ";
+        }
+        meta += artists;
+    }
+
+    if (display && !meta.empty()) {
+        Schedule([display, meta]() {
+            display->SetChatMessage("assistant", meta.c_str());
+        });
+    }
+
+    std::thread([this, url, meta, display]() {
+        auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+        if (!http->Open("GET", url)) {
+            ESP_LOGE(TAG, "Failed to open audio URL: %s", url.c_str());
+            if (display) {
+                display->ShowNotification("Audio stream open failed", 3000);
+            }
+            return;
+        }
+
+        int status_code = http->GetStatusCode();
+        if (status_code != 200) {
+            ESP_LOGE(TAG, "Audio stream HTTP status %d", status_code);
+            http->Close();
+            if (display) {
+                display->ShowNotification("Audio stream HTTP error", 3000);
+            }
+            return;
+        }
+
+        auto demuxer = std::make_unique<OggDemuxer>();
+        demuxer->OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t len) {
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->sample_rate = sample_rate;
+            packet->frame_duration = 60;
+            packet->payload.assign(data, data + len);
+            audio_service_.PushPacketToDecodeQueue(std::move(packet), true);
+        });
+        demuxer->Reset();
+
+        constexpr int kChunkSize = 2048;
+        std::vector<uint8_t> buffer(kChunkSize);
+        while (true) {
+            int bytes = http->Read(reinterpret_cast<char*>(buffer.data()), kChunkSize);
+            if (bytes < 0) {
+                ESP_LOGE(TAG, "Audio stream read failed");
+                break;
+            }
+            if (bytes == 0) {
+                break;
+            }
+            size_t consumed = demuxer->Process(buffer.data(), static_cast<size_t>(bytes));
+            if (consumed != static_cast<size_t>(bytes)) {
+                ESP_LOGW(TAG, "Demuxer consumed %u/%u bytes", (unsigned)consumed, (unsigned)bytes);
+            }
+        }
+        http->Close();
+    }).detach();
 }
 
 void Application::ResetProtocol() {
