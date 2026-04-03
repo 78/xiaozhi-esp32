@@ -64,7 +64,8 @@ bool AfeWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
     }
 
     std::string input_format;
-    for (int i = 0; i < codec_->input_channels() - ref_num; i++) {
+    int mic_num = 1; // Force 1 MIC
+    for (int i = 0; i < mic_num; i++) {
         input_format.push_back('M');
     }
     for (int i = 0; i < ref_num; i++) {
@@ -94,18 +95,25 @@ void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
 }
 
 void AfeWakeWord::Start() {
+    printf("AfeWakeWord::Start() called\n");
     xEventGroupSetBits(event_group_, DETECTION_RUNNING_EVENT);
+    if (afe_data_ != nullptr) {
+        afe_iface_->enable_wakenet(afe_data_);
+    }
 }
 
 void AfeWakeWord::Stop() {
+    printf("AfeWakeWord::Stop() called\n");
     xEventGroupClearBits(event_group_, DETECTION_RUNNING_EVENT);
 
     std::lock_guard<std::mutex> lock(input_buffer_mutex_);
     if (afe_data_ != nullptr) {
+        afe_iface_->disable_wakenet(afe_data_);
         afe_iface_->reset_buffer(afe_data_);
     }
     input_buffer_.clear();
 }
+
 
 void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
     if (afe_data_ == nullptr) {
@@ -117,8 +125,18 @@ void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
     if (!(xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT)) {
         return;
     }
-    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
-    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    std::vector<int16_t> mono_data;
+    if (codec_->input_channels() == 2) {
+        mono_data.resize(data.size() / 2);
+        for (size_t i = 0; i < mono_data.size(); ++i) {
+            mono_data[i] = data[i * 2]; // Left channel
+        }
+    } else {
+        mono_data = data;
+    }
+    
+    input_buffer_.insert(input_buffer_.end(), mono_data.begin(), mono_data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_);
     while (input_buffer_.size() >= chunk_size) {
         afe_iface_->feed(afe_data_, input_buffer_.data());
         input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
@@ -149,8 +167,11 @@ void AfeWakeWord::AudioDetectionTask() {
         // Store the wake word data for voice recognition, like who is speaking
         StoreWakeWordData(res->data, res->data_size / sizeof(int16_t));
 
+        printf("AFE Detect: wakeup_state=%d, wakenet_index=%d\n", res->wakeup_state, res->wakenet_model_index);
+
         if (res->wakeup_state == WAKENET_DETECTED) {
             Stop();
+
             last_detected_wake_word_ = wake_words_[res->wakenet_model_index - 1];
 
             if (wake_word_detected_callback_) {

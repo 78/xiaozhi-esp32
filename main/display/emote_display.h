@@ -1,6 +1,8 @@
 #pragma once
 
 #include "display.h"
+#include "backlight.h"
+#include "audio_codec.h"
 #include <memory>
 #include <string>
 #include <esp_lcd_panel_io.h>
@@ -11,7 +13,8 @@ namespace emote {
 
 class EmoteDisplay : public Display {
 public:
-    EmoteDisplay(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io, int width, int height);
+    EmoteDisplay(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io, int width, int height, 
+                 Backlight* backlight, AudioCodec* codec);
     virtual ~EmoteDisplay();
 
     virtual void SetEmotion(const char* emotion) override;
@@ -22,6 +25,9 @@ public:
     virtual void UpdateStatusBar(bool update_all = false) override;
     virtual void SetPowerSaveMode(bool on) override;
     virtual void SetPreviewImage(const void* image);
+
+    void SetBrightness(int level);
+    void SetVolume(int level);
 
     bool StopAnimDialog();
     bool InsertAnimDialog(const char* emoji_name, uint32_t duration_ms);
@@ -36,6 +42,8 @@ private:
     virtual void Unlock() override;
 
     emote_handle_t emote_handle_ = nullptr;
+    Backlight* backlight_;
+    AudioCodec* codec_;
 
 };
 

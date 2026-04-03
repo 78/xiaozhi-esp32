@@ -200,46 +200,43 @@ void CircularStrip::OnStateChanged() {
     switch (device_state) {
         case kDeviceStateStarting: {
             StripColor low = { 0, 0, 0 };
-            StripColor high = { low_brightness_, low_brightness_, default_brightness_ };
-            Scroll(low, high, 3, 100);
+            StripColor high = { 0, 0, default_brightness_ };
+            Breathe(low, high, 50);
             break;
         }
         case kDeviceStateWifiConfiguring: {
-            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
-            Blink(color, 500);
+            StripColor color = { 0, 0, default_brightness_ };
+            Blink(color, 200);
             break;
         }
         case kDeviceStateIdle:
-            FadeOut(50);
+            FadeOut(30);
             break;
         case kDeviceStateConnecting: {
-            StripColor color = { low_brightness_, low_brightness_, default_brightness_ };
-            SetAllColor(color);
+            StripColor low = { 0, 0, low_brightness_ };
+            StripColor high = { 0, default_brightness_, default_brightness_ }; // Cyan
+            Breathe(low, high, 30);
             break;
         }
-        case kDeviceStateListening:
-        case kDeviceStateAudioTesting: {
-            StripColor color = { default_brightness_, low_brightness_, low_brightness_ };
-            SetAllColor(color);
+        case kDeviceStateListening: {
+            StripColor low = { low_brightness_, 0, low_brightness_ };
+            StripColor high = { default_brightness_, 0, default_brightness_ }; // Purple/Pink
+            Breathe(low, high, 20);
             break;
         }
         case kDeviceStateSpeaking: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
-            SetAllColor(color);
+            StripColor low = { low_brightness_, low_brightness_, 0 };
+            StripColor high = { default_brightness_, default_brightness_, 0 }; // Yellow
+            Breathe(low, high, 50);
             break;
         }
         case kDeviceStateUpgrading: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
+            StripColor color = { default_brightness_, default_brightness_, default_brightness_ };
             Blink(color, 100);
             break;
         }
-        case kDeviceStateActivating: {
-            StripColor color = { low_brightness_, default_brightness_, low_brightness_ };
-            Blink(color, 500);
-            break;
-        }
         default:
-            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
+            FadeOut(50);
             return;
     }
 }
