@@ -10,7 +10,9 @@
 #include "assets.h"
 #include "settings.h"
 
+#include <algorithm>
 #include <cstring>
+#include <thread>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
@@ -525,11 +527,19 @@ void Application::InitializeProtocol() {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
+                    if (media_streaming_.load()) {
+                        ESP_LOGI(TAG, "Ignore TTS start while media streaming");
+                        return;
+                    }
                     aborted_ = false;
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
+                    if (media_streaming_.load()) {
+                        ESP_LOGI(TAG, "Ignore TTS stop while media streaming");
+                        return;
+                    }
                     if (GetDeviceState() == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
@@ -565,7 +575,43 @@ void Application::InitializeProtocol() {
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             if (cJSON_IsObject(payload)) {
-                McpServer::GetInstance().ParseMessage(payload);
+                auto result = cJSON_GetObjectItem(payload, "result");
+                bool handled_media = false;
+
+                if (!handled_media && cJSON_IsObject(result)) {
+                    auto content = cJSON_GetObjectItem(result, "content");
+                    if (cJSON_IsArray(content) && cJSON_GetArraySize(content) > 0) {
+                        auto first = cJSON_GetArrayItem(content, 0);
+                        auto text = cJSON_GetObjectItem(first, "text");
+                        if (cJSON_IsString(text)) {
+                            cJSON* text_json = cJSON_Parse(text->valuestring);
+                            if (cJSON_IsObject(text_json)) {
+                                auto action = cJSON_GetObjectItem(text_json, "action");
+                                auto response_type = cJSON_GetObjectItem(text_json, "response_type");
+                                auto payload_result = cJSON_GetObjectItem(text_json, "result");
+                                if (cJSON_IsString(action) && strcmp(action->valuestring, "play_audio") == 0 &&
+                                    cJSON_IsString(response_type) && strcmp(response_type->valuestring, "media") == 0 &&
+                                    cJSON_IsObject(payload_result)) {
+                                    auto audio_url = cJSON_GetObjectItem(payload_result, "audio_url");
+                                    auto title = cJSON_GetObjectItem(payload_result, "title");
+                                    auto artist = cJSON_GetObjectItem(payload_result, "artist");
+                                    if (cJSON_IsString(audio_url) && strlen(audio_url->valuestring) > 0) {
+                                        std::string url = audio_url->valuestring;
+                                        std::string name = cJSON_IsString(title) ? title->valuestring : "";
+                                        std::string artist_text = cJSON_IsString(artist) ? artist->valuestring : "";
+                                        PlayAudioUrl(url, name, artist_text);
+                                        handled_media = true;
+                                    }
+                                }
+                            }
+                            cJSON_Delete(text_json);
+                        }
+                    }
+                }
+
+                if (!handled_media) {
+                    McpServer::GetInstance().ParseMessage(payload);
+                }
             }
         } else if (strcmp(type->valuestring, "system") == 0) {
             auto command = cJSON_GetObjectItem(root, "command");
@@ -765,6 +811,10 @@ void Application::HandleStopListeningEvent() {
         audio_service_.EnableAudioTesting(false);
         SetDeviceState(kDeviceStateWifiConfiguring);
         return;
+    } else if (state == kDeviceStateSpeaking && media_streaming_.load()) {
+        AbortSpeaking(kAbortReasonNone);
+        SetDeviceState(kDeviceStateIdle);
+        return;
     } else if (state == kDeviceStateListening) {
         if (protocol_) {
             protocol_->SendStopListening();
@@ -934,6 +984,10 @@ void Application::Schedule(std::function<void()>&& callback) {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    if (media_streaming_.load()) {
+        media_streaming_.store(false);
+        audio_service_.ResetDecoder();
+    }
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);
     }
@@ -1101,6 +1155,106 @@ void Application::SetAecMode(AecMode mode) {
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+void Application::PlayAudioUrl(const std::string& url, const std::string& song_name, const std::string& artists) {
+    if (url.empty()) {
+        ESP_LOGW(TAG, "PlayAudioUrl called with empty URL");
+        return;
+    }
+
+    auto display = Board::GetInstance().GetDisplay();
+    std::string meta = song_name;
+    if (!artists.empty()) {
+        if (!meta.empty()) {
+            meta += " - ";
+        }
+        meta += artists;
+    }
+
+    if (display && !meta.empty()) {
+        Schedule([display, meta]() {
+            display->SetChatMessage("assistant", meta.c_str());
+        });
+    }
+
+    media_streaming_.store(true);
+    Schedule([this]() {
+        if (GetDeviceState() != kDeviceStateSpeaking) {
+            SetDeviceState(kDeviceStateSpeaking);
+        }
+    });
+
+    std::thread([this, url, meta, display]() {
+        auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+        if (!http->Open("GET", url)) {
+            ESP_LOGE(TAG, "Failed to open audio URL: %s", url.c_str());
+            if (display) {
+                Schedule([display]() {
+                    display->ShowNotification("Audio stream open failed", 3000);
+                });
+            }
+            media_streaming_.store(false);
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateSpeaking) {
+                    SetDeviceState(kDeviceStateListening);
+                }
+            });
+            return;
+        }
+
+        int status_code = http->GetStatusCode();
+        if (status_code != 200) {
+            ESP_LOGE(TAG, "Audio stream HTTP status %d", status_code);
+            http->Close();
+            if (display) {
+                Schedule([display]() {
+                    display->ShowNotification("Audio stream HTTP error", 3000);
+                });
+            }
+            media_streaming_.store(false);
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateSpeaking) {
+                    SetDeviceState(kDeviceStateListening);
+                }
+            });
+            return;
+        }
+
+        auto demuxer = std::make_unique<OggDemuxer>();
+        demuxer->OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t len) {
+            auto packet = std::make_unique<AudioStreamPacket>();
+            packet->sample_rate = sample_rate;
+            packet->frame_duration = 60;
+            packet->payload.assign(data, data + len);
+            audio_service_.PushPacketToDecodeQueue(std::move(packet), true);
+        });
+        demuxer->Reset();
+
+        constexpr int kChunkSize = 2048;
+        std::vector<uint8_t> buffer(kChunkSize);
+        while (media_streaming_.load()) {
+            int bytes = http->Read(reinterpret_cast<char*>(buffer.data()), kChunkSize);
+            if (bytes < 0) {
+                ESP_LOGE(TAG, "Audio stream read failed");
+                break;
+            }
+            if (bytes == 0) {
+                break;
+            }
+            size_t consumed = demuxer->Process(buffer.data(), static_cast<size_t>(bytes));
+            if (consumed != static_cast<size_t>(bytes)) {
+                ESP_LOGW(TAG, "Demuxer consumed %u/%u bytes", (unsigned)consumed, (unsigned)bytes);
+            }
+        }
+        http->Close();
+        media_streaming_.store(false);
+        Schedule([this]() {
+            if (GetDeviceState() == kDeviceStateSpeaking) {
+                SetDeviceState(kDeviceStateListening);
+            }
+        });
+    }).detach();
 }
 
 void Application::ResetProtocol() {
