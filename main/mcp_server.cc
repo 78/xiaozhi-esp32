@@ -413,25 +413,25 @@ void McpServer::ParseMessage(const cJSON* json) {
     } else if (method_str == "tools/call") {
         if (!cJSON_IsObject(params)) {
             ESP_LOGE(TAG, "tools/call: Missing params");
-            ReplyError(id_int, "Missing params");
+            ReplyError(id_int, -32602, "Missing params");
             return;
         }
         auto tool_name = cJSON_GetObjectItem(params, "name");
         if (!cJSON_IsString(tool_name)) {
             ESP_LOGE(TAG, "tools/call: Missing name");
-            ReplyError(id_int, "Missing name");
+            ReplyError(id_int, -32602, "Missing tool name");
             return;
         }
         auto tool_arguments = cJSON_GetObjectItem(params, "arguments");
         if (tool_arguments != nullptr && !cJSON_IsObject(tool_arguments)) {
             ESP_LOGE(TAG, "tools/call: Invalid arguments");
-            ReplyError(id_int, "Invalid arguments");
+            ReplyError(id_int, -32602, "Invalid arguments: expected object");
             return;
         }
         DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments);
     } else {
         ESP_LOGE(TAG, "Method not implemented: %s", method_str.c_str());
-        ReplyError(id_int, "Method not implemented: " + method_str);
+        ReplyError(id_int, -32601, "Method not implemented: " + method_str);
     }
 }
 
@@ -443,13 +443,19 @@ void McpServer::ReplyResult(int id, const std::string& result) {
     Application::GetInstance().SendMcpMessage(payload);
 }
 
-void McpServer::ReplyError(int id, const std::string& message) {
+void McpServer::ReplyError(int id, int code, const std::string& message) {
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id);
-    payload += ",\"error\":{\"message\":\"";
+    payload += ",\"error\":{\"code\":";
+    payload += std::to_string(code);
+    payload += ",\"message\":\"";
     payload += message;
     payload += "\"}}";
     Application::GetInstance().SendMcpMessage(payload);
+}
+
+void McpServer::ReplyError(int id, const std::string& message) {
+    ReplyError(id, -32603, message); // Internal error (default)
 }
 
 void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools) {
@@ -516,7 +522,7 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
     
     if (tool_iter == tools_.end()) {
         ESP_LOGE(TAG, "tools/call: Unknown tool: %s", tool_name.c_str());
-        ReplyError(id, "Unknown tool: " + tool_name);
+        ReplyError(id, -32602, "Unknown tool: " + tool_name);
         return;
     }
 
@@ -530,20 +536,30 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
                     argument.set_value<bool>(value->valueint == 1);
                     found = true;
                 } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
-                    argument.set_value<int>(value->valueint);
+                    argument.set_value<int>(value->valueint);  // Validates range via set_value
                     found = true;
                 } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
-                    argument.set_value<std::string>(value->valuestring);
+                    argument.set_value<std::string>(std::string(value->valuestring));  // Validates max_length via set_value
                     found = true;
+                } else if (value != nullptr) {
+                    // Argument exists but has wrong type
+                    ESP_LOGE(TAG, "tools/call: Invalid type for argument: %s", argument.name().c_str());
+                    ReplyError(id, -32602, "Invalid type for argument: " + argument.name());
+                    return;
                 }
             }
 
             if (!argument.has_default_value() && !found) {
-                ESP_LOGE(TAG, "tools/call: Missing valid argument: %s", argument.name().c_str());
-                ReplyError(id, "Missing valid argument: " + argument.name());
+                ESP_LOGE(TAG, "tools/call: Missing required argument: %s", argument.name().c_str());
+                ReplyError(id, -32602, "Missing required argument: " + argument.name());
                 return;
             }
         }
+    } catch (const std::invalid_argument& e) {
+        // Validation error from set_value (range/length checks)
+        ESP_LOGE(TAG, "tools/call: Validation error: %s", e.what());
+        ReplyError(id, -32602, e.what());
+        return;
     } catch (const std::exception& e) {
         ESP_LOGE(TAG, "tools/call: %s", e.what());
         ReplyError(id, e.what());
