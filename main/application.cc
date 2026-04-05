@@ -527,11 +527,19 @@ void Application::InitializeProtocol() {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
+                    if (media_streaming_.load()) {
+                        ESP_LOGI(TAG, "Ignore TTS start while media streaming");
+                        return;
+                    }
                     aborted_ = false;
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
+                    if (media_streaming_.load()) {
+                        ESP_LOGI(TAG, "Ignore TTS stop while media streaming");
+                        return;
+                    }
                     if (GetDeviceState() == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
@@ -567,27 +575,8 @@ void Application::InitializeProtocol() {
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             if (cJSON_IsObject(payload)) {
-                auto method = cJSON_GetObjectItem(payload, "method");
-                auto params = cJSON_GetObjectItem(payload, "params");
                 auto result = cJSON_GetObjectItem(payload, "result");
                 bool handled_media = false;
-
-                if (cJSON_IsString(method) && strcmp(method->valuestring, "tools/call") == 0 && cJSON_IsObject(params)) {
-                    auto tool_name = cJSON_GetObjectItem(params, "name");
-                    auto arguments = cJSON_GetObjectItem(params, "arguments");
-                    if (cJSON_IsString(tool_name) && strcmp(tool_name->valuestring, "self.audio.play_url") == 0 && cJSON_IsObject(arguments)) {
-                        auto audio_url = cJSON_GetObjectItem(arguments, "audio_url");
-                        auto song_name = cJSON_GetObjectItem(arguments, "song_name");
-                        auto artists = cJSON_GetObjectItem(arguments, "artists");
-                        if (cJSON_IsString(audio_url) && strlen(audio_url->valuestring) > 0) {
-                            std::string url = audio_url->valuestring;
-                            std::string name = cJSON_IsString(song_name) ? song_name->valuestring : "";
-                            std::string artist_text = cJSON_IsString(artists) ? artists->valuestring : "";
-                            PlayAudioUrl(url, name, artist_text);
-                            handled_media = true;
-                        }
-                    }
-                }
 
                 if (!handled_media && cJSON_IsObject(result)) {
                     auto content = cJSON_GetObjectItem(result, "content");
@@ -822,6 +811,10 @@ void Application::HandleStopListeningEvent() {
         audio_service_.EnableAudioTesting(false);
         SetDeviceState(kDeviceStateWifiConfiguring);
         return;
+    } else if (state == kDeviceStateSpeaking && media_streaming_.load()) {
+        AbortSpeaking(kAbortReasonNone);
+        SetDeviceState(kDeviceStateIdle);
+        return;
     } else if (state == kDeviceStateListening) {
         if (protocol_) {
             protocol_->SendStopListening();
@@ -994,6 +987,10 @@ void Application::Schedule(std::function<void()>&& callback) {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    if (media_streaming_.load()) {
+        media_streaming_.store(false);
+        audio_service_.ResetDecoder();
+    }
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);
     }
@@ -1184,13 +1181,28 @@ void Application::PlayAudioUrl(const std::string& url, const std::string& song_n
         });
     }
 
+    media_streaming_.store(true);
+    Schedule([this]() {
+        if (GetDeviceState() != kDeviceStateSpeaking) {
+            SetDeviceState(kDeviceStateSpeaking);
+        }
+    });
+
     std::thread([this, url, meta, display]() {
         auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
         if (!http->Open("GET", url)) {
             ESP_LOGE(TAG, "Failed to open audio URL: %s", url.c_str());
             if (display) {
-                display->ShowNotification("Audio stream open failed", 3000);
+                Schedule([display]() {
+                    display->ShowNotification("Audio stream open failed", 3000);
+                });
             }
+            media_streaming_.store(false);
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateSpeaking) {
+                    SetDeviceState(kDeviceStateListening);
+                }
+            });
             return;
         }
 
@@ -1199,8 +1211,16 @@ void Application::PlayAudioUrl(const std::string& url, const std::string& song_n
             ESP_LOGE(TAG, "Audio stream HTTP status %d", status_code);
             http->Close();
             if (display) {
-                display->ShowNotification("Audio stream HTTP error", 3000);
+                Schedule([display]() {
+                    display->ShowNotification("Audio stream HTTP error", 3000);
+                });
             }
+            media_streaming_.store(false);
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateSpeaking) {
+                    SetDeviceState(kDeviceStateListening);
+                }
+            });
             return;
         }
 
@@ -1216,7 +1236,7 @@ void Application::PlayAudioUrl(const std::string& url, const std::string& song_n
 
         constexpr int kChunkSize = 2048;
         std::vector<uint8_t> buffer(kChunkSize);
-        while (true) {
+        while (media_streaming_.load()) {
             int bytes = http->Read(reinterpret_cast<char*>(buffer.data()), kChunkSize);
             if (bytes < 0) {
                 ESP_LOGE(TAG, "Audio stream read failed");
@@ -1231,6 +1251,12 @@ void Application::PlayAudioUrl(const std::string& url, const std::string& song_n
             }
         }
         http->Close();
+        media_streaming_.store(false);
+        Schedule([this]() {
+            if (GetDeviceState() == kDeviceStateSpeaking) {
+                SetDeviceState(kDeviceStateListening);
+            }
+        });
     }).detach();
 }
 
