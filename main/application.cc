@@ -11,7 +11,9 @@
 #include "settings.h"
 
 #include <cstring>
+#include <algorithm>
 #include <esp_log.h>
+#include <esp_random.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
@@ -396,9 +398,10 @@ void Application::CheckAssetsVersion() {
 }
 
 void Application::CheckNewVersion() {
-    const int MAX_RETRY = 10;
+    constexpr int kMaxRetryDelay = 300;    // Cap retry delay at 5 minutes
+    constexpr int kInitialRetryDelay = 10; // Start with 10 seconds
     int retry_count = 0;
-    int retry_delay = 10; // Initial retry delay in seconds
+    int retry_delay = kInitialRetryDelay;
 
     auto& board = Board::GetInstance();
     while (true) {
@@ -408,29 +411,32 @@ void Application::CheckNewVersion() {
         esp_err_t err = ota_->CheckVersion();
         if (err != ESP_OK) {
             retry_count++;
-            if (retry_count >= MAX_RETRY) {
-                ESP_LOGE(TAG, "Too many retries, exit version check");
-                return;
-            }
 
-            char error_message[128];
-            snprintf(error_message, sizeof(error_message), "code=%d, url=%s", err, ota_->GetCheckVersionUrl().c_str());
+            // Add random jitter to prevent thundering herd when many devices
+            // reboot simultaneously and all retry at the same intervals.
+            // Jitter range: [0, retry_delay/2] seconds
+            int jitter = (retry_delay > 1) ? (int)(esp_random() % (retry_delay / 2 + 1)) : 0;
+            int actual_delay = retry_delay + jitter;
+
+            // Show user-friendly error (omit raw error code from display)
             char buffer[256];
-            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay, error_message);
+            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, actual_delay, "");
             Alert(Lang::Strings::ERROR, buffer, "cloud_slash", Lang::Sounds::OGG_EXCLAMATION);
 
-            ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay, retry_count, MAX_RETRY);
-            for (int i = 0; i < retry_delay; i++) {
+            ESP_LOGW(TAG, "Check new version failed (err=0x%x, url=%s), retry in %d+%d=%d seconds (attempt %d)",
+                     err, ota_->GetCheckVersionUrl().c_str(), retry_delay, jitter, actual_delay, retry_count);
+            for (int i = 0; i < actual_delay; i++) {
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 if (GetDeviceState() == kDeviceStateIdle) {
                     break;
                 }
             }
-            retry_delay *= 2; // Double the retry delay
+            // Exponential backoff with jitter, capped at kMaxRetryDelay
+            retry_delay = std::min(retry_delay * 2, kMaxRetryDelay);
             continue;
         }
         retry_count = 0;
-        retry_delay = 10; // Reset retry delay
+        retry_delay = kInitialRetryDelay; // Reset retry delay
 
         if (ota_->HasNewVersion()) {
             if (UpgradeFirmware(ota_->GetFirmwareUrl(), ota_->GetFirmwareVersion())) {
