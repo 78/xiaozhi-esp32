@@ -62,6 +62,24 @@ void McpServer::AddCommonTools() {
             codec->SetOutputVolume(properties["volume"].value<int>());
             return true;
         });
+
+    AddTool("self.audio.play_url",
+        "Play audio from a direct URL. Use this when a music tool has already provided an audio_url and the device should start playback immediately.",
+        PropertyList({
+            Property("audio_url", kPropertyTypeString),
+            Property("song_name", kPropertyTypeString, std::string("")),
+            Property("artists", kPropertyTypeString, std::string(""))
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto url = properties["audio_url"].value<std::string>();
+            auto song_name = properties["song_name"].value<std::string>();
+            auto artists = properties["artists"].value<std::string>();
+            auto& app = Application::GetInstance();
+            app.Schedule([&app, url, song_name, artists]() {
+                app.PlayAudioUrl(url, song_name, artists);
+            });
+            return true;
+        });
     
     auto backlight = board.GetBacklight();
     if (backlight) {
