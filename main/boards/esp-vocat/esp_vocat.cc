@@ -9,15 +9,25 @@
 #include "esp_video.h"
 
 #include <esp_log.h>
+#include <esp_timer.h>
+#include "esp_idf_version.h"
+#include <cinttypes>
 
 #include <driver/i2c_master.h>
-#include <driver/i2c.h>
+#include <cstdlib>
 #include "i2c_device.h"
+#include "i2c_bus.h"
+#include "bmi270_api.h"
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st77916.h>
 #include "esp_lcd_touch_cst816s.h"
 #include "touch.h"
+
+extern "C" {
+#include "touch_button_sensor.h"
+#include "touch_slider_sensor.h"
+}
 
 #include "driver/temperature_sensor.h"
 #include <freertos/FreeRTOS.h>
@@ -25,6 +35,46 @@
 #include <freertos/task.h>
 
 #define TAG "ESP-VoCat"
+
+namespace Bmi270Motion {
+static bmi270_handle_t bmi_handle_ = nullptr;
+
+esp_err_t Initialize(i2c_bus_handle_t i2c_bus)
+{
+    if (bmi_handle_) {
+        return ESP_OK;
+    }
+    if (!i2c_bus) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret = bmi270_sensor_create(i2c_bus, &bmi_handle_, bmi270_config_file,
+                                         BMI2_GYRO_CROSS_SENS_ENABLE | BMI2_CRT_RTOSK_ENABLE);
+    if (ret != ESP_OK || !bmi_handle_) {
+        ESP_LOGW(TAG, "BMI270 init failed: %s", esp_err_to_name(ret));
+        return ret == ESP_OK ? ESP_FAIL : ret;
+    }
+
+    const uint8_t sens_list[] = {BMI2_ACCEL};
+    int8_t rslt = bmi270_sensor_enable(sens_list, 1, bmi_handle_);
+    if (rslt != BMI2_OK) {
+        ESP_LOGW(TAG, "BMI270 accel enable failed: %d", rslt);
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "BMI270 initialized");
+    return ESP_OK;
+}
+
+bool ReadAccelRaw(struct bmi2_sens_data& accel)
+{
+    if (!bmi_handle_) {
+        return false;
+    }
+    int8_t rslt = bmi2_get_sensor_data(&accel, bmi_handle_);
+    return rslt == BMI2_OK;
+}
+} // namespace Bmi270Motion
 
 
 temperature_sensor_handle_t temp_sensor = NULL;
@@ -383,6 +433,7 @@ private:
 class EspVocat : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
+    i2c_bus_handle_t shared_i2c_bus_handle_ = nullptr;
     Cst816s* cst816s_;
     Charge* charge_;
     Button boot_button_;
@@ -393,63 +444,151 @@ private:
     EspVideo* camera_ = nullptr;
     TaskHandle_t charge_task_handle_ = nullptr;
     TaskHandle_t touch_task_handle_ = nullptr;
+    TaskHandle_t imu_task_handle_ = nullptr;
+    TaskHandle_t touch_slider_task_handle_ = nullptr;
+    esp_timer_handle_t emotion_reset_timer_ = nullptr;
+    bool bmi270_ready_ = false;
+    touch_slider_handle_t touch_slider_handle_ = nullptr;
+    touch_button_handle_t touch_button_handle_ = nullptr;
+
+    static void emotion_reset_timer_callback(void* arg)
+    {
+        auto* self = static_cast<EspVocat*>(arg);
+        if (self && self->display_ != nullptr) {
+            self->display_->SetEmotion("neutral");
+        }
+    }
+
+    void ShowTemporaryEmotion(const char* emotion, uint32_t duration_ms)
+    {
+        if (display_ == nullptr || emotion == nullptr) {
+            return;
+        }
+        display_->SetEmotion(emotion);
+        if (emotion_reset_timer_ != nullptr) {
+            esp_timer_stop(emotion_reset_timer_);
+            esp_timer_start_once(emotion_reset_timer_, static_cast<uint64_t>(duration_ms) * 1000ULL);
+        }
+    }
+
+    void ShowHappyTouchFeedback()
+    {
+        static int64_t s_last_us = 0;
+        constexpr int64_t kCooldownUs = 1200000;
+        const int64_t now = esp_timer_get_time();
+        if ((now - s_last_us) < kCooldownUs) {
+            return;
+        }
+        s_last_us = now;
+        ShowTemporaryEmotion("happy", 2000);
+    }
+
+    static void imu_event_task(void* arg)
+    {
+        auto* self = static_cast<EspVocat*>(arg);
+        if (self == nullptr || !self->bmi270_ready_) {
+            vTaskDelete(NULL);
+            return;
+        }
+
+        struct bmi2_sens_data prev = {};
+        struct bmi2_sens_data cur = {};
+        bool has_prev = false;
+        int64_t last_shake_ms = 0;
+        constexpr int kShakeDeltaThreshold = 20000;
+        constexpr int64_t kShakeCooldownMs = 2000;
+
+        while (true) {
+            if (Bmi270Motion::ReadAccelRaw(cur)) {
+                if (has_prev) {
+                    int dx = abs(static_cast<int>(cur.acc.x) - static_cast<int>(prev.acc.x));
+                    int dy = abs(static_cast<int>(cur.acc.y) - static_cast<int>(prev.acc.y));
+                    int dz = abs(static_cast<int>(cur.acc.z) - static_cast<int>(prev.acc.z));
+                    int shake_score = dx + dy + dz;
+
+                    int64_t now_ms = esp_timer_get_time() / 1000;
+                    if (shake_score > kShakeDeltaThreshold && (now_ms - last_shake_ms) > kShakeCooldownMs) {
+                        last_shake_ms = now_ms;
+                        // "dizzy/nauseated" are not guaranteed in current assets, use supported fallback.
+                        self->ShowTemporaryEmotion("confused", 1800);
+                    }
+                }
+                prev = cur;
+                has_prev = true;
+            }
+            vTaskDelay(pdMS_TO_TICKS(80));
+        }
+    }
 
     void InitializeI2c()
     {
-        i2c_master_bus_config_t i2c_bus_cfg = {
-            .i2c_port = I2C_NUM_0,
+        i2c_config_t i2c_cfg = {
+            .mode = I2C_MODE_MASTER,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
             .scl_io_num = AUDIO_CODEC_I2C_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
+            .sda_pullup_en = true,
+            .scl_pullup_en = true,
+            .master = {
+                .clk_speed = 400000,
             },
+            .clk_flags = 0,
         };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+        shared_i2c_bus_handle_ = i2c_bus_create(I2C_NUM_0, &i2c_cfg);
+        if (!shared_i2c_bus_handle_) {
+            ESP_LOGE(TAG, "Failed to create shared I2C bus");
+            ESP_ERROR_CHECK(ESP_FAIL);
+        }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0) && !CONFIG_I2C_BUS_BACKWARD_CONFIG
+        i2c_bus_ = i2c_bus_get_internal_bus_handle(shared_i2c_bus_handle_);
+#else
+#error "ESP-VoCat board requires i2c_bus_get_internal_bus_handle() support"
+#endif
+        if (!i2c_bus_) {
+            ESP_LOGE(TAG, "Failed to get I2C master handle");
+            ESP_ERROR_CHECK(ESP_FAIL);
+        }
 
         temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
         ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
         ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
-
     }
     uint8_t DetectPcbVersion()
-    {
-        esp_err_t ret = i2c_master_probe(i2c_bus_, 0x18, 100);
-        uint8_t pcb_version = 0;
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "PCB version V1.0");
-            pcb_version = 0;
-        } else {
+        {
             gpio_config_t gpio_conf = {
-                .pin_bit_mask = (1ULL << GPIO_NUM_48),
+                .pin_bit_mask = (1ULL << CORDEC_POWER_CTRL),
                 .mode = GPIO_MODE_OUTPUT,
                 .pull_up_en = GPIO_PULLUP_DISABLE,
                 .pull_down_en = GPIO_PULLDOWN_DISABLE,
                 .intr_type = GPIO_INTR_DISABLE
             };
             ESP_ERROR_CHECK(gpio_config(&gpio_conf));
-            ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_48, 1));
-            vTaskDelay(pdMS_TO_TICKS(100));
-            ret = i2c_master_probe(i2c_bus_, 0x18, 100);
-            if (ret == ESP_OK) {
-                ESP_LOGI(TAG, "PCB version V1.2");
-                pcb_version = 1;
-                AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
-                AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
-                QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
-                TOUCH_PAD2 = TOUCH_PAD2_2;
-                UART1_TX = UART1_TX_2;
-                UART1_RX = UART1_RX_2;
-            } else {
-                ESP_LOGE(TAG, "PCB version detection error");
+            ESP_ERROR_CHECK(gpio_set_level(CORDEC_POWER_CTRL, 0));
+            vTaskDelay(pdMS_TO_TICKS(50));
 
+            bool codec_alive = (i2c_master_probe(i2c_bus_, 0x18, 100) == ESP_OK);
+            uint8_t pcb_version = 0;
+            if (codec_alive) {
+                ESP_LOGI(TAG, "PCB version V1.0");
+                pcb_version = 0;
+            } else {
+                ESP_ERROR_CHECK(gpio_set_level(CORDEC_POWER_CTRL, 1));
+                vTaskDelay(pdMS_TO_TICKS(50));
+                codec_alive = (i2c_master_probe(i2c_bus_, 0x18, 100) == ESP_OK);
+                if (codec_alive) {
+                    ESP_LOGI(TAG, "PCB version V1.2");
+                    pcb_version = 1;
+                    AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
+                    AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
+                    QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
+                    TOUCH_PAD2 = TOUCH_PAD2_2;
+                    UART1_TX = UART1_TX_2;
+                    UART1_RX = UART1_RX_2;
+                } else {
+                    ESP_LOGE(TAG, "PCB version detection error");
+                }
             }
+            return pcb_version;
         }
-        return pcb_version;
-    }
 
     static void touch_isr_callback(void* arg)
     {
@@ -510,6 +649,157 @@ private:
         gpio_install_isr_service(0);
         gpio_intr_enable(TP_PIN_NUM_INT);
         gpio_isr_handler_add(TP_PIN_NUM_INT, EspVocat::touch_isr_callback, cst816s_);
+    }
+
+    void InitializeBmi270()
+    {
+        esp_err_t imu_ret = Bmi270Motion::Initialize(shared_i2c_bus_handle_);
+        if (imu_ret == ESP_OK) {
+            bmi270_ready_ = true;
+            xTaskCreatePinnedToCore(imu_event_task, "imu_task", 4 * 1024, this, 4, &imu_task_handle_, 1);
+        } else {
+            ESP_LOGW(TAG, "BMI270 unavailable, shake emotion disabled");
+        }
+    }
+
+    static uint32_t TouchChannelFromPadGpio(gpio_num_t gpio)
+    {
+        if (gpio == GPIO_NUM_NC) {
+            return 0;
+        }
+        if (gpio >= GPIO_NUM_1 && gpio <= GPIO_NUM_14) {
+            return static_cast<uint32_t>(gpio);
+        }
+        return 0;
+    }
+
+    static void touch_slider_event_callback(touch_slider_handle_t handle, touch_slider_event_t event, int32_t data, void* cb_arg)
+    {
+        (void)handle;
+        auto* self = static_cast<EspVocat*>(cb_arg);
+        if (self == nullptr || self->display_ == nullptr) {
+            return;
+        }
+        if (event != TOUCH_SLIDER_EVENT_POSITION) {
+            ESP_LOGI(TAG, "Touch slider evt=%d data=%" PRId32, static_cast<int>(event), data);
+        }
+
+        bool gesture = false;
+        if (event == TOUCH_SLIDER_EVENT_LEFT_SWIPE || event == TOUCH_SLIDER_EVENT_RIGHT_SWIPE) {
+            gesture = true;
+        } else if (event == TOUCH_SLIDER_EVENT_RELEASE) {
+            gesture = true;
+        }
+
+        if (!gesture) {
+            return;
+        }
+
+        self->ShowHappyTouchFeedback();
+    }
+
+    static void touch_button_event_callback(touch_button_handle_t handle, uint32_t channel, touch_state_t state, void* cb_arg)
+    {
+        (void)handle;
+        auto* self = static_cast<EspVocat*>(cb_arg);
+        if (self == nullptr || self->display_ == nullptr) {
+            return;
+        }
+        if (state == TOUCH_STATE_ACTIVE) {
+            ESP_LOGI(TAG, "Touch button ACTIVE ch=%" PRIu32, channel);
+            self->ShowHappyTouchFeedback();
+        }
+    }
+
+    static void touch_cap_poll_task(void* arg)
+    {
+        auto* self = static_cast<EspVocat*>(arg);
+        while (true) {
+            if (self != nullptr) {
+                if (self->touch_slider_handle_ != nullptr) {
+                    touch_slider_sensor_handle_events(self->touch_slider_handle_);
+                } else if (self->touch_button_handle_ != nullptr) {
+                    touch_button_sensor_handle_events(self->touch_button_handle_);
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    }
+
+    void InitializeCapacitiveTouchPads()
+    {
+        if (TOUCH_PAD1 == GPIO_NUM_NC) {
+            ESP_LOGW(TAG, "Capacitive touch disabled: TOUCH_PAD1 NC");
+            return;
+        }
+
+        const uint32_t ch1 = TouchChannelFromPadGpio(TOUCH_PAD1);
+        if (ch1 == 0) {
+            ESP_LOGW(TAG, "TOUCH_PAD1 GPIO %d is not a touch channel (expect GPIO1..GPIO14)", (int)TOUCH_PAD1);
+            return;
+        }
+
+        if (TOUCH_PAD2 != GPIO_NUM_NC) {
+            const uint32_t ch2 = TouchChannelFromPadGpio(TOUCH_PAD2);
+            if (ch2 == 0) {
+                ESP_LOGW(TAG, "TOUCH_PAD2 GPIO %d is not a touch channel", (int)TOUCH_PAD2);
+                return;
+            }
+
+            static uint32_t slider_ch[2];
+            static float slider_thr[2];
+            slider_ch[0] = ch1;
+            slider_ch[1] = ch2;
+            slider_thr[0] = 0.004f;
+            slider_thr[1] = 0.006f;
+
+            touch_slider_config_t sld_cfg = {
+                .channel_num = 2,
+                .channel_list = slider_ch,
+                .channel_threshold = slider_thr,
+                .channel_gold_value = nullptr,
+                .debounce_times = 1,
+                .filter_reset_times = 5,
+                .position_range = 10000,
+                .calculate_window = 2,
+                .swipe_threshold = 28.f,
+                .swipe_hysterisis = 22.f,
+                .swipe_alpha = 0.9f,
+                .skip_lowlevel_init = false,
+            };
+            esp_err_t err = touch_slider_sensor_create(&sld_cfg, &touch_slider_handle_, touch_slider_event_callback, this);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "touch_slider_sensor_create failed: %s", esp_err_to_name(err));
+                touch_slider_handle_ = nullptr;
+                return;
+            }
+            xTaskCreatePinnedToCore(touch_cap_poll_task, "touch_cap", 3072, this, 3, &touch_slider_task_handle_, 1);
+            ESP_LOGI(TAG, "Touch slider (PCB v1.2+): PAD1 GPIO%d ch%u, PAD2 GPIO%d ch%u",
+                     (int)TOUCH_PAD1, (unsigned)slider_ch[0], (int)TOUCH_PAD2, (unsigned)slider_ch[1]);
+            return;
+        }
+
+        static uint32_t btn_ch[1];
+        static float btn_thr[1];
+        btn_ch[0] = ch1;
+        btn_thr[0] = 0.004f;
+
+        touch_button_config_t btn_cfg = {
+            .channel_num = 1,
+            .channel_list = btn_ch,
+            .channel_threshold = btn_thr,
+            .channel_gold_value = nullptr,
+            .debounce_times = 2,
+            .skip_lowlevel_init = false,
+        };
+        esp_err_t err = touch_button_sensor_create(&btn_cfg, &touch_button_handle_, touch_button_event_callback, this);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "touch_button_sensor_create failed: %s", esp_err_to_name(err));
+            touch_button_handle_ = nullptr;
+            return;
+        }
+        xTaskCreatePinnedToCore(touch_cap_poll_task, "touch_cap", 3072, this, 3, &touch_slider_task_handle_, 1);
+        ESP_LOGI(TAG, "Touch button (PCB v1.0): TOUCH_PAD1 GPIO%d ch%u", (int)TOUCH_PAD1, (unsigned)btn_ch[0]);
     }
 
     void InitializeSpi()
@@ -620,6 +910,21 @@ public:
         if (touch_task_handle_ != nullptr) {
             vTaskDelete(touch_task_handle_);
         }
+        if (imu_task_handle_ != nullptr) {
+            vTaskDelete(imu_task_handle_);
+        }
+        if (touch_slider_task_handle_ != nullptr) {
+            vTaskDelete(touch_slider_task_handle_);
+            touch_slider_task_handle_ = nullptr;
+        }
+        if (touch_slider_handle_ != nullptr) {
+            touch_slider_sensor_delete(touch_slider_handle_);
+            touch_slider_handle_ = nullptr;
+        }
+        if (touch_button_handle_ != nullptr) {
+            touch_button_sensor_delete(touch_button_handle_);
+            touch_button_handle_ = nullptr;
+        }
 
         // Delete objects
         delete charge_;
@@ -631,6 +936,11 @@ public:
 
         // Remove GPIO ISR handler
         gpio_isr_handler_remove(TP_PIN_NUM_INT);
+        if (emotion_reset_timer_ != nullptr) {
+            esp_timer_stop(emotion_reset_timer_);
+            esp_timer_delete(emotion_reset_timer_);
+            emotion_reset_timer_ = nullptr;
+        }
 
         // Disable temperature sensor
         if (temp_sensor != NULL) {
@@ -642,14 +952,25 @@ public:
 
     EspVocat() : boot_button_(BOOT_BUTTON_GPIO)
     {
+        const esp_timer_create_args_t emotion_timer_args = {
+            .callback = &EspVocat::emotion_reset_timer_callback,
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "emotion_rst",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&emotion_timer_args, &emotion_reset_timer_));
+
         InitializeI2c();
         uint8_t pcb_version = DetectPcbVersion();
         InitializeCharge();
         InitializeCst816sTouchPad();
+        InitializeBmi270();
 
         InitializeSpi();
         InitializeSt77916Display(pcb_version);
         InitializeButtons();
+        InitializeCapacitiveTouchPads();
 #ifdef CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
         InitializeCamera();
 #endif // CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
