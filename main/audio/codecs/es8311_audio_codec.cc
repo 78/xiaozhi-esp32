@@ -6,7 +6,8 @@
 
 Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk, bool pa_inverted) {
+    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk, bool pa_inverted,
+    bool enable_i2s_on_create) {
     duplex_ = true; // 是否双工
     input_reference_ = false; // 是否使用参考输入，实现回声消除
     input_channels_ = 1; // 输入通道数
@@ -17,7 +18,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     input_gain_ = 30;
 
     assert(input_sample_rate_ == output_sample_rate_);
-    CreateDuplexChannels(mclk, bclk, ws, dout, din);
+    CreateDuplexChannels(mclk, bclk, ws, dout, din, enable_i2s_on_create);
 
     // Do initialize of related interface: data_if, ctrl_if and gpio_if
     audio_codec_i2s_cfg_t i2s_cfg = {
@@ -97,7 +98,7 @@ void Es8311AudioCodec::UpdateDeviceState() {
     }
 }
 
-void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din, bool enable_i2s_on_create) {
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -150,8 +151,10 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
-    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
-    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    if (enable_i2s_on_create) {
+        ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+        ESP_ERROR_CHECK(i2s_channel_enable(rx_handle_));
+    }
     ESP_LOGI(TAG, "Duplex channels created");
 }
 

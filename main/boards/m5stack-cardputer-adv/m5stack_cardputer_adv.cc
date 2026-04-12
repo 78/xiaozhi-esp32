@@ -140,7 +140,9 @@ public:
             AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN,
             AUDIO_CODEC_ES8311_ADDR,
-            false);  // use_mclk = false, Cardputer Adv has no MCLK pin
+            false,   // use_mclk = false, Cardputer Adv has no MCLK pin
+            false,   // pa_inverted
+            false);  // enable_i2s_on_create = false, let esp_codec_dev_open manage I2S channels
         return &audio_codec;
     }
 
