@@ -1,6 +1,7 @@
 #include "iot/thing.h"
 #include "board.h"
 #include "display/lcd_display.h"
+#include "display/lvgl_display/lvgl_theme.h"
 #include "settings.h"
 
 #include <esp_log.h>
@@ -17,7 +18,7 @@ public:
         // 定义设备的属性
         properties_.AddStringProperty("theme", "Current theme", [this]() -> std::string {
             auto theme = Board::GetInstance().GetDisplay()->GetTheme();
-            return theme;
+            return theme ? theme->name() : "";
         });
 
         properties_.AddNumberProperty("brightness", "Current brightness percentage", [this]() -> int {
@@ -33,7 +34,10 @@ public:
             std::string theme_name = static_cast<std::string>(parameters["theme_name"].string());
             auto display = Board::GetInstance().GetDisplay();
             if (display) {
-                display->SetTheme(theme_name);
+                auto theme = LvglThemeManager::GetInstance().GetTheme(theme_name);
+                if (theme) {
+                    display->SetTheme(theme);
+                }
             }
         });
         
