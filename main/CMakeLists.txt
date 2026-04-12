@@ -29,6 +29,8 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
+            "iot/thing.cc"
+            "iot/thing_manager.cc"
             "mcp_server.cc"
             "system_info.cc"
             "application.cc"
@@ -40,6 +42,10 @@ set(SOURCES "audio/audio_codec.cc"
             )
 
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
+
+# 添加 IOT 相关文件
+file(GLOB IOT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/iot/things/*.cc)
+list(APPEND SOURCES ${IOT_SOURCES})
 
 # Add board common files
 list(APPEND SOURCES
@@ -61,6 +67,7 @@ list(APPEND SOURCES
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
 )
+
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
@@ -766,6 +773,11 @@ elseif(CONFIG_BOARD_TYPE_HU_087)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 elseif(CONFIG_BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD)
     set(BOARD_TYPE "freenove-esp32s3-display-2.8-lcd")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_LC_S3_WIFI_1_54TFT)
+    set(BOARD_TYPE "lc-s3-wifi-1.54tft")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
