@@ -273,6 +273,12 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_TOUCH_LCD_3_5)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX)
+    set(MANUFACTURER "waveshare")
+    set(BOARD_TYPE "esp32-s3-cam")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_ICON_FONT font_awesome_16_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_AUDIO_BOARD)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-s3-audio-board")
@@ -462,6 +468,12 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_5)
+    set(MANUFACTURER "waveshare")
+    set(BOARD_TYPE "esp32-p4-wifi6-touch-lcd-3.5")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
@@ -752,6 +764,11 @@ elseif(CONFIG_BOARD_TYPE_HU_087)
     set(BOARD_TYPE "hu-087")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
+elseif(CONFIG_BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD)
+    set(BOARD_TYPE "freenove-esp32s3-display-2.8-lcd")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_AI_VOX3)
     set(BOARD_TYPE "nulllab-ai-vox-v3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
@@ -924,6 +941,14 @@ if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "boards/common/esp32_camera.cc")
 endif()
 
+set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_BOARD_TYPE_ESP_VOCAT)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        espressif__touch_slider_sensor
+        espressif__touch_button_sensor
+    )
+endif()
+
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
@@ -946,6 +971,7 @@ idf_component_register(SRCS ${SOURCES}
                         efuse
                         bt
                         fatfs
+                        ${MAIN_PRIV_REQUIRES_EXTRA}
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
