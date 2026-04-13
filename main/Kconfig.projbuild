@@ -437,6 +437,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ATK_DNESP32S3M_4G
         bool "正点原子DNESP32S3M-4G"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ATK_DNESP32S3_BOX3
+        bool "正点原子DNESP32S3-BOX3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DU_CHATX
         bool "嘟嘟开发板CHATX(wifi)"
         depends on IDF_TARGET_ESP32S3
