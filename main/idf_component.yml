@@ -35,7 +35,7 @@ dependencies:
   espressif/button: ~4.1.5
   espressif/knob: ^1.0.0
   espressif/esp32-camera:
-    version: ^2.1.5
+    version: ^2.1.6
     rules:
     - if: target in [esp32s3]
   espressif/esp_video:
