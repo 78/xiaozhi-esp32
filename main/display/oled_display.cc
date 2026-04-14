@@ -1,10 +1,13 @@
 #include "oled_display.h"
+#include "animated_eyes.h"
 #include "assets/lang_config.h"
 #include "lvgl_theme.h"
 #include "lvgl_font.h"
 
 #include <string>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 
 #include <esp_log.h>
 #include <esp_err.h>
@@ -96,6 +99,17 @@ void OledDisplay::SetupUI() {
 }
 
 OledDisplay::~OledDisplay() {
+    if (anim_timer_ != nullptr) {
+        esp_timer_stop(anim_timer_);
+        esp_timer_delete(anim_timer_);
+        anim_timer_ = nullptr;
+    }
+
+    if (eye_draw_buf_ != nullptr) {
+        lv_draw_buf_destroy(eye_draw_buf_);
+        eye_draw_buf_ = nullptr;
+    }
+
     if (content_ != nullptr) {
         lv_obj_del(content_);
     }
@@ -143,6 +157,20 @@ void OledDisplay::Unlock() {
     lvgl_port_unlock();
 }
 
+void OledDisplay::SetStatus(const char* status) {
+    // In 128x64 mode with eye canvas, suppress all status text (clock, etc.)
+    if (eye_canvas_ != nullptr) {
+        return;
+    }
+    // Fall through to base class for 128x32 layout
+    LvglDisplay::SetStatus(status);
+}
+
+void OledDisplay::ShowNotification(const char* notification, int duration_ms) {
+    if (eye_canvas_ != nullptr) return;
+    LvglDisplay::ShowNotification(notification, duration_ms);
+}
+
 void OledDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
@@ -168,133 +196,60 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
 void OledDisplay::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 
-    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
-    auto text_font = lvgl_theme->text_font()->font();
-    auto icon_font = lvgl_theme->icon_font()->font();
-    auto large_icon_font = lvgl_theme->large_icon_font()->font();
-
     auto screen = lv_screen_active();
-    lv_obj_set_style_text_font(screen, text_font, 0);
-    lv_obj_set_style_text_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_pad_all(screen, 0, 0);
 
-    /* Container */
+    /* Full-screen container for the eye canvas */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_style_radius(container_, 0, 0);
+    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
 
-    /* Layer 1: Top bar - for status icons */
-    top_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(top_bar_, LV_HOR_RES, 16);
-    lv_obj_set_style_radius(top_bar_, 0, 0);
-    lv_obj_set_style_bg_opa(top_bar_, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(top_bar_, 0, 0);
-    lv_obj_set_style_pad_all(top_bar_, 0, 0);
-    lv_obj_set_flex_flow(top_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(top_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scrollbar_mode(top_bar_, LV_SCROLLBAR_MODE_OFF);
+    // Create canvas for eye rendering using LVGL-managed draw buffer
+    eye_canvas_ = lv_canvas_create(container_);
+    eye_draw_buf_ = lv_draw_buf_create(EYE_CANVAS_W, EYE_CANVAS_H, LV_COLOR_FORMAT_I1, 0);
+    lv_canvas_set_draw_buf(eye_canvas_, eye_draw_buf_);
+    lv_canvas_set_palette(eye_canvas_, 0, lv_color32_make(0, 0, 0, 0xFF));          // index 0 = black
+    lv_canvas_set_palette(eye_canvas_, 1, lv_color32_make(0xFF, 0xFF, 0xFF, 0xFF));  // index 1 = white
+    lv_obj_align(eye_canvas_, LV_ALIGN_CENTER, 0, 0);
 
-    network_label_ = lv_label_create(top_bar_);
-    lv_label_set_text(network_label_, "");
-    lv_obj_set_style_text_font(network_label_, icon_font, 0);
+    // Initialize face state to neutral
+    current_face_ = get_emotion_face(EMOTION_NEUTRAL);
+    target_face_ = current_face_;
+    transition_t_ = 256;
 
-    lv_obj_t* right_icons = lv_obj_create(top_bar_);
-    lv_obj_set_size(right_icons, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(right_icons, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(right_icons, 0, 0);
-    lv_obj_set_style_pad_all(right_icons, 0, 0);
-    lv_obj_set_flex_flow(right_icons, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(right_icons, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // Draw initial face - pixel data starts after 8-byte palette
+    {
+        uint8_t* pixel_data = eye_draw_buf_->data + 8;
+        int stride = eye_draw_buf_->header.stride;
+        draw_face(pixel_data, EYE_CANVAS_W, EYE_CANVAS_H, stride, &current_face_);
+    }
+    lv_obj_invalidate(eye_canvas_);
 
-    mute_label_ = lv_label_create(right_icons);
-    lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, icon_font, 0);
+    // Full-screen eye mode: no text labels needed.
+    // Leave all label pointers as nullptr so base class methods skip them.
+    network_label_ = nullptr;
+    battery_label_ = nullptr;
+    mute_label_ = nullptr;
+    status_label_ = nullptr;
+    notification_label_ = nullptr;
+    chat_message_label_ = nullptr;
 
-    battery_label_ = lv_label_create(right_icons);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, icon_font, 0);
+    // Start animation timer (~15 FPS = 66ms period)
+    esp_timer_create_args_t timer_args = {
+        .callback = AnimTimerCallback,
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "eye_anim",
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &anim_timer_));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(anim_timer_, 66000)); // 66ms = ~15fps
 
-    /* Layer 2: Status bar - for center text labels */
-    status_bar_ = lv_obj_create(screen);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, 16);
-    lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);  // Transparent background
-    lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_all(status_bar_, 0, 0);
-    lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);  // Use absolute positioning
-    lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);  // Overlap with top_bar_
-
-    notification_label_ = lv_label_create(status_bar_);
-    lv_obj_set_width(notification_label_, LV_HOR_RES);
-    lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(notification_label_, "");
-    lv_obj_align(notification_label_, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
-
-    status_label_ = lv_label_create(status_bar_);
-    lv_obj_set_width(status_label_, LV_HOR_RES);
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
-    lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
-
-    /* Content */
-    content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_style_pad_all(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
-    lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_flex_main_place(content_, LV_FLEX_ALIGN_CENTER, 0);
-
-    content_left_ = lv_obj_create(content_);
-    lv_obj_set_size(content_left_, 32, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(content_left_, 0, 0);
-    lv_obj_set_style_border_width(content_left_, 0, 0);
-
-    emotion_label_ = lv_label_create(content_left_);
-    lv_obj_set_style_text_font(emotion_label_, large_icon_font, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
-    lv_obj_center(emotion_label_);
-    lv_obj_set_style_pad_top(emotion_label_, 8, 0);
-
-    content_right_ = lv_obj_create(content_);
-    lv_obj_set_size(content_right_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(content_right_, 0, 0);
-    lv_obj_set_style_border_width(content_right_, 0, 0);
-    lv_obj_set_flex_grow(content_right_, 1);
-    lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
-
-    chat_message_label_ = lv_label_create(content_right_);
-    lv_label_set_text(chat_message_label_, "");
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_width(chat_message_label_, width_ - 32);
-    lv_obj_set_style_pad_top(chat_message_label_, 14, 0);
-
-    // Start scrolling subtitle after a delay
-    static lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_delay(&a, 1000);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
-    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
-
-    low_battery_popup_ = lv_obj_create(screen);
-    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(low_battery_popup_, lv_color_black(), 0);
-    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    low_battery_label_ = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
-    lv_obj_center(low_battery_label_);
-    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+    // Low battery popup disabled - running on USB power, no battery connected
+    low_battery_popup_ = nullptr;
+    low_battery_label_ = nullptr;
 }
 
 void OledDisplay::SetupUI_128x32() {
@@ -385,16 +340,111 @@ void OledDisplay::SetupUI_128x32() {
 }
 
 void OledDisplay::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
-    DisplayLockGuard lock(this);
-    if (emotion_label_ == nullptr) {
+    if (eye_canvas_ == nullptr) {
+        // Fallback for 128x32 layout which still uses emotion_label_
+        const char* utf8 = font_awesome_get_utf8(emotion);
+        DisplayLockGuard lock(this);
+        if (emotion_label_ == nullptr) return;
+        if (utf8 != nullptr) {
+            lv_label_set_text(emotion_label_, utf8);
+        } else {
+            lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
+        }
         return;
     }
-    if (utf8 != nullptr) {
-        lv_label_set_text(emotion_label_, utf8);
-    } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
+
+    // Set target emotion for animated transition
+    EmotionPreset preset = emotion_string_to_preset(emotion);
+    target_face_ = get_emotion_face(preset);
+    transition_t_ = 0;
+}
+
+void OledDisplay::AnimTimerCallback(void* arg) {
+    auto* self = static_cast<OledDisplay*>(arg);
+    self->AnimationTick();
+}
+
+void OledDisplay::AnimationTick() {
+    if (eye_canvas_ == nullptr) return;
+
+    bool needs_redraw = false;
+
+    // Emotion transition
+    if (transition_t_ < 256) {
+        transition_t_ += transition_speed_;
+        if (transition_t_ > 256) transition_t_ = 256;
+        face_lerp(&current_face_, &current_face_, &target_face_, transition_speed_);
+        if (transition_t_ >= 256) {
+            current_face_ = target_face_;
+        }
+        needs_redraw = true;
     }
+
+    // Blink logic
+    blink_timer_++;
+    if (!blinking_ && blink_timer_ >= blink_interval_) {
+        blinking_ = true;
+        blink_phase_ = 0;
+        pre_blink_lid_top_ = current_face_.right_eye.lid_top;
+        blink_timer_ = 0;
+        // Randomize next blink interval: 45-75 frames (~3-5s at 15fps)
+        blink_interval_ = 45 + (rand() % 30);
+    }
+
+    if (blinking_) {
+        blink_phase_++;
+        int re_h = current_face_.right_eye.height;
+        int le_h = current_face_.left_eye.height;
+        if (blink_phase_ <= 4) {
+            // Closing both eyes
+            current_face_.right_eye.lid_top = pre_blink_lid_top_ +
+                (re_h - pre_blink_lid_top_) * blink_phase_ / 4;
+            current_face_.left_eye.lid_top = pre_blink_lid_top_ +
+                (le_h - pre_blink_lid_top_) * blink_phase_ / 4;
+        } else if (blink_phase_ <= 8) {
+            // Opening both eyes
+            int open_phase = blink_phase_ - 4;
+            current_face_.right_eye.lid_top = re_h -
+                (re_h - pre_blink_lid_top_) * open_phase / 4;
+            current_face_.left_eye.lid_top = le_h -
+                (le_h - pre_blink_lid_top_) * open_phase / 4;
+        } else {
+            current_face_.right_eye.lid_top = pre_blink_lid_top_;
+            current_face_.left_eye.lid_top = pre_blink_lid_top_;
+            blinking_ = false;
+        }
+        needs_redraw = true;
+    }
+
+    // Pupil micro-drift (subtle random movement every ~30 frames)
+    drift_timer_++;
+    if (drift_timer_ >= 30) {
+        drift_timer_ = 0;
+        drift_dx_ = (rand() % 3) - 1; // -1, 0, or 1
+        drift_dy_ = (rand() % 3) - 1;
+        needs_redraw = true;
+    }
+
+    if (needs_redraw) {
+            RedrawEyes();
+    }
+}
+
+void OledDisplay::RedrawEyes() {
+    DisplayLockGuard lock(this);
+    if (eye_canvas_ == nullptr || eye_draw_buf_ == nullptr) return;
+
+    // Apply drift to both eyes for rendering
+    FaceState render_face = current_face_;
+    render_face.right_eye.pupil_dx += drift_dx_;
+    render_face.right_eye.pupil_dy += drift_dy_;
+    render_face.left_eye.pupil_dx += drift_dx_;
+    render_face.left_eye.pupil_dy += drift_dy_;
+
+    uint8_t* pixel_data = eye_draw_buf_->data + 8;  // skip 8-byte palette
+    int stride = eye_draw_buf_->header.stride;
+    draw_face(pixel_data, EYE_CANVAS_W, EYE_CANVAS_H, stride, &render_face);
+    lv_obj_invalidate(eye_canvas_);
 }
 
 void OledDisplay::SetTheme(Theme* theme) {
