@@ -8,7 +8,8 @@ void Protocol::OnIncomingJson(std::function<void(const cJSON* root)> callback) {
     on_incoming_json_ = callback;
 }
 
-void Protocol::OnIncomingAudio(std::function<void(std::unique_ptr<AudioStreamPacket> packet)> callback) {
+void Protocol::OnIncomingAudio(
+    std::function<void(std::unique_ptr<AudioStreamPacket> packet)> callback) {
     on_incoming_audio_ = callback;
 }
 
@@ -24,13 +25,9 @@ void Protocol::OnNetworkError(std::function<void(const std::string& message)> ca
     on_network_error_ = callback;
 }
 
-void Protocol::OnConnected(std::function<void()> callback) {
-    on_connected_ = callback;
-}
+void Protocol::OnConnected(std::function<void()> callback) { on_connected_ = callback; }
 
-void Protocol::OnDisconnected(std::function<void()> callback) {
-    on_disconnected_ = callback;
-}
+void Protocol::OnDisconnected(std::function<void()> callback) { on_disconnected_ = callback; }
 
 void Protocol::SetError(const std::string& message) {
     error_occurred_ = true;
@@ -49,8 +46,9 @@ void Protocol::SendAbortSpeaking(AbortReason reason) {
 }
 
 void Protocol::SendWakeWordDetected(const std::string& wake_word) {
-    std::string json = "{\"session_id\":\"" + session_id_ + 
-                      "\",\"type\":\"listen\",\"state\":\"detect\",\"text\":\"" + wake_word + "\"}";
+    std::string json = "{\"session_id\":\"" + session_id_ +
+                       "\",\"type\":\"listen\",\"state\":\"detect\",\"text\":\"" + wake_word +
+                       "\"}";
     SendText(json);
 }
 
@@ -69,12 +67,20 @@ void Protocol::SendStartListening(ListeningMode mode) {
 }
 
 void Protocol::SendStopListening() {
-    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"listen\",\"state\":\"stop\"}";
+    std::string message =
+        "{\"session_id\":\"" + session_id_ + "\",\"type\":\"listen\",\"state\":\"stop\"}";
     SendText(message);
 }
 
 void Protocol::SendMcpMessage(const std::string& payload) {
-    std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"mcp\",\"payload\":" + payload + "}";
+    std::string message =
+        "{\"session_id\":\"" + session_id_ + "\",\"type\":\"mcp\",\"payload\":" + payload + "}";
+    SendText(message);
+}
+
+void Protocol::SendSpeakReady(const std::string& session_id) {
+    std::string message = "{\"session_id\":\"" + session_id + "\"";
+    message += ",\"type\":\"speak_ready\",\"state\":\"ready\"}";
     SendText(message);
 }
 
