@@ -1,0 +1,138 @@
+# Codebase Context Extractor Configuration Example
+# Copy this file to config.yaml and customize as needed
+
+# Default extraction mode
+default_mode: full
+
+# Default output format
+default_format: markdown
+
+# Paths to exclude (in addition to built-in defaults)
+exclude_patterns:
+  - "*/migrations/*"
+  - "*/fixtures/*"
+  - "*/cache/*"
+  - "*/tmp/*"
+  - "*.generated.*"
+  - "*_pb2.py"        # Python protobuf
+  - "*.pb.go"         # Go protobuf
+
+# Include test files by default
+include_tests: false
+
+# Maximum depth for traversal (unlimited if not set)
+# max_depth: 10
+
+# Output directory for generated reports
+output_dir: "./context_reports"
+
+# Language-specific settings
+languages:
+  python:
+    # File extensions to recognize as Python
+    extensions:
+      - .py
+      - .pyw
+    # Additional exclude patterns
+    exclude:
+      - "*/__pycache__/*"
+      - "*/venv/*"
+      - "*/env/*"
+  
+  javascript:
+    extensions:
+      - .js
+      - .jsx
+      - .mjs
+    exclude:
+      - "*/node_modules/*"
+      - "*.min.js"
+  
+  typescript:
+    extensions:
+      - .ts
+      - .tsx
+    exclude:
+      - "*/node_modules/*"
+      - "*/dist/*"
+
+# Extraction mode defaults
+modes:
+  full:
+    # Maximum entities to show per type
+    max_entities: 100
+    # Include metrics
+    include_metrics: true
+    # Include dependency graph
+    include_dependencies: true
+  
+  targeted:
+    # Maximum search results
+    max_results: 50
+    # Show related files
+    show_related: true
+  
+  dependency:
+    # Detect circular dependencies
+    detect_circular: true
+    # Maximum depth for dependency tree
+    max_depth: 5
+    # Group by type
+    group_by_type: true
+
+# Output formatting options
+output:
+  markdown:
+    # Include table of contents
+    include_toc: true
+    # Maximum line length
+    max_line_length: 100
+    # Code block language
+    code_language: auto
+  
+  json:
+    # Pretty print with indentation
+    indent: 2
+    # Sort keys
+    sort_keys: false
+  
+  yaml:
+    # Default flow style
+    default_flow_style: false
+    # Sort keys
+    sort_keys: false
+
+# Performance options
+performance:
+  # Enable caching of analysis results
+  enable_cache: true
+  # Cache directory
+  cache_dir: "./.context_cache"
+  # Cache expiry in hours
+  cache_expiry: 24
+  
+  # Parallel processing
+  parallel: true
+  # Number of worker threads (auto if not set)
+  # workers: 4
+
+# Feature flags
+features:
+  # Analyze docstrings and comments
+  analyze_docstrings: true
+  # Detect code smells
+  detect_code_smells: false
+  # Calculate complexity metrics
+  calculate_complexity: false
+  # Generate call graphs
+  generate_call_graphs: false
+  # Extract type information
+  extract_types: true
+
+# Custom analyzers (advanced)
+custom_analyzers:
+  # Add custom file patterns and analyzers
+  # Example:
+  # - pattern: "*.proto"
+  #   analyzer: "protobuf"
+  #   language: "Protocol Buffers"
