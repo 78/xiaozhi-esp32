@@ -24,7 +24,7 @@ v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版
 
 - Wi-Fi / ML307 Cat.1 4G
 - 离线语音唤醒 [ESP-SR](https://github.com/espressif/esp-sr)
-- 支持两种通信协议（[Websocket](docs/websocket.md) 或 MQTT+UDP）
+- 支持两种通信协议（[Websocket](docs/websocket_zh.md) 或 MQTT+UDP）
 - 采用 OPUS 音频编解码
 - 基于流式 ASR + LLM + TTS 架构的语音交互
 - 声纹识别，识别当前说话人的身份 [3D Speaker](https://github.com/modelscope/3D-Speaker)
@@ -121,11 +121,11 @@ v1 的稳定版本为 1.9.2，可以通过 `git checkout v1` 来切换到 v1 版
 
 ### 开发者文档
 
-- [自定义开发板指南](docs/custom-board.md) - 学习如何为小智 AI 创建自定义开发板
-- [MCP 协议物联网控制用法说明](docs/mcp-usage.md) - 了解如何通过 MCP 协议控制物联网设备
-- [MCP 协议交互流程](docs/mcp-protocol.md) - 设备端 MCP 协议的实现方式
-- [MQTT + UDP 混合通信协议文档](docs/mqtt-udp.md)
-- [一份详细的 WebSocket 通信协议文档](docs/websocket.md)
+- [自定义开发板指南](docs/custom-board_zh.md) - 学习如何为小智 AI 创建自定义开发板
+- [MCP 协议物联网控制用法说明](docs/mcp-usage_zh.md) - 了解如何通过 MCP 协议控制物联网设备
+- [MCP 协议交互流程](docs/mcp-protocol_zh.md) - 设备端 MCP 协议的实现方式
+- [MQTT + UDP 混合通信协议文档](docs/mqtt-udp_zh.md)
+- [一份详细的 WebSocket 通信协议文档](docs/websocket_zh.md)
 
 ## 大模型配置
 
