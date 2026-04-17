@@ -1,37 +1,34 @@
-# BluFi 配网（集成 esp-wifi-connect）
+# BluFi Provisioning (with `esp-wifi-connect`)
 
-本文档说明如何在小智固件中启用和使用 BluFi（BLE Wi‑Fi 配网），并结合项目内置的 `esp-wifi-connect` 组件完成 Wi‑Fi 连接与存储。官方
-BluFi
-协议说明请参考 [Espressif 文档](https://docs.espressif.com/projects/esp-idf/zh_CN/stable/esp32/api-guides/ble/blufi.html)。
+This document explains how to enable and use BluFi (BLE-based WiFi provisioning) in the XiaoZhi firmware, together with the in-tree `esp-wifi-connect` component that handles WiFi connection and credential storage. See the official [Espressif BluFi documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/ble/blufi.html) for the protocol details.
 
-## 前置条件
+## Prerequisites
 
-- 需要支持 BLE 的芯片与固件配置。
-- 在 `idf.py menuconfig` 中启用 `WiFi Configuration Method -> Esp Blufi`（`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`
-  ）。如果想使用 BluFi，必须关闭同一菜单下的 Hotspot 选项，否则默认使用 Hotspot 配网模式。
+- A chip and firmware configuration that support BLE.
+- In `idf.py menuconfig`, enable `WiFi Configuration Method -> Esp Blufi` (`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`). If you want to use BluFi, disable the Hotspot option in the same menu; otherwise hotspot provisioning wins by default.
+- Keep the default NVS and event-loop initialization provided by the project's `app_main`.
+- Exactly one of `CONFIG_BT_BLUEDROID_ENABLED` / `CONFIG_BT_NIMBLE_ENABLED` must be selected; they are mutually exclusive.
 
-- 保持默认的 NVS 与事件循环初始化（项目的 `app_main` 已处理）。
-- CONFIG_BT_BLUEDROID_ENABLED、CONFIG_BT_NIMBLE_ENABLED这两个宏应二选一，不能同时启用。
-## 工作流程
+## Workflow
 
-1) 手机端通过 BluFi（如官方 EspBlufi App 或自研客户端）连接设备，发送 Wi‑Fi SSID/密码，手机端可以通过blufi协议获取设备端扫描到的WiFi列表。
-2) 设备侧在 `ESP_BLUFI_EVENT_REQ_CONNECT_TO_AP` 中将凭据写入 `SsidManager`（存储到 NVS，属于 `esp-wifi-connect` 组件）。
-3) 随后启动 `WifiStation` 扫描并连接；状态通过 BluFi 返回。
-4) 配网成功后设备会自动连接新 Wi‑Fi；失败则返回失败状态。
+1. A phone (using the official EspBlufi app or another BluFi client) connects to the device over BLE and sends the target WiFi SSID / password. The phone can also request the list of WiFi networks scanned by the device through the BluFi protocol.
+2. In `ESP_BLUFI_EVENT_REQ_CONNECT_TO_AP`, the device stores the credentials into `SsidManager` (persisted in NVS by the `esp-wifi-connect` component).
+3. The device then launches `WifiStation` to scan and connect; progress is reported back over BluFi.
+4. If provisioning succeeds, the device connects to the new WiFi automatically. If it fails, an error status is sent back.
 
-## 使用步骤
+## Steps
 
-1. 配置：在 menuconfig 开启 `Esp Blufi`。编译并烧录固件。
-2. 触发配网：设备首次启动且没有已保存的 Wi‑Fi 时会自动进入配网。
-3. 手机端操作：打开 EspBlufi App（或其他 BluFi 客户端），搜索并连接设备，可以选择是否加密，按提示输入 Wi‑Fi SSID/密码并发送。
-4. 观察结果：
-    - 成功：BluFi 报告连接成功，设备自动连接 Wi‑Fi。
-    - 失败：BluFi 返回失败状态，可重新发送或检查路由器。
+1. **Configure**: turn on `Esp Blufi` in menuconfig, then build and flash the firmware.
+2. **Trigger provisioning**: at first boot with no stored WiFi credentials the device enters provisioning automatically.
+3. **Phone side**: open the EspBlufi app (or another BluFi client), scan and connect to the device, optionally enable encryption, then enter the WiFi SSID / password and send them.
+4. **Observe the result**:
+   - Success: BluFi reports success and the device connects to WiFi.
+   - Failure: BluFi reports failure; retry or check the router.
 
-## 注意事项
+## Notes
 
-- BluFi 配网不支持与热点配网同时开启。如果热点配网已经启动，则默认使用热点配网。请在 menuconfig 中只保留一种配网方式。
-- 若多次测试，建议清除或覆盖存储的 SSID（`wifi` 命名空间），避免旧配置干扰。
-- 如果使用自定义 BluFi 客户端，需遵循官方协议帧格式，参考上文官方文档链接。
-- 官方文档中已提供EspBlufi APP下载地址
-- 由于IDF5.5.2的blufi接口发生变化,5.5.2版本编译后蓝牙名称为"Xiaozhi-Blufi",5.5.1版本中蓝牙名称为"BLUFI_DEVICE"
+- BluFi cannot be used at the same time as hotspot provisioning. If hotspot provisioning is already enabled, the device will use it. Keep only one provisioning method in menuconfig.
+- When running repeated tests, clear or overwrite the stored SSID (`wifi` NVS namespace) to avoid stale credentials interfering with the next run.
+- If you write your own BluFi client, follow the official protocol frame format linked above.
+- The EspBlufi app download links are listed in the official documentation.
+- Because the BluFi API changed in IDF 5.5.2, firmware built with 5.5.2 advertises the Bluetooth name as `"Xiaozhi-Blufi"`, while 5.5.1 uses `"BLUFI_DEVICE"`.

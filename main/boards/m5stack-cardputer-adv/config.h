@@ -39,7 +39,7 @@
 #define DISPLAY_SWAP_XY true
 
 #define DISPLAY_OFFSET_X  40
-#define DISPLAY_OFFSET_Y  52
+#define DISPLAY_OFFSET_Y  53
 
 #define DISPLAY_SPI_MOSI_PIN GPIO_NUM_35
 #define DISPLAY_SPI_SCLK_PIN GPIO_NUM_36
@@ -49,8 +49,9 @@
 #define DISPLAY_BACKLIGHT_PIN GPIO_NUM_38
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
-// Keyboard TCA8418 I2C address
+// Keyboard TCA8418 I2C address and interrupt pin
 #define KEYBOARD_TCA8418_ADDR 0x34
+#define KEYBOARD_INT_PIN      GPIO_NUM_11
 
 // IMU BMI270 I2C address
 #define IMU_BMI270_ADDR 0x68

@@ -1,91 +1,90 @@
-# 代码风格指南
+# Code Style Guide
 
-## 代码格式化工具
+## Formatting Tool
 
-本项目使用 clang-format 工具来统一代码风格。我们已经在项目根目录下提供了 `.clang-format` 配置文件，该配置基于 Google C++ 风格指南，并做了一些自定义调整。
+This project uses `clang-format` to keep the code style consistent. The `.clang-format` file in the project root is based on the Google C++ style guide with a few project-specific tweaks.
 
-### 安装 clang-format
+### Installing clang-format
 
-在使用之前，请确保你已经安装了 clang-format 工具：
+Make sure `clang-format` is available before you use it:
 
-- **Windows**：
+- **Windows**:
   ```powershell
   winget install LLVM
-  # 或者使用 Chocolatey
+  # or with Chocolatey
   choco install llvm
   ```
 
-- **Linux**：
+- **Linux**:
   ```bash
-  sudo apt install clang-format  # Ubuntu/Debian
-  sudo dnf install clang-tools-extra  # Fedora
+  sudo apt install clang-format              # Ubuntu/Debian
+  sudo dnf install clang-tools-extra         # Fedora
   ```
 
-- **macOS**：
+- **macOS**:
   ```bash
   brew install clang-format
   ```
 
-### 使用方法
+### Usage
 
-1. **格式化单个文件**：
+1. **Format a single file**:
    ```bash
    clang-format -i path/to/your/file.cpp
    ```
 
-2. **格式化整个项目**：
+2. **Format the entire project**:
    ```bash
-   # 在项目根目录下执行
-   find main -iname *.h -o -iname *.cc | xargs clang-format -i
+   # Run from the project root
+   find main -iname '*.h' -o -iname '*.cc' | xargs clang-format -i
    ```
 
-3. **在提交代码前检查格式**：
+3. **Check formatting without modifying files (useful in CI / pre-commit)**:
    ```bash
-   # 检查文件格式是否符合规范（不修改文件）
    clang-format --dry-run -Werror path/to/your/file.cpp
    ```
 
-### IDE 集成
+### IDE Integration
 
-- **Visual Studio Code**：
-  1. 安装 C/C++ 扩展
-  2. 在设置中启用 `C_Cpp.formatting` 为 `clang-format`
-  3. 可以设置保存时自动格式化：`editor.formatOnSave: true`
+- **Visual Studio Code**:
+  1. Install the C/C++ extension.
+  2. Set `C_Cpp.formatting` to `clangFormat` in settings.
+  3. Optionally enable `editor.formatOnSave`.
 
-- **CLion**：
-  1. 在设置中选择 `Editor > Code Style > C/C++`
-  2. 将 `Formatter` 设置为 `clang-format`
-  3. 选择使用项目中的 `.clang-format` 配置文件
+- **CLion**:
+  1. Open `Editor > Code Style > C/C++` in the settings.
+  2. Set `Formatter` to `clang-format`.
+  3. Choose "use the .clang-format file in the project".
 
-### 主要格式规则
+### Main Rules
 
-- 缩进使用 4 个空格
-- 行宽限制为 100 字符
-- 大括号采用 Attach 风格（与控制语句在同一行）
-- 指针和引用符号靠左对齐
-- 自动排序头文件包含
-- 类访问修饰符缩进为 -4 空格
+- Indent with 4 spaces.
+- Line width capped at 100 characters.
+- Attach-style braces (`{` on the same line as the control statement).
+- Pointers and references bind to the type (left alignment).
+- Includes are sorted automatically.
+- Access specifiers are indented by -4 spaces.
 
-### 注意事项
+### Notes
 
-1. 提交代码前请确保代码已经过格式化
-2. 不要手动调整已格式化的代码对齐
-3. 如果某段代码不希望被格式化，可以使用以下注释包围：
+1. Make sure the code has been formatted before committing.
+2. Do not fix up alignment by hand after running clang-format.
+3. To exclude a block from formatting, wrap it with:
    ```cpp
    // clang-format off
-   // 你的代码
+   your code
    // clang-format on
    ```
 
-### 常见问题
+### FAQ
 
-1. **格式化失败**：
-   - 检查 clang-format 版本是否过低
-   - 确认文件编码为 UTF-8
-   - 验证 .clang-format 文件语法是否正确
+1. **Formatting fails**:
+   - Check whether `clang-format` is too old.
+   - Make sure the file is UTF-8 encoded.
+   - Validate the syntax of your `.clang-format` file.
 
-2. **与期望格式不符**：
-   - 检查是否使用了项目根目录下的 .clang-format 配置
-   - 确认没有其他位置的 .clang-format 文件被优先使用
+2. **Output differs from what you expected**:
+   - Verify that the `.clang-format` in the project root is actually picked up.
+   - Make sure no other `.clang-format` higher in the tree is winning.
 
-如有任何问题或建议，欢迎提出 issue 或 pull request。
+Questions and suggestions are welcome - please open an issue or a pull request.
