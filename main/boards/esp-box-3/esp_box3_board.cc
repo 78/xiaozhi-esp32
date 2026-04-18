@@ -7,6 +7,9 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "aht30.h"
+#include "radar_ms58.h"
+#include "sensor_tools.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -38,9 +41,12 @@ static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
 
 class EspBox3Board : public WifiBoard {
 private:
-    i2c_master_bus_handle_t i2c_bus_;
+    i2c_master_bus_handle_t i2c_bus_;        // audio codec I²C (port 1)
+    i2c_master_bus_handle_t sensor_i2c_bus_; // SENSOR sub-board I²C (port 0)
     Button boot_button_;
     Display* display_;
+    Aht30* aht30_ = nullptr;
+    RadarMs58* radar_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -57,6 +63,36 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+    }
+
+    void InitializeSensorSubBoard() {
+        // Independent I²C bus for the SENSOR sub-board (AHT30 + radar share
+        // the same SDA/SCL on IO41/IO40, distinct from the audio codec bus
+        // on IO8/IO18). Uses I²C port 0 to avoid colliding with the audio
+        // codec on port 1.
+        i2c_master_bus_config_t cfg = {};
+        cfg.i2c_port = SENSOR_I2C_PORT;
+        cfg.sda_io_num = SENSOR_I2C_SDA_PIN;
+        cfg.scl_io_num = SENSOR_I2C_SCL_PIN;
+        cfg.clk_source = I2C_CLK_SRC_DEFAULT;
+        cfg.glitch_ignore_cnt = 7;
+        cfg.intr_priority = 0;
+        cfg.trans_queue_depth = 0;
+        cfg.flags.enable_internal_pullup = 1;
+        esp_err_t err = i2c_new_master_bus(&cfg, &sensor_i2c_bus_);
+        if (err != ESP_OK) {
+            // SENSOR board may not be physically attached — that's fine,
+            // log and skip device init. MCP tools will return error JSON
+            // when called and backend gracefully degrades.
+            ESP_LOGW(TAG, "SENSOR I2C bus init failed: %s — sub-board absent?",
+                     esp_err_to_name(err));
+            sensor_i2c_bus_ = nullptr;
+            return;
+        }
+
+        aht30_ = new Aht30(sensor_i2c_bus_);
+        radar_ = new RadarMs58();
+        ESP_LOGI(TAG, "SENSOR sub-board drivers initialized");
     }
 
     void InitializeSpi() {
@@ -139,9 +175,11 @@ private:
 public:
     EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
+        InitializeSensorSubBoard();
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
+        InitializeSensorTools(aht30_, radar_);
         GetBacklight()->RestoreBrightness();
     }
 

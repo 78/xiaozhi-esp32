@@ -38,4 +38,34 @@
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
 
+// ---- ESP32-S3-BOX-3-SENSOR sub-board ----
+// Per official Espressif schematics (SENSOR-01 V1.1 + SENSOR-02 V1.1):
+//   AHT30 (I²C 0x38)         on shared I²C bus pins below
+//   MS58-3909S68U4 radar     on the SAME I²C bus + digital OUT pin
+//   IR receiver (IRM-H638T)  digital input
+//   IR transmitter (IR67-21C) PWM-modulated drive
+//   Battery ADC               via voltage divider 301k/100k (×4.01 scaling)
+//   MicroSD                   SPI mode
+// Sensor I²C bus is independent from the audio codec I²C (IO8/IO18) — uses
+// the second I²C peripheral so audio init isn't disturbed.
+#define SENSOR_I2C_PORT         I2C_NUM_0
+#define SENSOR_I2C_SDA_PIN      GPIO_NUM_41
+#define SENSOR_I2C_SCL_PIN      GPIO_NUM_40
+
+#define SENSOR_AHT30_ADDR       0x38
+#define SENSOR_RADAR_ADDR       0x4C   // MS58-3909S68U4 default I²C address
+#define SENSOR_RADAR_OUT_PIN    GPIO_NUM_21    // RI_OUT — fast presence flag
+
+#define SENSOR_IR_TX_PIN        GPIO_NUM_39
+#define SENSOR_IR_RX_PIN        GPIO_NUM_38
+
+#define SENSOR_BATTERY_ADC_PIN  GPIO_NUM_10    // BAT_MEAS_ADC, IO10 = ADC1_CH9
+#define SENSOR_BATTERY_DIVIDER  4.01f          // (R15+R16)/R16 = (301k+100k)/100k
+
+#define SENSOR_SD_CS_PIN        GPIO_NUM_12    // SD_DAT3
+#define SENSOR_SD_MOSI_PIN      GPIO_NUM_11    // SD_CMD
+#define SENSOR_SD_CLK_PIN       GPIO_NUM_14    // SD_CLK
+#define SENSOR_SD_MISO_PIN      GPIO_NUM_13    // SD_DAT0
+
+
 #endif // _BOARD_CONFIG_H_
