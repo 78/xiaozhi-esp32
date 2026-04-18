@@ -39,6 +39,26 @@ IrDriver::IrDriver()
     transmit_config_ = {};
     transmit_config_.loop_count = 0;
 
+    // ---- Power on the IR_3V3 rail ----
+    // P-MOSFET Q2 gate = IO9 (per SENSOR-02 schematic). Drive LOW to enable
+    // IR_3V3, which powers the IRM-H638T receiver IC. Without this the RX
+    // line is floating and no pulses ever reach the RMT channel.
+    {
+        gpio_config_t pwr_cfg = {};
+        pwr_cfg.pin_bit_mask = 1ULL << SENSOR_IR_POWER_PIN;
+        pwr_cfg.mode = GPIO_MODE_OUTPUT;
+        pwr_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+        pwr_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        pwr_cfg.intr_type = GPIO_INTR_DISABLE;
+        esp_err_t err = gpio_config(&pwr_cfg);
+        if (err == ESP_OK) {
+            gpio_set_level(SENSOR_IR_POWER_PIN, 0);  // LOW = MOSFET ON = IR_3V3 active
+            ESP_LOGI(TAG, "IR_3V3 power gate (IO%d) driven LOW", SENSOR_IR_POWER_PIN);
+        } else {
+            ESP_LOGW(TAG, "IR power gate config failed: %s", esp_err_to_name(err));
+        }
+    }
+
     // ---- TX channel ----
     rmt_tx_channel_config_t tx_cfg = {};
     tx_cfg.gpio_num = SENSOR_IR_TX_PIN;
@@ -206,6 +226,23 @@ bool IrDriver::LearnResult(const std::string& handle,
     }
 
     learn_consumed_ = true;
+
+    // Diagnostic dump: first 4 symbol pairs so we can see what the receiver
+    // is actually catching (NEC, AC long-frame, garbage, etc.)
+    {
+        char buf[160];
+        int off = snprintf(buf, sizeof(buf), "rx %u symbols:",
+                           (unsigned)evt.num_symbols);
+        unsigned dump_n = evt.num_symbols < 4 ? evt.num_symbols : 4;
+        for (unsigned i = 0; i < dump_n && off < (int)sizeof(buf) - 32; ++i) {
+            const rmt_symbol_word_t& s = evt.received_symbols[i];
+            off += snprintf(buf + off, sizeof(buf) - off,
+                            " [%u/%u, %u/%u]",
+                            (unsigned)s.duration0, (unsigned)s.level0,
+                            (unsigned)s.duration1, (unsigned)s.level1);
+        }
+        ESP_LOGI(TAG, "%s", buf);
+    }
 
     if (!DecodeNecFrame(evt.received_symbols, evt.num_symbols, address, command)) {
         ESP_LOGW(TAG, "captured %u symbols but NEC decode failed",

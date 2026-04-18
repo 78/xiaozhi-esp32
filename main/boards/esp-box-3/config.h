@@ -58,6 +58,17 @@
 
 #define SENSOR_IR_TX_PIN        GPIO_NUM_39
 #define SENSOR_IR_RX_PIN        GPIO_NUM_38
+// Per SENSOR-02 V1.1 schematic (zoomed render of IR Receiver block):
+//   Q2 (AO3401A P-MOSFET): source = VCC_3V3, drain = IR_3V3, gate = "RXD"
+//   R12 (10K) pulls gate to RXD net.
+// "RXD" on the SENSOR sub-board's goldfinger maps to UART0 RX on the
+// BOX-3 main board, which is GPIO 44 (per espressif/esp-bsp esp-box-3.h
+// PMOD2 IO4 = GPIO_NUM_44 = UART0 RX by default).
+// Driving IO44 LOW pulls the P-MOSFET gate down → MOSFET conducts →
+// IR_3V3 = VCC_3V3 → IRM-H638T receiver IC powers up.
+// Safe because xiaozhi uses USB-Serial-JTAG (GPIO 19/20) for the console;
+// UART0 is unused.
+#define SENSOR_IR_POWER_PIN     GPIO_NUM_44
 
 #define SENSOR_BATTERY_ADC_PIN  GPIO_NUM_10    // BAT_MEAS_ADC, IO10 = ADC1_CH9
 #define SENSOR_BATTERY_DIVIDER  4.01f          // (R15+R16)/R16 = (301k+100k)/100k
