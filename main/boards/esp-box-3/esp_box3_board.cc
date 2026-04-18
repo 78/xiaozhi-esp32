@@ -9,6 +9,7 @@
 #include "config.h"
 #include "aht30.h"
 #include "radar_ms58.h"
+#include "ir_driver.h"
 #include "sensor_tools.h"
 
 #include <esp_log.h>
@@ -47,6 +48,7 @@ private:
     Display* display_;
     Aht30* aht30_ = nullptr;
     RadarMs58* radar_ = nullptr;
+    IrDriver* ir_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -92,6 +94,7 @@ private:
 
         aht30_ = new Aht30(sensor_i2c_bus_);
         radar_ = new RadarMs58();
+        ir_ = new IrDriver();
         ESP_LOGI(TAG, "SENSOR sub-board drivers initialized");
     }
 
@@ -179,7 +182,7 @@ public:
         InitializeSpi();
         InitializeIli9341Display();
         InitializeButtons();
-        InitializeSensorTools(aht30_, radar_);
+        InitializeSensorTools(aht30_, radar_, ir_);
         GetBacklight()->RestoreBrightness();
     }
 

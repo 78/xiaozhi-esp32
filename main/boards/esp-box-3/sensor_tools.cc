@@ -20,7 +20,7 @@ static std::string MakeErrorJson(const char* field) {
     return result;
 }
 
-void InitializeSensorTools(Aht30* aht30, RadarMs58* radar) {
+void InitializeSensorTools(Aht30* aht30, RadarMs58* radar, IrDriver* ir) {
     auto& mcp_server = McpServer::GetInstance();
 
     if (aht30 != nullptr) {
@@ -43,6 +43,95 @@ void InitializeSensorTools(Aht30* aht30, RadarMs58* radar) {
                 cJSON* json = cJSON_CreateObject();
                 cJSON_AddNumberToObject(json, "temp_c", temp_c);
                 cJSON_AddNumberToObject(json, "humidity_pct", humidity_pct);
+                char* str = cJSON_PrintUnformatted(json);
+                std::string result(str);
+                cJSON_free(str);
+                cJSON_Delete(json);
+                return result;
+            });
+    }
+
+    if (ir != nullptr) {
+        mcp_server.AddTool(
+            "self.ir.emit",
+            "Send a learned IR remote code via the SENSOR sub-board's IR LED. "
+            "Pass `protocol` (currently only \"NEC\" is supported) and `code` "
+            "as a 32-bit integer where the low 16 bits are the NEC address "
+            "field and the high 16 bits are the NEC command field. Use this "
+            "to control TVs, fans, ACs, etc. that have been learned via "
+            "self.ir.learn_start.",
+            PropertyList({
+                Property("protocol", kPropertyTypeString),
+                Property("code", kPropertyTypeInteger),
+            }),
+            [ir](const PropertyList& properties) -> ReturnValue {
+                std::string protocol = properties["protocol"].value<std::string>();
+                uint32_t code = static_cast<uint32_t>(properties["code"].value<int>());
+                uint16_t address = code & 0xFFFFu;
+                uint16_t command = (code >> 16) & 0xFFFFu;
+                esp_err_t err = ir->Emit(protocol, address, command);
+                if (err != ESP_OK) {
+                    ESP_LOGW(TAG, "ir.emit failed: %s", esp_err_to_name(err));
+                    return MakeErrorJson(esp_err_to_name(err));
+                }
+                cJSON* json = cJSON_CreateObject();
+                cJSON_AddBoolToObject(json, "ok", true);
+                char* str = cJSON_PrintUnformatted(json);
+                std::string result(str);
+                cJSON_free(str);
+                cJSON_Delete(json);
+                return result;
+            });
+
+        mcp_server.AddTool(
+            "self.ir.learn_start",
+            "Begin learning an IR remote code. Returns {\"handle\": str}. "
+            "Within ~5 seconds, point the user's existing remote at the "
+            "device and press the button. Call self.ir.learn_result with "
+            "the handle to retrieve the captured (protocol, code).",
+            PropertyList(),
+            [ir](const PropertyList& properties) -> ReturnValue {
+                std::string handle = ir->LearnStart();
+                if (handle.empty()) {
+                    return MakeErrorJson("learn_start_failed");
+                }
+                cJSON* json = cJSON_CreateObject();
+                cJSON_AddStringToObject(json, "handle", handle.c_str());
+                char* str = cJSON_PrintUnformatted(json);
+                std::string result(str);
+                cJSON_free(str);
+                cJSON_Delete(json);
+                return result;
+            });
+
+        mcp_server.AddTool(
+            "self.ir.learn_result",
+            "Retrieve the result of a learn session. Returns "
+            "{\"protocol\": str, \"code\": uint32} on success, or "
+            "{\"ready\": false} when no signal has been captured yet (caller "
+            "may poll), or {\"ok\": false, \"error\": \"timeout\"} when the "
+            "learn window expired without an IR signal.",
+            PropertyList({
+                Property("handle", kPropertyTypeString),
+            }),
+            [ir](const PropertyList& properties) -> ReturnValue {
+                std::string handle = properties["handle"].value<std::string>();
+                std::string protocol;
+                uint16_t address = 0, command = 0;
+                if (!ir->LearnResult(handle, &protocol, &address, &command)) {
+                    cJSON* json = cJSON_CreateObject();
+                    cJSON_AddBoolToObject(json, "ready", false);
+                    char* str = cJSON_PrintUnformatted(json);
+                    std::string result(str);
+                    cJSON_free(str);
+                    cJSON_Delete(json);
+                    return result;
+                }
+                uint32_t code = static_cast<uint32_t>(address)
+                              | (static_cast<uint32_t>(command) << 16);
+                cJSON* json = cJSON_CreateObject();
+                cJSON_AddStringToObject(json, "protocol", protocol.c_str());
+                cJSON_AddNumberToObject(json, "code", code);
                 char* str = cJSON_PrintUnformatted(json);
                 std::string result(str);
                 cJSON_free(str);
