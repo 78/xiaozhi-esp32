@@ -156,6 +156,19 @@ std::string IrDriver::LearnStart(uint32_t window_ms) {
     learn_window_ms_ = window_ms;
     learn_consumed_ = false;
 
+    // Cancel any in-flight RX from a previous LearnStart that timed out
+    // without receiving a frame. rmt_receive() is one-shot: after a previous
+    // learn window expires server-side without getting an IR signal, the
+    // RMT RX channel is still "armed" and a fresh rmt_receive() returns
+    // ESP_ERR_INVALID_STATE. Disable then re-enable cycles the channel
+    // back to clean state. Errors are non-fatal — first call falls through.
+    (void)rmt_disable(rx_chan_);
+    esp_err_t err = rmt_enable(rx_chan_);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "rmt_enable(rx) on LearnStart failed: %s", esp_err_to_name(err));
+        return "";
+    }
+
     // Drain any previous frames in the queue
     rmt_rx_done_event_data_t stale;
     while (xQueueReceive(rx_queue_, &stale, 0) == pdTRUE) {}
@@ -164,7 +177,7 @@ std::string IrDriver::LearnStart(uint32_t window_ms) {
     rmt_receive_config_t rx_cfg = {};
     rx_cfg.signal_range_min_ns = 1250;            // shortest valid pulse ~1.25µs
     rx_cfg.signal_range_max_ns = 12000000;        // longest = 12ms (NEC header)
-    esp_err_t err = rmt_receive(rx_chan_, s_rx_buffer, sizeof(s_rx_buffer), &rx_cfg);
+    err = rmt_receive(rx_chan_, s_rx_buffer, sizeof(s_rx_buffer), &rx_cfg);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "rmt_receive failed: %s", esp_err_to_name(err));
         return "";
