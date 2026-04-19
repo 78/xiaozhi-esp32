@@ -22,6 +22,8 @@ The protocol uses two channels:
 
 ## 2. End-to-end Flow
 
+### 2.1 Normal wake-up flow
+
 ```mermaid
 sequenceDiagram
     participant Device as ESP32 device
@@ -55,6 +57,56 @@ sequenceDiagram
     Note over Device, UDP: 6. Teardown
     Device->>MQTT: Goodbye
     Device->>UDP: Disconnect
+```
+
+### 2.2 Server-initiated wake-up flow
+
+```mermaid
+sequenceDiagram
+    participant Device as ESP32 device
+    participant MQTT as MQTT broker
+    participant UDP as UDP server
+
+    Note over Device, UDP: Device is in idle state
+    Device->>Device: State: idle
+
+    Note over Device, UDP: 1. Server sends speak_request
+    MQTT->>Device: speak_request (session_id, text)
+
+    Note over Device, UDP: 2. Device checks state and prepares
+    Device->>Device: Check if state is idle
+    Device->>Device: Display preview text (if present)
+    Device->>Device: Switch to connecting state
+
+    Note over Device, UDP: 3. Open audio channel
+    alt Audio channel already open
+        Device->>Device: Reuse existing channel
+    else Audio channel not open
+        Device->>MQTT: Hello Message
+        MQTT->>Device: Hello Response (UDP config)
+        Device->>UDP: UDP Connect
+        UDP->>Device: Connected
+    end
+
+    Note over Device, UDP: 4. Device prepares to receive audio
+    Device->>Device: Set listening_mode
+    Device->>Device: Switch to speaking state
+
+    Note over Device, UDP: 5. Device sends speak_ready response
+    Device->>MQTT: speak_ready (session_id, udp_config)
+
+    Note over Device, UDP: 6. Server sends audio data
+    MQTT->>Device: tts start
+    UDP->>Device: Encrypted audio data (Opus)
+    Device->>Device: Play audio
+
+    Note over Device, UDP: 7. Playback ends
+    MQTT->>Device: tts stop
+    Device->>Device: Switch to listening state (user can respond)
+
+    Note over Device, UDP: 8. Close connection
+    MQTT->>Device: goodbye
+    Device->>Device: Switch to idle state, close audio channel
 ```
 
 ---
@@ -165,6 +217,16 @@ Field reference:
    }
    ```
 
+5. **Speak Ready**
+   Sent by the device after receiving a `speak_request` from the server, indicating it is ready to receive audio.
+   ```json
+   {
+     "session_id": "xxx",
+     "type": "speak_ready",
+     "state": "ready"
+   }
+   ```
+
 #### 3.3.2 Server -> Device
 
 Semantics match the WebSocket protocol. Supported types:
@@ -176,6 +238,7 @@ Semantics match the WebSocket protocol. Supported types:
 - **Alert** - show an alert on the UI; fields: `status`, `message`, `emotion`.
 - **Goodbye** - server-initiated shutdown of the audio session. The device responds by closing the UDP channel without sending its own goodbye.
 - **Custom** (optional, enabled via `CONFIG_RECEIVE_CUSTOM_MESSAGE`).
+- **Speak Request** - server-initiated wake-up request (see below).
 
 Example alert:
 ```json
@@ -187,6 +250,21 @@ Example alert:
   "emotion": "sad"
 }
 ```
+
+**Speak Request message example:**
+```json
+{
+  "session_id": "xxx",
+  "type": "speak_request",
+  "text": "This is a notification message"
+}
+```
+- The server actively requests the device to enter the speaking state, used for remote wake-up or push notification scenarios.
+- **Field descriptions:**
+  - `session_id`: session identifier (required)
+  - `type`: fixed as "speak_request"
+  - `text`: preview text (optional, displayed on the device screen to show upcoming content)
+- **Conversation flow:** After TTS stop, device enters listening state (user can respond by voice). After server sends goodbye, device enters idle state and closes the audio channel.
 
 ---
 
@@ -200,7 +278,7 @@ After the device receives the MQTT hello response, it:
 3. Initializes the AES-CTR context.
 4. Opens the UDP socket.
 
-### 4.2 Audio packet format
+**Note**: NAT activation packets are only sent for server-initiated wake-up (`speak_request`). In the normal wake-up flow, the device immediately sends audio data after opening the channel, which naturally establishes NAT mapping. For server-initiated wake-up, the device must proactively send empty packets so the server can send audio data back to the device through NAT.
 
 #### 4.2.1 Encrypted audio packet
 

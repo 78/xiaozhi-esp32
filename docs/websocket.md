@@ -78,6 +78,17 @@ This document describes the WebSocket communication protocol between the device 
    - When the device wants to end the session, it calls `CloseAudioChannel()` to tear down the socket and returns to idle.
    - The same callback chain runs if the server closes the socket first.
 
+### 1.2 Server-initiated wake-up flow (only for MQTT protocol)
+
+**Note**: The WebSocket protocol has no persistent connection — when the device is in idle state, the WebSocket connection is disconnected, and the server cannot actively send messages. The server-initiated wake-up feature is primarily for the MQTT protocol scenario.
+
+WebSocket protocol limitations:
+- The WebSocket connection is disconnected when the device is in idle state
+- The server cannot send speak_request messages via WebSocket
+- Only user-initiated wake-up (button press, voice wake word) can establish a WebSocket connection
+
+For server-initiated wake-up functionality, use the MQTT + UDP protocol (see `mqtt-udp.md`).
+
 ---
 
 ## 2. Common Request Headers
