@@ -424,6 +424,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_margin_left(battery_label_, lvgl_theme->spacing(2), 0);
 
+    battery_percent_label_ = lv_label_create(right_icons);
+    lv_label_set_text(battery_percent_label_, "");
+    lv_obj_set_style_text_font(battery_percent_label_, &font_puhui_basic_20_4, 0);
+    lv_obj_set_style_text_color(battery_percent_label_, lvgl_theme->text_color(), 0);
+    lv_obj_set_style_margin_left(battery_percent_label_, lvgl_theme->spacing(1), 0);
+
     /* Layer 2: Status bar - for center text labels */
     status_bar_ = lv_obj_create(screen);
     lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
@@ -894,6 +900,12 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(battery_label_, icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_margin_left(battery_label_, lvgl_theme->spacing(2), 0);
+
+    battery_percent_label_ = lv_label_create(right_icons);
+    lv_label_set_text(battery_percent_label_, "");
+    lv_obj_set_style_text_font(battery_percent_label_, &font_puhui_basic_20_4, 0);
+    lv_obj_set_style_text_color(battery_percent_label_, lvgl_theme->text_color(), 0);
+    lv_obj_set_style_margin_left(battery_percent_label_, lvgl_theme->spacing(1), 0);
 
     /* Layer 2: Status bar - for center text labels */
     status_bar_ = lv_obj_create(screen);
