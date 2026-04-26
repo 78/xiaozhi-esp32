@@ -167,7 +167,7 @@ private:
         });
     }
 
-    // 物联网初始化，逐步迁移到 MCP 协议
+    // Initialize other tools (e.g., lamp controller)
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
     }
@@ -183,6 +183,14 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+        // Set POWER_GPIO as output and set it to high
+        gpio_config_t io_conf = {
+            .pin_bit_mask = (1ULL << POWER_GPIO),
+            .mode = GPIO_MODE_OUTPUT,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&io_conf);
+        gpio_set_level(POWER_GPIO, 1);
     }
 
     virtual Led* GetLed() override {
