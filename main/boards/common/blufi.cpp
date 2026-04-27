@@ -577,8 +577,14 @@ void Blufi::start_wifi_scan() {
             m_scan_in_progress = false;
             return;
         }
-    } else if (current_mode == WIFI_MODE_STA) {
-        // Start scan
+    } else if (current_mode == WIFI_MODE_STA || current_mode == WIFI_MODE_APSTA) {
+        // Ensure WiFi driver is started (may have been stopped during config mode transition)
+        err = esp_wifi_start();
+        if (err != ESP_OK && err != ESP_ERR_WIFI_STATE) {
+            ESP_LOGE(BLUFI_TAG, "Failed to start WiFi before scan: %s", esp_err_to_name(err));
+            m_scan_in_progress = false;
+            return;
+        }
         err = esp_wifi_scan_start(NULL, false);
         if (err != ESP_OK) {
             ESP_LOGE(BLUFI_TAG, "Failed to start WiFi scan: %s", esp_err_to_name(err));
@@ -596,7 +602,8 @@ void Blufi::start_wifi_scan() {
 
 void Blufi::_send_wifi_list() {
     if (m_ap_records.empty()) {
-        ESP_LOGW(BLUFI_TAG, "No AP records available to send");
+        ESP_LOGW(BLUFI_TAG, "No AP records available, sending WiFi scan fail");
+        esp_blufi_send_error_info(ESP_BLUFI_WIFI_SCAN_FAIL);
         return;
     }
 
@@ -631,7 +638,7 @@ void Blufi::_wifi_scan_event_handler(void* arg, esp_event_base_t event_base, int
             ESP_LOGW(BLUFI_TAG, "No APs found");
             self->m_ap_records.clear();
         } else {
-            if (static_cast<Blufi*>(arg)->m_scan_should_save_ssid == true) {
+            if (self->m_scan_should_save_ssid) {
                 self->m_ap_records.resize(ap_num);
                 esp_wifi_scan_get_ap_records(&ap_num, self->m_ap_records.data());
 
@@ -643,6 +650,9 @@ void Blufi::_wifi_scan_event_handler(void* arg, esp_event_base_t event_base, int
             }
         }
         self->m_scan_in_progress = false;
+        if (self->m_scan_should_save_ssid) {
+            self->_send_wifi_list();
+        }
     }
 }
 
@@ -865,10 +875,14 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             break;
         case ESP_BLUFI_EVENT_GET_WIFI_LIST: {
             ESP_LOGI(BLUFI_TAG, "BLUFI get wifi list");
-            while (m_scan_in_progress) {
-                vTaskDelay(pdMS_TO_TICKS(500));
+            m_scan_should_save_ssid = true;
+            m_ap_records.clear();
+            // Trigger a fresh scan; _send_wifi_list() is called from the scan-done handler.
+            // If the scan cannot start, send an error frame so the App exits its wait state.
+            start_wifi_scan();
+            if (!m_scan_in_progress) {
+                _send_wifi_list();
             }
-            _send_wifi_list();
             break;
         }
         default:
