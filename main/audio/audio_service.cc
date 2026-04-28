@@ -227,6 +227,10 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     return true;
 }
 
+void AudioService::ScheduleInputReset() {
+    audio_input_need_reset_ = true;
+}
+
 void AudioService::AudioInputTask() {
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
@@ -236,6 +240,24 @@ void AudioService::AudioInputTask() {
         if (service_stopped_) {
             break;
         }
+
+        /* 
+         * Safely process deferred hardware reset requests in the audio reading thread.
+         * This prevents concurrent I2S driver destruction while esp_codec_dev_read is blocking.
+         */
+        if (audio_input_need_reset_) {
+            audio_input_need_reset_ = false;
+            ESP_LOGI(TAG, "Audio input task safely resetting codec and wake word buffers...");
+            // Stop hardware stream safely
+            codec_->EnableInput(false);
+            
+            // Clean up potentially corrupted WakeWord buffers caused by hardware muting
+            if (wake_word_) {
+                wake_word_->Stop();
+                wake_word_->Start();
+            }
+        }
+
         if (audio_input_need_warmup_) {
             audio_input_need_warmup_ = false;
             vTaskDelay(pdMS_TO_TICKS(120));

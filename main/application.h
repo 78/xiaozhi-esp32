@@ -104,7 +104,6 @@ public:
     void StopListening();
 
     void Reboot();
-    void WakeWordInvoke(const std::string& wake_word);
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
@@ -112,6 +111,9 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+    
+    void SetMuted(bool muted) { muted_ = muted; }
+    bool IsMuted() const { return muted_; }
     
     /**
      * Reset protocol resources (thread-safe)
@@ -138,6 +140,7 @@ private:
 
     bool has_server_time_ = false;
     bool aborted_ = false;
+    bool muted_ = false;
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;
