@@ -93,7 +93,7 @@ sequenceDiagram
     Device->>Device: Switch to speaking state
 
     Note over Device, UDP: 5. Device sends speak_ready response
-    Device->>MQTT: speak_ready (session_id, udp_config)
+    Device->>MQTT: speak_ready (session_id)
 
     Note over Device, UDP: 6. Server sends audio data
     MQTT->>Device: tts start
