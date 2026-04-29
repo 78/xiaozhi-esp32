@@ -813,17 +813,16 @@ void Application::HandleWakeWordDetectedEvent() {
         // Clear send queue to avoid sending residues to server
         while (audio_service_.PopPacketFromSendQueue());
 
-        if (state == kDeviceStateListening) {
-            protocol_->SendStartListening(GetDefaultListeningMode());
-            audio_service_.ResetDecoder();
-            audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
-            // Re-enable wake word detection as it was stopped by the detection itself
-            audio_service_.EnableWakeWordDetection(true);
-        } else {
-            // Play popup sound and start listening again
-            play_popup_on_listening_ = true;
-            SetListeningMode(GetDefaultListeningMode());
+        // Transition to Connecting to satisfy ContinueWakeWordInvoke validation
+        SetDeviceState(kDeviceStateConnecting);
+        
+        if (!protocol_->IsAudioChannelOpened()) {
+            Schedule([this, wake_word]() {
+                ContinueWakeWordInvoke(wake_word);
+            });
+            return;
         }
+        ContinueWakeWordInvoke(wake_word);
     } else if (state == kDeviceStateActivating) {
         // Restart the activation check if the wake word is detected during activation
         SetDeviceState(kDeviceStateIdle);
@@ -1049,16 +1048,21 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
         }
         // Channel already opened, continue directly
         ContinueWakeWordInvoke(wake_word);
-    } else if (state == kDeviceStateSpeaking) {
-        Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
-        });
-    } else if (state == kDeviceStateListening) {   
-        Schedule([this]() {
-            if (protocol_) {
-                protocol_->CloseAudioChannel();
-            }
-        });
+    } else if (state == kDeviceStateSpeaking || state == kDeviceStateListening) {
+        AbortSpeaking(kAbortReasonWakeWordDetected);
+        // Clear send queue to avoid sending residues to server
+        while (audio_service_.PopPacketFromSendQueue());
+
+        // Transition to Connecting to satisfy ContinueWakeWordInvoke validation
+        SetDeviceState(kDeviceStateConnecting);
+        
+        if (!protocol_->IsAudioChannelOpened()) {
+            Schedule([this, wake_word]() {
+                ContinueWakeWordInvoke(wake_word);
+            });
+            return;
+        }
+        ContinueWakeWordInvoke(wake_word);
     }
 }
 
