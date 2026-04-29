@@ -1025,6 +1025,43 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
 }
 
 
+void Application::WakeWordInvoke(const std::string& wake_word) {
+    if (!protocol_) {
+        return;
+    }
+
+    auto state = GetDeviceState();
+    
+    if (state == kDeviceStateIdle) {
+        if (IsMuted()) {
+            return;
+        }
+        audio_service_.EncodeWakeWord();
+
+        SetDeviceState(kDeviceStateConnecting);
+
+        if (!protocol_->IsAudioChannelOpened()) {
+            // Schedule to let the state change be processed first (UI update)
+            Schedule([this, wake_word]() {
+                ContinueWakeWordInvoke(wake_word);
+            });
+            return;
+        }
+        // Channel already opened, continue directly
+        ContinueWakeWordInvoke(wake_word);
+    } else if (state == kDeviceStateSpeaking) {
+        Schedule([this]() {
+            AbortSpeaking(kAbortReasonNone);
+        });
+    } else if (state == kDeviceStateListening) {   
+        Schedule([this]() {
+            if (protocol_) {
+                protocol_->CloseAudioChannel();
+            }
+        });
+    }
+}
+
 bool Application::CanEnterSleepMode() {
     if (GetDeviceState() != kDeviceStateIdle) {
         return false;
