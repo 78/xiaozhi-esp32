@@ -8,27 +8,9 @@
 
 ## 基础使用
 
-* idf version: v6.0-dev
+* idf version: v5.5.2 or above (recommended: v6.0-dev)
 
-1. 调整 idf_component.yml
-
-将
-```yaml
-  espressif/esp_video:
-    version: ==1.3.1   # for compatibility. update version may need to modify this project code.
-    rules:
-    - if: target not in [esp32]
-```
-修改为
-```yaml
-  espressif/esp_video:
-    version: '==0.7.0'
-    rules:
-    - if: target not in [esp32]
-  espressif/esp_ipa: '==0.1.0'
-```
-
-* idf version: v5.5.3
+* No dependency override needed — the project already specifies the correct `esp_video` and `esp_ipa` versions in `main/idf_component.yml`. Do NOT change the dependency versions unless you are also modifying the source code to match the older API.
 
 针对 ESP32-P4 Rev <3.0 用户:
 确保你的 sdkconfig.defaults 包含:
@@ -37,7 +19,7 @@ CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
 
 否则烧写的时候会出现：'bootloader/bootloader.bin' requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)
 
-2. 使用 release.py 编译
+1. 使用 release.py 编译
 
 ```shell
 python ./scripts/release.py m5stack-tab5
@@ -45,7 +27,7 @@ python ./scripts/release.py m5stack-tab5
 
 如需手动编译，请参考 `m5stack-tab5/config.json` 修改 menuconfig 对应选项。
 
-3. 编译烧录程序
+2. 编译烧录程序
 
 ```shell
 idf.py flash monitor
@@ -62,5 +44,3 @@ idf.py flash monitor
 1. listening... 需要等几秒才能获取语音输入???
 2. 亮度调节不对
 3. 音量调节不对
- 
-## TODO
