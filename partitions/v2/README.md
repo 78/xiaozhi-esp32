@@ -104,4 +104,10 @@ When upgrading from v1 to v2:
 - The `assets` partition size varies by configuration to optimize for different flash sizes
 - ESP32-C3 devices use a smaller assets partition (4MB) due to limited available mmap pages in the system
 - 32MB devices get the largest assets partition (16MB) for maximum content storage
-- All partition tables maintain proper alignment for optimal flash performance 
+- All partition tables maintain proper alignment for optimal flash performance
+- On ESP32-S3, the available virtual mmap address space for data is typically around 12–13 MB at
+  runtime.  The firmware will automatically memory-map only the bytes that are actually stored in
+  the partition (not the full 16 MB), so assets packages up to ~12 MB work without any additional
+  configuration even though the partition itself is 16 MB.  If the `self.assets.set_download_url`
+  MCP tool was previously unavailable on a 32 MB board, upgrading to this version resolves the
+  issue. 

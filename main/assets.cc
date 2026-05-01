@@ -135,22 +135,45 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
         return false;
     }
 
+    // Mark partition as valid as soon as it is found so that the
+    // self.assets.set_download_url MCP tool is registered even when the
+    // partition cannot be memory-mapped (e.g. first boot before assets are
+    // downloaded, or the mmap address space is smaller than the partition).
+    assets->partition_valid_ = true;
+
     int free_pages = spi_flash_mmap_get_free_pages(SPI_FLASH_MMAP_DATA);
-    uint32_t storage_size = free_pages * 64 * 1024;
+    uint32_t storage_size = (uint32_t)free_pages * 65536u;
     ESP_LOGI(TAG, "The storage free size is %ld KB", storage_size / 1024);
     ESP_LOGI(TAG, "The partition size is %ld KB", assets->partition_->size / 1024);
+
+    // Determine the minimum mmap size needed.  If the full partition cannot
+    // fit in the available mmap address space (common on ESP32-S3 with a
+    // 32 MB flash and a 16 MB assets partition), read the 12-byte header via
+    // esp_partition_read to find out how many bytes of actual data are stored
+    // and only map that amount.  This avoids the false-negative check that
+    // caused "Unknown tool: self.assets.set_download_url" on 32 MB boards.
+    size_t mmap_size = assets->partition_->size;
     if (storage_size < assets->partition_->size) {
-        ESP_LOGE(TAG, "The free size %ld KB is less than assets partition required %ld KB", storage_size / 1024, assets->partition_->size / 1024);
-        return false;
+        uint32_t header[3] = {0};
+        if (esp_partition_read(assets->partition_, 0, header, sizeof(header)) == ESP_OK) {
+            uint32_t stored_len = header[2];
+            if (stored_len > 0 && assets->partition_->size >= 12 && stored_len <= assets->partition_->size - 12) {
+                mmap_size = 12 + stored_len;
+                ESP_LOGI(TAG, "Partition larger than available mmap space; using actual data size: %u KB", (unsigned)(mmap_size / 1024));
+            }
+        }
+        if (storage_size < mmap_size) {
+            ESP_LOGW(TAG, "The free mmap size %ld KB is less than required %u KB, assets unavailable until downloaded",
+                     storage_size / 1024, (unsigned)(mmap_size / 1024));
+            return false;
+        }
     }
 
-    esp_err_t err = esp_partition_mmap(assets->partition_, 0, assets->partition_->size, ESP_PARTITION_MMAP_DATA, (const void**)&mmap_root_, &mmap_handle_);
+    esp_err_t err = esp_partition_mmap(assets->partition_, 0, mmap_size, ESP_PARTITION_MMAP_DATA, (const void**)&mmap_root_, &mmap_handle_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mmap assets partition: %s", esp_err_to_name(err));
         return false;
     }
-
-    assets->partition_valid_ = true;
 
     uint32_t stored_files = *(uint32_t*)(mmap_root_ + 0);
     uint32_t stored_chksum = *(uint32_t*)(mmap_root_ + 4);
@@ -158,6 +181,12 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
 
     if (stored_len > assets->partition_->size - 12) {
         ESP_LOGD(TAG, "The stored_len (0x%lx) is greater than the partition size (0x%lx) - 12", stored_len, assets->partition_->size);
+        return false;
+    }
+
+    // Ensure the stored data fits within what we actually mapped.
+    if (stored_len > mmap_size - 12) {
+        ESP_LOGE(TAG, "The stored_len (0x%lx) is greater than the mapped size (0x%lx) - 12", stored_len, (uint32_t)mmap_size);
         return false;
     }
 
