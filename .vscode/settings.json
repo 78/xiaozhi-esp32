@@ -1,0 +1,21 @@
+{
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "C_Cpp.intelliSenseEngine": "default",
+  "C_Cpp.errorSquiggles": "enabled",
+  "files.associations": {
+    "*.h": "c",
+    "*.hpp": "cpp",
+    "*.cc": "cpp",
+    "*.inc": "c"
+  },
+  "files.exclude": {
+    "**/build": true,
+    "**/managed_components": false,
+    "**/.cache": true
+  },
+  "search.exclude": {
+    "**/build": true,
+    "**/.cache": true
+  },
+  "idf.currentSetup": "/Users/shujun/.espressif/esp-idf-554"
+}
