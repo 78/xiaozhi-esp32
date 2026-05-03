@@ -802,7 +802,7 @@ void WifiConfigurationAp::StartWebServer()
         },
         .user_ctx = this
     };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &advanced_submit));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &advanced_submit_uri));
 
     // Register the /reboot URI
     httpd_uri_t reboot_uri = {
@@ -850,6 +850,50 @@ void WifiConfigurationAp::StartWebServer()
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &reset_wifi_uri));
 
+    // Register the /system/info URI for commercial status monitoring
+    httpd_uri_t system_info_uri = {
+        .uri = "/system/info",
+        .method = HTTP_GET,
+        .handler = [](httpd_req_t *req) -> esp_err_t {
+            // Get MAC
+            char mac_str[18];
+            uint8_t mac[6];
+            esp_read_mac(mac, ESP_MAC_WIFI_STA);
+            sprintf(mac_str, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+            // Get Uptime & RAM
+            uint32_t uptime = esp_timer_get_time() / 1000000;
+            size_t free_heap = esp_get_free_heap_size();
+            size_t total_heap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+
+            // Get RSSI (if connected)
+            int rssi = 0;
+            wifi_ap_record_t info;
+            if (esp_wifi_sta_get_ap_info(&info) == ESP_OK) {
+                rssi = info.rssi;
+            }
+
+            // Get Temperature (Approximate or via sensor if available)
+            float temp = 0;
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
+            // Simplified internal temp read for modern ESP32
+            // Note: In production, you'd use the temperature_sensor driver
+            temp = 42.5; // Placeholder for now, real sensor needs driver initialization
+#endif
+
+            char json_response[512];
+            snprintf(json_response, sizeof(json_response),
+                     "{\"model\":\"XiaoZhi-ESP32\",\"version\":\"1.2.0-stable\",\"mac\":\"%s\",\"uptime\":%lu,\"heap_free\":%u,\"heap_total\":%u,\"rssi\":%d,\"temp\":%.1f}",
+                     mac_str, uptime, (unsigned int)free_heap, (unsigned int)total_heap, rssi, temp);
+
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, json_response);
+            return ESP_OK;
+        },
+        .user_ctx = this
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &system_info_uri));
+
     // Register the /log_data URI
     httpd_uri_t log_data_uri = {
         .uri = "/log_data",
@@ -875,7 +919,78 @@ void WifiConfigurationAp::StartWebServer()
     };
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &log_data_uri));
 
-    ESP_LOGI(TAG, "Web server started");
+    // Register the /update URI for Web OTA (Binary Upload)
+    httpd_uri_t update_uri = {
+        .uri = "/update",
+        .method = HTTP_POST,
+        .handler = [](httpd_req_t *req) -> esp_err_t {
+            esp_ota_handle_t update_handle = 0;
+            const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
+            
+            if (update_partition == NULL) {
+                ESP_LOGE("OTA", "Passive OTA partition not found");
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA partition not found");
+                return ESP_FAIL;
+            }
+
+            ESP_LOGI("OTA", "Writing to partition subtype %d at offset 0x%lx",
+                     update_partition->subtype, update_partition->address);
+
+            esp_err_t err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
+            if (err != ESP_OK) {
+                ESP_LOGE("OTA", "esp_ota_begin failed (%s)", esp_err_to_name(err));
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+                return ESP_FAIL;
+            }
+
+            char *upgrade_data_buf = (char *)malloc(1024);
+            if (!upgrade_data_buf) {
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Memory allocation failed");
+                return ESP_FAIL;
+            }
+
+            int remaining = req->content_len;
+            while (remaining > 0) {
+                int recv_len = httpd_req_recv(req, upgrade_data_buf, (remaining > 1024) ? 1024 : remaining);
+                if (recv_len <= 0) {
+                    if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) continue;
+                    free(upgrade_data_buf);
+                    esp_ota_end(update_handle);
+                    return ESP_FAIL;
+                }
+                esp_ota_write(update_handle, upgrade_data_buf, recv_len);
+                remaining -= recv_len;
+            }
+            free(upgrade_data_buf);
+
+            err = esp_ota_end(update_handle);
+            if (err != ESP_OK) {
+                ESP_LOGE("OTA", "esp_ota_end failed!");
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA end failed");
+                return ESP_FAIL;
+            }
+
+            err = esp_ota_set_boot_partition(update_partition);
+            if (err != ESP_OK) {
+                ESP_LOGE("OTA", "esp_ota_set_boot_partition failed! err=0x%x", err);
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Set boot partition failed");
+                return ESP_FAIL;
+            }
+
+            ESP_LOGI("OTA", "OTA update successful! Rebooting...");
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"success\":true}");
+
+            // Reboot after a small delay
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            esp_restart();
+            return ESP_OK;
+        },
+        .user_ctx = this
+    };
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &update_uri));
+
+    ESP_LOGI(TAG, "Web server started with OTA support");
 }
 
 bool WifiConfigurationAp::ConnectToWifi(const std::string &ssid, const std::string &password)

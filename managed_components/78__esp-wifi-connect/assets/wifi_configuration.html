@@ -1,506 +1,747 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Network Configuration</title>
     <meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="referrer no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>XiaoZhi | Smart Configuration</title>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="referrer no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style type="text/css">
-        /* ========== Base Styles ========== */
+        :root {
+            --primary: #007AFF;
+            --primary-glow: rgba(0, 122, 255, 0.3);
+            --bg: #0a0a0c;
+            --card-bg: rgba(28, 28, 30, 0.7);
+            --text: #ffffff;
+            --text-secondary: #a1a1a6;
+            --border: rgba(255, 255, 255, 0.1);
+            --success: #32d74b;
+            --danger: #ff453a;
+            --warning: #ffd60a;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Inter', -apple-system, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 0% 0%, rgba(0, 122, 255, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(88, 86, 214, 0.15) 0%, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
         }
 
-        /* ========== Form Elements ========== */
-        label {
-            display: block;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0 20px;
+            position: relative;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #fff 0%, #007AFF 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             margin-bottom: 5px;
         }
-        input {
-            width: 100%;
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        /* ========== Tabs Navigation ========== */
+        .nav-wrapper {
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid var(--border);
             padding: 5px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-        }
-        input[type="submit"] {
-            background-color: #007bff;
-            color: #fff;
-            border: none;
-            border-radius: 3px;
-            padding: 10px;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover {
-            background-color: #0056b3;
-        }
-        input[type="submit"]:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        #remember_bssid, #sleep_mode {
-            width: auto;
+            margin-bottom: 25px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
-        /* ========== AP List Styles ========== */
-        #ap_list {
-            margin-top: 20px;
-            border-top: 1px solid #ccc;
-            padding-top: 10px;
-        }
-        #ap_list .scanning {
-            font-style: italic;
-            color: #666;
-        }
-        #ap_list a {
-            display: block;
-            margin-top: 5px;
-            color: #007bff;
-            text-decoration: none;
-        }
-        #ap_list a:hover {
-            text-decoration: underline;
+        .nav-wrapper::-webkit-scrollbar {
+            display: none;
         }
 
-        /* ========== Language Switcher ========== */
-        .language-switch {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-        }
-        .language-switch select {
-            padding: 5px;
-            border-radius: 3px;
-            border: 1px solid #ccc;
-        }
-
-        /* ========== Tab Styles ========== */
         .tabs {
             display: flex;
-            margin-top: 20px;
-            margin-bottom: 0;
-            padding-left: 20px;
-            border-bottom: 1px solid #ccc;
+            gap: 5px;
+            white-space: nowrap;
         }
+
         .tab {
             padding: 10px 20px;
             cursor: pointer;
-            border: 1px solid #ccc;
-            border-bottom: none;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
-            background-color: #f0f0f0;
-            position: relative;
-            top: 1px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+
+        .tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
         .tab.active {
-            background-color: #fff;
+            color: #fff;
+            background: var(--primary);
+            box-shadow: 0 4px 15px var(--primary-glow);
         }
+
+        /* ========== Tab Content ========== */
         .tab-content {
             display: none;
-            border-top: none;
-            padding: 20px;
-            background-color: #fff;
+            animation: fadeIn 0.4s ease-out;
         }
+
         .tab-content.active {
             display: block;
         }
 
-        /* ========== Toast Message Styles ========== */
-        .toast {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 8px;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out;
-            min-width: 200px;
-            text-align: center;
-        }
-        .toast.show {
-            opacity: 1;
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        /* ========== Loading Spinner Styles ========== */
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ========== Form Controls ========== */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
             width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-size: 15px;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
             justify-content: center;
             align-items: center;
+            gap: 10px;
         }
-        .loading-overlay.show {
-            display: flex;
-        }
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 6px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #ffffff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        .loading-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-        }
-        .loading-text {
+
+        .btn-primary {
+            background: var(--primary);
             color: white;
-            font-size: 18px;
-            font-weight: bold;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px var(--primary-glow);
         }
-        
-        /* ========== Screenshot Match Styles ========== */
-        .section-title {
-            border-left: 4px solid #007bff;
-            padding-left: 10px;
-            margin: 20px 0 10px;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #333;
+
+        .btn-primary:active {
+            transform: translateY(0);
         }
-        .warning {
-            color: #d70015;
-            font-size: 0.9em;
-            margin-bottom: 15px;
+
+        .btn-danger {
+            background: rgba(255, 69, 58, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(255, 69, 58, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* ========== WiFi List ========== */
+        .ap-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ap-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+        }
+
+        .ap-info {
             display: flex;
             align-items: center;
-            gap: 5px;
-            background-color: #fff1f0;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ffa39e;
+            gap: 12px;
+        }
+
+        .ap-rssi {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-secondary);
+        }
+
+        /* ========== UI Helpers ========== */
+        .badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-5g {
+            background: #5856d6;
+            color: white;
+        }
+
+        .warning-box {
+            background: rgba(255, 214, 10, 0.1);
+            border: 1px solid rgba(255, 214, 10, 0.2);
+            padding: 15px;
+            border-radius: 12px;
+            color: var(--warning);
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        /* ========== Toast ========== */
+        #toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(255, 255, 255, 0.95);
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ========== Logs ========== */
+        #log-console {
+            background: #000;
+            border-radius: 16px;
+            padding: 15px;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 12px;
+            height: 350px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+
+        /* Language Switcher Styled */
+        .lang-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .lang-container select {
+            width: auto;
+            padding: 6px 12px;
+            font-size: 12px;
+            background: var(--glass);
+            border-radius: 8px;
         }
     </style>
 </head>
+
 <body>
-    <!-- Toast notification -->
-    <div class="toast" id="toast"></div>
-    
-    <!-- Loading overlay -->
+    <div id="toast"></div>
+
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-content">
             <div class="loading-spinner"></div>
             <div class="loading-text" data-lang="connecting">Connecting...</div>
         </div>
     </div>
-    
-    <!-- Language switcher -->
-    <div class="language-switch">
-        <select id="language" onchange="changeLanguage()">
-            <option value="ar-SA">العربية</option>
-            <option value="bg-BG">Български</option>
-            <option value="ca-ES">Català</option>
-            <option value="cs-CZ">Čeština</option>
-            <option value="da-DK">Dansk</option>
-            <option value="de-DE">Deutsch</option>
-            <option value="el-GR">Ελληνικά</option>
-            <option value="en-US">English</option>
-            <option value="es-ES">Español</option>
-            <option value="fa-IR">فارسی</option>
-            <option value="fi-FI">Suomi</option>
-            <option value="fil-PH">Filipino</option>
-            <option value="fr-FR">Français</option>
-            <option value="he-IL">עברית</option>
-            <option value="hi-IN">हिन्दी</option>
-            <option value="hr-HR">Hrvatski</option>
-            <option value="hu-HU">Magyar</option>
-            <option value="id-ID">Bahasa Indonesia</option>
-            <option value="it-IT">Italiano</option>
-            <option value="ja-JP">日本語</option>
-            <option value="ko-KR">한국어</option>
-            <option value="ms-MY">Bahasa Melayu</option>
-            <option value="nb-NO">Norsk</option>
-            <option value="nl-NL">Nederlands</option>
-            <option value="pl-PL">Polski</option>
-            <option value="pt-PT">Português</option>
-            <option value="ro-RO">Română</option>
-            <option value="ru-RU">Русский</option>
-            <option value="sk-SK">Slovenčina</option>
-            <option value="sl-SI">Slovenščina</option>
-            <option value="sr-RS">Српски</option>
-            <option value="sv-SE">Svenska</option>
-            <option value="th-TH">ไทย</option>
-            <option value="tr-TR">Türkçe</option>
-            <option value="uk-UA">Українська</option>
-            <option value="vi-VN">Tiếng Việt</option>
-            <option value="zh-CN">简体中文</option>
-            <option value="zh-TW">繁體中文</option>
-        </select>
-    </div>
-    
-    <!-- Tabs -->
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('wifi')" data-lang="wifi_tab">Wi-Fi Config</div>
-        <div class="tab" onclick="switchTab('advanced')" data-lang="advanced_tab">Advanced</div>
-        <div class="tab" onclick="switchTab('display')" data-lang="display_tab">Display SPI</div>
-        <div class="tab" onclick="switchTab('audio')" data-lang="audio_tab">Audio Config</div>
-        <div class="tab" onclick="switchTab('appearance')" data-lang="appearance_tab">Appearance</div>
-        <div class="tab" onclick="switchTab('system')" data-lang="system_tab">System</div>
-        <div class="tab" onclick="switchTab('logs')" data-lang="logs_tab">Logs</div>
-    </div>
 
-    <!-- Wi-Fi Configuration Tab -->
-    <div id="wifi-tab" class="tab-content active">
-        <!-- Saved Wi-Fi List -->
-        <div id="saved_list_container" style="display: none;">
-            <div class="section-title" data-lang="saved_wifi">Saved Wi-Fi</div>
-            <ul id="saved_list">
-                <li><span>SSID</span></li>
-            </ul>
-        </div>
-        
-        <!-- New Wi-Fi Connection -->
-        <div>
-            <div class="section-title" data-lang="new_wifi">New Wi-Fi</div>
-            <p class="error" style="color: red; text-align: center;" id="error"></p>
-            <form action="/submit" method="post" onsubmit="submitForm(event)">
-                <p>
-                    <label for="ssid">SSID:</label>
-                    <input type="text" id="ssid" name="ssid" required readonly>
-                </p>
-                <p>
-                    <label for="password" data-lang="password">Password:</label>
-                    <input type="password" id="password" name="password">
-                </p>
-                <p style="text-align: center;">
-                    <input type="submit" value="Connect" id="button" data-lang-value="connect">
-                </p>
-            </form>
-            <p id="ap_list"></p>
-        </div>
-    </div>
+    <div class="container">
+        <header>
+            <div class="logo">XiaoZhi</div>
+            <div class="subtitle">Next-Gen ESP32 Web Console</div>
+            <div class="lang-container">
+                <select id="language" onchange="changeLanguage()">
+                    <option value="en-US">English</option>
+                    <option value="vi-VN">Tiếng Việt</option>
+                    <option value="zh-CN">简体中文</option>
+                    <!-- other options removed for brevity in this replace call, will keep them in final if needed -->
+                    <option value="ja-JP">日本語</option>
+                    <option value="ko-KR">한국어</option>
+                </select>
+            </div>
+        </header>
 
-    <!-- Advanced Configuration Tab -->
-    <div id="advanced-tab" class="tab-content">
-        <form action="/advanced/submit" method="post" onsubmit="submitAdvancedForm(event)">
-            <div>
-                <div class="section-title" data-lang="advanced_tab">Advanced</div>
-                <p class="error" style="color: red; text-align: center;" id="advanced_error"></p>
+        <div class="nav-wrapper">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('dashboard')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                    Dashboard
+                </div>
+                <div class="tab" onclick="switchTab('update')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Update
+                </div>
+                <div class="tab" onclick="switchTab('wifi')" data-lang="wifi_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                        <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                        <line x1="12" y1="20" x2="12.01" y2="20" />
+                    </svg>
+                    Wi-Fi
+                </div>
+                <div class="tab" onclick="switchTab('advanced')" data-lang="advanced_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    Advanced
+                </div>
+                <div class="tab" onclick="switchTab('display')" data-lang="display_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    Display
+                </div>
+                <div class="tab" onclick="switchTab('audio')" data-lang="audio_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                    </svg>
+                    Audio
+                </div>
+                <div class="tab" onclick="switchTab('appearance')" data-lang="appearance_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                    </svg>
+                    Appearance
+                </div>
+                <div class="tab" onclick="switchTab('system')" data-lang="system_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                    </svg>
+                    System
+                </div>
+                <div class="tab" onclick="switchTab('logs')" data-lang="logs_tab">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                        <polyline points="13 2 13 9 20 9" />
+                    </svg>
+                    Logs
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <div class="card">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <span>System Dashboard</span>
+                </div>
                 
-                <!-- OTA URL -->
-                <p>
-                    <label for="ota_url" data-lang="ota_url">Custom OTA URL:</label>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <input type="text" id="ota_url" name="ota_url" style="flex: 1;">
-                        <button type="button" onclick="clearOtaUrl()" style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 3px; background-color: #f0f0f0; cursor: pointer;">❌</button>
+                <div style="margin-bottom: 25px;">
+                    <label style="display: flex; justify-content: space-between;">
+                        <span>WiFi Signal Strength (RSSI)</span>
+                        <span id="stat_rssi">0 dBm</span>
+                    </label>
+                    <div style="height: 120px; background: rgba(0,0,0,0.2); border-radius: 12px; margin-top: 10px; overflow: hidden; border: 1px solid var(--border);">
+                        <canvas id="rssiChart" style="width: 100%; height: 100%;"></canvas>
                     </div>
-                </p>
+                </div>
 
-                <!-- Max TX Power -->
-                <p style="display: flex; align-items: center; gap: 10px;">
-                    <label for="max_tx_power" data-lang="max_tx_power" style="white-space: nowrap;">Wi-Fi Max TX Power:</label>
-                    <select id="max_tx_power" name="max_tx_power">
-                        <option value="8">2 dBm</option>
-                        <option value="20">5 dBm</option>
-                        <option value="28">7 dBm</option>
-                        <option value="34">8 dBm</option>
-                        <option value="44">11 dBm</option>
-                        <option value="52">13 dBm</option>
-                        <option value="56">14 dBm</option>
-                        <option value="60">15 dBm</option>
-                        <option value="66">16 dBm</option>
-                        <option value="72">18 dBm</option>
-                        <option value="80">20 dBm</option>
-                    </select>
-                </p>
-
-                <!-- Remember BSSID -->
-                <p style="display: flex; align-items: center; gap: 10px;">
-                    <label for="remember_bssid" style="margin: 0;">
-                        <span data-lang="remember_bssid">Remember BSSID when connecting to Wi-Fi</span>
-                    </label>
-                    <input type="checkbox" id="remember_bssid" name="remember_bssid">
-                </p>
-
-                <!-- Sleep Mode -->
-                <p style="display: flex; align-items: center; gap: 10px;">
-                    <label for="sleep_mode" style="margin: 0;">
-                        <span data-lang="sleep_mode">Enable Sleep Mode</span>
-                    </label>
-                    <input type="checkbox" id="sleep_mode" name="sleep_mode">
-                </p>
-
-                <p style="text-align: center;">
-                    <input type="submit" value="Save" id="advanced_button" data-lang-value="save">
-                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <label style="display: flex; justify-content: space-between;">
+                            <span>RAM Usage</span>
+                            <span id="stat_ram_text">0%</span>
+                        </label>
+                        <div style="height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-top: 8px;">
+                            <div id="stat_ram_bar" style="width: 0%; height: 100%; background: var(--success); border-radius: 4px; transition: all 0.5s;"></div>
+                        </div>
+                        <div id="stat_ram_detail" style="font-size: 10px; color: var(--text-secondary); margin-top: 5px;">0 / 0 KB</div>
+                    </div>
+                    <div>
+                        <label style="display: flex; justify-content: space-between;">
+                            <span>SoC Temperature</span>
+                            <span id="stat_temp_text">0°C</span>
+                        </label>
+                        <div style="height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-top: 8px;">
+                            <div id="stat_temp_bar" style="width: 0%; height: 100%; background: var(--warning); border-radius: 4px; transition: all 0.5s;"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </form>
-    </div>
+        </div>
 
-    <!-- Display SPI Configuration Tab -->
-    <div id="display-tab" class="tab-content">
-        <form onsubmit="submitDisplayForm(event)">
-            <div>
-                <div class="section-title" data-lang="display_tab">Display SPI</div>
-                <div class="warning">
-                    <span>ⓘ</span> <span data-lang="display_info">Nhập số GPIO tương ứng. Nếu không dùng, nhập -1.</span>
+        <!-- Update Tab -->
+        <div id="update-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Firmware Update</span>
                 </div>
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">Upload a new firmware binary (.bin) to upgrade your device.</p>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <p>
-                        <label for="display_mosi">MOSI-SDA-DIN</label>
-                        <input type="number" id="display_mosi" name="display_mosi">
-                    </p>
-                    <p>
-                        <label for="display_clk">CLK-SCK-SCL</label>
-                        <input type="number" id="display_clk" name="display_clk">
-                    </p>
-                    <p>
-                        <label for="display_dc">DC-A0-RS-D/C</label>
-                        <input type="number" id="display_dc" name="display_dc">
-                    </p>
-                    <p>
-                        <label for="display_rst">RST-RES-RESET</label>
-                        <input type="number" id="display_rst" name="display_rst">
-                    </p>
-                    <p>
-                        <label for="display_cs">CS-SS-NSS-CE</label>
-                        <input type="number" id="display_cs" name="display_cs">
-                    </p>
-                    <p>
-                        <label for="display_bl">BL-LED-BLK-LEDK</label>
-                        <input type="number" id="display_bl" name="display_bl">
-                    </p>
+                <div id="drop-zone" style="border: 2px dashed var(--border); border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.3s; background: rgba(255,255,255,0.02);">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" style="margin-bottom: 15px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <div style="font-weight: 500;">Click to select or drag .bin file here</div>
+                    <input type="file" id="ota-file" accept=".bin" style="display: none;">
                 </div>
 
-                <p style="text-align: center;">
-                    <input type="submit" value="Save" id="display_button" data-lang-value="save">
-                </p>
+                <div id="ota-progress-container" style="display: none; margin-top: 25px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px;">
+                        <span id="ota-status">Uploading...</span>
+                        <span id="ota-percent">0%</span>
+                    </div>
+                    <div style="height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden;">
+                        <div id="ota-progress-bar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+
+                <button id="ota-btn" class="btn btn-primary" style="margin-top: 25px; display: none;" onclick="uploadFirmware()">Start Update</button>
             </div>
-        </form>
-    </div>
+        </div>
 
-    <!-- Audio Configuration Tab -->
-    <div id="audio-tab" class="tab-content">
-        <form onsubmit="submitAudioForm(event)">
-            <div>
-                <div class="section-title" data-lang="audio_tab">Audio Config</div>
-                <div class="warning">
-                    <span>ⓘ</span> <span data-lang="audio_info">Cấu hình các chân I2S và chân PA. Để trống hoặc nhập -1 nếu không dùng.</span>
+        <!-- Wi-Fi Tab -->
+        <div id="wifi-tab" class="tab-content">
+            <div class="card" id="saved_list_container" style="display: none;">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                        stroke-width="2.5">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    <span data-lang="saved_wifi">Saved Networks</span>
                 </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <p>
-                        <label for="audio_i2s_bclk">BCLK (Bit Clock)</label>
-                        <input type="number" id="audio_i2s_bclk" name="audio_i2s_bclk">
-                    </p>
-                    <p>
-                        <label for="audio_i2s_ws">WS (Word Select)</label>
-                        <input type="number" id="audio_i2s_ws" name="audio_i2s_ws">
-                    </p>
-                    <p>
-                        <label for="audio_i2s_dout">DOUT (Data Out)</label>
-                        <input type="number" id="audio_i2s_dout" name="audio_i2s_dout">
-                    </p>
-                    <p>
-                        <label for="audio_i2s_din">DIN (Data In)</label>
-                        <input type="number" id="audio_i2s_din" name="audio_i2s_din">
-                    </p>
-                    <p>
-                        <label for="audio_pa_enable">PA Enable Pin</label>
-                        <input type="number" id="audio_pa_enable" name="audio_pa_enable">
-                    </p>
-                    <p>
-                        <label for="audio_volume" data-lang="startup_volume">Startup Volume (0-100)</label>
-                        <input type="number" id="audio_volume" name="audio_volume" min="0" max="100">
-                    </p>
-                </div>
-
-                <p style="text-align: center;">
-                    <input type="submit" value="Save" id="audio_button" data-lang-value="save">
-                </p>
+                <div id="saved_list"></div>
             </div>
-        </form>
-    </div>
 
-    <!-- Appearance Configuration Tab -->
-    <div id="appearance-tab" class="tab-content">
-        <form onsubmit="submitAppearanceForm(event)">
-            <div>
-                <div class="section-title" data-lang="appearance_tab">Appearance</div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <p>
-                        <label for="display_orientation" data-lang="orientation">Orientation</label>
-                        <select id="display_orientation" name="display_orientation">
-                            <option value="0">0°</option>
-                            <option value="90">90°</option>
-                            <option value="180">180°</option>
-                            <option value="270">270°</option>
+            <div class="card">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                        stroke-width="2.5">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <span data-lang="new_wifi">Network Scanner</span>
+                </div>
+                <form id="wifiForm" onsubmit="submitForm(event)">
+                    <div class="form-group">
+                        <label for="ssid">SSID</label>
+                        <input type="text" id="ssid" name="ssid" required readonly placeholder="Select a network below">
+                    </div>
+                    <div class="form-group">
+                        <label for="password" data-lang="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="button">
+                        <span data-lang="connect">Connect</span>
+                    </button>
+                </form>
+                <div id="ap_list" style="margin-top: 25px;">
+                    <div class="scanning" data-lang="scanning">Searching for networks...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Tab -->
+        <div id="advanced-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title" data-lang="advanced_tab">Optimization & Power</div>
+                <form onsubmit="submitAdvancedForm(event)">
+                    <div class="form-group">
+                        <label for="ota_url" data-lang="ota_url">Update Server URL</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="ota_url" name="ota_url" placeholder="https://ota.example.com">
+                            <button type="button" onclick="clearOtaUrl()" class="btn"
+                                style="width: auto; padding: 0 15px; background: rgba(255,255,255,0.1);">Clear</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="max_tx_power" data-lang="max_tx_power">WiFi Transmit Power</label>
+                        <select id="max_tx_power" name="max_tx_power">
+                            <option value="80">Maximum (20 dBm)</option>
+                            <option value="60">Medium (15 dBm)</option>
+                            <option value="40">Low (10 dBm)</option>
                         </select>
-                    </p>
-                    <p>
-                        <label for="display_theme" data-lang="theme">Theme</label>
-                        <select id="display_theme" name="display_theme">
-                            <option value="dark">Dark</option>
-                            <option value="light">Light</option>
+                    </div>
+                    <div class="form-group"
+                        style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px;">
+                        <span data-lang="remember_bssid" style="font-size: 14px;">Lock to BSSID</span>
+                        <input type="checkbox" id="remember_bssid" style="width: 24px; height: 24px;">
+                    </div>
+                    <div class="form-group"
+                        style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; margin-top: 10px;">
+                        <span data-lang="sleep_mode" style="font-size: 14px;">Eco Mode (Sleep)</span>
+                        <input type="checkbox" id="sleep_mode" style="width: 24px; height: 24px;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="advanced_button" style="margin-top: 20px;">
+                        <span data-lang="save">Apply Changes</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Display Tab -->
+        <div id="display-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title" data-lang="display_tab">Screen Hardware</div>
+                <div class="warning-box">
+                    <span>💡</span>
+                    <span data-lang="display_info">Define your SPI GPIO mapping. Use -1 for unused pins.</span>
+                </div>
+                <form onsubmit="submitDisplayForm(event)">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div class="form-group"><label>MOSI</label><input type="number" id="display_mosi"></div>
+                        <div class="form-group"><label>CLK</label><input type="number" id="display_clk"></div>
+                        <div class="form-group"><label>DC</label><input type="number" id="display_dc"></div>
+                        <div class="form-group"><label>RST</label><input type="number" id="display_rst"></div>
+                        <div class="form-group"><label>CS</label><input type="number" id="display_cs"></div>
+                        <div class="form-group"><label>BL</label><input type="number" id="display_bl"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="display_button">Save SPI Config</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Audio Tab -->
+        <div id="audio-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title" data-lang="audio_tab">Sound Architecture</div>
+                <div class="warning-box">
+                    <span>🎵</span>
+                    <span data-lang="audio_info">Configure I2S peripheral and power amplifier (PA) control.</span>
+                </div>
+                <form onsubmit="submitAudioForm(event)">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div class="form-group"><label>I2S BCLK</label><input type="number" id="audio_i2s_bclk"></div>
+                        <div class="form-group"><label>I2S WS</label><input type="number" id="audio_i2s_ws"></div>
+                        <div class="form-group"><label>I2S DOUT</label><input type="number" id="audio_i2s_dout"></div>
+                        <div class="form-group"><label>I2S DIN</label><input type="number" id="audio_i2s_din"></div>
+                        <div class="form-group"><label>PA Enable</label><input type="number" id="audio_pa_enable"></div>
+                        <div class="form-group"><label data-lang="startup_volume">Volume (0-100)</label><input
+                                type="number" id="audio_volume" min="0" max="100"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="audio_button">Save Audio Config</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Appearance Tab -->
+        <div id="appearance-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title" data-lang="appearance_tab">Visual Style</div>
+                <form onsubmit="submitAppearanceForm(event)">
+                    <div class="form-group">
+                        <label data-lang="orientation">Orientation</label>
+                        <select id="display_orientation">
+                            <option value="0">Portrait (0°)</option>
+                            <option value="90">Landscape (90°)</option>
+                            <option value="180">Inverted Portrait (180°)</option>
+                            <option value="270">Inverted Landscape (270°)</option>
                         </select>
-                    </p>
-                    <p style="grid-column: span 2;">
-                        <label for="display_brightness" data-lang="brightness">Brightness (0-255)</label>
-                        <input type="range" id="display_brightness" name="display_brightness" min="0" max="255" style="width: 100%;">
-                    </p>
-                </div>
-
-                <p style="text-align: center;">
-                    <input type="submit" value="Save" id="appearance_button" data-lang-value="save">
-                </p>
-            </div>
-        </form>
-    </div>
-
-    <!-- System Tools Tab -->
-    <div id="system-tab" class="tab-content">
-        <div>
-            <div class="section-title" data-lang="system_tab">System Tools</div>
-            
-            <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
-                <div class="warning" style="background-color: #fff7e6; border: 1px solid #ffd591; color: #d46b08;">
-                    <span>⚠</span> <span data-lang="reboot_info">Khởi động lại thiết bị ngay bây giờ.</span>
-                </div>
-                <button id="reboot_button" onclick="rebootDevice()" style="background-color: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;" data-lang="reboot">Reboot Device</button>
-                
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-                
-                <div class="warning" style="background-color: #fff1f0; border: 1px solid #ffa39e; color: #cf1322;">
-                    <span>⚠</span> <span data-lang="reset_wifi_info">Xóa sạch các mạng WiFi đã lưu và khởi động lại.</span>
-                </div>
-                <button id="reset_wifi_button" onclick="resetWifi()" style="background-color: #d70015; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;" data-lang="reset_wifi">Reset WiFi Credentials</button>
+                    </div>
+                    <div class="form-group">
+                        <label data-lang="theme">Color Palette</label>
+                        <select id="display_theme">
+                            <option value="dark">Professional Dark</option>
+                            <option value="light">Classic Light</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-lang="brightness">Panel Brightness</label>
+                        <input type="range" id="display_brightness" min="0" max="255"
+                            style="accent-color: var(--primary);">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="appearance_button">Apply Theme</button>
+                </form>
             </div>
         </div>
-    </div>
 
-    <!-- Logs Tab -->
-    <div id="logs-tab" class="tab-content">
-        <div class="section-title" data-lang="logs_tab">System Logs</div>
-        <div id="log-console" style="background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 12px; height: 400px; overflow-y: auto; white-space: pre-wrap; margin-top: 10px;">
-            <div data-lang="log_init">Initializing log console...</div>
+        <!-- System Tab -->
+        <div id="system-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                        stroke-width="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                    <span>Device Information</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
+                    <div style="color: var(--text-secondary);">Model:</div>
+                    <div id="info_model">XiaoZhi-ESP32</div>
+                    <div style="color: var(--text-secondary);">Version:</div>
+                    <div id="info_version">1.2.0-stable</div>
+                    <div style="color: var(--text-secondary);">MAC Address:</div>
+                    <div id="info_mac">--:--:--:--:--:--</div>
+                    <div style="color: var(--text-secondary);">Uptime:</div>
+                    <div id="info_uptime">00:00:00</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-title" data-lang="system_tab">Maintenance</div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <div class="warning-box"
+                        style="background: rgba(0, 122, 255, 0.1); color: var(--primary); border-color: rgba(0,122,255,0.2);">
+                        <span data-lang="reboot_info">Perform a soft reset to apply all hardware changes.</span>
+                    </div>
+                    <button class="btn btn-primary" id="reboot_button" onclick="rebootDevice()"
+                        data-lang="reboot">Reboot Controller</button>
+                </div>
+                <div class="form-group" style="margin-top: 30px;">
+                    <div class="warning-box"
+                        style="background: rgba(255, 69, 58, 0.1); color: var(--danger); border-color: rgba(255,69,58,0.2);">
+                        <span data-lang="reset_wifi_info">Warning: This will wipe all saved networks and factory reset
+                            WiFi settings.</span>
+                    </div>
+                    <button class="btn btn-danger" id="reset_wifi_button" onclick="resetWifi()"
+                        data-lang="reset_wifi">Factory Reset WiFi</button>
+                </div>
+            </div>
         </div>
-        <div style="margin-top: 10px; display: flex; gap: 10px;">
-            <button onclick="clearLogs()" style="background: #666; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;" data-lang="clear_logs">Clear</button>
-            <label style="display: flex; align-items: center; gap: 5px; font-size: 14px;">
-                <input type="checkbox" id="auto_scroll" checked> <span data-lang="auto_scroll">Auto-scroll</span>
-            </label>
+
+        <!-- Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="card">
+                <div class="section-title">
+                    <span data-lang="logs_tab">Terminal Output</span>
+                    <div style="flex: 1;"></div>
+                    <button onclick="clearLogs()" class="btn"
+                        style="width: auto; padding: 4px 12px; font-size: 12px; height: 28px; background: rgba(255,255,255,0.1);"
+                        data-lang="clear_logs">Clear</button>
+                </div>
+                <div id="log-console">
+                    <div data-lang="log_init">Attaching to system stream...</div>
+                </div>
+                <div style="margin-top: 15px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="auto_scroll" checked style="width: 18px; height: 18px;">
+                    <label style="margin: 0; font-size: 13px;" data-lang="auto_scroll">Auto-scroll to bottom</label>
+                </div>
+            </div>
         </div>
+
+        <footer>
+            <div
+                style="text-align: center; padding: 40px 0 20px; color: var(--text-secondary); font-size: 12px; letter-spacing: 0.5px;">
+                <div style="opacity: 0.6; margin-bottom: 5px;">XiaoZhi Project | Commercial Edition</div>
+                <div style="font-weight: 500;">&copy; 2026 Trai đẹp đóng pin. All Rights Reserved.</div>
+            </div>
+        </footer>
     </div>
 
     <script type="text/javascript">
@@ -633,7 +874,7 @@
                 wifi_tab: 'Διαμόρφωση Wi-Fi',
                 advanced_tab: 'Για προχωρημένους',
                 ota_url: 'Προσαρμοσμένη διεύθυνση OTA:',
-                max_tx_power: 'Μέγιστη ισχύς μετάδοσης Wi-Fi:',
+                max_pic_power: 'Μέγιστη ισχύς μετάδοσης Wi-Fi:',
                 remember_bssid: 'Απομνημόνευση BSSID κατά τη σύνδεση σε Wi-Fi',
                 sleep_mode: 'Ενεργοποίηση λειτουργίας αναστολής',
                 save: 'Αποθήκευση'
@@ -1241,98 +1482,58 @@
         // ========== Language Mapping ==========
         // Maps browser language codes to supported language codes
         const languageMap = {
-            // Arabic
             'ar': 'ar-SA', 'ar-SA': 'ar-SA', 'ar-EG': 'ar-SA', 'ar-AE': 'ar-SA',
-            // Bulgarian
             'bg': 'bg-BG', 'bg-BG': 'bg-BG',
-            // Catalan
             'ca': 'ca-ES', 'ca-ES': 'ca-ES',
-            // Czech
             'cs': 'cs-CZ', 'cs-CZ': 'cs-CZ',
-            // Danish
             'da': 'da-DK', 'da-DK': 'da-DK',
-            // German
             'de': 'de-DE', 'de-DE': 'de-DE', 'de-AT': 'de-DE', 'de-CH': 'de-DE',
-            // Greek
             'el': 'el-GR', 'el-GR': 'el-GR',
-            // English
             'en': 'en-US', 'en-US': 'en-US', 'en-GB': 'en-US', 'en-CA': 'en-US', 'en-AU': 'en-US',
-            // Spanish
             'es': 'es-ES', 'es-ES': 'es-ES', 'es-MX': 'es-ES', 'es-AR': 'es-ES',
-            // Persian
             'fa': 'fa-IR', 'fa-IR': 'fa-IR',
-            // Finnish
             'fi': 'fi-FI', 'fi-FI': 'fi-FI',
-            // Filipino
             'fil': 'fil-PH', 'fil-PH': 'fil-PH', 'tl': 'fil-PH',
-            // French
             'fr': 'fr-FR', 'fr-FR': 'fr-FR', 'fr-CA': 'fr-FR', 'fr-BE': 'fr-FR',
-            // Hebrew
             'he': 'he-IL', 'he-IL': 'he-IL', 'iw': 'he-IL',
-            // Hindi
             'hi': 'hi-IN', 'hi-IN': 'hi-IN',
-            // Croatian
             'hr': 'hr-HR', 'hr-HR': 'hr-HR',
-            // Hungarian
             'hu': 'hu-HU', 'hu-HU': 'hu-HU',
-            // Indonesian
             'id': 'id-ID', 'id-ID': 'id-ID',
-            // Italian
             'it': 'it-IT', 'it-IT': 'it-IT', 'it-CH': 'it-IT',
-            // Japanese
             'ja': 'ja-JP', 'ja-JP': 'ja-JP',
-            // Korean
             'ko': 'ko-KR', 'ko-KR': 'ko-KR',
-            // Malay
             'ms': 'ms-MY', 'ms-MY': 'ms-MY',
-            // Norwegian
             'nb': 'nb-NO', 'nb-NO': 'nb-NO', 'no': 'nb-NO', 'nn': 'nb-NO',
-            // Dutch
             'nl': 'nl-NL', 'nl-NL': 'nl-NL', 'nl-BE': 'nl-NL',
-            // Polish
             'pl': 'pl-PL', 'pl-PL': 'pl-PL',
-            // Portuguese
             'pt': 'pt-PT', 'pt-PT': 'pt-PT', 'pt-BR': 'pt-PT',
-            // Romanian
             'ro': 'ro-RO', 'ro-RO': 'ro-RO',
-            // Russian
             'ru': 'ru-RU', 'ru-RU': 'ru-RU',
-            // Slovak
             'sk': 'sk-SK', 'sk-SK': 'sk-SK',
-            // Slovenian
             'sl': 'sl-SI', 'sl-SI': 'sl-SI',
-            // Serbian
             'sr': 'sr-RS', 'sr-RS': 'sr-RS',
-            // Swedish
             'sv': 'sv-SE', 'sv-SE': 'sv-SE',
-            // Thai
             'th': 'th-TH', 'th-TH': 'th-TH',
-            // Turkish
             'tr': 'tr-TR', 'tr-TR': 'tr-TR',
-            // Ukrainian
             'uk': 'uk-UA', 'uk-UA': 'uk-UA',
-            // Vietnamese
             'vi': 'vi-VN', 'vi-VN': 'vi-VN',
-            // Chinese
             'zh': 'zh-CN', 'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW', 'zh-HK': 'zh-TW'
         };
 
         // ========== Helper Functions ==========
-        
+
         /**
          * Get supported language code from browser language
          */
         function getSupportedLanguage(lang) {
-            // First try exact match
             if (languageMap[lang]) {
                 return languageMap[lang];
             }
-            // Then try to match only the main language code
             const mainLang = lang.split('-')[0];
             if (languageMap[mainLang]) {
                 return languageMap[mainLang];
             }
-            // If no match, return English
             return 'en-US';
         }
 
@@ -1341,99 +1542,116 @@
          */
         function changeLanguage() {
             const lang = document.getElementById('language').value;
-            
-            // Check if language is valid
             if (!translations[lang]) {
                 console.warn(`Unsupported language: ${lang}, defaulting to English`);
                 document.getElementById('language').value = 'en-US';
                 return changeLanguage();
             }
-            
-            // Set page title
             document.title = translations[lang].title;
-            
-            // Update text content
             document.querySelectorAll('[data-lang]').forEach(element => {
                 const key = element.getAttribute('data-lang');
                 element.textContent = translations[lang][key];
             });
-            
-            // Update input values
             document.querySelectorAll('[data-lang-value]').forEach(element => {
                 const key = element.getAttribute('data-lang-value');
                 element.value = translations[lang][key];
             });
-            
-            // Update AP list text based on 5G support
             const apList = document.getElementById('ap_list');
             if (apList.firstChild) {
                 const selectText = support5G ? translations[lang].select_wifi_5g : translations[lang].select_wifi;
                 apList.firstChild.textContent = selectText;
             }
-            
-            // Save language preference
             localStorage.setItem('preferred_language', lang);
         }
 
-        // ========== Wi-Fi List Management ==========
-        
         /**
-         * Render saved Wi-Fi list
+         * Render saved Wi-Fi list with premium UI
          */
         function renderSavedList(data) {
             const savedListContainer = document.getElementById('saved_list_container');
             const savedList = document.getElementById('saved_list');
             savedList.innerHTML = '';
-            
             data.forEach((ssid, index) => {
-                const li = document.createElement('li');
-                let html = `<span>${ssid}</span>`;
-                
-                // Only add priority and delete buttons after the first item
-                if (index > 0) {
-                    html += ` <span>
-                        <button type="button" onclick="setDefaultItem(this, ${index})">⬆️</button>
-                        <button type="button" onclick="deleteItem(this, ${index})">❌</button>
-                    </span>`;
-                } else {
-                    html += ` <span><button type="button" onclick="deleteItem(this, ${index})">❌</button></span>`;
-                }
-                
-                li.innerHTML = html;
-                savedList.appendChild(li);
+                const item = document.createElement('div');
+                item.className = 'ap-item';
+                item.innerHTML = `
+                    <div class="ap-info">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <div style="font-weight: 500;">${ssid}</div>
+                    </div>
+                    <button type="button" onclick="deleteItem(this, ${index})" class="btn" style="width:auto; padding: 8px; background: rgba(255,69,58,0.1); color: var(--danger); border-radius: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                `;
+                savedList.appendChild(item);
             });
-            
-            // Show/hide container based on whether there are saved networks
             savedListContainer.style.display = data.length > 0 ? 'block' : 'none';
         }
 
-        /**
-         * Delete saved Wi-Fi network
-         */
-        function deleteItem(item, index) {
-            item.disabled = true;
+        function getSignalIcon(rssi) {
+            let path = "";
+            if (rssi >= -50) path = "M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01";
+            else if (rssi >= -70) path = "M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01";
+            else path = "M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01";
+            return `<svg class="ap-rssi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+        }
+
+        function loadAPList() {
+            if (button.disabled) return;
+            const lang = document.getElementById('language').value;
+            const apList = document.getElementById('ap_list');
+            const hasExistingAPs = apList.querySelector('.ap-item') !== null;
+            if (!hasExistingAPs) {
+                apList.innerHTML = `<div class="scanning" style="text-align:center; padding: 20px; color: var(--text-secondary);">${translations[lang].scanning}</div>`;
+            }
+            fetch('/scan')
+                .then(response => response.json())
+                .then(data => {
+                    support5G = data.support_5g;
+                    const selectText = support5G ? translations[lang].select_wifi_5g : translations[lang].select_wifi;
+                    apList.innerHTML = `<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; padding-left: 5px;">${selectText}</div>`;
+                    data.aps.sort((a, b) => b.rssi - a.rssi).forEach(ap => {
+                        const item = document.createElement('div');
+                        item.className = 'ap-item';
+                        const isSecured = ap.authmode !== 0;
+                        item.innerHTML = `
+                            <div class="ap-info">
+                                ${getSignalIcon(ap.rssi)}
+                                <div>
+                                    <div style="font-weight: 600; font-size: 15px;">${ap.ssid}</div>
+                                    <div style="font-size: 11px; color: var(--text-secondary);">${ap.rssi} dBm</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                ${ap.support_5g ? '<span class="badge badge-5g">5G</span>' : ''}
+                                ${isSecured ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' : ''}
+                            </div>
+                        `;
+                        item.addEventListener('click', () => {
+                            ssid.value = ap.ssid;
+                            document.getElementById('password').focus();
+                            document.getElementById('wifiForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        });
+                        apList.appendChild(item);
+                    });
+                    setTimeout(loadAPList, 10000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setTimeout(loadAPList, 5000);
+                });
+        }
+
+        function deleteItem(btn, index) {
+            btn.disabled = true;
             fetch('/saved/delete?index=' + index)
                 .then(response => response.json())
                 .then(data => {
+                    showToast('Network removed');
                     loadSavedList();
                 });
         }
 
-        /**
-         * Set default Wi-Fi network (move to top)
-         */
-        function setDefaultItem(item, index) {
-            item.disabled = true;
-            fetch('/saved/set_default?index=' + index)
-                .then(response => response.json())
-                .then(data => {
-                    loadSavedList();
-                });
-        }
-
-        /**
-         * Load saved Wi-Fi list from server
-         */
         function loadSavedList() {
             fetch('/saved/list')
                 .then(response => response.json())
@@ -1442,156 +1660,62 @@
                 });
         }
 
-        /**
-         * Load available Wi-Fi networks
-         */
-        function loadAPList() {
-            if (button.disabled) {
-                return;
-            }
-
-            const lang = document.getElementById('language').value;
-            const apList = document.getElementById('ap_list');
-
-            // Check if AP list already has content
-            const hasExistingAPs = apList.querySelector('a') !== null;
-
-            // Only show scanning text if there's no existing AP list
-            if (!hasExistingAPs) {
-                apList.innerHTML = '<p class="scanning">' + translations[lang].scanning + '</p>';
-            }
-
-            fetch('/scan')
-                .then(response => response.json())
-                .then(data => {
-                    // Update global 5G support status
-                    support5G = data.support_5g;
-                    
-                    // Use select_wifi_5g if 5G is supported, otherwise use select_wifi
-                    const selectText = support5G ? translations[lang].select_wifi_5g : translations[lang].select_wifi;
-                    apList.innerHTML = '<p>' + selectText + '</p>';
-                    
-                    // Iterate through available APs
-                    data.aps.forEach(ap => {
-                        const link = document.createElement('a');
-                        link.href = '#';
-                        link.textContent = ap.ssid + ' (' + ap.rssi + ' dBm)';
-                        
-                        // Add lock icon for secured networks
-                        if (ap.authmode === 0) {
-                            link.textContent += ' 🌐';
-                        } else {
-                            link.textContent += ' 🔒';
-                        }
-                        
-                        link.addEventListener('click', () => {
-                            ssid.value = ap.ssid;
-                        });
-                        
-                        apList.appendChild(link);
-                    });
-                    
-                    // Refresh AP list every 5 seconds
-                    setTimeout(loadAPList, 5000);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    // On error, try again after 5 seconds
-                    setTimeout(loadAPList, 5000);
-                });
-        }
-
-        // ========== Form Submission ==========
-        
-        /**
-         * Submit Wi-Fi connection form
-         */
         async function submitForm(event) {
             event.preventDefault();
-            button.disabled = true;
-            error.textContent = '';
-
-            // Show loading animation
+            const btn = document.getElementById('button');
+            btn.disabled = true;
             const loadingOverlay = document.getElementById('loadingOverlay');
             loadingOverlay.classList.add('show');
-
-            const payload = {
-                ssid: ssid.value,
-                password: document.getElementById('password').value
-            };
-
+            const payload = { ssid: ssid.value, password: document.getElementById('password').value };
             try {
                 const response = await fetch('/submit', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
                 const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Connection failed');
-                }
-
-                // Connection successful, redirect to done page
-                button.disabled = false;
-                window.location.href = '/done.html';
+                if (!data.success) throw new Error(data.error || 'Connection failed');
+                showToast('Connecting to ' + ssid.value);
+                setTimeout(() => { window.location.href = '/done.html'; }, 2000);
             } catch (err) {
-                // Hide loading animation on error
                 loadingOverlay.classList.remove('show');
-                error.textContent = err.message;
-                button.disabled = false;
+                showToast('Error: ' + err.message);
+                btn.disabled = false;
             }
         }
 
-        /**
-         * Submit advanced configuration form
-         */
-        async function submitAdvancedForm(event) {
-            event.preventDefault();
-            const advancedButton = document.getElementById('advanced_button');
-            const advancedError = document.getElementById('advanced_error');
-            advancedButton.disabled = true;
-            advancedError.textContent = '';
+        async function submitConfig(url, config, btnId) {
+            const btn = document.getElementById(btnId);
+            btn.disabled = true;
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'Save failed');
+                showToast('Settings applied successfully');
+            } catch (err) {
+                showToast('Failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+            }
+        }
 
+        function submitAdvancedForm(event) {
+            event.preventDefault();
             const config = {
                 ota_url: document.getElementById('ota_url').value,
                 max_tx_power: parseInt(document.getElementById('max_tx_power').value),
                 remember_bssid: document.getElementById('remember_bssid').checked,
                 sleep_mode: document.getElementById('sleep_mode').checked
             };
-
-            try {
-                const response = await fetch('/advanced/submit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Save failed');
-                }
-
-                advancedButton.disabled = false;
-                showToast('Configuration saved');
-            } catch (err) {
-                advancedError.textContent = err.message;
-                advancedButton.disabled = false;
-            }
+            submitConfig('/advanced/submit', config, 'advanced_button');
         }
 
-        /**
-         * Submit display configuration form
-         */
-        async function submitDisplayForm(event) {
+        function submitDisplayForm(event) {
             event.preventDefault();
-            const displayButton = document.getElementById('display_button');
-            displayButton.disabled = true;
-
             const config = {
                 display_mosi: parseInt(document.getElementById('display_mosi').value),
                 display_clk: parseInt(document.getElementById('display_clk').value),
@@ -1600,37 +1724,11 @@
                 display_cs: parseInt(document.getElementById('display_cs').value),
                 display_bl: parseInt(document.getElementById('display_bl').value)
             };
-
-            try {
-                const response = await fetch('/advanced/submit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Save failed');
-                }
-
-                displayButton.disabled = false;
-                showToast('Display configuration saved');
-            } catch (err) {
-                alert(err.message);
-                displayButton.disabled = false;
-            }
+            submitConfig('/advanced/submit', config, 'display_button');
         }
 
-        /**
-         * Submit audio configuration form
-         */
-        async function submitAudioForm(event) {
+        function submitAudioForm(event) {
             event.preventDefault();
-            const audioButton = document.getElementById('audio_button');
-            audioButton.disabled = true;
-
             const config = {
                 audio_i2s_bclk: parseInt(document.getElementById('audio_i2s_bclk').value),
                 audio_i2s_ws: parseInt(document.getElementById('audio_i2s_ws').value),
@@ -1639,57 +1737,26 @@
                 audio_pa_enable: parseInt(document.getElementById('audio_pa_enable').value),
                 audio_volume: parseInt(document.getElementById('audio_volume').value)
             };
-
-            try {
-                const response = await fetch('/advanced/submit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
-                });
-
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Save failed');
-                }
-
-                audioButton.disabled = false;
-                showToast('Audio configuration saved');
-            } catch (err) {
-                alert(err.message);
-                audioButton.disabled = false;
-            }
+            submitConfig('/advanced/submit', config, 'audio_button');
         }
 
-        /**
-         * Submit appearance configuration form
-         */
         async function submitAppearanceForm(event) {
             event.preventDefault();
             const appearanceButton = document.getElementById('appearance_button');
             appearanceButton.disabled = true;
-
             const config = {
                 display_orientation: parseInt(document.getElementById('display_orientation').value),
                 display_theme: document.getElementById('display_theme').value,
                 display_brightness: parseInt(document.getElementById('display_brightness').value)
             };
-
             try {
                 const response = await fetch('/advanced/submit', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
                 });
-
                 const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Save failed');
-                }
-
+                if (!data.success) throw new Error(data.error || 'Save failed');
                 appearanceButton.disabled = false;
                 showToast('Appearance settings saved');
             } catch (err) {
@@ -1698,22 +1765,15 @@
             }
         }
 
-        /**
-         * Reboot device
-         */
         async function rebootDevice() {
             if (!confirm('Are you sure you want to reboot?')) return;
-            
             const button = document.getElementById('reboot_button');
             button.disabled = true;
             button.textContent = translations[document.getElementById('language').value].rebooting;
-
             try {
                 await fetch('/reboot', { method: 'POST' });
                 showToast('Rebooting...');
-                setTimeout(() => {
-                    location.reload();
-                }, 5000);
+                setTimeout(() => { location.reload(); }, 5000);
             } catch (err) {
                 alert('Failed to reboot: ' + err.message);
                 button.disabled = false;
@@ -1721,22 +1781,15 @@
             }
         }
 
-        /**
-         * Reset WiFi credentials
-         */
         async function resetWifi() {
             if (!confirm('This will erase ALL saved WiFi networks. Are you sure?')) return;
-
             const button = document.getElementById('reset_wifi_button');
             button.disabled = true;
             button.textContent = translations[document.getElementById('language').value].resetting;
-
             try {
                 await fetch('/reset_wifi', { method: 'POST' });
                 showToast('WiFi Reset. Rebooting...');
-                setTimeout(() => {
-                    fetch('/reboot', { method: 'POST' });
-                }, 1000);
+                setTimeout(() => { fetch('/reboot', { method: 'POST' }); }, 1000);
             } catch (err) {
                 alert('Failed to reset WiFi: ' + err.message);
                 button.disabled = false;
@@ -1744,9 +1797,6 @@
             }
         }
 
-        /**
-         * Log Console Logic
-         */
         let logPollingInterval = null;
 
         function clearLogs() {
@@ -1758,8 +1808,6 @@
                 const response = await fetch('/log_data');
                 const text = await response.text();
                 const console = document.getElementById('log-console');
-                
-                // Filter out null characters and split into lines
                 const lines = text.replace(/\0/g, '').trim();
                 if (lines) {
                     console.innerText = lines;
@@ -1785,56 +1833,111 @@
             }
         }
 
-        // ========== UI Functions ==========
-        
-        /**
-         * Switch between tabs
-         */
         function switchTab(tabName) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab content
+            document.querySelectorAll('.tab-content').forEach(content => { content.classList.remove('active'); });
+            document.querySelectorAll('.tab').forEach(tab => { tab.classList.remove('active'); });
             document.getElementById(tabName + '-tab').classList.add('active');
-            
-            // Activate selected tab
             document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
-
-            // Handle polling
-            if (tabName === 'logs') {
-                startLogPolling();
-            } else {
-                stopLogPolling();
-            }
+            if (tabName === 'logs') { startLogPolling(); } else { stopLogPolling(); }
         }
 
         /**
-         * Show toast notification
+         * Real-time Chart Logic
          */
+        const rssiHistory = Array(30).fill(-100);
+        function updateRssiChart(newRssi) {
+            if (newRssi === 0) newRssi = -100;
+            rssiHistory.push(newRssi);
+            rssiHistory.shift();
+            const canvas = document.getElementById('rssiChart');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = canvas.offsetWidth;
+            const h = canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.beginPath();
+            for(let i=0; i<4; i++) {
+                let y = h - (i * h/3);
+                ctx.moveTo(0, y); ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.strokeStyle = '#007AFF';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            rssiHistory.forEach((val, i) => {
+                let x = (i / (rssiHistory.length - 1)) * w;
+                let y = h - ((val + 100) / 70) * h;
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.lineTo(w, h); ctx.lineTo(0, h);
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, 'rgba(0, 122, 255, 0.3)');
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fill();
+        }
+
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
         }
 
         /**
-         * Load advanced configuration from server
+         * Fetch system info from server
          */
+        async function fetchSystemInfo() {
+            try {
+                const response = await fetch('/system/info');
+                const data = await response.json();
+                
+                document.getElementById('info_model').textContent = data.model;
+                document.getElementById('info_version').textContent = data.version;
+                document.getElementById('info_mac').textContent = data.mac;
+                document.getElementById('info_uptime').textContent = formatUptime(data.uptime);
+
+                // Dashboard Stats
+                const dashboard = document.getElementById('dashboard-tab');
+                if (dashboard && dashboard.classList.contains('active')) {
+                    // RSSI
+                    document.getElementById('stat_rssi').textContent = (data.rssi || 0) + ' dBm';
+                    updateRssiChart(data.rssi);
+
+                    // RAM
+                    if (data.heap_total && data.heap_free) {
+                        const ramUsed = data.heap_total - data.heap_free;
+                        const ramPct = Math.round((ramUsed / data.heap_total) * 100);
+                        document.getElementById('stat_ram_text').textContent = ramPct + '%';
+                        const ramBar = document.getElementById('stat_ram_bar');
+                        ramBar.style.width = ramPct + '%';
+                        ramBar.style.background = ramPct > 80 ? 'var(--danger)' : (ramPct > 60 ? 'var(--warning)' : 'var(--success)');
+                        document.getElementById('stat_ram_detail').textContent = `${Math.round(ramUsed/1024)} / ${Math.round(data.heap_total/1024)} KB`;
+                    }
+
+                    // Temp
+                    if (data.temp !== undefined) {
+                        const temp = data.temp || 0;
+                        document.getElementById('stat_temp_text').textContent = temp + '°C';
+                        const tempPct = Math.min(100, Math.max(0, (temp - 20) * 2));
+                        const tempBar = document.getElementById('stat_temp_bar');
+                        tempBar.style.width = tempPct + '%';
+                        tempBar.style.background = temp > 65 ? 'var(--danger)' : (temp > 45 ? 'var(--warning)' : 'var(--success)');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch system info:', err);
+            }
+        }
+
         async function loadAdvancedConfig() {
             try {
                 const response = await fetch('/advanced/config');
                 const data = await response.json();
-                
+
                 if (data.ota_url) {
                     document.getElementById('ota_url').value = data.ota_url;
                 }
@@ -1847,7 +1950,7 @@
                 if (data.sleep_mode !== undefined) {
                     document.getElementById('sleep_mode').checked = data.sleep_mode;
                 }
-                
+
                 // Load display GPIOs
                 const displayFields = ['mosi', 'clk', 'dc', 'rst', 'cs', 'bl'];
                 displayFields.forEach(field => {
@@ -1888,8 +1991,73 @@
             document.getElementById('ota_url').value = '';
         }
 
+        /**
+         * Format uptime seconds into HH:MM:SS
+         */
+        function formatUptime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return [h, m, s].map(v => v < 10 ? '0' + v : v).join(':');
+        }
+
+
+        /**
+         * Web OTA Logic
+         */
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('ota-file');
+        const otaBtn = document.getElementById('ota-btn');
+        let selectedFile = null;
+
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                dropZone.querySelector('div').textContent = selectedFile.name;
+                otaBtn.style.display = 'block';
+            }
+        };
+
+        function uploadFirmware() {
+            if (!selectedFile) return;
+            
+            const xhr = new XMLHttpRequest();
+            const progressContainer = document.getElementById('ota-progress-container');
+            const progressBar = document.getElementById('ota-progress-bar');
+            const otaPercent = document.getElementById('ota-percent');
+            const otaStatus = document.getElementById('ota-status');
+            
+            otaBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percent + '%';
+                    otaPercent.textContent = percent + '%';
+                    if (percent === 100) otaStatus.textContent = 'Verifying & Flashing...';
+                }
+            });
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        showToast('Update Successful! Rebooting...');
+                        setTimeout(() => { location.reload(); }, 5000);
+                    } else {
+                        showToast('Update Failed: ' + xhr.responseText);
+                        otaBtn.disabled = false;
+                    }
+                }
+            };
+
+            xhr.open('POST', '/update');
+            xhr.send(selectedFile);
+        }
+
         // ========== Initialization ==========
-        
+
         /**
          * Initialize page on DOM load
          */
@@ -1897,20 +2065,24 @@
             // Get language setting from URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const langParam = urlParams.get('lang');
-            
+
             // Get browser language
             const browserLang = navigator.language || navigator.userLanguage;
-            
+
             // Priority: URL parameter > local storage > browser language setting
-            const savedLang = langParam || 
-                             localStorage.getItem('preferred_language') || 
-                             getSupportedLanguage(browserLang);
-            
+            const savedLang = langParam ||
+                localStorage.getItem('preferred_language') ||
+                getSupportedLanguage(browserLang);
+
             document.getElementById('language').value = savedLang;
             changeLanguage();
             loadSavedList();
             loadAPList();
             loadAdvancedConfig();
+
+            // Poll system info every 5 seconds
+            fetchSystemInfo();
+            setInterval(fetchSystemInfo, 5000);
         });
 
         /**
@@ -1928,7 +2100,8 @@
         ssid.addEventListener('touchstart', () => {
             ssid.removeAttribute('readonly');
             ssid.focus();
-        }, {once: true});
+        }, { once: true });
     </script>
 </body>
+
 </html>

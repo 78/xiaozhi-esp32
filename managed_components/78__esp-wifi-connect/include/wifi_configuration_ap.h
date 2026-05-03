@@ -12,6 +12,7 @@
 #include <esp_timer.h>
 #include <esp_netif.h>
 #include <esp_wifi_types_generic.h>
+#include <esp_log.h>
 
 #include "dns_server.h"
 #include "sdkconfig.h"
@@ -98,6 +99,7 @@ private:
     static size_t log_pos_;
     static std::mutex log_mutex_;
     static int vprintf_handler(const char* format, va_list args);
+    static vprintf_like_t old_vprintf_handler_;
 
     // Callbacks
     std::function<void()> on_exit_requested_;
