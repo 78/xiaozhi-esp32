@@ -197,43 +197,13 @@ void WifiBoard::StartWifiConfigMode() {
 }
 
 void WifiBoard::EnterWifiConfigMode() {
-    ESP_LOGI(TAG, "EnterWifiConfigMode called");
-    GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
-
-    auto& app = Application::GetInstance();
-    auto state = app.GetDeviceState();
-
-    if (state == kDeviceStateSpeaking || state == kDeviceStateListening || state == kDeviceStateIdle) {
-        // Reset protocol (close audio channel, reset protocol)
-        Application::GetInstance().ResetProtocol();
-
-        xTaskCreate([](void* arg) {
-            auto* board = static_cast<WifiBoard*>(arg);
-
-            // Wait for 1 second to allow speaking to finish gracefully
-            vTaskDelay(pdMS_TO_TICKS(1000));
-
-            // Stop any ongoing connection attempt
-            esp_timer_stop(board->connect_timer_);
-            WifiManager::GetInstance().StopStation();
-
-            // Enter config mode
-            board->StartWifiConfigMode();
-
-            vTaskDelete(NULL);
-        }, "wifi_cfg_delay", 4096, this, 2, NULL);
-        return;
-    }
-
-    if (state != kDeviceStateStarting) {
-        ESP_LOGE(TAG, "EnterWifiConfigMode called but device state is not starting or speaking, device state: %d", state);
-        return;
-    }
-
+    ESP_LOGI(TAG, "EnterWifiConfigMode forced call");
+    
     // Stop any ongoing connection attempt
     esp_timer_stop(connect_timer_);
     WifiManager::GetInstance().StopStation();
 
+    // Start config mode directly
     StartWifiConfigMode();
 }
 

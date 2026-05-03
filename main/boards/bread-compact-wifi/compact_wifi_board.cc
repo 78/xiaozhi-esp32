@@ -85,17 +85,23 @@ private:
         ESP_LOGI(TAG, "SSD1306 driver installed");
 
         // Reset the display
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-        if (esp_lcd_panel_init(panel_) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize display");
+        if (esp_lcd_panel_reset(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to reset display, skipping...");
             display_ = new NoDisplay();
             return;
         }
-        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, false));
+
+        if (esp_lcd_panel_init(panel_) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize display, skipping...");
+            display_ = new NoDisplay();
+            return;
+        }
+        
+        esp_lcd_panel_invert_color(panel_, false);
 
         // Set the display to on
         ESP_LOGI(TAG, "Turning display on");
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+        esp_lcd_panel_disp_on_off(panel_, true);
 
         display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
@@ -103,12 +109,18 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting) {
+            auto state = app.GetDeviceState();
+            if (state == kDeviceStateStarting || state == kDeviceStateIdle || state == kDeviceStateConnecting) {
                 EnterWifiConfigMode();
-                return;
+            } else {
+                app.ToggleChatState();
             }
-            app.ToggleChatState();
         });
+
+        boot_button_.OnLongPress([this]() {
+            EnterWifiConfigMode();
+        });
+
         touch_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
         });
