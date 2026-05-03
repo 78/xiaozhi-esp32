@@ -1,4 +1,0 @@
-# Waveshare ESP32-C6-Touch-AMOLED-2.06
-
-
-[ESP32-C6-Touch-AMOLED-2.06](https://www.waveshare.com/esp32-c6-touch-amoled-2.06.htm)  is a high-performance wearable watch-shaped development board launched by Waveshare. This product is based on the ESP32-C6 microcontroller and integrates a 2.06-inch capacitive touch high-definition AMOLED screen, a six-axis sensor, RTC, audio codec chip, and power management, among other functional modules. With a custom case, its appearance is consistent with that of a smartwatch, and it is specifically designed for prototype development and functional verification of wearable applications.
