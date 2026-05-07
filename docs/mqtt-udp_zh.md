@@ -56,6 +56,56 @@ sequenceDiagram
     Device->>UDP: Disconnect
 ```
 
+### 2.2 服务器主动唤醒流程
+
+```mermaid
+sequenceDiagram
+    participant Device as ESP32 设备
+    participant MQTT as MQTT 服务器
+    participant UDP as UDP 服务器
+
+    Note over Device, UDP: 设备处于idle状态
+    Device->>Device: 状态: idle
+
+    Note over Device, UDP: 1. 服务器发送speak_request
+    MQTT->>Device: speak_request (session_id, text)
+
+    Note over Device, UDP: 2. 设备检查状态并准备
+    Device->>Device: 检查状态是否为idle
+    Device->>Device: 显示预览文本（如果有）
+    Device->>Device: 切换到connecting状态
+
+    Note over Device, UDP: 3. 打开音频通道
+    alt 音频通道已打开
+        Device->>Device: 复用现有通道
+    else 音频通道未打开
+        Device->>MQTT: Hello Message
+        MQTT->>Device: Hello Response (UDP配置)
+        Device->>UDP: UDP Connect
+        UDP->>Device: Connected
+    end
+
+    Note over Device, UDP: 4. 设备准备接收音频
+    Device->>Device: 设置listening_mode
+    Device->>Device: 切换到speaking状态
+
+    Note over Device, UDP: 5. 设备发送speak_ready响应
+    Device->>MQTT: speak_ready (session_id, udp_config)
+
+    Note over Device, UDP: 6. 服务器发送音频数据
+    MQTT->>Device: tts start
+    UDP->>Device: 加密音频数据 (Opus)
+    Device->>Device: 播放音频
+
+    Note over Device, UDP: 7. 结束播放
+    MQTT->>Device: tts stop
+    Device->>Device: 切换到listening状态（用户可语音回复）
+
+    Note over Device, UDP: 8. 关闭连接
+    MQTT->>Device: goodbye
+    Device->>Device: 切换到idle状态，关闭音频通道
+```
+
 ---
 
 ## 3. MQTT 控制通道
@@ -78,7 +128,8 @@ sequenceDiagram
   "version": 3,
   "transport": "udp",
   "features": {
-    "mcp": true
+    "mcp": true,
+    "aec": true
   },
   "audio_params": {
     "format": "opus",
@@ -161,15 +212,54 @@ sequenceDiagram
    }
    ```
 
+5. **Speak Ready 消息**
+   设备收到服务器的 `speak_request` 后发送此消息，表示已准备好接收音频数据。
+   ```json
+   {
+     "session_id": "xxx",
+     "type": "speak_ready",
+     "state": "ready"
+   }
+   ```
+
 #### 3.3.2 服务器→设备端
 
 支持的消息类型与 WebSocket 协议一致，包括：
 - **STT**：语音识别结果
-- **TTS**：语音合成控制
+- **TTS**：语音合成控制（`start`、`stop`、`sentence_start`）
 - **LLM**：情感表达控制
 - **MCP**：物联网控制
-- **System**：系统控制
-- **Custom**：自定义消息（可选）
+- **System**：系统控制，如 `"command": "reboot"`
+- **Alert**：在设备界面显示告警；字段：`status`、`message`、`emotion`
+- **Goodbye**：服务器主动关闭音频会话，设备端关闭 UDP 通道但不发送 goodbye
+- **Custom**：自定义消息（可选，需启用 `CONFIG_RECEIVE_CUSTOM_MESSAGE`）
+- **Speak Request**：服务器主动唤醒请求（详见下方）
+
+告警消息示例：
+```json
+{
+  "session_id": "xxx",
+  "type": "alert",
+  "status": "Warning",
+  "message": "Battery low",
+  "emotion": "sad"
+}
+```
+
+**Speak Request 消息示例：**
+```json
+{
+  "session_id": "xxx",
+  "type": "speak_request",
+  "text": "这是一条通知消息"
+}
+```
+- 服务器主动请求设备进入speaking状态，用于远程唤醒或推送通知场景。
+- **字段说明：**
+  - `session_id`：会话标识符（必需）
+  - `type`：固定为"speak_request"
+  - `text`：预览文本（可选，用于在设备屏幕上显示即将播放的内容）
+- **对话流程：** TTS stop 后设备进入 listening 状态（用户可语音回复），服务器发送 goodbye 后设备进入 idle 状态并关闭音频通道。
 
 ---
 
@@ -182,6 +272,8 @@ sequenceDiagram
 2. 解析加密密钥和随机数
 3. 初始化 AES-CTR 加密上下文
 4. 建立 UDP 连接
+
+**注意**：NAT 激活包仅在服务器主动唤醒（`speak_request`）时发送。正常唤醒流程中，设备在打开通道后会立即发送音频数据，自然建立 NAT 映射。而服务器主动唤醒时，设备需要主动发送空包，以便服务器能够通过 NAT 向设备发送音频数据。
 
 ### 4.2 音频数据格式
 
