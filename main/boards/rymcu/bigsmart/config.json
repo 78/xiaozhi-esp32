@@ -1,0 +1,12 @@
+{
+    "manufacturer": "rymcu",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "bigsmart",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        }
+    ]
+}

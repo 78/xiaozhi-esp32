@@ -110,6 +110,8 @@ void Nt26Board::StartNetwork() {
             case UartEthModem::UartEthModemEvent::InFlightMode:
                 ESP_LOGW(TAG, "Modem in flight mode");
                 break;
+            case UartEthModem::UartEthModemEvent::RequestingPdpContext:
+                break;
         }
     });
 
