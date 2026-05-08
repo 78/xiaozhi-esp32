@@ -126,74 +126,92 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
     int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
-    esp_timer_handle_t wake_word_bounce_timer_ = nullptr;
-    bool bounce_timer_running_ = false;
-    static constexpr uint64_t kWakeWordBouncePeriodUs = 2ULL * 60 * 1000000;  // 2 min
+
+    // Standalone dim-only timer used while charging. PowerSaveTimer is
+    // disabled on the charger so wake word detection isn't disturbed by its
+    // sleep callbacks; this lightweight timer applies just the visual dim
+    // (low brightness + sleepy emoji) on its own.
+    esp_timer_handle_t dim_timer_ = nullptr;
+    int dim_ticks_ = 0;
+    bool dimmed_ = false;
+    bool dim_timer_running_ = false;
+    static constexpr int kDimSeconds = 60;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(20);
-            // Bouncing wake word right at the dim transition: hardware
-            // testing showed the AFE / audio input pipeline stalls around
-            // this point on charger, before the periodic heartbeat would
-            // fire. Cheap and lets the periodic timer remain a safety net.
-            if (last_discharging_ == 0) {
-                BounceWakeWord();
-            }
         });
         power_save_timer_->OnExitSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(false);
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
-            // Block auto power-off while plugged into the charger so the device
-            // stays "always-on" for wake word detection. Display dim and the
-            // sleep emoji from OnEnterSleepMode still fire after 60s as usual.
-            if (last_discharging_ == 0) {
-                return;
-            }
             pmic_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
     }
 
-    void InitializeWakeWordBounceTimer() {
+    void InitializeDimTimer() {
         esp_timer_create_args_t args = {
             .callback = [](void* arg) {
                 auto self = static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg);
-                self->BounceWakeWord();
+                self->DimTick();
             },
             .arg = this,
             .dispatch_method = ESP_TIMER_TASK,
-            .name = "ww_bounce",
+            .name = "dim_tick",
             .skip_unhandled_events = true,
         };
-        ESP_ERROR_CHECK(esp_timer_create(&args, &wake_word_bounce_timer_));
+        ESP_ERROR_CHECK(esp_timer_create(&args, &dim_timer_));
     }
 
-    // Periodically restart wake word detection while idle on the charger.
-    // Some boards see the AFE / audio input stall after long idle periods;
-    // a brief disable+enable bounces the pipeline back to a known-good state.
-    void BounceWakeWord() {
-        Application::GetInstance().Schedule([this]() {
-            if (last_discharging_ != 0) {
-                return;  // No bounce on battery
+    void ApplyDim(bool on) {
+        Application::GetInstance().Schedule([this, on]() {
+            if (on) {
+                ESP_LOGI(TAG, "Dim mode (always-on)");
+                GetDisplay()->SetPowerSaveMode(true);
+                GetBacklight()->SetBrightness(20);
+            } else {
+                GetDisplay()->SetPowerSaveMode(false);
+                GetBacklight()->RestoreBrightness();
             }
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() != kDeviceStateIdle) {
-                return;  // Don't bounce during a conversation
-            }
-            auto& audio_service = app.GetAudioService();
-            if (!audio_service.IsWakeWordRunning()) {
-                return;
-            }
-            ESP_LOGI(TAG, "Always-on heartbeat: bouncing wake word");
-            audio_service.EnableWakeWordDetection(false);
-            vTaskDelay(pdMS_TO_TICKS(100));
-            audio_service.EnableWakeWordDetection(true);
         });
+    }
+
+    void DimTick() {
+        if (!Application::GetInstance().CanEnterSleepMode()) {
+            // Activity (conversation, button) — restore display and reset.
+            dim_ticks_ = 0;
+            if (dimmed_) {
+                dimmed_ = false;
+                ApplyDim(false);
+            }
+            return;
+        }
+        dim_ticks_++;
+        if (dim_ticks_ >= kDimSeconds && !dimmed_) {
+            dimmed_ = true;
+            ApplyDim(true);
+        }
+    }
+
+    void StartDimTimer() {
+        if (dim_timer_running_) return;
+        dim_ticks_ = 0;
+        esp_timer_start_periodic(dim_timer_, 1000000);
+        dim_timer_running_ = true;
+    }
+
+    void StopDimTimer() {
+        if (!dim_timer_running_) return;
+        esp_timer_stop(dim_timer_);
+        dim_timer_running_ = false;
+        if (dimmed_) {
+            dimmed_ = false;
+            ApplyDim(false);
+        }
     }
 
     void InitializeCodecI2c() {
@@ -357,7 +375,7 @@ public:
     WaveshareEsp32s3TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
-        InitializeWakeWordBounceTimer();
+        InitializeDimTimer();
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
@@ -388,21 +406,18 @@ public:
         discharging = pmic_->IsDischarging();
         int discharging_state = discharging ? 1 : 0;
         if (discharging_state != last_discharging_) {
+            // On charger: disable PowerSaveTimer so its sleep-mode callbacks
+            // (which on this board appear to disrupt the AFE / audio pipeline)
+            // never fire. Run the standalone dim timer instead for the
+            // brightness + sleepy-emoji UX. On battery: reverse — disable dim
+            // timer, re-enable PowerSaveTimer (60s sleep, 5min auto-shutdown).
+            power_save_timer_->SetEnabled(discharging);
             if (discharging) {
-                ESP_LOGI(TAG, "Always-on disabled (battery, auto power-off armed)");
-                // Reset the timer so we don't shut down immediately if the
-                // charger is unplugged after the device has been idle a while.
-                power_save_timer_->WakeUp();
-                if (bounce_timer_running_) {
-                    esp_timer_stop(wake_word_bounce_timer_);
-                    bounce_timer_running_ = false;
-                }
+                StopDimTimer();
+                ESP_LOGI(TAG, "Always-on disabled (battery)");
             } else {
-                ESP_LOGI(TAG, "Always-on enabled (charging, auto power-off blocked)");
-                if (!bounce_timer_running_ && wake_word_bounce_timer_) {
-                    esp_timer_start_periodic(wake_word_bounce_timer_, kWakeWordBouncePeriodUs);
-                    bounce_timer_running_ = true;
-                }
+                StartDimTimer();
+                ESP_LOGI(TAG, "Always-on enabled (charging)");
             }
             last_discharging_ = discharging_state;
         }
