@@ -128,13 +128,20 @@ private:
     int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
     esp_timer_handle_t wake_word_bounce_timer_ = nullptr;
     bool bounce_timer_running_ = false;
-    static constexpr uint64_t kWakeWordBouncePeriodUs = 5ULL * 60 * 1000000;  // 5 min
+    static constexpr uint64_t kWakeWordBouncePeriodUs = 2ULL * 60 * 1000000;  // 2 min
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(20);
+            // Bouncing wake word right at the dim transition: hardware
+            // testing showed the AFE / audio input pipeline stalls around
+            // this point on charger, before the periodic heartbeat would
+            // fire. Cheap and lets the periodic timer remain a safety net.
+            if (last_discharging_ == 0) {
+                BounceWakeWord();
+            }
         });
         power_save_timer_->OnExitSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(false);
