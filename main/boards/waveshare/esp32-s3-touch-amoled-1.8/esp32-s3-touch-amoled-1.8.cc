@@ -126,6 +126,9 @@ private:
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
     int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
+    esp_timer_handle_t wake_word_bounce_timer_ = nullptr;
+    bool bounce_timer_running_ = false;
+    static constexpr uint64_t kWakeWordBouncePeriodUs = 5ULL * 60 * 1000000;  // 5 min
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -138,13 +141,52 @@ private:
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
+            // Block auto power-off while plugged into the charger so the device
+            // stays "always-on" for wake word detection. Display dim and the
+            // sleep emoji from OnEnterSleepMode still fire after 60s as usual.
+            if (last_discharging_ == 0) {
+                return;
+            }
             pmic_->PowerOff();
         });
-
-        // pmic_ is initialized later (InitializeAxp2101 runs after this), so we
-        // can't read charging state here. Default to enabled and let the first
-        // GetBatteryLevel() tick reconcile the always-on state.
         power_save_timer_->SetEnabled(true);
+    }
+
+    void InitializeWakeWordBounceTimer() {
+        esp_timer_create_args_t args = {
+            .callback = [](void* arg) {
+                auto self = static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg);
+                self->BounceWakeWord();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "ww_bounce",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &wake_word_bounce_timer_));
+    }
+
+    // Periodically restart wake word detection while idle on the charger.
+    // Some boards see the AFE / audio input stall after long idle periods;
+    // a brief disable+enable bounces the pipeline back to a known-good state.
+    void BounceWakeWord() {
+        Application::GetInstance().Schedule([this]() {
+            if (last_discharging_ != 0) {
+                return;  // No bounce on battery
+            }
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() != kDeviceStateIdle) {
+                return;  // Don't bounce during a conversation
+            }
+            auto& audio_service = app.GetAudioService();
+            if (!audio_service.IsWakeWordRunning()) {
+                return;
+            }
+            ESP_LOGI(TAG, "Always-on heartbeat: bouncing wake word");
+            audio_service.EnableWakeWordDetection(false);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            audio_service.EnableWakeWordDetection(true);
+        });
     }
 
     void InitializeCodecI2c() {
@@ -308,6 +350,7 @@ public:
     WaveshareEsp32s3TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
+        InitializeWakeWordBounceTimer();
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
@@ -338,11 +381,21 @@ public:
         discharging = pmic_->IsDischarging();
         int discharging_state = discharging ? 1 : 0;
         if (discharging_state != last_discharging_) {
-            power_save_timer_->SetEnabled(discharging);
             if (discharging) {
-                ESP_LOGI(TAG, "Always-on disabled (battery)");
+                ESP_LOGI(TAG, "Always-on disabled (battery, auto power-off armed)");
+                // Reset the timer so we don't shut down immediately if the
+                // charger is unplugged after the device has been idle a while.
+                power_save_timer_->WakeUp();
+                if (bounce_timer_running_) {
+                    esp_timer_stop(wake_word_bounce_timer_);
+                    bounce_timer_running_ = false;
+                }
             } else {
-                ESP_LOGI(TAG, "Always-on enabled (charging)");
+                ESP_LOGI(TAG, "Always-on enabled (charging, auto power-off blocked)");
+                if (!bounce_timer_running_ && wake_word_bounce_timer_) {
+                    esp_timer_start_periodic(wake_word_bounce_timer_, kWakeWordBouncePeriodUs);
+                    bounce_timer_running_ = true;
+                }
             }
             last_discharging_ = discharging_state;
         }
