@@ -138,12 +138,14 @@ private:
             GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->OnShutdownRequest([this]() {
+            // Block auto power-off while plugged into the charger so the device
+            // stays "always-on" for wake word detection. Display dim and the
+            // sleep emoji from OnEnterSleepMode still kick in after 60s as usual.
+            if (last_discharging_ == 0) {
+                return;
+            }
             pmic_->PowerOff();
         });
-
-        // pmic_ is initialized later (InitializeAxp2101 runs after this), so we
-        // can't read charging state here. Default to enabled and let the first
-        // GetBatteryLevel() tick reconcile the always-on state.
         power_save_timer_->SetEnabled(true);
     }
 
@@ -338,11 +340,13 @@ public:
         discharging = pmic_->IsDischarging();
         int discharging_state = discharging ? 1 : 0;
         if (discharging_state != last_discharging_) {
-            power_save_timer_->SetEnabled(discharging);
             if (discharging) {
-                ESP_LOGI(TAG, "Always-on disabled (battery)");
+                ESP_LOGI(TAG, "Always-on disabled (battery, auto power-off armed)");
+                // Reset the timer so we don't shut down immediately if the
+                // charger is unplugged after the device has been idle a while.
+                power_save_timer_->WakeUp();
             } else {
-                ESP_LOGI(TAG, "Always-on enabled (charging)");
+                ESP_LOGI(TAG, "Always-on enabled (charging, auto power-off blocked)");
             }
             last_discharging_ = discharging_state;
         }
