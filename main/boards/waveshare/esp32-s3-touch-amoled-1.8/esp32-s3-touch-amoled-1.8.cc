@@ -125,6 +125,7 @@ private:
     CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
+    int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -139,6 +140,10 @@ private:
         power_save_timer_->OnShutdownRequest([this]() {
             pmic_->PowerOff();
         });
+
+        // pmic_ is initialized later (InitializeAxp2101 runs after this), so we
+        // can't read charging state here. Default to enabled and let the first
+        // GetBatteryLevel() tick reconcile the always-on state.
         power_save_timer_->SetEnabled(true);
     }
 
@@ -329,12 +334,17 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
         charging = pmic_->IsCharging();
         discharging = pmic_->IsDischarging();
-        if (discharging != last_discharging) {
+        int discharging_state = discharging ? 1 : 0;
+        if (discharging_state != last_discharging_) {
             power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
+            if (discharging) {
+                ESP_LOGI(TAG, "Always-on disabled (battery)");
+            } else {
+                ESP_LOGI(TAG, "Always-on enabled (charging)");
+            }
+            last_discharging_ = discharging_state;
         }
 
         level = pmic_->GetBatteryLevel();
