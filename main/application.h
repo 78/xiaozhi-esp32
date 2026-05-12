@@ -10,6 +10,7 @@
 #include <mutex>
 #include <deque>
 #include <memory>
+#include <atomic>
 
 #include "protocol.h"
 #include "ota.h"
@@ -138,6 +139,8 @@ private:
 
     bool has_server_time_ = false;
     bool aborted_ = false;
+    // Manual 模式下，SendStopListening 之后的时间戳；用于测量首包 TTS 延迟。0 表示未计时
+    std::atomic<int64_t> manual_stop_listening_time_us_{0};
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;

@@ -496,6 +496,11 @@ void Application::InitializeProtocol() {
     });
     
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+        int64_t start_us = manual_stop_listening_time_us_.exchange(0);
+        if (start_us != 0) {
+            int64_t delay_ms = (esp_timer_get_time() - start_us) / 1000;
+            ESP_LOGI(TAG, "=============== TTS first audio packet latency (manual): %d ms", (int)delay_ms);
+        }
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
@@ -768,6 +773,9 @@ void Application::HandleStopListeningEvent() {
     } else if (state == kDeviceStateListening) {
         if (protocol_) {
             protocol_->SendStopListening();
+        }
+        if (listening_mode_ == kListeningModeManualStop) {
+            manual_stop_listening_time_us_.store(esp_timer_get_time());
         }
         SetDeviceState(kDeviceStateIdle);
     }

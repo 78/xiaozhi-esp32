@@ -9,7 +9,7 @@ XiaoZhi（小智）是一款基于 **ESP32 系列 MCU** 的 **开源语音 AI �
 - **Device-side MCP**：模型通过 MCP 调用设备本地能力（喇叭、LED、舵机、GPIO…）
 - **Cloud-side MCP**：设备通过 MCP 调用云端能力（智能家居、PC 桌面操作、知识检索、邮件…）
 
-默认连接官方服务器 `xiaozhi.me`（OTA URL：`https://api.tenclass.net/xiaozhi/ota/`）。
+默认连接官方服务器 `xiaozhi.me`（OTA URL：`https://api.tenclass.net/xiaozhi/ota/`）。OTA URL 同时承担固件升级、设备激活、以及 MQTT/WebSocket 服务器地址下发，详见 [ota-protocol_zh.md](ota-protocol_zh.md)。
 
 ## 2. 技术栈
 
