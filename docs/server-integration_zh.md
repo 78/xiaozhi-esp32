@@ -116,6 +116,19 @@ server 不强制区分，但建议记录用于：
 - 「按键打断率」高 → TTS 太长/太啰嗦（产品信号）
 - 上下文衔接：唤醒词打断是否复用 session/对话历史
 
+
+
+### 2.5 realtime 模式下 server 端下发打断
+
+realtime = 设备 AEC（或带时间戳的裸流）+ 服务端 VAD 的全双工长会话。
+客户端只在唤醒词或按键时主动 abort；自然语音打断完全是服务端语义，客户端只负责在收到tts stop 后切状态、丢弃后续包，本地解码尾巴会自然消散。
+
+- Device-AEC 路径：afe_audio_processor.cc:191-193 开 AEC 的同时 disable_vad() —— 设备 VAD 被显式关掉
+- Server-AEC 路径：设备只发裸 PCM/Opus，本来就没本地 VAD
+- realtime 模式发的 listen JSON 是 "mode":"realtime"（protocol.cc:60-66），约定就是服务端持续接收、自己判段
+
+所以全双工长流，何时收尾、何时打断完全由服务端 VAD 决定，服务端通过下发 {"type":"tts","state":"stop"} 让设备退出 Speaking 状态（application.cc:531-545）。
+
 ---
 
 ## 3. goodbye 消息
