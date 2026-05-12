@@ -171,6 +171,51 @@ t4  goodbye 到达 client：
 
 **WS server 关连接应该发 WebSocket close frame（opcode 0x8）**，client library `web_socket.cc:383-387` 处理该 frame 触发 `on_disconnected_` → application 切 idle。**不要**发 JSON goodbye。
 
+### 3.5 goodbye 的语义本质
+
+在 MQTT 路径下 goodbye 实际**做了**和**没做**的事情：
+
+```
+server goodbye → mqtt_protocol.cc:115-126
+                 → CloseAudioChannel(false)   // 不回包
+                   ├─ udp_.reset()              // 关 UDP socket
+                   ├─ on_audio_channel_closed_()→ app → kDeviceStateIdle
+                   └─ 保留 session_id_、MQTT 连接、AES ctx 等待下次 hello
+```
+
+所以 goodbye 的真实语义是 **"强制结束当前 audio turn，把设备拉回 idle"**，不是 kick connection、不是探活。MQTT 连接、session_id_ 都不会被它清除——下次 hello 才会重置。
+
+### 3.6 Server 该在何时下发 goodbye（MQTT）
+
+| # | 场景 | 为什么必须 server 主动发 |
+|---|---|---|
+| 1 | **server 单边判定 turn 结束**（LLM 出完、TTS 播完，且不紧跟 listen） | client 不会自己关 audio channel；不发设备就一直挂着 UDP，等 120s 超时才回 idle，体验上像"卡住" |
+| 2 | **server 检测到 UDP 上行静默**（如 30~60s 没收到设备 opus 包，但 MQTT 还活） | 大概率 NAT 老化 / 路由变了。goodbye 让设备回 idle，下次按键自动重新协商新 UDP 4 元组 |
+| 3 | **server 侧 pipeline 故障**（LLM 挂、TTS 服务挂、加密 ctx 异常） | 别让设备傻等；释放设备状态，下次它会重新走 hello |
+| 4 | **server 端 session 资源回收**（超过最大会话时长 / idle 阈值 / 内存压力驱逐） | UDP 加密上下文 / SSRC / 端口绑定都有成本；server 单边释放但不通知，设备继续用旧 key/nonce 加密的包到了 server 也解不开 |
+| 5 | **服务热重启 / 滚动升级 / session 迁移** | 重启前批量发 goodbye，比让一万台设备走 120s 超时友好得多 |
+| 6 | **协议版本/能力变更**（极少见） | goodbye 后下次 hello 自然带新版本号 |
+
+### 3.7 不该发 goodbye 的反例
+
+| # | 反例 | 为什么 |
+|---|---|---|
+| A | 设备 MQTT 已断（broker LWT/超时上报）后再补 goodbye | 管道已死，发不出去；浪费 broker 资源，徒增日志噪音 |
+| B | 收到 client goodbye 后回一个 goodbye | client 代码 `CloseAudioChannel(false)` 已经避免了 ping-pong（`mqtt_protocol.cc:122` 注释明确），server 也不该自己点火 |
+| C | 正常 turn 间隔（一轮对话刚结束，要立刻进下一轮 listen） | 让 audio channel 留着，发 `tts stop` 就够了。每个 turn 都 close/open 一次会重新建 UDP + 跑 AES setkey，得不偿失 |
+| D | 当 heartbeat 用 | goodbye 是终结信号不是探活信号。保活靠 MQTT keepalive |
+| E | 重发 goodbye 时换新的 session_id | 参考 §3.3 —— 必须带**结束时**那个 session_id，否则可能误关设备已经重开的 channel #2 |
+
+### 3.8 发送前的三问
+
+```
+1. MQTT 通道还通吗？               否 → 别发，走超时清理
+2. 设备此刻可能在用这个 channel 吗？ 否 → 没必要发（无害但浪费）
+3. 我有 session_id 吗？             否 → 别发（§3.3 的坑会误伤）
+```
+
+三个都是 yes → 发，并且带上 session_id。
+
 ---
 
 ## 4. 心跳与连接保活
@@ -310,132 +355,151 @@ case kDeviceStateSpeaking:
 
 ---
 
-## 7. Server-initiated UDP push（协议未约定）
+## 7. Server 主动播报（MQTT+UDP 主动下行）
 
 > 场景：通知音、定时播报、被动消息（"快递到了"）、广播——server 想**主动**向 device 推一段音频播放，而不是回应一次正常对话。
+>
+> 服务端 (`xiaozhi-esp32-server-golang`) 的完整时序、参数、排查 checklist 见 [mqtt_udp_active_downlink.md](../mqtt_udp_active_downlink.md)。本节聚焦**协议约定** + **client 端固件需要做的改动**。
 
-### 7.1 结论
+### 7.1 必须先解决的三个客观障碍
 
-**xiaozhi 协议层没有官方约定**支持 server 主动推送音频。当前协议的 mental model 是 client-initiated 对话（用户说话 → server 回复 TTS），没有给「server push」留显式入口。但代码留了三个可利用的"洞"，可以**间接**实现，前提条件严格。
+xiaozhi 协议本身是 client-initiated 对话模型，没有 server-push 入口。要做主动下行，必须先解决：
 
-### 7.2 协议层为什么不支持
-
-#### 障碍 1：UDP 通道严格 client-initiated
-
-`mqtt_protocol.cc:215-294`（`OpenAudioChannel`）：必须 **client 先 publish** `{"type":"hello","transport":"udp"}` → server 回 hello 带 `udp.{server, port, key, nonce}` → client 才 `network->CreateUdp(2)` 创建 socket。
-
-Server 在此之前**不可能**对 UDP 推音频：
-- Client 在 NAT 后，server 不知道其出口 IP/Port
-- AES-CTR nonce 是 session 协商的，没建立 session 无法加密
-- Client 端根本没有监听 UDP 端口
-
-#### 障碍 2：Client 端 UDP 音频包按 device state 过滤
-
-`application.cc:498-502`：
-```cpp
-protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
-    ...
-    if (GetDeviceState() == kDeviceStateSpeaking) {
-        audio_service_.PushPacketToDecodeQueue(std::move(packet));
-    }
-});
-```
-**仅 `kDeviceStateSpeaking` 才播放**，idle / listening 状态收到 UDP 音频**直接丢弃**。
-
-#### 障碍 3：120s 空闲超时 + NAT 映射超时
-
-`mqtt_protocol.cc:387-389`：
-```cpp
-bool MqttProtocol::IsAudioChannelOpened() const {
-    return udp_ != nullptr && !error_occurred_ && !IsTimeout();
-}
-```
-
-- `IsTimeout()` 阈值硬编码 120s（`protocol.cc:81-90`），无应用层数据就判超时
-- 路由器 NAT 映射典型 30–120s 不上行流量就回收 —— server 拿着旧端口推音频包**到不了 client**
-- MQTT keepalive 不能维持 UDP 映射（不同 socket）
-- 协议层**没有 UDP 保活机制**
-
-### 7.3 代码留下的三个洞
-
-| 洞 | 位置 | 描述 |
+| 障碍 | 根因 | 解法 |
 |---|---|---|
-| `tts state=start` 无前置检查 | `application.cc:531-535` | 不要求当前在 Listening、不验证 session、不看 listening_mode——MQTT 收到就 `SetDeviceState(Speaking)` |
-| `WakeWordInvoke` 是 public API | `application.h:108`、`application.cc:1024-1054` | 全代码无人调用，预留给外部触发对话（MCP tool、button、外设事件）|
-| `tts stop` 已经在 idle 也能切换 | `application.cc:536-545` | 用 `if (GetDeviceState() == kDeviceStateSpeaking)` 守卫，幂等安全 |
+| UDP 通道严格 client-initiated | server 不知道 client 的 NAT 出口 (`mqtt_protocol.cc:215-294`)；AES-CTR nonce 来自 session 协商 | 让设备**先发一帧 UDP 上行**给 server 打洞 |
+| 仅 `kDeviceStateSpeaking` 才播放下行 | `application.cc:498-502` 在其它状态直接丢弃 UDP 包 | 收到推送通知后 client 自己切到 Speaking |
+| 120s 空闲 + NAT 映射超时 | `protocol.cc:81-90` 硬编码 120s；路由器 NAT 典型 30–120s 回收 | server 维护"热链路窗口"，过窗即触发完整握手 |
 
-### 7.4 可行的实现路径
+### 7.2 推荐方案：`speak_request` / `speak_ready` 握手
 
-#### 路径 A：channel 已 open 时（最简单）
+服务端通过两条 MQTT 控制消息和一帧 UDP 打洞包，把上面三个障碍一次性解决：
 
-**前提**：device 刚结束一次对话，UDP channel 还 open，state=idle，距上次有数据 < 120s。
+```
+[Server]                                       [Device]
+   │
+   │ 1. MQTT speak_request ───────────────────▶
+   │    {type, session_id, text, auto_listen}
+   │
+   │                                         2. 检查 UDP 通道
+   │                                            ├─ 可用 → 直接打洞
+   │                                            └─ 失效 → 发 hello 重协商
+   │                                               (server 识别为 duplicate_hello)
+   │
+   │ 3. UDP 上行打洞包 ◀───────────────────────
+   │    (server SetRemoteAddr 绑 NAT 出口)
+   │
+   │ 4. MQTT speak_ready ◀─────────────────────
+   │    {state:"ready", udp_config.ready:true}
+   │
+   │ 5. MQTT tts sentence_start ──────────────▶  client → Speaking
+   │ 6. UDP 加密音频帧（多个）──────────────────▶  播放
+   │ 7. MQTT tts sentence_end ────────────────▶
+   │
+   │ 8a. auto_listen=true  → MQTT listen start  (进入下一 turn)
+   │ 8b. auto_listen=false → MQTT goodbye       (按 §3.6 场景 #1 收尾)
+```
 
-Server 端：
-1. MQTT 发 `{"type":"tts","state":"start","session_id":"..."}` → client 切 Speaking
-2. UDP 推 Opus 音频包 → client 解密 + 解码 + 播放
-3. MQTT 发 `{"type":"tts","state":"stop","session_id":"..."}` → client 切 idle / listening
+server 端用 5s pending timer 等 `speak_ready`，超时即放弃；并维护 60s 热链路窗口 (`chat.speak_request_reuse_window_ms`)，窗内重复 inject 跳过整套握手直接 TTS 下行。
 
-**风险**：
-- 120s 内 server 不发任何东西 → channel 视为超时
-- NAT 映射回收 → server 的 UDP 包到不了 client
-- 用 `tts` type 跟正常对话回复在语义上混淆，日志不好区分
+### 7.3 消息约定
 
-#### 路径 B：channel 没 open 时（device 长时间 idle）
-
-**协议没解决的核心场景**。三个 workaround：
-
-| 方案 | 改动 | 评估 |
-|---|---|---|
-| **B1：扩展 JSON 协议** | client `OnIncomingJson` 加新分支，如 `{"type":"play"}` → 主动 `OpenAudioChannel` + `SetDeviceState(Speaking)` | **推荐**。最干净，固件改动 < 20 行 |
-| **B2：MCP tool 路径** | server 通过 MCP 调 device-side 工具，工具调 `WakeWordInvoke` 或自定义 | 利用现有 MCP 双向通道，但要 device 端注册对应 tool |
-| **B3：扩展 system command** | `application.cc:575-587` 的 `{"type":"system","command":"..."}` 目前只有 `reboot`，加新 command | 跟 system 语义混淆，不推荐 |
-
-#### 路径 C：周期"心跳唤醒"
-
-让 client idle 时也每 N 分钟主动 OpenAudioChannel + 立刻 CloseAudioChannel，给 server 留推送窗口。开销大，违背"按需建立"原则，**不推荐**。
-
-### 7.5 推荐方案 B1 的最小实现
-
-**协议设计**：新增 `play` type（区别于 `tts`，明确表达"server 主动推送"语义）。
+**server → device：`speak_request`**
 
 ```jsonc
-// Server → Client（MQTT 控制通道）
 {
-  "type": "play",
-  "session_id": "...",
-  "source": "notification"   // 可选：notification / broadcast / scheduled / ...
+  "type": "speak_request",
+  "session_id": "xxx-xxx-xxx",
+  "text": "提醒您 10 点开会",   // 文本预览，便于设备 UI / 日志
+  "auto_listen": false          // true: 播完进 listen；false: 播完发 goodbye 收尾
 }
 ```
 
-收尾仍走 `{"type":"tts","state":"stop"}`，复用现有逻辑。
+**device → server：`speak_ready`**
 
-**client 端固件改动**（`application.cc::OnIncomingJson` 加分支）：
+```jsonc
+{
+  "type": "speak_ready",
+  "session_id": "xxx-xxx-xxx",
+  "state": "ready",
+  "udp_config": {
+    "ready": true,
+    "reuse_existing": true      // true=复用已有 UDP 通道；false=刚走 hello 重建
+  }
+}
+```
+
+session_id 全程一致（speak_request → speak_ready → tts → goodbye）；若 client 走了 hello 重协商，使用 server hello 返回的 session_id。
+
+### 7.4 Client 端固件改动
+
+> 现状：`application.cc:526-610` 的 `OnIncomingJson` **未实现** `speak_request` 分支；`mqtt_protocol.cc` 也未提供 `SendSpeakReady`。下面是最小改动方案。
+
+**Step 1**：在 `Protocol` 基类加 `SendSpeakReady`（参考 `Protocol::SendStartListening` 的写法，`protocol.cc:57-69`）：
+
 ```cpp
-} else if (strcmp(type->valuestring, "play") == 0) {
+void Protocol::SendSpeakReady(bool reuse_existing) {
+    std::string message = "{\"session_id\":\"" + session_id_ +
+        "\",\"type\":\"speak_ready\",\"state\":\"ready\"," +
+        "\"udp_config\":{\"ready\":true,\"reuse_existing\":" +
+        (reuse_existing ? "true" : "false") + "}}";
+    SendText(message);
+}
+```
+
+**Step 2**：在 `application.cc::OnIncomingJson` 增加 `speak_request` 分支：
+
+```cpp
+} else if (strcmp(type->valuestring, "speak_request") == 0) {
     Schedule([this]() {
-        if (!protocol_->IsAudioChannelOpened()) {
-            protocol_->OpenAudioChannel();   // 主动建 UDP 通道
+        // a) 状态冲突保护：仅 idle 接受主动播报，其它状态忽略
+        if (GetDeviceState() != kDeviceStateIdle) {
+            ESP_LOGW(TAG, "speak_request ignored, state=%d", GetDeviceState());
+            return;
         }
+
+        // b) 保证 UDP 通道可用；不可用则走 hello 重协商
+        //    (server 端会识别为 duplicate_hello，保留 pendingSpeakRequest)
+        bool reuse_existing = protocol_->IsAudioChannelOpened();
+        if (!reuse_existing) {
+            if (!protocol_->OpenAudioChannel()) {
+                ESP_LOGE(TAG, "speak_request: OpenAudioChannel failed");
+                return;
+            }
+        }
+
+        // c) 上行一帧静音 Opus 给 server 打洞，绑 NAT RemoteAddr
+        protocol_->SendAudio(MakeSilentOpusPacket());
+
+        // d) 切到 Speaking，准备接收 TTS UDP 帧
         aborted_ = false;
         SetDeviceState(kDeviceStateSpeaking);
+
+        // e) 回 speak_ready，解 server 端 pending 阻塞
+        protocol_->SendSpeakReady(reuse_existing);
     });
 }
 ```
 
-**好处**：
-- 不污染 `tts` 语义（埋点、日志能清晰区分主动推送 vs 对话回复）
-- 完全复用 UDP 通道、加密、Opus 解码、播放队列
-- 收尾走标准 `tts stop`，state 机不用动
-- 客户端代码改动量 < 20 行
+**关键点**：
+- **状态冲突**：当前若在 Listening / Speaking，应该 reject 或先 abort 当前 turn 再播报。最安全的做法是 reject，由 server 端 5s 超时自然失败，避免设备状态机错乱。
+- **打洞包**：一帧静音 Opus 即可（payload 全 0 / 极短帧）。目的是让 server `udp_server.go:151` 的 `SetRemoteAddr` 拿到 NAT 出口，**不参与 TTS 播放**。
+- **`reuse_existing` 的取值**：跟 server 的 `markSpeakPathWarm` 是否要更新缓存有关，必须如实上报。
+- **收尾**：完全复用现有 `tts stop` / `goodbye` 处理（`application.cc:531-545`、`mqtt_protocol.cc:115-126`），state 机不动。
 
-**注意事项**：
-- channel 是否 open 由 client 检查，server 可以"无脑发"，client 自己决定要不要建通道
-- 仍然需要解决 **NAT 映射超时**：长时间 idle 后 client 主动重建 channel（hello → 新 UDP 4 元组），server 必须用**新** session 的 nonce 加密
-- 若 device 处于其他状态（Listening 中），新加分支应处理冲突——典型做法是先 abort 当前对话再 play
+### 7.5 失败与边界
+
+| 情况 | 客户端行为 | 服务端兜底 |
+|---|---|---|
+| MQTT 在线但设备处于 Speaking/Listening | reject（不回 speak_ready） | 5s pending timer 超时，HTTP 调用方收到错误 |
+| `OpenAudioChannel` 失败（hello 10s 超时） | 静默放弃，**不重试**（避免风暴）| 同上，超时失败 |
+| UDP 打洞包发出但被防火墙拦 | 仍会回 speak_ready；server 端 `WaitRemoteAddr(2s)` 后下行包整包丢 | 表现为"speak_ready OK 但没声音"——查防火墙 |
+| session_id 不匹配（设备并发收到多条） | 应按收到的最新 speak_request 处理，旧的 speak_ready 不发 | `HandleSpeakReadyMessage` 校验 session_id，不匹配只打 warning 不解阻塞 |
+| pendingSpeakRequest 期间设备意外上行音频 | （无需特殊处理）| `chat.go:402` 自动丢弃，避免被当用户输入 |
 
 ### 7.6 一句话
 
-> xiaozhi 协议没有 server-push 约定，但 `tts state=start` 无前置检查这个"洞"让 channel-open 状态下的推送变得可行。要支持「device 长时间 idle 时主动推送」，必须在 client 端加新 JSON type 让 client 主动 `OpenAudioChannel`，协议层没办法绕过去。
+> 主动播报靠 `speak_request → 设备 UDP 打洞 → speak_ready` 三步握手补齐协议层缺的 server-push 入口。client 端需要新增 `speak_request` 分支 + `SendSpeakReady`，整体改动 < 30 行；server 端则用 60s 热链路窗口避免每次重协商。
 
 ---
 
