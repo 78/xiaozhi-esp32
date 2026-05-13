@@ -723,7 +723,7 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
             return;
-    }
+        }
     }
 
     SetListeningMode(mode);
