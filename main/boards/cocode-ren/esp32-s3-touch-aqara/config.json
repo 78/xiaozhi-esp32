@@ -1,0 +1,14 @@
+{
+    "manufacturer": "Cocode.Ren",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-touch-aqara",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=n",
+                "CONFIG_USE_AUDIO_PROCESSOR=n"
+            ]
+        }
+    ]
+}
