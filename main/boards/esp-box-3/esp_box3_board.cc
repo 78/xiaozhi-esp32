@@ -40,6 +40,7 @@ class EspBox3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
     Button boot_button_;
+    Button mute_button_;
     Display* display_;
 
     void InitializeI2c() {
@@ -88,6 +89,26 @@ private:
             }
         });
 #endif
+
+        mute_button_.OnPressDown([this]() {
+            ESP_LOGI(TAG, "Mute button state changed: Down (Mute Active?)");
+            auto& app = Application::GetInstance();
+            app.SetMuted(true);
+            if (app.GetDeviceState() == kDeviceStateSpeaking || app.GetDeviceState() == kDeviceStateListening) {
+                app.AbortSpeaking(kAbortReasonNone);
+                app.SetDeviceState(kDeviceStateIdle);
+            }
+        });
+
+        mute_button_.OnPressUp([this]() {
+            ESP_LOGI(TAG, "Mute button state changed: Up (Mute Inactive)");
+            auto& app = Application::GetInstance();
+            app.SetMuted(false);
+            
+            // 通知音频线程在安全的时刻对 Codec 和 WakeWord 引擎进行重置
+            // 避免在并发 read 时 close 导致 I2S 状态机损坏
+            app.GetAudioService().ScheduleInputReset();
+        });
     }
 
     void InitializeIli9341Display() {
@@ -137,7 +158,7 @@ private:
     }
 
 public:
-    EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO) {
+    EspBox3Board() : boot_button_(BOOT_BUTTON_GPIO), mute_button_(MUTE_BUTTON_GPIO) {
         InitializeI2c();
         InitializeSpi();
         InitializeIli9341Display();
