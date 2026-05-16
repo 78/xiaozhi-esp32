@@ -716,6 +716,10 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
         return;
     }
 
+    // Switch to performance mode before connecting to reduce latency
+    auto& board = Board::GetInstance();
+    board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
+
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
             return;
@@ -824,6 +828,10 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     if (GetDeviceState() != kDeviceStateConnecting) {
         return;
     }
+
+    // Switch to performance mode before connecting to reduce latency
+    auto& board = Board::GetInstance();
+    board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
 
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
@@ -1063,11 +1071,18 @@ bool Application::CanEnterSleepMode() {
     return true;
 }
 
+void Application::RegisterMcpBroadcastCallback(std::function<void(const std::string&)> callback) {
+    mcp_broadcast_callback_ = std::move(callback);
+}
+
 void Application::SendMcpMessage(const std::string& payload) {
     // Always schedule to run in main task for thread safety
-    Schedule([this, payload = std::move(payload)]() {
+    Schedule([this, payload](){ 
         if (protocol_) {
             protocol_->SendMcpMessage(payload);
+        }
+        if (mcp_broadcast_callback_) {
+            mcp_broadcast_callback_(payload);
         }
     });
 }

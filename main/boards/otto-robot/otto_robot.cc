@@ -230,7 +230,16 @@ private:
         if (!ws_control_server_->Start(8080)) {
             delete ws_control_server_;
             ws_control_server_ = nullptr;
+            return;
         }
+        // 将 MCP 响应同时广播回连接到 8080 端口的 WebSocket 客户端
+        Application::GetInstance().RegisterMcpBroadcastCallback(
+            [this](const std::string& payload) {
+                if (ws_control_server_) {
+                    ws_control_server_->BroadcastMessage(payload);
+                }
+            }
+        );
     }
 
     void StartNetwork() override {
