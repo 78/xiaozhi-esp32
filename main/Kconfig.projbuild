@@ -557,6 +557,10 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P
+        bool "ES3C28P (LCDWIKI 2.8-inch ESP32-S3 Display)"
+        depends on IDF_TARGET_ESP32S3
+
 endchoice
 
 choice

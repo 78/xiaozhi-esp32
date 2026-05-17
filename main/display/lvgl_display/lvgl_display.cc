@@ -172,6 +172,11 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         if (battery_label_ != nullptr && battery_icon_ != icon) {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
+            if (battery_percent_label_ != nullptr) {
+                char buf[8];
+                snprintf(buf, sizeof(buf), "%d%%", battery_level);
+                lv_label_set_text(battery_percent_label_, buf);
+            }
         }
 
         // Check low battery popup only when clock tick event is triggered
