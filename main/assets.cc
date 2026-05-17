@@ -425,44 +425,30 @@ bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
     return true;
 }
 
-bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback)
-{
+bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
     ESP_LOGI(TAG, "Downloading new version of assets from %s", url.c_str());
 
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
 
-    if (!http->Open("GET", url))
-    {
+    if (!http->Open("GET", url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         return false;
     }
-    // RAII auto close
-    struct HttpCloser
-    {
-        decltype(http) &h;
-        ~HttpCloser()
-        {
-            h->Close();
-        }
-    } http_closer{http};
 
-    if (http->GetStatusCode() != 200)
-    {
+    if (http->GetStatusCode() != 200) {
         ESP_LOGE(TAG, "Failed to get assets, status code: %d", http->GetStatusCode());
         return false;
     }
 
     size_t content_length = http->GetBodyLength();
 
-    if (content_length == 0)
-    {
+    if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
         return false;
     }
 
-    if (content_length > partition_->size)
-    {
+    if (content_length > partition_->size) {
         ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)",
                  content_length, partition_->size);
         return false;
@@ -470,8 +456,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
 
     constexpr size_t HEADER_SIZE = 12;
 
-    if (content_length < HEADER_SIZE)
-    {
+    if (content_length < HEADER_SIZE) {
         ESP_LOGE(TAG, "Content length (%u) is smaller than header size (%u)",
                  content_length, HEADER_SIZE);
         return false;
@@ -482,10 +467,9 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
 
     BufferPtr buffer(
         static_cast<char *>(heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL)),
-        heap_caps_free);
+        &heap_caps_free);
 
-    if (!buffer)
-    {
+    if (!buffer) {
         ESP_LOGE(TAG, "Failed to allocate buffer");
         return false;
     }
@@ -509,27 +493,24 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
 
     uint8_t header_buf[HEADER_SIZE];
     size_t header_collected = 0;
-    bool success = true;
-    while (true)
-    {
+    bool success = false;
+    while (true) {
         int ret = http->Read(buffer.get(), SECTOR_SIZE);
-        if (ret < 0)
-        {
-            ESP_LOGE(TAG, "Failed to read HTTP data: %s",  esp_err_to_name(ret));
-            success = false;
+        if (ret < 0) {
+            ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
             break;
         }
 
-        if (ret == 0)
-        {
+        if (ret == 0) {
+            // End of data
+            success = true;
             break;
         }
 
         size_t buf_pos = 0;
 
         // Collect header
-        if (header_collected < HEADER_SIZE)
-        {
+        if (header_collected < HEADER_SIZE) {
             size_t need = HEADER_SIZE - header_collected;
             size_t take = std::min(static_cast<size_t>(ret), need);
             memcpy(header_buf + header_collected, buffer.get(), take);
@@ -538,48 +519,42 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         }
 
         // Write payload
-        if ((size_t)ret > buf_pos)
-        {
+        if ((size_t)ret > buf_pos) {
             size_t write_len = (size_t)ret - buf_pos;
             size_t write_end_offset = HEADER_SIZE + total_written + write_len;
             size_t needed_sectors = (write_end_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
             // Erase sectors
-            while (current_sector < needed_sectors)
-            {
+            bool erase_failed = false;
+            while (current_sector < needed_sectors) {
                 size_t sector_start = current_sector * SECTOR_SIZE;
                 size_t sector_end = sector_start + SECTOR_SIZE;
-                if (sector_end > partition_->size)
-                {
+                if (sector_end > partition_->size) {
                     ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)",
                              sector_end, partition_->size);
-                    success = false;
+                    erase_failed = true;
                     break;
                 }
                 ESP_LOGD(TAG, "Erasing sector %u (offset: %u, size: %u)",
                          current_sector, sector_start, SECTOR_SIZE);
                 esp_err_t err = esp_partition_erase_range(partition_, sector_start, SECTOR_SIZE);
-                if (err != ESP_OK)
-                {
+                if (err != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s",
                              current_sector, sector_start, esp_err_to_name(err));
-                    success = false;
+                    erase_failed = true;
                     break;
                 }
                 current_sector++;
             }
 
-            if (!success)
-            {
+            if (erase_failed) {
                 break;
             }
 
-            esp_err_t err =  esp_partition_write(partition_, HEADER_SIZE + total_written,
-                                    buffer.get() + buf_pos, write_len);
-            if (err != ESP_OK)
-            {
+            esp_err_t err = esp_partition_write(partition_, HEADER_SIZE + total_written,
+                                                buffer.get() + buf_pos, write_len);
+            if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to write to assets partition at offset %u: %s",
-                    (unsigned int)(HEADER_SIZE + total_written), esp_err_to_name(err));
-                success = false;
+                         (unsigned int)(HEADER_SIZE + total_written), esp_err_to_name(err));
                 break;
             }
 
@@ -588,8 +563,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         }
 
         // Calculate progress
-        if (esp_timer_get_time() - last_calc_time >= 1000000 || (header_collected + total_written) == content_length)
-        {
+        if (esp_timer_get_time() - last_calc_time >= 1000000 || (header_collected + total_written) == content_length) {
             size_t progress = (header_collected + total_written) * 100 / content_length;
             size_t speed = recent_written;
             ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %u B/s, Sectors erased: %u",
@@ -599,8 +573,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
                      (unsigned int)speed,
                      (unsigned int)current_sector);
 
-            if (progress_callback)
-            {
+            if (progress_callback) {
                 progress_callback(progress, speed);
             }
             last_calc_time = esp_timer_get_time();
@@ -609,36 +582,31 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     }
 
     // Check if the downloaded size matches the expected size
-    if (success && (header_collected + total_written != content_length))
-    {
+    if (success && (header_collected + total_written != content_length)) {
         ESP_LOGE(TAG, "Downloaded size (%u) does not match expected size (%u)",
                  (unsigned int)(header_collected + total_written), (unsigned int)content_length);
         success = false;
     }
 
     // Write header
-    if (success)
-    {
+    if (success) {
         esp_err_t err = esp_partition_write(partition_, 0, header_buf, HEADER_SIZE);
-        if (err != ESP_OK)
-        {
+        if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to write assets header to partition: %s", esp_err_to_name(err));
             success = false;
         }
     }
 
-    if (!success)
-    {
+    if (!success) {
         ESP_LOGE(TAG, "Assets download failed");
         return false;
     }
 
-    ESP_LOGI(TAG,"Header written, assets download completed, total written: %u bytes, total sectors erased: %u",
+    ESP_LOGI(TAG, "Header written, assets download completed, total written: %u bytes, total sectors erased: %u",
              (unsigned int)(header_collected + total_written), (unsigned int)current_sector);
 
     // Re-initialize the assets partition
-    if (!InitializePartition())
-    {
+    if (!InitializePartition()) {
         ESP_LOGE(TAG, "Failed to re-initialize assets partition");
         return false;
     }
