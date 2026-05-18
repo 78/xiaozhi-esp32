@@ -406,7 +406,12 @@ private:
                     }
                     if(params.action_type != ACTION_SIT){
                         if (params.action_type != ACTION_HOME && params.action_type != ACTION_SERVO_SEQUENCE) {
-                            controller->otto_.Home(params.action_type != ACTION_HANDS_UP);
+                            UBaseType_t pending_actions =
+                                uxQueueMessagesWaiting(controller->action_queue_);
+                            // 如果后面还有动作，先不归位，避免“动作末尾急停+马上再启动”
+                            if (pending_actions == 0) {
+                                controller->otto_.Home(params.action_type != ACTION_HANDS_UP);
+                            }
                         }
                     }
                 }
