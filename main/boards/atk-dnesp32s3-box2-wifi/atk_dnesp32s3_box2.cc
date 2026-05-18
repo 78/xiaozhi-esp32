@@ -104,7 +104,7 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             if (power_status_ == kDeviceBatterySupply) {
-                GetBacklight()->SetBrightness(0);   
+                GetBacklight()->SetBrightness(0);
                 esp_timer_stop(power_manager_->timer_handle_);
                 esp_io_expander_set_dir( io_exp_handle, XIO_CHG_CTRL, IO_EXPANDER_OUTPUT);
                 esp_io_expander_set_level(io_exp_handle, XIO_CHG_CTRL, 0);
