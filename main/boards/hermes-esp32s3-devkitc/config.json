@@ -1,0 +1,11 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "hermes-esp32s3-devkitc",
+            "sdkconfig_append": [
+                "CONFIG_LCD_ILI9341_240X320=y"
+            ]
+        }
+    ]
+}
