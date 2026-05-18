@@ -716,6 +716,10 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
         return;
     }
 
+    // Switch to performance mode before connecting to reduce latency
+    auto& board = Board::GetInstance();
+    board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
+
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
             return;
@@ -824,6 +828,10 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     if (GetDeviceState() != kDeviceStateConnecting) {
         return;
     }
+
+    // Switch to performance mode before connecting to reduce latency
+    auto& board = Board::GetInstance();
+    board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
 
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
