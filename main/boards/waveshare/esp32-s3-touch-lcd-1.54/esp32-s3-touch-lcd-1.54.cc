@@ -136,6 +136,7 @@ private:
                 .disable_control_phase = 1,
             },
         };
+        tp_io_config.scl_speed_hz = 100000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
 
         esp_lcd_touch_config_t tp_cfg = {
