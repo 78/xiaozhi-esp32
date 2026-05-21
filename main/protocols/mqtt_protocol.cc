@@ -270,6 +270,7 @@ bool MqttProtocol::OpenAudioChannel() {
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
         auto packet = std::make_unique<AudioStreamPacket>();
+        packet->format = server_audio_format_;
         packet->sample_rate = server_sample_rate_;
         packet->frame_duration = server_frame_duration_;
         packet->timestamp = timestamp;
@@ -307,10 +308,10 @@ std::string MqttProtocol::GetHelloMessage() {
     cJSON_AddBoolToObject(features, "mcp", true);
     cJSON_AddItemToObject(root, "features", features);
     cJSON* audio_params = cJSON_CreateObject();
-    cJSON_AddStringToObject(audio_params, "format", "opus");
-    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
+    cJSON_AddStringToObject(audio_params, "format", "pcm");
+    cJSON_AddNumberToObject(audio_params, "sample_rate", 24000);
     cJSON_AddNumberToObject(audio_params, "channels", 1);
-    cJSON_AddNumberToObject(audio_params, "frame_duration", OPUS_FRAME_DURATION_MS);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", 40);
     cJSON_AddItemToObject(root, "audio_params", audio_params);
     auto json_str = cJSON_PrintUnformatted(root);
     std::string message(json_str);
@@ -338,6 +339,15 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         auto sample_rate = cJSON_GetObjectItem(audio_params, "sample_rate");
         if (cJSON_IsNumber(sample_rate)) {
             server_sample_rate_ = sample_rate->valueint;
+        }
+        auto format = cJSON_GetObjectItem(audio_params, "format");
+        if (cJSON_IsString(format)) {
+            if (strcmp(format->valuestring, "pcm") == 0) {
+                server_audio_format_ = kAudioFormatPcm;
+            } else {
+                server_audio_format_ = kAudioFormatOpus;
+            }
+            ESP_LOGI(TAG, "Server downstream format: %s", format->valuestring);
         }
         auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
         if (cJSON_IsNumber(frame_duration)) {

@@ -176,6 +176,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_BOX_3
         bool "Espressif ESP-BOX-3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_DSOLUTION_OSTB
+        bool "DSolution OSTB Box 1.83 inch 2-mic"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX
         bool "Espressif ESP-BOX"
         depends on IDF_TARGET_ESP32S3
@@ -715,7 +718,7 @@ choice DISPLAY_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_3 \
             || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
-            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE || BOARD_TYPE_DSOLUTION_OSTB
 endchoice
 
 config USE_MULTILINE_CHAT_MESSAGE

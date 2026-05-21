@@ -7,7 +7,13 @@
 #include <chrono>
 #include <vector>
 
+enum AudioFormat {
+    kAudioFormatOpus = 0,
+    kAudioFormatPcm = 1,  // Signed 16-bit little-endian PCM (mono)
+};
+
 struct AudioStreamPacket {
+    AudioFormat format = kAudioFormatOpus;
     int sample_rate = 0;
     int frame_duration = 0;
     uint32_t timestamp = 0;
@@ -51,6 +57,9 @@ public:
     inline int server_frame_duration() const {
         return server_frame_duration_;
     }
+    inline AudioFormat server_audio_format() const {
+        return server_audio_format_;
+    }
     inline const std::string& session_id() const {
         return session_id_;
     }
@@ -84,7 +93,8 @@ protected:
     std::function<void()> on_disconnected_;
 
     int server_sample_rate_ = 24000;
-    int server_frame_duration_ = 60;
+    int server_frame_duration_ = 40;
+    AudioFormat server_audio_format_ = kAudioFormatPcm;
     bool error_occurred_ = false;
     std::string session_id_;
     std::chrono::time_point<std::chrono::steady_clock> last_incoming_time_;
