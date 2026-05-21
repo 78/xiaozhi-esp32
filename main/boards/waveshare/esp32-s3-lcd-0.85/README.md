@@ -16,7 +16,7 @@ git clone https://github.com/78/xiaozhi-esp32.git
 cd xiaozhi-esp32
 ```
 
-**配置编译目标为 ESP32C6**
+**配置编译目标为 ESP32S3**
 
 ```bash
 idf.py set-target esp32S3
