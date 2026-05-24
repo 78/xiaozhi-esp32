@@ -66,7 +66,10 @@ sequenceDiagram
 - **Endpoint**：MQTT 服务器地址和端口
 - **Client ID**：设备唯一标识符
 - **Username/Password**：认证凭据
-- **Keep Alive**：心跳间隔（默认240秒）
+- **Keep Alive**：心跳间隔（**默认 60 秒**，可由 OTA 下发的 `mqtt.keepalive` 覆盖）
+- **Last Will**：设备异常下线时由 broker 自动 publish 的 goodbye 消息，topic 走 `/p2p/device_public/<mac_underscore>`
+
+> Keepalive 与 LWT 的完整字段、设计取舍、新老固件兼容判定、server 端双路径离线感知，统一见 [心跳与长连接 - MQTT 长连接](./heartbeat_zh.md#3-mqtt-长连接)。本节后续仅描述 hello / 业务消息流程。
 
 ### 3.2 Hello 消息交换
 
@@ -260,13 +263,15 @@ bool IsAudioChannelOpened() const {
 
 ### 6.1 MQTT 配置
 
-从设置中读取的配置项：
+从设置中读取的配置项（NVS namespace `mqtt`，由 OTA 接口下发）：
 - `endpoint`：MQTT 服务器地址
 - `client_id`：客户端标识符
 - `username`：用户名
 - `password`：密码
-- `keepalive`：心跳间隔（默认240秒）
+- `keepalive`：心跳间隔（**默认 60 秒**）
 - `publish_topic`：发布主题
+
+> LWT topic 由设备直接基于 MAC 拼出，**不**复用 `publish_topic`，也不通过 OTA 下发。
 
 ### 6.2 音频参数
 
@@ -281,9 +286,9 @@ bool IsAudioChannelOpened() const {
 
 ### 7.1 MQTT 重连机制
 
-- 连接失败时自动重试
-- 支持错误上报控制
-- 断线时触发清理流程
+- 断线后 `OnDisconnected` 回调启动 `reconnect_timer_`，**固定 60 秒后**调度一次 `StartMqttClient(false)`（`MQTT_RECONNECT_INTERVAL_MS = 60000`）。
+- 重连仅在 `kDeviceStateIdle` 状态下执行，避免与正在进行的业务竞争。
+- 设备侧不需要任何 status topic 订阅；server 端基于 broker lifecycle 与 LWT republish 两条路径感知离线，见 [心跳与长连接 - 双路径离线感知](./heartbeat_zh.md#33-双路径离线感知)。
 
 ### 7.2 UDP 连接管理
 
@@ -387,7 +392,8 @@ MQTT + UDP 混合协议通过以下设计实现高效的音视频通信：
 - **分离式架构**：控制与数据通道分离，各司其职
 - **加密保护**：AES-CTR 确保音频数据安全传输
 - **序列化管理**：防止重放攻击和数据乱序
-- **自动恢复**：支持连接断开后的自动重连
+- **长连接 + 快速离线感知**：keepalive 缩到 60s，配合 Last Will 让 server 在 ≤90s 内拿到掉线事件；详见 [心跳与长连接](./heartbeat_zh.md)
+- **自动恢复**：MQTT 断线后 60s 间隔自动重连
 - **性能优化**：UDP 传输保证音频数据的实时性
 
 该协议适用于对实时性要求较高的语音交互场景，但需要在网络复杂度和传输性能之间做出权衡。 

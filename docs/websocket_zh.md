@@ -13,14 +13,17 @@
      - 创建并初始化实现 `Protocol` 接口的 WebSocket 协议实例（`WebsocketProtocol`）  
    - 进入主循环等待事件（音频输入、音频输出、调度任务等）。
 
-2. **建立 WebSocket 连接**  
-   - 当设备需要开始语音会话时（例如用户唤醒、手动按键触发等），调用 `OpenAudioChannel()`：  
-     - 根据配置获取 WebSocket URL
-     - 设置若干请求头（`Authorization`, `Protocol-Version`, `Device-Id`, `Client-Id`）  
-     - 调用 `Connect()` 与服务器建立 WebSocket 连接  
+2. **建立 WebSocket 长连接**
+   - **设备激活完成后立即建连并保持**（不再"用时再连"）。`WebsocketProtocol::Start()` 调用 `ConnectAndHello()`：
+     - 根据配置（`Settings("websocket")`）获取 WebSocket URL / token / version
+     - 设置请求头：`Authorization`, `Protocol-Version`, `Device-Id`, `Client-Id`
+     - 调用 `Connect()` 完成 WebSocket 握手
+     - 发送 hello、等待 server hello、启动应用层 ping timer
+   - 这条长连接**贯穿整个 Idle 期间**，目的是支持服务器在用户未唤醒时主动 push 消息（alert / TTS / MCP 指令等）。
+   - 心跳与超时重连协议见 [心跳与长连接 - WebSocket 长连接](./heartbeat_zh.md#2-websocket-长连接)。
 
-3. **设备端发送 "hello" 消息**  
-   - 连接成功后，设备会发送一条 JSON 消息，示例结构如下：  
+3. **设备端发送 "hello" 消息**
+   - 连接成功后，设备会发送一条 JSON 消息，示例结构如下：
    ```json
    {
      "type": "hello",
@@ -37,7 +40,7 @@
      }
    }
    ```
-   - 其中 `features` 字段为可选，内容根据设备编译配置自动生成。例如：`"mcp": true` 表示支持 MCP 协议。
+   - `features` 字段根据设备编译配置自动生成：`"mcp": true` 表示支持 MCP 协议；启用 `CONFIG_USE_SERVER_AEC` 时还会带上 `"aec": true`。
    - `frame_duration` 的值对应 `OPUS_FRAME_DURATION_MS`（例如 60ms）。
 
 4. **服务器回复 "hello"**  
@@ -70,12 +73,15 @@
        - 当 `binary` 为 `true` 时，认为是音频帧；设备会将其当作 Opus 数据进行解码。  
        - 当 `binary` 为 `false` 时，认为是 JSON 文本，需要在设备端用 cJSON 进行解析并做相应业务逻辑处理（如聊天、TTS、MCP 协议消息等）。  
 
-   - 当服务器或网络出现断连，回调 `OnDisconnected()` 被触发：  
-     - 设备会调用 `on_audio_channel_closed_()`，并最终回到空闲状态。
+   - 当服务器或网络出现断连，回调 `OnDisconnected()` 被触发：
+     - 若 audio session 仍在进行，会调用 `on_audio_channel_closed_()`，让上层回到 Idle；
+     - 之后通过 `ScheduleReconnect()` 走 1s / 2s / 4s … 60s 的指数退避自动重连。
 
-6. **关闭 WebSocket 连接**  
-   - 设备在需要结束语音会话时，会调用 `CloseAudioChannel()` 主动断开连接，并回到空闲状态。  
-   - 或者如果服务器端主动断开，也会引发同样的回调流程。
+6. **结束语音会话 vs 断开长连接**
+   - `CloseAudioChannel()` 仅把 audio session 标记为非激活（`audio_session_active_=false`），**不再断开 socket**，长连接继续保持，server push 仍能收到。
+   - `IsAudioChannelOpened()` 的语义因此变为「audio session 是否活动」，而不再代表 WS 是否在线。
+   - 真正的 socket 关闭只发生在：网络/服务器主动断开、`SendPing()` 检测到 pong 超时主动 reset、以及对象析构。这些情况都会自动触发重连。
+   - 详见 [心跳与长连接 - 状态语义变化](./heartbeat_zh.md#24-状态语义变化重要)。
 
 ---
 
@@ -368,13 +374,17 @@ stateDiagram
 
 ## 7. 错误处理
 
-1. **连接失败**  
-   - 如果 `Connect(url)` 返回失败或在等待服务器 "hello" 消息时超时，触发 `on_network_error_()` 回调。设备会提示"无法连接到服务"或类似错误信息。
+1. **连接失败**
+   - 如果 `Connect(url)` 返回失败或在等待服务器 "hello" 消息时超时，触发 `on_network_error_()` 回调。设备会提示"无法连接到服务"或类似错误信息，同时安排一次退避重连。
 
-2. **服务器断开**  
-   - 如果 WebSocket 异常断开，回调 `OnDisconnected()`：  
-     - 设备回调 `on_audio_channel_closed_()`  
-     - 切换到 Idle 或其他重试逻辑。
+2. **服务器断开**
+   - WebSocket 异常断开时回调 `OnDisconnected()`：
+     - audio session 若仍在进行，回调 `on_audio_channel_closed_()` 让上层回 Idle；
+     - 之后自动按指数退避重连，恢复长连接。
+
+3. **心跳超时**
+   - 设备每 60s 发一次 `{"type":"ping","timestamp":<ms>}`，若 90s 内未收到 pong，主动 `reset()` socket 触发上面的断开+重连流程。
+   - 完整的 ping/pong 协议字段、间隔、OTA 覆盖字段、与 server 端兜底超时的关系，见 [心跳与长连接](./heartbeat_zh.md)。
 
 ---
 
@@ -487,9 +497,10 @@ stateDiagram
 
 本协议通过在 WebSocket 上层传输 JSON 文本与二进制音频帧，完成功能包括音频流上传、TTS 音频播放、语音识别与状态管理、MCP 指令下发等。其核心特征：
 
-- **握手阶段**：发送 `"type":"hello"`，等待服务器返回。  
-- **音频通道**：采用 Opus 编码的二进制帧双向传输语音流，支持多种协议版本。  
-- **JSON 消息**：使用 `"type"` 为核心字段标识不同业务逻辑，包括 TTS、STT、MCP、WakeWord、System、Custom 等。  
+- **握手阶段**：发送 `"type":"hello"`，等待服务器返回。
+- **长连接 + 应用层心跳**：激活后保持长连接，60s 周期 ping / 90s 兜底重连 / 1~60s 指数退避，支持 server 主动 push；细节见 [心跳与长连接](./heartbeat_zh.md)。
+- **音频通道**：采用 Opus 编码的二进制帧双向传输语音流，支持多种协议版本。
+- **JSON 消息**：使用 `"type"` 为核心字段标识不同业务逻辑，包括 TTS、STT、MCP、WakeWord、System、Custom 等。
 - **扩展性**：可根据实际需求在 JSON 消息中添加字段，或在 headers 里进行额外鉴权。
 
 服务器与设备端需提前约定各类消息的字段含义、时序逻辑以及错误处理规则，方能保证通信顺畅。上述信息可作为基础文档，便于后续对接、开发或扩展。
