@@ -2,11 +2,11 @@
 #include "board.h"
 #include "application.h"
 #include "settings.h"
+#include "system_info.h"
 
 #include <esp_log.h>
-#include <esp_app_desc.h>
 #include <cstring>
-#include <ctime>
+#include <algorithm>
 #include <arpa/inet.h>
 #include "assets/lang_config.h"
 
@@ -84,19 +84,25 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     mqtt_ = network->CreateMqtt(0);
     mqtt_->SetKeepAlive(keepalive_interval);
 
-    // Set Last Will: broker will publish this if keepalive 超时 or TCP 异常断开
-    status_topic_ = "device/" + client_id + "/status";
+    // Last Will (LWT): broker 在 keepalive 超时 / TCP 异常断开时自动 publish 这条消息.
+    // - topic 固定为 /p2p/device_public/<mac_underscore>, 由 server 端约定的 deviceID 路由路径
+    // - payload 为 goodbye, 不带 session_id (CONNECT 阶段尚未握手, 拿不到)
+    // - QoS=0 / retain=false (一次性事件, 不需要 retain)
     {
+        std::string mac = SystemInfo::GetMacAddress();   // "aa:bb:cc:dd:ee:ff"
+        std::string mac_u = mac;
+        std::replace(mac_u.begin(), mac_u.end(), ':', '_');
+        std::string will_topic = "/p2p/device_public/" + mac_u;
+
         cJSON* will = cJSON_CreateObject();
-        cJSON_AddStringToObject(will, "status", "offline");
-        cJSON_AddStringToObject(will, "reason", "will");
-        cJSON_AddNumberToObject(will, "ts", static_cast<double>(time(nullptr)));
+        cJSON_AddStringToObject(will, "type", "goodbye");
+        cJSON_AddStringToObject(will, "device_id", mac.c_str());
         char* will_str = cJSON_PrintUnformatted(will);
         mqtt_->SetWill({
-            .topic = status_topic_,
+            .topic = will_topic,
             .payload = std::string(will_str),
-            .qos = 1,
-            .retain = true,
+            .qos = 0,
+            .retain = false,
         });
         cJSON_free(will_str);
         cJSON_Delete(will);
@@ -111,17 +117,6 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     });
 
     mqtt_->OnConnected([this]() {
-        // Birth message: 覆盖 retained will, 让后续订阅者看到 online
-        cJSON* birth = cJSON_CreateObject();
-        cJSON_AddStringToObject(birth, "status", "online");
-        cJSON_AddNumberToObject(birth, "ts", static_cast<double>(time(nullptr)));
-        auto app_desc = esp_app_get_description();
-        cJSON_AddStringToObject(birth, "version", app_desc->version);
-        char* birth_str = cJSON_PrintUnformatted(birth);
-        mqtt_->Publish(status_topic_, std::string(birth_str), 1, true);
-        cJSON_free(birth_str);
-        cJSON_Delete(birth);
-
         if (on_connected_ != nullptr) {
             on_connected_();
         }
@@ -336,7 +331,6 @@ std::string MqttProtocol::GetHelloMessage() {
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
     cJSON_AddBoolToObject(features, "mcp", true);
-    cJSON_AddBoolToObject(features, "heartbeat", true);
     cJSON_AddItemToObject(root, "features", features);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");
