@@ -165,6 +165,8 @@ bool WebsocketProtocol::ConnectAndHello() {
     if (version != 0) {
         version_ = version;
     }
+    // ping 间隔: OTA 可下发 ws_ping_interval (秒); 默认 60s; 0 关闭主动心跳
+    ping_interval_ms_ = settings.GetInt("ws_ping_interval", WEBSOCKET_PING_INTERVAL_DEFAULT_S) * 1000;
 
     error_occurred_ = false;
 
@@ -307,7 +309,6 @@ std::string WebsocketProtocol::GetHelloMessage() {
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
     cJSON_AddBoolToObject(features, "mcp", true);
-    cJSON_AddBoolToObject(features, "heartbeat", true);
     cJSON_AddItemToObject(root, "features", features);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
@@ -352,10 +353,13 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
 }
 
 void WebsocketProtocol::StartPingTimer() {
-    if (ping_timer_ != nullptr) {
-        esp_timer_stop(ping_timer_);
-        esp_timer_start_periodic(ping_timer_, WEBSOCKET_PING_INTERVAL_MS * 1000ULL);
+    if (ping_timer_ == nullptr) return;
+    esp_timer_stop(ping_timer_);
+    if (ping_interval_ms_ <= 0) {
+        ESP_LOGI(TAG, "ws_ping_interval=0, application-level ping disabled");
+        return;
     }
+    esp_timer_start_periodic(ping_timer_, (uint64_t)ping_interval_ms_ * 1000ULL);
 }
 
 void WebsocketProtocol::StopPingTimer() {
@@ -384,7 +388,7 @@ void WebsocketProtocol::SendPing() {
         return;
     }
 
-    std::string ping = R"({"type":"ping","ts":)" + std::to_string(now_us / 1000) + "}";
+    std::string ping = R"({"type":"ping","timestamp":)" + std::to_string(now_us / 1000) + "}";
     SendText(ping);
 }
 

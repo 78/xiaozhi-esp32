@@ -15,9 +15,11 @@
 
 #define WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT (1 << 0)
 
-// 心跳参数: 30s 一次 ping; 90s 没收到 pong 视为掉线
-#define WEBSOCKET_PING_INTERVAL_MS    30000
-#define WEBSOCKET_PONG_TIMEOUT_MS     90000
+// 心跳参数:
+//   ping 间隔默认 60s, 可由 OTA Settings('websocket').ws_ping_interval 覆盖, 0 关闭主动心跳
+//   90s 没收到 pong 视为掉线 (客户端比 server 120s 超时更早自查)
+#define WEBSOCKET_PING_INTERVAL_DEFAULT_S 60
+#define WEBSOCKET_PONG_TIMEOUT_MS         90000
 // 重连退避: 1s -> 60s 封顶, 每次失败乘 2
 #define WEBSOCKET_RECONNECT_INITIAL_S 1
 #define WEBSOCKET_RECONNECT_MAX_S     60
@@ -48,6 +50,7 @@ private:
     // 心跳
     esp_timer_handle_t ping_timer_ = nullptr;
     std::atomic<int64_t> last_pong_time_us_{0};
+    int ping_interval_ms_ = WEBSOCKET_PING_INTERVAL_DEFAULT_S * 1000;
 
     // 重连
     esp_timer_handle_t reconnect_timer_ = nullptr;
