@@ -5,6 +5,7 @@
 #include "settings.h"
 
 #include <cstring>
+#include <algorithm>
 #include <cJSON.h>
 #include <esp_log.h>
 #include <arpa/inet.h>
@@ -14,18 +15,69 @@
 
 WebsocketProtocol::WebsocketProtocol() {
     event_group_handle_ = xEventGroupCreate();
+
+    // Ping timer: 周期触发, 把 SendPing 调度到 main task (避免与析构竞争 websocket_)
+    esp_timer_create_args_t ping_args = {
+        .callback = [](void* arg) {
+            auto* self = static_cast<WebsocketProtocol*>(arg);
+            auto alive = self->alive_;
+            Application::GetInstance().Schedule([self, alive]() {
+                if (!*alive) return;
+                self->SendPing();
+            });
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "ws_ping",
+        .skip_unhandled_events = true
+    };
+    esp_timer_create(&ping_args, &ping_timer_);
+
+    // Reconnect timer: one-shot, 触发时把 ConnectAndHello 调度到 main task
+    esp_timer_create_args_t reconnect_args = {
+        .callback = [](void* arg) {
+            auto* self = static_cast<WebsocketProtocol*>(arg);
+            auto alive = self->alive_;
+            Application::GetInstance().Schedule([self, alive]() {
+                if (!*alive) return;
+                ESP_LOGI(TAG, "Reconnecting to websocket server");
+                self->ConnectAndHello();
+            });
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "ws_reconnect",
+        .skip_unhandled_events = true
+    };
+    esp_timer_create(&reconnect_args, &reconnect_timer_);
 }
 
 WebsocketProtocol::~WebsocketProtocol() {
+    // 先 mark dead, 让 timer / scheduled callback 直接 return
+    *alive_ = false;
+
+    if (ping_timer_ != nullptr) {
+        esp_timer_stop(ping_timer_);
+        esp_timer_delete(ping_timer_);
+    }
+    if (reconnect_timer_ != nullptr) {
+        esp_timer_stop(reconnect_timer_);
+        esp_timer_delete(reconnect_timer_);
+    }
+    {
+        std::lock_guard<std::mutex> lock(websocket_mutex_);
+        websocket_.reset();
+    }
     vEventGroupDelete(event_group_handle_);
 }
 
 bool WebsocketProtocol::Start() {
-    // Only connect to server when audio channel is needed
-    return true;
+    // 启动即建立长连接 (替代旧的 "用时再连" 行为, 支持服务器主动下发)
+    return ConnectAndHello();
 }
 
 bool WebsocketProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
+    std::lock_guard<std::mutex> lock(websocket_mutex_);
     if (websocket_ == nullptr || !websocket_->IsConnected()) {
         return false;
     }
@@ -58,6 +110,7 @@ bool WebsocketProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
 }
 
 bool WebsocketProtocol::SendText(const std::string& text) {
+    std::lock_guard<std::mutex> lock(websocket_mutex_);
     if (websocket_ == nullptr || !websocket_->IsConnected()) {
         return false;
     }
@@ -72,15 +125,39 @@ bool WebsocketProtocol::SendText(const std::string& text) {
 }
 
 bool WebsocketProtocol::IsAudioChannelOpened() const {
-    return websocket_ != nullptr && websocket_->IsConnected() && !error_occurred_ && !IsTimeout();
+    // 仅指 audio session 是否激活, 不等于 WS 长连接是否在
+    return audio_session_active_.load() && !error_occurred_ && !IsTimeout();
 }
 
 void WebsocketProtocol::CloseAudioChannel(bool send_goodbye) {
     (void)send_goodbye;  // Websocket doesn't need to send goodbye message
-    websocket_.reset();
+    // 仅结束 audio session, 不断 WS 长连接 (让 server push 仍可用)
+    bool was_active = audio_session_active_.exchange(false);
+    if (was_active && on_audio_channel_closed_ != nullptr) {
+        on_audio_channel_closed_();
+    }
 }
 
 bool WebsocketProtocol::OpenAudioChannel() {
+    bool ws_alive;
+    {
+        std::lock_guard<std::mutex> lock(websocket_mutex_);
+        ws_alive = (websocket_ != nullptr && websocket_->IsConnected());
+    }
+    // 长连接掉了 (例如重连退避中), 同步建一次
+    if (!ws_alive) {
+        if (!ConnectAndHello()) {
+            return false;
+        }
+    }
+    audio_session_active_.store(true);
+    if (on_audio_channel_opened_ != nullptr) {
+        on_audio_channel_opened_();
+    }
+    return true;
+}
+
+bool WebsocketProtocol::ConnectAndHello() {
     Settings settings("websocket", false);
     std::string url = settings.GetString("url");
     std::string token = settings.GetString("token");
@@ -92,9 +169,10 @@ bool WebsocketProtocol::OpenAudioChannel() {
     error_occurred_ = false;
 
     auto network = Board::GetInstance().GetNetwork();
-    websocket_ = network->CreateWebSocket(1);
-    if (websocket_ == nullptr) {
+    auto new_ws = network->CreateWebSocket(1);
+    if (new_ws == nullptr) {
         ESP_LOGE(TAG, "Failed to create websocket");
+        ScheduleReconnect();
         return false;
     }
 
@@ -103,11 +181,17 @@ bool WebsocketProtocol::OpenAudioChannel() {
         if (token.find(" ") == std::string::npos) {
             token = "Bearer " + token;
         }
-        websocket_->SetHeader("Authorization", token.c_str());
+        new_ws->SetHeader("Authorization", token.c_str());
     }
-    websocket_->SetHeader("Protocol-Version", std::to_string(version_).c_str());
-    websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
-    websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+    new_ws->SetHeader("Protocol-Version", std::to_string(version_).c_str());
+    new_ws->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    new_ws->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+
+    // 把新 ws 安装到成员变量 (旧的会析构)
+    {
+        std::lock_guard<std::mutex> lock(websocket_mutex_);
+        websocket_ = std::move(new_ws);
+    }
 
     websocket_->OnData([this](const char* data, size_t len, bool binary) {
         if (binary) {
@@ -152,6 +236,8 @@ bool WebsocketProtocol::OpenAudioChannel() {
             if (cJSON_IsString(type)) {
                 if (strcmp(type->valuestring, "hello") == 0) {
                     ParseServerHello(root);
+                } else if (strcmp(type->valuestring, "pong") == 0) {
+                    last_pong_time_us_.store(esp_timer_get_time());
                 } else {
                     if (on_incoming_json_ != nullptr) {
                         on_incoming_json_(root);
@@ -167,21 +253,26 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     websocket_->OnDisconnected([this]() {
         ESP_LOGI(TAG, "Websocket disconnected");
-        if (on_audio_channel_closed_ != nullptr) {
-            on_audio_channel_closed_();
-        }
+        auto alive = alive_;  // capture into Schedule lambda
+        Application::GetInstance().Schedule([this, alive]() {
+            if (!*alive) return;
+            HandleDisconnected();
+        });
     });
 
     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_);
+    xEventGroupClearBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT);
     if (!websocket_->Connect(url.c_str())) {
         ESP_LOGE(TAG, "Failed to connect to websocket server, code=%d", websocket_->GetLastError());
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+        ScheduleReconnect();
         return false;
     }
 
     // Send hello message to describe the client
     auto message = GetHelloMessage();
     if (!SendText(message)) {
+        ScheduleReconnect();
         return false;
     }
 
@@ -190,13 +281,19 @@ bool WebsocketProtocol::OpenAudioChannel() {
     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
         SetError(Lang::Strings::SERVER_TIMEOUT);
+        ScheduleReconnect();
         return false;
     }
 
-    if (on_audio_channel_opened_ != nullptr) {
-        on_audio_channel_opened_();
-    }
+    // 长连接建立完成
+    reconnect_backoff_s_ = WEBSOCKET_RECONNECT_INITIAL_S;
+    last_pong_time_us_.store(esp_timer_get_time());
+    StartPingTimer();
 
+    if (on_connected_ != nullptr) {
+        on_connected_();
+    }
+    // 注意: 不调 on_audio_channel_opened_ — 那由 OpenAudioChannel 在 audio session 开始时触发
     return true;
 }
 
@@ -210,6 +307,7 @@ std::string WebsocketProtocol::GetHelloMessage() {
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
     cJSON_AddBoolToObject(features, "mcp", true);
+    cJSON_AddBoolToObject(features, "heartbeat", true);
     cJSON_AddItemToObject(root, "features", features);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
@@ -251,4 +349,64 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
     }
 
     xEventGroupSetBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT);
+}
+
+void WebsocketProtocol::StartPingTimer() {
+    if (ping_timer_ != nullptr) {
+        esp_timer_stop(ping_timer_);
+        esp_timer_start_periodic(ping_timer_, WEBSOCKET_PING_INTERVAL_MS * 1000ULL);
+    }
+}
+
+void WebsocketProtocol::StopPingTimer() {
+    if (ping_timer_ != nullptr) {
+        esp_timer_stop(ping_timer_);
+    }
+}
+
+void WebsocketProtocol::SendPing() {
+    // 此函数在 main task 运行 (由 ping_timer 回调 Schedule 进来), 与析构串行
+    int64_t now_us = esp_timer_get_time();
+    int64_t last_pong = last_pong_time_us_.load();
+    if (last_pong > 0 && (now_us - last_pong) > (int64_t)WEBSOCKET_PONG_TIMEOUT_MS * 1000LL) {
+        ESP_LOGW(TAG, "Pong timeout (>%d ms), closing socket to trigger reconnect", WEBSOCKET_PONG_TIMEOUT_MS);
+        {
+            std::lock_guard<std::mutex> lock(websocket_mutex_);
+            websocket_.reset();
+        }
+        // 我们主动 reset, OnDisconnected 可能不会被触发, 直接做清理
+        StopPingTimer();
+        bool was_active = audio_session_active_.exchange(false);
+        if (was_active && on_audio_channel_closed_ != nullptr) {
+            on_audio_channel_closed_();
+        }
+        ScheduleReconnect();
+        return;
+    }
+
+    std::string ping = R"({"type":"ping","ts":)" + std::to_string(now_us / 1000) + "}";
+    SendText(ping);
+}
+
+void WebsocketProtocol::ScheduleReconnect() {
+    if (reconnect_timer_ == nullptr) return;
+    ESP_LOGI(TAG, "Schedule websocket reconnect in %d s", reconnect_backoff_s_);
+    esp_timer_stop(reconnect_timer_);
+    esp_timer_start_once(reconnect_timer_, (uint64_t)reconnect_backoff_s_ * 1000000ULL);
+    reconnect_backoff_s_ = std::min(reconnect_backoff_s_ * 2, WEBSOCKET_RECONNECT_MAX_S);
+}
+
+void WebsocketProtocol::HandleDisconnected() {
+    // 此函数在 main task 中运行 (由 OnDisconnected 回调 Schedule 进来)
+    StopPingTimer();
+
+    bool was_active = audio_session_active_.exchange(false);
+    if (was_active && on_audio_channel_closed_ != nullptr) {
+        on_audio_channel_closed_();
+    }
+    if (on_disconnected_ != nullptr) {
+        on_disconnected_();
+    }
+
+    ScheduleReconnect();
 }
