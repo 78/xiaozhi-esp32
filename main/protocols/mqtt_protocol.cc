@@ -4,7 +4,9 @@
 #include "settings.h"
 
 #include <esp_log.h>
+#include <esp_app_desc.h>
 #include <cstring>
+#include <ctime>
 #include <arpa/inet.h>
 #include "assets/lang_config.h"
 
@@ -67,7 +69,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto client_id = settings.GetString("client_id");
     auto username = settings.GetString("username");
     auto password = settings.GetString("password");
-    int keepalive_interval = settings.GetInt("keepalive", 240);
+    int keepalive_interval = settings.GetInt("keepalive", 60);
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint.empty()) {
@@ -82,6 +84,24 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     mqtt_ = network->CreateMqtt(0);
     mqtt_->SetKeepAlive(keepalive_interval);
 
+    // Set Last Will: broker will publish this if keepalive 超时 or TCP 异常断开
+    status_topic_ = "device/" + client_id + "/status";
+    {
+        cJSON* will = cJSON_CreateObject();
+        cJSON_AddStringToObject(will, "status", "offline");
+        cJSON_AddStringToObject(will, "reason", "will");
+        cJSON_AddNumberToObject(will, "ts", static_cast<double>(time(nullptr)));
+        char* will_str = cJSON_PrintUnformatted(will);
+        mqtt_->SetWill({
+            .topic = status_topic_,
+            .payload = std::string(will_str),
+            .qos = 1,
+            .retain = true,
+        });
+        cJSON_free(will_str);
+        cJSON_Delete(will);
+    }
+
     mqtt_->OnDisconnected([this]() {
         if (on_disconnected_ != nullptr) {
             on_disconnected_();
@@ -91,6 +111,17 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     });
 
     mqtt_->OnConnected([this]() {
+        // Birth message: 覆盖 retained will, 让后续订阅者看到 online
+        cJSON* birth = cJSON_CreateObject();
+        cJSON_AddStringToObject(birth, "status", "online");
+        cJSON_AddNumberToObject(birth, "ts", static_cast<double>(time(nullptr)));
+        auto app_desc = esp_app_get_description();
+        cJSON_AddStringToObject(birth, "version", app_desc->version);
+        char* birth_str = cJSON_PrintUnformatted(birth);
+        mqtt_->Publish(status_topic_, std::string(birth_str), 1, true);
+        cJSON_free(birth_str);
+        cJSON_Delete(birth);
+
         if (on_connected_ != nullptr) {
             on_connected_();
         }
@@ -305,6 +336,7 @@ std::string MqttProtocol::GetHelloMessage() {
     cJSON_AddBoolToObject(features, "aec", true);
 #endif
     cJSON_AddBoolToObject(features, "mcp", true);
+    cJSON_AddBoolToObject(features, "heartbeat", true);
     cJSON_AddItemToObject(root, "features", features);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");
