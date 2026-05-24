@@ -212,6 +212,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_DEV_S3
         bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV
+        bool "全动 ESP32-S3 开发板"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
