@@ -29,7 +29,7 @@
 #include "power_manager.h"
 #include "esp_ota_ops.h"
 
-#define TAG "waveshare_esp32_s3_touch_lcd_1_54"
+#define TAG "waveshare_esp32_c6_touch_lcd_1_54"
 
 class CustomButton: public Button{
 public:
@@ -53,9 +53,8 @@ public:
 
 class CustomBoard : public WifiBoard {
 private:
-    CustomButton pwr_button_;
-    CustomButton volume_up_button_;
-    CustomButton volume_down_button_;
+    CustomButton boot_button_;
+    CustomButton key_plus_button_;
     i2c_master_bus_handle_t i2c_bus_;
     LcdDisplay* display_;
     PowerManager* power_manager_ = nullptr;
@@ -104,7 +103,7 @@ private:
     }
     
     void InitializeSpi() {
-        ESP_LOGI(TAG, "Initialize QSPI bus");
+        ESP_LOGI(TAG, "Initialize SPI bus");
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = DISPLAY_MOSI_PIN;
         buscfg.miso_io_num = DISPLAY_MISO_PIN;
@@ -112,7 +111,7 @@ private:
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
         buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
-        ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+        ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
     void InitializeTouch()
@@ -172,12 +171,11 @@ private:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = DISPLAY_SPI_MODE;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.pclk_hz = 24 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
-
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片
         ESP_LOGI(TAG, "Install LCD driver");
@@ -189,12 +187,12 @@ private:
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
          
        
-        esp_lcd_panel_reset(panel);
- 
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR));
+        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
         
         display_ = new SpiLcdDisplay(panel_io, panel,
@@ -204,56 +202,7 @@ private:
 
     void InitializeButtons() {
 
-        pwr_button_.OnPressUp([this]() {
-            pwr_button_.OnClick([this]() {
-                auto& app = Application::GetInstance();
-                app.ToggleChatState();
-            });
-            pwr_button_.OnLongPress([this]() {
-                printf("Power button long press\n");
-                // gpio_set_level(BATTERY_EN_PIN, 0);
-                if (power_manager_ != nullptr){
-                    power_manager_->PowerOff();
-                }
-            });
-
-            pwr_button_.OnDoubleClick([this]() {
-                static uint8_t brightness_last = 0;
-                auto backlight = Board::GetInstance().GetBacklight();
-                if (backlight->brightness() == 0) {
-                    brightness_last = 0;
-                    if (brightness_last == 0) {
-                        backlight->SetBrightness(50, true);
-                    } else {
-                        backlight->SetBrightness(brightness_last, true);
-                    }
-                } else {
-                    brightness_last = backlight->brightness();
-                    backlight->SetBrightness(0);
-                }
-            });
-            pwr_button_.OnMultipleClick([this]() {
-                EnterWifiConfigMode();
-            }, 3);
-            pwr_button_.OnPressUpDel();
-        });
-
-        volume_up_button_.OnClick([this]() {
-            auto codec = Board::GetInstance().GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume/10));
-        });
-
-        volume_up_button_.OnLongPress([this]() {
-            Board::GetInstance().GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
-        });
-
-        volume_down_button_.OnClick([this]() {
+        boot_button_.OnClick([this]() {
             auto codec = Board::GetInstance().GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -263,19 +212,34 @@ private:
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume/10));
         });
 
-        volume_down_button_.OnLongPress([this]() {
+        boot_button_.OnLongPress([this]() {
             Board::GetInstance().GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
 
-#if CONFIG_USE_DEVICE_AEC
-        volume_down_button_.OnDoubleClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateIdle) {
-                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+        boot_button_.OnDoubleClick([this]() {
+                auto& app = Application::GetInstance();
+                if (app.GetDeviceState() == kDeviceStateStarting) {
+                    EnterWifiConfigMode();
+                    return;
+                }
+                app.ToggleChatState();
+            });
+
+        key_plus_button_.OnClick([this]() {
+            auto codec = Board::GetInstance().GetAudioCodec();
+            auto volume = codec->output_volume() + 10;
+            if (volume > 100) {
+                volume = 100;
             }
+            codec->SetOutputVolume(volume);
+            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume/10));
         });
-#endif
+
+        key_plus_button_.OnLongPress([this]() {
+            Board::GetInstance().GetAudioCodec()->SetOutputVolume(100);
+            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+        });
     }
 
     // 初始化工具
@@ -292,9 +256,8 @@ private:
 
 public:
     CustomBoard() :
-        pwr_button_(PWR_BUTTON_GPIO),
-        volume_up_button_(VOLUME_UP_BUTTON_GPIO),
-        volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        boot_button_(BOOT_BUTTON_GPIO),
+        key_plus_button_(KEY_PLUS_BUTTON_GPIO) {
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeI2c();
