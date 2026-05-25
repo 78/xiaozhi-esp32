@@ -2,6 +2,12 @@ name: Build Boards
 
 on:
   push:
+  workflow_dispatch:
+    inputs:
+      board:
+        description: "Board to build (default: all)"
+        required: false
+        default: ""
     branches:
       - main
       - ci/* # for ci test

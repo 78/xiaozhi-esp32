@@ -212,6 +212,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_DEV_S3
         bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_HERMES_ESP32S3_DEVKITC
+        bool "Hermes ESP32-S3 DevKitC (ILI9341 + INMP441 + PAM8403)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
