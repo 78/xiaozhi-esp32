@@ -95,6 +95,14 @@ private:
                     // 复位动作
                     controller->electron_bot_.Home(true);
                 }
+                if (params.action_type != ACTION_HOME) {
+                    UBaseType_t pending_actions =
+                        uxQueueMessagesWaiting(controller->action_queue_);
+                    // 连续动作时跳过中间归位，避免动作衔接生硬
+                    if (pending_actions == 0) {
+                        controller->electron_bot_.Home(true);
+                    }
+                }
                 controller->is_action_in_progress_ = false;  // 动作执行完毕
             }
             vTaskDelay(pdMS_TO_TICKS(20));
