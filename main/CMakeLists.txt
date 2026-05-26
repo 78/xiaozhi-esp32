@@ -29,6 +29,7 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
+            "protocols/agora_rtc_protocol.cc"
             "mcp_server.cc"
             "system_info.cc"
             "application.cc"
@@ -1000,6 +1001,7 @@ idf_component_register(SRCS ${SOURCES}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
+                        agora_sdk
                         esp_pm
                         esp_psram
                         esp_netif
