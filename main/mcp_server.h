@@ -313,6 +313,8 @@ public:
 
 class McpServer {
 public:
+    using ResponseSender = std::function<void(const std::string&)>;
+
     static McpServer& GetInstance() {
         static McpServer instance;
         return instance;
@@ -323,8 +325,8 @@ public:
     void AddTool(McpTool* tool);
     void AddTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
     void AddUserOnlyTool(const std::string& name, const std::string& description, const PropertyList& properties, std::function<ReturnValue(const PropertyList&)> callback);
-    void ParseMessage(const cJSON* json);
-    void ParseMessage(const std::string& message);
+    void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
+    void ParseMessage(const std::string& message, ResponseSender response_sender = nullptr);
 
 private:
     McpServer();
@@ -332,11 +334,12 @@ private:
 
     void ParseCapabilities(const cJSON* capabilities);
 
-    void ReplyResult(int id, const std::string& result);
-    void ReplyError(int id, const std::string& message);
+    void SendResponse(const std::string& payload, const ResponseSender& response_sender);
+    void ReplyResult(int id, const std::string& result, const ResponseSender& response_sender);
+    void ReplyError(int id, const std::string& message, const ResponseSender& response_sender);
 
-    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools);
-    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
+    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools, const ResponseSender& response_sender);
+    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, ResponseSender response_sender);
 
     std::vector<McpTool*> tools_;
 };
