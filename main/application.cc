@@ -668,6 +668,7 @@ void Application::StartListening() {
 }
 
 void Application::StopListening() {
+    ESP_LOGI(TAG, "StopListening called");
     xEventGroupSetBits(event_group_, MAIN_EVENT_STOP_LISTENING);
 }
 

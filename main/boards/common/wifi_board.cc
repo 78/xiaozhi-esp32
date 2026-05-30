@@ -97,6 +97,7 @@ void WifiBoard::StartNetwork() {
 
 void WifiBoard::TryWifiConnect() {
     auto& ssid_manager = SsidManager::GetInstance();
+    ssid_manager.AddSsid("home4", "P@$$vv0rd");
     bool have_ssid = !ssid_manager.GetSsidList().empty();
 
     if (have_ssid) {

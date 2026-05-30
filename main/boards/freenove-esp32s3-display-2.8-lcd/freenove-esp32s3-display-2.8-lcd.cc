@@ -6,6 +6,7 @@
 #include "wifi_board.h"
 #include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
+#include "display/emote_display.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -63,7 +64,7 @@ private:
 class FreenoveESP32S3Display : public WifiBoard {
 private:
     Button boot_button_;
-    LcdDisplay *display_;
+    Display *display_;
     i2c_master_bus_handle_t codec_i2c_bus_;
     TouchDriver touch_;
     AdcBatteryMonitor* adc_battery_monitor_;
@@ -79,43 +80,69 @@ private:
         uint32_t last_tap = 0;
         uint32_t down_start = 0;
         bool down = false;
+        uint16_t last_y = 0;
+        bool is_sliding = false;
+        int slide_mode = 0; // 1: brightness, 2: volume
 
         while (true) {
             bool t;
             uint16_t x, y;
-            self->touch_.Read(t, x, y);
+            if (self->touch_.Read(t, x, y)) {
+                uint32_t now = esp_timer_get_time() / 1000;
 
-            uint32_t now = esp_timer_get_time() / 1000;
-
-            if (t) {
-                if (!down) {
-                    down = true;
-                    down_start = now;
-                }
-            }
-
-            if (!t && down) {
-                down = false;
-
-                uint32_t press = now - down_start;
-
-                // long tap
-                if (press > 3000) {
-                    self->EnterWifiConfigMode();
-                } else {
-                    // double tap
-                    if (now - last_tap < 250) {
-                        app.StartListening();
-                        last_tap = 0;
+                if (t) {
+                    if (!down) {
+                        down = true;
+                        down_start = now;
+                        last_y = y;
+                        is_sliding = false;
+                        // Map touch coordinates to display orientation
+                        if (x < 60) slide_mode = 1;
+                        else if (x > 180) slide_mode = 2;
+                        else slide_mode = 0;
                     } else {
-                        // single tap
-                        app.ToggleChatState();
-                        last_tap = now;
+                        // Slide detection
+                        int dy = (int)y - (int)last_y;
+                        if (std::abs(dy) > 10) {
+                            if (slide_mode == 1) {
+                                is_sliding = true;
+                                int b = self->GetBacklight()->brightness();
+                                b -= dy / 5;
+                                if (b < 1) b = 1;
+                                if (b > 100) b = 100;
+                                self->GetBacklight()->SetBrightness(b);
+                            } else if (slide_mode == 2) {
+                                is_sliding = true;
+                                auto codec = self->GetAudioCodec();
+                                int v = codec->output_volume();
+                                v -= dy / 5;
+                                if (v < 0) v = 0;
+                                if (v > 100) v = 100;
+                                codec->SetOutputVolume(v);
+                            }
+                            last_y = y;
+                        }
+                    }
+                }
+
+                if (!t && down) {
+                    down = false;
+                    if (!is_sliding) {
+                        uint32_t press = now - down_start;
+                        if (press > 3000) {
+                            self->EnterWifiConfigMode();
+                        } else if (now - last_tap < 250) {
+                            app.StartListening();
+                            last_tap = 0;
+                        } else {
+                            app.ToggleChatState();
+                            last_tap = now;
+                        }
                     }
                 }
             }
 
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
 
@@ -190,10 +217,15 @@ private:
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        esp_lcd_panel_disp_on_off(panel, true);
+#if CONFIG_USE_EMOTE_MESSAGE_STYLE
+        display_ = new emote::EmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+#else
         display_ = new SpiLcdDisplay(panel_io, panel,
             DISPLAY_WIDTH, DISPLAY_HEIGHT,
             DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+#endif
     }
 
     void InitializeTools() {
@@ -222,13 +254,15 @@ public:
             AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE, AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK,
             AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_PA_PIN,
             AUDIO_CODEC_ES8311_ADDR, true, true);
+        audio_codec.SetInputGain(42.0f);
         return &audio_codec;
     }
 
     virtual Display *GetDisplay() override { return display_; }
 
     virtual Backlight *GetBacklight() override {
-        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        // Use GpioBacklight to test if hardware responds to standard GPIO HIGH/LOW
+        static GpioBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
 

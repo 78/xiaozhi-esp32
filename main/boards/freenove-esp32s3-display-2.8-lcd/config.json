@@ -7,8 +7,8 @@
                 "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
                 "CONFIG_LANGUAGE_EN_US=y",
-                "CONFIG_SR_WN_WN9S_HIESP=y",
-                "CONFIG_SR_WN_WN9_HIESP=y"
+                "CONFIG_SR_WN_WN9_COMPUTER_TTS=y",
+                "CONFIG_SEND_WAKE_WORD_DATA=n"
             ]
         }
     ]

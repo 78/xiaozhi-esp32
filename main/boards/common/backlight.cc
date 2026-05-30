@@ -119,3 +119,26 @@ void PwmBacklight::SetBrightnessImpl(uint8_t brightness) {
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
+GpioBacklight::GpioBacklight(gpio_num_t pin, bool output_invert) : Backlight(), pin_(pin), output_invert_(output_invert) {
+    gpio_config_t io_conf = {};
+    io_conf.pin_bit_mask = (1ULL << pin_);
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    gpio_config(&io_conf);
+}
+
+GpioBacklight::~GpioBacklight() {
+    // Optionally reset pin
+}
+
+void GpioBacklight::SetBrightnessImpl(uint8_t brightness) {
+    // Basic threshold logic: < 50 is off, >= 50 is on
+    bool level = brightness >= 50;
+    if (output_invert_) {
+        level = !level;
+    }
+    gpio_set_level(pin_, level ? 1 : 0);
+}
+

@@ -34,3 +34,16 @@ public:
 
     void SetBrightnessImpl(uint8_t brightness) override;
 };
+
+class GpioBacklight : public Backlight {
+public:
+    GpioBacklight(gpio_num_t pin, bool output_invert = false);
+    ~GpioBacklight();
+
+    void SetBrightnessImpl(uint8_t brightness) override;
+
+private:
+    gpio_num_t pin_;
+    bool output_invert_;
+};
+
