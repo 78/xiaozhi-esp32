@@ -6,7 +6,9 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 
+#include <esp_err.h>
 #include <esp_log.h>
 #include "i2c_device.h"
 #include <driver/i2c_master.h>
@@ -22,6 +24,45 @@
 #define LCD_OPCODE_WRITE_CMD        (0x02ULL)
 #define LCD_OPCODE_READ_CMD         (0x0BULL)
 #define LCD_OPCODE_WRITE_COLOR      (0x32ULL)
+
+class PowerSavingSpiLcdDisplay : public SpiLcdDisplay {
+public:
+    using SpiLcdDisplay::SpiLcdDisplay;
+
+    void SetPowerSaveMode(bool on) override {
+        if (!on) {
+            SetPanelPower(true);
+        }
+
+        SpiLcdDisplay::SetPowerSaveMode(on);
+
+        if (on) {
+            SetPanelPower(false);
+        }
+    }
+
+private:
+    bool panel_powered_on_ = true;
+
+    void SetPanelPower(bool on) {
+        if (panel_powered_on_ == on) {
+            return;
+        }
+
+        esp_err_t err = esp_lcd_panel_disp_on_off(panel_, on);
+        if (err == ESP_ERR_NOT_SUPPORTED) {
+            ESP_LOGW(TAG, "Panel does not support disp_on_off");
+            panel_powered_on_ = on;
+            return;
+        }
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to %s display panel: %s", on ? "turn on" : "turn off", esp_err_to_name(err));
+            return;
+        }
+
+        panel_powered_on_ = on;
+    }
+};
 
 static const st77916_lcd_init_cmd_t vendor_specific_init_new[] = {
     {0xF0, (uint8_t []){0x28}, 1, 0},
@@ -217,6 +258,20 @@ private:
     i2c_master_bus_handle_t i2c_bus_;
     esp_io_expander_handle_t io_expander = NULL;
     LcdDisplay* display_;
+    PowerSaveTimer* power_save_timer_ = nullptr;
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 10, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(true);
+            GetBacklight()->SetBrightness(0);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            GetDisplay()->SetPowerSaveMode(false);
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -351,7 +406,7 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new SpiLcdDisplay(panel_io, panel,
+        display_ = new PowerSavingSpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
@@ -373,6 +428,7 @@ public:
         InitializeTca9554();
         InitializeSpi();
         Initializest77916Display();
+        InitializePowerSaveTimer();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
     }
@@ -401,6 +457,13 @@ public:
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
+    }
+
+    virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
+        if (level != PowerSaveLevel::LOW_POWER && power_save_timer_ != nullptr) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveLevel(level);
     }
 };
 
