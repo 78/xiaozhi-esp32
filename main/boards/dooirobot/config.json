@@ -1,0 +1,61 @@
+{
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "dooirobot",
+            "sdkconfig_append": [
+                "CONFIG_LV_USE_GIF=y",
+
+                "CONFIG_HTTPD_WS_SUPPORT=y",
+
+                "CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y",
+                "CONFIG_UART_HW_FLOWCTRL_DISABLE=y",
+
+                "CONFIG_BT_ENABLED=y",
+                "CONFIG_BT_NIMBLE_ENABLED=y",
+                "CONFIG_BT_NIMBLE_TRANSPORT_UART=n",
+                "CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y",
+
+                "CONFIG_IDF_SLAVE_TARGET=\"esp32c6\"",
+                "CONFIG_ESP_SDIO_GPIO_RESET_SLAVE=42",
+                "CONFIG_ESP_SDIO_PIN_CMD=48",
+                "CONFIG_ESP_SDIO_PIN_CLK=47",
+                "CONFIG_ESP_SDIO_PIN_D0=46",
+                "CONFIG_ESP_SDIO_PIN_D2=44",
+                "CONFIG_ESP_SDIO_PIN_D3=43",
+                "CONFIG_ESP_SDIO_PIN_D1=45",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_1=48",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_1=47",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_1=46",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_1=45",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_1=44",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_1=43",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_CMD=48",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_CLK=47",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_D0=46",
+                "CONFIG_ESP_HOSTED_SDIO_PRIV_PIN_D1_4BIT_BUS=45",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_D2=44",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_D3=43",
+                "CONFIG_ESP_HOSTED_SDIO_PIN_D1=45",
+                
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_USE_DEVICE_AEC=y",
+                
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+
+                "CONFIG_SOC_SPI_MEM_SUPPORT_CACHE_32BIT_ADDR_MAP=y",
+                "CONFIG_SPI_FLASH_32BIT_ADDR_ENABLE=y",
+                "CONFIG_SPI_FLASH_QUAD_32BIT_ADDR_ENABLE=y",
+                "CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y",
+                "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP=n",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"main/boards/dooirobot/partitions/32m.csv\"",
+
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n",
+                "CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=n"
+            ]
+        }
+    ]
+}
