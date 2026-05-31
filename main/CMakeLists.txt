@@ -35,6 +35,7 @@ set(SOURCES "audio/audio_codec.cc"
             "ota.cc"
             "settings.cc"
             "device_state_machine.cc"
+            "stepper_polling.cc"
             "assets.cc"
             "main.cc"
             )
