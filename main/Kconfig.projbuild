@@ -287,6 +287,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2
+        bool "Waveshare ESP32-S3-Touch-AMOLED-1.8-v2"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.43C"
         depends on IDF_TARGET_ESP32S3
