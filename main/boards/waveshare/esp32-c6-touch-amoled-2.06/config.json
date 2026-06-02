@@ -5,7 +5,11 @@
         {
             "name": "esp32-c6-touch-amoled-2.06",
             "sdkconfig_append": [
-                "CONFIG_USE_ESP_WAKE_WORD=y"
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "# CONFIG_USE_HOTSPOT_WIFI_PROVISIONING is not set",
+                "CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y",
+                "CONFIG_RECEIVE_CUSTOM_MESSAGE=y",
+                "CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER=y"
             ]
         }
     ]

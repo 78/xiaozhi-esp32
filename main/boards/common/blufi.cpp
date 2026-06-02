@@ -12,7 +12,13 @@
 #include "freertos/task.h"
 #include "wifi_manager.h"
 
+#ifndef BLUFI_DEVICE_NAME
+#if CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06
+#define BLUFI_DEVICE_NAME "Google-BluFi"
+#else
 #define BLUFI_DEVICE_NAME "Xiaozhi-Blufi"
+#endif
+#endif
 
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 #include "esp_bt_device.h"
@@ -62,6 +68,7 @@ void esp_blufi_btc_deinit(void);
 #include "ssid_manager.h"
 
 static const char* BLUFI_TAG = "BLUFI_CLASS";
+static constexpr int64_t BLUFI_PROVISIONING_TIMEOUT_US = 60 * 1000 * 1000LL;
 
 static wifi_mode_t GetWifiModeWithFallback(const WifiManager& wifi) {
     if (wifi.IsConfigMode()) {
@@ -97,6 +104,11 @@ Blufi::Blufi()
 }
 
 Blufi::~Blufi() {
+    if (m_provisioning_timeout_timer) {
+        esp_timer_stop(m_provisioning_timeout_timer);
+        esp_timer_delete(m_provisioning_timeout_timer);
+        m_provisioning_timeout_timer = nullptr;
+    }
     if (m_sec) {
         _security_deinit();
     }
@@ -135,6 +147,7 @@ esp_err_t Blufi::init() {
     }
 
     ESP_LOGI(BLUFI_TAG, "BLUFI VERSION %04x", esp_blufi_get_version());
+    _start_provisioning_timeout();
     return ESP_OK;
 }
 
@@ -146,6 +159,7 @@ esp_err_t Blufi::deinit() {
             return ESP_OK;
         }
         m_deinited = true;
+        _stop_provisioning_timeout();
         ret = _host_deinit();
         if (ret) {
             ESP_LOGE(BLUFI_TAG, "Host deinit failed: %s", esp_err_to_name(ret));
@@ -158,6 +172,57 @@ esp_err_t Blufi::deinit() {
 #endif
     }
     return ret;
+}
+
+void Blufi::_start_provisioning_timeout() {
+    if (m_provisioning_timeout_timer == nullptr) {
+        esp_timer_create_args_t timer_args = {
+            .callback = &_provisioning_timeout_callback,
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "blufi_timeout",
+            .skip_unhandled_events = true,
+        };
+        esp_err_t ret = esp_timer_create(&timer_args, &m_provisioning_timeout_timer);
+        if (ret != ESP_OK) {
+            ESP_LOGE(BLUFI_TAG, "Failed to create provisioning timeout timer: %s",
+                     esp_err_to_name(ret));
+            return;
+        }
+    }
+
+    esp_timer_stop(m_provisioning_timeout_timer);
+    esp_err_t ret = esp_timer_start_once(m_provisioning_timeout_timer, BLUFI_PROVISIONING_TIMEOUT_US);
+    if (ret == ESP_OK) {
+        ESP_LOGI(BLUFI_TAG, "BLUFI provisioning timeout armed for 60 seconds");
+    } else {
+        ESP_LOGE(BLUFI_TAG, "Failed to arm provisioning timeout: %s", esp_err_to_name(ret));
+    }
+}
+
+void Blufi::_stop_provisioning_timeout() {
+    if (m_provisioning_timeout_timer != nullptr) {
+        esp_timer_stop(m_provisioning_timeout_timer);
+    }
+}
+
+void Blufi::_handle_provisioning_timeout() {
+    if (m_deinited || m_provisioned || m_ble_is_connected) {
+        return;
+    }
+    ESP_LOGW(BLUFI_TAG, "BLUFI provisioning timeout after 60 seconds without phone connection");
+    esp_blufi_adv_stop();
+    deinit();
+}
+
+void Blufi::_provisioning_timeout_callback(void* arg) {
+    auto* self = static_cast<Blufi*>(arg);
+    xTaskCreate(
+        [](void* ctx) {
+            static_cast<Blufi*>(ctx)->_handle_provisioning_timeout();
+            vTaskDelete(nullptr);
+        },
+        "blufi_timeout", 4096, self, 5, nullptr);
 }
 
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
@@ -672,6 +737,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
         case ESP_BLUFI_EVENT_BLE_CONNECT:
             ESP_LOGI(BLUFI_TAG, "BLUFI ble connect");
             m_ble_is_connected = true;
+            _stop_provisioning_timeout();
             esp_blufi_adv_stop();
             _security_init();
             break;
@@ -681,8 +747,10 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             _security_deinit();
             if (!m_provisioned) {
                 esp_blufi_adv_start();
+                _start_provisioning_timeout();
             } else {
                 esp_blufi_adv_stop();
+                _stop_provisioning_timeout();
                 if (!m_deinited) {
                     xTaskCreate(
                         [](void* ctx) {
@@ -796,6 +864,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
                         esp_blufi_send_wifi_conn_report(mode, ESP_BLUFI_STA_CONN_SUCCESS,
                                                         softap_conn_num, &info);
                         ESP_LOGI(BLUFI_TAG, "connected to WiFi");
+                        self->_stop_provisioning_timeout();
 
                         if (self->m_ble_is_connected) {
                             esp_blufi_disconnect();
@@ -874,7 +943,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             strncpy((char*)m_sta_config.sta.password, (char*)param->sta_passwd.passwd,
                     param->sta_passwd.passwd_len);
             m_sta_config.sta.password[param->sta_passwd.passwd_len] = '\0';
-            ESP_LOGI(BLUFI_TAG, "Recv STA PASSWORD : %s", m_sta_config.sta.password);
+            ESP_LOGI(BLUFI_TAG, "Recv STA PASSWORD: <redacted, len=%d>", param->sta_passwd.passwd_len);
             break;
         case ESP_BLUFI_EVENT_GET_WIFI_LIST: {
             ESP_LOGI(BLUFI_TAG, "BLUFI get wifi list");
