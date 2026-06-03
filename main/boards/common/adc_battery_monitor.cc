@@ -92,13 +92,25 @@ uint8_t AdcBatteryMonitor::GetBatteryLevel() {
     if (adc_battery_estimation_handle_ == nullptr) {
         return 100;
     }
-    
+
     float capacity = 0;
     esp_err_t err = adc_battery_estimation_get_capacity(adc_battery_estimation_handle_, &capacity);
     if (err != ESP_OK) {
         return 100; // 出错时返回默认值
     }
     return (uint8_t)capacity;
+}
+
+int AdcBatteryMonitor::GetVoltageMv() {
+    if (adc_battery_estimation_handle_ == nullptr) {
+        return -1;
+    }
+    int voltage_mv = 0;
+    esp_err_t err = adc_battery_estimation_get_voltage_mv(adc_battery_estimation_handle_, &voltage_mv);
+    if (err != ESP_OK) {
+        return -1;
+    }
+    return voltage_mv;
 }
 
 void AdcBatteryMonitor::OnChargingStatusChanged(std::function<void(bool)> callback) {
