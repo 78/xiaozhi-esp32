@@ -1,6 +1,6 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-#include "esp_lcd_sh8601.h"
+#include "esp_lcd_co5300.h"
 
 #include "codecs/es8311_audio_codec.h"
 #include "application.h"
@@ -14,12 +14,15 @@
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_system.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
 #include "esp_io_expander_tca9554.h"
 #include "settings.h"
 
-#include <esp_lcd_touch_ft5x06.h>
+#include <esp_lcd_touch_cst816s.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
@@ -52,21 +55,49 @@ public:
         WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
         WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
     }
+
+    void EnablePowerButtonShortPressIrq() {
+        ClearIrqStatus();
+        WriteReg(0x41, ReadReg(0x41) | 0x08); // Enable AXP2101 PWRON short press IRQ
+    }
+
+    bool ConsumePowerButtonShortPressIrq() {
+        uint8_t status = ReadReg(0x49);
+        if (status != 0) {
+            WriteReg(0x49, status);
+        }
+        return (status & 0x08) != 0;
+    }
+
+    void ClearIrqStatus() {
+        WriteReg(0x48, 0xff);
+        WriteReg(0x49, 0xff);
+        WriteReg(0x4a, 0xff);
+    }
 };
 
 #define LCD_OPCODE_WRITE_CMD (0x02ULL)
 #define LCD_OPCODE_READ_CMD (0x03ULL)
 #define LCD_OPCODE_WRITE_COLOR (0x32ULL)
 
-static const sh8601_lcd_init_cmd_t vendor_specific_init[] = {
-    {0x11, (uint8_t[]){0x00}, 0, 120},
-    {0x44, (uint8_t[]){0x01, 0xD1}, 2, 0},
+static const co5300_lcd_init_cmd_t vendor_specific_init[] = {
+    {0x11, (uint8_t[]){0x00}, 0, 600}, // Sleep out
+
+    {0xFE, (uint8_t[]){0x20}, 1, 0},
+    {0x19, (uint8_t[]){0x10}, 1, 0},
+    {0x1C, (uint8_t[]){0xA0}, 1, 0},
+
+    {0xFE, (uint8_t[]){0x00}, 1, 0},
+    {0xC4, (uint8_t[]){0x80}, 1, 0},
+    {0x3A, (uint8_t[]){0x55}, 1, 0},
     {0x35, (uint8_t[]){0x00}, 1, 0},
-    {0x53, (uint8_t[]){0x20}, 1, 10},
-    {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0x6F}, 4, 0},
-    {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xBF}, 4, 0},
-    {0x51, (uint8_t[]){0x00}, 1, 10},
-    {0x29, (uint8_t[]){0x00}, 0, 10}
+    {0x53, (uint8_t[]){0x20}, 1, 0},
+    {0x51, (uint8_t[]){0xFF}, 1, 0},
+    {0x63, (uint8_t[]){0xFF}, 1, 0},
+    {0x2A, (uint8_t[]){0x00, 0x00, 0x01, 0xDF}, 4, 0},
+    {0x2B, (uint8_t[]){0x00, 0x00, 0x01, 0xDF}, 4, 0},
+    {0x36, (uint8_t[]){0x00}, 1, 0},
+    {0x29, (uint8_t[]){0x00}, 0, 600},
 };
 
 // 在waveshare_amoled_1_8类之前添加新的显示类
@@ -125,17 +156,50 @@ private:
     CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
-    int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
+    TaskHandle_t power_button_task_handle_ = nullptr;
+    bool returning_to_brookesia_ = false;
 
-    // Standalone dim-only timer used while charging. PowerSaveTimer is
-    // disabled on the charger so wake word detection isn't disturbed by its
-    // sleep callbacks; this lightweight timer applies just the visual dim
-    // (low brightness + sleepy emoji) on its own.
-    esp_timer_handle_t dim_timer_ = nullptr;
-    int dim_ticks_ = 0;
-    bool dimmed_ = false;
-    bool dim_timer_running_ = false;
-    static constexpr int kDimSeconds = 60;
+    static void PowerButtonTask(void* arg) {
+        auto* self = static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg);
+        while (true) {
+            if (self->pmic_ != nullptr && self->pmic_->ConsumePowerButtonShortPressIrq()) {
+                self->ReturnToBrookesia();
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        self->power_button_task_handle_ = nullptr;
+        vTaskDelete(nullptr);
+    }
+
+    void ReturnToBrookesia() {
+        if (returning_to_brookesia_) {
+            return;
+        }
+        returning_to_brookesia_ = true;
+
+        const esp_partition_t *factory = esp_partition_find_first(
+            ESP_PARTITION_TYPE_APP,
+            ESP_PARTITION_SUBTYPE_APP_FACTORY,
+            nullptr
+        );
+        if (factory == nullptr) {
+            ESP_LOGE(TAG, "Factory partition not found");
+            returning_to_brookesia_ = false;
+            return;
+        }
+
+        esp_err_t err = esp_ota_set_boot_partition(factory);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Set boot partition failed: %s", esp_err_to_name(err));
+            returning_to_brookesia_ = false;
+            return;
+        }
+
+        ESP_LOGI(TAG, "PWR short press: return to Brookesia factory partition");
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_restart();
+    }
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -151,67 +215,6 @@ private:
             pmic_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
-    }
-
-    void InitializeDimTimer() {
-        esp_timer_create_args_t args = {
-            .callback = [](void* arg) {
-                auto self = static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg);
-                self->DimTick();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "dim_tick",
-            .skip_unhandled_events = true,
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&args, &dim_timer_));
-    }
-
-    void ApplyDim(bool on) {
-        Application::GetInstance().Schedule([this, on]() {
-            if (on) {
-                ESP_LOGI(TAG, "Dim mode (always-on)");
-                GetDisplay()->SetPowerSaveMode(true);
-                GetBacklight()->SetBrightness(20);
-            } else {
-                GetDisplay()->SetPowerSaveMode(false);
-                GetBacklight()->RestoreBrightness();
-            }
-        });
-    }
-
-    void DimTick() {
-        if (!Application::GetInstance().CanEnterSleepMode()) {
-            // Activity (conversation, button) — restore display and reset.
-            dim_ticks_ = 0;
-            if (dimmed_) {
-                dimmed_ = false;
-                ApplyDim(false);
-            }
-            return;
-        }
-        dim_ticks_++;
-        if (dim_ticks_ >= kDimSeconds && !dimmed_) {
-            dimmed_ = true;
-            ApplyDim(true);
-        }
-    }
-
-    void StartDimTimer() {
-        if (dim_timer_running_) return;
-        dim_ticks_ = 0;
-        esp_timer_start_periodic(dim_timer_, 1000000);
-        dim_timer_running_ = true;
-    }
-
-    void StopDimTimer() {
-        if (!dim_timer_running_) return;
-        esp_timer_stop(dim_timer_);
-        dim_timer_running_ = false;
-        if (dimmed_) {
-            dimmed_ = false;
-            ApplyDim(false);
-        }
     }
 
     void InitializeCodecI2c() {
@@ -251,6 +254,7 @@ private:
     void InitializeAxp2101() {
         ESP_LOGI(TAG, "Init AXP2101");
         pmic_ = new Pmic(codec_i2c_bus_, 0x34);
+        pmic_->EnablePowerButtonShortPressIrq();
     }
 
     void InitializeSpi() {
@@ -274,58 +278,55 @@ private:
             }
             app.ToggleChatState();
         });
+
+        xTaskCreate(PowerButtonTask, "pwr_button", 4096, this, 5, &power_button_task_handle_);
     }
 
-    void InitializeSH8601Display() {
+    void InitializeDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
 
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(
+        esp_lcd_panel_io_spi_config_t io_config = CO5300_PANEL_IO_QSPI_CONFIG(
             EXAMPLE_PIN_NUM_LCD_CS,
             nullptr,
-            nullptr
-        );
+            nullptr);
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
-        const sh8601_vendor_config_t vendor_config = {
+        const co5300_vendor_config_t vendor_config = {
             .init_cmds = &vendor_specific_init[0],
-            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(sh8601_lcd_init_cmd_t),
-            .flags ={
+            .init_cmds_size = sizeof(vendor_specific_init) / sizeof(co5300_lcd_init_cmd_t),
+            .flags = {
                 .use_qspi_interface = 1,
-            }
-        };
+            }};
 
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.flags.reset_active_high = 1,
+        panel_config.reset_gpio_num = EXAMPLE_PIN_NUM_LCD_RST;
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = (void *)&vendor_config;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(panel_io, &panel_config, &panel));
-
+        panel_config.vendor_config = (void* )&vendor_config;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_co5300(panel_io, &panel_config, &panel));
         esp_lcd_panel_reset(panel);
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
         esp_lcd_panel_disp_on_off(panel, true);
         display_ = new CustomLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         backlight_ = new CustomBacklight(panel_io);
         backlight_->RestoreBrightness();
     }
 
-    void InitializeTouch()
-    {
+    void InitializeTouch() {
         esp_lcd_touch_handle_t tp;
         esp_lcd_touch_config_t tp_cfg = {
-            .x_max = DISPLAY_WIDTH,
-            .y_max = DISPLAY_HEIGHT,
-            .rst_gpio_num = GPIO_NUM_NC,
-            .int_gpio_num = GPIO_NUM_21,
+            .x_max = DISPLAY_WIDTH - 1,
+            .y_max = DISPLAY_HEIGHT - 1,
+            .rst_gpio_num = GPIO_NUM_39,
+            .int_gpio_num = GPIO_NUM_13,
             .levels = {
                 .reset = 0,
                 .interrupt = 0,
@@ -338,21 +339,25 @@ private:
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = {
-            .dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS,
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS,
+            .on_color_trans_done = 0,
+            .user_ctx = 0,
             .control_phase_bytes = 1,
             .dc_bit_offset = 0,
             .lcd_cmd_bits = 8,
+            .lcd_param_bits = 0,
             .flags =
             {
+                .dc_low_on_data = 0,
                 .disable_control_phase = 1,
-            }
+            },
         };
-        tp_io_config.scl_speed_hz = 400 * 1000;
+        tp_io_config.scl_speed_hz = 400*  1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(codec_i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
-        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
+        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst816s(tp_io_handle, &tp_cfg, &tp));
         const lvgl_port_touch_cfg_t touch_cfg = {
-            .disp = lv_display_get_default(), 
+            .disp = lv_display_get_default(),
             .handle = tp,
         };
         lvgl_port_add_touch(&touch_cfg);
@@ -375,13 +380,12 @@ public:
     WaveshareEsp32s3TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
-        InitializeDimTimer();
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
         InitializeSpi();
-        InitializeSH8601Display();
-        InitializeTouch();
+        InitializeDisplay();
+         InitializeTouch();
         InitializeButtons();
         InitializeTools();
     }
@@ -402,24 +406,12 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
         charging = pmic_->IsCharging();
         discharging = pmic_->IsDischarging();
-        int discharging_state = discharging ? 1 : 0;
-        if (discharging_state != last_discharging_) {
-            // On charger: disable PowerSaveTimer so its sleep-mode callbacks
-            // (which on this board appear to disrupt the AFE / audio pipeline)
-            // never fire. Run the standalone dim timer instead for the
-            // brightness + sleepy-emoji UX. On battery: reverse — disable dim
-            // timer, re-enable PowerSaveTimer (60s sleep, 5min auto-shutdown).
+        if (discharging != last_discharging) {
             power_save_timer_->SetEnabled(discharging);
-            if (discharging) {
-                StopDimTimer();
-                ESP_LOGI(TAG, "Always-on disabled (battery)");
-            } else {
-                StartDimTimer();
-                ESP_LOGI(TAG, "Always-on enabled (charging)");
-            }
-            last_discharging_ = discharging_state;
+            last_discharging = discharging;
         }
 
         level = pmic_->GetBatteryLevel();

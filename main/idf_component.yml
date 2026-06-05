@@ -34,6 +34,10 @@ dependencies:
   espressif/esp-sr: ~2.3.0
   espressif/button: ~4.1.5
   espressif/knob: ^1.0.0
+  esphome/esp-hub75:
+    version: ^0.3.5
+    rules:
+    - if: target in [esp32p4, esp32s3]
   espressif/esp32-camera:
     version: ^2.1.6
     rules:

@@ -428,13 +428,9 @@ bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
 bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
     ESP_LOGI(TAG, "Downloading new version of assets from %s", url.c_str());
 
-    // 取消当前资源分区的内存映射
-    UnApplyPartition();
-
-    // 下载新的资源文件
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
-    
+
     if (!http->Open("GET", url)) {
         ESP_LOGE(TAG, "Failed to open HTTP connection");
         return false;
@@ -446,113 +442,170 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     }
 
     size_t content_length = http->GetBodyLength();
+
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
         return false;
     }
 
     if (content_length > partition_->size) {
-        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)", content_length, partition_->size);
+        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)",
+                 content_length, partition_->size);
         return false;
     }
 
-    // 定义扇区大小为4KB（ESP32的标准扇区大小）
+    constexpr size_t HEADER_SIZE = 12;
+
+    if (content_length < HEADER_SIZE) {
+        ESP_LOGE(TAG, "Content length (%u) is smaller than header size (%u)",
+                 content_length, HEADER_SIZE);
+        return false;
+    }
+
     const size_t SECTOR_SIZE = esp_partition_get_main_flash_sector_size();
-    
-    // 计算需要擦除的扇区数量
-    size_t sectors_to_erase = (content_length + SECTOR_SIZE - 1) / SECTOR_SIZE; // 向上取整
-    size_t total_erase_size = sectors_to_erase * SECTOR_SIZE;
-    
-    ESP_LOGI(TAG, "Sector size: %u, content length: %u, sectors to erase: %u, total erase size: %u", 
-             SECTOR_SIZE, content_length, sectors_to_erase, total_erase_size);
-    
-    // 写入新的资源文件到分区，一边erase一边写入
-    char* buffer = (char*)heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL);
-    if (buffer == nullptr) {
+    using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
+
+    BufferPtr buffer(
+        static_cast<char *>(heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL)),
+        &heap_caps_free);
+
+    if (!buffer) {
         ESP_LOGE(TAG, "Failed to allocate buffer");
         return false;
     }
+
+    // Unapply the partition
+    UnApplyPartition();
+
+    size_t sectors_to_erase = (content_length + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    size_t total_erase_size = sectors_to_erase * SECTOR_SIZE;
+    ESP_LOGI(TAG,
+             "Sector size: %u, content length: %u, "
+             "sectors to erase: %u, total erase size: %u",
+             SECTOR_SIZE, content_length,
+             sectors_to_erase, total_erase_size);
+
     size_t total_written = 0;
     size_t recent_written = 0;
     size_t current_sector = 0;
-    auto last_calc_time = esp_timer_get_time();
-    
+
+    int64_t last_calc_time = esp_timer_get_time();
+
+    uint8_t header_buf[HEADER_SIZE];
+    size_t header_collected = 0;
+    bool success = false;
     while (true) {
-        int ret = http->Read(buffer, SECTOR_SIZE);
+        int ret = http->Read(buffer.get(), SECTOR_SIZE);
         if (ret < 0) {
             ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
-            heap_caps_free(buffer);
-            return false;
-        }
-
-        if (ret == 0) {
             break;
         }
 
-        // 检查是否需要擦除新的扇区
-        size_t write_end_offset = total_written + ret;
-        size_t needed_sectors = (write_end_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
-        
-        // 擦除需要的新扇区
-        while (current_sector < needed_sectors) {
-            size_t sector_start = current_sector * SECTOR_SIZE;
-            size_t sector_end = (current_sector + 1) * SECTOR_SIZE;
-            
-            // 确保擦除范围不超过分区大小
-            if (sector_end > partition_->size) {
-                ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)", sector_end, partition_->size);
-                heap_caps_free(buffer);
-                return false;
+        if (ret == 0) {
+            // End of data
+            success = true;
+            break;
+        }
+
+        size_t buf_pos = 0;
+
+        // Collect header
+        if (header_collected < HEADER_SIZE) {
+            size_t need = HEADER_SIZE - header_collected;
+            size_t take = std::min(static_cast<size_t>(ret), need);
+            memcpy(header_buf + header_collected, buffer.get(), take);
+            header_collected += take;
+            buf_pos += take;
+        }
+
+        // Write payload
+        if ((size_t)ret > buf_pos) {
+            size_t write_len = (size_t)ret - buf_pos;
+            size_t write_end_offset = HEADER_SIZE + total_written + write_len;
+            size_t needed_sectors = (write_end_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
+            // Erase sectors
+            bool erase_failed = false;
+            while (current_sector < needed_sectors) {
+                size_t sector_start = current_sector * SECTOR_SIZE;
+                size_t sector_end = sector_start + SECTOR_SIZE;
+                if (sector_end > partition_->size) {
+                    ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)",
+                             sector_end, partition_->size);
+                    erase_failed = true;
+                    break;
+                }
+                ESP_LOGD(TAG, "Erasing sector %u (offset: %u, size: %u)",
+                         current_sector, sector_start, SECTOR_SIZE);
+                esp_err_t err = esp_partition_erase_range(partition_, sector_start, SECTOR_SIZE);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s",
+                             current_sector, sector_start, esp_err_to_name(err));
+                    erase_failed = true;
+                    break;
+                }
+                current_sector++;
             }
-            
-            ESP_LOGD(TAG, "Erasing sector %u (offset: %u, size: %u)", current_sector, sector_start, SECTOR_SIZE);
-            esp_err_t err = esp_partition_erase_range(partition_, sector_start, SECTOR_SIZE);
+
+            if (erase_failed) {
+                break;
+            }
+
+            esp_err_t err = esp_partition_write(partition_, HEADER_SIZE + total_written,
+                                                buffer.get() + buf_pos, write_len);
             if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s", current_sector, sector_start, esp_err_to_name(err));
-                heap_caps_free(buffer);
-                return false;
+                ESP_LOGE(TAG, "Failed to write to assets partition at offset %u: %s",
+                         (unsigned int)(HEADER_SIZE + total_written), esp_err_to_name(err));
+                break;
             }
-            
-            current_sector++;
+
+            total_written += write_len;
+            recent_written += write_len;
         }
 
-        // 写入数据到分区
-        esp_err_t err = esp_partition_write(partition_, total_written, buffer, ret);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to write to assets partition at offset %u: %s", total_written, esp_err_to_name(err));
-            heap_caps_free(buffer);
-            return false;
-        }
+        // Calculate progress
+        if (esp_timer_get_time() - last_calc_time >= 1000000 || (header_collected + total_written) == content_length) {
+            size_t progress = (header_collected + total_written) * 100 / content_length;
+            size_t speed = recent_written;
+            ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %u B/s, Sectors erased: %u",
+                     progress,
+                     (unsigned int)(header_collected + total_written),
+                     (unsigned int)content_length,
+                     (unsigned int)speed,
+                     (unsigned int)current_sector);
 
-        total_written += ret;
-        recent_written += ret;
-
-        // 计算进度和速度
-        if (esp_timer_get_time() - last_calc_time >= 1000000 || total_written == content_length || ret == 0) {
-            size_t progress = total_written * 100 / content_length;
-            size_t speed = recent_written; // 每秒的字节数
-            ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %u B/s, Sectors erased: %u", 
-                     progress, total_written, content_length, speed, current_sector);
             if (progress_callback) {
                 progress_callback(progress, speed);
             }
             last_calc_time = esp_timer_get_time();
-            recent_written = 0; // 重置最近写入的字节数
+            recent_written = 0;
         }
     }
-    
-    http->Close();
-    heap_caps_free(buffer);
 
-    if (total_written != content_length) {
-        ESP_LOGE(TAG, "Downloaded size (%u) does not match expected size (%u)", total_written, content_length);
+    // Check if the downloaded size matches the expected size
+    if (success && (header_collected + total_written != content_length)) {
+        ESP_LOGE(TAG, "Downloaded size (%u) does not match expected size (%u)",
+                 (unsigned int)(header_collected + total_written), (unsigned int)content_length);
+        success = false;
+    }
+
+    // Write header
+    if (success) {
+        esp_err_t err = esp_partition_write(partition_, 0, header_buf, HEADER_SIZE);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to write assets header to partition: %s", esp_err_to_name(err));
+            success = false;
+        }
+    }
+
+    if (!success) {
+        ESP_LOGE(TAG, "Assets download failed");
         return false;
     }
 
-    ESP_LOGI(TAG, "Assets download completed, total written: %u bytes, total sectors erased: %u", 
-             total_written, current_sector);
+    ESP_LOGI(TAG, "Header written, assets download completed, total written: %u bytes, total sectors erased: %u",
+             (unsigned int)(header_collected + total_written), (unsigned int)current_sector);
 
-    // 重新初始化资源分区
+    // Re-initialize the assets partition
     if (!InitializePartition()) {
         ESP_LOGE(TAG, "Failed to re-initialize assets partition");
         return false;
