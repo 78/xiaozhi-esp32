@@ -24,11 +24,15 @@ void ElectronEmojiDisplay::SetupUI() {
         return;
     }
     
-    // Call parent SetupUI() first to create all lvgl objects (including container_)
+    // Call parent SetupUI() first to create all lvgl objects (including container_,
+    // bottom_bar_ and chat_message_label_)
     SpiLcdDisplay::SetupUI();
 
-    // Setup chat label after parent UI is initialized so that container_ is valid
-    SetupChatLabel();
+    // UI 对象创建完成后切换主题（复用父类创建好的字幕标签，不再重建）
+    auto* dark_theme = LvglThemeManager::GetInstance().GetTheme("dark");
+    if (dark_theme != nullptr) {
+        SetTheme(dark_theme);
+    }
 
     // Set default emotion after UI is initialized
     SetEmotion("staticstate");
@@ -39,26 +43,6 @@ void ElectronEmojiDisplay::InitializeElectronEmojis() {
     // 表情初始化已移至assets系统,通过DEFAULT_EMOJI_COLLECTION=otto-gif配置
     // assets.cc会从assets分区加载GIF表情并设置到theme
     // Note: Default emotion is now set in SetupUI() after LVGL objects are created
-}
-
-void ElectronEmojiDisplay::SetupChatLabel() {
-    // Create/recreate the chat label under the display lock
-    {
-        DisplayLockGuard lock(this);
-
-        if (chat_message_label_) {
-            lv_obj_del(chat_message_label_);
-        }
-
-        chat_message_label_ = lv_label_create(container_);
-        lv_label_set_text(chat_message_label_, "");
-        lv_obj_set_width(chat_message_label_, width_ * 0.9);
-        lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_color(chat_message_label_, lv_color_white(), 0);
-    }
-    // SetTheme acquires DisplayLockGuard internally, so call it after releasing the lock above
-    SetTheme(LvglThemeManager::GetInstance().GetTheme("dark"));
 }
 
 LV_FONT_DECLARE(OTTO_ICON_FONT);

@@ -19,5 +19,4 @@ class ElectronEmojiDisplay : public SpiLcdDisplay {
 
    private:
     void InitializeElectronEmojis();
-    void SetupChatLabel();
 };
