@@ -3,12 +3,8 @@
 #include <esp_log.h>
 
 #include <cstring>
-#include <vector>
 
-#include "assets.h"
 #include "assets/lang_config.h"
-#include "display/lvgl_display/emoji_collection.h"
-#include "display/lvgl_display/lvgl_image.h"
 #include "display/lvgl_display/lvgl_theme.h"
 
 #define TAG "ElectronEmojiDisplay"
@@ -36,13 +32,6 @@ void ElectronEmojiDisplay::SetupUI() {
 
     // Set default emotion after UI is initialized
     SetEmotion("staticstate");
-}
-
-void ElectronEmojiDisplay::InitializeElectronEmojis() {
-    ESP_LOGI(TAG, "Electron表情初始化将由Assets系统处理");
-    // 表情初始化已移至assets系统,通过DEFAULT_EMOJI_COLLECTION=otto-gif配置
-    // assets.cc会从assets分区加载GIF表情并设置到theme
-    // Note: Default emotion is now set in SetupUI() after LVGL objects are created
 }
 
 LV_FONT_DECLARE(OTTO_ICON_FONT);
@@ -78,6 +67,8 @@ void ElectronEmojiDisplay::SetStatus(const char* status) {
         lv_obj_set_style_text_font(status_label_, text_font, 0);
         lv_label_set_text(status_label_, "");
         lv_obj_clear_flag(status_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(network_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
         return;
     }
 
