@@ -147,15 +147,13 @@ private:
         });
     }
 
-    // 物联网初始化，逐步迁移到 MCP 协议
-     void InitializeTools() {
-         static LampController lamp(LAMP_GPIO);
+      void InitializeTools() {
+          static LampController lamp(LAMP_GPIO);
 
-         // 注册音乐播放工具（v1 - 工具注册阶段）
-          // 工具已注册，LLM可识别；实际音频流待音乐服务器就绪后启用
-          McpServer::GetInstance().AddTool("self.audio_player.play",
-              "通过网络播放音乐。用此工具播放用户指定的歌曲。\n"
-              "参数: song_name(必填) - 歌曲名称, artist(可选) - 歌手名称",
+          auto& mcp_server = McpServer::GetInstance();
+          mcp_server.AddTool("self.audio_player.play",
+              "Play music from network. Call when user asks to play a song.\n"
+              "Parameters: song_name(required), artist(optional)",
               PropertyList({
                   Property("song_name", kPropertyTypeString),
                   Property("artist", kPropertyTypeString, "")
@@ -164,7 +162,7 @@ private:
                   auto song_name = properties["song_name"].value<std::string>();
                   auto artist = properties.contains("artist") ?
                       properties["artist"].value<std::string>() : "";
-                  ESP_LOGI(TAG, "🎵 播放请求: %s - %s",
+                  ESP_LOGI(TAG, "Music play: %s - %s",
                       song_name.c_str(), artist.c_str());
                   return true;
               });
