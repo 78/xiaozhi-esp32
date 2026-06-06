@@ -148,9 +148,28 @@ private:
     }
 
     // 物联网初始化，逐步迁移到 MCP 协议
-    void InitializeTools() {
-        static LampController lamp(LAMP_GPIO);
-    }
+     // 物联网初始化，逐步迁移到 MCP 协议
+     void InitializeTools() {
+         static LampController lamp(LAMP_GPIO);
+
+         // 注册音乐播放工具（v1 - 工具注册阶段）
+          // 工具已注册，LLM可识别；实际音频流待音乐服务器就绪后启用
+          McpServer::GetInstance().AddTool("self.audio_player.play",
+              "通过网络播放音乐。用此工具播放用户指定的歌曲。\n"
+              "参数: song_name(必填) - 歌曲名称, artist(可选) - 歌手名称",
+              PropertyList({
+                  Property("song_name", kPropertyTypeString),
+                  Property("artist", kPropertyTypeString, "")
+              }),
+              [this](const PropertyList& properties) -> ReturnValue {
+                  auto song_name = properties["song_name"].value<std::string>();
+                  auto artist = properties.contains("artist") ?
+                      properties["artist"].value<std::string>() : "";
+                  ESP_LOGI(TAG, "🎵 播放请求: %s - %s",
+                      song_name.c_str(), artist.c_str());
+                  return true;
+              });
+      }
 
 public:
     CompactWifiBoard() :
