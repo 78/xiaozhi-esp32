@@ -832,6 +832,8 @@ elseif(CONFIG_BOARD_TYPE_AI_VOX3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_DOOIROBOT)
+    set(BOARD_TYPE "dooirobot")
 endif()
 
 if(MANUFACTURER)
@@ -1012,6 +1014,7 @@ idf_component_register(SRCS ${SOURCES}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
+                        esp_driver_touch_sens
                         esp_pm
                         esp_psram
                         esp_netif
