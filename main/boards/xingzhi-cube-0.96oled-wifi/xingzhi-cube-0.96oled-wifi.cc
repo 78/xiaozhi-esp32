@@ -151,6 +151,11 @@ private:
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
+        volume_up_button_.OnDoubleClick([this]() {
+            power_save_timer_->WakeUp();
+            Application::GetInstance().ToggleChatState();
+        });
+
         volume_up_button_.OnLongPress([this]() {
             power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);

@@ -164,6 +164,7 @@ void Application::Initialize() {
             case NetworkEvent::Scanning:
                 display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
+                audio_service_.PlaySound(Lang::Sounds::OGG_WIFI_SCANNING);
                 break;
             case NetworkEvent::Connecting: {
                 if (data.empty()) {
@@ -175,6 +176,7 @@ void Application::Initialize() {
                     msg += data;
                     msg += "...";
                     display->ShowNotification(msg.c_str(), 30000);
+                    audio_service_.PlaySound(Lang::Sounds::OGG_WIFI_CONNECTING);
                 }
                 break;
             }
@@ -358,6 +360,8 @@ void Application::HandleNetworkConnectedEvent() {
             app->activation_task_handle_ = nullptr;
             vTaskDelete(NULL);
         }, "activation", 4096 * 2, this, 2, &activation_task_handle_);
+    } else {
+        audio_service_.PlaySound(Lang::Sounds::OGG_RECONNECTED);
     }
 
     // Update the status bar immediately to show the network state
@@ -371,6 +375,7 @@ void Application::HandleNetworkDisconnectedEvent() {
     if (state == kDeviceStateConnecting || state == kDeviceStateListening || state == kDeviceStateSpeaking) {
         ESP_LOGI(TAG, "Closing audio channel due to network disconnection");
         protocol_->CloseAudioChannel();
+        audio_service_.PlaySound(Lang::Sounds::OGG_DISCONNECTED);
     }
 
     // Update the status bar immediately to show the network state
