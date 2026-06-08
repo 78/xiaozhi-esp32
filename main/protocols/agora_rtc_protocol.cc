@@ -1,6 +1,5 @@
 #include "agora_rtc_protocol.h"
 #include "board.h"
-#include "settings.h"
 #include "application.h"
 
 #include <cstring>
@@ -9,6 +8,13 @@
 #include "assets/lang_config.h"
 
 #define TAG "AgoraRTC"
+
+// ==================== Configuration ====================
+#define AGORA_APP_ID        "your appid"
+#define AGORA_CHANNEL       "benchmark"
+#define AGORA_USER_ACCOUNT  "123456"
+#define AGORA_RTM_UID       "123456"
+#define AGORA_REMOTE_RTM_UID "server"
 
 // Global instance pointer for static callback routing
 static AgoraRtcProtocol* g_instance = nullptr;
@@ -34,14 +40,6 @@ bool AgoraRtcProtocol::InitSdk() {
         return true;
     }
 
-    Settings settings("agora", false);
-    std::string app_id = settings.GetString("app_id");
-    if (app_id.empty()) {
-        ESP_LOGE(TAG, "Agora app_id not configured");
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
-        return false;
-    }
-
     agora_rtc_event_handler_t handler = {};
     handler.on_join_channel_success = OnJoinChannelSuccess;
     handler.on_error = OnError;
@@ -58,7 +56,7 @@ bool AgoraRtcProtocol::InitSdk() {
     option.log_cfg.log_disable = false;
     option.use_string_uid = true;
 
-    int ret = agora_rtc_init(app_id.c_str(), &handler, &option);
+    int ret = agora_rtc_init(AGORA_APP_ID, &handler, &option);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_init failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
@@ -84,48 +82,28 @@ void AgoraRtcProtocol::FiniSdk() {
 }
 
 bool AgoraRtcProtocol::OpenAudioChannel() {
+    // Prevent double-join
+    if (joined_ && conn_id_ != CONNECTION_ID_INVALID) {
+        ESP_LOGW(TAG, "Already in channel, skip OpenAudioChannel");
+        return true;
+    }
+
     error_occurred_ = false;
 
     if (!InitSdk()) {
         return false;
     }
 
-    Settings settings("agora", false);
-    std::string channel = settings.GetString("channel");
-    std::string token = settings.GetString("token");
-    std::string user_account = settings.GetString("user_account");
-    std::string rtm_token = settings.GetString("rtm_token");
-    std::string rtm_uid = settings.GetString("rtm_uid");
-    remote_rtm_uid_ = settings.GetString("remote_rtm_uid");
-
-    if (channel.empty() || user_account.empty()) {
-        ESP_LOGE(TAG, "Agora channel or user_account not configured");
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
-        return false;
-    }
-
-    if (rtm_uid.empty()) {
-        ESP_LOGE(TAG, "Agora rtm_uid not configured");
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
-        return false;
-    }
-
-    if (remote_rtm_uid_.empty()) {
-        ESP_LOGE(TAG, "Agora remote_rtm_uid not configured");
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
-        return false;
-    }
+    remote_rtm_uid_ = AGORA_REMOTE_RTM_UID;
 
     // --- Login RTM ---
-    const char* rtm_token_ptr = rtm_token.empty() ? nullptr : rtm_token.c_str();
-
     agora_rtm_handler_t rtm_handler = {};
     rtm_handler.on_rtm_event = OnRtmEvent;
     rtm_handler.on_rtm_data = OnRtmData;
     rtm_handler.on_rtm_send_data_result = OnRtmSendDataResult;
 
-    ESP_LOGI(TAG, "Logging in RTM, uid: %s", rtm_uid.c_str());
-    int ret = agora_rtc_login_rtm(rtm_uid.c_str(), rtm_token_ptr, &rtm_handler);
+    ESP_LOGI(TAG, "Logging in RTM, uid: %s", AGORA_RTM_UID);
+    int ret = agora_rtc_login_rtm(AGORA_RTM_UID, nullptr, &rtm_handler);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_login_rtm failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
@@ -143,7 +121,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     }
     ESP_LOGI(TAG, "RTM login success");
 
-    // --- Create connection and join channel with string uid ---
+    // --- Create connection and join channel ---
     ret = agora_rtc_create_connection(&conn_id_);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_create_connection failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
@@ -160,17 +138,16 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_jitter_buffer = true;
     options.enable_audio_mixer = false;
 
-    // Use G722 codec for PCM input at 16kHz
+    // Use SDK built-in G722 codec for PCM input at 16kHz
+    // SDK expects 20ms PCM frames (320 samples = 640 bytes)
     options.audio_codec_opt.audio_codec_type = AUDIO_CODEC_TYPE_G722;
     options.audio_codec_opt.pcm_sample_rate = 16000;
     options.audio_codec_opt.pcm_channel_num = 1;
-    options.audio_codec_opt.pcm_duration = 20;
+    options.audio_codec_opt.pcm_duration = 60;
 
-    const char* token_ptr = token.empty() ? nullptr : token.c_str();
-
-    ESP_LOGI(TAG, "Joining channel: %s, user_account: %s", channel.c_str(), user_account.c_str());
-    ret = agora_rtc_join_channel_with_user_account(conn_id_, channel.c_str(),
-                                                   user_account.c_str(), token_ptr, &options);
+    ESP_LOGI(TAG, "Joining channel: %s, user_account: %s", AGORA_CHANNEL, AGORA_USER_ACCOUNT);
+    ret = agora_rtc_join_channel_with_user_account(conn_id_, AGORA_CHANNEL,
+                                                   AGORA_USER_ACCOUNT, nullptr, &options);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_join_channel failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         agora_rtc_destroy_connection(conn_id_);
@@ -209,12 +186,14 @@ void AgoraRtcProtocol::CloseAudioChannel(bool send_goodbye) {
         agora_rtc_leave_channel(conn_id_);
         agora_rtc_destroy_connection(conn_id_);
         conn_id_ = CONNECTION_ID_INVALID;
+        ESP_LOGI(TAG, "Left channel and destroyed connection");
     }
     joined_ = false;
 
     if (rtm_logged_in_) {
         agora_rtc_logout_rtm();
         rtm_logged_in_ = false;
+        ESP_LOGI(TAG, "RTM logged out");
     }
 
     if (on_audio_channel_closed_ != nullptr) {
@@ -229,6 +208,19 @@ bool AgoraRtcProtocol::IsAudioChannelOpened() const {
 bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     if (!joined_ || conn_id_ == CONNECTION_ID_INVALID) {
         return false;
+    }
+
+    // Expected PCM frame size: 60ms @ 16kHz mono 16-bit = 1920 bytes
+    static const size_t kExpectedFrameSize = 960 * sizeof(int16_t); // 1920 bytes
+    static uint32_t send_count = 0;
+
+    // Skip packets that don't match expected PCM frame size
+    if (packet->payload.size() != kExpectedFrameSize) {
+        return true;
+    }
+
+    if (send_count++ % 16 == 0) {
+        ESP_LOGI(TAG, "SendAudio: total=%lu, size=%d", (unsigned long)send_count, (int)packet->payload.size());
     }
 
     audio_frame_info_t info = {};

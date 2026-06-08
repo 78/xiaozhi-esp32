@@ -403,6 +403,25 @@ void AudioService::OpusCodecTask() {
             packet->sample_rate = 16000;
             packet->timestamp = task->timestamp;
 
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+            // Agora RTC uses SDK built-in G722 codec, send raw PCM directly
+            packet->payload.resize(task->pcm.size() * sizeof(int16_t));
+            memcpy(packet->payload.data(), task->pcm.data(), packet->payload.size());
+
+            if (task->type == kAudioTaskTypeEncodeToSendQueue) {
+                {
+                    std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                    audio_send_queue_.push_back(std::move(packet));
+                }
+                if (callbacks_.on_send_queue_available) {
+                    callbacks_.on_send_queue_available();
+                }
+            } else if (task->type == kAudioTaskTypeEncodeToTestingQueue) {
+                std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                audio_testing_queue_.push_back(std::move(packet));
+            }
+            debug_statistics_.encode_count++;
+#else
             if (opus_encoder_ != nullptr && task->pcm.size() == encoder_frame_size_) {
                 std::vector<uint8_t> buf(encoder_outbuf_size_);
                 esp_audio_enc_in_frame_t in = {
@@ -438,6 +457,7 @@ void AudioService::OpusCodecTask() {
                 ESP_LOGE(TAG, "Failed to encode audio: encoder not configured or invalid frame size (got %u, expected %u)",
                          task->pcm.size(), encoder_frame_size_);
             }
+#endif
             lock.lock();
         }
     }
