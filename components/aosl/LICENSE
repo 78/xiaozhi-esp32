@@ -1,0 +1,45 @@
+Open Source License
+
+The AOSL is licensed pursuant to the Apache License v2.0 (provided
+for your convenience below), with the following additional conditions. You may
+reproduce, prepare Derivative Works of, publicly display, publicly perform,
+sublicense, distribute, or otherwise make available (together, "Deploy") the
+AOSL, for commercial or non-commercial purposes, provided that you
+agree to abide by the terms below:
+
+    1. You may not (i) host the AOSL or the Derivative Works on any End
+       User devices, including but not limited to any mobile terminal devices
+       or (ii) Deploy the AOSL in a way that competes with Agora's
+       offerings and/or that allows others to compete with Agora's offerings,
+       including without limitation enabling any third party to develop or
+       deploy Applications.
+
+    2. You may Deploy the AOSL solely to create and enable deployment
+       of your Application(s) solely for your benefit and the benefit of your
+       direct End Users. If you prefer, you may include the following notice in
+       the documentation of your Application(s): "Powered by AOSL".
+
+    3. Derivative Works of the AOSL remain subject to this Open Source
+       License.
+
+    4. "End Users" shall mean the end-users of your Application(s) who access
+       the AOSL solely to the extent necessary to access and use the
+       Application(s) you create or deploy using AOSL.
+
+    5. "Application(s)" shall mean your software programs designed or developed
+       by using the AOSL or where deployment is enabled by the TEN
+       Framework.
+
+  Copyright © 2025 Agora
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
