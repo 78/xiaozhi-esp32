@@ -10,7 +10,7 @@
 
 #include "agora_rtc_api.h"
 
-#define AGORA_JOINED_EVENT   (1 << 0)
+#define AGORA_JOINED_EVENT    (1 << 0)
 #define AGORA_RTM_LOGIN_EVENT (1 << 1)
 
 class AgoraRtcProtocol : public Protocol {
@@ -31,6 +31,7 @@ private:
     std::atomic<bool> rtm_logged_in_{false};
     std::atomic<bool> sdk_initialized_{false};
     std::string remote_rtm_uid_;
+    uint32_t rtm_msg_id_ = 0;
 
     bool SendText(const std::string& text) override;
     bool InitSdk();
@@ -39,8 +40,6 @@ private:
     // RTC static callbacks
     static void OnJoinChannelSuccess(connection_id_t conn_id, uint32_t uid, int elapsed_ms);
     static void OnError(connection_id_t conn_id, int code, const char* msg);
-    static void OnUserJoined(connection_id_t conn_id, uint32_t uid, int elapsed_ms);
-    static void OnUserOffline(connection_id_t conn_id, uint32_t uid, int reason);
     static void OnUserJoinedWithUserAccount(connection_id_t conn_id, const user_info_t* user, int elapsed_ms);
     static void OnUserOfflineWithUserAccount(connection_id_t conn_id, const user_info_t* user, int reason);
     static void OnAudioData(connection_id_t conn_id, uint32_t uid, uint16_t sent_ts,

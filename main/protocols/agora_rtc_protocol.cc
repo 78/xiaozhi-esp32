@@ -45,8 +45,6 @@ bool AgoraRtcProtocol::InitSdk() {
     agora_rtc_event_handler_t handler = {};
     handler.on_join_channel_success = OnJoinChannelSuccess;
     handler.on_error = OnError;
-    handler.on_user_joined = OnUserJoined;
-    handler.on_user_offline = OnUserOffline;
     handler.on_user_joined_with_user_account = OnUserJoinedWithUserAccount;
     handler.on_user_offline_with_user_account = OnUserOfflineWithUserAccount;
     handler.on_audio_data = OnAudioData;
@@ -68,8 +66,7 @@ bool AgoraRtcProtocol::InitSdk() {
     }
 
     sdk_initialized_ = true;
-    ESP_LOGI(TAG, "Agora RTC SDK initialized (string_uid enabled, RTM enabled), version: %s",
-             agora_rtc_get_version());
+    ESP_LOGI(TAG, "Agora RTC SDK initialized, version: %s", agora_rtc_get_version());
     return true;
 }
 
@@ -101,45 +98,57 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     std::string rtm_uid = settings.GetString("rtm_uid");
     remote_rtm_uid_ = settings.GetString("remote_rtm_uid");
 
-    if (channel.empty()) {
-        ESP_LOGE(TAG, "Agora channel not configured");
+    if (channel.empty() || user_account.empty()) {
+        ESP_LOGE(TAG, "Agora channel or user_account not configured");
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+        return false;
+    }
+
+    if (rtm_uid.empty()) {
+        ESP_LOGE(TAG, "Agora rtm_uid not configured");
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+        return false;
+    }
+
+    if (remote_rtm_uid_.empty()) {
+        ESP_LOGE(TAG, "Agora remote_rtm_uid not configured");
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }
 
     // --- Login RTM ---
-    if (!rtm_uid.empty()) {
-        const char* rtm_token_ptr = rtm_token.empty() ? nullptr : rtm_token.c_str();
+    const char* rtm_token_ptr = rtm_token.empty() ? nullptr : rtm_token.c_str();
 
-        agora_rtm_handler_t rtm_handler = {};
-        rtm_handler.on_rtm_event = OnRtmEvent;
-        rtm_handler.on_rtm_data = OnRtmData;
-        rtm_handler.on_rtm_send_data_result = OnRtmSendDataResult;
+    agora_rtm_handler_t rtm_handler = {};
+    rtm_handler.on_rtm_event = OnRtmEvent;
+    rtm_handler.on_rtm_data = OnRtmData;
+    rtm_handler.on_rtm_send_data_result = OnRtmSendDataResult;
 
-        ESP_LOGI(TAG, "Logging in RTM, uid: %s", rtm_uid.c_str());
-        int ret = agora_rtc_login_rtm(rtm_uid.c_str(), rtm_token_ptr, &rtm_handler);
-        if (ret != ERR_OKAY) {
-            ESP_LOGE(TAG, "agora_rtc_login_rtm failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
-            SetError(Lang::Strings::SERVER_NOT_CONNECTED);
-            return false;
-        }
-
-        // Wait for RTM login event
-        EventBits_t bits = xEventGroupWaitBits(event_group_handle_, AGORA_RTM_LOGIN_EVENT,
-                                               pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
-        if (!(bits & AGORA_RTM_LOGIN_EVENT)) {
-            ESP_LOGE(TAG, "RTM login timeout");
-            agora_rtc_logout_rtm();
-            SetError(Lang::Strings::SERVER_TIMEOUT);
-            return false;
-        }
-        ESP_LOGI(TAG, "RTM login success");
+    ESP_LOGI(TAG, "Logging in RTM, uid: %s", rtm_uid.c_str());
+    int ret = agora_rtc_login_rtm(rtm_uid.c_str(), rtm_token_ptr, &rtm_handler);
+    if (ret != ERR_OKAY) {
+        ESP_LOGE(TAG, "agora_rtc_login_rtm failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+        return false;
     }
 
+    // Wait for RTM login event
+    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, AGORA_RTM_LOGIN_EVENT,
+                                           pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+    if (!(bits & AGORA_RTM_LOGIN_EVENT)) {
+        ESP_LOGE(TAG, "RTM login timeout");
+        agora_rtc_logout_rtm();
+        SetError(Lang::Strings::SERVER_TIMEOUT);
+        return false;
+    }
+    ESP_LOGI(TAG, "RTM login success");
+
     // --- Create connection and join channel with string uid ---
-    int ret = agora_rtc_create_connection(&conn_id_);
+    ret = agora_rtc_create_connection(&conn_id_);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_create_connection failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
+        agora_rtc_logout_rtm();
+        rtm_logged_in_ = false;
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }
@@ -159,34 +168,29 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
 
     const char* token_ptr = token.empty() ? nullptr : token.c_str();
 
-    if (!user_account.empty()) {
-        // Join with string UID (user account)
-        ESP_LOGI(TAG, "Joining channel: %s, user_account: %s", channel.c_str(), user_account.c_str());
-        ret = agora_rtc_join_channel_with_user_account(conn_id_, channel.c_str(),
-                                                       user_account.c_str(), token_ptr, &options);
-    } else {
-        // Fallback to numeric UID
-        uint32_t uid = (uint32_t)settings.GetInt("uid");
-        ESP_LOGI(TAG, "Joining channel: %s, uid: %lu", channel.c_str(), (unsigned long)uid);
-        ret = agora_rtc_join_channel(conn_id_, channel.c_str(), uid, token_ptr, &options);
-    }
-
+    ESP_LOGI(TAG, "Joining channel: %s, user_account: %s", channel.c_str(), user_account.c_str());
+    ret = agora_rtc_join_channel_with_user_account(conn_id_, channel.c_str(),
+                                                   user_account.c_str(), token_ptr, &options);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_join_channel failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         agora_rtc_destroy_connection(conn_id_);
         conn_id_ = CONNECTION_ID_INVALID;
+        agora_rtc_logout_rtm();
+        rtm_logged_in_ = false;
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;
     }
 
     // Wait for join success
-    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, AGORA_JOINED_EVENT,
-                                           pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+    bits = xEventGroupWaitBits(event_group_handle_, AGORA_JOINED_EVENT,
+                               pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & AGORA_JOINED_EVENT)) {
         ESP_LOGE(TAG, "Join channel timeout");
         agora_rtc_leave_channel(conn_id_);
         agora_rtc_destroy_connection(conn_id_);
         conn_id_ = CONNECTION_ID_INVALID;
+        agora_rtc_logout_rtm();
+        rtm_logged_in_ = false;
         SetError(Lang::Strings::SERVER_TIMEOUT);
         return false;
     }
@@ -219,7 +223,7 @@ void AgoraRtcProtocol::CloseAudioChannel(bool send_goodbye) {
 }
 
 bool AgoraRtcProtocol::IsAudioChannelOpened() const {
-    return joined_ && !error_occurred_ && !IsTimeout();
+    return joined_ && rtm_logged_in_ && !error_occurred_ && !IsTimeout();
 }
 
 bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
@@ -240,39 +244,15 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
 }
 
 bool AgoraRtcProtocol::SendText(const std::string& text) {
-    if (!joined_) {
+    if (!rtm_logged_in_ || remote_rtm_uid_.empty()) {
+        ESP_LOGW(TAG, "RTM not available, cannot send text");
         return false;
     }
 
-    // Prefer RTM for signaling if available
-    if (rtm_logged_in_ && !remote_rtm_uid_.empty()) {
-        static uint32_t msg_id_counter = 0;
-        int ret = agora_rtc_send_rtm_data(remote_rtm_uid_.c_str(), text.c_str(),
-                                          text.size(), ++msg_id_counter, nullptr);
-        if (ret != ERR_OKAY) {
-            ESP_LOGW(TAG, "send_rtm_data failed: %d", ret);
-            return false;
-        }
-        return true;
-    }
-
-    // Fallback to data stream
-    if (conn_id_ == CONNECTION_ID_INVALID) {
-        return false;
-    }
-
-    static int stream_id = -1;
-    if (stream_id < 0) {
-        int ret = agora_rtc_create_data_stream(conn_id_, &stream_id, true, true);
-        if (ret != ERR_OKAY) {
-            ESP_LOGE(TAG, "create_data_stream failed: %d", ret);
-            return false;
-        }
-    }
-
-    int ret = agora_rtc_send_stream_message(conn_id_, stream_id, text.c_str(), text.size());
+    int ret = agora_rtc_send_rtm_data(remote_rtm_uid_.c_str(), text.c_str(),
+                                      text.size(), ++rtm_msg_id_, nullptr);
     if (ret != ERR_OKAY) {
-        ESP_LOGW(TAG, "send_stream_message failed: %d", ret);
+        ESP_LOGW(TAG, "send_rtm_data failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         return false;
     }
     return true;
@@ -294,14 +274,6 @@ void AgoraRtcProtocol::OnError(connection_id_t conn_id, int code, const char* ms
     if (g_instance) {
         g_instance->SetError(msg ? msg : "Agora RTC error");
     }
-}
-
-void AgoraRtcProtocol::OnUserJoined(connection_id_t conn_id, uint32_t uid, int elapsed_ms) {
-    ESP_LOGI(TAG, "Remote user joined, uid: %lu", (unsigned long)uid);
-}
-
-void AgoraRtcProtocol::OnUserOffline(connection_id_t conn_id, uint32_t uid, int reason) {
-    ESP_LOGI(TAG, "Remote user offline, uid: %lu, reason: %d", (unsigned long)uid, reason);
 }
 
 void AgoraRtcProtocol::OnUserJoinedWithUserAccount(connection_id_t conn_id, const user_info_t* user, int elapsed_ms) {
@@ -369,6 +341,7 @@ void AgoraRtcProtocol::OnRtmEvent(const char* rtm_uid, rtm_event_type_e event_ty
     } else if (event_type == RTM_EVENT_TYPE_KICKOFF) {
         ESP_LOGW(TAG, "RTM kicked off");
         g_instance->rtm_logged_in_ = false;
+        g_instance->SetError("RTM kicked off");
     } else if (event_type == RTM_EVENT_TYPE_EXIT) {
         ESP_LOGI(TAG, "RTM exit");
         g_instance->rtm_logged_in_ = false;
@@ -382,7 +355,6 @@ void AgoraRtcProtocol::OnRtmData(const char* rtm_uid, const void* msg, size_t ms
 
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
-    // Parse JSON message from RTM
     if (g_instance->on_incoming_json_) {
         auto root = cJSON_ParseWithLength((const char*)msg, msg_len);
         if (root) {
@@ -396,6 +368,6 @@ void AgoraRtcProtocol::OnRtmData(const char* rtm_uid, const void* msg, size_t ms
 
 void AgoraRtcProtocol::OnRtmSendDataResult(const char* rtm_uid, uint32_t msg_id, rtm_msg_state_e state) {
     if (state != RTM_MSG_STATE_RECEIVED) {
-        ESP_LOGW(TAG, "RTM send msg_id=%lu state=%d", (unsigned long)msg_id, state);
+        ESP_LOGW(TAG, "RTM msg_id=%lu state=%d (not received)", (unsigned long)msg_id, state);
     }
 }
