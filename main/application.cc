@@ -5,6 +5,9 @@
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+#include "agora_rtc_protocol.h"
+#endif
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "assets.h"
@@ -477,6 +480,9 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+    protocol_ = std::make_unique<AgoraRtcProtocol>();
+#else
     if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
@@ -485,6 +491,7 @@ void Application::InitializeProtocol() {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
+#endif
 
     protocol_->OnConnected([this]() {
         DismissAlert();

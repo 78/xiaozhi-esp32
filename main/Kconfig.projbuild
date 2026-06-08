@@ -837,6 +837,25 @@ config USE_SERVER_AEC
     help
         To work perperly, server-side AEC requires server support
 
+choice CONNECTION_TYPE
+    prompt "Connection Protocol"
+    default CONNECTION_TYPE_AUTO
+    help
+        Select the connection protocol for audio/signaling transport.
+
+    config CONNECTION_TYPE_AUTO
+        bool "Auto (OTA determined)"
+        help
+            Protocol is determined by OTA server configuration (MQTT or WebSocket).
+
+    config CONNECTION_TYPE_AGORA_RTC
+        bool "Agora RTC"
+        help
+            Use Agora RTC for audio transport and RTM for signaling.
+            Requires app_id, channel, user_account, rtm_uid, remote_rtm_uid
+            to be configured in NVS namespace "agora".
+endchoice
+
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"
     default n
