@@ -52,7 +52,7 @@ bool AgoraRtcProtocol::InitSdk() {
 
     rtc_service_option_t option = {};
     option.area_code = AREA_CODE_GLOB;
-    option.log_cfg.log_level = RTC_LOG_WARNING;
+    option.log_cfg.log_level = RTC_LOG_NOTICE;
     option.log_cfg.log_disable = false;
     option.use_string_uid = true;
 
@@ -137,6 +137,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.auto_subscribe_video = false;
     options.enable_audio_jitter_buffer = true;
     options.enable_audio_mixer = false;
+    options.enable_audio_decode = true;
 
     // Use SDK built-in G722 codec for PCM input at 16kHz
     // SDK expects 20ms PCM frames (320 samples = 640 bytes)
@@ -280,14 +281,31 @@ void AgoraRtcProtocol::OnUserOfflineWithUserAccount(connection_id_t conn_id, con
 void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16_t sent_ts,
                                    const void* data_ptr, size_t data_len,
                                    const audio_frame_info_t* info_ptr) {
-    if (!g_instance || !g_instance->on_incoming_audio_) {
+    if (!g_instance) {
         return;
     }
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
+    if (!g_instance->on_incoming_audio_) {
+        return;
+    }
+
+    static uint32_t recv_count = 0;
+    if (++recv_count % 16 == 0) {
+        ESP_LOGI(TAG, "RecvAudio: total=%lu, size=%d, type=%d",
+                 (unsigned long)recv_count, (int)data_len, (int)info_ptr->data_type);
+    }
+
+    if (data_len == 0 || data_len > 32000) {
+        ESP_LOGW(TAG, "RecvAudio: invalid data_len=%d, skipping", (int)data_len);
+        return;
+    }
+
+    // SDK delivers decoded PCM via on_audio_data when jitter buffer is enabled.
+    // Pack it directly as PCM payload for AudioService playback.
     auto packet = std::make_unique<AudioStreamPacket>();
-    packet->sample_rate = g_instance->server_sample_rate_;
-    packet->frame_duration = g_instance->server_frame_duration_;
+    packet->sample_rate = 16000;
+    packet->frame_duration = 0; // will be determined by actual data size
     packet->timestamp = sent_ts;
     packet->payload.assign((uint8_t*)data_ptr, (uint8_t*)data_ptr + data_len);
 

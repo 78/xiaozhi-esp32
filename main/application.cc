@@ -503,9 +503,17 @@ void Application::InitializeProtocol() {
     });
     
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+        // Full-duplex: accept audio in both listening and speaking states
+        auto state = GetDeviceState();
+        if (state == kDeviceStateSpeaking || state == kDeviceStateListening) {
+            audio_service_.PushPacketToDecodeQueue(std::move(packet));
+        }
+#else
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
+#endif
     });
     
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
