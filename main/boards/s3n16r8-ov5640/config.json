@@ -1,0 +1,17 @@
+{
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "s3n16r8-ov5640-custom",
+      "sdkconfig_append": [
+        "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+        "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+        "CONFIG_SPIRAM=y",
+        "CONFIG_SPIRAM_MODE_OCT=y",
+        "CONFIG_SPIRAM_SPEED_80M=y",
+        "CONFIG_OV5640_SUPPORT=y",
+        "CONFIG_CAMERA_MODULE_ESP_S3_EYE=y"
+      ]
+    }
+  ]
+}
