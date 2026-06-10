@@ -1,19 +1,50 @@
-tmp/
-components/
-managed_components/
+# ESP-IDF build
 build/
+managed_components/
+components/
+sdkconfig
+sdkconfig.old
+sdkconfig.ci.*
+dependencies.lock
+compile_commands.json
+
+# Project artifacts
+releases/
+tmp/
+*.bin
+*.o
+*.d
+*.a
+*.map
+*.elf
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+
+# IDE / Editor
 .vscode/
 .devcontainer/
-sdkconfig.old
-sdkconfig
-dependencies.lock
-.env
-releases/
-main/assets/lang_config.h
-main/mmap_generate_emoji.h
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# OS
 .DS_Store
 .cache
+Thumbs.db
+
+# Environment
+.env
+
+# Generated headers
+main/assets/lang_config.h
 main/mmap_generate_emoji.h
-*.pyc
-*.bin
 mmap_generate_*.h
+
+# Backups
+backup_*/
+backups/
