@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "s3n16r8_ov5640_board.cc"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        wifi_board
+        esp_camera
+        lcd_display
+        audio_codecs
+        button
+        application
+        i2s_std
+)
