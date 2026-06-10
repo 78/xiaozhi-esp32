@@ -72,7 +72,7 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "面包板新版接线（WiFi）+ LCD + Camera"
-        depends on IDF_TARGET_ESP32S3     
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_ML307
         bool "面包板新版接线（ML307 AT）"
         depends on IDF_TARGET_ESP32S3
@@ -210,6 +210,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32C6_Touch_AMOLED_1_43
         bool "Waveshare ESP32-C6-Touch-AMOLOED-1.43"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6
+        bool "Placa de pruebas (WiFi) ESP32-C6"
+        depends on IDF_TARGET_ESP32C6
+        select DISPLAY_OLED_SSD1306
+        select AUDIO_I2S_MIC_INMP441
+        select AUDIO_I2S_SPK_MAX98357
     config BOARD_TYPE_ESP32S3_Touch_LCD_3_5
         bool "Waveshare ESP32-S3-Touch-LCD-3.5"
         depends on IDF_TARGET_ESP32S3
@@ -262,7 +268,7 @@ choice BOARD_TYPE
         bool "正点原子DNESP32S3-BOX2-WIFI"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3_BOX2_4G
-        bool "正点原子DNESP32S3-BOX2-4G" 
+        bool "正点原子DNESP32S3-BOX2-4G"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ATK_DNESP32S3M_WIFI
         bool "正点原子DNESP32S3M-WIFI"
@@ -475,7 +481,7 @@ config USE_CUSTOM_WAKE_WORD
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
     help
         需要 ESP32 S3 与 PSRAM 支持
-        
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"
@@ -488,7 +494,7 @@ config CUSTOM_WAKE_WORD_DISPLAY
     default "小土豆"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        唤醒后发送给服务器的问候语 
+        唤醒后发送给服务器的问候语
 
 config CUSTOM_WAKE_WORD_THRESHOLD
     int "Custom Wake Word Threshold (%)"

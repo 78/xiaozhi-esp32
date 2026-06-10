@@ -47,9 +47,10 @@ void WifiBoard::EnterWifiConfigMode() {
     hint += Lang::Strings::ACCESS_VIA_BROWSER;
     hint += wifi_ap.GetWebServerUrl();
     hint += "\n\n";
-    
+
     // 播报配置 WiFi 的提示
-    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+//    application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+application.Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", "");
 
     #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     auto display = Board::GetInstance().GetDisplay();
@@ -61,7 +62,7 @@ void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "Start receiving WiFi credentials from audio, input channels: %d", channel);
     audio_wifi_config::ReceiveWifiCredentialsFromAudio(&application, &wifi_ap, display, channel);
     #endif
-    
+
     // Wait forever until reset after configuration
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(10000));
@@ -173,7 +174,7 @@ void WifiBoard::ResetWifiConfiguration() {
 std::string WifiBoard::GetDeviceStatusJson() {
     /*
      * 返回设备状态JSON
-     * 
+     *
      * 返回的JSON结构如下：
      * {
      *     "audio_speaker": {
