@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Fragmento para agregar/verificar en main/Kconfig.projbuild
+#
+# Busca el bloque "choice BOARD_TYPE" en el Kconfig.projbuild del proyecto
+# y agrega la siguiente opción si no existe.
+#
+# Si ya existe una entrada con el mismo símbolo (BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6),
+# reemplaza su bloque completo por este.
+# ─────────────────────────────────────────────────────────────────────────────
+
+        config BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6
+            bool "Placa de pruebas (WiFi) ESP32-C6"
+            depends on IDF_TARGET_ESP32C6
+            select DISPLAY_OLED_SSD1306
+            help
+                ESP32-C6-DevKitC-1 con:
+                  - Display OLED SSD1306 128x64 por I2C (SDA=GPIO6, SCL=GPIO7)
+                  - Botón BOOT en GPIO9
+                  - Sin micrófono (el INMP441 se puede agregar comentando board_config.h)
+                  - Flash 8 MB — usar partitions/v1/8m.csv
+
+# ─────────────────────────────────────────────────────────────────────────────
+# En el bloque "if BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6" (o su equivalente
+# de fuentes de placa), agregar o verificar:
+# ─────────────────────────────────────────────────────────────────────────────
+
+# if BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6
+#     # Ruta relativa desde main/ hacia la carpeta de la placa
+#     set(BOARD_SOURCES
+#         "boards/bread-compact-wifi-esp32c6/esp32_c6_devkitc1.cc"
+#     )
+# endif()

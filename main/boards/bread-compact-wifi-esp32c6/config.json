@@ -1,0 +1,14 @@
+{
+    "name": "Breadboard Compact WiFi ESP32-C6",
+    "target": "esp32c6",
+    "audio": {
+        "codec": "inmp441_max98357",
+        "method": "simplex"
+    },
+    "display": {
+        "type": "oled",
+        "width": 128,
+        "height": 32
+    }
+}
+

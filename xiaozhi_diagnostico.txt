@@ -1,0 +1,71 @@
+========================================
+DIAGNÓSTICO DEL PROYECTO XIAOZHI AI
+Fecha: Mon May 18 10:55:45 PM -03 2026
+========================================
+
+=== 1. INFORMACIÓN DEL SISTEMA ===
+Sistema Operativo: Ubuntu 25.10
+Arquitectura: x86_64
+Kernel: 6.17.0-29-generic
+
+=== 2. VERSIONES DE PYTHON ===
+Python3 versión: Python 3.13.7
+Python3 path: /usr/bin/python3
+Python3 pip versión: pip 25.1.1 from /usr/lib/python3/dist-packages/pip (python 3.13)
+
+=== 3. ENTORNO ESP-IDF ===
+ESP-IDF Path: ~/esp/esp-idf
+Directorio del proyecto: /home/optimus/src/xiaozhi-esp32
+Rama actual: v1
+Commit actual: 3332f79
+Último commit: [BugFix]upgrade image_player component to ^1.1.1 and esp_emote_gfx to ^1.0.2 (#1427)
+Versión en CMakeLists.txt: 
+
+=== 6. CONFIGURACIÓN DEL PROYECTO (sdkconfig) ===
+IDF Target: CONFIG_IDF_TARGET="esp32c6"
+Board Type: CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_ESP32C6=y
+Flash Size: CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+Partition Table: CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v1/16m.csv"
+Audio Enabled: # CONFIG_USE_AUDIO_DEBUGGER is not set
+Wake Word: 
+
+=== 7. PUERTOS USB DETECTADOS ===
+crw-rw---- 1 root dialout 188, 0 May 18 21:02 /dev/ttyUSB0
+
+=== 8. ÚLTIMOS ERRORES DE COMPILACIÓN ===
+No se encontraron logs de error
+
+=== 9. DEPENDENCIAS DEL PROYECTO ===
+Managed components:
+78__esp_lcd_nv3023
+78__esp-ml307
+78__esp-opus
+78__esp-opus-encoder
+78__esp-wifi-connect
+78__xiaozhi-fonts
+espressif2022__esp_emote_gfx
+espressif2022__image_player
+espressif__adc_battery_estimation
+espressif__adc_mic
+espressif__button
+espressif__cmake_utilities
+espressif__dl_fft
+espressif__esp32-camera
+espressif__esp_codec_dev
+espressif__esp-dsp
+espressif__esp_io_expander
+espressif__esp_io_expander_tca9554
+espressif__esp_io_expander_tca95xx_16bit
+espressif__esp_jpeg
+Total componentes: 44
+
+=== 10. DESCRIPCIÓN DEL PROBLEMA ===
+Error principal: undefined reference to create_board()
+Causa: La función create_board() no está implementada para la placa seleccionada
+Placa objetivo: ESP32-C6-DevKitC-1
+Board Type seleccionado: Placa de pruebas (WiFi) ESP32-C6
+
+========================================
+DIAGNÓSTICO COMPLETADO
+Archivo guardado en: xiaozhi_diagnostico.txt
+========================================

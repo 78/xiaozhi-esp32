@@ -1,0 +1,34 @@
+# Tabla de particiones — ESP32-C6-DevKitC-1 — 8 MB Flash
+#
+# Flash total: 8 MB (0x800000)
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ Addr inicio │ Tamaño  │ Nombre     │ Notas                      │
+# ├─────────────┼─────────┼────────────┼────────────────────────────┤
+# │ 0x0000      │ 0x8000  │ bootloader │ (no aparece en CSV)        │
+# │ 0x8000      │ 0x1000  │ part table │ (no aparece en CSV)        │
+# │ 0x9000      │ 0x6000  │ nvs        │ 24 KB                      │
+# │ 0xF000      │ 0x1000  │ phy_init   │ 4 KB                       │
+# │ 0x10000     │ 0x200000│ factory    │ 2 MB  ← app principal      │
+# │ 0x210000    │ 0x200000│ ota_0      │ 2 MB  ← slot OTA 0         │
+# │ 0x410000    │ 0x200000│ ota_1      │ 2 MB  ← slot OTA 1         │
+# │ 0x610000    │ 0x2000  │ ota_data   │ 8 KB  ← estado OTA         │
+# │ 0x612000    │ 0x80000 │ model      │ 512 KB← modelos AI/wake    │
+# │ 0x692000    │ 0x16E000│ storage    │ 1.43MB← datos usuario      │
+# │ 0x800000    │  ---    │ FIN FLASH  │ 8 MB exactos ✅            │
+# └─────────────┴─────────┴────────────┴────────────────────────────┘
+#
+# CORRECCIÓN respecto a versión anterior:
+#   ❌ ANTES: 3 slots de 3MB = 9MB (imposible en flash de 8MB)
+#             ota_data offset 0x10000 solapaba con factory
+#   ✅ AHORA: 3 slots de 2MB = 6MB, todo cabe correctamente
+#
+# Name,       Type,  SubType,  Offset,    Size,      Flags
+nvs,           data,  nvs,      0x9000,    0x6000,
+phy_init,      data,  phy,      0xF000,    0x1000,
+factory,       app,   factory,  0x10000,   0x200000,
+ota_0,         app,   ota_0,    0x210000,  0x200000,
+ota_1,         app,   ota_1,    0x410000,  0x200000,
+ota_data,      data,  ota,      0x610000,  0x2000,
+model,         data,  spiffs,   0x612000,  0x80000,
+storage,       data,  spiffs,   0x692000,  0x16E000,
