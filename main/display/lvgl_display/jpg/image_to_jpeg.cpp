@@ -3,7 +3,6 @@
 #include <esp_log.h>
 #include <stddef.h>
 #include <string.h>
-#include <utility>
 
 #include "esp_jpeg_common.h"
 #include "esp_jpeg_enc.h"
@@ -144,7 +143,7 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
                 break;
             [[unlikely]] default:
                 ESP_LOGE(TAG, "[Unreachable Case] unsupported format: 0x%08lx", format);
-                std::unreachable();
+                return nullptr;
         }
         int sz = (int)width * (int)height * 2;
         uint8_t* buf = (uint8_t*)jpeg_calloc_align(sz, 16);
