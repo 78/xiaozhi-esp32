@@ -138,9 +138,10 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_jitter_buffer = true;
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
+    options.enable_audio_downlink_aec = true;
 
     // Use SDK built-in G722 codec for PCM input at 16kHz
-    // SDK expects 20ms PCM frames (320 samples = 640 bytes)
+    // 2 channels: ch0=mic, ch1=ref (interleaved for downlink AEC)
     options.audio_codec_opt.audio_codec_type = AUDIO_CODEC_TYPE_G722;
     options.audio_codec_opt.pcm_sample_rate = 16000;
     options.audio_codec_opt.pcm_channel_num = 1;
@@ -220,15 +221,37 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         return true;
     }
 
-    if (send_count++ % 16 == 0) {
+    if (++send_count % 16 == 0) {
         ESP_LOGI(TAG, "SendAudio: total=%lu, size=%d", (unsigned long)send_count, (int)packet->payload.size());
+    }
+
+    // Interleave mic + ref for downlink AEC: [mic1, ref1, mic2, ref2, ...]
+    const int16_t* mic_data = (const int16_t*)packet->payload.data();
+    size_t mic_samples = packet->payload.size() / sizeof(int16_t); // 960
+
+    // Get ref data from ring buffer
+    std::vector<int16_t> ref_data(mic_samples, 0);
+    {
+        std::lock_guard<std::mutex> lock(ref_mutex_);
+        size_t available = std::min(ref_buffer_.size(), mic_samples);
+        if (available > 0) {
+            std::copy(ref_buffer_.begin(), ref_buffer_.begin() + available, ref_data.begin());
+            ref_buffer_.erase(ref_buffer_.begin(), ref_buffer_.begin() + available);
+        }
+    }
+
+    // Build interleaved buffer: mic1 ref1 mic2 ref2 ...
+    std::vector<int16_t> interleaved(mic_samples * 2);
+    for (size_t i = 0; i < mic_samples; i++) {
+        interleaved[i * 2] = mic_data[i];
+        interleaved[i * 2 + 1] = ref_data[i];
     }
 
     audio_frame_info_t info = {};
     info.data_type = AUDIO_DATA_TYPE_PCM;
 
-    int ret = agora_rtc_send_audio_data(conn_id_, packet->payload.data(),
-                                        packet->payload.size(), &info);
+    int ret = agora_rtc_send_audio_data(conn_id_, interleaved.data(),
+                                        interleaved.size() * sizeof(int16_t), &info);
     if (ret != ERR_OKAY) {
         ESP_LOGW(TAG, "send_audio_data failed: %d", ret);
         return false;
@@ -286,6 +309,18 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
     }
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
+    // Store downlink PCM into ref ring buffer for downlink AEC
+    {
+        std::lock_guard<std::mutex> lock(g_instance->ref_mutex_);
+        const int16_t* pcm = (const int16_t*)data_ptr;
+        size_t samples = data_len / sizeof(int16_t);
+        g_instance->ref_buffer_.insert(g_instance->ref_buffer_.end(), pcm, pcm + samples);
+        if (g_instance->ref_buffer_.size() > kRefBufferMaxSamples) {
+            g_instance->ref_buffer_.erase(g_instance->ref_buffer_.begin(),
+                g_instance->ref_buffer_.begin() + (g_instance->ref_buffer_.size() - kRefBufferMaxSamples));
+        }
+    }
+
     if (!g_instance->on_incoming_audio_) {
         return;
     }
@@ -301,11 +336,9 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
         return;
     }
 
-    // SDK delivers decoded PCM via on_audio_data when jitter buffer is enabled.
-    // Pack it directly as PCM payload for AudioService playback.
     auto packet = std::make_unique<AudioStreamPacket>();
     packet->sample_rate = 16000;
-    packet->frame_duration = 0; // will be determined by actual data size
+    packet->frame_duration = 0;
     packet->timestamp = sent_ts;
     packet->payload.assign((uint8_t*)data_ptr, (uint8_t*)data_ptr + data_len);
 

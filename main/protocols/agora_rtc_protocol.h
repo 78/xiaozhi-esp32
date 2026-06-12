@@ -4,6 +4,8 @@
 #include "protocol.h"
 
 #include <string>
+#include <vector>
+#include <mutex>
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
@@ -32,6 +34,11 @@ private:
     std::atomic<bool> sdk_initialized_{false};
     std::string remote_rtm_uid_;
     uint32_t rtm_msg_id_ = 0;
+
+    // Downlink AEC reference ring buffer
+    std::vector<int16_t> ref_buffer_;
+    std::mutex ref_mutex_;
+    static const size_t kRefBufferMaxSamples = 16000; // 1 second @ 16kHz
 
     bool SendText(const std::string& text) override;
     bool InitSdk();
