@@ -39,12 +39,12 @@ jobs:
         run: |
           EVENT_NAME="${{ github.event_name }}"
 
-          # push 到 main 分支，编译全部变体
           if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
+            FILTERED=$(echo "$ALL_VARIANTS" | jq -c 'map(select(.board == "bread-compact-esp32-lcd"))')
+            echo "variants=$FILTERED" >> $GITHUB_OUTPUT
             exit 0
-          fi
-
+          fi           
+          
           # pull_request 场景
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
