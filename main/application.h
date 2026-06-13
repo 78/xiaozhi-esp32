@@ -144,6 +144,22 @@ private:
     bool aborted_ = false;
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
+    // VAD turn tracking (device-side end-of-speech detection):
+    // VAD callback updates vad_speaking_; the main task uses these to send
+    // {type:listen,state:stop} once per turn when speech ends in AutoStop mode.
+    bool vad_speaking_ = false;
+    bool vad_had_speech_in_turn_ = false;
+    bool listen_stop_sent_ = false;
+    // Batch mode: while true, encoded Opus packets stay in the send queue
+    // instead of being streamed to the server. Drained in one burst when
+    // silence is detected, immediately before listen.stop. Eliminates the
+    // "streaming STT" requirement on the server — backend can run batch
+    // Whisper on the assembled utterance.
+    bool audio_batch_mode_ = false;
+    // Talking-mouth animation while in kDeviceStateSpeaking. Toggles the OLED
+    // emote between a closed-mouth and open-mouth glyph every ~200 ms.
+    esp_timer_handle_t talking_anim_timer_handle_ = nullptr;
+    bool talking_anim_open_ = false;
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
 

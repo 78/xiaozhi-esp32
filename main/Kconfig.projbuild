@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "https://api.tenclass.net/xiaozhi/ota/"
+    default "https://robo-worker.taskfi.workers.dev/xiaozhi/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
@@ -175,6 +175,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_ESP_BOX_3
         bool "Espressif ESP-BOX-3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_DSOLUTION_OSTB
+        bool "DSolution OSTB Box 1.83 inch 2-mic"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP_BOX
         bool "Espressif ESP-BOX"
@@ -730,7 +733,7 @@ choice DISPLAY_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_3 \
             || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
-            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE || BOARD_TYPE_DSOLUTION_OSTB
 endchoice
 
 config USE_MULTILINE_CHAT_MESSAGE

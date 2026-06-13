@@ -26,21 +26,32 @@
 #include "ogg_demuxer.h"
 
 /*
- * There are two types of audio data flow:
- * 1. (MIC) -> [Processors] -> {Encode Queue} -> [Opus Encoder] -> {Send Queue} -> (Server)
- * 2. (Server) -> {Decode Queue} -> [Opus Decoder] -> {Playback Queue} -> (Speaker)
+ * Audio data flow (post Opus removal — raw PCM end-to-end):
+ *   1. (MIC) -> [AFE/Processor @ 16k] -> [Upsampler 16k->24k] -> {Encode Queue}
+ *      -> [PCM packer] -> {Send Queue} -> (Server, PCM 24k 40ms frames)
+ *   2. (Server, PCM 24k 40ms) -> {Decode Queue} -> [PCM passthrough]
+ *      -> {Playback Queue} -> (Speaker)
  *
- * We use one task for MIC / Speaker / Processors, and one task for Opus Encoder / Opus Decoder.
- * 
- * Decode Queue and Send Queue are the main queues, because Opus packets are quite smaller than PCM packets.
- * 
+ * One task drives MIC/Speaker/Processors, one task drains encode+decode queues.
  */
 
+#define UPSTREAM_FRAME_DURATION_MS 40
+#define UPSTREAM_SAMPLE_RATE 24000
+// Retained only for the wake-word opus bundling path (custom_wake_word /
+// afe_wake_word). Main upstream is raw PCM via UPSTREAM_FRAME_DURATION_MS.
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
 #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
-#define MAX_DECODE_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
-#define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
+#define MAX_DECODE_PACKETS_IN_QUEUE (2400 / UPSTREAM_FRAME_DURATION_MS)
+// PCM frames are 1920 B at 24k×40ms. Cap at 60 frames (~2.4s, ~115KB) so the
+// server can burst the next sentence while the previous is still draining
+// without us silently dropping packets in PushPacketToDecodeQueue. ESP32-S3
+// boards with PSRAM swallow this easily; non-PSRAM boards may need to halve.
+#define MAX_PCM_DECODE_PACKETS_IN_QUEUE 60
+// Stream upstream continuously — no full-utterance buffering. 800ms of slack
+// (20 frames × 1920B = ~38KB residency) is enough for transient hiccups
+// without hammering heap.
+#define MAX_SEND_PACKETS_IN_QUEUE (800 / UPSTREAM_FRAME_DURATION_MS)
 #define AUDIO_TESTING_MAX_DURATION_MS 10000
 #define MAX_TIMESTAMPS_IN_QUEUE 3
 
@@ -80,6 +91,10 @@ struct AudioServiceCallbacks {
     std::function<void(const std::string&)> on_wake_word_detected;
     std::function<void(bool)> on_vad_change;
     std::function<void(void)> on_audio_testing_queue_full;
+    // Custom RMS-based silence detector for noisy mics where AFE/VADNet
+    // can't reliably detect end-of-speech. Fired once per turn after the mic
+    // has been loud then quiet for a sustained period.
+    std::function<void(void)> on_silence_detected;
 };
 
 
@@ -146,14 +161,16 @@ private:
     std::mutex input_resampler_mutex_;
     esp_ae_rate_cvt_handle_t input_resampler_ = nullptr;
     esp_ae_rate_cvt_handle_t output_resampler_ = nullptr;
+    // Upsamples AFE 16k output to 24k for the upstream PCM path.
+    esp_ae_rate_cvt_handle_t upstream_resampler_ = nullptr;
     
     // Encoder/Decoder state
-    int encoder_sample_rate_ = 16000;
-    int encoder_duration_ms_ = OPUS_FRAME_DURATION_MS;
+    int encoder_sample_rate_ = UPSTREAM_SAMPLE_RATE;
+    int encoder_duration_ms_ = UPSTREAM_FRAME_DURATION_MS;
     int encoder_frame_size_ = 0;
     int encoder_outbuf_size_ = 0;
     int decoder_sample_rate_ = 0;
-    int decoder_duration_ms_ = OPUS_FRAME_DURATION_MS;
+    int decoder_duration_ms_ = UPSTREAM_FRAME_DURATION_MS;
     int decoder_frame_size_ = 0;
     DebugStatistics debug_statistics_;
     srmodel_list_t* models_list_ = nullptr;
@@ -189,6 +206,7 @@ private:
     void OpusCodecTask();
     void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
+    void EnsureOutputResampler(int sample_rate);
     void CheckAndUpdateAudioPowerState();
 };
 
