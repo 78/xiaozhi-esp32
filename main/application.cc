@@ -5,6 +5,7 @@
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
+#include "stepper_polling.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "assets.h"
@@ -51,6 +52,10 @@ Application::~Application() {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
     }
+    if (stepper_poll_timer_handle_ != nullptr) {
+        esp_timer_stop(stepper_poll_timer_handle_);
+        esp_timer_delete(stepper_poll_timer_handle_);
+    }
     vEventGroupDelete(event_group_);
 }
 
@@ -92,6 +97,33 @@ void Application::Initialize() {
 
     // Start the clock timer to update the status bar
     esp_timer_start_periodic(clock_timer_handle_, 1000000);
+
+    // Initialize stepper polling with callback
+    StepperPolling::GetInstance().RegisterTriggerCallback(
+        [this](int32_t step_count, int32_t delta) {
+            // Schedule the injection of stepper message in the main event loop
+            Schedule([this, step_count, delta]() {
+                InjectStepperMessage(step_count, delta);
+            });
+        }
+    );
+
+    // Start the stepper polling timer (100ms interval)
+    esp_timer_create_args_t stepper_poll_timer_args = {
+        .callback = [](void* arg) {
+            Application* app = (Application*)arg;
+            // Check pending message and retry if needed
+            app->CheckPendingStepperMessage();
+            // Also call the polling check
+            StepperPolling::GetInstance().CheckAndTrigger();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "stepper_poll_timer",
+        .skip_unhandled_events = true
+    };
+    esp_timer_create(&stepper_poll_timer_args, &stepper_poll_timer_handle_);
+    esp_timer_start_periodic(stepper_poll_timer_handle_, 100000);  // 100ms
 
     // Add MCP common tools (only once during initialization)
     auto& mcp_server = McpServer::GetInstance();
@@ -260,6 +292,10 @@ void Application::Run() {
 
 void Application::HandleNetworkConnectedEvent() {
     ESP_LOGI(TAG, "Network connected");
+    
+    // Initialize HiveMQ MQTT connection for stepper polling
+    StepperPolling::GetInstance().InitializeHiveMqttAsync();
+    
     auto state = GetDeviceState();
 
     if (state == kDeviceStateStarting || state == kDeviceStateWifiConfiguring) {
@@ -1116,6 +1152,75 @@ void Application::SetAecMode(AecMode mode) {
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
+}
+
+void Application::InjectStepperMessage(int32_t step_count, int32_t delta) {
+    if (!protocol_) {
+        ESP_LOGW(TAG, "Protocol not initialized, cannot inject stepper message");
+        return;
+    }
+
+    auto state = GetDeviceState();
+    ESP_LOGI(TAG, "[STEPPER] InjectStepperMessage: count=%ld, delta=%ld, state=%d", 
+             step_count, delta, state);
+
+    if (state == kDeviceStateIdle) {
+        // Device is idle, trigger wake word and queue text for injection
+        pending_stepper_count_ = step_count;
+        pending_stepper_retry_count_ = 0;
+        
+        WakeWordInvoke("踏步机");
+    } else if (state == kDeviceStateListening) {
+        // Device is already listening, inject text immediately
+        char text_buffer[256];
+        snprintf(text_buffer, sizeof(text_buffer),
+                 "踏步机显示我已经踩了%ld圈", step_count);
+        
+        ESP_LOGI(TAG, "Sending stepper text: %s", text_buffer);
+        protocol_->SendUserText(text_buffer);
+        
+        // Clear pending state
+        pending_stepper_count_ = 0;
+        pending_stepper_retry_count_ = 0;
+    } else if (state == kDeviceStateConnecting || state == kDeviceStateSpeaking) {
+        // Device is busy, ignore this message
+        ESP_LOGD(TAG, "Device busy (state=%d), ignoring stepper message", state);
+    } else {
+        ESP_LOGW(TAG, "Cannot inject stepper message in state %d", state);
+    }
+}
+
+void Application::CheckPendingStepperMessage() {
+    if (pending_stepper_count_ == 0) {
+        return;  // No pending message
+    }
+
+    auto state = GetDeviceState();
+    
+    if (state == kDeviceStateListening) {
+        // State has changed to listening, now send the text
+        char text_buffer[256];
+        snprintf(text_buffer, sizeof(text_buffer),
+                 "踏步机显示我已经踩了%ld圈", pending_stepper_count_);
+        
+        ESP_LOGI(TAG, "Sending pending stepper text: %s", text_buffer);
+        if (protocol_) {
+            protocol_->SendUserText(text_buffer);
+        }
+        
+        // Clear pending state
+        pending_stepper_count_ = 0;
+        pending_stepper_retry_count_ = 0;
+    } else {
+        // Still waiting for listening state, increment retry counter
+        pending_stepper_retry_count_++;
+        if (pending_stepper_retry_count_ > STEPPER_INJECTION_MAX_RETRY) {
+            ESP_LOGW(TAG, "Failed to inject stepper text - timeout after %d retries",
+                     pending_stepper_retry_count_);
+            pending_stepper_count_ = 0;
+            pending_stepper_retry_count_ = 0;
+        }
+    }
 }
 
 void Application::ResetProtocol() {
