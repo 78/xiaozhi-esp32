@@ -14,7 +14,7 @@ M5Stack Cardputer Adv 是一款基于 ESP32-S3FN8 (Stamp-S3A) 的卡片式电脑
 | 麦克风 | MEMS |
 | 键盘 | 56键 (TCA8418) |
 | IMU | BMI270 |
-| 电池 | 1750mAh |
+| 电池 | 1750mAh (带ADC电量监测) |
 
 ## 引脚定义
 
@@ -37,6 +37,11 @@ M5Stack Cardputer Adv 是一款基于 ESP32-S3FN8 (Stamp-S3A) 的卡片式电脑
 | I2S LRCK | GPIO43 |
 | I2S DOUT | GPIO46 |
 | I2S DIN | GPIO42 |
+
+### 电池监测
+| 功能 | GPIO | 备注 |
+|------|------|------|
+| ADC | GPIO10 | 100KΩ / 100KΩ 分压 |
 
 ## 使用方法
 
