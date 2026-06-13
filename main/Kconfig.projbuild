@@ -6,6 +6,29 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    bool "Use local Jarvis WebSocket server for Google board"
+    depends on BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06
+    default n
+    help
+        Force the Google board to use the PRD local xiaozhi-server endpoint
+        discovered by mDNS at jarvis.local:8001 instead of OTA-provided MQTT.
+
+config GOOGLE_BOARD_LOCAL_WEBSOCKET_URL
+    string "Google board local WebSocket URL"
+    depends on GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    default "ws://jarvis.local:8001/xiaozhi/v1/"
+    help
+        Local xiaozhi-server WebSocket URL used by the Google board PRD flow.
+
+config GOOGLE_BOARD_LOCAL_WEBSOCKET_FALLBACK_URL
+    string "Google board local fallback WebSocket URL"
+    depends on GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    default ""
+    help
+        Optional fallback URL used when the ESP network stack cannot resolve
+        jarvis.local. Leave empty unless a fixed local server address is needed.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE

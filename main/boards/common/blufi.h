@@ -84,6 +84,11 @@ private:
 
     static int _get_softap_conn_num();
 
+    void _start_provisioning_timeout();
+    void _stop_provisioning_timeout();
+    void _handle_provisioning_timeout();
+    static void _provisioning_timeout_callback(void *arg);
+
     // WiFi scan methods
     void _send_wifi_list();
     void _start_dedicated_wifi_scan();
@@ -140,6 +145,7 @@ private:
     int m_sta_ssid_len;
     bool m_sta_is_connecting;
     esp_blufi_extra_info_t m_sta_conn_info{};
+    esp_timer_handle_t m_provisioning_timeout_timer = nullptr;
 
     // WiFi scan related
     std::vector<wifi_ap_record_t> m_ap_records;
