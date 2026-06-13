@@ -147,7 +147,6 @@ void OledDisplay::SetupUI_128x32() {
     face_engine_->Init(screen);
 }
 
-// exact overgenomen van de maker
 void OledDisplay::SetStatus(const char* status) {
     if (!face_engine_)
         return;
@@ -158,10 +157,17 @@ void OledDisplay::SetStatus(const char* status) {
         face_engine_->SetState(FaceState::Listening);
     } else if (strcmp(status, Lang::Strings::SPEAKING) == 0) {
         face_engine_->SetState(FaceState::Speaking);
+    } else if (strcmp(status, "thinking") == 0 || strcmp(status, "Thinking") == 0) {
+        // Vangt de AI-denkstatus op en triggert jouw 23 frames loop
+        face_engine_->SetState(FaceState::Thinking);
+    } else if (strcmp(status, "focus") == 0 || strcmp(status, "Focus") == 0) {
+        // Vangt de focus-status op en start de eenmalige 27-frame animatie
+        face_engine_->SetState(FaceState::Focus);
     } else {
         face_engine_->SetState(FaceState::Idle);
     }
 }
+
 
 // // exact overgenomen van de maker, inclusief de container_ fix
 // void OledDisplay::SetupUI_128x64() {

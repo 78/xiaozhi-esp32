@@ -3,7 +3,8 @@
 #include <lvgl.h>
 #include <stdint.h>
 
-enum class FaceState { Idle, Listening, Speaking };
+// 1. Thinking en Focus toegevoegd aan de enums
+enum class FaceState { Idle, Listening, Speaking, Thinking, Focus };
 
 class FaceEngine {
 public:
@@ -33,4 +34,8 @@ private:
     uint32_t speak_last_update_ = 0;
     int speak_mouth_target_ = 4;
     int speak_mouth_current_ = 4;
+
+    // 2. Nieuwe administrators voor de animatie-frames en framerate
+    int current_frame_index_ = 0;
+    uint32_t last_frame_update_time_ = 0;
 };
