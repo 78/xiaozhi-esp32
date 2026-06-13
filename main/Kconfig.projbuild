@@ -572,6 +572,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WK_ESP32S3_DEV
+        bool "维控智能开发板"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice
@@ -604,8 +607,24 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
         bool "乐鑫ESP32_S3_LCD_EV_Board-MB_V1.5"
 endchoice
 
+
+choice WK_ESP32S3_DEV_DISPLAY_TYPE
+    depends on BOARD_TYPE_WK_ESP32S3_DEV
+    prompt "WK ESP32S3 DEV Display Type"
+    default WK_ESP32S3_DEV_DISPLAY_OLED
+    help
+        Select display type for WK ESP32S3 DEV board.
+
+    config WK_ESP32S3_DEV_DISPLAY_OLED
+        bool "OLED"
+
+    config WK_ESP32S3_DEV_DISPLAY_LCD
+        bool "LCD"
+
+endchoice
+
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_NT26 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_NT26 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087 || (BOARD_TYPE_WK_ESP32S3_DEV && WK_ESP32S3_DEV_DISPLAY_OLED)
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
@@ -618,8 +637,9 @@ choice DISPLAY_OLED_TYPE
         bool "SH1106 128*64"
 endchoice
 
+
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM || (BOARD_TYPE_WK_ESP32S3_DEV && WK_ESP32S3_DEV_DISPLAY_LCD)
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -654,9 +674,24 @@ choice DISPLAY_LCD_TYPE
         bool "ILI9341 240*320, Non-IPS"
     config LCD_GC9A01_240X240
         bool "GC9A01 240*240 Circle"
+    config LCD_NV3030B_240X320
+        bool "NV3030B, 分辨率240*320, IPS"
     config LCD_CUSTOM
         bool "Custom LCD (自定义屏幕参数)"
 endchoice
+
+choice WK_BOARD_TYPE
+    depends on BOARD_TYPE_WK_ESP32S3_DEV
+    prompt "BOARD_TYPE_WK_ESP32S3_DEV"
+    default BOARD_NO_MOTOR_CONTROL
+    help
+        Board Type
+    config BOARD_HAVE_MOTOR_CONTROL
+        bool "带电机驱动"
+    config BOARD_NO_MOTOR_CONTROL
+        bool "不带电机驱动"    
+endchoice
+
 
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP_KORVO2_V3 || BOARD_TYPE_ESP_KORVO2_V3_RNDIS
