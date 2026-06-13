@@ -805,7 +805,10 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
     finally:
         # Clean up temporary directory
         if os.path.exists(temp_build_dir):
-            shutil.rmtree(temp_build_dir)
+            try:
+                shutil.rmtree(temp_build_dir)
+            except Exception as e:
+                print(f"Error: Failed to remove temporary directory: {e}")
 
 
 def main():

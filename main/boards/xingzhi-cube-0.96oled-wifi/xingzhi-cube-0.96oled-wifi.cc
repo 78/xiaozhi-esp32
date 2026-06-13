@@ -105,7 +105,6 @@ private:
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = -1;
         panel_config.bits_per_pixel = 1;
-
         esp_lcd_panel_ssd1306_config_t ssd1306_config = {
             .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
         };
@@ -125,6 +124,8 @@ private:
         // Set the display to on
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
+
 
         display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
