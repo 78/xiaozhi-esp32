@@ -2,6 +2,7 @@
 #define _AGORA_RTC_PROTOCOL_H_
 
 #include "protocol.h"
+#include "device_api_client.h"
 
 #include <string>
 #include <vector>
@@ -26,6 +27,15 @@ public:
     void CloseAudioChannel(bool send_goodbye = true) override;
     bool IsAudioChannelOpened() const override;
 
+    // Device API client accessor (for activation flow)
+    DeviceApiClient& GetDeviceApiClient() { return device_api_; }
+
+    // Run the pairing flow (blocking). Returns true when device is bound.
+    bool RunPairingFlow();
+
+    // Check if device is already bound (has device_token)
+    bool IsDeviceBound() const { return device_api_.HasDeviceToken(); }
+
 private:
     EventGroupHandle_t event_group_handle_;
     connection_id_t conn_id_ = CONNECTION_ID_INVALID;
@@ -35,13 +45,17 @@ private:
     std::string remote_rtm_uid_;
     uint32_t rtm_msg_id_ = 0;
 
+    // Device API and conversation state
+    DeviceApiClient device_api_;
+    ConversationInfo current_conversation_;
+
     // Downlink AEC reference ring buffer
     std::vector<int16_t> ref_buffer_;
     std::mutex ref_mutex_;
     static const size_t kRefBufferMaxSamples = 16000; // 1 second @ 16kHz
 
     bool SendText(const std::string& text) override;
-    bool InitSdk();
+    bool InitSdk(const std::string& app_id);
     void FiniSdk();
 
     // RTC static callbacks

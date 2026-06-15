@@ -852,9 +852,16 @@ choice CONNECTION_TYPE
         bool "Agora RTC"
         help
             Use Agora RTC for audio transport and RTM for signaling.
-            Requires app_id, channel, user_account, rtm_uid, remote_rtm_uid
-            to be configured in NVS namespace "agora".
+            Device pairing and conversation management via Device API.
 endchoice
+
+config DEVICE_API_SERVER_URL
+    string "Device API Server URL"
+    default "https://mybot.sh3t.agoralab.co/api"
+    depends on CONNECTION_TYPE_AGORA_RTC
+    help
+        The base URL of the Agent Studio Device API server.
+        Used for device pairing, binding status polling, and conversation management.
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"

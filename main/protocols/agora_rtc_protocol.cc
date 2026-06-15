@@ -9,13 +9,6 @@
 
 #define TAG "AgoraRTC"
 
-// ==================== Configuration ====================
-#define AGORA_APP_ID        "your appid"
-#define AGORA_CHANNEL       "benchmark"
-#define AGORA_USER_ACCOUNT  "123456"
-#define AGORA_RTM_UID       "123456"
-#define AGORA_REMOTE_RTM_UID "server"
-
 // Global instance pointer for static callback routing
 static AgoraRtcProtocol* g_instance = nullptr;
 
@@ -35,7 +28,7 @@ bool AgoraRtcProtocol::Start() {
     return true;
 }
 
-bool AgoraRtcProtocol::InitSdk() {
+bool AgoraRtcProtocol::InitSdk(const std::string& app_id) {
     if (sdk_initialized_) {
         return true;
     }
@@ -56,7 +49,7 @@ bool AgoraRtcProtocol::InitSdk() {
     option.log_cfg.log_disable = false;
     option.use_string_uid = true;
 
-    int ret = agora_rtc_init(AGORA_APP_ID, &handler, &option);
+    int ret = agora_rtc_init(app_id.c_str(), &handler, &option);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_init failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
@@ -81,6 +74,13 @@ void AgoraRtcProtocol::FiniSdk() {
     ESP_LOGI(TAG, "Agora RTC SDK finalized");
 }
 
+bool AgoraRtcProtocol::RunPairingFlow() {
+    // Delegate to Application's pairing task via DeviceApiClient
+    // This is called from Application::AgoraPairingTask()
+    // The actual pairing logic is in Application since it needs display/audio access
+    return device_api_.HasDeviceToken();
+}
+
 bool AgoraRtcProtocol::OpenAudioChannel() {
     // Prevent double-join
     if (joined_ && conn_id_ != CONNECTION_ID_INVALID) {
@@ -90,20 +90,55 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
 
     error_occurred_ = false;
 
-    if (!InitSdk()) {
+    // Step 1: Call Device API to start conversation and get RTC params
+    ESP_LOGI(TAG, "Starting conversation via Device API...");
+    ConversationInfo info;
+    if (!device_api_.StartConversation(info)) {
+        auto err = device_api_.GetLastError();
+        ESP_LOGE(TAG, "StartConversation failed, error=%d", (int)err);
+
+        // For 502 server errors, retry once after 2 seconds
+        if (err == DeviceApiError::kServerError) {
+            ESP_LOGW(TAG, "Server error, retrying in 2s...");
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            if (!device_api_.StartConversation(info)) {
+                err = device_api_.GetLastError();
+                ESP_LOGE(TAG, "StartConversation retry failed, error=%d", (int)err);
+                SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+                return false;
+            }
+            // Retry succeeded, continue below
+        } else if (err == DeviceApiError::kUnauthenticated || err == DeviceApiError::kTokenRevoked ||
+                   err == DeviceApiError::kNotBound) {
+            SetError("设备未绑定，请重新配对");
+            return false;
+        } else {
+            SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+            return false;
+        }
+    }
+
+    current_conversation_ = info;
+    ESP_LOGI(TAG, "Conversation started: id=%s, channel=%s, uid=%lu, agent_uid=%lu",
+             info.conversation_id.c_str(), info.rtc.channel.c_str(),
+             (unsigned long)info.rtc.uid, (unsigned long)info.rtc.agent_uid);
+
+    // Step 2: Initialize SDK with the app_id from server
+    if (!InitSdk(info.rtc.app_id)) {
         return false;
     }
 
-    remote_rtm_uid_ = AGORA_REMOTE_RTM_UID;
+    // Step 3: Login RTM using local_uid as RTM UID
+    std::string rtm_uid = std::to_string(info.rtc.uid);
+    remote_rtm_uid_ = std::to_string(info.rtc.agent_uid);
 
-    // --- Login RTM ---
     agora_rtm_handler_t rtm_handler = {};
     rtm_handler.on_rtm_event = OnRtmEvent;
     rtm_handler.on_rtm_data = OnRtmData;
     rtm_handler.on_rtm_send_data_result = OnRtmSendDataResult;
 
-    ESP_LOGI(TAG, "Logging in RTM, uid: %s", AGORA_RTM_UID);
-    int ret = agora_rtc_login_rtm(AGORA_RTM_UID, nullptr, &rtm_handler);
+    ESP_LOGI(TAG, "Logging in RTM, uid: %s", rtm_uid.c_str());
+    int ret = agora_rtc_login_rtm(rtm_uid.c_str(), nullptr, &rtm_handler);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_login_rtm failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
@@ -121,7 +156,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     }
     ESP_LOGI(TAG, "RTM login success");
 
-    // --- Create connection and join channel ---
+    // Step 4: Create connection and join channel
     ret = agora_rtc_create_connection(&conn_id_);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_create_connection failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
@@ -141,15 +176,21 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_downlink_aec = true;
 
     // Use SDK built-in G722 codec for PCM input at 16kHz
-    // 2 channels: ch0=mic, ch1=ref (interleaved for downlink AEC)
     options.audio_codec_opt.audio_codec_type = AUDIO_CODEC_TYPE_G722;
     options.audio_codec_opt.pcm_sample_rate = 16000;
     options.audio_codec_opt.pcm_channel_num = 1;
     options.audio_codec_opt.pcm_duration = 60;
 
-    ESP_LOGI(TAG, "Joining channel: %s, user_account: %s", AGORA_CHANNEL, AGORA_USER_ACCOUNT);
-    ret = agora_rtc_join_channel_with_user_account(conn_id_, AGORA_CHANNEL,
-                                                   AGORA_USER_ACCOUNT, nullptr, &options);
+    // Join channel with uid from server (integer uid, use token)
+    std::string uid_str = std::to_string(info.rtc.uid);
+    ESP_LOGI(TAG, "Joining channel: %s, uid: %s, token: %.8s...",
+             info.rtc.channel.c_str(), uid_str.c_str(),
+             info.rtc.token.empty() ? "none" : info.rtc.token.c_str());
+
+    ret = agora_rtc_join_channel_with_user_account(conn_id_, info.rtc.channel.c_str(),
+                                                   uid_str.c_str(),
+                                                   info.rtc.token.empty() ? nullptr : info.rtc.token.c_str(),
+                                                   &options);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_join_channel failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         agora_rtc_destroy_connection(conn_id_);
@@ -196,6 +237,12 @@ void AgoraRtcProtocol::CloseAudioChannel(bool send_goodbye) {
         agora_rtc_logout_rtm();
         rtm_logged_in_ = false;
         ESP_LOGI(TAG, "RTM logged out");
+    }
+
+    // Stop conversation via Device API
+    if (!current_conversation_.conversation_id.empty()) {
+        device_api_.StopConversation(current_conversation_.conversation_id, "device_hangup");
+        current_conversation_ = ConversationInfo{};
     }
 
     if (on_audio_channel_closed_ != nullptr) {
