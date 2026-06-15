@@ -325,6 +325,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CARDPUTER_ADV
         bool "M5Stack Cardputer Adv"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_CHAIN_CAPTAIN
+        bool "M5Stack Chain Captain"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3

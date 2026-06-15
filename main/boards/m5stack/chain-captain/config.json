@@ -1,0 +1,10 @@
+{
+    "manufacturer": "m5stack",
+    "type": "m5stack-chain-captain",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "m5stack-chain-captain"
+        }
+    ]
+}
