@@ -138,3 +138,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.5.2'
+  m5stack/m5pm1: ^1.0.5
