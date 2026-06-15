@@ -369,10 +369,13 @@ void Application::AgoraPairingTask() {
     auto display = board.GetDisplay();
 
     // Sync system time via SNTP (Agora path has no OTA server time)
-    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
-    esp_netif_sntp_init(&sntp_config);
-    // Don't block on it — time will sync in background
-    ESP_LOGI(TAG, "SNTP time sync started");
+    static bool sntp_initialized = false;
+    if (!sntp_initialized) {
+        esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        esp_netif_sntp_init(&sntp_config);
+        sntp_initialized = true;
+        ESP_LOGI(TAG, "SNTP time sync started");
+    }
 
     DeviceApiClient api_client;
     ESP_LOGI(TAG, "Agora pairing: device_id=%s", api_client.GetDeviceId().c_str());
@@ -396,8 +399,9 @@ void Application::AgoraPairingTask() {
 
     // Pairing loop: request pair code, poll until bound
     while (true) {
-        if (GetDeviceState() == kDeviceStateIdle) {
-            return; // User cancelled
+        // Ensure we're in activating state for the pairing flow
+        if (GetDeviceState() != kDeviceStateActivating) {
+            SetDeviceState(kDeviceStateActivating);
         }
 
         display->SetStatus("申请配对码...");
@@ -426,10 +430,6 @@ void Application::AgoraPairingTask() {
         int max_polls = 100; // Safety limit (~5 min at 3s intervals)
         int consecutive_errors = 0;
         for (int i = 0; i < max_polls; i++) {
-            if (GetDeviceState() == kDeviceStateIdle) {
-                return; // User cancelled
-            }
-
             int poll_after = 3;
             auto result = api_client.PollBindingStatus(poll_after);
 
