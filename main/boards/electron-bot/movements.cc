@@ -138,6 +138,12 @@ void Otto::MoveSingle(int position, int servo_number) {
     }
 }
 
+void Otto::GetServoPositions(int positions[]) {
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        positions[i] = (servo_pins_[i] != -1) ? servo_[i].GetPosition() : servo_initial_[i];
+    }
+}
+
 void Otto::OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int period,
                            double phase_diff[SERVO_COUNT], float cycle = 1) {
     for (int i = 0; i < SERVO_COUNT; i++) {
