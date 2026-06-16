@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cJSON.h>
 #include <esp_log.h>
+#include <esp_heap_caps.h>
 #include "assets/lang_config.h"
 
 #define TAG "AgoraRTC"
@@ -15,6 +16,12 @@ static AgoraRtcProtocol* g_instance = nullptr;
 AgoraRtcProtocol::AgoraRtcProtocol() {
     event_group_handle_ = xEventGroupCreate();
     g_instance = this;
+
+    // Allocate lock-free ring buffer in PSRAM
+    ref_ring_buffer_ = std::make_unique<LockFreeRingBuffer>(kRefBufferMaxSamples);
+    if (!ref_ring_buffer_->IsValid()) {
+        ESP_LOGE(TAG, "Failed to allocate ref ring buffer");
+    }
 }
 
 AgoraRtcProtocol::~AgoraRtcProtocol() {
@@ -261,30 +268,20 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
 
     // Expected PCM frame size: 60ms @ 16kHz mono 16-bit = 1920 bytes
     static const size_t kExpectedFrameSize = 960 * sizeof(int16_t); // 1920 bytes
-    static uint32_t send_count = 0;
 
     // Skip packets that don't match expected PCM frame size
     if (packet->payload.size() != kExpectedFrameSize) {
         return true;
     }
 
-    if (++send_count % 16 == 0) {
-        // ESP_LOGI(TAG, "SendAudio: total=%lu, size=%d", (unsigned long)send_count, (int)packet->payload.size());
-    }
-
     // Interleave mic + ref for downlink AEC: [mic1, ref1, mic2, ref2, ...]
     const int16_t* mic_data = (const int16_t*)packet->payload.data();
     size_t mic_samples = packet->payload.size() / sizeof(int16_t); // 960
 
-    // Get ref data from ring buffer
+    // Get ref data from ring buffer (lock-free read)
     std::vector<int16_t> ref_data(mic_samples, 0);
-    {
-        std::lock_guard<std::mutex> lock(ref_mutex_);
-        size_t available = std::min(ref_buffer_.size(), mic_samples);
-        if (available > 0) {
-            std::copy(ref_buffer_.begin(), ref_buffer_.begin() + available, ref_data.begin());
-            ref_buffer_.erase(ref_buffer_.begin(), ref_buffer_.begin() + available);
-        }
+    if (ref_ring_buffer_) {
+        ref_ring_buffer_->Read(ref_data.data(), mic_samples);
     }
 
     // Build interleaved buffer: mic1 ref1 mic2 ref2 ...
@@ -356,16 +353,9 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
     }
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
-    // Store downlink PCM into ref ring buffer for downlink AEC
-    {
-        std::lock_guard<std::mutex> lock(g_instance->ref_mutex_);
-        const int16_t* pcm = (const int16_t*)data_ptr;
-        size_t samples = data_len / sizeof(int16_t);
-        g_instance->ref_buffer_.insert(g_instance->ref_buffer_.end(), pcm, pcm + samples);
-        if (g_instance->ref_buffer_.size() > kRefBufferMaxSamples) {
-            g_instance->ref_buffer_.erase(g_instance->ref_buffer_.begin(),
-                g_instance->ref_buffer_.begin() + (g_instance->ref_buffer_.size() - kRefBufferMaxSamples));
-        }
+    // Store downlink PCM into ref ring buffer for downlink AEC (lock-free write)
+    if (g_instance->ref_ring_buffer_) {
+        g_instance->ref_ring_buffer_->Write((const int16_t*)data_ptr, data_len / sizeof(int16_t));
     }
 
     if (!g_instance->on_incoming_audio_) {

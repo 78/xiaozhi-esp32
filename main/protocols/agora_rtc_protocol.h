@@ -3,9 +3,11 @@
 
 #include "protocol.h"
 #include "device_api_client.h"
+#include "audio/lock_free_ring_buffer.h"
 
 #include <string>
 #include <vector>
+#include <memory>
 #include <mutex>
 #include <atomic>
 #include <freertos/FreeRTOS.h>
@@ -49,9 +51,8 @@ private:
     DeviceApiClient device_api_;
     ConversationInfo current_conversation_;
 
-    // Downlink AEC reference ring buffer
-    std::vector<int16_t> ref_buffer_;
-    std::mutex ref_mutex_;
+    // Downlink AEC reference ring buffer (lock-free SPSC, PSRAM-allocated)
+    std::unique_ptr<LockFreeRingBuffer> ref_ring_buffer_;
     static const size_t kRefBufferMaxSamples = 16000; // 1 second @ 16kHz
 
     bool SendText(const std::string& text) override;
