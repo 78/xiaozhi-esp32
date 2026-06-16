@@ -377,6 +377,9 @@ void Application::AgoraPairingTask() {
         ESP_LOGI(TAG, "SNTP time sync started");
     }
 
+    // Load assets (wake word models, etc.)
+    CheckAssetsVersion();
+
     DeviceApiClient api_client;
     ESP_LOGI(TAG, "Agora pairing: device_id=%s", api_client.GetDeviceId().c_str());
 
