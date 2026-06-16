@@ -254,6 +254,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_STICK_S3
+        bool "M5Stack StickS3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CORE_TAB5
         bool "M5Stack Tab5"
         depends on IDF_TARGET_ESP32P4
