@@ -45,7 +45,7 @@ bool AgoraRtcProtocol::InitSdk(const std::string& app_id) {
 
     rtc_service_option_t option = {};
     option.area_code = AREA_CODE_GLOB;
-    option.log_cfg.log_level = RTC_LOG_NOTICE;
+    option.log_cfg.log_level = RTC_LOG_WARNING;
     option.log_cfg.log_disable = false;
     option.use_string_uid = true;
 
@@ -269,7 +269,7 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     }
 
     if (++send_count % 16 == 0) {
-        ESP_LOGI(TAG, "SendAudio: total=%lu, size=%d", (unsigned long)send_count, (int)packet->payload.size());
+        // ESP_LOGI(TAG, "SendAudio: total=%lu, size=%d", (unsigned long)send_count, (int)packet->payload.size());
     }
 
     // Interleave mic + ref for downlink AEC: [mic1, ref1, mic2, ref2, ...]
@@ -374,8 +374,8 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
 
     static uint32_t recv_count = 0;
     if (++recv_count % 16 == 0) {
-        ESP_LOGI(TAG, "RecvAudio: total=%lu, size=%d, type=%d",
-                 (unsigned long)recv_count, (int)data_len, (int)info_ptr->data_type);
+        // ESP_LOGI(TAG, "RecvAudio: total=%lu, size=%d, type=%d",
+        //          (unsigned long)recv_count, (int)data_len, (int)info_ptr->data_type);
     }
 
     if (data_len == 0 || data_len > 32000) {
