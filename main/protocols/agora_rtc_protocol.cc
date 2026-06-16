@@ -138,7 +138,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     rtm_handler.on_rtm_send_data_result = OnRtmSendDataResult;
 
     ESP_LOGI(TAG, "Logging in RTM, uid: %s", rtm_uid.c_str());
-    int ret = agora_rtc_login_rtm(rtm_uid.c_str(), nullptr, &rtm_handler);
+    int ret = agora_rtc_login_rtm(rtm_uid.c_str(), info.rtc.token.c_str(), &rtm_handler);
     if (ret != ERR_OKAY) {
         ESP_LOGE(TAG, "agora_rtc_login_rtm failed: %d (%s)", ret, agora_rtc_err_2_str(ret));
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
@@ -173,6 +173,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_jitter_buffer = true;
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
+    options.enable_audio_ai_qos = true;
     options.enable_audio_downlink_aec = true;
 
     // Use SDK built-in G722 codec for PCM input at 16kHz
