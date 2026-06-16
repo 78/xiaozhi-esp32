@@ -395,15 +395,21 @@ bool DeviceApiClient::StartConversation(ConversationInfo& info) {
         if (cJSON_IsString(app_id_item)) info.rtc.app_id = app_id_item->valuestring;
         if (cJSON_IsString(channel_item)) info.rtc.channel = channel_item->valuestring;
         if (cJSON_IsString(token_item)) info.rtc.token = token_item->valuestring;
-        if (cJSON_IsNumber(uid_item)) info.rtc.uid = (uint32_t)uid_item->valueint;
+        if (cJSON_IsString(uid_item)) {
+            info.rtc.uid = uid_item->valuestring;
+        } else if (cJSON_IsNumber(uid_item)) {
+            info.rtc.uid = std::to_string(uid_item->valueint);
+        }
     }
-    if (cJSON_IsNumber(agent_uid)) {
-        info.rtc.agent_uid = (uint32_t)agent_uid->valueint;
+    if (cJSON_IsString(agent_uid)) {
+        info.rtc.agent_uid = agent_uid->valuestring;
+    } else if (cJSON_IsNumber(agent_uid)) {
+        info.rtc.agent_uid = std::to_string(agent_uid->valueint);
     }
 
-    ESP_LOGI(TAG, "Conversation started: id=%s, channel=%s, uid=%lu",
+    ESP_LOGI(TAG, "Conversation started: id=%s, channel=%s, uid=%s",
              info.conversation_id.c_str(), info.rtc.channel.c_str(),
-             (unsigned long)info.rtc.uid);
+             info.rtc.uid.c_str());
 
     cJSON_Delete(root);
     return true;

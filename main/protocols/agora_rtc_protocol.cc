@@ -119,9 +119,9 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     }
 
     current_conversation_ = info;
-    ESP_LOGI(TAG, "Conversation started: id=%s, channel=%s, uid=%lu, agent_uid=%lu",
+    ESP_LOGI(TAG, "Conversation started: id=%s, channel=%s, uid=%s, agent_uid=%s",
              info.conversation_id.c_str(), info.rtc.channel.c_str(),
-             (unsigned long)info.rtc.uid, (unsigned long)info.rtc.agent_uid);
+             info.rtc.uid.c_str(), info.rtc.agent_uid.c_str());
 
     // Step 2: Initialize SDK with the app_id from server
     if (!InitSdk(info.rtc.app_id)) {
@@ -129,8 +129,8 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     }
 
     // Step 3: Login RTM using local_uid as RTM UID
-    std::string rtm_uid = std::to_string(info.rtc.uid);
-    remote_rtm_uid_ = std::to_string(info.rtc.agent_uid);
+    std::string rtm_uid = info.rtc.uid;
+    remote_rtm_uid_ = info.rtc.agent_uid;
 
     agora_rtm_handler_t rtm_handler = {};
     rtm_handler.on_rtm_event = OnRtmEvent;
@@ -182,14 +182,13 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.audio_codec_opt.pcm_channel_num = 1;
     options.audio_codec_opt.pcm_duration = 60;
 
-    // Join channel with uid from server (integer uid, use token)
-    std::string uid_str = std::to_string(info.rtc.uid);
+    // Join channel with uid from server (string uid, use token)
     ESP_LOGI(TAG, "Joining channel: %s, uid: %s, token: %.8s...",
-             info.rtc.channel.c_str(), uid_str.c_str(),
+             info.rtc.channel.c_str(), info.rtc.uid.c_str(),
              info.rtc.token.empty() ? "none" : info.rtc.token.c_str());
 
     ret = agora_rtc_join_channel_with_user_account(conn_id_, info.rtc.channel.c_str(),
-                                                   uid_str.c_str(),
+                                                   info.rtc.uid.c_str(),
                                                    info.rtc.token.empty() ? nullptr : info.rtc.token.c_str(),
                                                    &options);
     if (ret != ERR_OKAY) {

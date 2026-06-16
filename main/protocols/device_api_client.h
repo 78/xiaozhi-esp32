@@ -18,8 +18,8 @@ struct RtcConfig {
     std::string app_id;
     std::string channel;
     std::string token;
-    uint32_t uid = 0;
-    uint32_t agent_uid = 0;
+    std::string uid;
+    std::string agent_uid;
 };
 
 struct ConversationInfo {
