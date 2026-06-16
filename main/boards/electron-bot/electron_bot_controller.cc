@@ -314,15 +314,6 @@ private:
                 } else if (params.action_type == ACTION_SERVO_SEQUENCE) {
                     controller->ExecuteServoSequence(params.servo_sequence_json);
                 }
-                if (params.action_type != ACTION_HOME && params.action_type != ACTION_SERVO_MOVE &&
-                    params.action_type != ACTION_SERVO_SEQUENCE) {
-                    UBaseType_t pending_actions =
-                        uxQueueMessagesWaiting(controller->action_queue_);
-                    // 连续动作时跳过中间归位，避免动作衔接生硬
-                    if (pending_actions == 0) {
-                        controller->electron_bot_.Home(true);
-                    }
-                }
                 controller->is_action_in_progress_ = false;  // 动作执行完毕
             }
             vTaskDelay(pdMS_TO_TICKS(20));
@@ -401,7 +392,7 @@ public:
             "self.electron.hand_action",
             "手部动作控制。action: 1=举手, 2=放手, 3=挥手, 4=拍打; hand: 1=左手, 2=右手, 3=双手; "
             "steps: 动作重复次数(1-10); speed: 动作速度(500-1500，数值越小越快); amount: "
-            "动作幅度(10-50，仅举手动作使用)",
+            "拍打幅度(10-50，固件会按安全范围裁剪)",
             PropertyList({Property("action", kPropertyTypeInteger, 1, 1, 4),
                           Property("hand", kPropertyTypeInteger, 3, 1, 3),
                           Property("steps", kPropertyTypeInteger, 1, 1, 10),
@@ -430,7 +421,6 @@ public:
                         break;  // 挥手
                     case 4:
                         base_action = ACTION_HAND_LEFT_FLAP;
-                        amount = 0;
                         break;  // 拍打
                     default:
                         base_action = ACTION_HAND_LEFT_UP;

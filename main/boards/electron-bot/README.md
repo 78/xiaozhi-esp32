@@ -39,7 +39,7 @@ electronBot 具备 6 个自由度：
 | --- | --- | --- |
 | `steps` | `1-3` | 保持动作简短自然 |
 | `speed` | `800-1200` | 毫秒，数值越小动作越快 |
-| `amount` | 手部 `20-40`，身体 `30-60`，头部 `5-12` | 动作幅度 |
+| `amount` | 拍打 `20-40`，身体 `30-60`，头部 `5-12` | 动作幅度，固件会按安全范围裁剪 |
 
 ## WebSocket 调试
 
@@ -81,8 +81,10 @@ ws://<设备IP>:8080/ws
 `action`：`1` 举手，`2` 放手，`3` 挥手，`4` 拍打
 `hand`：`1` 左手，`2` 右手，`3` 双手
 
+举手、放手、身体转向、抬头、低头属于保持姿态动作，执行完成后不会自动复位。需要回到初始姿态时请调用对应的放手/回中动作，或显式调用 `self.electron.home`。
+
 ```json
-{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.electron.hand_action","arguments":{"action":1,"hand":3,"steps":1,"speed":1000,"amount":30}},"id":3}
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.electron.hand_action","arguments":{"action":1,"hand":3,"speed":1000}},"id":3}
 ```
 
 ### 身体动作
@@ -90,7 +92,7 @@ ws://<设备IP>:8080/ws
 `direction`：`1` 左转，`2` 右转，`3` 回中
 
 ```json
-{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.electron.body_turn","arguments":{"direction":1,"steps":1,"speed":1000,"angle":45}},"id":4}
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.electron.body_turn","arguments":{"direction":1,"speed":1000,"angle":45}},"id":4}
 ```
 
 ### 头部动作
