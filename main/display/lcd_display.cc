@@ -21,11 +21,13 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_4);
+LV_FONT_DECLARE(segment7_80);
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_4);
+    auto segment7_font = std::make_shared<LvglBuiltInFont>(&segment7_80);
 
     // light theme
     auto light_theme = new LvglTheme("light");
@@ -41,6 +43,7 @@ void LcdDisplay::InitializeLcdThemes() {
     light_theme->set_text_font(text_font);
     light_theme->set_icon_font(icon_font);
     light_theme->set_large_icon_font(large_icon_font);
+    light_theme->set_segment7_font(segment7_font);
 
     // dark theme
     auto dark_theme = new LvglTheme("dark");
@@ -56,6 +59,7 @@ void LcdDisplay::InitializeLcdThemes() {
     dark_theme->set_text_font(text_font);
     dark_theme->set_icon_font(icon_font);
     dark_theme->set_large_icon_font(large_icon_font);
+    dark_theme->set_segment7_font(segment7_font);
 
     auto& theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("light", light_theme);
@@ -365,6 +369,7 @@ void LcdDisplay::SetupUI() {
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
+    auto segment7_font = lvgl_theme->segment7_font()->font();
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
@@ -452,6 +457,15 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(status_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
+    
+    time_label_ = lv_label_create(lv_layer_top());
+    lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_width(time_label_, LV_HOR_RES);
+    lv_label_set_recolor(time_label_, true); 
+    lv_obj_set_style_text_font(time_label_, segment7_font, LV_PART_MAIN);
+    lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
     
     /* Content - Chat area */
     content_ = lv_obj_create(container_);
@@ -814,6 +828,7 @@ void LcdDisplay::SetupUI() {
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
+    auto segment7_font = lvgl_theme->segment7_font()->font();
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
@@ -923,6 +938,15 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(status_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
+
+    time_label_ = lv_label_create(lv_layer_top());
+    lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_width(time_label_, LV_HOR_RES);
+    lv_label_set_recolor(time_label_, true); 
+    lv_obj_set_style_text_font(time_label_, segment7_font, LV_PART_MAIN);
+    lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
 
 #if CONFIG_USE_MULTILINE_CHAT_MESSAGE
     /* Bottom bar - auto height, grows upward with wrapped text */
@@ -1081,6 +1105,12 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         }
         return;
     }
+    if (emotion == nullptr) {
+        DisplayLockGuard lock(this);
+        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
 
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
     auto image = emoji_collection != nullptr ? emoji_collection->GetEmojiImage(emotion) : nullptr;
@@ -1193,6 +1223,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     // Update status bar elements
     lv_obj_set_style_text_color(network_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(status_label_, lvgl_theme->text_color(), 0);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(notification_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(mute_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);

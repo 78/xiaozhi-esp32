@@ -16,6 +16,7 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
+LV_FONT_DECLARE(segment7_80);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
     int width, int height, bool mirror_x, bool mirror_y)
@@ -26,6 +27,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_1);
+    auto segment7_font = std::make_shared<LvglBuiltInFont>(&segment7_80);
     
     auto dark_theme = new LvglTheme("dark");
     dark_theme->set_text_font(text_font);
@@ -172,6 +174,7 @@ void OledDisplay::SetupUI_128x64() {
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
+    auto segment7_font = lvgl_theme->segment7_font()->font();
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
@@ -241,6 +244,15 @@ void OledDisplay::SetupUI_128x64() {
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
 
+    time_label_ = lv_label_create(lv_layer_top());
+    lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_width(time_label_, LV_HOR_RES);
+    lv_label_set_recolor(time_label_, true); 
+    lv_obj_set_style_text_font(time_label_, segment7_font, LV_PART_MAIN);
+    lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
+
     /* Content */
     content_ = lv_obj_create(container_);
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
@@ -304,6 +316,7 @@ void OledDisplay::SetupUI_128x32() {
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
+    auto segment7_font = lvgl_theme->segment7_font()->font();
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
@@ -351,6 +364,15 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_pad_left(status_label_, 2, 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
 
+    time_label_ = lv_label_create(lv_layer_top());
+    lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_width(time_label_, LV_HOR_RES);
+    lv_label_set_recolor(time_label_, true); 
+    lv_obj_set_style_text_font(time_label_, segment7_font, LV_PART_MAIN);
+    lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
+
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_pad_left(notification_label_, 2, 0);
@@ -390,6 +412,10 @@ void OledDisplay::SetEmotion(const char* emotion) {
     if (emotion_label_ == nullptr) {
         return;
     }
+    if (emotion == nullptr) {
+        lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
     if (utf8 != nullptr) {
         lv_label_set_text(emotion_label_, utf8);
     } else {
@@ -405,4 +431,5 @@ void OledDisplay::SetTheme(Theme* theme) {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
+    lv_obj_set_style_text_color(time_label_, lvgl_theme->text_color(), 0);
 }

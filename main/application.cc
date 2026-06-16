@@ -249,7 +249,9 @@ void Application::Run() {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
-        
+#if CONFIG_USE_IDLE_CLOCK
+            display->UpdateTime();
+#endif
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
                 SystemInfo::PrintHeapStats();
