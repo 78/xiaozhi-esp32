@@ -16,6 +16,7 @@
 #include "movements.h"
 #include "power_manager.h"
 #include "system_reset.h"
+#include "websocket_control_server.h"
 #include "wifi_board.h"
 
 #define TAG "ElectronBot"
@@ -28,6 +29,7 @@ private:
     Display* display_;
     PowerManager* power_manager_;
     Button boot_button_;
+    WebSocketControlServer* ws_control_server_;
 
     void InitializePowerManager() {
         power_manager_ =
@@ -85,8 +87,30 @@ private:
 
     void InitializeController() { InitializeElectronBotController(); }
 
+    void InitializeWebSocketControlServer() {
+        ws_control_server_ = new WebSocketControlServer();
+        if (!ws_control_server_->Start(8080)) {
+            delete ws_control_server_;
+            ws_control_server_ = nullptr;
+            return;
+        }
+
+        Application::GetInstance().RegisterMcpBroadcastCallback([this](const std::string& payload) {
+            if (ws_control_server_) {
+                ws_control_server_->BroadcastMessage(payload);
+            }
+        });
+    }
+
+    void StartNetwork() override {
+        WifiBoard::StartNetwork();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        InitializeWebSocketControlServer();
+    }
+
 public:
-    ElectronBot() : boot_button_(BOOT_BUTTON_GPIO) {
+    ElectronBot() : boot_button_(BOOT_BUTTON_GPIO), ws_control_server_(nullptr) {
         InitializeSpi();
         InitializeGc9a01Display();
         InitializeButtons();
