@@ -125,6 +125,17 @@ private:
     CustomBacklight* backlight_;
     esp_io_expander_handle_t io_expander = NULL;
     PowerSaveTimer* power_save_timer_;
+    int last_discharging_ = -1;  // -1 = unknown, 0 = charging (always-on), 1 = discharging
+
+    // Standalone dim-only timer used while charging. PowerSaveTimer is
+    // disabled on the charger so wake word detection isn't disturbed by its
+    // sleep callbacks; this lightweight timer applies just the visual dim
+    // (low brightness + sleepy emoji) on its own.
+    esp_timer_handle_t dim_timer_ = nullptr;
+    int dim_ticks_ = 0;
+    bool dimmed_ = false;
+    bool dim_timer_running_ = false;
+    static constexpr int kDimSeconds = 60;
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -140,6 +151,67 @@ private:
             pmic_->PowerOff();
         });
         power_save_timer_->SetEnabled(true);
+    }
+
+    void InitializeDimTimer() {
+        esp_timer_create_args_t args = {
+            .callback = [](void* arg) {
+                auto self = static_cast<WaveshareEsp32s3TouchAMOLED1inch8*>(arg);
+                self->DimTick();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "dim_tick",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &dim_timer_));
+    }
+
+    void ApplyDim(bool on) {
+        Application::GetInstance().Schedule([this, on]() {
+            if (on) {
+                ESP_LOGI(TAG, "Dim mode (always-on)");
+                GetDisplay()->SetPowerSaveMode(true);
+                GetBacklight()->SetBrightness(20);
+            } else {
+                GetDisplay()->SetPowerSaveMode(false);
+                GetBacklight()->RestoreBrightness();
+            }
+        });
+    }
+
+    void DimTick() {
+        if (!Application::GetInstance().CanEnterSleepMode()) {
+            // Activity (conversation, button) — restore display and reset.
+            dim_ticks_ = 0;
+            if (dimmed_) {
+                dimmed_ = false;
+                ApplyDim(false);
+            }
+            return;
+        }
+        dim_ticks_++;
+        if (dim_ticks_ >= kDimSeconds && !dimmed_) {
+            dimmed_ = true;
+            ApplyDim(true);
+        }
+    }
+
+    void StartDimTimer() {
+        if (dim_timer_running_) return;
+        dim_ticks_ = 0;
+        esp_timer_start_periodic(dim_timer_, 1000000);
+        dim_timer_running_ = true;
+    }
+
+    void StopDimTimer() {
+        if (!dim_timer_running_) return;
+        esp_timer_stop(dim_timer_);
+        dim_timer_running_ = false;
+        if (dimmed_) {
+            dimmed_ = false;
+            ApplyDim(false);
+        }
     }
 
     void InitializeCodecI2c() {
@@ -265,7 +337,16 @@ private:
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_FT5x06_CONFIG();
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 8,
+            .flags =
+            {
+                .disable_control_phase = 1,
+            }
+        };
         tp_io_config.scl_speed_hz = 400 * 1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(codec_i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
@@ -294,6 +375,7 @@ public:
     WaveshareEsp32s3TouchAMOLED1inch8() :
         boot_button_(BOOT_BUTTON_GPIO) {
         InitializePowerSaveTimer();
+        InitializeDimTimer();
         InitializeCodecI2c();
         InitializeTca9554();
         InitializeAxp2101();
@@ -320,12 +402,24 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
         charging = pmic_->IsCharging();
         discharging = pmic_->IsDischarging();
-        if (discharging != last_discharging) {
+        int discharging_state = discharging ? 1 : 0;
+        if (discharging_state != last_discharging_) {
+            // On charger: disable PowerSaveTimer so its sleep-mode callbacks
+            // (which on this board appear to disrupt the AFE / audio pipeline)
+            // never fire. Run the standalone dim timer instead for the
+            // brightness + sleepy-emoji UX. On battery: reverse — disable dim
+            // timer, re-enable PowerSaveTimer (60s sleep, 5min auto-shutdown).
             power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
+            if (discharging) {
+                StopDimTimer();
+                ESP_LOGI(TAG, "Always-on disabled (battery)");
+            } else {
+                StartDimTimer();
+                ESP_LOGI(TAG, "Always-on enabled (charging)");
+            }
+            last_discharging_ = discharging_state;
         }
 
         level = pmic_->GetBatteryLevel();

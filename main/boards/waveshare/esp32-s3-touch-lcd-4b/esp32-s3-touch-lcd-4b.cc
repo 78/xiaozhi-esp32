@@ -276,7 +276,16 @@ private:
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, 
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 16,                            
+            .flags =
+            {
+                .disable_control_phase = 1,
+            }
+	    };
         tp_io_config.scl_speed_hz = 400*  1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");

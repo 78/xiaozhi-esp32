@@ -1,9 +1,17 @@
 #include "movements.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "oscillator.h"
+
+namespace {
+float EaseOutCubic(float t) {
+    float inv = 1.0f - t;
+    return 1.0f - inv * inv * inv;
+}
+}  // namespace
 
 Otto::Otto() {
     is_otto_resting_ = false;
@@ -80,53 +88,39 @@ void Otto::MoveServos(int time, int servo_target[]) {
         SetRestState(false);
     }
 
-    final_time_ = millis() + time;
-    if (time > 10) {
-        for (int i = 0; i < SERVO_COUNT; i++) {
-            if (servo_pins_[i] != -1) {
-                increment_[i] = (servo_target[i] - servo_[i].GetPosition()) / (time / 10.0);
-            }
-        }
-
-        for (int iteration = 1; millis() < final_time_; iteration++) {
-            partial_time_ = millis() + 10;
-            for (int i = 0; i < SERVO_COUNT; i++) {
-                if (servo_pins_[i] != -1) {
-                    servo_[i].SetPosition(servo_[i].GetPosition() + increment_[i]);
-                }
-            }
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-    } else {
+    if (time <= 10) {
         for (int i = 0; i < SERVO_COUNT; i++) {
             if (servo_pins_[i] != -1) {
                 servo_[i].SetPosition(servo_target[i]);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(time));
+        return;
     }
 
-    // final adjustment to the target.
-    bool f = true;
-    int adjustment_count = 0;
-    while (f && adjustment_count < 10) {
-        f = false;
+    int start[SERVO_COUNT];
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        start[i] = servo_[i].GetPosition();
+    }
+
+    int steps = std::max(1, time / 10);
+    for (int step = 1; step <= steps; step++) {
+        float t = static_cast<float>(step) / static_cast<float>(steps);
+        float eased_t = EaseOutCubic(t);
         for (int i = 0; i < SERVO_COUNT; i++) {
-            if (servo_pins_[i] != -1 && servo_target[i] != servo_[i].GetPosition()) {
-                f = true;
-                break;
+            if (servo_pins_[i] != -1) {
+                float interpolated = start[i] + (servo_target[i] - start[i]) * eased_t;
+                servo_[i].SetPosition(static_cast<int>(std::round(interpolated)));
             }
         }
-        if (f) {
-            for (int i = 0; i < SERVO_COUNT; i++) {
-                if (servo_pins_[i] != -1) {
-                    servo_[i].SetPosition(servo_target[i]);
-                }
-            }
-            vTaskDelay(pdMS_TO_TICKS(10));
-            adjustment_count++;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (servo_pins_[i] != -1) {
+            servo_[i].SetPosition(servo_target[i]);
         }
-    };
+    }
 }
 
 void Otto::MoveSingle(int position, int servo_number) {
@@ -192,11 +186,18 @@ void Otto::Execute(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int peri
 ///////////////////////////////////////////////////////////////////
 void Otto::Home(bool hands_down) {
     if (is_otto_resting_ == false) {  // Go to rest position only if necessary
-        MoveServos(1000, servo_initial_);
+        int max_delta = 0;
+        for (int i = 0; i < SERVO_COUNT; i++) {
+            if (servo_pins_[i] != -1) {
+                max_delta = std::max(max_delta, std::abs(servo_initial_[i] - servo_[i].GetPosition()));
+            }
+        }
+        int home_time = std::clamp(500 + max_delta * 9, 500, 1700);
+        MoveServos(home_time, servo_initial_);
         is_otto_resting_ = true;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 bool Otto::GetRestState() {

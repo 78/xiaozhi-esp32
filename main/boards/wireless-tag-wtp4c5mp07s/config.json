@@ -9,6 +9,19 @@
                 "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n",
                 "CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM=10",
                 "CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM=24",
+                "CONFIG_WIFI_RMT_STATIC_TX_BUFFER_NUM=10",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "wireless-tag-wtp4c5mp07s-p4x",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_SLAVE_IDF_TARGET_ESP32C5=y",
+                "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=n",
+                "CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM=10",
+                "CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM=24",
                 "CONFIG_WIFI_RMT_STATIC_TX_BUFFER_NUM=10"
             ]
         }

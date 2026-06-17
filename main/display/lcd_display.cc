@@ -1075,13 +1075,6 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     if (!setup_ui_called_) {
         ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!", emotion);
     }
-    // Stop any running GIF animation
-    if (gif_controller_) {
-        DisplayLockGuard lock(this);
-        gif_controller_->Stop();
-        gif_controller_.reset();
-    }
-    
     if (emoji_image_ == nullptr) {
         if (setup_ui_called_) {
             ESP_LOGW(TAG, "SetEmotion('%s') failed: emoji_image_ is nullptr (SetupUI() was called but emoji image not created)", emotion);
@@ -1095,6 +1088,10 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         const char* utf8 = font_awesome_get_utf8(emotion);
         if (utf8 != nullptr && emoji_label_ != nullptr) {
             DisplayLockGuard lock(this);
+            if (gif_controller_) {
+                gif_controller_->Stop();
+                gif_controller_.reset();
+            }
             lv_label_set_text(emoji_label_, utf8);
             lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
@@ -1103,6 +1100,12 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
 
     DisplayLockGuard lock(this);
+    // Stop any running GIF animation in the same lock scope as setting new image
+    // to prevent LVGL from accessing freed image data between operations
+    if (gif_controller_) {
+        gif_controller_->Stop();
+        gif_controller_.reset();
+    }
     if (image->IsGif()) {
         // Create new GIF controller
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());

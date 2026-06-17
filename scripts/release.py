@@ -3,6 +3,7 @@ import os
 import json
 import zipfile
 import argparse
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -18,7 +19,7 @@ def get_board_type_from_compile_commands() -> Optional[str]:
     compile_file = Path("build/compile_commands.json")
     if not compile_file.exists():
         return None
-    with compile_file.open() as f:
+    with compile_file.open(encoding='utf-8') as f:
         data = json.load(f)
     for item in data:
         if not item["file"].endswith("main.cc"):
@@ -31,7 +32,7 @@ def get_board_type_from_compile_commands() -> Optional[str]:
 
 def get_project_version() -> Optional[str]:
     """Read set(PROJECT_VER "x.y.z") from root CMakeLists.txt"""
-    with Path("CMakeLists.txt").open() as f:
+    with Path("CMakeLists.txt").open(encoding='utf-8') as f:
         for line in f:
             if line.startswith("set(PROJECT_VER"):
                 return line.split("\"")[1]
@@ -87,7 +88,7 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
         board = board_dir.relative_to(_BOARDS_DIR).as_posix()
 
         try:
-            with cfg_path.open() as f:
+            with cfg_path.open(encoding='utf-8') as f:
                 cfg = json.load(f)
 
             manufacturer = _get_manufacturer(cfg)
@@ -139,26 +140,113 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
 
 
 
-def _find_board_config(board_type: str) -> Optional[str]:
-    """Find the corresponding CONFIG_BOARD_TYPE_xxx for the given board_type
-    
-    Search backwards from 'set(BOARD_TYPE "xxx")' to find the nearest if(CONFIG_BOARD_TYPE_).
-    """
+def _find_board_config_candidates(board_type: str) -> list[str]:
+    """Find all CONFIG_BOARD_TYPE_xxx candidates for the given board_type."""
     board_leaf = board_type.split("/")[-1]
     pattern = f'set(BOARD_TYPE "{board_leaf}")'
-    
+
     cmake_file = Path("main/CMakeLists.txt")
     lines = cmake_file.read_text(encoding="utf-8").splitlines()
-    
+    candidates: list[str] = []
+
     for idx, line in enumerate(lines):
         if pattern in line:
-            # Found the BOARD_TYPE line, search backwards for the config
+            # Found the BOARD_TYPE line, search backwards for the nearest config guard
             for back_idx in range(idx - 1, -1, -1):
                 back_line = lines[back_idx]
                 if "if(CONFIG_BOARD_TYPE_" in back_line:
-                    return back_line.strip().split("if(")[1].split(")")[0]
+                    candidates.append(back_line.strip().split("if(")[1].split(")")[0])
+                    break
+    return candidates
+
+
+def _extract_board_config_from_sdkconfig_append(sdkconfig_append: list[str]) -> Optional[str]:
+    """Extract explicit CONFIG_BOARD_TYPE_xxx=y from sdkconfig_append, if present."""
+    pattern = re.compile(r"^(CONFIG_BOARD_TYPE_[A-Z0-9_]+)=y$")
+    matches = []
+    for item in sdkconfig_append:
+        m = pattern.match(item.strip())
+        if m:
+            matches.append(m.group(1))
+    if not matches:
+        return None
+    uniq = list(dict.fromkeys(matches))
+    if len(uniq) > 1:
+        raise ValueError(f"Multiple board type configs found in sdkconfig_append: {uniq}")
+    return uniq[0]
+
+
+def _symbol_supports_target(symbol: str, target: str) -> bool:
+    """Check whether Kconfig symbol depends on given target (e.g. esp32c5)."""
+    kconfig_file = Path("main/Kconfig.projbuild")
+    if not kconfig_file.exists():
+        return False
+
+    target_flag = f"IDF_TARGET_{target.upper()}"
+    lines = kconfig_file.read_text(encoding="utf-8").splitlines()
+
+    in_symbol = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("config "):
+            curr_symbol = stripped.split("config ", 1)[1].strip()
+            in_symbol = curr_symbol == symbol
+            continue
+        if in_symbol and stripped.startswith(("config ", "choice ", "endchoice", "menu ", "endmenu")):
             break
-    return None
+        if in_symbol and "depends on" in stripped and target_flag in stripped:
+            return True
+    return False
+
+
+def _resolve_board_config(board_type: str, target: str, sdkconfig_append: list[str]) -> str:
+    """Resolve CONFIG_BOARD_TYPE_xxx for current board build."""
+    explicit = _extract_board_config_from_sdkconfig_append(sdkconfig_append)
+    if explicit:
+        return explicit
+
+    candidates = _find_board_config_candidates(board_type)
+    if not candidates:
+        raise ValueError(f"Cannot find board config symbol for {board_type}")
+    if len(candidates) == 1:
+        return candidates[0]
+
+    by_target = [c for c in candidates if _symbol_supports_target(c, target)]
+    if len(by_target) == 1:
+        return by_target[0]
+    if len(by_target) > 1:
+        selected = by_target[0]
+        print(
+            f"[WARN] Ambiguous board config for {board_type} (target={target}), "
+            f"target-matched candidates={by_target}, selecting first: {selected}",
+            file=sys.stderr,
+        )
+        return selected
+
+    target_u = target.upper()
+    target_short = target_u.replace("ESP32", "")
+    by_name = [
+        c for c in candidates
+        if target_u in c or f"_{target_short}" in c
+    ]
+    if len(by_name) == 1:
+        return by_name[0]
+    if len(by_name) > 1:
+        selected = by_name[0]
+        print(
+            f"[WARN] Ambiguous board config for {board_type} (target={target}), "
+            f"name-matched candidates={by_name}, selecting first: {selected}",
+            file=sys.stderr,
+        )
+        return selected
+
+    selected = candidates[0]
+    print(
+        f"[WARN] Ambiguous board config for {board_type} (target={target}), "
+        f"candidates={candidates}, selecting first: {selected}",
+        file=sys.stderr,
+    )
+    return selected
 
 
 # Kconfig "select" entries are not automatically applied when we simply append
@@ -232,7 +320,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
     project_version = get_project_version()
     print(f"Project Version: {project_version} ({cfg_path})")
 
-    with cfg_path.open() as f:
+    with cfg_path.open(encoding='utf-8') as f:
         cfg = json.load(f)
     target = cfg["target"]
     manufacturer = _get_manufacturer(cfg)
@@ -258,9 +346,18 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
             continue
 
         # Process sdkconfig_append
-        board_type_config = _find_board_config(board_type)
-        sdkconfig_append = [f"{board_type_config}=y"]
-        sdkconfig_append.extend(build.get("sdkconfig_append", []))
+        build_sdkconfig_append = build.get("sdkconfig_append", [])
+        explicit_board_cfg = _extract_board_config_from_sdkconfig_append(build_sdkconfig_append)
+        if explicit_board_cfg:
+            print(
+                f"[INFO] Board config explicitly set in config.json: {explicit_board_cfg}, "
+                "skip auto-select.",
+            )
+            sdkconfig_append = list(build_sdkconfig_append)
+        else:
+            board_type_config = _resolve_board_config(board_type, target, build_sdkconfig_append)
+            sdkconfig_append = [f"{board_type_config}=y"]
+            sdkconfig_append.extend(build_sdkconfig_append)
         sdkconfig_append = _apply_auto_selects(sdkconfig_append)
 
         print("-" * 80)
@@ -279,7 +376,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
             sys.exit(1)
 
         # Append sdkconfig
-        with Path("sdkconfig").open("a") as f:
+        with Path("sdkconfig").open("a", encoding='utf-8') as f:
             f.write("\n")
             f.write("# Append by release.py\n")
             for append in sdkconfig_append:

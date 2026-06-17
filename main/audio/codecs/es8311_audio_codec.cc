@@ -156,7 +156,10 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
 }
 
 void Es8311AudioCodec::SetOutputVolume(int volume) {
-    ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, volume));
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (dev_ != nullptr) {
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, volume));
+    }
     AudioCodec::SetOutputVolume(volume);
 }
 

@@ -5,7 +5,6 @@
 #include <driver/i2c.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
-#include "adc_mic.h"
 #include "driver/i2s_pdm.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/io_mux_reg.h"
@@ -44,18 +43,19 @@ AdcPdmAudioCodec::AdcPdmAudioCodec(int input_sample_rate, int output_sample_rate
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
-    uint8_t adc_channel[1] = {0};
-    adc_channel[0] = adc_mic_channel;
-
-    audio_codec_adc_cfg_t cfg = {
-        .handle = NULL,
-        .max_store_buf_size = 1024 * 2,
-        .conv_frame_size = 1024,
-        .unit_id = ADC_UNIT_1,
-        .adc_channel_list = adc_channel,
-        .adc_channel_num = sizeof(adc_channel) / sizeof(adc_channel[0]),
-        .sample_rate_hz = (uint32_t)input_sample_rate,
-    };
+    audio_codec_adc_cfg_t cfg = {};
+    cfg.handle = NULL;
+    cfg.continuous_cfg.max_store_buf_size = 1024 * 2;
+    cfg.continuous_cfg.conv_frame_size = 1024;
+    cfg.continuous_cfg.sample_freq_hz = (uint32_t)input_sample_rate;
+    cfg.continuous_cfg.conv_mode = ADC_CONV_SINGLE_UNIT_1;
+    cfg.continuous_cfg.format = ADC_DIGI_OUTPUT_FORMAT_TYPE2;
+    cfg.continuous_cfg.pattern_num = 1;
+    cfg.continuous_cfg.cfg_mode = AUDIO_CODEC_ADC_CFG_MODE_SINGLE_UNIT;
+    cfg.continuous_cfg.cfg.single_unit.unit_id = ADC_UNIT_1;
+    cfg.continuous_cfg.cfg.single_unit.atten = ADC_ATTEN_DB_12;
+    cfg.continuous_cfg.cfg.single_unit.bit_width = ADC_BITWIDTH_12;
+    cfg.continuous_cfg.cfg.single_unit.channel_id[0] = (uint8_t)adc_mic_channel;
     const audio_codec_data_if_t *adc_if = audio_codec_new_adc_data(&cfg);
 
     esp_codec_dev_cfg_t codec_dev_cfg = {

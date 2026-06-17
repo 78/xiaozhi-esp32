@@ -160,7 +160,7 @@ This is an open-source ESP32 project, released under the MIT license, allowing a
 
 We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
 
-If you have any ideas or suggestions, please feel free to raise Issues or join our [Discord](https://discord.gg/bXqgAfRm) or QQ group: 994694848
+If you have any ideas or suggestions, please feel free to raise Issues or join our [Discord](https://discord.gg/C759fGMBcZ) or QQ group: 994694848
 
 ## Star History
 
@@ -170,4 +170,4 @@ If you have any ideas or suggestions, please feel free to raise Issues or join o
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
  </picture>
-</a> 
+</a>

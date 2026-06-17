@@ -1,0 +1,14 @@
+{
+    "manufacturer": "waveshare",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-touch-amoled-2.16",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16=y",
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        }
+    ]
+}

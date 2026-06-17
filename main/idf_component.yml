@@ -20,22 +20,26 @@ dependencies:
   waveshare/custom_io_expander_ch32v003: ^1.0.0
   espressif/esp_lcd_panel_io_additions: ^1.0.1
   78/esp_lcd_nv3023: ~1.0.0
-  78/esp-wifi-connect: ~3.1.1
+  78/esp-wifi-connect: ~3.1.3
   espressif/esp_audio_effects: ~1.2.1
   espressif/esp_audio_codec: ~2.4.1
-  78/esp-ml307: ~3.6.4
+  78/esp-ml307: ~3.6.5
   78/uart-eth-modem:
-    version: ~0.3.3
+    version: ~0.4.0
     rules:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~1.6.0
   espressif/led_strip: ~3.0.2
-  espressif/esp_codec_dev: ~1.5.4
+  espressif/esp_codec_dev: ~1.5.6
   espressif/esp-sr: ~2.3.0
   espressif/button: ~4.1.5
   espressif/knob: ^1.0.0
+  esphome/esp-hub75:
+    version: ^0.3.5
+    rules:
+    - if: target in [esp32p4, esp32s3]
   espressif/esp32-camera:
-    version: ^2.1.4
+    version: ^2.1.6
     rules:
     - if: target in [esp32s3]
   espressif/esp_video:
@@ -47,23 +51,22 @@ dependencies:
     version: ^1.0.1
     rules:
     - if: target not in [esp32]
-  espressif/esp_lcd_touch_ft5x06: ~1.0.7
+  espressif/esp_lcd_touch_ft5x06: ~1
   espressif/esp_lcd_touch_gt911: ^1
   espressif/esp_lcd_touch_gt1151: ^1
   waveshare/esp_lcd_touch_cst9217: ^1.0.3
-  espressif/esp_lcd_touch_cst816s: ^1.0.6
-  lvgl/lvgl: ~9.4.0
-  esp_lvgl_port: ~2.7.0
+  espressif/esp_lcd_touch_cst816s: ^1
+  lvgl/lvgl: ~9.5.0
+  esp_lvgl_port: ~2.7.2
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.0
   espressif2022/image_player: ^1.1.1
   espressif2022/esp_emote_expression: ^0.1.0
-  espressif/adc_mic: ^0.2.1
-  espressif/esp_mmap_assets: '>=1.2'
+  espressif/esp_mmap_assets: ^1.3.2
   txp666/otto-emoji-gif-component:
     version: ^1.1.1
     rules:
     - if: target in [esp32s3]
-  espressif/adc_battery_estimation: ^0.2.0
+  espressif/adc_battery_estimation: ^0.2.1
   espressif/esp_new_jpeg: ^0.6.1
 
   # SenseCAP Watcher Board
@@ -116,6 +119,16 @@ dependencies:
     rules:
     - if: target in [esp32s3, esp32c5]
 
+  espressif/touch_slider_sensor:
+    version: ^0.2.0~1
+    rules:
+    - if: target in [esp32s3]
+
+  espressif/touch_button_sensor:
+    version: ^0.2.2~1
+    rules:
+    - if: target in [esp32s3]
+
   espressif/esp_lcd_touch_st7123: ^1.0.0
   espressif/iot_usbh_rndis: 
     version: ^0.3.1
@@ -125,3 +138,4 @@ dependencies:
   ## Required IDF version
   idf:
     version: '>=5.5.2'
+  m5stack/m5pm1: ^1.0.5

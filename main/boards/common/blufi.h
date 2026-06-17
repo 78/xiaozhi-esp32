@@ -25,8 +25,9 @@ public:
      * This method intelligently handles WiFi scanning based on current WiFi state:
      * - If WiFi config mode is active, it uses the existing scan results from WifiConfigurationAp
      * - Otherwise, it performs a dedicated scan without interfering with normal WiFi operations
+     * @return true if a scan was started (or was already in progress); false on failure.
      */
-    void start_wifi_scan();
+    bool start_wifi_scan();
 
     /**
      * @brief Initializes the Bluetooth controller, host, and Blufi profile.
@@ -143,5 +144,13 @@ private:
     // WiFi scan related
     std::vector<wifi_ap_record_t> m_ap_records;
     bool m_scan_in_progress = false;
+    // When true, scan results are stored in m_ap_records on scan completion.
+    // Cleared during connect-to-AP so that the connect-time scan does not
+    // overwrite the cache with results gathered for connection purposes.
     bool m_scan_should_save_ssid = true;
+    // When true, the next scan-done event responds to a pending GET_WIFI_LIST
+    // request from the App. Set by the GET_WIFI_LIST handler when no cache is
+    // available or a scan is already in flight; cleared by the scan-done
+    // handler after dispatching the response.
+    bool m_send_list_after_scan = false;
 };

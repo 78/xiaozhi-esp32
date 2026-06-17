@@ -190,3 +190,61 @@ void WebSocketControlServer::RemoveClient(httpd_req_t *req) {
 size_t WebSocketControlServer::GetClientCount() const {
     return clients_.size();
 }
+
+struct WsBroadcastJob {
+    httpd_handle_t server;
+    int fd;
+    char* payload;
+    size_t len;
+};
+
+static void ws_broadcast_send_job(void* arg) {
+    WsBroadcastJob* job = static_cast<WsBroadcastJob*>(arg);
+
+    httpd_ws_frame_t ws_pkt = {};
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    ws_pkt.payload = reinterpret_cast<uint8_t*>(job->payload);
+    ws_pkt.len = job->len;
+    ws_pkt.final = true;
+
+    esp_err_t ret = httpd_ws_send_frame_async(job->server, job->fd, &ws_pkt);
+    if (ret != ESP_OK) {
+        ESP_LOGE("WSControl", "BroadcastMessage: send failed fd=%d err=%d", job->fd, ret);
+    }
+
+    free(job->payload);
+    free(job);
+}
+
+void WebSocketControlServer::BroadcastMessage(const std::string& message) {
+    if (!server_handle_ || clients_.empty()) {
+        return;
+    }
+
+    for (auto& [fd, req] : clients_) {
+        WsBroadcastJob* job = static_cast<WsBroadcastJob*>(malloc(sizeof(WsBroadcastJob)));
+        if (!job) {
+            ESP_LOGE(TAG, "BroadcastMessage: failed to allocate job");
+            continue;
+        }
+
+        job->server = server_handle_;
+        job->fd = fd;
+        job->len = message.length();
+        job->payload = static_cast<char*>(malloc(message.length() + 1));
+        if (!job->payload) {
+            ESP_LOGE(TAG, "BroadcastMessage: failed to allocate payload");
+            free(job);
+            continue;
+        }
+        memcpy(job->payload, message.c_str(), message.length());
+        job->payload[message.length()] = '\0';
+
+        esp_err_t ret = httpd_queue_work(server_handle_, ws_broadcast_send_job, job);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "BroadcastMessage: httpd_queue_work failed fd=%d err=%d", fd, ret);
+            free(job->payload);
+            free(job);
+        }
+    }
+}

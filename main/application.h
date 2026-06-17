@@ -10,6 +10,7 @@
 #include <mutex>
 #include <deque>
 #include <memory>
+#include <functional>
 
 #include "protocol.h"
 #include "ota.h"
@@ -108,6 +109,7 @@ public:
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
+    void RegisterMcpBroadcastCallback(std::function<void(const std::string&)> callback);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
@@ -135,6 +137,8 @@ private:
     std::string last_error_message_;
     AudioService audio_service_;
     std::unique_ptr<Ota> ota_;
+
+    std::function<void(const std::string&)> mcp_broadcast_callback_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;

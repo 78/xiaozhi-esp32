@@ -29,7 +29,7 @@ public:
     ~Assets();
 
     bool Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback);
-    bool Apply();
+    bool Apply(bool refresh_display_theme = true);
     bool GetAssetData(const std::string& name, void*& ptr, size_t& size);
 
     inline bool partition_valid() const { return partition_valid_; }
@@ -48,7 +48,7 @@ private:
     class AssetStrategy {
     public:
         virtual ~AssetStrategy() = default;
-        virtual bool Apply(Assets* assets) = 0;
+        virtual bool Apply(Assets* assets, bool refresh_display_theme = true) = 0;
         virtual bool InitializePartition(Assets* assets) = 0;
         virtual void UnApplyPartition(Assets* assets) = 0;
         virtual bool GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) = 0;
@@ -56,7 +56,7 @@ private:
     
     class LvglStrategy : public AssetStrategy {
     public:
-        bool Apply(Assets* assets) override;
+        bool Apply(Assets* assets, bool refresh_display_theme = true) override;
         bool InitializePartition(Assets* assets) override;
         void UnApplyPartition(Assets* assets) override;
         bool GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) override;
@@ -70,7 +70,7 @@ private:
     
     class EmoteStrategy : public AssetStrategy {
     public:
-        bool Apply(Assets* assets) override;
+        bool Apply(Assets* assets, bool refresh_display_theme = true) override;
         bool InitializePartition(Assets* assets) override;
         void UnApplyPartition(Assets* assets) override;
         bool GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) override;

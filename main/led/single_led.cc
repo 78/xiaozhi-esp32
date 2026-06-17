@@ -12,8 +12,10 @@
 
 
 SingleLed::SingleLed(gpio_num_t gpio) {
-    // If the gpio is not connected, you should use NoLed class
-    assert(gpio != GPIO_NUM_NC);
+    if (gpio == GPIO_NUM_NC) {
+        ESP_LOGW(TAG, "SingleLed initialized with GPIO_NUM_NC, LED will not function");
+        return;
+    }
 
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
@@ -41,7 +43,9 @@ SingleLed::SingleLed(gpio_num_t gpio) {
 }
 
 SingleLed::~SingleLed() {
-    esp_timer_stop(blink_timer_);
+    if (blink_timer_ != nullptr) {
+        esp_timer_stop(blink_timer_);
+    }
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
     }
