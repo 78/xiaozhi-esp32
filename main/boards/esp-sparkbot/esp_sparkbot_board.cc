@@ -170,6 +170,10 @@ private:
         bool camera_flipped = static_cast<bool>(settings.GetInt("camera-flipped", 1));
         camera_->SetHMirror(camera_flipped);
         camera_->SetVFlip(camera_flipped);
+
+        // PC代理URL，默认指向热点网关
+        std::string pc_proxy_url = settings.GetString("pc-proxy-url", "http://192.168.43.1:8003/photo");
+        camera_->SetPcProxyUrl(pc_proxy_url);
     }
 
     /*
@@ -265,6 +269,36 @@ private:
             
             return true;
         });
+
+        mcp_server.AddTool("self.camera.read_and_translate",
+            "Take a photo and read aloud the English text in it, then translate to Chinese.\n"
+            "Use this tool when the user asks you to:\n"
+            "- Read a book or page (e.g. '帮我读一下这个', 'read this')\n"
+            "- Translate text from a photo (e.g. '翻译一下', 'translate this')\n"
+            "- Read something aloud\n"
+            "This tool uses Claude Vision for accurate OCR and natural Chinese translation.",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                TaskPriorityReset priority_reset(1);
+                if (!camera_->Capture()) {
+                    return "{\"success\": false, \"message\": \"Failed to capture photo\"}";
+                }
+                return camera_->ReadAloud();
+            });
+
+        mcp_server.AddTool("self.camera.send_photo_to_pc",
+            "Take a photo and send it to the PC for Claude Vision analysis.\n"
+            "The PC will save the photo, analyze it with Claude, and speak the result via TTS.\n"
+            "Use this tool when the user asks you to look at or analyze something visually.\n"
+            "This is the preferred photo tool as it returns instantly without waiting for AI response.",
+            PropertyList(),
+            [this](const PropertyList& properties) -> ReturnValue {
+                TaskPriorityReset priority_reset(1);
+                if (!camera_->Capture()) {
+                    return "{\"success\": false, \"message\": \"Failed to capture photo\"}";
+                }
+                return camera_->SendPhotoToPC();
+            });
     }
 
 public:

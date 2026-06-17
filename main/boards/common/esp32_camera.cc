@@ -11,6 +11,8 @@
 
 #define TAG "Esp32Camera"
 
+#define READ_ALOUD_URL "http://192.168.43.13:8003/read_aloud"
+
 Esp32Camera::Esp32Camera(const camera_config_t& config) {
     // camera init
     esp_err_t err = esp_camera_init(&config); // 配置上面定义的参数
@@ -82,6 +84,11 @@ Esp32Camera::~Esp32Camera() {
 void Esp32Camera::SetExplainUrl(const std::string& url, const std::string& token) {
     explain_url_ = url;
     explain_token_ = token;
+}
+
+void Esp32Camera::SetPcProxyUrl(const std::string& url) {
+    pc_proxy_url_ = url;
+    ESP_LOGI(TAG, "PC proxy URL set to: %s", url.c_str());
 }
 
 bool Esp32Camera::Capture() {
@@ -302,4 +309,202 @@ std::string Esp32Camera::Explain(const std::string& question) {
     ESP_LOGI(TAG, "Explain image size=%dx%d, compressed size=%d, remain stack size=%d, question=%s\n%s",
         fb_->width, fb_->height, total_sent, remain_stack_size, question.c_str(), result.c_str());
     return result;
+}
+
+/**
+ * @brief 朗读+翻译模式：拍照后用 Claude Vision OCR+翻译
+ * 
+ * 将摄像头缓冲区的图像编码为 JPEG，直接发送到本地 xiaozhi-server 
+ * 的 /read_aloud 端点，由 Claude Vision 完成 OCR + 中文翻译。
+ * 
+ * @return std::string JSON: {"success": true, "english": "...", "chinese": "..."}
+ */
+std::string Esp32Camera::ReadAloud() {
+    if (fb_ == nullptr) {
+        return "{\"success\": false, \"message\": \"No captured frame\"}";
+    }
+
+    // 创建 JPEG 编码队列
+    QueueHandle_t jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
+    if (jpeg_queue == nullptr) {
+        ESP_LOGE(TAG, "ReadAloud: Failed to create JPEG queue");
+        return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
+    }
+
+    // 独立线程编码 JPEG
+    encoder_thread_ = std::thread([this, jpeg_queue]() {
+        frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
+            auto q = (QueueHandle_t)arg;
+            JpegChunk chunk = {
+                .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
+                .len = len
+            };
+            if (chunk.data) {
+                memcpy(chunk.data, data, len);
+            }
+            xQueueSend(q, &chunk, portMAX_DELAY);
+            return len;
+        }, jpeg_queue);
+    });
+
+    // 创建 HTTP 连接
+    auto network = Board::GetInstance().GetNetwork();
+    auto http = network->CreateHttp(5);  // 5 retries for reliability
+
+    std::string boundary = "----ESP32_READ_ALOUD";
+    http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+    http->SetHeader("Transfer-Encoding", "chunked");
+
+    if (!http->Open("POST", READ_ALOUD_URL)) {
+        ESP_LOGE(TAG, "ReadAloud: Failed to connect to %s", READ_ALOUD_URL);
+        encoder_thread_.join();
+        JpegChunk chunk;
+        while (xQueueReceive(jpeg_queue, &chunk, 0) == pdPASS) {
+            if (chunk.data) heap_caps_free(chunk.data);
+        }
+        vQueueDelete(jpeg_queue);
+        return "{\"success\": false, \"message\": \"Failed to connect to read_aloud\"}";
+    }
+
+    // 文件字段头
+    std::string file_header;
+    file_header += "--" + boundary + "\r\n";
+    file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
+    file_header += "Content-Type: image/jpeg\r\n";
+    file_header += "\r\n";
+    http->Write(file_header.c_str(), file_header.size());
+
+    // JPEG 数据块
+    size_t total_sent = 0;
+    while (true) {
+        JpegChunk chunk;
+        if (xQueueReceive(jpeg_queue, &chunk, pdMS_TO_TICKS(10000)) != pdPASS) {
+            ESP_LOGE(TAG, "ReadAloud: Timeout waiting for JPEG chunk");
+            break;
+        }
+        if (chunk.data == nullptr) break;
+        http->Write((const char*)chunk.data, chunk.len);
+        total_sent += chunk.len;
+        heap_caps_free(chunk.data);
+    }
+    encoder_thread_.join();
+    vQueueDelete(jpeg_queue);
+
+    // Multipart 尾部
+    std::string footer;
+    footer += "\r\n--" + boundary + "--\r\n";
+    http->Write(footer.c_str(), footer.size());
+    http->Write("", 0);  // 结束分块
+
+    if (http->GetStatusCode() != 200) {
+        ESP_LOGE(TAG, "ReadAloud: HTTP error %d", http->GetStatusCode());
+        return "{\"success\": false, \"message\": \"Read aloud service error\"}";
+    }
+
+    std::string result = http->ReadAll();
+    http->Close();
+
+    ESP_LOGI(TAG, "ReadAloud done: %d bytes JPEG, result: %s", total_sent, result.c_str());
+    return result;
+}
+
+/**
+ * @brief 拍照并发送到PC代理（Claude Vision）
+ * 
+ * 将摄像头缓冲区的图像编码为JPEG，通过HTTP POST发送到PC端代理服务。
+ * ESP32只等待200 OK即返回，不等待AI分析结果。
+ * PC端负责：保存照片 → Claude Vision分析 → TTS语音播报。
+ * 
+ * @return std::string JSON: {"success": true, "message": "Photo sent to PC"}
+ *                          {"success": false, "message": "错误信息"}
+ */
+std::string Esp32Camera::SendPhotoToPC() {
+    if (fb_ == nullptr) {
+        return "{\"success\": false, \"message\": \"No captured frame\"}";
+    }
+
+    // 创建JPEG编码队列
+    QueueHandle_t jpeg_queue = xQueueCreate(40, sizeof(JpegChunk));
+    if (jpeg_queue == nullptr) {
+        ESP_LOGE(TAG, "SendPhotoToPC: Failed to create JPEG queue");
+        return "{\"success\": false, \"message\": \"Failed to create JPEG queue\"}";
+    }
+
+    // 独立线程编码JPEG
+    encoder_thread_ = std::thread([this, jpeg_queue]() {
+        frame2jpg_cb(fb_, 80, [](void* arg, size_t index, const void* data, size_t len) -> unsigned int {
+            auto q = (QueueHandle_t)arg;
+            JpegChunk chunk = {
+                .data = (uint8_t*)heap_caps_aligned_alloc(16, len, MALLOC_CAP_SPIRAM),
+                .len = len
+            };
+            if (chunk.data) {
+                memcpy(chunk.data, data, len);
+            }
+            xQueueSend(q, &chunk, portMAX_DELAY);
+            return len;
+        }, jpeg_queue);
+    });
+
+    auto network = Board::GetInstance().GetNetwork();
+    auto http = network->CreateHttp(3);
+
+    std::string boundary = "----ESP32_PHOTO_PC";
+    http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+    http->SetHeader("Transfer-Encoding", "chunked");
+
+    if (!http->Open("POST", pc_proxy_url_)) {
+        ESP_LOGE(TAG, "SendPhotoToPC: Failed to connect to %s", pc_proxy_url_.c_str());
+        encoder_thread_.join();
+        JpegChunk chunk;
+        while (xQueueReceive(jpeg_queue, &chunk, 0) == pdPASS) {
+            if (chunk.data) heap_caps_free(chunk.data);
+        }
+        vQueueDelete(jpeg_queue);
+        return "{\"success\": false, \"message\": \"Failed to connect to PC proxy\"}";
+    }
+
+    // 文件字段头
+    std::string file_header;
+    file_header += "--" + boundary + "\r\n";
+    file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
+    file_header += "Content-Type: image/jpeg\r\n";
+    file_header += "\r\n";
+    http->Write(file_header.c_str(), file_header.size());
+
+    // JPEG数据块
+    size_t total_sent = 0;
+    while (true) {
+        JpegChunk chunk;
+        if (xQueueReceive(jpeg_queue, &chunk, pdMS_TO_TICKS(10000)) != pdPASS) {
+            ESP_LOGE(TAG, "SendPhotoToPC: Timeout waiting for JPEG chunk");
+            break;
+        }
+        if (chunk.data == nullptr) break;
+        http->Write((const char*)chunk.data, chunk.len);
+        total_sent += chunk.len;
+        heap_caps_free(chunk.data);
+    }
+    encoder_thread_.join();
+    vQueueDelete(jpeg_queue);
+
+    // Multipart尾部
+    std::string footer;
+    footer += "\r\n--" + boundary + "--\r\n";
+    http->Write(footer.c_str(), footer.size());
+    http->Write("", 0);
+
+    if (http->GetStatusCode() != 200) {
+        ESP_LOGE(TAG, "SendPhotoToPC: HTTP error %d", http->GetStatusCode());
+        return "{\"success\": false, \"message\": \"PC proxy returned error\"}";
+    }
+
+    std::string result = http->ReadAll();
+    http->Close();
+
+    size_t remain_stack = uxTaskGetStackHighWaterMark(nullptr);
+    ESP_LOGI(TAG, "SendPhotoToPC done: %d bytes JPEG sent, stack free=%d, response=%s",
+        total_sent, remain_stack, result.c_str());
+
+    return "{\"success\": true, \"message\": \"Photo sent to PC\"}";
 }
