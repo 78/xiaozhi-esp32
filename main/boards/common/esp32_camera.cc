@@ -11,8 +11,6 @@
 
 #define TAG "Esp32Camera"
 
-#define READ_ALOUD_URL "http://192.168.43.13:8003/read_aloud"
-
 Esp32Camera::Esp32Camera(const camera_config_t& config) {
     // camera init
     esp_err_t err = esp_camera_init(&config); // 配置上面定义的参数
@@ -89,6 +87,11 @@ void Esp32Camera::SetExplainUrl(const std::string& url, const std::string& token
 void Esp32Camera::SetPcProxyUrl(const std::string& url) {
     pc_proxy_url_ = url;
     ESP_LOGI(TAG, "PC proxy URL set to: %s", url.c_str());
+}
+
+void Esp32Camera::SetPcProxyReadAloudUrl(const std::string& url) {
+    pc_proxy_read_aloud_url_ = url;
+    ESP_LOGI(TAG, "PC proxy read-aloud URL set to: %s", url.c_str());
 }
 
 bool Esp32Camera::Capture() {
@@ -355,8 +358,8 @@ std::string Esp32Camera::ReadAloud() {
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     http->SetHeader("Transfer-Encoding", "chunked");
 
-    if (!http->Open("POST", READ_ALOUD_URL)) {
-        ESP_LOGE(TAG, "ReadAloud: Failed to connect to %s", READ_ALOUD_URL);
+    if (!http->Open("POST", pc_proxy_read_aloud_url_)) {
+        ESP_LOGE(TAG, "ReadAloud: Failed to connect to %s", pc_proxy_read_aloud_url_.c_str());
         encoder_thread_.join();
         JpegChunk chunk;
         while (xQueueReceive(jpeg_queue, &chunk, 0) == pdPASS) {

@@ -174,6 +174,9 @@ private:
         // PC代理URL，默认指向热点网关
         std::string pc_proxy_url = settings.GetString("pc-proxy-url", "http://192.168.43.1:8003/photo");
         camera_->SetPcProxyUrl(pc_proxy_url);
+
+        std::string pc_proxy_read_aloud_url = settings.GetString("pc-proxy-read-aloud-url", "http://192.168.43.1:8003/read_aloud");
+        camera_->SetPcProxyReadAloudUrl(pc_proxy_read_aloud_url);
     }
 
     /*
