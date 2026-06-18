@@ -9,7 +9,7 @@
 #include <esp_app_desc.h>
 #include <esp_ota_ops.h>
 #include <esp_pm.h>
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 && !CONFIG_XIAOZHI_USE_ETHERNET
 #include "esp_wifi_remote.h"
 #endif
 
@@ -34,7 +34,9 @@ size_t SystemInfo::GetFreeHeapSize() {
 
 std::string SystemInfo::GetMacAddress() {
     uint8_t mac[6];
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_XIAOZHI_USE_ETHERNET
+    esp_read_mac(mac, ESP_MAC_ETH);
+#elif CONFIG_IDF_TARGET_ESP32P4
     esp_wifi_get_mac(WIFI_IF_STA, mac);
 #else
     esp_read_mac(mac, ESP_MAC_WIFI_STA);

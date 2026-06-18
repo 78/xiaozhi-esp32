@@ -117,11 +117,39 @@ choice
         bool "Serbian"
 endchoice
 
+choice XIAOZHI_NETWORK_TYPE
+    prompt "Network Type"
+    default XIAOZHI_NETWORK_WIFI
+    help
+        Select the network connection type before choosing the board type.
+        Board Type options are filtered according to this choice.
+
+    config XIAOZHI_NETWORK_WIFI
+        bool "WiFi"
+
+    config XIAOZHI_NETWORK_ETHERNET
+        bool "Ethernet"
+        depends on IDF_TARGET_ESP32P4
+        select ETH_ENABLED
+        select ETH_USE_ESP32_EMAC
+        help
+            Use an onboard Ethernet port for network access.
+            Currently supported board:
+              - Waveshare ESP32-P4-NANO
+endchoice
+
+config XIAOZHI_USE_ETHERNET
+    bool
+    default y if XIAOZHI_NETWORK_ETHERNET
+    default n
+
 choice BOARD_TYPE
     prompt "Board Type"
+    depends on XIAOZHI_NETWORK_WIFI
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
+
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "Bread Compact WiFi (面包板)"
         depends on IDF_TARGET_ESP32S3
@@ -579,6 +607,65 @@ choice BOARD_TYPE
         bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
 endchoice
+
+choice XIAOZHI_ETH_BOARD_TYPE
+    prompt "Board Type"
+    depends on XIAOZHI_NETWORK_ETHERNET
+    default ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+    help
+        Board type with onboard Ethernet support.
+
+    config ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        bool "Waveshare ESP32-P4-NANO"
+        depends on IDF_TARGET_ESP32P4
+endchoice
+
+menu "Ethernet Configuration"
+    depends on XIAOZHI_NETWORK_ETHERNET
+
+    choice XIAOZHI_ETH_PHY_MODEL
+        prompt "Ethernet PHY Device"
+        default XIAOZHI_ETH_PHY_IP101
+
+        config XIAOZHI_ETH_PHY_IP101
+            bool "IP101/IP101GR"
+            help
+                IP101/IP101GR 10/100M Ethernet PHY, used by Waveshare ESP32-P4-NANO.
+    endchoice
+
+    config XIAOZHI_ETH_MDC_GPIO
+        int "Ethernet SMI MDC GPIO"
+        range 0 54
+        default 31 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default 31
+        help
+            GPIO used by the Ethernet SMI MDC signal.
+
+    config XIAOZHI_ETH_MDIO_GPIO
+        int "Ethernet SMI MDIO GPIO"
+        range 0 54
+        default 52 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default 52
+        help
+            GPIO used by the Ethernet SMI MDIO signal.
+
+    config XIAOZHI_ETH_PHY_ADDR
+        int "Ethernet PHY Address"
+        range -1 31
+        default 1
+        help
+            Set the PHY address according to the board schematic.
+            Use -1 to let the driver search for the PHY address.
+
+    config XIAOZHI_ETH_PHY_RST_GPIO
+        int "Ethernet PHY Reset GPIO"
+        range -1 54
+        default 51 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default -1
+        help
+            GPIO used to reset the Ethernet PHY. Set to -1 if not connected.
+
+endmenu
 
 choice
     depends on BOARD_TYPE_LILYGO_T_DISPLAY_P4
