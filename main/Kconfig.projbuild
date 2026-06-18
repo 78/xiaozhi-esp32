@@ -146,7 +146,11 @@ config XIAOZHI_USE_ETHERNET
 choice BOARD_TYPE
     prompt "Board Type"
     depends on XIAOZHI_NETWORK_WIFI
+<<<<<<< HEAD
     default BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
+=======
+    default BOARD_TYPE_BREAD_COMPACT_WIFI
+>>>>>>> 0d1ffd3 (Merge pull request #2067 from Y1hsiaochunnn/feature/esp32-p4-nano-ethernet)
     help
         Board type. 开发板类型
 
