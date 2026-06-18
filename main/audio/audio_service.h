@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <mutex>
+#include <atomic>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -134,6 +135,13 @@ public:
     void ResetDecoder();
     void SetModelsList(srmodel_list_t* models_list);
 
+    /**
+     * @brief 安排底层音频输入流重置（线程安全）
+     * 
+     * 在按键中断等其他线程中调用此方法，安全地在读取线程中复位 I2S 输入。
+     */
+    void ScheduleInputReset();
+
 private:
     AudioCodec* codec_ = nullptr;
     AudioServiceCallbacks callbacks_;
@@ -179,6 +187,7 @@ private:
     bool voice_detected_ = false;
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
+    std::atomic<bool> audio_input_need_reset_{false};
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;
