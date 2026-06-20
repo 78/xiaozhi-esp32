@@ -61,6 +61,9 @@ list(APPEND SOURCES
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
 )
+if(CONFIG_XIAOZHI_USE_ETHERNET)
+    list(APPEND SOURCES "boards/common/ethernet_board.cc")
+endif()
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
@@ -201,11 +204,21 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
+    set(BOARD_TYPE "m5stack-stopwatch")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_STICK_S3)
+    set(BOARD_TYPE "m5stack-stick-s3")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_ICON_FONT font_awesome_16_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_TAB5)
     set(BOARD_TYPE "m5stack-tab5")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -308,6 +321,12 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8)
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2)
+    set(MANUFACTURER "waveshare")
+    set(BOARD_TYPE "esp32-s3-touch-amoled-1.8-v2")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-c6-touch-amoled-1.8")
@@ -383,6 +402,12 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_RGB_MATRIX)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.85c")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
+    set(BUILTIN_ICON_FONT font_awesome_16_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B)
+    set(MANUFACTURER "waveshare")
+    set(BOARD_TYPE "esp32-s3-touch-lcd-1.85b")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
@@ -488,7 +513,7 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_32)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO OR CONFIG_ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-p4-nano")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -994,6 +1019,11 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        m5stack__m5pm1
+    )
+endif()
 if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
@@ -1009,6 +1039,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_pm
                         esp_psram
                         esp_netif
+                        esp_eth
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi

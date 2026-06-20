@@ -16,8 +16,4 @@ class ElectronEmojiDisplay : public SpiLcdDisplay {
     virtual ~ElectronEmojiDisplay() = default;
     virtual void SetStatus(const char* status) override;
     virtual void SetupUI() override;
-
-   private:
-    void InitializeElectronEmojis();
-    void SetupChatLabel();
 };
