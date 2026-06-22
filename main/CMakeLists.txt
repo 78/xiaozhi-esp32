@@ -61,6 +61,9 @@ list(APPEND SOURCES
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
 )
+if(CONFIG_XIAOZHI_USE_ETHERNET)
+    list(APPEND SOURCES "boards/common/ethernet_board.cc")
+endif()
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
@@ -201,6 +204,11 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
+elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
+    set(BOARD_TYPE "m5stack-stopwatch")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
+    set(BUILTIN_ICON_FONT font_awesome_30_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
@@ -505,7 +513,7 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_32)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO OR CONFIG_ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-p4-nano")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -1039,6 +1047,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_pm
                         esp_psram
                         esp_netif
+                        esp_eth
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi
