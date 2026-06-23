@@ -8,6 +8,7 @@
 
 #include <string>
 #include <mutex>
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <functional>
@@ -162,6 +163,14 @@ private:
 
     // Activation task (runs in background)
     void ActivationTask();
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+    void AgoraPairingTask();
+    void StartBindingMonitor();
+    void StopBindingMonitor();
+    static void BindingMonitorTask(void* arg);
+    TaskHandle_t binding_monitor_handle_ = nullptr;
+    std::atomic<bool> binding_monitor_running_{false};
+#endif
 
     // Helper methods
     void CheckAssetsVersion();

@@ -347,27 +347,23 @@ void AudioService::OpusCodecTask() {
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
             task->timestamp = packet->timestamp;
 
-            SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
-            if (opus_decoder_ != nullptr) {
-                task->pcm.resize(decoder_frame_size_);
-                esp_audio_dec_in_raw_t raw = {
-                    .buffer = (uint8_t *)(packet->payload.data()),
-                    .len = (uint32_t)(packet->payload.size()),
-                    .consumed = 0,
-                    .frame_recover = ESP_AUDIO_DEC_RECOVERY_NONE,
-                };
-                esp_audio_dec_out_frame_t out_frame = {
-                    .buffer = (uint8_t *)(task->pcm.data()),
-                    .len = (uint32_t)(task->pcm.size() * sizeof(int16_t)),
-                    .decoded_size = 0,
-                };
-                esp_audio_dec_info_t dec_info = {};
-                std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
-                auto ret = esp_opus_dec_decode(opus_decoder_, &raw, &out_frame, &dec_info);
-                decoder_lock.unlock();
-                if (ret == ESP_AUDIO_ERR_OK) {
-                    task->pcm.resize(out_frame.decoded_size / sizeof(int16_t));
-                    if (decoder_sample_rate_ != codec_->output_sample_rate() && output_resampler_ != nullptr) {
+            bool decoded = false;
+
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+            // RTC mode: if sample_rate > 0 and payload is large enough, it's raw PCM from SDK.
+            if (packet->sample_rate > 0 && packet->payload.size() >= 640) {
+                size_t pcm_samples = packet->payload.size() / sizeof(int16_t);
+                task->pcm.resize(pcm_samples);
+                memcpy(task->pcm.data(), packet->payload.data(), packet->payload.size());
+
+                int incoming_rate = packet->sample_rate;
+                if (incoming_rate != codec_->output_sample_rate()) {
+                    if (output_resampler_ == nullptr) {
+                        ESP_LOGI(TAG, "Creating output resampler: %d -> %d", incoming_rate, codec_->output_sample_rate());
+                        esp_ae_rate_cvt_cfg_t cfg = RATE_CVT_CFG(incoming_rate, codec_->output_sample_rate(), ESP_AUDIO_MONO);
+                        esp_ae_rate_cvt_open(&cfg, &output_resampler_);
+                    }
+                    if (output_resampler_ != nullptr) {
                         uint32_t target_size = 0;
                         esp_ae_rate_cvt_get_max_out_sample_num(output_resampler_, task->pcm.size(), &target_size);
                         std::vector<int16_t> resampled(target_size);
@@ -377,19 +373,57 @@ void AudioService::OpusCodecTask() {
                         resampled.resize(actual_output);
                         task->pcm = std::move(resampled);
                     }
-                    lock.lock();
-                    audio_playback_queue_.push_back(std::move(task));
-                    audio_queue_cv_.notify_all();
-                    debug_statistics_.decode_count++;
-                } else {
-                    ESP_LOGE(TAG, "Failed to decode audio after resize, error code: %d", ret);
-                    lock.lock();
                 }
-            } else {
-                ESP_LOGE(TAG, "Audio decoder is not configured");
-                lock.lock();
+                decoded = true;
             }
-            debug_statistics_.decode_count++;
+#endif
+            // Opus decode path (default, or fallback for local sounds in RTC mode)
+            if (!decoded) {
+                SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
+                if (opus_decoder_ != nullptr) {
+                    task->pcm.resize(decoder_frame_size_);
+                    esp_audio_dec_in_raw_t raw = {
+                        .buffer = (uint8_t *)(packet->payload.data()),
+                        .len = (uint32_t)(packet->payload.size()),
+                        .consumed = 0,
+                        .frame_recover = ESP_AUDIO_DEC_RECOVERY_NONE,
+                    };
+                    esp_audio_dec_out_frame_t out_frame = {
+                        .buffer = (uint8_t *)(task->pcm.data()),
+                        .len = (uint32_t)(task->pcm.size() * sizeof(int16_t)),
+                        .decoded_size = 0,
+                    };
+                    esp_audio_dec_info_t dec_info = {};
+                    std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
+                    auto ret = esp_opus_dec_decode(opus_decoder_, &raw, &out_frame, &dec_info);
+                    decoder_lock.unlock();
+                    if (ret == ESP_AUDIO_ERR_OK) {
+                        task->pcm.resize(out_frame.decoded_size / sizeof(int16_t));
+                        if (decoder_sample_rate_ != codec_->output_sample_rate() && output_resampler_ != nullptr) {
+                            uint32_t target_size = 0;
+                            esp_ae_rate_cvt_get_max_out_sample_num(output_resampler_, task->pcm.size(), &target_size);
+                            std::vector<int16_t> resampled(target_size);
+                            uint32_t actual_output = target_size;
+                            esp_ae_rate_cvt_process(output_resampler_, (esp_ae_sample_t)task->pcm.data(), task->pcm.size(),
+                                                    (esp_ae_sample_t)resampled.data(), &actual_output);
+                            resampled.resize(actual_output);
+                            task->pcm = std::move(resampled);
+                        }
+                        decoded = true;
+                    } else {
+                        ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
+                    }
+                } else {
+                    ESP_LOGE(TAG, "Audio decoder is not configured");
+                }
+            }
+
+            lock.lock();
+            if (decoded) {
+                audio_playback_queue_.push_back(std::move(task));
+                audio_queue_cv_.notify_all();
+                debug_statistics_.decode_count++;
+            }
         }
         /* Encode the audio to send queue */
         if (!audio_encode_queue_.empty() && audio_send_queue_.size() < MAX_SEND_PACKETS_IN_QUEUE) {
@@ -403,6 +437,25 @@ void AudioService::OpusCodecTask() {
             packet->sample_rate = 16000;
             packet->timestamp = task->timestamp;
 
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+            // Agora RTC uses SDK built-in G722 codec, send raw PCM directly
+            packet->payload.resize(task->pcm.size() * sizeof(int16_t));
+            memcpy(packet->payload.data(), task->pcm.data(), packet->payload.size());
+
+            if (task->type == kAudioTaskTypeEncodeToSendQueue) {
+                {
+                    std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                    audio_send_queue_.push_back(std::move(packet));
+                }
+                if (callbacks_.on_send_queue_available) {
+                    callbacks_.on_send_queue_available();
+                }
+            } else if (task->type == kAudioTaskTypeEncodeToTestingQueue) {
+                std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                audio_testing_queue_.push_back(std::move(packet));
+            }
+            debug_statistics_.encode_count++;
+#else
             if (opus_encoder_ != nullptr && task->pcm.size() == encoder_frame_size_) {
                 std::vector<uint8_t> buf(encoder_outbuf_size_);
                 esp_audio_enc_in_frame_t in = {
@@ -438,6 +491,7 @@ void AudioService::OpusCodecTask() {
                 ESP_LOGE(TAG, "Failed to encode audio: encoder not configured or invalid frame size (got %u, expected %u)",
                          task->pcm.size(), encoder_frame_size_);
             }
+#endif
             lock.lock();
         }
     }

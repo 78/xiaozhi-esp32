@@ -5,12 +5,18 @@
 #include "audio_codec.h"
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+#include "agora_rtc_protocol.h"
+#include "device_api_client.h"
+#include <esp_netif_sntp.h>
+#endif
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "assets.h"
 #include "settings.h"
 
 #include <cstring>
+#include <algorithm>
 #include <esp_log.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
@@ -251,9 +257,12 @@ void Application::Run() {
             display->UpdateStatusBar();
         
             // Print debug info every 10 seconds
-            if (clock_ticks_ % 10 == 0) {
-                SystemInfo::PrintHeapStats();
-            }
+            // if (clock_ticks_ % 10 == 0) {
+            //     SystemInfo::PrintHeapStats();
+            // }
+            // if (clock_ticks_ % 5 == 0) {
+            //     SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(500));
+            // }
         }
     }
 }
@@ -302,6 +311,15 @@ void Application::HandleActivationDoneEvent() {
     SystemInfo::PrintHeapStats();
     SetDeviceState(kDeviceStateIdle);
 
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+    // Agora path: no OTA, just show ready
+    auto display = Board::GetInstance().GetDisplay();
+    display->ShowNotification("设备已就绪");
+    display->SetChatMessage("system", "");
+
+    // Start runtime binding monitor
+    StartBindingMonitor();
+#else
     has_server_time_ = ota_->HasServerTime();
 
     auto display = Board::GetInstance().GetDisplay();
@@ -311,6 +329,8 @@ void Application::HandleActivationDoneEvent() {
 
     // Release OTA object after activation is complete
     ota_.reset();
+#endif
+
     auto& board = Board::GetInstance();
     board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
 
@@ -321,6 +341,10 @@ void Application::HandleActivationDoneEvent() {
 }
 
 void Application::ActivationTask() {
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+    // Agora RTC protocol: use device pairing flow instead of OTA activation
+    AgoraPairingTask();
+#else
     // Create OTA object for activation process
     ota_ = std::make_unique<Ota>();
 
@@ -335,7 +359,227 @@ void Application::ActivationTask() {
 
     // Signal completion to main loop
     xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);
+#endif
 }
+
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+
+void Application::AgoraPairingTask() {
+    auto& board = Board::GetInstance();
+    auto display = board.GetDisplay();
+
+    // Sync system time via SNTP (Agora path has no OTA server time)
+    static bool sntp_initialized = false;
+    if (!sntp_initialized) {
+        esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        esp_netif_sntp_init(&sntp_config);
+        sntp_initialized = true;
+        ESP_LOGI(TAG, "SNTP time sync started");
+    }
+
+    // Load assets (wake word models, etc.)
+    CheckAssetsVersion();
+
+    DeviceApiClient api_client;
+    ESP_LOGI(TAG, "Agora pairing: device_id=%s", api_client.GetDeviceId().c_str());
+
+    // Check if we already have a valid device_token
+    if (api_client.HasDeviceToken()) {
+        ESP_LOGI(TAG, "Found saved device_token, verifying...");
+        display->SetStatus("验证设备绑定...");
+
+        int poll_after = 30;
+        auto result = api_client.PollBindingStatus(poll_after);
+        if (result == DeviceApiClient::PollResult::kBound) {
+            ESP_LOGI(TAG, "Device still bound, skipping pairing");
+            InitializeProtocol();
+            xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);
+            return;
+        }
+        // Token invalid/revoked/unbound - fall through to pairing
+        ESP_LOGW(TAG, "Device token invalid, starting pairing flow");
+    }
+
+    // Pairing loop: request pair code, poll until bound
+    while (true) {
+        // Ensure we're in activating state for the pairing flow
+        if (GetDeviceState() != kDeviceStateActivating) {
+            SetDeviceState(kDeviceStateActivating);
+        }
+
+        display->SetStatus("申请配对码...");
+
+        // Step 1: Request pair code
+        std::string pair_code = api_client.RequestPairCode();
+        if (pair_code.empty()) {
+            ESP_LOGE(TAG, "Failed to get pair code, error=%d", (int)api_client.GetLastError());
+            display->SetStatus("申请配对码失败");
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+
+        ESP_LOGI(TAG, "Got pair code (len=%d)", (int)pair_code.size());
+
+        // Step 2: Show pair code to user (TTS + display)
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+        std::string message = "请在网页端输入配对码: " + pair_code;
+#else
+        std::string message = "请在手机端输入配对码: " + pair_code;
+#endif
+        ShowActivationCode(pair_code, message);
+
+        // Step 3: Poll binding status until bound or expired
+        bool paired = false;
+        int max_polls = 100; // Safety limit (~5 min at 3s intervals)
+        int consecutive_errors = 0;
+        for (int i = 0; i < max_polls; i++) {
+            int poll_after = 3;
+            auto result = api_client.PollBindingStatus(poll_after);
+
+            switch (result) {
+                case DeviceApiClient::PollResult::kPending:
+                    consecutive_errors = 0;
+                    vTaskDelay(pdMS_TO_TICKS(poll_after * 1000));
+                    continue;
+
+                case DeviceApiClient::PollResult::kBound:
+                    ESP_LOGI(TAG, "Device paired successfully!");
+                    paired = true;
+                    break;
+
+                case DeviceApiClient::PollResult::kExpired:
+                    ESP_LOGW(TAG, "Pair code expired, re-requesting");
+                    break;
+
+                case DeviceApiClient::PollResult::kUnbound:
+                    // Should not happen during pairing, but treat as re-pair needed
+                    ESP_LOGW(TAG, "Device unbound during pairing");
+                    break;
+
+                case DeviceApiClient::PollResult::kError: {
+                    auto err = api_client.GetLastError();
+                    if (err == DeviceApiError::kUnauthenticated || err == DeviceApiError::kTokenRevoked) {
+                        // pair_token expired (past grace period) → re-request pair code
+                        ESP_LOGW(TAG, "Pair token expired (401), re-requesting pair code");
+                    } else {
+                        consecutive_errors++;
+                        int backoff = std::min(consecutive_errors * 3, 30); // 3s, 6s, 9s, ... max 30s
+                        ESP_LOGW(TAG, "Poll error=%d, retry %d, backoff %ds", (int)err, consecutive_errors, backoff);
+                        if (consecutive_errors >= 10) {
+                            // Too many consecutive errors, re-request pair code
+                            ESP_LOGE(TAG, "Too many poll errors, re-requesting pair code");
+                            break;
+                        }
+                        vTaskDelay(pdMS_TO_TICKS(backoff * 1000));
+                        continue;
+                    }
+                    break;
+                }
+            }
+            break; // Exit poll loop on bound/expired/fatal error
+        }
+
+        if (paired) {
+            InitializeProtocol();
+            xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);
+            return;
+        }
+
+        // Pair code expired or failed - request a new one
+        ESP_LOGI(TAG, "Retrying pairing...");
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+
+void Application::StartBindingMonitor() {
+    if (binding_monitor_handle_ != nullptr) {
+        return; // Already running
+    }
+    binding_monitor_running_ = true;
+    xTaskCreate(BindingMonitorTask, "bind_mon", 4096, this, 2, &binding_monitor_handle_);
+    ESP_LOGI(TAG, "Binding monitor started");
+}
+
+void Application::StopBindingMonitor() {
+    binding_monitor_running_ = false;
+    // Task will self-delete on next iteration
+    binding_monitor_handle_ = nullptr;
+}
+
+void Application::BindingMonitorTask(void* arg) {
+    Application* app = static_cast<Application*>(arg);
+
+    // Wait 30 seconds before first check
+    for (int i = 0; i < 30 && app->binding_monitor_running_; i++) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    DeviceApiClient api_client;
+
+    while (app->binding_monitor_running_) {
+        // Only check when device is idle (not in a conversation)
+        auto state = app->GetDeviceState();
+        if (state == kDeviceStateIdle) {
+            int poll_after = 30;
+            auto result = api_client.PollBindingStatus(poll_after);
+
+            bool need_repair = false;
+
+            if (result == DeviceApiClient::PollResult::kBound) {
+                // Still bound, all good
+            } else if (result == DeviceApiClient::PollResult::kUnbound) {
+                // User explicitly unbound device on Web side
+                ESP_LOGW(TAG, "Device unbound by user, restarting pairing");
+                need_repair = true;
+            } else if (result == DeviceApiClient::PollResult::kError) {
+                auto err = api_client.GetLastError();
+                if (err == DeviceApiError::kUnauthenticated ||
+                    err == DeviceApiError::kTokenRevoked) {
+                    // Token revoked or invalid (401)
+                    ESP_LOGW(TAG, "Device token revoked (401), restarting pairing");
+                    api_client.ClearCredentials();
+                    need_repair = true;
+                }
+                // Other errors (network, rate limit, server): just retry later
+            }
+            // kPending/kExpired should not occur in runtime with device_token, ignore
+
+            if (need_repair) {
+                // Close audio channel if open, reset protocol, trigger re-activation
+                app->Schedule([app]() {
+                    if (app->protocol_ && app->protocol_->IsAudioChannelOpened()) {
+                        app->protocol_->CloseAudioChannel();
+                    }
+                    app->protocol_.reset();
+
+                    // Trigger re-activation (pairing flow)
+                    app->SetDeviceState(kDeviceStateActivating);
+                    if (app->activation_task_handle_ == nullptr) {
+                        xTaskCreate([](void* a) {
+                            Application* self = static_cast<Application*>(a);
+                            self->ActivationTask();
+                            self->activation_task_handle_ = nullptr;
+                            vTaskDelete(NULL);
+                        }, "activation", 4096 * 2, app, 2, &app->activation_task_handle_);
+                    }
+                });
+
+                // Stop this monitor; a new one will start after successful re-pairing
+                break;
+            }
+        }
+
+        // Runtime poll interval: ≥ 30 seconds as per DEVICE_API.md
+        for (int i = 0; i < 30 && app->binding_monitor_running_; i++) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+
+    app->binding_monitor_handle_ = nullptr;
+    vTaskDelete(NULL);
+}
+
+#endif // CONFIG_CONNECTION_TYPE_AGORA_RTC
 
 void Application::CheckAssetsVersion() {
     // Only allow CheckAssetsVersion to be called once
@@ -477,6 +721,9 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+    protocol_ = std::make_unique<AgoraRtcProtocol>();
+#else
     if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
@@ -485,6 +732,7 @@ void Application::InitializeProtocol() {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
+#endif
 
     protocol_->OnConnected([this]() {
         DismissAlert();
@@ -496,9 +744,17 @@ void Application::InitializeProtocol() {
     });
     
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+        // Full-duplex: accept audio in both listening and speaking states
+        auto state = GetDeviceState();
+        if (state == kDeviceStateSpeaking || state == kDeviceStateListening) {
+            audio_service_.PushPacketToDecodeQueue(std::move(packet));
+        }
+#else
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
+#endif
     });
     
     protocol_->OnAudioChannelOpened([this, codec, &board]() {

@@ -119,7 +119,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -836,6 +836,32 @@ config USE_SERVER_AEC
     depends on USE_AUDIO_PROCESSOR
     help
         To work perperly, server-side AEC requires server support
+
+choice CONNECTION_TYPE
+    prompt "Connection Protocol"
+    default CONNECTION_TYPE_AGORA_RTC
+    help
+        Select the connection protocol for audio/signaling transport.
+
+    config CONNECTION_TYPE_AUTO
+        bool "Auto (OTA determined)"
+        help
+            Protocol is determined by OTA server configuration (MQTT or WebSocket).
+
+    config CONNECTION_TYPE_AGORA_RTC
+        bool "Agora RTC"
+        help
+            Use Agora RTC for audio transport and RTM for signaling.
+            Device pairing and conversation management via Device API.
+endchoice
+
+config DEVICE_API_SERVER_URL
+    string "Device API Server URL"
+    default "https://mybot.sh3t.agoralab.co/api"
+    depends on CONNECTION_TYPE_AGORA_RTC
+    help
+        The base URL of the Agent Studio Device API server.
+        Used for device pairing, binding status polling, and conversation management.
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"

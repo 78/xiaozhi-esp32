@@ -1,6 +1,7 @@
 # Define source files
 set(SOURCES "audio/audio_codec.cc"
             "audio/audio_service.cc"
+            "audio/lock_free_ring_buffer.cc"
             "audio/demuxer/ogg_demuxer.cc"
             "audio/codecs/no_audio_codec.cc"
             "audio/codecs/box_audio_codec.cc"
@@ -29,6 +30,8 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
+            "protocols/agora_rtc_protocol.cc"
+            "protocols/device_api_client.cc"
             "mcp_server.cc"
             "system_info.cc"
             "application.cc"
@@ -1017,6 +1020,7 @@ idf_component_register(SRCS ${SOURCES}
                         efuse
                         bt
                         fatfs
+                        agora_rtc
                         ${MAIN_PRIV_REQUIRES_EXTRA}
                     )
 
