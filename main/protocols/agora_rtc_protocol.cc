@@ -180,7 +180,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_jitter_buffer = true;
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
-    options.enable_audio_ai_qos = true;
+    options.enable_audio_ai_qos = AGORA_AI_QOS;
     options.enable_audio_downlink_aec = true;
 
     // Use SDK built-in G722 codec for PCM input at 16kHz
@@ -190,8 +190,8 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.audio_codec_opt.pcm_duration = 60;
 
     // Join channel with uid from server (string uid, use token)
-    ESP_LOGI(TAG, "Joining channel: %s, uid: %s, token: %.8s...",
-             info.rtc.channel.c_str(), info.rtc.uid.c_str(),
+    ESP_LOGI(TAG, "Joining channel: %s, uid: %s, ai_qos: %d, token: %.8s...",
+             info.rtc.channel.c_str(), info.rtc.uid.c_str(), AGORA_AI_QOS,
              info.rtc.token.empty() ? "none" : info.rtc.token.c_str());
 
     ret = agora_rtc_join_channel_with_user_account(conn_id_, info.rtc.channel.c_str(),

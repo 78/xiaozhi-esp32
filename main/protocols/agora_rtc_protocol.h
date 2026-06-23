@@ -17,6 +17,7 @@
 
 #define AGORA_JOINED_EVENT    (1 << 0)
 #define AGORA_RTM_LOGIN_EVENT (1 << 1)
+#define AGORA_AI_QOS          (true) // Enable AI QoS feature (configurable at compile time)
 
 class AgoraRtcProtocol : public Protocol {
 public:

@@ -1,4 +1,5 @@
 #include "device_api_client.h"
+#include "agora_rtc_protocol.h"
 #include "board.h"
 #include "system_info.h"
 #include "settings.h"
@@ -300,7 +301,7 @@ bool DeviceApiClient::StartConversation(ConversationInfo& info) {
 
     cJSON* features = cJSON_CreateObject();
     cJSON_AddBoolToObject(features, "cloud_aec", true);
-    cJSON_AddBoolToObject(features, "ai_qos", true);
+    cJSON_AddBoolToObject(features, "ai_qos", AGORA_AI_QOS);
     cJSON_AddNumberToObject(features, "fast_send_multiplier", 3);
     cJSON_AddItemToObject(body, "features", features);
 
