@@ -35,18 +35,11 @@ void LockFreeRingBuffer::Write(const int16_t* data, size_t count) {
         // If write catches up to read, advance read (discard oldest)
         if (w == r) {
             r = (r + 1) % capacity_;
+            read_pos_.store(r, std::memory_order_release);
         }
     }
 
     write_pos_.store(w, std::memory_order_release);
-    // If we overwrote data, update read position
-    // Check if we wrapped around and need to push read forward
-    size_t current_r = read_pos_.load(std::memory_order_relaxed);
-    size_t avail = (w >= current_r) ? (w - current_r) : (capacity_ - current_r + w);
-    if (avail > capacity_ - 1) {
-        // This shouldn't happen with per-sample advance above, but safety check
-        read_pos_.store((w + 1) % capacity_, std::memory_order_release);
-    }
 }
 
 size_t LockFreeRingBuffer::Read(int16_t* data, size_t count) {
