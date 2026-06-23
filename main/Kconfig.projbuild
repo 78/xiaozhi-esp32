@@ -839,7 +839,7 @@ config USE_SERVER_AEC
 
 choice CONNECTION_TYPE
     prompt "Connection Protocol"
-    default CONNECTION_TYPE_AUTO
+    default CONNECTION_TYPE_AGORA_RTC
     help
         Select the connection protocol for audio/signaling transport.
 
