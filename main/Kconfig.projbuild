@@ -119,7 +119,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
