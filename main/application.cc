@@ -405,6 +405,12 @@ void Application::HandleActivationDoneEvent() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     });
+#ifdef CONFIG_AUTO_START_LISTENING
+    // Always-on open-mic: no wake word / no button. From Idle, ToggleChatState
+    // opens the audio channel in GetDefaultListeningMode() (AutoStop when AEC is
+    // off); the AutoStop + TTS-stop→Listening cycle then sustains the conversation.
+    Schedule([this]() { ToggleChatState(); });
+#endif
 }
 
 void Application::ActivationTask() {
