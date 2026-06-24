@@ -120,6 +120,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     bp2->payload_size = ntohl(bp2->payload_size);
                     auto payload = (uint8_t*)bp2->payload;
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
+                        .format = server_audio_format_,
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = bp2->timestamp,
@@ -131,6 +132,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     bp3->payload_size = ntohs(bp3->payload_size);
                     auto payload = (uint8_t*)bp3->payload;
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
+                        .format = server_audio_format_,
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
@@ -138,6 +140,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
                     }));
                 } else {
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
+                        .format = server_audio_format_,
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
@@ -213,10 +216,10 @@ std::string WebsocketProtocol::GetHelloMessage() {
     cJSON_AddItemToObject(root, "features", features);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
-    cJSON_AddStringToObject(audio_params, "format", "opus");
-    cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
+    cJSON_AddStringToObject(audio_params, "format", "pcm");
+    cJSON_AddNumberToObject(audio_params, "sample_rate", 24000);
     cJSON_AddNumberToObject(audio_params, "channels", 1);
-    cJSON_AddNumberToObject(audio_params, "frame_duration", OPUS_FRAME_DURATION_MS);
+    cJSON_AddNumberToObject(audio_params, "frame_duration", 40);
     cJSON_AddItemToObject(root, "audio_params", audio_params);
     auto json_str = cJSON_PrintUnformatted(root);
     std::string message(json_str);
@@ -247,6 +250,15 @@ void WebsocketProtocol::ParseServerHello(const cJSON* root) {
         auto frame_duration = cJSON_GetObjectItem(audio_params, "frame_duration");
         if (cJSON_IsNumber(frame_duration)) {
             server_frame_duration_ = frame_duration->valueint;
+        }
+        auto format = cJSON_GetObjectItem(audio_params, "format");
+        if (cJSON_IsString(format)) {
+            if (strcmp(format->valuestring, "pcm") == 0) {
+                server_audio_format_ = kAudioFormatPcm;
+            } else {
+                server_audio_format_ = kAudioFormatOpus;
+            }
+            ESP_LOGI(TAG, "Server downstream format: %s", format->valuestring);
         }
     }
 

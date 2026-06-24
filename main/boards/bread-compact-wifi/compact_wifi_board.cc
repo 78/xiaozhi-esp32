@@ -131,6 +131,10 @@ private:
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
+        volume_up_button_.OnDoubleClick([this]() {
+            Application::GetInstance().ToggleChatState();
+        });
+
         volume_down_button_.OnClick([this]() {
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;

@@ -154,19 +154,19 @@ def copy_directory(src, dst):
         return False
 
 
-def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets_dir):
-    """Process SR models (wakenet and multinet) and generate srmodels.bin"""
-    if not wakenet_model_dirs and not multinet_model_dirs:
+def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets_dir, vadnet_model_dirs=None):
+    """Process SR models (wakenet, multinet, vadnet) and generate srmodels.bin"""
+    if not wakenet_model_dirs and not multinet_model_dirs and not vadnet_model_dirs:
         return None
-    
+
     # Create SR models build directory
     sr_models_build_dir = os.path.join(build_dir, "srmodels")
     if os.path.exists(sr_models_build_dir):
         shutil.rmtree(sr_models_build_dir)
     os.makedirs(sr_models_build_dir)
-    
+
     models_processed = 0
-    
+
     # Copy wakenet models if available
     if wakenet_model_dirs:
         for wakenet_model_dir in wakenet_model_dirs:
@@ -175,7 +175,7 @@ def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets
             if copy_directory(wakenet_model_dir, wakenet_dst):
                 models_processed += 1
                 print(f"Added wakenet model: {wakenet_name}")
-    
+
     # Copy multinet models if available
     if multinet_model_dirs:
         for multinet_model_dir in multinet_model_dirs:
@@ -184,6 +184,15 @@ def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets
             if copy_directory(multinet_model_dir, multinet_dst):
                 models_processed += 1
                 print(f"Added multinet model: {multinet_name}")
+
+    # Copy vadnet models if available
+    if vadnet_model_dirs:
+        for vadnet_model_dir in vadnet_model_dirs:
+            vadnet_name = os.path.basename(vadnet_model_dir)
+            vadnet_dst = os.path.join(sr_models_build_dir, vadnet_name)
+            if copy_directory(vadnet_model_dir, vadnet_dst):
+                models_processed += 1
+                print(f"Added vadnet model: {vadnet_name}")
     
     if models_processed == 0:
         print("Warning: No SR models were successfully processed")
@@ -479,6 +488,44 @@ def read_wakenet_from_sdkconfig(sdkconfig_path):
     return models
 
 
+def read_vadnet_from_sdkconfig(sdkconfig_path):
+    """
+    Read vadnet models from sdkconfig.
+    Returns a list of vadnet model names (e.g. 'vadnet1_medium').
+    The WebRTC VAD is algorithm-only (no model file) — skipped.
+    """
+    if not os.path.exists(sdkconfig_path):
+        return []
+
+    models = []
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
+        for label in f:
+            label = label.strip("\n")
+            if 'CONFIG_SR_VADN' in label and (not label or label[0] != '#'):
+                if '_WEBRTC' in label:
+                    continue  # WebRTC VAD is built-in, no model file needed
+                if '=' not in label:
+                    continue
+                key = label.split("=")[0]
+                model_name = key.split("_SR_VADN_")[-1].lower()
+                models.append(model_name)
+    return models
+
+
+def get_vadnet_model_paths(model_names, esp_sr_model_path):
+    """Resolve vadnet model names to directory paths under esp-sr/model/vadnet_model/."""
+    if not model_names:
+        return []
+    valid_paths = []
+    for model_name in model_names:
+        vadnet_model_path = os.path.join(esp_sr_model_path, 'vadnet_model', model_name)
+        if os.path.exists(vadnet_model_path):
+            valid_paths.append(vadnet_model_path)
+        else:
+            print(f"Warning: Vadnet model directory not found: {vadnet_model_path}")
+    return valid_paths
+
+
 def read_multinet_from_sdkconfig(sdkconfig_path):
     """
     Read multinet models from sdkconfig (based on movemodel.py logic)
@@ -747,7 +794,7 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
     return None
 
 
-def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None):
+def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None, vadnet_model_paths=None):
     """
     Build assets using integrated functions (no external dependencies)
     """
@@ -765,7 +812,7 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
         print("Starting to build assets...")
         
         # Process each component
-        srmodels = process_sr_models(wakenet_model_paths, multinet_model_paths, temp_build_dir, assets_dir) if (wakenet_model_paths or multinet_model_paths) else None
+        srmodels = process_sr_models(wakenet_model_paths, multinet_model_paths, temp_build_dir, assets_dir, vadnet_model_paths) if (wakenet_model_paths or multinet_model_paths or vadnet_model_paths) else None
         text_font = process_text_font(text_font_path, assets_dir) if text_font_path else None
         emoji_collection = process_emoji_collection(emoji_collection_path, assets_dir) if emoji_collection_path else None
         extra_files = process_extra_files(extra_files_path, assets_dir) if extra_files_path else None
@@ -844,6 +891,12 @@ def main():
     # Read SR models from sdkconfig
     wakenet_model_names = read_wakenet_from_sdkconfig(args.sdkconfig)
     multinet_model_names = read_multinet_from_sdkconfig(args.sdkconfig)
+    vadnet_model_names = read_vadnet_from_sdkconfig(args.sdkconfig)
+
+    # Always include vadnet models (neural VAD); WebRTC VAD has no model file.
+    vadnet_model_paths = get_vadnet_model_paths(vadnet_model_names, args.esp_sr_model_path)
+    if vadnet_model_paths:
+        print(f"  vadnet models: {', '.join(vadnet_model_names)} (will be packaged)")
     
     # Apply wake word logic to decide which models to package
     wakenet_model_paths = []
@@ -911,7 +964,7 @@ def main():
         print(f"  wake word threshold: {custom_wake_word_config['threshold']}")
     
     # Check if we have anything to build
-    if not wakenet_model_paths and not multinet_model_paths and not text_font_path and not emoji_collection_path and not extra_files_path and not multinet_model_info:
+    if not wakenet_model_paths and not multinet_model_paths and not vadnet_model_paths and not text_font_path and not emoji_collection_path and not extra_files_path and not multinet_model_info:
         print("Warning: No assets to build (no SR models, text font, emoji collection, extra files, or custom wake word)")
         # Create an empty assets.bin file
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
@@ -921,8 +974,8 @@ def main():
         return
     
     # Build the assets
-    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, 
-                                     extra_files_path, args.output, multinet_model_info)
+    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path,
+                                     extra_files_path, args.output, multinet_model_info, vadnet_model_paths)
     
     if not success:
         sys.exit(1)
