@@ -106,6 +106,11 @@ void AudioService::Initialize(AudioCodec* codec) {
 #endif
 
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
+        // Snapshot the generation at entry (before resampling) so we can tag
+        // the frame with the session it belongs to. A BumpUpstreamGeneration()
+        // that races after this point will cause the generation check inside
+        // PushTaskToEncodeQueue to drop the frame — correct behaviour.
+        uint32_t gen = upstream_generation_.load(std::memory_order_relaxed);
         // Processor delivers 16k mono PCM in UPSTREAM_FRAME_DURATION_MS chunks
         // (e.g. 640 samples at 40ms). Upsample to UPSTREAM_SAMPLE_RATE.
         if (upstream_resampler_ != nullptr) {
@@ -116,9 +121,9 @@ void AudioService::Initialize(AudioCodec* codec) {
             esp_ae_rate_cvt_process(upstream_resampler_, (esp_ae_sample_t)data.data(), data.size(),
                                     (esp_ae_sample_t)resampled.data(), &actual_output);
             resampled.resize(actual_output);
-            PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(resampled));
+            PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(resampled), gen);
         } else {
-            PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(data));
+            PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(data), gen);
         }
     });
 
@@ -306,7 +311,8 @@ void AudioService::AudioInputTask() {
                     }
                     data = std::move(mono_data);
                 }
-                PushTaskToEncodeQueue(kAudioTaskTypeEncodeToTestingQueue, std::move(data));
+                PushTaskToEncodeQueue(kAudioTaskTypeEncodeToTestingQueue, std::move(data),
+                                     upstream_generation_.load(std::memory_order_relaxed));
                 continue;
             }
         }
@@ -470,6 +476,26 @@ void AudioService::OpusCodecTask() {
             audio_queue_cv_.notify_all();
             lock.unlock();
 
+            // Handle end-of-utterance marker: do NOT build a PCM packet.
+            // Re-check generation under lock2 so we only emit if still current.
+            if (task->type == kAudioTaskTypeEndOfUtterance) {
+                if (task->generation == upstream_generation_.load(std::memory_order_relaxed)) {
+                    auto marker = std::make_unique<AudioStreamPacket>();
+                    marker->format = kAudioFormatPcm;
+                    marker->end_of_utterance = true;
+                    marker->generation = task->generation;
+                    {
+                        std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                        audio_send_queue_.push_back(std::move(marker));
+                    }
+                    if (callbacks_.on_send_queue_available) {
+                        callbacks_.on_send_queue_available();   // wake the drain — eos must not sit queued
+                    }
+                }
+                lock.lock();
+                continue;
+            }
+
             auto packet = std::make_unique<AudioStreamPacket>();
             packet->format = kAudioFormatPcm;
             packet->frame_duration = UPSTREAM_FRAME_DURATION_MS;
@@ -478,6 +504,7 @@ void AudioService::OpusCodecTask() {
             packet->sample_rate = (task->type == kAudioTaskTypeEncodeToSendQueue)
                 ? UPSTREAM_SAMPLE_RATE : 16000;
             packet->timestamp = task->timestamp;
+            packet->generation = task->generation;
 
             size_t byte_count = task->pcm.size() * sizeof(int16_t);
             packet->payload.resize(byte_count);
@@ -486,7 +513,14 @@ void AudioService::OpusCodecTask() {
             if (task->type == kAudioTaskTypeEncodeToSendQueue) {
                 {
                     std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
-                    audio_send_queue_.push_back(std::move(packet));
+                    // Only push if the frame still belongs to the current session.
+                    // A BumpUpstreamGeneration() that raced after PushTaskToEncodeQueue
+                    // may have already cleared the queues; drop the stale frame.
+                    if (packet->generation == upstream_generation_.load(std::memory_order_relaxed)) {
+                        audio_send_queue_.push_back(std::move(packet));
+                    } else {
+                        packet.reset();
+                    }
                 }
                 if (callbacks_.on_send_queue_available) {
                     callbacks_.on_send_queue_available();
@@ -551,12 +585,21 @@ void AudioService::SetDecodeSampleRate(int sample_rate, int frame_duration) {
     EnsureOutputResampler(sample_rate);
 }
 
-void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm) {
+void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm, uint32_t generation) {
     auto task = std::make_unique<AudioTask>();
     task->type = type;
     task->pcm = std::move(pcm);
+    task->generation = generation;
     /* Push the task to the encode queue */
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+
+    // Drop frames produced in a prior upstream session (a Stop bumped the
+    // generation while this frame was still resampling). Prevents stale audio
+    // from re-entering after a clear.
+    if (type == kAudioTaskTypeEncodeToSendQueue &&
+        generation != upstream_generation_.load(std::memory_order_relaxed)) {
+        return;
+    }
 
     /* If the task is to send queue, we need to set the timestamp */
     if (type == kAudioTaskTypeEncodeToSendQueue && !timestamp_queue_.empty()) {
@@ -571,6 +614,32 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
     audio_queue_cv_.wait(lock, [this]() { return audio_encode_queue_.size() < MAX_ENCODE_TASKS_IN_QUEUE; });
     audio_encode_queue_.push_back(std::move(task));
     audio_queue_cv_.notify_all();
+}
+
+void AudioService::MarkEndOfUtterance(uint32_t generation) {
+    auto task = std::make_unique<AudioTask>();
+    task->type = kAudioTaskTypeEndOfUtterance;
+    task->generation = generation;
+    std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+    if (generation != upstream_generation_.load(std::memory_order_relaxed)) {
+        return;
+    }
+    audio_queue_cv_.wait(lock, [this]() {
+        return audio_encode_queue_.size() < MAX_ENCODE_TASKS_IN_QUEUE; });
+    audio_encode_queue_.push_back(std::move(task));
+    audio_queue_cv_.notify_all();
+}
+
+void AudioService::BumpUpstreamGeneration() {
+    // audio_encode_queue_ and audio_send_queue_ are both guarded by
+    // audio_queue_mutex_, so one lock covers the whole bump+clear. Dropping the
+    // old session here, plus the generation check before each push, means a
+    // clear can't be undone by an in-flight encode.
+    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+    upstream_generation_.fetch_add(1, std::memory_order_relaxed);
+    audio_encode_queue_.clear();
+    audio_send_queue_.clear();
+    audio_queue_cv_.notify_all();   // wake any producer blocked in the full-queue wait
 }
 
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
@@ -594,13 +663,16 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
 
 std::unique_ptr<AudioStreamPacket> AudioService::PopPacketFromSendQueue() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-    if (audio_send_queue_.empty()) {
-        return nullptr;
+    while (!audio_send_queue_.empty()) {
+        auto packet = std::move(audio_send_queue_.front());
+        audio_send_queue_.pop_front();
+        if (packet->generation != upstream_generation_.load(std::memory_order_relaxed)) {
+            continue;   // drop stale; do not transmit
+        }
+        audio_queue_cv_.notify_all();
+        return packet;
     }
-    auto packet = std::move(audio_send_queue_.front());
-    audio_send_queue_.pop_front();
-    audio_queue_cv_.notify_all();
-    return packet;
+    return nullptr;
 }
 
 void AudioService::EncodeWakeWord() {

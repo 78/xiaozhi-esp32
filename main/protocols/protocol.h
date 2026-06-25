@@ -18,6 +18,8 @@ struct AudioStreamPacket {
     int frame_duration = 0;
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
+    bool end_of_utterance = false;   // marker: drain sends listen.stop, never SendAudio
+    uint32_t generation = 0;         // upstream session id for stale-drop
 };
 
 struct BinaryProtocol2 {

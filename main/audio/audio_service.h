@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <mutex>
+#include <atomic>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -98,12 +99,14 @@ enum AudioTaskType {
     kAudioTaskTypeEncodeToSendQueue,
     kAudioTaskTypeEncodeToTestingQueue,
     kAudioTaskTypeDecodeToPlaybackQueue,
+    kAudioTaskTypeEndOfUtterance,
 };
 
 struct AudioTask {
     AudioTaskType type;
     std::vector<int16_t> pcm;
     uint32_t timestamp;
+    uint32_t generation = 0;
 };
 
 struct DebugStatistics {
@@ -141,6 +144,8 @@ public:
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
+    void MarkEndOfUtterance(uint32_t generation);
+    void BumpUpstreamGeneration();
     void PlaySound(const std::string_view& sound);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
@@ -198,10 +203,12 @@ private:
     std::chrono::steady_clock::time_point last_input_time_;
     std::chrono::steady_clock::time_point last_output_time_;
 
+    std::atomic<uint32_t> upstream_generation_{0};
+
     void AudioInputTask();
     void AudioOutputTask();
     void OpusCodecTask();
-    void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
+    void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm, uint32_t generation);
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void EnsureOutputResampler(int sample_rate);
     void CheckAndUpdateAudioPowerState();
