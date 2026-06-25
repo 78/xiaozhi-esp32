@@ -164,34 +164,52 @@ void AfeAudioProcessor::AudioProcessorTask() {
             continue;
         }
 
-        // VAD state change
-        if (vad_state_change_callback_) {
-            if (res->vad_state == VAD_SPEECH && !is_speaking_) {
-                is_speaking_ = true;
-                vad_state_change_callback_(true);
-            } else if (res->vad_state == VAD_SILENCE && is_speaking_) {
-                is_speaking_ = false;
-                vad_state_change_callback_(false);
-            }
+        // VAD state — update is_speaking_ regardless of callback presence
+        // (gating reads it), then notify on edges.
+        bool was_speaking = is_speaking_;
+        if (res->vad_state == VAD_SPEECH) {
+            is_speaking_ = true;
+        } else if (res->vad_state == VAD_SILENCE) {
+            is_speaking_ = false;
+        }
+        bool rising  = is_speaking_ && !was_speaking;   // silence -> speech
+        bool falling = !is_speaking_ && was_speaking;   // speech  -> silence
+        if ((rising || falling) && vad_state_change_callback_) {
+            vad_state_change_callback_(is_speaking_);
         }
 
-        if (output_callback_) {
+#ifdef CONFIG_VAD_GATED_UPSTREAM
+        const bool gating = IsUpstreamGatingActive();
+#else
+        const bool gating = false;
+#endif
+
+        if (gating && falling) {
+            // Discard the partial sub-frame tail so residual samples can't bleed
+            // into the next utterance after the eos marker.
+            output_buffer_.clear();
+        }
+
+        if (output_callback_ && (!gating || is_speaking_)) {
+            // On the rising edge, emit the AFE pre-speech cache first so the
+            // first word isn't clipped.
+            if (gating && rising && res->vad_cache != nullptr && res->vad_cache_size > 0) {
+                size_t cache_samples = res->vad_cache_size / sizeof(int16_t);
+                output_buffer_.insert(output_buffer_.end(), res->vad_cache,
+                                      res->vad_cache + cache_samples);
+            }
             size_t samples = res->data_size / sizeof(int16_t);
-            
-            // Add data to buffer
             output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
-            
-            // Output complete frames when buffer has enough data
             while (output_buffer_.size() >= frame_samples_) {
                 if (output_buffer_.size() == frame_samples_) {
-                    // If buffer size equals frame size, move the entire buffer
                     output_callback_(std::move(output_buffer_));
                     output_buffer_.clear();
                     output_buffer_.reserve(frame_samples_);
                 } else {
-                    // If buffer size exceeds frame size, copy one frame and remove it
-                    output_callback_(std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
-                    output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
+                    output_callback_(std::vector<int16_t>(output_buffer_.begin(),
+                                                          output_buffer_.begin() + frame_samples_));
+                    output_buffer_.erase(output_buffer_.begin(),
+                                         output_buffer_.begin() + frame_samples_);
                 }
             }
         }
