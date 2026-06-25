@@ -6,6 +6,7 @@
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <functional>
@@ -49,6 +50,7 @@ private:
     bool vad_enabled_ = false;
     std::vector<int16_t> input_buffer_;
     std::mutex input_buffer_mutex_;
+    std::atomic<bool> reset_pending_{false};
     std::vector<int16_t> output_buffer_;
 
     void AudioProcessorTask();

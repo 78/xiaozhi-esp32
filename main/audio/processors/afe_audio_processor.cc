@@ -124,7 +124,7 @@ void AfeAudioProcessor::Start() {
 
 void AfeAudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
-
+    reset_pending_.store(true, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(input_buffer_mutex_);
     if (afe_data_ != nullptr) {
         afe_iface_->reset_buffer(afe_data_);
@@ -156,6 +156,11 @@ void AfeAudioProcessor::AudioProcessorTask() {
         auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             continue;
+        }
+        if (reset_pending_.exchange(false, std::memory_order_relaxed)) {
+            is_speaking_ = false;
+            output_buffer_.clear();
+            continue;   // discard this fetch; it may belong to the prior session
         }
         if (res == nullptr || res->ret_value == ESP_FAIL) {
             if (res != nullptr) {

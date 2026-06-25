@@ -751,6 +751,7 @@ void AudioService::EnableVoiceProcessing(bool enable) {
         audio_processor_->Start();
         xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_PROCESSOR_RUNNING);
     } else {
+        BumpUpstreamGeneration();   // discard any in-flight upstream PCM / eos marker
         audio_processor_->Stop();
         xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_PROCESSOR_RUNNING);
     }
