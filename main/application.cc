@@ -252,6 +252,19 @@ void Application::Run() {
             // burst when silence is detected, just before listen.stop.
             if (!(audio_batch_mode_ && GetDeviceState() == kDeviceStateListening)) {
                 while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+                    if (packet->end_of_utterance) {
+                        // Marker rides the FIFO behind the PCM — eos is now
+                        // strictly after the last frame. Marker proves a
+                        // speech->silence transition, so no vad_had_speech_in_turn_.
+                        if (listening_mode_ == kListeningModeAutoStop &&
+                            GetDeviceState() == kDeviceStateListening &&
+                            !listen_stop_sent_ && protocol_) {
+                            ESP_LOGI(TAG, "EOS marker, sending listen.stop");
+                            protocol_->SendStopListening();
+                            listen_stop_sent_ = true;
+                        }
+                        continue;   // never SendAudio() a marker
+                    }
                     if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
                         break;
                     }
@@ -275,7 +288,8 @@ void Application::Run() {
                 // observed at least one speaking=true → speaking=false edge.
                 // Don't change state — server's tts state:start will move us
                 // to kDeviceStateSpeaking when TTS playback begins.
-                if (listening_mode_ == kListeningModeAutoStop && !listen_stop_sent_) {
+                if (listening_mode_ == kListeningModeAutoStop && !listen_stop_sent_ &&
+                    !audio_service_.IsUpstreamGatingActive()) {
                     if (vad_speaking_) {
                         vad_had_speech_in_turn_ = true;
                     } else if (vad_had_speech_in_turn_) {

@@ -132,6 +132,12 @@ void AudioService::Initialize(AudioCodec* codec) {
         if (callbacks_.on_vad_change) {
             callbacks_.on_vad_change(speaking);
         }
+#ifdef CONFIG_VAD_GATED_UPSTREAM
+        if (IsUpstreamGatingActive() && !speaking) {
+            // After the last PCM of this utterance; rides the same FIFO.
+            MarkEndOfUtterance(upstream_generation_.load(std::memory_order_relaxed));
+        }
+#endif
     });
 
     esp_timer_create_args_t audio_power_timer_args = {
