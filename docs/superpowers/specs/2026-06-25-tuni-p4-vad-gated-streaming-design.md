@@ -90,7 +90,10 @@ running); only the **send** path is gated. The input-side `MIC peak/rms` log is 
    when gating is active**, enqueue a `kAudioTaskTypeEndOfUtterance` task into `audio_encode_queue_` —
    after the last PCM task (all prior speech PCM is already queued). FIFO preserved.
 3. `OpusCodecTask`, on `kAudioTaskTypeEndOfUtterance`, pushes a **marker `AudioStreamPacket`**
-   (new `bool end_of_utterance`, empty payload) onto `audio_send_queue_`, behind the PCM.
+   (new `bool end_of_utterance`, empty payload) onto `audio_send_queue_`, behind the PCM, **and invokes
+   `callbacks_.on_send_queue_available()`** exactly as the PCM path does (`audio_service.cc:491`). Without
+   this wake, if the main task already drained the PCM before the marker was produced, the eos would sit
+   in the queue indefinitely (gating means no later PCM arrives to wake the drain).
 4. The main drain (`application.cc:254`), on a packet with `end_of_utterance == true`, calls
    `SendStopListening()` and **discards** it — **never** `SendAudio()` (no empty binary frame).
    **Guards for the marker path: AutoStop mode + listening state + `!listen_stop_sent_` only — NOT
@@ -108,13 +111,24 @@ is active the raw edge sends no eos (the marker path does); no double-stop.
 Two task boundaries can resurrect stale state across a stop; both are closed with a single
 **`upstream_generation_`** counter in `AudioService` (a `uint32_t`, mutated under `audio_queue_mutex_`):
 
-- **Stale encode/send items (review #2).** `EnableVoiceProcessing(false)` / mid-utterance stop increments
-  `upstream_generation_` and clears `audio_encode_queue_` + `audio_send_queue_`, all under
-  `audio_queue_mutex_`. `AudioTask` and the marker `AudioStreamPacket` each carry the `generation` they
-  were created with. `OpusCodecTask`, **under the same lock before pushing**, discards a task whose
-  generation ≠ current (so the pop→unlock→build→push window cannot resurrect a stale PCM frame or eos
-  marker); `AudioService::PopPacketFromSendQueue` likewise discards stale-generation packets and returns
-  only current ones, so `Application` needs no generation awareness.
+- **Stale encode/send items (review #2 prior round + this round).** `EnableVoiceProcessing(false)` /
+  mid-utterance stop, under `audio_queue_mutex_`, increments `upstream_generation_` (an
+  `std::atomic<uint32_t>`), clears `audio_encode_queue_` + `audio_send_queue_`, **and calls
+  `audio_queue_cv_.notify_all()`** to wake any producer blocked in `PushTaskToEncodeQueue`'s
+  full-queue wait (`audio_service.cc:571`) so it re-checks and bails instead of enqueuing into the new
+  session.
+  - **Capture generation at producer entry, not at enqueue.** The `OnOutput` PCM callback
+    (`audio_service.cc:108`) resamples *before* enqueuing, and the marker enqueue runs on the same AFE
+    task; both **snapshot `upstream_generation_` at their entry** and pass it explicitly to
+    `PushTaskToEncodeQueue(type, pcm, generation)`, which — **under `audio_queue_mutex_`** — drops the
+    enqueue if the snapshot ≠ current. Assigning the generation *inside* the enqueue would let an in-flight
+    old-session frame (still resampling when the stop landed) adopt the post-stop generation and survive.
+  - **Every upstream packet carries its task's generation.** `OpusCodecTask` copies `task->generation`
+    onto **both** PCM and marker `AudioStreamPacket`s, and discards a task whose generation ≠ current
+    **under the same lock before pushing** (closing the pop→unlock→build→push window).
+    `AudioService::PopPacketFromSendQueue` discards any packet whose generation ≠ current and returns only
+    current ones — so `Application` needs no generation awareness, and valid PCM is never discarded for
+    lack of a generation.
 - **Rapid Stop→Start in the processor (review #4).** `AfeAudioProcessor::Stop()` sets
   `std::atomic<bool> reset_pending_` (it does **not** touch task-owned `is_speaking_`/`output_buffer_`).
   `AudioProcessorTask` checks/consumes `reset_pending_` **after every `fetch_with_delay`** (not only at the
@@ -136,9 +150,12 @@ Two task boundaries can resurrect stale state across a stop; both are closed wit
   every fetch), callback-independent `is_speaking_`.
 - `main/audio/processors/no_audio_processor.{h,cc}` — inherits the `false` default (listed for completeness).
 - `main/audio/audio_service.{h,cc}` — `kAudioTaskTypeEndOfUtterance`; `AudioTask.generation` +
-  `upstream_generation_`; enqueue the marker on the gated VAD→silence edge; `OpusCodecTask` generation
-  check + marker emission; generation bump + queue clear on stop; `PopPacketFromSendQueue` stale discard;
-  `IsUpstreamGatingActive()` wrapper.
+  atomic `upstream_generation_`; `PushTaskToEncodeQueue` gains a `generation` arg and drops on mismatch
+  under lock; `OnOutput` callback + marker enqueue snapshot the generation at entry; enqueue the marker on
+  the gated VAD→silence edge; `OpusCodecTask` copies `task->generation` onto every packet, checks it under
+  lock before pushing, and fires `on_send_queue_available` for the marker; generation bump + queue clear +
+  `audio_queue_cv_.notify_all()` on stop; `PopPacketFromSendQueue` stale discard; `IsUpstreamGatingActive()`
+  wrapper.
 - `main/application.cc` — raw-edge `listen.stop` only when `!IsUpstreamGatingActive()`; send-drain emits
   `listen.stop` (+ discard) on the `end_of_utterance` marker with the marker-path guards.
 
