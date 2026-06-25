@@ -236,65 +236,29 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     last_input_time_ = std::chrono::steady_clock::now();
     debug_statistics_.input_count++;
 
-    // RMS-based mic activity tracker. The XH-S3E-AI purple board has a noisy
-    // mic baseline (~6000 RMS) that confuses both WebRTC and VADNet1 VADs —
-    // they never report VAD_SILENCE. But the raw RMS still cleanly separates
-    // speech (~10000+) from silence (~6500). We compute per-chunk RMS, log it,
-    // and fire on_silence_detected once per turn after the user spoke then
-    // went quiet for ~1s.
+    // Diagnostics-only mic level meter (drives NO decision). End-of-speech is
+    // owned solely by the neural VAD (vadnet1-medium); this log is the
+    // instrument for verifying/tuning that VAD on serial — see the single-VAD
+    // design spec. Logs peak + RMS over ~30 input chunks.
     {
         static uint32_t mic_dbg_calls = 0;
         static int32_t mic_dbg_peak = 0;
         static uint64_t mic_dbg_sqsum = 0;
         static uint32_t mic_dbg_n = 0;
-        // Per-chunk (300ms) silence tracker.
-        static uint64_t chunk_sqsum = 0;
-        static uint32_t chunk_n = 0;
-        static int silent_chunks_ = 0;
-        static bool had_loud_in_turn_ = false;
-        constexpr uint32_t kRmsSpeechThreshold = 8500;     // above => speaking
-        constexpr uint32_t kRmsSilenceThreshold = 7200;    // below => quiet
-        constexpr int kSilentChunksToTrigger = 3;          // ~3 × 300ms ≈ 900 ms quiet
-
         for (auto s : data) {
             int32_t a = s < 0 ? -static_cast<int32_t>(s) : s;
             if (a > mic_dbg_peak) mic_dbg_peak = a;
             mic_dbg_sqsum += static_cast<uint64_t>(s) * static_cast<uint64_t>(s);
-            chunk_sqsum += static_cast<uint64_t>(s) * static_cast<uint64_t>(s);
         }
         mic_dbg_n += data.size();
-        chunk_n += data.size();
         mic_dbg_calls++;
         if (mic_dbg_calls >= 30) {
             uint32_t rms = mic_dbg_n > 0 ? static_cast<uint32_t>(__builtin_sqrt(mic_dbg_sqsum / mic_dbg_n)) : 0;
-            uint32_t chunk_rms = chunk_n > 0 ? static_cast<uint32_t>(__builtin_sqrt(chunk_sqsum / chunk_n)) : 0;
-
-            // Silence detector: only counts after we've seen speech this turn.
-            if (chunk_rms >= kRmsSpeechThreshold) {
-                had_loud_in_turn_ = true;
-                silent_chunks_ = 0;
-            } else if (had_loud_in_turn_ && chunk_rms <= kRmsSilenceThreshold) {
-                silent_chunks_++;
-                if (silent_chunks_ >= kSilentChunksToTrigger) {
-                    ESP_LOGI(TAG, "RMS-based silence detected (rms=%lu after speech), firing on_silence_detected", (unsigned long)chunk_rms);
-                    if (callbacks_.on_silence_detected) {
-                        callbacks_.on_silence_detected();
-                    }
-                    // Reset so we don't refire until next speech burst.
-                    had_loud_in_turn_ = false;
-                    silent_chunks_ = 0;
-                }
-            }
-
-            ESP_LOGI(TAG, "MIC peak=%ld rms=%lu chunk_rms=%lu silent=%d loud=%d",
-                     (long)mic_dbg_peak, (unsigned long)rms, (unsigned long)chunk_rms,
-                     silent_chunks_, (int)had_loud_in_turn_);
+            ESP_LOGI(TAG, "MIC peak=%ld rms=%lu", (long)mic_dbg_peak, (unsigned long)rms);
             mic_dbg_calls = 0;
             mic_dbg_peak = 0;
             mic_dbg_sqsum = 0;
             mic_dbg_n = 0;
-            chunk_sqsum = 0;
-            chunk_n = 0;
         }
     }
 

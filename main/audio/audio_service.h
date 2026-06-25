@@ -91,10 +91,6 @@ struct AudioServiceCallbacks {
     std::function<void(const std::string&)> on_wake_word_detected;
     std::function<void(bool)> on_vad_change;
     std::function<void(void)> on_audio_testing_queue_full;
-    // Custom RMS-based silence detector for noisy mics where AFE/VADNet
-    // can't reliably detect end-of-speech. Fired once per turn after the mic
-    // has been loud then quiet for a sustained period.
-    std::function<void(void)> on_silence_detected;
 };
 
 

@@ -110,37 +110,6 @@ void Application::Initialize() {
         vad_speaking_ = speaking;
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
-    // RMS-based silence fallback for boards where AFE/VADNet can't detect
-    // end-of-speech against a noisy mic baseline (e.g. XH-S3E-AI purple PCB).
-    // AudioService fires this once per turn after the user spoke then went
-    // quiet for ~900ms. We send listen.stop without changing state — server's
-    // tts state:start will drive the transition to kDeviceStateSpeaking.
-    callbacks.on_silence_detected = [this]() {
-        if (GetDeviceState() != kDeviceStateListening) return;
-        if (listening_mode_ != kListeningModeAutoStop) return;
-        if (listen_stop_sent_) return;
-        if (!protocol_) return;
-        Schedule([this]() {
-            if (GetDeviceState() == kDeviceStateListening &&
-                listening_mode_ == kListeningModeAutoStop &&
-                !listen_stop_sent_ && protocol_) {
-                // Flush the batched Opus packets in one burst, then send
-                // listen.stop. TCP/WS preserves ordering so the server
-                // receives all audio frames before listen.stop.
-                audio_batch_mode_ = false;
-                int flushed = 0;
-                while (auto packet = audio_service_.PopPacketFromSendQueue()) {
-                    if (!protocol_->SendAudio(std::move(packet))) {
-                        break;
-                    }
-                    flushed++;
-                }
-                ESP_LOGI(TAG, "RMS silence -> flushed %d opus packets then sending listen.stop", flushed);
-                protocol_->SendStopListening();
-                listen_stop_sent_ = true;
-            }
-        });
-    };
     audio_service_.SetCallbacks(callbacks);
 
     // Add state change listeners
