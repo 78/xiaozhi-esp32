@@ -131,10 +131,12 @@ void AgoraRtcProtocol::DownlinkTaskLoop() {
         int16_t* pcm_buf = reinterpret_cast<int16_t*>(packet->payload.data());
         downlink_ring_buffer_->Read(pcm_buf, kDownlinkFrameSamples);
 
-        // Store into ref ring buffer for downlink AEC (lock-free write)
+        // Store into ref ring buffer for cloud AEC (lock-free write)
+#if AGORA_CLOUD_AEC
         if (ref_ring_buffer_) {
             ref_ring_buffer_->Write(pcm_buf, kDownlinkFrameSamples);
         }
+#endif
 
         // Push to AudioService decode queue
         if (on_incoming_audio_) {
@@ -356,7 +358,12 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         return true;
     }
 
-    // Interleave mic + ref for downlink AEC: [mic1, ref1, mic2, ref2, ...]
+    audio_frame_info_t info = {};
+    info.data_type = AUDIO_DATA_TYPE_PCM;
+
+    int ret;
+#if AGORA_CLOUD_AEC
+    // Interleave mic + ref for cloud AEC: [mic1, ref1, mic2, ref2, ...]
     const int16_t* mic_data = (const int16_t*)packet->payload.data();
     size_t mic_samples = packet->payload.size() / sizeof(int16_t); // 960
 
@@ -371,11 +378,13 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         interleaved[i * 2 + 1] = ref_data[i];
     }
 
-    audio_frame_info_t info = {};
-    info.data_type = AUDIO_DATA_TYPE_PCM;
-
-    int ret = agora_rtc_send_audio_data(conn_id_, interleaved.data(),
-                                        interleaved.size() * sizeof(int16_t), &info);
+    ret = agora_rtc_send_audio_data(conn_id_, interleaved.data(),
+                                    interleaved.size() * sizeof(int16_t), &info);
+#else
+    // No cloud AEC: send raw mic PCM directly, no interleaving
+    ret = agora_rtc_send_audio_data(conn_id_, packet->payload.data(),
+                                    packet->payload.size(), &info);
+#endif
     if (ret != ERR_OKAY) {
         ESP_LOGW(TAG, "send_audio_data failed: %d", ret);
         return false;

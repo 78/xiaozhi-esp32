@@ -302,7 +302,7 @@ bool DeviceApiClient::StartConversation(ConversationInfo& info) {
     cJSON* features = cJSON_CreateObject();
     cJSON_AddBoolToObject(features, "cloud_aec", AGORA_CLOUD_AEC);
     cJSON_AddBoolToObject(features, "ai_qos", AGORA_AI_QOS);
-    cJSON_AddNumberToObject(features, "fast_send_multiplier", 2);
+    cJSON_AddNumberToObject(features, "fast_send_multiplier", 3);
     cJSON_AddItemToObject(body, "features", features);
 
     auto app_desc = esp_app_get_description();
