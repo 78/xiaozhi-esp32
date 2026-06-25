@@ -483,18 +483,25 @@ void AudioService::OpusCodecTask() {
             lock.unlock();
 
             // Handle end-of-utterance marker: do NOT build a PCM packet.
-            // Re-check generation under lock2 so we only emit if still current.
+            // Cheap early-out before allocating the marker object.
             if (task->type == kAudioTaskTypeEndOfUtterance) {
                 if (task->generation == upstream_generation_.load(std::memory_order_relaxed)) {
                     auto marker = std::make_unique<AudioStreamPacket>();
                     marker->format = kAudioFormatPcm;
                     marker->end_of_utterance = true;
                     marker->generation = task->generation;
+                    bool pushed = false;
                     {
                         std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
-                        audio_send_queue_.push_back(std::move(marker));
+                        // Authoritative check under lock2 — mirrors the PCM path so that
+                        // a BumpUpstreamGeneration() racing into this window cannot push a
+                        // stale marker into the next session's send queue.
+                        if (marker->generation == upstream_generation_.load(std::memory_order_relaxed)) {
+                            audio_send_queue_.push_back(std::move(marker));
+                            pushed = true;
+                        }
                     }
-                    if (callbacks_.on_send_queue_available) {
+                    if (pushed && callbacks_.on_send_queue_available) {
                         callbacks_.on_send_queue_available();   // wake the drain — eos must not sit queued
                     }
                 }
