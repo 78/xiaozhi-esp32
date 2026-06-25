@@ -1,0 +1,35 @@
+{
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "tuni-p4",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_TUNI_P4=y",
+                "CONFIG_SLAVE_IDF_TARGET_ESP32C6=y",
+                "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
+                "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
+                "CONFIG_USE_AUDIO_PROCESSOR=y",
+                "CONFIG_SR_VADN_VADNET1_MEDIUM=y",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_AUTO_START_LISTENING=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "tuni-p4-p4x",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_TUNI_P4=y",
+                "CONFIG_SLAVE_IDF_TARGET_ESP32C6=y",
+                "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
+                "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
+                "CONFIG_USE_AUDIO_PROCESSOR=y",
+                "CONFIG_SR_VADN_VADNET1_MEDIUM=y",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_AUTO_START_LISTENING=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n",
+                "CONFIG_ESP32P4_REV_MIN_300=y"
+            ]
+        }
+    ]
+}

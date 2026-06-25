@@ -371,6 +371,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_LCD_0_85
         bool "Waveshare ESP32-S3-LCD-0.85"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_TUNI_P4
+        bool "Tuni P4 (Waveshare ESP32-P4-NANO, onboard audio, no display)"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
         bool "Waveshare ESP32-P4-NANO"
         depends on IDF_TARGET_ESP32P4
@@ -763,6 +766,14 @@ choice WAKE_WORD_TYPE
             Requires ESP32 S3 and PSRAM
 
 endchoice
+
+config AUTO_START_LISTENING
+    bool "Auto-start the listening loop after activation (always-on open-mic, no wake word/button)"
+    default n
+    help
+        When enabled, the device enters the default listening mode immediately
+        after activation completes, instead of waiting for a wake word or button.
+        Intended for boards with no wake word and no push-to-talk (e.g. tuni-p4).
 
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
