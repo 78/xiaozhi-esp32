@@ -39,8 +39,18 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms, srm
     
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
-    afe_config->vad_mode = VAD_MODE_0;
-    afe_config->vad_min_noise_ms = 100;
+    // Single device-side VAD (vadnet1-medium). These three knobs are the ONLY
+    // end-of-speech tuning surface (no app-level debounce):
+    //   vad_mode          MODE_0 was too permissive (slow/unreliable to report
+    //                     VAD_SILENCE); MODE_1 reliably declares silence.
+    //   vad_min_noise_ms  end-of-speech hangover — min silence before ending the
+    //                     turn, so a child's mid-sentence pause doesn't cut them off.
+    //   vad_min_speech_ms min sustained speech before onset — suppresses noise
+    //                     false-starts.
+    // Starting points — tune empirically on serial (see plan Task 3).
+    afe_config->vad_mode = VAD_MODE_1;
+    afe_config->vad_min_speech_ms = 128;
+    afe_config->vad_min_noise_ms = 700;
     if (vad_model_name != nullptr) {
         afe_config->vad_model_name = vad_model_name;
     }
