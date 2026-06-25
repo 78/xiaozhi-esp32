@@ -252,8 +252,9 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.audio_codec_opt.pcm_channel_num = 1;
     options.audio_codec_opt.pcm_duration = 60;
 
-    ESP_LOGI(TAG, "Joining channel: %s, uid: %s, ai_qos: %d, token: %.8s...",
-             info.rtc.channel.c_str(), info.rtc.uid.c_str(), AGORA_AI_QOS,
+    ESP_LOGI(TAG, "Joining channel: %s, uid: %s, ai_qos: %d, jitter: %d, cloud_aec: %d, token: %.8s...",
+             info.rtc.channel.c_str(), info.rtc.uid.c_str(),  AGORA_AI_QOS,
+             options.enable_audio_jitter_buffer, options.enable_audio_downlink_aec,
              info.rtc.token.empty() ? "none" : info.rtc.token.c_str());
 
     ret = agora_rtc_join_channel_with_user_account(conn_id_, info.rtc.channel.c_str(),
