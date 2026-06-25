@@ -29,6 +29,14 @@ public:
     size_t GetFeedSize() override;
     void EnableDeviceAec(bool enable) override;
 
+    bool IsUpstreamGatingActive() const override {
+#ifdef CONFIG_VAD_GATED_UPSTREAM
+        return vad_enabled_;
+#else
+        return false;
+#endif
+    }
+
 private:
     EventGroupHandle_t event_group_ = nullptr;
     const esp_afe_sr_iface_t* afe_iface_ = nullptr;
@@ -38,6 +46,7 @@ private:
     AudioCodec* codec_ = nullptr;
     int frame_samples_ = 0;
     bool is_speaking_ = false;
+    bool vad_enabled_ = false;
     std::vector<int16_t> input_buffer_;
     std::mutex input_buffer_mutex_;
     std::vector<int16_t> output_buffer_;

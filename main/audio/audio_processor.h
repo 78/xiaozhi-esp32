@@ -21,6 +21,11 @@ public:
     virtual void OnVadStateChange(std::function<void(bool speaking)> callback) = 0;
     virtual size_t GetFeedSize() = 0;
     virtual void EnableDeviceAec(bool enable) = 0;
+
+    // True only when this processor is actively gating upstream audio on VAD
+    // speech (CONFIG_VAD_GATED_UPSTREAM + VAD enabled). Default false so the
+    // shared Application keeps its existing raw-edge listen.stop behavior.
+    virtual bool IsUpstreamGatingActive() const { return false; }
 };
 
 #endif

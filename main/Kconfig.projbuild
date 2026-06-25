@@ -775,6 +775,15 @@ config AUTO_START_LISTENING
         after activation completes, instead of waiting for a wake word or button.
         Intended for boards with no wake word and no push-to-talk (e.g. tuni-p4).
 
+config VAD_GATED_UPSTREAM
+    bool "Gate upstream audio on VAD speech (only send while speaking)"
+    default n
+    help
+        When enabled, the device only streams audio to the server while the
+        AFE VAD reports speech (with vad_cache pre-roll), instead of streaming
+        continuously. Intended for always-on open-mic AutoStop boards with
+        on-device VAD (no device AEC). Compiled out when unset.
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"
