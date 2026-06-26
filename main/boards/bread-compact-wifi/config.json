@@ -9,7 +9,7 @@
             ]
         },
         {
-            "name": "bread-compact-wifii-128x64",
+            "name": "bread-compact-wifi-128x64",
             "sdkconfig_append": [
                 "CONFIG_OLED_SSD1306_128X64=y",
                 "CONFIG_OTA_URL=\"http://192.168.1.88:8002/xiaozhi/ota/\""
