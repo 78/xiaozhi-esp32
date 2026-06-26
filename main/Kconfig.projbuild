@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default local OTA URL"
-    default "http://192.168.1.88:8000/xiaozhi/ota/"
+    default "http://192.168.1.88:8002/xiaozhi/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
