@@ -334,6 +334,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-S3-Touch-AMOLED-2.06"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69
+        bool "Waveshare ESP32-C5-Touch-LCD-1.69"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-C6-Touch-AMOLED-2.06"
         depends on IDF_TARGET_ESP32C6
