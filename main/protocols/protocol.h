@@ -48,6 +48,7 @@ public:
     inline int server_sample_rate() const {
         return server_sample_rate_;
     }
+    inline void SetServerSampleRate(int rate) { server_sample_rate_ = rate; }
     inline int server_frame_duration() const {
         return server_frame_duration_;
     }

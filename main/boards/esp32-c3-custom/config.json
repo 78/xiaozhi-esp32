@@ -1,0 +1,15 @@
+{
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "esp32-c3-custom",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_ESP32_C3_CUSTOM=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_ESPTOOLPY_FLASHMODE_DIO=y",
+                "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""
+            ]
+        }
+    ]
+}
