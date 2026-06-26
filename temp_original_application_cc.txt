@@ -486,9 +486,6 @@ void Application::InitializeProtocol() {
         protocol_ = std::make_unique<MqttProtocol>();
     }
 
-    // Align server sample rate with device output to avoid resampling warnings.
-    protocol_->SetServerSampleRate(codec->output_sample_rate());
-
     protocol_->OnConnected([this]() {
         DismissAlert();
     });

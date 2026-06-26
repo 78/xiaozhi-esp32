@@ -9,6 +9,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_network.h>
+#include <esp_wifi.h>
 #include <esp_log.h>
 #include <utility>
 
@@ -89,6 +90,7 @@ void WifiBoard::StartNetwork() {
 void WifiBoard::TryWifiConnect() {
     auto& ssid_manager = SsidManager::GetInstance();
     bool have_ssid = !ssid_manager.GetSsidList().empty();
+    ESP_LOGI(TAG, "TryWifiConnect(): have_ssid=%d", have_ssid);
 
     if (have_ssid) {
         // Start connection attempt with timeout
@@ -97,8 +99,7 @@ void WifiBoard::TryWifiConnect() {
         WifiManager::GetInstance().StartStation();
     } else {
         // No SSID configured, enter config mode
-        // Wait for the board version to be shown
-        vTaskDelay(pdMS_TO_TICKS(1500));
+        ESP_LOGI(TAG, "No SSID configured. Starting WiFi config mode");
         StartWifiConfigMode();
     }
 }
@@ -158,12 +159,15 @@ void WifiBoard::OnWifiConnectTimeout(void* arg) {
 
 void WifiBoard::StartWifiConfigMode() {
     in_config_mode_ = true;
+    ESP_LOGI(TAG, "StartWifiConfigMode() called");
     // Transition to wifi configuring state
     Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
 #ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
     auto& wifi_manager = WifiManager::GetInstance();
 
+    ESP_LOGI(TAG, "Starting Hotspot config AP");
     wifi_manager.StartConfigAp();
+    ESP_LOGI(TAG, "Config AP started: SSID=%s, URL=%s", wifi_manager.GetApSsid().c_str(), wifi_manager.GetApWebUrl().c_str());
 
     // Show config prompt after a short delay
     Application::GetInstance().Schedule([&wifi_manager]() {

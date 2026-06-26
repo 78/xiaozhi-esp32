@@ -83,17 +83,13 @@ private:
 
     void InitializePowerManager() {
         power_manager_ = new PowerManager(io_exp_handle);
-        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
-            if (is_charging) {
-                power_save_timer_->SetEnabled(false);
-            } else {
-                power_save_timer_->SetEnabled(true);
-            }
+        power_manager_->OnChargingStatusChanged([this](bool /*is_charging*/) {
+            power_save_timer_->SetEnabled(false);
         });
     }
 
     void InitializePowerSaveTimer() {
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_ = new PowerSaveTimer(-1, -1, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);
@@ -113,7 +109,7 @@ private:
             }
         });
 
-        power_save_timer_->SetEnabled(true);
+        power_save_timer_->SetEnabled(false);
     }
 
     void audio_volume_change(bool direction) {

@@ -246,6 +246,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_ESP32_C3_CUSTOM
+        bool "ESP32-C3 Super Mini"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_RYMCU_BIGSMART
         bool "RYMCU BigSmart"
         depends on IDF_TARGET_ESP32S3

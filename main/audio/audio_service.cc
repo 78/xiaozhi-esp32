@@ -683,7 +683,9 @@ void AudioService::CheckAndUpdateAudioPowerState() {
     auto now = std::chrono::steady_clock::now();
     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
     auto output_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_output_time_).count();
-    if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled()) {
+    bool wake_word_running = xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING;
+
+    if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled() && !wake_word_running) {
         codec_->EnableInput(false);
     }
     if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {

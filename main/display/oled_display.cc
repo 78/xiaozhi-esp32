@@ -16,6 +16,7 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_awesome_30_1);
+LV_FONT_DECLARE(lv_font_montserrat_14);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
     int width, int height, bool mirror_x, bool mirror_y)
@@ -23,7 +24,7 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     width_ = width;
     height_ = height;
 
-    auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
+    auto text_font = std::make_shared<LvglBuiltInFont>(&lv_font_montserrat_14);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
     auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_1);
     
