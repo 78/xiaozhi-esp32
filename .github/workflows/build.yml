@@ -1,13 +1,10 @@
-name: Build Boards
+name: Build All Boards (upstream, manual only)
 
+# Disabled auto-trigger on fork. Original upstream workflow that builds 30+ boards.
+# Use workflow_dispatch to trigger manually if needed.
+# Vietnamese-specific build is in build-vi.yml and release-vi.yml.
 on:
-  push:
-    branches:
-      - main
-      - ci/* # for ci test
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read

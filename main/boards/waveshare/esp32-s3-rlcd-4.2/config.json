@@ -3,10 +3,12 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "esp32-s3-rlcd-4.2",
+            "name": "esp32-s3-rlcd-4.2-vi",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
-                "CONFIG_USE_DEVICE_AEC=y"
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_LANGUAGE_VI_VN=y",
+                "CONFIG_LANGUAGE_ZH_CN=n"
             ]
         }
     ]

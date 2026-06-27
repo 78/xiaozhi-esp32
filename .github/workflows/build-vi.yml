@@ -1,0 +1,147 @@
+name: Build Vietnamese Firmware (RLCD-4.2)
+
+on:
+  push:
+    branches:
+      - main
+      - vi-build-rlcd
+  pull_request:
+    branches:
+      - main
+      - vi-build-rlcd
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub release after build? (yes/no)'
+        required: false
+        default: 'no'
+      release_tag:
+        description: 'Release tag (e.g. v2.2.6-vi.1). Required if create_release=yes'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build esp32-s3-rlcd-4.2-vi
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5.2
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact_name: ${{ steps.naming.outputs.artifact_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read project version
+        id: version
+        shell: bash
+        run: |
+          VER=$(grep -E '^set\(PROJECT_VER' CMakeLists.txt | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "Building Xiaozhi v$VER (Vietnamese)"
+
+      - name: Compute artifact name
+        id: naming
+        shell: bash
+        run: |
+          NAME="xiaozhi-vi-rlcd-4.2-${GITHUB_SHA::8}"
+          echo "artifact_name=$NAME" >> $GITHUB_OUTPUT
+
+      - name: Build firmware
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py waveshare/esp32-s3-rlcd-4.2 \
+              --name esp32-s3-rlcd-4.2-vi
+
+      - name: Verify build output
+        shell: bash
+        run: |
+          ls -la build/
+          test -f build/merged-binary.bin || { echo "ERROR: merged-binary.bin missing"; exit 1; }
+          SIZE=$(stat -c%s build/merged-binary.bin)
+          SIZE_KB=$((SIZE / 1024))
+          echo "Binary size: ${SIZE_KB} KB"
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "ERROR: Binary too small (<1MB), likely build incomplete"
+            exit 1
+          fi
+
+      - name: Compute SHA256 checksum
+        shell: bash
+        run: |
+          cd build
+          sha256sum merged-binary.bin > merged-binary.bin.sha256
+          cat merged-binary.bin.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.naming.outputs.artifact_name }}
+          path: |
+            build/merged-binary.bin
+            build/merged-binary.bin.sha256
+          retention-days: 30
+          if-no-files-found: error
+
+  release-manual:
+    name: Create Release (manual dispatch)
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'yes' && github.event.inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: ./release-files
+
+      - name: Rename binary with version
+        shell: bash
+        run: |
+          cd release-files
+          TAG="${{ github.event.inputs.release_tag }}"
+          mv merged-binary.bin "xiaozhi-${TAG}-rlcd-4.2-vi.bin"
+          mv merged-binary.bin.sha256 "xiaozhi-${TAG}-rlcd-4.2-vi.bin.sha256"
+          ls -la
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: Xiaozhi ${{ github.event.inputs.release_tag }} (Vietnamese, RLCD-4.2)
+          body: |
+            ## Xiaozhi Vietnamese Firmware
+
+            Auto-built from commit `${{ github.sha }}` via manual dispatch.
+
+            **Target board**: Waveshare ESP32-S3-RLCD-4.2
+            **Language**: Tiếng Việt (vi-VN)
+            **Firmware version**: v${{ needs.build.outputs.version }}
+
+            ### Flash instructions
+
+            ```bash
+            esptool.py --chip esp32s3 --port /dev/cu.usbmodem11301 --baud 115200 \
+                write_flash --no-compress 0x0 xiaozhi-${{ github.event.inputs.release_tag }}-rlcd-4.2-vi.bin
+            ```
+
+            ### Verify checksum
+
+            ```bash
+            sha256sum -c xiaozhi-${{ github.event.inputs.release_tag }}-rlcd-4.2-vi.bin.sha256
+            ```
+          files: |
+            release-files/*.bin
+            release-files/*.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: false

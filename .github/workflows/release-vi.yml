@@ -1,0 +1,98 @@
+name: Release Vietnamese Firmware (RLCD-4.2)
+
+on:
+  push:
+    tags:
+      - 'v*-vi*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and release esp32-s3-rlcd-4.2-vi
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read project version
+        id: version
+        shell: bash
+        run: |
+          VER=$(grep -E '^set\(PROJECT_VER' CMakeLists.txt | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Building Xiaozhi v$VER for tag $TAG"
+
+      - name: Build firmware
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py waveshare/esp32-s3-rlcd-4.2 \
+              --name esp32-s3-rlcd-4.2-vi
+
+      - name: Verify and rename binary
+        shell: bash
+        run: |
+          test -f build/merged-binary.bin
+          mkdir -p release-files
+          TAG="${{ steps.version.outputs.tag }}"
+          cp build/merged-binary.bin "release-files/xiaozhi-${TAG}-rlcd-4.2-vi.bin"
+          cd release-files
+          sha256sum "xiaozhi-${TAG}-rlcd-4.2-vi.bin" > "xiaozhi-${TAG}-rlcd-4.2-vi.bin.sha256"
+          ls -la
+          cat "xiaozhi-${TAG}-rlcd-4.2-vi.bin.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Xiaozhi ${{ steps.version.outputs.tag }} (Vietnamese, RLCD-4.2)
+          body: |
+            ## Xiaozhi Vietnamese Firmware
+
+            Auto-built and released from tag `${{ steps.version.outputs.tag }}` (commit `${{ github.sha }}`).
+
+            **Target board**: Waveshare ESP32-S3-RLCD-4.2
+            **Language**: Tiếng Việt (vi-VN)
+            **Firmware version**: v${{ steps.version.outputs.version }}
+
+            ### Flash instructions
+
+            Download the `.bin` file below, then on macOS:
+
+            ```bash
+            # Cài esptool nếu chưa có
+            pip3 install --break-system-packages esptool
+
+            # Tìm USB port của board
+            ls /dev/cu.usbmodem*
+
+            # Erase + flash
+            esptool.py --chip esp32s3 --port /dev/cu.usbmodemXXXX --baud 460800 erase_flash
+            esptool.py --chip esp32s3 --port /dev/cu.usbmodemXXXX --baud 115200 \
+                write_flash --no-compress 0x0 xiaozhi-${{ steps.version.outputs.tag }}-rlcd-4.2-vi.bin
+            ```
+
+            ### Verify checksum
+
+            ```bash
+            sha256sum -c xiaozhi-${{ steps.version.outputs.tag }}-rlcd-4.2-vi.bin.sha256
+            ```
+
+            ### Note
+
+            - Wake word: `你好小智` (Ni Hao Xiao Zhi) — không đổi được mà không re-train ESP-SR model
+            - LLM response language: cấu hình trên https://xiaozhi.me dashboard
+          files: |
+            release-files/xiaozhi-*.bin
+            release-files/xiaozhi-*.bin.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
