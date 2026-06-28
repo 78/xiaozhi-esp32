@@ -1,0 +1,6 @@
+{
+  "dances": [
+    { "name": "嘉祺舞", "filename": "jiaqiwu.json" },
+    { "name": "旋转鸡块", "filename": "chicken_nugget.json" }
+  ]
+}

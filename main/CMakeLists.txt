@@ -61,9 +61,6 @@ list(APPEND SOURCES
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
 )
-if(CONFIG_XIAOZHI_USE_ETHERNET)
-    list(APPEND SOURCES "boards/common/ethernet_board.cc")
-endif()
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
@@ -156,11 +153,6 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_S3)
     set(BUILTIN_TEXT_FONT font_noto_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)
-elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV)
-    set(BOARD_TYPE "quandong-s3-dev")
-    set(BUILTIN_TEXT_FONT font_noto_basic_20_4)
-    set(BUILTIN_ICON_FONT font_awesome_20_4)
-    set(DEFAULT_EMOJI_COLLECTION noto-emoji_128)
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_C3)
     set(BOARD_TYPE "lichuang-c3-dev")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
@@ -204,21 +196,11 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
-    set(BOARD_TYPE "m5stack-stopwatch")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
-    set(BUILTIN_ICON_FONT font_awesome_30_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BOARD_TYPE "m5stack-core-s3")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
-elseif(CONFIG_BOARD_TYPE_M5STACK_STICK_S3)
-    set(BOARD_TYPE "m5stack-stick-s3")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
-    set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_TAB5)
     set(BOARD_TYPE "m5stack-tab5")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -321,12 +303,6 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8)
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-s3-touch-amoled-1.8-v2")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
-    set(BUILTIN_ICON_FONT font_awesome_30_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-c6-touch-amoled-1.8")
@@ -393,21 +369,9 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_83)
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_RGB_MATRIX)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-s3-rgb-matrix")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
-    set(BUILTIN_ICON_FONT font_awesome_14_1)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-s3-touch-lcd-1.85c")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
-    set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-s3-touch-lcd-1.85b")
     set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
     set(BUILTIN_ICON_FONT font_awesome_16_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
@@ -495,25 +459,13 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_32)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_54)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-c6-touch-lcd-1.54")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
-    set(BUILTIN_ICON_FONT font_awesome_20_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_LCD_0_85)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-c6-lcd-0.85")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_16_4)
-    set(BUILTIN_ICON_FONT font_awesome_16_4)
-    set(DEFAULT_EMOJI_COLLECTION twemoji_32)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_32)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-s3-touch-amoled-1.32")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_32)
-elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO OR CONFIG_ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
     set(MANUFACTURER "waveshare")
     set(BOARD_TYPE "esp32-p4-nano")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -851,6 +803,23 @@ elseif(CONFIG_BOARD_TYPE_AI_VOX3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_NEONITE_555)
+    set(BOARD_TYPE "NEONITE-555")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+    # 直接收集板级源文件并追加到 SOURCES
+    file(GLOB_RECURSE NEONITE_555_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/NEONITE-555/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/NEONITE-555/*.cpp
+    )
+    list(APPEND SOURCES ${NEONITE_555_SRCS})
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/NEONITE-555)
+    # 将 boards/NEONITE-555/assets/ 文件夹下的所有文件打包进 assets 分区
+    # 用户把 .json / .wav 舞步文件放入该文件夹，编译时自动包含
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/boards/NEONITE-555/assets)
+        set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/boards/NEONITE-555/assets")
+        message(STATUS "NEONITE-555: Found custom assets at ${DEFAULT_ASSETS_EXTRA_FILES}")
+    endif()
 endif()
 
 if(MANUFACTURER)
@@ -1019,11 +988,6 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
-if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
-    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
-        m5stack__m5pm1
-    )
-endif()
 if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
@@ -1039,7 +1003,6 @@ idf_component_register(SRCS ${SOURCES}
                         esp_pm
                         esp_psram
                         esp_netif
-                        esp_eth
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi
@@ -1055,6 +1018,7 @@ idf_component_register(SRCS ${SOURCES}
                         bt
                         fatfs
                         ${MAIN_PRIV_REQUIRES_EXTRA}
+                        esp_http_server
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
