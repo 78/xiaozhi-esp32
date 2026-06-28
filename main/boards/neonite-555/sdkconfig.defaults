@@ -1,4 +1,9 @@
 #
+# Target
+#
+CONFIG_IDF_TARGET="esp32s3"
+
+#
 # Compiler
 #
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
