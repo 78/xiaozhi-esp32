@@ -2,7 +2,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "NEONITE-555",
+            "name": "neonite-555",
             "sdkconfig_append": [
                 "CONFIG_BOARD_TYPE_NEONITE_555=y",
                 "CONFIG_IDF_TARGET=\"esp32s3\"",
