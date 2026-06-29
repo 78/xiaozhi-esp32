@@ -1,5 +1,0 @@
-# 此文件夹用于存放 NEONITE-555 板级自定义 assets 文件
-# 将 .json 舞步文件和 .wav 音频文件放入此文件夹
-# 编译时会自动打包进 ESP32 的 /assets/ SPIFFS 分区
-# 
-# 注意：.gitkeep 文件本身不会被打包（build_default_assets.py 只复制非隐藏文件）
