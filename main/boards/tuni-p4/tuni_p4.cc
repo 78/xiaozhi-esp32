@@ -54,6 +54,11 @@ public:
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
             AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+        // Far-field open mic: bump ES8311 ADC PGA from the 30 dB default to 36 dB
+        // (+6 dB ≈ 2x) for louder capture (helps STT + pronunciation scoring).
+        // PGA steps are 0/6/.../42 dB; 36 keeps headroom so loud speech doesn't clip.
+        // Applied on the first EnableInput (UpdateDeviceState), set here before that.
+        audio_codec.SetInputGain(36.0f);
         return &audio_codec;
     }
 
