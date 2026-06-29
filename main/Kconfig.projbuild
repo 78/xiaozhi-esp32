@@ -117,11 +117,39 @@ choice
         bool "Serbian"
 endchoice
 
+choice XIAOZHI_NETWORK_TYPE
+    prompt "Network Type"
+    default XIAOZHI_NETWORK_WIFI
+    help
+        Select the network connection type before choosing the board type.
+        Board Type options are filtered according to this choice.
+
+    config XIAOZHI_NETWORK_WIFI
+        bool "WiFi"
+
+    config XIAOZHI_NETWORK_ETHERNET
+        bool "Ethernet"
+        depends on IDF_TARGET_ESP32P4
+        select ETH_ENABLED
+        select ETH_USE_ESP32_EMAC
+        help
+            Use an onboard Ethernet port for network access.
+            Currently supported board:
+              - Waveshare ESP32-P4-NANO
+endchoice
+
+config XIAOZHI_USE_ETHERNET
+    bool
+    default y if XIAOZHI_NETWORK_ETHERNET
+    default n
+
 choice BOARD_TYPE
     prompt "Board Type"
+    depends on XIAOZHI_NETWORK_WIFI
     default BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Board type. 开发板类型
+
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "Bread Compact WiFi (面包板)"
         depends on IDF_TARGET_ESP32S3
@@ -212,6 +240,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LICHUANG_DEV_S3
         bool "立创·实战派 ESP32-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV
+        bool "全动 ESP32-S3 开发板"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LICHUANG_DEV_C3
         bool "立创·实战派 ESP32-C3"
         depends on IDF_TARGET_ESP32C3
@@ -245,8 +276,14 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_C3_V2
         bool "神奇按钮 Magiclick_C3_v2"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_M5STACK_STOPWATCH
+        bool "M5Stack StopWatch"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_STICK_S3
+        bool "M5Stack StickS3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CORE_TAB5
         bool "M5Stack Tab5"
@@ -284,6 +321,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2
+        bool "Waveshare ESP32-S3-Touch-AMOLED-1.8-v2"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C
         bool "Waveshare ESP32-S3-Touch-AMOLED-1.43C"
         depends on IDF_TARGET_ESP32S3
@@ -307,6 +347,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_83
         bool "Waveshare ESP32-S3-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_RGB_MATRIX
+        bool "Waveshare ESP32-S3-RGB-Matrix"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4B
         bool "Waveshare ESP32-S3-Touch-LCD-4B"
@@ -337,6 +380,12 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-C6-Touch-AMOLED-1.8"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_54
+        bool "Waveshare ESP32-C6-Touch-LCD-1.54"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_LCD_0_85
+        bool "Waveshare ESP32-C6-LCD-0.85"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_32
         bool "Waveshare ESP32-S3-Touch-AMOLOED-1.32"
@@ -557,10 +606,69 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_NEONITE_555
+	config BOARD_TYPE_NEONITE_555
         bool "NEONITE-555"
         depends on IDF_TARGET_ESP32S3
 endchoice
+
+choice XIAOZHI_ETH_BOARD_TYPE
+    prompt "Board Type"
+    depends on XIAOZHI_NETWORK_ETHERNET
+    default ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+    help
+        Board type with onboard Ethernet support.
+
+    config ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        bool "Waveshare ESP32-P4-NANO"
+        depends on IDF_TARGET_ESP32P4
+endchoice
+
+menu "Ethernet Configuration"
+    depends on XIAOZHI_NETWORK_ETHERNET
+
+    choice XIAOZHI_ETH_PHY_MODEL
+        prompt "Ethernet PHY Device"
+        default XIAOZHI_ETH_PHY_IP101
+
+        config XIAOZHI_ETH_PHY_IP101
+            bool "IP101/IP101GR"
+            help
+                IP101/IP101GR 10/100M Ethernet PHY, used by Waveshare ESP32-P4-NANO.
+    endchoice
+
+    config XIAOZHI_ETH_MDC_GPIO
+        int "Ethernet SMI MDC GPIO"
+        range 0 54
+        default 31 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default 31
+        help
+            GPIO used by the Ethernet SMI MDC signal.
+
+    config XIAOZHI_ETH_MDIO_GPIO
+        int "Ethernet SMI MDIO GPIO"
+        range 0 54
+        default 52 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default 52
+        help
+            GPIO used by the Ethernet SMI MDIO signal.
+
+    config XIAOZHI_ETH_PHY_ADDR
+        int "Ethernet PHY Address"
+        range -1 31
+        default 1
+        help
+            Set the PHY address according to the board schematic.
+            Use -1 to let the driver search for the PHY address.
+
+    config XIAOZHI_ETH_PHY_RST_GPIO
+        int "Ethernet PHY Reset GPIO"
+        range -1 54
+        default 51 if ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+        default -1
+        help
+            GPIO used to reset the Ethernet PHY. Set to -1 if not connected.
+
+endmenu
 
 choice
     depends on BOARD_TYPE_LILYGO_T_DISPLAY_P4
@@ -819,8 +927,8 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C || BOARD_TYPE_ESP_S3_LCD_EV_Board_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_8 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_10_1 \
-        || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2 || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \
-        || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3C || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_54 || BOARD_TYPE_WAVESHARE_ESP32_S3_LCD_0_85 || BOARD_TYPE_AI_VOX3 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C)
+        || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \
+        || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3C || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_54 || BOARD_TYPE_WAVESHARE_ESP32_S3_LCD_0_85 || BOARD_TYPE_AI_VOX3 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C || BOARD_TYPE_ATK_DNESP32S3_BOX3)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.
 
@@ -972,3 +1080,4 @@ menu "TAIJIPAI_S3_CONFIG"
 endmenu
 
 endmenu
+
