@@ -59,6 +59,10 @@ public:
         // PGA steps are 0/6/.../42 dB; 36 keeps headroom so loud speech doesn't clip.
         // Applied on the first EnableInput (UpdateDeviceState), set here before that.
         audio_codec.SetInputGain(36.0f);
+        // Speaker too quiet to hear the TTS clearly: force output volume to max
+        // (default is 70/100). Overrides any stored NVS value on boot so it's
+        // reliably loud; applied on the first EnableOutput.
+        audio_codec.SetOutputVolume(100);
         return &audio_codec;
     }
 
