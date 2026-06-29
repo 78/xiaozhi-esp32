@@ -4,8 +4,40 @@
         {
             "name": "NEONITE-555",
             "sdkconfig_append": [
-                "CONFIG_OLED_SSD1306_128X64=y",
-                "CONFIG_FREERTOS_HZ=1000"
+                "CONFIG_BOARD_TYPE_NEONITE_555=y",
+                "CONFIG_IDF_TARGET=\"esp32s3\"",
+                "CONFIG_COMPILER_OPTIMIZATION_SIZE=y",
+                "CONFIG_COMPILER_CXX_EXCEPTIONS=y",
+                "CONFIG_COMPILER_CXX_RTTI=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_OTA_URL=\"https://api.tenclass.net/xiaozhi/ota/\"",
+                "CONFIG_FLASH_DEFAULT_ASSETS=y",
+                "CONFIG_LANGUAGE_ZH_CN=y",
+                "CONFIG_USE_AFE_WAKE_WORD=y",
+                "CONFIG_SEND_WAKE_WORD_DATA=y",
+                "CONFIG_USE_AUDIO_PROCESSOR=y",
+                "CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=y",
+                "CONFIG_BT_ENABLED=y",
+                "CONFIG_BT_NIMBLE_ENABLED=y",
+                "CONFIG_BT_CONTROLLER_ENABLED=y",
+                "CONFIG_ESP_WIFI_ENABLED=y",
+                "CONFIG_ESP_HTTP_SERVER_ENABLE=y",
+                "CONFIG_HTTPD_WS_SUPPORT=y",
+                "CONFIG_SPIRAM=y",
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_SPIRAM_SPEED_80M=y",
+                "CONFIG_FREERTOS_HZ=100",
+                "CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192",
+                "CONFIG_ESP_TASK_WDT_TIMEOUT_S=10",
+                "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y",
+                "CONFIG_MMU_PAGE_SIZE_64KB=y",
+                "CONFIG_WS_TRANSPORT=y",
+                "CONFIG_WS_BUFFER_SIZE=1024",
+                "CONFIG_LV_COLOR_DEPTH_16=y",
+                "CONFIG_LV_DEF_REFR_PERIOD=33",
+                "CONFIG_LV_DPI_DEF=130"
             ]
         }
     ]
