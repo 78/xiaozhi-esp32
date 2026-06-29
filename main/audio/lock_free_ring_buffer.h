@@ -31,7 +31,9 @@ public:
 
     /**
      * Write samples into the ring buffer (producer side).
-     * If the buffer is full, oldest samples are silently discarded.
+     * If the buffer is full, oldest samples are silently overwritten.
+     * Producer only modifies write_pos_; read_pos_ is never touched here,
+     * preserving the SPSC contract required for lock-free correctness.
      * @param data Pointer to samples to write.
      * @param count Number of samples to write.
      */

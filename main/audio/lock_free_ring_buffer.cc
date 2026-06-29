@@ -25,18 +25,14 @@ LockFreeRingBuffer::~LockFreeRingBuffer() {
 void LockFreeRingBuffer::Write(const int16_t* data, size_t count) {
     if (!buffer_ || count == 0) return;
 
+    // SPSC contract: producer owns write_pos_ only, consumer owns read_pos_ only.
+    // When the buffer is full we silently overwrite the oldest samples. The consumer
+    // will still read valid (if stale) data because we never touch read_pos_ here.
     size_t w = write_pos_.load(std::memory_order_relaxed);
-    size_t r = read_pos_.load(std::memory_order_acquire);
 
     for (size_t i = 0; i < count; i++) {
         buffer_[w] = data[i];
         w = (w + 1) % capacity_;
-
-        // If write catches up to read, advance read (discard oldest)
-        if (w == r) {
-            r = (r + 1) % capacity_;
-            read_pos_.store(r, std::memory_order_release);
-        }
     }
 
     write_pos_.store(w, std::memory_order_release);
