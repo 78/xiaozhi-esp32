@@ -45,20 +45,22 @@ size_t LockFreeRingBuffer::Read(int16_t* data, size_t count) {
     size_t w = write_pos_.load(std::memory_order_acquire);
 
     size_t available = (w >= r) ? (w - r) : (capacity_ - r + w);
-    size_t to_read = std::min(count, available);
 
-    for (size_t i = 0; i < to_read; i++) {
+    // Not enough data: zero-fill everything and return without consuming.
+    // This avoids PCM discontinuity from mixing partial data with silence.
+    if (available < count) {
+        memset(data, 0, count * sizeof(int16_t));
+        ESP_LOGE(TAG, "Ring buffer underflow: requested %zu samples, available %zu", count, available);
+        return 0;
+    }
+
+    for (size_t i = 0; i < count; i++) {
         data[i] = buffer_[r];
         r = (r + 1) % capacity_;
     }
 
-    // Zero-fill remaining if not enough data
-    if (to_read < count) {
-        memset(data + to_read, 0, (count - to_read) * sizeof(int16_t));
-    }
-
     read_pos_.store(r, std::memory_order_release);
-    return to_read;
+    return count;
 }
 
 size_t LockFreeRingBuffer::Available() const {

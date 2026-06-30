@@ -22,23 +22,11 @@ AgoraRtcProtocol::AgoraRtcProtocol() {
     if (!ref_ring_buffer_->IsValid()) {
         ESP_LOGE(TAG, "Failed to allocate ref ring buffer");
     }
-
-    // Allocate lock-free ring buffer in PSRAM for downlink PCM (512KB)
-    downlink_ring_buffer_ = std::make_unique<LockFreeRingBuffer>(kDownlinkBufferSamples);
-    if (!downlink_ring_buffer_->IsValid()) {
-        ESP_LOGE(TAG, "Failed to allocate downlink ring buffer");
-    }
-
-    // Binary semaphore for thread-safe downlink task termination
-    downlink_exit_sem_ = xSemaphoreCreateBinary();
 }
 
 AgoraRtcProtocol::~AgoraRtcProtocol() {
     CloseAudioChannel(false);
     FiniSdk();
-    if (downlink_exit_sem_) {
-        vSemaphoreDelete(downlink_exit_sem_);
-    }
     vEventGroupDelete(event_group_handle_);
     g_instance = nullptr;
 }
@@ -96,62 +84,6 @@ void AgoraRtcProtocol::FiniSdk() {
 
 bool AgoraRtcProtocol::RunPairingFlow() {
     return device_api_.HasDeviceToken();
-}
-
-void AgoraRtcProtocol::DownlinkTask(void* arg) {
-    AgoraRtcProtocol* self = static_cast<AgoraRtcProtocol*>(arg);
-    self->DownlinkTaskLoop();
-    vTaskDelete(NULL);
-}
-
-void AgoraRtcProtocol::DownlinkTaskLoop() {
-    ESP_LOGI(TAG, "Downlink task started");
-
-    const size_t frame_bytes = kDownlinkFrameSamples * sizeof(int16_t);
-    const TickType_t frame_ticks = pdMS_TO_TICKS(60);
-    TickType_t last_wake = xTaskGetTickCount();
-
-    while (downlink_task_running_) {
-        // Check for clear-buffer request (set by OnUserMuteAudio from SDK thread).
-        // Reset is done here in the downlink task's own context to avoid SPSC race:
-        //   downlink_ring_buffer_  — producer is OnAudioData (SDK thread), consumer is this task
-        //   ref_ring_buffer_       — producer is this task, consumer is main task (SendAudio)
-        // Both Reset() calls are safe because Write and Read are not interleaved within this loop iteration.
-        if (downlink_clear_requested_.exchange(false)) {
-            ESP_LOGI(TAG, "Clear ring buffers on mute request");
-            downlink_ring_buffer_->Reset();
-            ref_ring_buffer_->Reset();
-        }
-
-        // Read one PCM frame from ring buffer; zero-fills if not enough data
-        auto packet = std::make_unique<AudioStreamPacket>();
-        packet->sample_rate = 16000;
-        packet->frame_duration = 60;
-        packet->payload.resize(frame_bytes);
-        int16_t* pcm_buf = reinterpret_cast<int16_t*>(packet->payload.data());
-        downlink_ring_buffer_->Read(pcm_buf, kDownlinkFrameSamples);
-
-        // Store into ref ring buffer for cloud AEC (lock-free write)
-#if AGORA_CLOUD_AEC
-        if (ref_ring_buffer_) {
-            ref_ring_buffer_->Write(pcm_buf, kDownlinkFrameSamples);
-        }
-#endif
-
-        // Push to AudioService decode queue
-        if (on_incoming_audio_) {
-            on_incoming_audio_(std::move(packet));
-        }
-
-        // Precise 60ms period: vTaskDelayUntil accounts for processing time
-        // so the actual interval is always exactly 60ms regardless of code path latency
-        vTaskDelayUntil(&last_wake, frame_ticks);
-    }
-
-    // Signal exit semaphore so CloseAudioChannel can wait deterministically
-    if (downlink_exit_sem_) {
-        xSemaphoreGive(downlink_exit_sem_);
-    }
 }
 
 bool AgoraRtcProtocol::OpenAudioChannel() {
@@ -237,15 +169,15 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
         return false;
     }
 
-    // Configure channel options: jitter buffer OFF, AI QoS ON
     rtc_channel_options_t options = {};
     options.auto_subscribe_audio = true;
     options.auto_subscribe_video = false;
-    options.enable_audio_jitter_buffer = false;
+    options.enable_audio_jitter_buffer = true;
+    options.audio_jitter_frame_duration = 60;
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
     options.enable_audio_ai_qos = AGORA_AI_QOS;
-    options.enable_audio_downlink_aec = AGORA_CLOUD_AEC;
+    options.enable_audio_downlink_aec = true;
 
     options.audio_codec_opt.audio_codec_type = AUDIO_CODEC_TYPE_G722;
     options.audio_codec_opt.pcm_sample_rate = 16000;
@@ -285,11 +217,6 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
         return false;
     }
 
-    // Start downlink processing task
-    downlink_ring_buffer_->Reset();
-    downlink_task_running_ = true;
-    xTaskCreate(DownlinkTask, "agora_dl", 2048 * 4, this, 6, &downlink_task_handle_);
-
     if (on_audio_channel_opened_ != nullptr) {
         on_audio_channel_opened_();
     }
@@ -299,16 +226,6 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
 
 void AgoraRtcProtocol::CloseAudioChannel(bool send_goodbye) {
     (void)send_goodbye;
-
-    // Stop downlink task: set flag and wait for semaphore confirmation
-    downlink_task_running_ = false;
-    if (downlink_task_handle_ != nullptr) {
-        if (downlink_exit_sem_) {
-            // Block until DownlinkTaskLoop exits the while loop and gives the semaphore
-            xSemaphoreTake(downlink_exit_sem_, portMAX_DELAY);
-        }
-        downlink_task_handle_ = nullptr;
-    }
 
     if (conn_id_ != CONNECTION_ID_INVALID) {
         agora_rtc_leave_channel(conn_id_);
@@ -324,10 +241,7 @@ void AgoraRtcProtocol::CloseAudioChannel(bool send_goodbye) {
         ESP_LOGI(TAG, "RTM logged out");
     }
 
-    // Clear ring buffers
-    if (downlink_ring_buffer_) {
-        downlink_ring_buffer_->Reset();
-    }
+    // Clear ref ring buffer
     if (ref_ring_buffer_) {
         ref_ring_buffer_->Reset();
     }
@@ -352,8 +266,7 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         return false;
     }
 
-    // Expected PCM frame size: 60ms @ 16kHz mono 16-bit = 1920 bytes
-    static const size_t kExpectedFrameSize = 960 * sizeof(int16_t); // 1920 bytes
+    static const size_t kExpectedFrameSize = 960 * sizeof(int16_t);
 
     if (packet->payload.size() != kExpectedFrameSize) {
         return true;
@@ -363,10 +276,10 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     info.data_type = AUDIO_DATA_TYPE_PCM;
 
     int ret;
+
 #if AGORA_CLOUD_AEC
-    // Interleave mic + ref for cloud AEC: [mic1, ref1, mic2, ref2, ...]
     const int16_t* mic_data = (const int16_t*)packet->payload.data();
-    size_t mic_samples = packet->payload.size() / sizeof(int16_t); // 960
+    size_t mic_samples = packet->payload.size() / sizeof(int16_t);
 
     std::vector<int16_t> ref_data(mic_samples, 0);
     if (ref_ring_buffer_) {
@@ -382,7 +295,6 @@ bool AgoraRtcProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     ret = agora_rtc_send_audio_data(conn_id_, interleaved.data(),
                                     interleaved.size() * sizeof(int16_t), &info);
 #else
-    // No cloud AEC: send raw mic PCM directly, no interleaving
     ret = agora_rtc_send_audio_data(conn_id_, packet->payload.data(),
                                     packet->payload.size(), &info);
 #endif
@@ -448,20 +360,31 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
         return;
     }
 
-    // Write raw PCM into downlink ring buffer (lock-free, PSRAM)
-    // Consumer is DownlinkTask reading at fixed 60ms intervals.
-    g_instance->downlink_ring_buffer_->Write(
-        static_cast<const int16_t*>(data_ptr), data_len / sizeof(int16_t));
+    static uint32_t recv_count = 0;
+    if (++recv_count % 17 == 0) {
+        ESP_LOGI(TAG, "RecvAudio: uid=%lu, len=%zu bytes, count=%lu",
+                 (unsigned long)uid, data_len, (unsigned long)recv_count);
+    }
+
+    // Store downlink PCM into ref ring buffer for downlink AEC (lock-free write)
+    if (g_instance->ref_ring_buffer_) {
+        g_instance->ref_ring_buffer_->Write(
+            static_cast<const int16_t*>(data_ptr), data_len / sizeof(int16_t));
+    }
+
+    // Push PCM frame directly to AudioService decode queue
+    if (g_instance->on_incoming_audio_) {
+        auto packet = std::make_unique<AudioStreamPacket>();
+        packet->sample_rate = 16000;
+        packet->frame_duration = 0;
+        packet->timestamp = sent_ts;
+        packet->payload.assign((uint8_t*)data_ptr, (uint8_t*)data_ptr + data_len);
+        g_instance->on_incoming_audio_(std::move(packet));
+    }
 }
 
 void AgoraRtcProtocol::OnUserMuteAudio(connection_id_t conn_id, uint32_t uid, bool muted) {
     ESP_LOGI(TAG, "UserMuteAudio: uid=%lu, muted=%d", (unsigned long)uid, (int)muted);
-    if (g_instance && muted) {
-        // Don't Reset() here — Reset is not safe from the SDK thread because
-        // downlink_ring_buffer_ producer (OnAudioData) and consumer (DownlinkTask)
-        // may be mid-operation. Instead, flag the downlink task to clear in its own context.
-        g_instance->downlink_clear_requested_.store(true, std::memory_order_release);
-    }
 }
 
 void AgoraRtcProtocol::OnConnectionLost(connection_id_t conn_id) {
