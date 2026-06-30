@@ -172,8 +172,8 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     rtc_channel_options_t options = {};
     options.auto_subscribe_audio = true;
     options.auto_subscribe_video = false;
-    options.enable_audio_jitter_buffer = true;
-    options.audio_jitter_frame_duration = 60;
+    options.enable_audio_jitter_buffer = AGORA_JITTER_BUFFER;
+    options.audio_jitter_frame_duration = AGORA_JITTER_BUFFER_DURATION_MS;
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
     options.enable_audio_ai_qos = AGORA_AI_QOS;
@@ -355,15 +355,9 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
     }
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
-    if (data_len == 0 || data_len > 32000) {
-        ESP_LOGW(TAG, "RecvAudio: invalid data_len=%d, skipping", (int)data_len);
+    if (AGORA_JITTER_BUFFER && data_len != AGORA_JITTER_BUFFER_DURATION_MS * 16 * sizeof(int16_t)) {
+        ESP_LOGW(TAG, "RecvAudio: invalid jitter buffer frame size=%d, skipping", (int)data_len);
         return;
-    }
-
-    static uint32_t recv_count = 0;
-    if (++recv_count % 17 == 0) {
-        ESP_LOGI(TAG, "RecvAudio: uid=%lu, len=%zu bytes, count=%lu",
-                 (unsigned long)uid, data_len, (unsigned long)recv_count);
     }
 
     // Store downlink PCM into ref ring buffer for downlink AEC (lock-free write)
@@ -376,7 +370,7 @@ void AgoraRtcProtocol::OnAudioData(connection_id_t conn_id, uint32_t uid, uint16
     if (g_instance->on_incoming_audio_) {
         auto packet = std::make_unique<AudioStreamPacket>();
         packet->sample_rate = 16000;
-        packet->frame_duration = 0;
+        packet->frame_duration = 60;
         packet->timestamp = sent_ts;
         packet->payload.assign((uint8_t*)data_ptr, (uint8_t*)data_ptr + data_len);
         g_instance->on_incoming_audio_(std::move(packet));

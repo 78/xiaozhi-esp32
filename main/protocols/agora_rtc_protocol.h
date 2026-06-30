@@ -20,6 +20,8 @@
 #define AGORA_RTM_LOGIN_EVENT (1 << 1)
 #define AGORA_AI_QOS          (false) // Enable AI QoS feature (configurable at compile time)
 #define AGORA_CLOUD_AEC       (true) // Enable cloud AEC feature (configurable at compile time)
+#define AGORA_JITTER_BUFFER   (true) // Enable jitter buffer (configurable at compile time)
+#define AGORA_JITTER_BUFFER_DURATION_MS (60)
 
 class AgoraRtcProtocol : public Protocol {
 public:
