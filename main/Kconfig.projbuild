@@ -908,7 +908,7 @@ config AGORA_JITTER_BUFFER_DURATION_MS
 
 config DEVICE_API_SERVER_URL
     string "Device API Server URL"
-    default "https://mybot.sh3t.agoralab.co/api"
+    default "https://mybot.sg3.agoralab.co/api"
     help
         The base URL of the Agent Studio Device API server.
         Used for device pairing, binding status polling, and conversation management.
