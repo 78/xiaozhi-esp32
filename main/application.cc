@@ -385,8 +385,25 @@ void Application::HandleActivationDoneEvent() {
     board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
 
     Schedule([this]() {
+#ifdef CONFIG_LANGUAGE_VI_VN
+        // Tuni speaks a "ready" line instead of the plain success chime.
+        // Best-effort flush of any still-queued boot audio (scanning/connecting)
+        // so the ready line plays now and auto-listen isn't delayed by backlog.
+        audio_service_.ResetDecoder();
+        audio_service_.PlaySound(Lang::Sounds::OGG_READY);
+        // Wait for it to finish before auto-start-listening, else entering
+        // Listening's ResetDecoder() clips the tail. Bounded poll on IsIdle()
+        // (never an unbounded block; ceiling >> longest line) + a short settle
+        // to cover the in-flight decode/output chunk the queue-empty check
+        // can't see.
+        for (int i = 0; i < 200 && !audio_service_.IsIdle(); ++i) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        vTaskDelay(pdMS_TO_TICKS(150));
+#else
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
+#endif
     });
 #ifdef CONFIG_AUTO_START_LISTENING
     // Always-on open-mic: no wake word / no button. From Idle, ToggleChatState
