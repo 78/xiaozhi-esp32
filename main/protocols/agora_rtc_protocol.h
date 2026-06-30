@@ -18,10 +18,25 @@
 
 #define AGORA_JOINED_EVENT    (1 << 0)
 #define AGORA_RTM_LOGIN_EVENT (1 << 1)
-#define AGORA_AI_QOS          (false) // Enable AI QoS feature (configurable at compile time)
-#define AGORA_CLOUD_AEC       (true) // Enable cloud AEC feature (configurable at compile time)
-#define AGORA_JITTER_BUFFER   (true) // Enable jitter buffer (configurable at compile time)
-#define AGORA_JITTER_BUFFER_DURATION_MS (60)
+
+// Kconfig-based feature flags — defaults defined in Kconfig.projbuild
+#ifndef CONFIG_AGORA_AI_QOS
+#define CONFIG_AGORA_AI_QOS true
+#endif
+#ifndef CONFIG_AGORA_CLOUD_AEC
+#define CONFIG_AGORA_CLOUD_AEC true
+#endif
+#ifndef CONFIG_AGORA_JITTER_BUFFER
+#define CONFIG_AGORA_JITTER_BUFFER true
+#endif
+#ifndef CONFIG_AGORA_JITTER_BUFFER_DURATION_MS
+#define CONFIG_AGORA_JITTER_BUFFER_DURATION_MS 60
+#endif
+
+#define AGORA_AI_QOS                    CONFIG_AGORA_AI_QOS
+#define AGORA_CLOUD_AEC                 CONFIG_AGORA_CLOUD_AEC
+#define AGORA_JITTER_BUFFER             CONFIG_AGORA_JITTER_BUFFER
+#define AGORA_JITTER_BUFFER_DURATION_MS CONFIG_AGORA_JITTER_BUFFER_DURATION_MS
 
 class AgoraRtcProtocol : public Protocol {
 public:

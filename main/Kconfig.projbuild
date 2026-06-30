@@ -855,13 +855,67 @@ choice CONNECTION_TYPE
             Device pairing and conversation management via Device API.
 endchoice
 
+if CONNECTION_TYPE_AGORA_RTC
+
+menu "Agora RTC Settings"
+
+config AGORA_AI_QOS
+    bool "AI QoS (non-clocked streaming)"
+    default y
+    help
+        Enable AI QoS mode. Tells the server to use non-clocked streaming
+        and sets audio scenario to CHORUS. Also changes jitter buffer
+        behavior to FIFO-only mode (no delay statistics, no speedup).
+
+config AGORA_CLOUD_AEC
+    bool "Cloud AEC (mic-ref interleaving)"
+    default y
+    help
+        Enable cloud-based acoustic echo cancellation. When enabled,
+        the device interleaves mic and reference PCM data before sending.
+        When disabled, raw mic PCM is sent without interleaving and
+        enable_audio_downlink_aec is set to false.
+
+config AGORA_JITTER_BUFFER
+    bool "RTC SDK jitter buffer"
+    default y
+    help
+        Enable the RTC SDK's internal adaptive jitter buffer.
+        When disabled, audio frames are delivered to the application
+        directly without buffering.
+
+choice AGORA_JITTER_BUFFER_DURATION
+    prompt "Jitter buffer output frame duration (ms)"
+    depends on AGORA_JITTER_BUFFER
+    default AGORA_JITTER_DURATION_60
+    help
+        Output frame duration of the jitter buffer in milliseconds.
+        This should match the RTC channel's pcm_duration setting.
+
+config AGORA_JITTER_DURATION_20
+    bool "20ms"
+config AGORA_JITTER_DURATION_40
+    bool "40ms"
+config AGORA_JITTER_DURATION_60
+    bool "60ms"
+endchoice
+
+config AGORA_JITTER_BUFFER_DURATION_MS
+    int
+    default 20 if AGORA_JITTER_DURATION_20
+    default 40 if AGORA_JITTER_DURATION_40
+    default 60 if AGORA_JITTER_DURATION_60
+
 config DEVICE_API_SERVER_URL
     string "Device API Server URL"
     default "https://mybot.sh3t.agoralab.co/api"
-    depends on CONNECTION_TYPE_AGORA_RTC
     help
         The base URL of the Agent Studio Device API server.
         Used for device pairing, binding status polling, and conversation management.
+
+endmenu
+
+endif
 
 config USE_AUDIO_DEBUGGER
     bool "Enable Audio Debugger"
