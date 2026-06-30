@@ -1030,6 +1030,8 @@ add_custom_command(
     DEPENDS
         ${LANG_JSON}
         ${PROJECT_DIR}/scripts/gen_lang.py
+        ${LANG_SOUNDS}
+        ${COMMON_SOUNDS}
     COMMENT "Generating ${LANG_DIR} language config"
 )
 
