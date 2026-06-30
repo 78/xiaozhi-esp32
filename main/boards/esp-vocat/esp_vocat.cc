@@ -272,8 +272,18 @@ gpio_num_t TOUCH_PAD2 = TOUCH_PAD2_1;
 gpio_num_t UART1_TX = UART1_TX_1;
 gpio_num_t UART1_RX = UART1_RX_1;
 
+class EspVocat;
+
 class Charge : public I2cDevice {
 public:
+    static constexpr uint8_t kRegVoltage = 0x08;
+    static constexpr uint8_t kRegBatteryStatus = 0x0A;
+    static constexpr uint8_t kRegCurrent = 0x0C;
+    static constexpr uint8_t kRegStateOfCharge = 0x2C;
+    static constexpr uint8_t kRegAverageCurrent = 0x14;
+    static constexpr int kChargingCurrentMa = 30;
+    static constexpr uint16_t kBatteryStatusDsg = BIT0;
+
     Charge(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr)
     {
         read_buffer_ = new uint8_t[8];
@@ -282,26 +292,51 @@ public:
     {
         delete[] read_buffer_;
     }
-    void Printcharge()
-    {
-        ReadRegs(0x08, read_buffer_, 2);
-        ReadRegs(0x0c, read_buffer_ + 2, 2);
-        ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_value));
 
-        int16_t voltage = static_cast<uint16_t>(read_buffer_[1] << 8 | read_buffer_[0]);
-        int16_t current = static_cast<int16_t>(read_buffer_[3] << 8 | read_buffer_[2]);
-        
-        // Use the variables to avoid warnings (can be removed if actual implementation uses them)
+    int16_t ReadWord(uint8_t reg)
+    {
+        uint8_t data[2] = {0};
+        ReadRegs(reg, data, 2);
+        return static_cast<int16_t>(static_cast<uint16_t>(data[0]) | (static_cast<uint16_t>(data[1]) << 8));
+    }
+
+    int GetBatteryLevel()
+    {
+        int level = ReadWord(kRegStateOfCharge);
+        if (level < 0) {
+            return 0;
+        }
+        if (level > 100) {
+            return 100;
+        }
+        return level;
+    }
+
+    bool IsCharging()
+    {
+        const uint16_t status = static_cast<uint16_t>(ReadWord(kRegBatteryStatus));
+        if ((status & kBatteryStatusDsg) == 0) {
+            return true;
+        }
+
+        const int16_t avg_current_ma = ReadWord(kRegAverageCurrent);
+        const int16_t current_ma = ReadWord(kRegCurrent);
+        // Current is a fallback only: AverageCurrent can lag charger insertion noticeably.
+        return avg_current_ma > kChargingCurrentMa || current_ma > kChargingCurrentMa;
+    }
+
+    bool IsDischarging()
+    {
+        return (static_cast<uint16_t>(ReadWord(kRegBatteryStatus)) & kBatteryStatusDsg) != 0;
+    }
+
+    void Update()
+    {
+        const int16_t voltage = ReadWord(kRegVoltage);
+        const int16_t current = ReadWord(kRegCurrent);
+        ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_value));
         (void)voltage;
         (void)current;
-    }
-    static void TaskFunction(void *pvParameters)
-    {
-        Charge* charge = static_cast<Charge*>(pvParameters);
-        while (true) {
-            charge->Printcharge();
-            vTaskDelay(pdMS_TO_TICKS(300));
-        }
     }
 
 private:
@@ -448,6 +483,10 @@ private:
     TaskHandle_t touch_slider_task_handle_ = nullptr;
     esp_timer_handle_t emotion_reset_timer_ = nullptr;
     bool bmi270_ready_ = false;
+    bool was_charging_ = false;
+    uint8_t low_battery_alert_mask_ = 0;
+    int low_battery_plays_left_ = 0;
+    int64_t next_low_battery_play_ms_ = 0;
     touch_slider_handle_t touch_slider_handle_ = nullptr;
     touch_button_handle_t touch_button_handle_ = nullptr;
 
@@ -481,6 +520,92 @@ private:
         }
         s_last_us = now;
         ShowTemporaryEmotion("happy", 2000);
+    }
+
+    void PlayBatteryEmotion(const char* emotion, uint32_t duration_ms)
+    {
+#if CONFIG_USE_EMOTE_MESSAGE_STYLE
+        if (display_ == nullptr || emotion == nullptr) {
+            return;
+        }
+        auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display_);
+        if (emote_display != nullptr) {
+            emote_display->InsertAnimDialog(emotion, duration_ms);
+            return;
+        }
+#endif
+        ShowTemporaryEmotion(emotion, duration_ms);
+    }
+
+    void StartLowBatteryAlertSequence()
+    {
+        constexpr int kMaxPlays = 3;
+        constexpr int64_t kIntervalMs = 5 * 60 * 1000;
+
+        low_battery_plays_left_ = kMaxPlays - 1;
+        next_low_battery_play_ms_ = (esp_timer_get_time() / 1000) + kIntervalMs;
+        PlayBatteryEmotion("low_battery", 4000);
+    }
+
+    void HandleBatteryEmotions()
+    {
+        if (charge_ == nullptr) {
+            return;
+        }
+
+        const int level = charge_->GetBatteryLevel();
+        const bool charging = charge_->IsCharging();
+
+        if (charging && !was_charging_) {
+            PlayBatteryEmotion("battery_connected", 4000);
+            low_battery_alert_mask_ = 0;
+            low_battery_plays_left_ = 0;
+            next_low_battery_play_ms_ = 0;
+        }
+        was_charging_ = charging;
+
+        if (charging) {
+            return;
+        }
+
+        if (level > 12) {
+            low_battery_alert_mask_ = 0;
+            low_battery_plays_left_ = 0;
+            next_low_battery_play_ms_ = 0;
+            return;
+        }
+
+        const int64_t now_ms = esp_timer_get_time() / 1000;
+        if (low_battery_plays_left_ > 0 && now_ms >= next_low_battery_play_ms_) {
+            PlayBatteryEmotion("low_battery", 4000);
+            low_battery_plays_left_--;
+            if (low_battery_plays_left_ > 0) {
+                next_low_battery_play_ms_ = now_ms + 5 * 60 * 1000;
+            }
+        }
+
+        if (level <= 5 && (low_battery_alert_mask_ & 0x02) == 0) {
+            low_battery_alert_mask_ |= 0x02;
+            StartLowBatteryAlertSequence();
+            return;
+        }
+
+        if (level <= 10 && (low_battery_alert_mask_ & 0x01) == 0) {
+            low_battery_alert_mask_ |= 0x01;
+            StartLowBatteryAlertSequence();
+        }
+    }
+
+    static void battery_task(void* arg)
+    {
+        auto* self = static_cast<EspVocat*>(arg);
+        while (true) {
+            if (self != nullptr && self->charge_ != nullptr) {
+                self->charge_->Update();
+                self->HandleBatteryEmotions();
+            }
+            vTaskDelay(pdMS_TO_TICKS(300));
+        }
     }
 
     static void imu_event_task(void* arg)
@@ -630,7 +755,8 @@ private:
     void InitializeCharge()
     {
         charge_ = new Charge(i2c_bus_, 0x55);
-        xTaskCreatePinnedToCore(Charge::TaskFunction, "batterydecTask", 3 * 1024, charge_, 6, &charge_task_handle_, 0);
+        was_charging_ = charge_->IsCharging();
+        xTaskCreatePinnedToCore(battery_task, "batteryTask", 3 * 1024, this, 6, &charge_task_handle_, 0);
     }
 
     void InitializeCst816sTouchPad()
@@ -1011,6 +1137,16 @@ public:
 
     virtual Camera* GetCamera() override {
         return camera_;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        if (charge_ == nullptr) {
+            return false;
+        }
+        level = charge_->GetBatteryLevel();
+        charging = charge_->IsCharging();
+        discharging = charge_->IsDischarging();
+        return true;
     }
 };
 
