@@ -406,3 +406,23 @@ void OledDisplay::SetTheme(Theme* theme) {
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
 }
+
+void OledDisplay::HideDefaultUI() {
+    DisplayLockGuard lock(this);
+    if (container_) {
+        lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (status_bar_) {
+        lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void OledDisplay::ShowDefaultUI() {
+    DisplayLockGuard lock(this);
+    if (container_) {
+        lv_obj_clear_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (status_bar_) {
+        lv_obj_clear_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
