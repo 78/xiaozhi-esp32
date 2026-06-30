@@ -1,0 +1,8 @@
+{
+  "wifi_scanning.ogg":   "Tuni đang tìm wifi nè, bạn chờ Tuni một chút xíu nha!",
+  "wifi_connecting.ogg": "Tuni đang kết nối nè, sắp xong rồi, đợi Tuni xíu nha!",
+  "ready.ogg":           "A, Tuni sẵn sàng rồi! Hôm nay mình cùng chơi gì nào?",
+  "wificonfig.ogg":      "Tuni chưa có wifi. Bạn nhờ ba mẹ cài wifi cho Tuni nha!",
+  "disconnected.ogg":    "Ơ, Tuni bị rớt mạng rồi. Tuni thử kết nối lại nha!",
+  "reconnected.ogg":     "A, Tuni kết nối lại được rồi! Mình chơi tiếp nha!"
+}
