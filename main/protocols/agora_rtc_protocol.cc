@@ -177,7 +177,7 @@ bool AgoraRtcProtocol::OpenAudioChannel() {
     options.enable_audio_mixer = false;
     options.enable_audio_decode = true;
     options.enable_audio_ai_qos = AGORA_AI_QOS;
-    options.enable_audio_downlink_aec = true;
+    options.enable_audio_downlink_aec = AGORA_CLOUD_AEC;
 
     options.audio_codec_opt.audio_codec_type = AUDIO_CODEC_TYPE_G722;
     options.audio_codec_opt.pcm_sample_rate = 16000;
