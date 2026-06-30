@@ -41,10 +41,11 @@ public:
 
     /**
      * Read samples from the ring buffer (consumer side).
-     * If fewer samples are available than requested, the output is zero-padded.
+     * If fewer samples are available than requested, the output is zero-filled
+     * and the read position is NOT advanced — data is preserved for next call.
      * @param data Output buffer to read into.
      * @param count Number of samples requested.
-     * @return Number of samples actually read (rest is zero-filled).
+     * @return Number of samples actually read (0 if not enough data).
      */
     size_t Read(int16_t* data, size_t count);
 

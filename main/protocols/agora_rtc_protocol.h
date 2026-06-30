@@ -18,8 +18,25 @@
 
 #define AGORA_JOINED_EVENT    (1 << 0)
 #define AGORA_RTM_LOGIN_EVENT (1 << 1)
-#define AGORA_AI_QOS          (true) // Enable AI QoS feature (configurable at compile time)
-#define AGORA_CLOUD_AEC       (true) // Enable cloud AEC feature (configurable at compile time)
+
+// Kconfig-based feature flags — defaults defined in Kconfig.projbuild
+#ifndef CONFIG_AGORA_AI_QOS
+#define CONFIG_AGORA_AI_QOS true
+#endif
+#ifndef CONFIG_AGORA_CLOUD_AEC
+#define CONFIG_AGORA_CLOUD_AEC true
+#endif
+#ifndef CONFIG_AGORA_JITTER_BUFFER
+#define CONFIG_AGORA_JITTER_BUFFER true
+#endif
+#ifndef CONFIG_AGORA_JITTER_BUFFER_DURATION_MS
+#define CONFIG_AGORA_JITTER_BUFFER_DURATION_MS 60
+#endif
+
+#define AGORA_AI_QOS                    CONFIG_AGORA_AI_QOS
+#define AGORA_CLOUD_AEC                 CONFIG_AGORA_CLOUD_AEC
+#define AGORA_JITTER_BUFFER             CONFIG_AGORA_JITTER_BUFFER
+#define AGORA_JITTER_BUFFER_DURATION_MS CONFIG_AGORA_JITTER_BUFFER_DURATION_MS
 
 class AgoraRtcProtocol : public Protocol {
 public:
@@ -57,19 +74,6 @@ private:
     // Downlink AEC reference ring buffer (lock-free SPSC, PSRAM-allocated)
     static constexpr size_t kRefBufferMaxSamples = 16000; // 1 second @ 16kHz
     std::unique_ptr<LockFreeRingBuffer> ref_ring_buffer_;
-
-    // Downlink PCM ring buffer: RTC callback → ringbuf → downlink task → AudioService
-    // 512KB = 262144 int16_t samples ≈ 273 frames (60ms@16kHz) ≈ 16 seconds
-    static constexpr size_t kDownlinkBufferSamples = 512 * 1024 / sizeof(int16_t); // 262144
-    static constexpr size_t kDownlinkFrameSamples = 960; // 60ms @ 16kHz
-    std::unique_ptr<LockFreeRingBuffer> downlink_ring_buffer_;
-    TaskHandle_t downlink_task_handle_ = nullptr;
-    std::atomic<bool> downlink_task_running_{false};
-    std::atomic<bool> downlink_clear_requested_{false};
-    SemaphoreHandle_t downlink_exit_sem_ = nullptr;
-
-    static void DownlinkTask(void* arg);
-    void DownlinkTaskLoop();
 
     bool SendText(const std::string& text) override;
     bool InitSdk(const std::string& app_id);

@@ -690,6 +690,12 @@ typedef struct {
 
 
 
+  /**
+   * audio jitter buffer output frame duration in ms.
+   * supported: 20, 40, 60; 0 means use default (20ms)
+   * only valid when enable_audio_jitter_buffer is true
+   */
+  int audio_jitter_frame_duration;
 } rtc_channel_options_t;
 
 
