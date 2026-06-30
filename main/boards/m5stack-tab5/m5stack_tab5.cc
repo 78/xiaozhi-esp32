@@ -2,6 +2,7 @@
 #include "tab5_audio_codec.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9881c.h"
+#include "esp_lcd_st7121.h"
 #include "esp_lcd_st7123.h"
 #include "font_emoji.h"
 #include "application.h"
@@ -18,6 +19,7 @@
 #include "esp_ldo_regulator.h"
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
+#include <driver/gpio.h>
 #include <driver/spi_common.h>
 #include "i2c_device.h"
 #include "esp_lcd_touch_gt911.h"
@@ -30,6 +32,7 @@
 #define LCD_MIPI_DSI_PHY_PWR_LDO_CHAN       3  // LDO_VO3 is connected to VDD_MIPI_DPHY
 #define LCD_MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV 2500
 #define ST7123_TOUCH_I2C_ADDRESS            0x55
+#define ST7123_FW_VERSION_REG               0x0000
 
 
 // PI4IO registers
@@ -82,6 +85,12 @@ public:
 
     uint8_t ReadOutSet() { return ReadReg(PI4IO_REG_OUT_SET); }
     void WriteOutSet(uint8_t value) { WriteReg(PI4IO_REG_OUT_SET, value); }
+};
+
+enum class Tab5DisplayType {
+    kIli9881c,
+    kSt7121,
+    kSt7123,
 };
 
 class M5StackTab5Board : public WifiBoard {
@@ -144,6 +153,23 @@ private:
         ESP_LOGI(TAG, "Init I/O Exapander PI4IOE");
         pi4ioe1_ = new Pi4ioe1(i2c_bus_, 0x43);
         pi4ioe2_ = new Pi4ioe2(i2c_bus_, 0x44);
+    }
+
+    void ResetTouchPanel() {
+        ESP_LOGI(TAG, "Reset touch panel");
+        gpio_reset_pin(TOUCH_INT_GPIO);
+
+        uint8_t value = pi4ioe1_->ReadOutSet();
+        uint8_t reset_value = value;
+        clrbit(reset_value, 4);  // P4 = LCD_RST
+        clrbit(reset_value, 5);  // P5 = TP_RST
+        pi4ioe1_->WriteOutSet(reset_value);
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        setbit(value, 4);
+        setbit(value, 5);
+        pi4ioe1_->WriteOutSet(value);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
     void InitializeButtons() {
@@ -270,130 +296,88 @@ private:
                                       DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
-    void InitializeSt7123Display() {
-        esp_err_t ret = ESP_OK;
-        esp_lcd_panel_io_handle_t io = NULL;
-        esp_lcd_panel_handle_t disp_panel = NULL;
-        esp_lcd_dsi_bus_handle_t mipi_dsi_bus = NULL;
-        
-        // Declare all config structures at the top to avoid goto issues
-        // Initialize with memset to avoid any initialization syntax that might confuse the compiler
-        esp_lcd_dsi_bus_config_t bus_config;
-        esp_lcd_dbi_io_config_t dbi_config;
-        esp_lcd_dpi_panel_config_t dpi_config;
-        st7123_vendor_config_t vendor_config;
-        esp_lcd_panel_dev_config_t lcd_dev_config;
-        
-        memset(&bus_config, 0, sizeof(bus_config));
-        memset(&dbi_config, 0, sizeof(dbi_config));
-        memset(&dpi_config, 0, sizeof(dpi_config));
-        memset(&vendor_config, 0, sizeof(vendor_config));
-        memset(&lcd_dev_config, 0, sizeof(lcd_dev_config));
+    void InitializeTddiDisplay(Tab5DisplayType display_type) {
+        const bool use_st7121 = (display_type == Tab5DisplayType::kSt7121);
+        const char* panel_name = use_st7121 ? "ST7121" : "ST7123";
+        esp_lcd_panel_io_handle_t io = nullptr;
+        esp_lcd_panel_handle_t disp_panel = nullptr;
+        esp_lcd_dsi_bus_handle_t mipi_dsi_bus = nullptr;
 
         ESP_ERROR_CHECK(bsp_enable_dsi_phy_power());
 
-        /* create MIPI DSI bus first, it will initialize the DSI PHY as well */
+        esp_lcd_dsi_bus_config_t bus_config = {};
         bus_config.bus_id = 0;
-        bus_config.num_data_lanes = 2;  // ST7123 uses 2 data lanes
-        bus_config.lane_bit_rate_mbps = 965;  // ST7123 lane bitrate
-        ret = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "New DSI bus init failed");
-            goto err;
-        }
+        bus_config.num_data_lanes = 2;
+        bus_config.phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT;
+        bus_config.lane_bit_rate_mbps = 900;
+        ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus));
 
-        ESP_LOGI(TAG, "Install MIPI DSI LCD control panel for ST7123");
-        // we use DBI interface to send LCD commands and parameters
+        ESP_LOGI(TAG, "Install MIPI DSI LCD control panel for %s", panel_name);
+        esp_lcd_dbi_io_config_t dbi_config = {};
         dbi_config.virtual_channel = 0;
-        dbi_config.lcd_cmd_bits = 8;  // according to the LCD spec
-        dbi_config.lcd_param_bits = 8;  // according to the LCD spec
-        ret = esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &io);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "New panel IO failed");
-            goto err;
-        }
+        dbi_config.lcd_cmd_bits = 8;
+        dbi_config.lcd_param_bits = 8;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &io));
 
-        ESP_LOGI(TAG, "Install LCD driver of ST7123");
+        ESP_LOGI(TAG, "Install LCD driver of %s", panel_name);
+        esp_lcd_dpi_panel_config_t dpi_config = {};
         dpi_config.virtual_channel = 0;
         dpi_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
-        dpi_config.dpi_clock_freq_mhz = 70;  // ST7123 DPI clock frequency
+        dpi_config.dpi_clock_freq_mhz = 70;
         dpi_config.pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
         dpi_config.num_fbs = 1;
-        dpi_config.video_timing.h_size = 720;
-        dpi_config.video_timing.v_size = 1280;
+        dpi_config.video_timing.h_size = DISPLAY_WIDTH;
+        dpi_config.video_timing.v_size = DISPLAY_HEIGHT;
         dpi_config.video_timing.hsync_pulse_width = 2;
         dpi_config.video_timing.hsync_back_porch = 40;
         dpi_config.video_timing.hsync_front_porch = 40;
-        dpi_config.video_timing.vsync_pulse_width = 2;
-        dpi_config.video_timing.vsync_back_porch = 8;
-        dpi_config.video_timing.vsync_front_porch = 220;
+        dpi_config.video_timing.vsync_pulse_width = use_st7121 ? 20 : 2;
+        dpi_config.video_timing.vsync_back_porch = use_st7121 ? 24 : 8;
+        dpi_config.video_timing.vsync_front_porch = use_st7121 ? 200 : 220;
         dpi_config.flags.use_dma2d = true;
 
-        vendor_config.init_cmds = st7123_vendor_specific_init_default;
-        vendor_config.init_cmds_size = sizeof(st7123_vendor_specific_init_default) / sizeof(st7123_vendor_specific_init_default[0]);
-        vendor_config.mipi_config.dsi_bus = mipi_dsi_bus;
-        vendor_config.mipi_config.dpi_config = &dpi_config;
-        vendor_config.mipi_config.lane_num = 2;
-
+        esp_lcd_panel_dev_config_t lcd_dev_config = {};
         lcd_dev_config.reset_gpio_num = -1;
         lcd_dev_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         lcd_dev_config.data_endian = LCD_RGB_DATA_ENDIAN_LITTLE;
-        lcd_dev_config.bits_per_pixel = 24;
-        lcd_dev_config.vendor_config = &vendor_config;
+        lcd_dev_config.bits_per_pixel = 16;
 
-        // 使用实际的 ST7123 驱动函数
-        ret = esp_lcd_new_panel_st7123(io, &lcd_dev_config, &disp_panel);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "New LCD panel ST7123 failed");
-            goto err;
+        if (use_st7121) {
+            st7121_vendor_config_t vendor_config = {};
+            vendor_config.init_cmds = nullptr;
+            vendor_config.init_cmds_size = 0;
+            vendor_config.mipi_config.dsi_bus = mipi_dsi_bus;
+            vendor_config.mipi_config.dpi_config = &dpi_config;
+            lcd_dev_config.vendor_config = &vendor_config;
+            ESP_ERROR_CHECK(esp_lcd_new_panel_st7121(io, &lcd_dev_config, &disp_panel));
+        } else {
+            st7123_vendor_config_t vendor_config = {};
+            vendor_config.init_cmds = st7123_vendor_specific_init_default;
+            vendor_config.init_cmds_size = sizeof(st7123_vendor_specific_init_default) / sizeof(st7123_vendor_specific_init_default[0]);
+            vendor_config.mipi_config.dsi_bus = mipi_dsi_bus;
+            vendor_config.mipi_config.dpi_config = &dpi_config;
+            lcd_dev_config.vendor_config = &vendor_config;
+            ESP_ERROR_CHECK(esp_lcd_new_panel_st7123(io, &lcd_dev_config, &disp_panel));
         }
 
-        ret = esp_lcd_panel_reset(disp_panel);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "LCD panel reset failed");
-            goto err;
-        }
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(disp_panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(disp_panel));
+        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(disp_panel, true));
 
-        ret = esp_lcd_panel_init(disp_panel);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "LCD panel init failed");
-            goto err;
-        }
-
-        ret = esp_lcd_panel_disp_on_off(disp_panel, true);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "LCD panel display on failed");
-            goto err;
-        }
-
-        display_ = new MipiLcdDisplay(io, disp_panel, 720, 1280, DISPLAY_OFFSET_X,
+        display_ = new MipiLcdDisplay(io, disp_panel, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X,
                                       DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
-        ESP_LOGI(TAG, "ST7123 Display initialized with resolution %dx%d", 720, 1280);
-
-        return;
-
-    err:
-        if (disp_panel) {
-            esp_lcd_panel_del(disp_panel);
-        }
-        if (io) {
-            esp_lcd_panel_io_del(io);
-        }
-        if (mipi_dsi_bus) {
-            esp_lcd_del_dsi_bus(mipi_dsi_bus);
-        }
-        ESP_ERROR_CHECK(ret);
+        ESP_LOGI(TAG, "%s Display initialized with resolution %dx%d", panel_name, DISPLAY_WIDTH, DISPLAY_HEIGHT);
     }
 
-    void InitializeSt7123TouchPad() {
-        ESP_LOGI(TAG, "Init ST7123 Touch");
-        
-        /* Initialize Touch Panel */
-        ESP_LOGI(TAG, "Initialize touch IO (I2C)");
+    void InitializeTddiTouchPad(Tab5DisplayType display_type) {
+        const bool mirror_touch = (display_type == Tab5DisplayType::kSt7123);
+        const char* touch_name = (display_type == Tab5DisplayType::kSt7121) ? "ST7121" : "ST7123";
+        ESP_LOGI(TAG, "Init %s Touch", touch_name);
+
         const esp_lcd_touch_config_t tp_cfg = {
-            .x_max = 720,
-            .y_max = 1280,
+            .x_max = DISPLAY_WIDTH,
+            .y_max = DISPLAY_HEIGHT,
             .rst_gpio_num = GPIO_NUM_NC,
             .int_gpio_num = TOUCH_INT_GPIO,
             .levels = {
@@ -402,36 +386,72 @@ private:
             },
             .flags = {
                 .swap_xy = 0,
-                .mirror_x = 0,
-                .mirror_y = 0,
+                .mirror_x = mirror_touch,
+                .mirror_y = mirror_touch,
             },
         };
-        esp_lcd_panel_io_handle_t tp_io_handle = NULL;
+        esp_lcd_panel_io_handle_t tp_io_handle = nullptr;
         esp_lcd_panel_io_i2c_config_t tp_io_config = {
-            .dev_addr = 0x55,
+            .dev_addr = ST7123_TOUCH_I2C_ADDRESS,
             .control_phase_bytes = 1,
             .dc_bit_offset = 0,
             .lcd_cmd_bits = 8,
             .lcd_param_bits = 8,
-            .scl_speed_hz = 100000,
+            .scl_speed_hz = 400000,
         };
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_st7123(tp_io_handle, &tp_cfg, &touch_));
     }
 
+    Tab5DisplayType DetectDisplayType() {
+        esp_err_t ret = i2c_master_probe(i2c_bus_, ST7123_TOUCH_I2C_ADDRESS, pdMS_TO_TICKS(200));
+        if (ret != ESP_OK) {
+            ESP_LOGI(TAG, "No device at 0x%02X, using ILI9881C + GT911", ST7123_TOUCH_I2C_ADDRESS);
+            return Tab5DisplayType::kIli9881c;
+        }
+
+        esp_lcd_panel_io_handle_t tp_io_handle = nullptr;
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {};
+        tp_io_config.scl_speed_hz = 100000;
+        tp_io_config.dev_addr = ST7123_TOUCH_I2C_ADDRESS;
+        tp_io_config.control_phase_bytes = 1;
+        tp_io_config.lcd_cmd_bits = 16;
+        tp_io_config.flags.disable_control_phase = 1;
+        ret = esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Detected 0x%02X but failed to create touch IO: %s, fallback to ST7123", ST7123_TOUCH_I2C_ADDRESS, esp_err_to_name(ret));
+            return Tab5DisplayType::kSt7123;
+        }
+
+        uint8_t fw_version = 0;
+        ret = esp_lcd_panel_io_rx_param(tp_io_handle, ST7123_FW_VERSION_REG, &fw_version, 1);
+        esp_lcd_panel_io_del(tp_io_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Detected 0x%02X but failed to read FW version: %s, fallback to ST7123", ST7123_TOUCH_I2C_ADDRESS, esp_err_to_name(ret));
+            return Tab5DisplayType::kSt7123;
+        }
+
+        if (fw_version == 1) {
+            ESP_LOGI(TAG, "Detected ST7121 (FW version: %u)", fw_version);
+            return Tab5DisplayType::kSt7121;
+        }
+        if (fw_version == 3) {
+            ESP_LOGI(TAG, "Detected ST7123 (FW version: %u)", fw_version);
+            return Tab5DisplayType::kSt7123;
+        }
+
+        ESP_LOGW(TAG, "Unknown TDDI FW version %u at 0x%02X, fallback to ST7123", fw_version, ST7123_TOUCH_I2C_ADDRESS);
+        return Tab5DisplayType::kSt7123;
+    }
+
     void InitializeDisplay() {
-        // after tp reset, wait for 100ms to ensure the I2C bus is stable
-        vTaskDelay(pdMS_TO_TICKS(100));
-        // 检测 ST7123 触摸屏 (I2C地址 0x55)
-        esp_err_t ret = i2c_master_probe(i2c_bus_, ST7123_TOUCH_I2C_ADDRESS, 200);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Detected ST7123 at 0x%02X, initializing ST7123 display", ST7123_TOUCH_I2C_ADDRESS);
-            InitializeSt7123Display();
-            InitializeSt7123TouchPad();
-        } else {
-            ESP_LOGI(TAG, "ST7123 not found at 0x%02X (ret=0x%x), using default ST7703+GT911", ST7123_TOUCH_I2C_ADDRESS, ret);
+        Tab5DisplayType display_type = DetectDisplayType();
+        if (display_type == Tab5DisplayType::kIli9881c) {
             InitializeIli9881cDisplay();
             InitializeGt911TouchPad();
+        } else {
+            InitializeTddiDisplay(display_type);
+            InitializeTddiTouchPad(display_type);
         }
     }
 
@@ -480,7 +500,8 @@ public:
         InitializeI2c();
         I2cDetect();
         InitializePi4ioe();
-        InitializeDisplay();  // Auto-detect and initialize display + touch
+        ResetTouchPanel();
+        InitializeDisplay();
         InitializeCamera();
         InitializeButtons();
         SetChargeQcEn(true);
