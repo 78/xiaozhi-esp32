@@ -80,6 +80,10 @@ dependencies:
     version: '*'
     rules:
     - if: target in [esp32p4]
+  waveshare/esp_lcd_hx8394:
+    version: '*'
+    rules:
+    - if: target in [esp32p4]
   waveshare/esp_lcd_st7703:
     version: '*'
     rules:
