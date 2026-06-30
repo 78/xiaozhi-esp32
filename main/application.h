@@ -122,6 +122,13 @@ public:
      */
     void ResetProtocol();
 
+    /**
+     * Inject stepper message and trigger voice announcement
+     * Called when step count change is detected
+     * Thread-safe - can be called from any task
+     */
+    void InjectStepperMessage(int32_t step_count, int32_t delta);
+
 private:
     Application();
     ~Application();
@@ -131,6 +138,7 @@ private:
     std::unique_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
+    esp_timer_handle_t stepper_poll_timer_handle_ = nullptr;  // Timer for stepper polling
     DeviceStateMachine state_machine_;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
@@ -139,6 +147,11 @@ private:
     std::unique_ptr<Ota> ota_;
 
     std::function<void(const std::string&)> mcp_broadcast_callback_;
+
+    // Stepper polling state for text injection retry
+    int32_t pending_stepper_count_ = 0;
+    int pending_stepper_retry_count_ = 0;
+    static constexpr int STEPPER_INJECTION_MAX_RETRY = 30;  // 3 seconds at 100ms intervals
 
     bool has_server_time_ = false;
     bool aborted_ = false;
@@ -159,6 +172,9 @@ private:
     void HandleWakeWordDetectedEvent();
     void ContinueOpenAudioChannel(ListeningMode mode);
     void ContinueWakeWordInvoke(const std::string& wake_word);
+    
+    // Check and retry pending stepper text injection
+    void CheckPendingStepperMessage();
 
     // Activation task (runs in background)
     void ActivationTask();
