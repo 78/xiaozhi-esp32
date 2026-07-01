@@ -1,4 +1,4 @@
-# ESP-Hi
+idf.py flash # ESP-Hi
 
 ## 简介
 
