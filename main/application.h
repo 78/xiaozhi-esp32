@@ -146,6 +146,11 @@ private:
     bool vad_speaking_ = false;
     bool vad_had_speech_in_turn_ = false;
     bool listen_stop_sent_ = false;
+    esp_timer_handle_t ack_timer_handle_ = nullptr;
+    int last_ack_index_ = -1;
+    void ArmAckTimer();
+    void CancelAckTimer();
+    void FireAck();
     // Batch mode: while true, encoded Opus packets stay in the send queue
     // instead of being streamed to the server. Drained in one burst when
     // silence is detected, immediately before listen.stop. Eliminates the
