@@ -52,7 +52,8 @@ def _access_token():
                           capture_output=True, text=True).stdout.strip()
 
 
-def synthesize(text, clone_key_path=CLONE_KEY_DEFAULT, language_code=LANGUAGE_CODE):
+def synthesize(text, clone_key_path=CLONE_KEY_DEFAULT, language_code=LANGUAGE_CODE,
+               speaking_rate=SPEAKING_RATE):
     """Return WAV (LINEAR16 mono 24k) bytes for `text` in the Tuni clone voice."""
     key = open(clone_key_path).read().strip()
     body = {
@@ -61,7 +62,7 @@ def synthesize(text, clone_key_path=CLONE_KEY_DEFAULT, language_code=LANGUAGE_CO
                   "voiceClone": {"voiceCloningKey": key}},
         "audioConfig": {"audioEncoding": "LINEAR16",
                         "sampleRateHertz": 24000,
-                        "speakingRate": SPEAKING_RATE},
+                        "speakingRate": speaking_rate},
     }
     req = urllib.request.Request(
         "https://texttospeech.googleapis.com/v1beta1/text:synthesize",
@@ -95,6 +96,8 @@ def main():
     ap.add_argument("--clone-key", default=CLONE_KEY_DEFAULT)
     ap.add_argument("--tts-language", default=LANGUAGE_CODE,
                     help="Google TTS language_code (e.g. en-US). Default vi-VN.")
+    ap.add_argument("--speaking-rate", type=float, default=SPEAKING_RATE,
+                    help="TTS speaking rate multiplier [0.25, 2.0]. Default 1.1.")
     ap.add_argument("--only", help="generate only this output filename (e.g. ready.ogg)")
     args = ap.parse_args()
 
@@ -105,7 +108,8 @@ def main():
             continue
         with tempfile.TemporaryDirectory() as d:
             wav = os.path.join(d, "s.wav")
-            open(wav, "wb").write(synthesize(text, args.clone_key, args.tts_language))
+            open(wav, "wb").write(synthesize(text, args.clone_key, args.tts_language,
+                                             args.speaking_rate))
             out = os.path.join(args.locale_dir, name)
             encode_to_ogg(wav, out)
             print(f"{name}: {text!r} -> {out} ({_duration(out)}s)")
