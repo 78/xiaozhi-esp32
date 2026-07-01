@@ -21,8 +21,8 @@ import urllib.request
 # file (NOT the named vi-VN-Chirp3-HD-Achernar). language_code must be vi-VN.
 CLONE_KEY_DEFAULT = "/Users/tung/robo-bridge/clone_key_vi.txt"
 LANGUAGE_CODE = "vi-VN"
-# Calm, clear pace for 5-8 yr-olds (slightly slower than native). Range [0.25, 2.0].
-SPEAKING_RATE = 0.9
+# Slightly faster than native. Range [0.25, 2.0]; <1.0 slows, >1.0 speeds up.
+SPEAKING_RATE = 1.1
 
 # --- Output ---------------------------------------------------------------
 LOCALE_DIR_DEFAULT = os.path.normpath(os.path.join(

@@ -23,8 +23,8 @@ cloning), ESP-IDF (C++), CMake, `gen_lang.py`.
 - **Locale scope:** changes the **`vi-VN` locale**; tuni-p4 is the only board that pins it. No board-specific prompt layer (rejected as YAGNI). Lines literally say "Tuni".
 - **Ready-line guard:** the activation-done code change MUST be wrapped in `#ifdef CONFIG_LANGUAGE_VI_VN` / `#else` (keep `OGG_SUCCESS`) so non-vi builds are byte-identical to today.
 - **Voice:** Google Cloud TTS with `voice_clone.voice_cloning_key` = contents of `/Users/tung/robo-bridge/clone_key_vi.txt`, `language_code = vi-VN`. NOT the named `vi-VN-Chirp3-HD-Achernar`.
-- **Audio format (match embedded prompts exactly):** Opus in Ogg, mono, `-ar 16000`, `-ac 1`, `-b:a 16k`, `-frame_duration 60`, loudnorm `I=-16` LUFS. (ffprobe will report `48000 Hz` — Opus header quirk — that's correct.)
-- **Line duration:** every line ≤ ~2.5 s.
+- **Audio format (match embedded prompts exactly):** Opus in Ogg, mono, `-ar 16000`, `-ac 1`, `-b:a 16k`, `-frame_duration 60`, leading/trailing silence trimmed, loudnorm `I=-16` LUFS. (ffprobe will report `48000 Hz` — Opus header quirk — that's correct.)
+- **Pacing / wording (user decision, Task 1 + on-device tuning):** `speakingRate = 1.1` (slightly faster than native; tuned on hardware from 0.9→1.0→1.1). Keep the full drafted wording — the prior "≤ ~2.5 s" cap is **dropped**; lines run ~4–5 s and that's accepted. flush-before-ready (Task 5) bounds the only duration-sensitive case (auto-listen waits on the ready line alone; poll ceiling 10 s covers the longest take).
 - **Build env:** `source /Users/tung/esp/esp-idf/export.sh` before any `idf.py`/esptool.
 - **Flash (from `build/`):** `python -m esptool --chip esp32p4 -p <PORT> -b 230400 --before default_reset --after hard_reset write_flash @flash_args`. NOT `idf.py flash`/460800. Serial port `/dev/cu.usbmodem*` (re-enumerates; replug if it vanishes; never run a serial reader during flash).
 - **macOS has no `timeout`.**

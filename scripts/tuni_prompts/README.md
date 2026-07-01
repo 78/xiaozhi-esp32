@@ -40,10 +40,11 @@ the firmware's Ogg demuxer + Opus decoder play them correctly:
 silence trimmed and loudness normalized to ~-16 LUFS. (ffprobe will report
 `48000 Hz` — an Opus header quirk — that is correct.)
 
-`SPEAKING_RATE = 0.9` in `gen_prompts.py` gives a calm, clear pace for 5-8 yr-olds
-(slightly slower than native). The drafted lines are intentionally full sentences,
-so each runs ~5-6 s; that's accepted (the firmware flushes stale boot audio before
-the "ready" line, so only that line's length gates auto-start-listening).
+`SPEAKING_RATE = 1.1` in `gen_prompts.py` (slightly faster than native) is the tuned
+pace. The clone voice has run-to-run timing variance (internal pauses differ per take),
+so durations wobble ~±1 s; each line runs ~4-5 s. That's accepted — the firmware flushes
+stale boot audio before the "ready" line, so only that line's length gates
+auto-start-listening. Re-run `--only <name>.ogg` if a take comes out unusually long.
 
 ## Test
 
