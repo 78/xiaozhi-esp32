@@ -91,7 +91,30 @@ GitHub Actions in `.github/workflows/build.yml`. Uses `espressif/idf:v5.5.2` Doc
 
 No formal test framework — embedded firmware. Verify by building for the target board.
 
-## Other Notes
+## v1.2-freenove Branch Context
+
+Branch: `v1.2-freenove`, tags `v1.3-freenove`, `v1.4-freenove`. Freenove ESP32-S3 2.8" (ILI9341, ES8311, XPT2046 touch on I2C 0x38), 16MB flash. WiFi `home4`. Device MACs: `3c:0f:02:dd:c1:a4` (original), `44:1b:f6:cf:78:b8` (new). IP `192.168.22.205`. Host IP `192.168.22.249`. OTA URL: `http://192.168.22.102:18792/ota`. Build with `python scripts/release.py freenove-esp32s3-display-2.8-lcd`.
+
+### USB Detection (Battery)
+TP4054 CHRG pin NOT routed to GPIO (confirmed). Voltage-trend detection via `AdcBatteryMonitor` on `ADC_UNIT_1, ADC_CHANNEL_8`, 200k/200k divider (1:2). Custom `adc_oneshot` handle + `curve_fitting` calibration. State machine: `kIdle`/`kCharging`/`kFull`/`kDischarging` with rolling median (5 samples × 5s), 30mV hysteresis, 60s >4150mV for full heuristic.
+
+### MCP Tools Added
+- `self.audio_wake_word.set_state` — `start`/`stop`, calls `AudioService::EnableWakeWordDetection()`, idempotent
+- `self.audio_wake_word.get_status` — returns `running`/`stopped` + `mic_active` via event group + codec state
+- `self.audio_pipeline.reset` — `input`/`output`/`idle`, calls `codec->EnableInput/EnableOutput()`
+
+### Custom Assets
+`assets.bin` (7.78MB, 8 GIF + 30pt font). `CONFIG_FLASH_DEFAULT_ASSETS=n`, `CONFIG_FLASH_CUSTOM_ASSETS=y`, `CUSTOM_ASSETS_FILE="boards/freenove-esp32s3-display-2.8-lcd/assets.bin"`.
+
+### Key Files
+- `main/boards/freenove-esp32s3-display-2.8-lcd/freenove-esp32s3-display-2.8-lcd.cc` — Board class, touch, battery monitor, MCP tools
+- `main/boards/freenove-esp32s3-display-2.8-lcd/config.json` — OTA URL + custom assets config
+- `main/boards/freenove-esp32s3-display-2.8-lcd/assets.bin` — 7.78MB custom assets
+- `main/boards/common/adc_battery_monitor.h` — `ChargeState` enum, state machine, median filter
+- `main/boards/common/adc_battery_monitor.cc` — Voltage-trend state machine, `GetVoltageMv()` via adc_oneshot + curve_fitting
+- `main/audio/audio_service.h/.cc` — `EnableWakeWordDetection()`, `IsWakeWordRunning()`, `AudioInputTask()`
+
+### Other Notes
 
 - `sdkconfig` is auto-generated; do not edit manually
 - Per-chip defaults in `sdkconfig.defaults.esp32*` files
