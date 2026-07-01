@@ -134,10 +134,10 @@ dependencies:
     version: ^0.3.1
     rules:
     - if: target in [esp32s3, esp32p4]
-    
+
   espressif/bq27220:
     public: true
-    version: '*' 
+    version: '*'
 
   ## Required IDF version
   idf:

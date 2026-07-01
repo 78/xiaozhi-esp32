@@ -16,7 +16,6 @@
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
-
 #define TAG "WaveshareEsp32c5TouchLCD1inch69"
 
 class WaveshareEsp32c5TouchLCD1inch69 : public WifiBoard {
@@ -33,19 +32,18 @@ private:
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
-            GetBacklight()->SetBrightness(20); });
+            GetBacklight()->SetBrightness(20);
+        });
         power_save_timer_->OnExitSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(false);
-            GetBacklight()->RestoreBrightness(); });
-        power_save_timer_->OnShutdownRequest([this](){ 
-            // pmic_->PowerOff(); 
+            GetBacklight()->RestoreBrightness();
         });
         power_save_timer_->SetEnabled(true);
     }
 
     void InitializeCodecI2c() {
         // Initialize I2C peripheral
-       i2c_config_t conf ;
+        i2c_config_t conf = {};
         conf.mode = I2C_MODE_MASTER;
         conf.sda_io_num = AUDIO_CODEC_I2C_SDA_PIN;
         conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
@@ -122,14 +120,14 @@ private:
         buscfg.sclk_io_num = DISPLAY_CLK_PIN;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_WIDTH*  DISPLAY_HEIGHT*  sizeof(uint16_t);
+        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(DISPLAY_SPI_MODE, &buscfg, SPI_DMA_CH_AUTO));
     }
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-              if (app.GetDeviceState() == kDeviceStateStarting) {
+            if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
                 return;
             }
@@ -201,10 +199,10 @@ private:
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_handle_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
 
-        // esp_io_expander_set_level(expander, DISPLAY_TOUCH_RST_PIN, false);
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
-        // esp_io_expander_set_level(expander, DISPLAY_TOUCH_RST_PIN, true);
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
+        esp_io_expander_set_level(expander, DISPLAY_TOUCH_RST_PIN, false);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_io_expander_set_level(expander, DISPLAY_TOUCH_RST_PIN, true);
+        vTaskDelay(pdMS_TO_TICKS(100));
         
         ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst816s(tp_io_handle, &tp_cfg, &tp));
         const lvgl_port_touch_cfg_t touch_cfg = {
@@ -229,12 +227,12 @@ private:
 
 public:
     WaveshareEsp32c5TouchLCD1inch69() : boot_button_(BOOT_BUTTON_GPIO) {
-        InitializePowerSaveTimer();    
+        InitializePowerSaveTimer();
         InitializeCodecI2c();
         InitializeBq27220(1000);
         InitializeSpi();
         InitializeDisplay();
-        // InitializeTouch();
+        InitializeTouch();
         InitializeButtons();
         InitializeTools();
         GetBacklight()->RestoreBrightness();
