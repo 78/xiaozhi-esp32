@@ -169,16 +169,53 @@ void AfeAudioProcessor::AudioProcessorTask() {
             continue;
         }
 
+        // Frame energy for the noise-onset guard. AGC is off (agc_init=false)
+        // and NS only attenuates noise, so this RMS is on the same scale as the
+        // raw MIC meter in audio_service — a fixed threshold is meaningful.
+        uint32_t frame_rms = 0;
+        if (res->data != nullptr && res->data_size > 0) {
+            size_t n = res->data_size / sizeof(int16_t);
+            uint64_t sqsum = 0;
+            for (size_t i = 0; i < n; i++) {
+                int32_t s = res->data[i];
+                sqsum += static_cast<uint64_t>(s) * static_cast<uint64_t>(s);
+            }
+            if (n > 0) frame_rms = static_cast<uint32_t>(__builtin_sqrt(sqsum / n));
+        }
+
         // VAD state — update is_speaking_ regardless of callback presence
         // (gating reads it), then notify on edges.
+        // Onset guard threshold (int16 RMS). The neural VAD occasionally flags
+        // low-energy room noise as speech (worse with the +6dB mic gain), which
+        // streams a 20-30s noise burst upstream and can trip a false
+        // "gặp trục trặc". Tune on serial: ambient noise stays below, a child's
+        // speech onset stays above. See the "VAD onset ..." log lines.
+        static constexpr uint32_t kVadOnsetRmsThreshold = 300;
+        // Rate-limit the suppression log to one line per noise episode.
+        static bool onset_suppress_logged = false;
+
         bool was_speaking = is_speaking_;
         if (res->vad_state == VAD_SPEECH) {
-            is_speaking_ = true;
+            // Require real energy to START a turn; once speaking, let the VAD's
+            // own hangover (vad_min_noise_ms) end it so a child's quiet
+            // syllables aren't clipped mid-sentence.
+            if (is_speaking_ || frame_rms >= kVadOnsetRmsThreshold) {
+                is_speaking_ = true;
+                onset_suppress_logged = false;
+            } else if (!onset_suppress_logged) {
+                ESP_LOGI(TAG, "VAD onset suppressed (noise): rms=%lu < thr=%u",
+                         (unsigned long)frame_rms, (unsigned)kVadOnsetRmsThreshold);
+                onset_suppress_logged = true;
+            }
         } else if (res->vad_state == VAD_SILENCE) {
             is_speaking_ = false;
+            onset_suppress_logged = false;
         }
         bool rising  = is_speaking_ && !was_speaking;   // silence -> speech
         bool falling = !is_speaking_ && was_speaking;   // speech  -> silence
+        if (rising) {
+            ESP_LOGI(TAG, "VAD onset (speech): rms=%lu", (unsigned long)frame_rms);
+        }
         if ((rising || falling) && vad_state_change_callback_) {
             vad_state_change_callback_(is_speaking_);
         }
