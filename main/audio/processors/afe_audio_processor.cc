@@ -190,7 +190,7 @@ void AfeAudioProcessor::AudioProcessorTask() {
         // streams a 20-30s noise burst upstream and can trip a false
         // "gặp trục trặc". Tune on serial: ambient noise stays below, a child's
         // speech onset stays above. See the "VAD onset ..." log lines.
-        static constexpr uint32_t kVadOnsetRmsThreshold = 300;
+        static constexpr uint32_t kVadOnsetRmsThreshold = 240;
         // Rate-limit the suppression log to one line per noise episode.
         static bool onset_suppress_logged = false;
 
