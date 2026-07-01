@@ -361,8 +361,15 @@ void AudioService::AudioOutputTask() {
         if (task->type == kAudioTaskTypePlaybackComplete) {
             // Reached only after every real frame ahead of it already returned
             // from OutputData() below on prior iterations — the clip is done.
-            auto cb = std::move(sound_complete_cb_);
-            sound_complete_cb_ = nullptr;
+            // Re-acquire the lock only long enough to move the cb out; invoke
+            // it outside the lock to avoid holding the mutex during the callback
+            // (which could itself call back into AudioService).
+            std::function<void()> cb;
+            {
+                std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+                cb = std::move(sound_complete_cb_);
+                sound_complete_cb_ = nullptr;
+            }
             if (cb) cb();
             continue;
         }
@@ -860,22 +867,26 @@ void AudioService::WaitForPlaybackQueueEmpty() {
 }
 
 void AudioService::ResetDecoder() {
-    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-    std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
-    if (opus_decoder_ != nullptr) {
-        esp_opus_dec_reset(opus_decoder_);
-    }
-    decoder_lock.unlock();
-    timestamp_queue_.clear();
-    audio_decode_queue_.clear();
-    audio_playback_queue_.clear();
-    audio_testing_queue_.clear();
-    if (sound_complete_cb_) {
-        auto cb = std::move(sound_complete_cb_);
+    std::function<void()> cb;
+    {
+        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+        std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
+        if (opus_decoder_ != nullptr) {
+            esp_opus_dec_reset(opus_decoder_);
+        }
+        decoder_lock.unlock();
+        timestamp_queue_.clear();
+        audio_decode_queue_.clear();
+        audio_playback_queue_.clear();
+        audio_testing_queue_.clear();
+        // Move the cb out under the lock so no other thread can race on it,
+        // but invoke it AFTER the lock is released to avoid holding
+        // audio_queue_mutex_ during the callback (deadlock / re-entrancy risk).
+        cb = std::move(sound_complete_cb_);
         sound_complete_cb_ = nullptr;
-        cb();   // flushed clip: signal completion so the caller's re-enable path still runs
+        audio_queue_cv_.notify_all();
     }
-    audio_queue_cv_.notify_all();
+    if (cb) cb();   // flushed clip: signal completion so the caller's re-enable path still runs
 }
 
 void AudioService::CheckAndUpdateAudioPowerState() {
