@@ -49,18 +49,24 @@ child speaks → VAD onset (RMS-gated) → stream → falling edge → listen.st
   `listen.stop`. In the shipped config (`CONFIG_VAD_GATED_UPSTREAM`) that is the
   EOS-marker path in `application.cc` ("EOS marker, sending listen.stop"). The
   RMS onset guard already keeps `listen.stop` out of low-energy noise.
-- **Reply always wins (hard-cut).** The server `tts` `state:start` handler already
-  calls `ResetDecoder()` (application.cc:626), clearing the playback queue the ack
-  uses, then enters `kDeviceStateSpeaking`. So: `tts start` **before** the timer
-  fires cancels the pending timer (no ack); `tts start` **while the ack plays**
-  hard-cuts it via that existing flush and the reply plays. There is no
-  "let it finish." Keep clips short (≤~800ms) so a mid-clip cut is rare/brief.
+- **Reply always wins.** The server `tts` `state:start` handler already calls
+  `ResetDecoder()` (application.cc:626), which **flushes the queued ack tail** — it
+  cannot interrupt the at-most-one frame already inside `codec_->OutputData()`
+  (audio_service.cc:367); that frame finishes, no mixing — then enters
+  `kDeviceStateSpeaking`. So: `tts start` **before** the timer fires cancels the
+  pending timer (no ack); `tts start` **while the ack plays** flushes its tail and
+  the reply plays. No "let it finish." Keep clips short (≤~800ms) so the flushed
+  tail is minimal.
 - **Fire conditions** (all required): still in `kDeviceStateListening` (no reply
   yet), WebSocket connected, and not in an error/aborted/reconnecting state.
 - `ACK_DELAY_MS` is a tunable constant (default ~1000ms, measured from
   `listen.stop`). Note `listen.stop` already trails the child by the VAD noise
   hangover (~700ms), so the ack lands ~1.5–1.7s after the child actually stops —
   still ahead of the real reply. Tune on hardware.
+- **Timer dispatch:** the ack timer is an `esp_timer`; its callback must **not** run
+  `EnableVoiceProcessing`/`PlaySound` inline. It `Schedule()`s the fire sequence
+  onto the main app task (the `MAIN_EVENT_SCHEDULE`/`main_tasks_` path,
+  application.cc:36/306), matching existing timer usage.
 
 ### 2. The clips
 
@@ -101,9 +107,14 @@ phantom turn on the worker (which is not replying, so it treats it as new speech
    upstream PCM / EOS marker already queued.
 2. Play the ack — the playback/decoder path is independent of the stopped capture
    path.
-3. Re-enable capture **only after** the clip finishes playing **and** only if still
-   in `kDeviceStateListening`: `EnableVoiceProcessing(true)`. Note this call itself
-   runs `ResetDecoder()` (audio_service.cc:748), so it must not run mid-clip.
+3. Re-enable capture **only after** the clip has physically finished playing **and**
+   only if still in `kDeviceStateListening`: `EnableVoiceProcessing(true)` (this call
+   runs `ResetDecoder()`, audio_service.cc:748, so it must not run mid-clip).
+   "Finished playing" MUST be a **tagged ack-completion callback fired after the
+   final `codec_->OutputData()` returns** for the ack frames — NOT
+   queue-empty/`IsIdle()`: the playback task is popped *before* `OutputData()`
+   (audio_service.cc:356), so a queue-empty signal precedes the physical end of
+   audio and would re-open the mic over the ack's own tail.
 
 If a real reply arrives during the ack, its `tts.start` handler drives
 `kDeviceStateSpeaking` → `EnableVoiceProcessing(false)` + `ResetDecoder()`; the
@@ -116,22 +127,27 @@ Requirement: **no ack audio reaches STT upstream and no phantom turn is generate
 ### 4. Interaction with real reply & stall filler
 
 - `tts start` before the timer fires → cancel the pending timer (no ack).
-- `tts start` *while the ack is playing* → the existing `ResetDecoder()` in the
-  tts.start handler hard-cuts the ack and the reply plays (§1). We do NOT
-  special-case "let it finish"; clips are short so the cut is rare and brief.
+- `tts start` *while the ack is playing* → the existing `ResetDecoder()` flushes
+  the ack's queued tail (at most one in-flight output frame finishes; no mixing) and
+  the reply plays (§1). We do NOT special-case "let it finish"; clips are short so
+  the flushed tail is minimal.
 - The server `LLM_STALL_FILLER` is itself a TTS reply (arrives as `tts start`), so
-  it cancels/hard-cuts the device ack the same way — no double filler.
+  it cancels the timer / flushes the ack tail the same way — no double filler.
 
 ### 5. Code touch points
 
-- **`main/application.cc`**: arm the `ACK_DELAY_MS` timer where `listen.stop` is
-  sent (gated EOS path); on fire, check §1 conditions then run the §3 sequence
-  (`EnableVoiceProcessing(false)` → `PlaySound(random OGG_ACK_*)` → on playback
-  completion, if still in `kDeviceStateListening`, `EnableVoiceProcessing(true)`).
-  Cancel the pending timer on `tts start`, a new VAD onset, and abort/error/disconnect.
+- **`main/application.cc`**: arm the `ACK_DELAY_MS` `esp_timer` where `listen.stop`
+  is sent (gated EOS path). Its callback `Schedule()`s onto the main app task (never
+  runs `EnableVoiceProcessing`/`PlaySound` inline). The scheduled work checks §1
+  conditions then runs the §3 sequence (`EnableVoiceProcessing(false)` →
+  `PlaySound(random OGG_ACK_*)` → on the tagged ack-completion callback, if still
+  `kDeviceStateListening`, `EnableVoiceProcessing(true)`). Cancel the pending timer
+  on `tts start`, a new VAD onset, and abort/error/disconnect.
 - **`main/audio/audio_service.*`**: random-no-repeat `OGG_ACK_*` selection + a
-  playback-complete signal so `application.cc` knows when to re-enable capture.
-  Reuses existing `EnableVoiceProcessing` / `BumpUpstreamGeneration` / `PlaySound`.
+  **tagged ack-completion callback fired after the final `codec_->OutputData()`
+  returns** (not queue-empty/`IsIdle()`), so `application.cc` re-enables capture only
+  once the ack has physically finished. Reuses existing `EnableVoiceProcessing` /
+  `BumpUpstreamGeneration` / `PlaySound`.
 - **Assets/generator**: `scripts/tuni_prompts/prompts.en.json`; extend
   `gen_prompts.py` with `--tts-language`, `--clone-key`, `--locale-dir` (decoupling
   TTS language from asset locale); generate OGGs into `main/assets/locales/vi-VN/`;
@@ -148,6 +164,16 @@ Requirement: **no ack audio reaches STT upstream and no phantom turn is generate
   `listen.stop` until the state resets) — this feature does not change that, it
   only cancels the ack. Once the ack has *started*, capture is suppressed (§3) so
   no new onset can occur mid-clip.
+- **Child speaks after the ack finishes but before the reply** → re-enabling capture
+  (§3.3) restores the *pre-existing* post-`listen.stop` mic-on state. In that window
+  a new onset streams audio but sends **no** second `listen.stop` (guard at
+  application.cc:259; `listen_stop_sent_` stays true until the Listening-state reset
+  at application.cc:984). **Decision:** this orphaned-second-utterance quirk exists
+  today *without* this feature and is explicitly **out of scope** — the ack neither
+  creates nor fixes it; post-ack speech is left to existing behavior (not ignored,
+  aborted, or started as a new cycle by this change). A future barge-in/turn-restart
+  change could reset `listen_stop_sent_` here, but that risks overlapping turns and
+  is deferred.
 - **Abort/stop** mid-wait → cancel ack.
 - **Ack asset missing / decode fail** → no-op, never blocks the reply.
 
