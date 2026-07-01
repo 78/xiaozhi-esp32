@@ -12,6 +12,7 @@
 
 #include <cstring>
 #include <esp_log.h>
+#include <esp_random.h>
 #include <cJSON.h>
 #include <driver/gpio.h>
 #include <arpa/inet.h>
@@ -66,6 +67,18 @@ Application::Application() {
         .skip_unhandled_events = true,
     };
     esp_timer_create(&talking_anim_args, &talking_anim_timer_handle_);
+
+    esp_timer_create_args_t ack_timer_args = {
+        .callback = [](void* arg) {
+            Application* app = static_cast<Application*>(arg);
+            app->Schedule([app]() { app->FireAck(); });
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "ack_timer",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&ack_timer_args, &ack_timer_handle_);
 }
 
 Application::~Application() {
@@ -76,6 +89,10 @@ Application::~Application() {
     if (talking_anim_timer_handle_ != nullptr) {
         esp_timer_stop(talking_anim_timer_handle_);
         esp_timer_delete(talking_anim_timer_handle_);
+    }
+    if (ack_timer_handle_ != nullptr) {
+        esp_timer_stop(ack_timer_handle_);
+        esp_timer_delete(ack_timer_handle_);
     }
     vEventGroupDelete(event_group_);
 }
@@ -262,6 +279,7 @@ void Application::Run() {
                             ESP_LOGI(TAG, "EOS marker, sending listen.stop");
                             protocol_->SendStopListening();
                             listen_stop_sent_ = true;
+                            ArmAckTimer();   // ack fires in ACK_DELAY_MS unless a reply/onset cancels it
                         }
                         continue;   // never SendAudio() a marker
                     }
@@ -280,6 +298,14 @@ void Application::Run() {
             if (GetDeviceState() == kDeviceStateListening) {
                 auto led = Board::GetInstance().GetLed();
                 led->OnStateChanged();
+
+                // A fresh speech onset during the post-listen.stop wait means the
+                // child is talking again — drop any pending ack for the prior turn.
+                // Must run unconditionally (before the gating / listen_stop_sent_ checks)
+                // so it fires even in the VAD-gated config where the block below is skipped.
+                if (vad_speaking_) {
+                    CancelAckTimer();
+                }
 
                 // Device-side end-of-speech detection.
                 // In AutoStop mode the device is responsible for telling the
@@ -617,6 +643,7 @@ void Application::InitializeProtocol() {
         if (strcmp(type->valuestring, "tts") == 0) {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
+                CancelAckTimer();   // reply is here; no ack (and if playing, ResetDecoder below flushes it)
                 // Synchronous (WS task) — must happen before the next binary
                 // Opus frame arrives on the same WS connection, otherwise the
                 // state-gate in OnIncomingAudio drops the audio. Required for
@@ -1050,8 +1077,52 @@ void Application::Schedule(std::function<void()>&& callback) {
     xEventGroupSetBits(event_group_, MAIN_EVENT_SCHEDULE);
 }
 
+#define ACK_DELAY_MS 1000
+
+void Application::ArmAckTimer() {
+    if (ack_timer_handle_ == nullptr) return;
+    esp_timer_stop(ack_timer_handle_);   // idempotent if not running
+    esp_timer_start_once(ack_timer_handle_, ACK_DELAY_MS * 1000);
+}
+
+void Application::CancelAckTimer() {
+    if (ack_timer_handle_ != nullptr) {
+        esp_timer_stop(ack_timer_handle_);
+    }
+}
+
+void Application::FireAck() {
+    // Fire only for a still-pending turn on a healthy connection.
+    if (GetDeviceState() != kDeviceStateListening) return;   // reply already took over
+    if (aborted_) return;
+    if (protocol_ == nullptr || !protocol_->IsAudioChannelOpened()) return;
+
+    // Pick a random clip, no immediate repeat.
+    static const std::string_view kAck[] = {
+        Lang::Sounds::OGG_ACK_1, Lang::Sounds::OGG_ACK_2, Lang::Sounds::OGG_ACK_3,
+        Lang::Sounds::OGG_ACK_4, Lang::Sounds::OGG_ACK_5,
+    };
+    constexpr int kAckCount = sizeof(kAck) / sizeof(kAck[0]);
+    int idx = esp_random() % kAckCount;
+    if (idx == last_ack_index_) idx = (idx + 1) % kAckCount;
+    last_ack_index_ = idx;
+
+    // Suppress capture for the clip (stops AFE, drops queued PCM/EOS markers).
+    audio_service_.EnableVoiceProcessing(false);
+    audio_service_.PlaySound(kAck[idx], [this]() {
+        // Runs after the clip's final OutputData(), or on a flush by a reply.
+        // Re-enable capture only if the turn is still pending (no reply took over).
+        Schedule([this]() {
+            if (GetDeviceState() == kDeviceStateListening && !aborted_) {
+                audio_service_.EnableVoiceProcessing(true);
+            }
+        });
+    });
+}
+
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
+    CancelAckTimer();
     aborted_ = true;
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);

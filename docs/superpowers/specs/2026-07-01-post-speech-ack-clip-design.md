@@ -55,8 +55,11 @@ child speaks → VAD onset (RMS-gated) → stream → falling edge → listen.st
   (audio_service.cc:367); that frame finishes, no mixing — then enters
   `kDeviceStateSpeaking`. So: `tts start` **before** the timer fires cancels the
   pending timer (no ack); `tts start` **while the ack plays** flushes its tail and
-  the reply plays. No "let it finish." Keep clips short (≤~800ms) so the flushed
-  tail is minimal.
+  the reply plays. No "let it finish." Clips are kept short (**~1.2s**, warmer
+  phrasing generated at `speakingRate=1.5`) so a flushed tail is brief. Note: at
+  ~1.2s clips with `ACK_DELAY_MS=1000` the ack ends ~2.2s after `listen.stop`; a
+  reply arriving ~1.8-2s can clip its tail — lower `ACK_DELAY_MS` on hardware if
+  that feels abrupt.
 - **Fire conditions** (all required): still in `kDeviceStateListening` (no reply
   yet), WebSocket connected, and not in an error/aborted/reconnecting state.
 - `ACK_DELAY_MS` = **1000ms** (confirmed), measured from `listen.stop`, kept as a
@@ -179,8 +182,8 @@ Requirement: **no ack audio reaches STT upstream and no phantom turn is generate
 
 ## Tunables
 
-- `ACK_DELAY_MS` (default ~1000ms).
-- Clip count `N` (3–5) and wording.
+- `ACK_DELAY_MS` (default 1000ms; consider ~600-700ms so ~1.2s clips finish before a fast reply).
+- Clip count `N` (5) and wording; `speakingRate` (1.5) and per-clip length (~1.2s) via `gen_prompts.py --speaking-rate`.
 
 ## Acceptance criteria (hardware)
 

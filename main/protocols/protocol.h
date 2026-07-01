@@ -19,6 +19,7 @@ struct AudioStreamPacket {
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
     bool end_of_utterance = false;   // marker: drain sends listen.stop, never SendAudio
+    bool end_of_sound = false;       // marker: last packet of a PlaySound clip (fires completion cb)
     uint32_t generation = 0;         // upstream session id for stale-drop
 };
 
