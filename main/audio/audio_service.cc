@@ -821,7 +821,11 @@ void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
 }
 
 void AudioService::PlaySound(const std::string_view& ogg, std::function<void()> on_complete) {
-    sound_complete_cb_ = std::move(on_complete);
+    bool has_cb = (on_complete != nullptr);
+    {
+        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+        sound_complete_cb_ = std::move(on_complete);
+    }
 
     if (!codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
@@ -847,7 +851,7 @@ void AudioService::PlaySound(const std::string_view& ogg, std::function<void()> 
     // Sentinel rides the FIFO behind the last PCM frame; when it reaches the
     // output task the clip has fully played (see AudioOutputTask). Only enqueue
     // when a completion cb is registered to avoid needless queue traffic.
-    if (sound_complete_cb_) {
+    if (has_cb) {
         auto marker = std::make_unique<AudioStreamPacket>();
         marker->end_of_sound = true;
         PushPacketToDecodeQueue(std::move(marker), true);
