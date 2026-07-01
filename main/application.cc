@@ -90,6 +90,10 @@ Application::~Application() {
         esp_timer_stop(talking_anim_timer_handle_);
         esp_timer_delete(talking_anim_timer_handle_);
     }
+    if (ack_timer_handle_ != nullptr) {
+        esp_timer_stop(ack_timer_handle_);
+        esp_timer_delete(ack_timer_handle_);
+    }
     vEventGroupDelete(event_group_);
 }
 
@@ -295,6 +299,14 @@ void Application::Run() {
                 auto led = Board::GetInstance().GetLed();
                 led->OnStateChanged();
 
+                // A fresh speech onset during the post-listen.stop wait means the
+                // child is talking again — drop any pending ack for the prior turn.
+                // Must run unconditionally (before the gating / listen_stop_sent_ checks)
+                // so it fires even in the VAD-gated config where the block below is skipped.
+                if (vad_speaking_) {
+                    CancelAckTimer();
+                }
+
                 // Device-side end-of-speech detection.
                 // In AutoStop mode the device is responsible for telling the
                 // server when the user has stopped talking so it can finalize
@@ -306,7 +318,6 @@ void Application::Run() {
                     !audio_service_.IsUpstreamGatingActive()) {
                     if (vad_speaking_) {
                         vad_had_speech_in_turn_ = true;
-                        CancelAckTimer();   // child speaking again → no ack for the prior turn
                     } else if (vad_had_speech_in_turn_) {
                         if (protocol_) {
                             ESP_LOGI(TAG, "VAD end-of-speech, sending listen.stop");
