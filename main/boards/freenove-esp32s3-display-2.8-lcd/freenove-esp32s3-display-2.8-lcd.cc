@@ -229,6 +229,72 @@ private:
     }
 
     void InitializeTools() {
+        auto& mcp_server = McpServer::GetInstance();
+
+        mcp_server.AddTool("self.audio_wake_word.set_state",
+            "Start or stop the wake word engine manually. "
+            "Use `start` to initialize the microphone and begin wake word detection. "
+            "Use `stop` to stop detection and release the microphone (needed before TTS to avoid feedback). "
+            "This operation is idempotent — starting when already running has no effect.",
+            PropertyList({
+                Property("state", kPropertyTypeString)
+            }),
+            [](const PropertyList& properties) -> ReturnValue {
+                auto& app = Application::GetInstance();
+                auto& audio_service = app.GetAudioService();
+                auto state = properties["state"].value<std::string>();
+                if (state == "start") {
+                    audio_service.EnableWakeWordDetection(true);
+                } else if (state == "stop") {
+                    audio_service.EnableWakeWordDetection(false);
+                } else {
+                    throw std::runtime_error("Invalid state. Must be 'start' or 'stop'");
+                }
+                return true;
+            });
+
+        mcp_server.AddTool("self.audio_wake_word.get_status",
+            "Check if the wake word engine is running and whether the microphone is active.",
+            PropertyList(),
+            [](const PropertyList& properties) -> ReturnValue {
+                auto& app = Application::GetInstance();
+                auto& audio_service = app.GetAudioService();
+                cJSON* json = cJSON_CreateObject();
+                if (audio_service.IsWakeWordRunning()) {
+                    cJSON_AddStringToObject(json, "status", "running");
+                } else {
+                    cJSON_AddStringToObject(json, "status", "stopped");
+                }
+                auto codec = Board::GetInstance().GetAudioCodec();
+                cJSON_AddBoolToObject(json, "mic_active", codec->input_enabled());
+                return json;
+            });
+
+        mcp_server.AddTool("self.audio_pipeline.reset",
+            "Reset the audio pipeline to a specific mode. "
+            "Use `input` mode to enable microphone and disable the speaker/amplifier. "
+            "Use `output` mode to enable speaker and disable the microphone. "
+            "Use `idle` mode to disable both for power saving.",
+            PropertyList({
+                Property("mode", kPropertyTypeString)
+            }),
+            [](const PropertyList& properties) -> ReturnValue {
+                auto codec = Board::GetInstance().GetAudioCodec();
+                auto mode = properties["mode"].value<std::string>();
+                if (mode == "input") {
+                    codec->EnableOutput(false);
+                    codec->EnableInput(true);
+                } else if (mode == "output") {
+                    codec->EnableInput(false);
+                    codec->EnableOutput(true);
+                } else if (mode == "idle") {
+                    codec->EnableInput(false);
+                    codec->EnableOutput(false);
+                } else {
+                    throw std::runtime_error("Invalid mode. Must be 'input', 'output', or 'idle'");
+                }
+                return true;
+            });
     }
 
 public:
