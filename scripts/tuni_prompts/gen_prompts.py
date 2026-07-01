@@ -52,12 +52,12 @@ def _access_token():
                           capture_output=True, text=True).stdout.strip()
 
 
-def synthesize(text, clone_key_path=CLONE_KEY_DEFAULT):
+def synthesize(text, clone_key_path=CLONE_KEY_DEFAULT, language_code=LANGUAGE_CODE):
     """Return WAV (LINEAR16 mono 24k) bytes for `text` in the Tuni clone voice."""
     key = open(clone_key_path).read().strip()
     body = {
         "input": {"text": text},
-        "voice": {"languageCode": LANGUAGE_CODE,
+        "voice": {"languageCode": language_code,
                   "voiceClone": {"voiceCloningKey": key}},
         "audioConfig": {"audioEncoding": "LINEAR16",
                         "sampleRateHertz": 24000,
@@ -93,6 +93,8 @@ def main():
                     default=os.path.join(os.path.dirname(__file__), "prompts.vi-VN.json"))
     ap.add_argument("--locale-dir", default=LOCALE_DIR_DEFAULT)
     ap.add_argument("--clone-key", default=CLONE_KEY_DEFAULT)
+    ap.add_argument("--tts-language", default=LANGUAGE_CODE,
+                    help="Google TTS language_code (e.g. en-US). Default vi-VN.")
     ap.add_argument("--only", help="generate only this output filename (e.g. ready.ogg)")
     args = ap.parse_args()
 
@@ -103,7 +105,7 @@ def main():
             continue
         with tempfile.TemporaryDirectory() as d:
             wav = os.path.join(d, "s.wav")
-            open(wav, "wb").write(synthesize(text, args.clone_key))
+            open(wav, "wb").write(synthesize(text, args.clone_key, args.tts_language))
             out = os.path.join(args.locale_dir, name)
             encode_to_ogg(wav, out)
             print(f"{name}: {text!r} -> {out} ({_duration(out)}s)")
