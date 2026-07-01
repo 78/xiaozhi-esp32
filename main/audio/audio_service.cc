@@ -358,6 +358,15 @@ void AudioService::AudioOutputTask() {
         audio_queue_cv_.notify_all();
         lock.unlock();
 
+        if (task->type == kAudioTaskTypePlaybackComplete) {
+            // Reached only after every real frame ahead of it already returned
+            // from OutputData() below on prior iterations — the clip is done.
+            auto cb = std::move(sound_complete_cb_);
+            sound_complete_cb_ = nullptr;
+            if (cb) cb();
+            continue;
+        }
+
         if (!codec_->output_enabled()) {
             esp_timer_stop(audio_power_timer_);
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
@@ -400,6 +409,19 @@ void AudioService::OpusCodecTask() {
             audio_decode_queue_.pop_front();
             audio_queue_cv_.notify_all();
             lock.unlock();
+
+            // Playback-complete sentinel: forward as a playback-queue marker so
+            // the output task fires the completion cb after the last real frame.
+            if (packet->end_of_sound) {
+                auto done = std::make_unique<AudioTask>();
+                done->type = kAudioTaskTypePlaybackComplete;
+                {
+                    std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                    audio_playback_queue_.push_back(std::move(done));
+                    audio_queue_cv_.notify_all();
+                }
+                continue;   // nothing to decode
+            }
 
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
@@ -791,7 +813,9 @@ void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
     callbacks_ = callbacks;
 }
 
-void AudioService::PlaySound(const std::string_view& ogg) {
+void AudioService::PlaySound(const std::string_view& ogg, std::function<void()> on_complete) {
+    sound_complete_cb_ = std::move(on_complete);
+
     if (!codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
@@ -812,6 +836,15 @@ void AudioService::PlaySound(const std::string_view& ogg) {
     });
     demuxer->Reset();
     demuxer->Process(buf, size);
+
+    // Sentinel rides the FIFO behind the last PCM frame; when it reaches the
+    // output task the clip has fully played (see AudioOutputTask). Only enqueue
+    // when a completion cb is registered to avoid needless queue traffic.
+    if (sound_complete_cb_) {
+        auto marker = std::make_unique<AudioStreamPacket>();
+        marker->end_of_sound = true;
+        PushPacketToDecodeQueue(std::move(marker), true);
+    }
 }
 
 bool AudioService::IsIdle() {
@@ -837,6 +870,11 @@ void AudioService::ResetDecoder() {
     audio_decode_queue_.clear();
     audio_playback_queue_.clear();
     audio_testing_queue_.clear();
+    if (sound_complete_cb_) {
+        auto cb = std::move(sound_complete_cb_);
+        sound_complete_cb_ = nullptr;
+        cb();   // flushed clip: signal completion so the caller's re-enable path still runs
+    }
     audio_queue_cv_.notify_all();
 }
 

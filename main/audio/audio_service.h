@@ -100,6 +100,7 @@ enum AudioTaskType {
     kAudioTaskTypeEncodeToTestingQueue,
     kAudioTaskTypeDecodeToPlaybackQueue,
     kAudioTaskTypeEndOfUtterance,
+    kAudioTaskTypePlaybackComplete,   // playback-queue sentinel: fire sound_complete_cb_
 };
 
 struct AudioTask {
@@ -146,7 +147,7 @@ public:
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
     void MarkEndOfUtterance(uint32_t generation);
     void BumpUpstreamGeneration();
-    void PlaySound(const std::string_view& sound);
+    void PlaySound(const std::string_view& sound, std::function<void()> on_complete = nullptr);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
     void SetModelsList(srmodel_list_t* models_list);
@@ -154,6 +155,7 @@ public:
 private:
     AudioCodec* codec_ = nullptr;
     AudioServiceCallbacks callbacks_;
+    std::function<void()> sound_complete_cb_ = nullptr;
     std::unique_ptr<AudioProcessor> audio_processor_;
     std::unique_ptr<WakeWord> wake_word_;
     std::unique_ptr<AudioDebugger> audio_debugger_;
