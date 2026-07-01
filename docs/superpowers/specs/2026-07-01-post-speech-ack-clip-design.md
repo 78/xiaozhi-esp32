@@ -59,10 +59,10 @@ child speaks → VAD onset (RMS-gated) → stream → falling edge → listen.st
   tail is minimal.
 - **Fire conditions** (all required): still in `kDeviceStateListening` (no reply
   yet), WebSocket connected, and not in an error/aborted/reconnecting state.
-- `ACK_DELAY_MS` is a tunable constant (default ~1000ms, measured from
-  `listen.stop`). Note `listen.stop` already trails the child by the VAD noise
+- `ACK_DELAY_MS` = **1000ms** (confirmed), measured from `listen.stop`, kept as a
+  tunable constant. Note `listen.stop` already trails the child by the VAD noise
   hangover (~700ms), so the ack lands ~1.5–1.7s after the child actually stops —
-  still ahead of the real reply. Tune on hardware.
+  still ahead of the real reply. Re-tune on hardware if it feels late.
 - **Timer dispatch:** the ack timer is an `esp_timer`; its callback must **not** run
   `EnableVoiceProcessing`/`PlaySound` inline. It `Schedule()`s the fire sequence
   onto the main app task (the `MAIN_EVENT_SCHEDULE`/`main_tasks_` path,
