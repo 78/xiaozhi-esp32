@@ -612,6 +612,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NULLLAB-AI-VOX3"
         depends on IDF_TARGET_ESP32S3
+	config BOARD_TYPE_NEONITE_555
+        bool "NEONITE-555"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice XIAOZHI_ETH_BOARD_TYPE
@@ -1083,3 +1086,4 @@ menu "TAIJIPAI_S3_CONFIG"
 endmenu
 
 endmenu
+

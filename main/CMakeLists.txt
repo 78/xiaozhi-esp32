@@ -864,6 +864,15 @@ elseif(CONFIG_BOARD_TYPE_AI_VOX3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_NEONITE_555)
+    set(BOARD_TYPE "neonite-555")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
+    set(BUILTIN_ICON_FONT font_awesome_14_1)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/neonite-555)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/boards/neonite-555/assets)
+        set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/boards/neonite-555/assets")
+        message(STATUS "NEONITE-555: Found custom assets at ${DEFAULT_ASSETS_EXTRA_FILES}")
+    endif()
 endif()
 
 if(MANUFACTURER)
@@ -1068,6 +1077,7 @@ idf_component_register(SRCS ${SOURCES}
                         bt
                         fatfs
                         ${MAIN_PRIV_REQUIRES_EXTRA}
+			esp_http_server
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME
