@@ -948,6 +948,12 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+config USE_IDLE_CLOCK
+    bool "Enable 7 Segment Clock When Idle"
+    default n
+    help
+        Enable 7 segment clock when idle
+
 menu "WiFi Configuration Method"
     help
         WiFi Configuration Method Selection

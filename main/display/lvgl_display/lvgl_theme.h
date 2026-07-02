@@ -32,6 +32,7 @@ public:
     inline std::shared_ptr<LvglFont> text_font() const { return text_font_; }
     inline std::shared_ptr<LvglFont> icon_font() const { return icon_font_; }
     inline std::shared_ptr<LvglFont> large_icon_font() const { return large_icon_font_; }
+    inline std::shared_ptr<LvglFont> segment7_font() const { return segment7_font_; }
     inline int spacing(int scale) const { return spacing_ * scale; }
 
     inline void set_background_color(lv_color_t background) { background_color_ = background; }
@@ -48,6 +49,7 @@ public:
     inline void set_text_font(std::shared_ptr<LvglFont> text_font) { text_font_ = text_font; }
     inline void set_icon_font(std::shared_ptr<LvglFont> icon_font) { icon_font_ = icon_font; }
     inline void set_large_icon_font(std::shared_ptr<LvglFont> large_icon_font) { large_icon_font_ = large_icon_font; }
+    inline void set_segment7_font(std::shared_ptr<LvglFont> segment7_font) { segment7_font_ = segment7_font; }
 
 private:
     int spacing_ = 2;
@@ -70,6 +72,7 @@ private:
     std::shared_ptr<LvglFont> text_font_ = nullptr;
     std::shared_ptr<LvglFont> icon_font_ = nullptr;
     std::shared_ptr<LvglFont> large_icon_font_ = nullptr;
+    std::shared_ptr<LvglFont> segment7_font_ = nullptr;
 
     // Emoji collection
     std::shared_ptr<EmojiCollection> emoji_collection_ = nullptr;
