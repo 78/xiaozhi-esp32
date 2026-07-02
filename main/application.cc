@@ -162,7 +162,17 @@ void Application::Initialize() {
                     msg += data;
                     msg += "...";
                     display->ShowNotification(msg.c_str(), 30000);
-                    audio_service_.PlaySound(Lang::Sounds::OGG_WIFI_CONNECTING);
+                    // Space the two boot voices: play the "connecting" prompt only
+                    // after the "scanning" prompt has finished + ~1s, so they don't
+                    // run together (both share the one playback queue). Runs in its
+                    // own task because WaitForPlaybackQueueEmpty() blocks.
+                    xTaskCreate([](void* arg) {
+                        auto* app = static_cast<Application*>(arg);
+                        app->GetAudioService().WaitForPlaybackQueueEmpty();
+                        vTaskDelay(pdMS_TO_TICKS(1000));
+                        app->GetAudioService().PlaySound(Lang::Sounds::OGG_WIFI_CONNECTING);
+                        vTaskDelete(NULL);
+                    }, "wifi_conn_gap", 4096, this, 2, NULL);
                 }
                 break;
             }
