@@ -72,15 +72,15 @@ private:
     }
 
     
-    // void InitializeGpio() {
-    //     // Zero-initialize the GPIO configuration structure
-    //     gpio_config_t io_conf = {};
-    //     io_conf.intr_type = GPIO_INTR_DISABLE; // Disable interrupts for this pin
-    //     io_conf.pin_bit_mask = 1ULL << BSP_LCD_TOUCH_INT;    // Select the GPIO pin using a bitmask
-    //     io_conf.mode = GPIO_MODE_OUTPUT;          // Set pin as output
-    //     io_conf.pull_up_en = GPIO_PULLUP_DISABLE; // Disable pull-up
-    //     gpio_config(&io_conf); // Apply the configuration
-    // }
+    void InitializeGpio() {
+        // Zero-initialize the GPIO configuration structure
+        gpio_config_t io_conf = {};
+        io_conf.intr_type = GPIO_INTR_DISABLE; // Disable interrupts for this pin
+        io_conf.pin_bit_mask = 1ULL << BSP_LCD_TOUCH_INT;    // Select the GPIO pin using a bitmask
+        io_conf.mode = GPIO_MODE_OUTPUT;          // Set pin as output
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE; // Disable pull-up
+        gpio_config(&io_conf); // Apply the configuration
+    }
 
     void InitializeCodecI2c() {
         i2c_config_t i2c_cfg = {};
