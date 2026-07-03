@@ -17,6 +17,8 @@
 #include "esp_lcd_st7703.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3
 #include "esp_lcd_st7701.h"
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5
+#include "esp_lcd_hx8394.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
 #include "esp_lcd_ek79007.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C \
@@ -178,6 +180,44 @@ private:
             .vendor_config = &vendor_config,
     };
     esp_lcd_new_panel_st7701(io, &lcd_dev_config, &disp_panel);
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5
+        esp_lcd_dpi_panel_config_t dpi_config = {
+            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+            .dpi_clock_freq_mhz = 58,
+            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .num_fbs = 1,
+            .video_timing = {
+                .h_size = DISPLAY_WIDTH,
+                .v_size = DISPLAY_HEIGHT,
+                .hsync_pulse_width = 20,
+                .hsync_back_porch = 20,
+                .hsync_front_porch = 40,
+                .vsync_pulse_width = 4,
+                .vsync_back_porch = 10,
+                .vsync_front_porch = 24,
+            },
+            .flags = {
+                .use_dma2d = true,
+            },
+        };
+        hx8394_vendor_config_t vendor_config = {
+            .mipi_config = {
+                .dsi_bus = mipi_dsi_bus,
+                .dpi_config = &dpi_config,
+                .lane_num = 2,
+            },
+        };
+
+        const esp_lcd_panel_dev_config_t lcd_dev_config = {
+            .reset_gpio_num = PIN_NUM_LCD_RST,
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .bits_per_pixel = 16,
+            .flags = {
+                .reset_active_high = true,
+            },
+            .vendor_config = &vendor_config,
+        };
+        esp_lcd_new_panel_hx8394(io, &lcd_dev_config, &disp_panel);
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
