@@ -207,6 +207,15 @@ DeviceApiClient::PollResult DeviceApiClient::PollBindingStatus(int& poll_after_s
 
     if (status == 401 || status == 403) {
         last_error_ = ParseErrorResponse(status, response);
+        // If device_token was revoked or unauthorized, clear it so the next
+        // poll attempt falls through to use the pair_token instead.
+        if (last_error_ == DeviceApiError::kTokenRevoked ||
+            last_error_ == DeviceApiError::kUnauthenticated) {
+            if (!device_token_.empty()) {
+                ESP_LOGW(TAG, "Device token revoked/invalid, clearing credentials");
+                ClearCredentials();
+            }
+        }
         return PollResult::kError;
     }
 
