@@ -162,7 +162,7 @@ def _find_board_config_candidates(board_type: str) -> list[str]:
 
 def _extract_board_config_from_sdkconfig_append(sdkconfig_append: list[str]) -> Optional[str]:
     """Extract explicit CONFIG_BOARD_TYPE_xxx=y from sdkconfig_append, if present."""
-    pattern = re.compile(r"^(CONFIG_BOARD_TYPE_[A-Z0-9_]+)=y$")
+    pattern = re.compile(r"^(CONFIG_BOARD_TYPE_[A-Za-z0-9_]+)=y$")
     matches = []
     for item in sdkconfig_append:
         m = pattern.match(item.strip())
