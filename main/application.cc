@@ -30,6 +30,11 @@
 // up; association is not required. Phase B appends |pubkey_jwk=<json> to the
 // same line; parsers must ignore unknown keys. Raw printf, not ESP_LOG: the
 // line must survive log-level changes in release builds.
+// NOTE: with CONFIG_DEVICE_JWT_AUTH this does mbedtls ECC work (first-boot
+// keygen + point export) needing several KB of stack — far more than the
+// sys_evt task's ~2.4KB where network events are dispatched (hardware-verified
+// stack-protection fault there). Never call directly from an event handler;
+// use SpawnFactoryIdentityLine().
 static void PrintFactoryIdentityLine() {
 #ifdef CONFIG_DEVICE_JWT_AUTH
     // Phase B: enroll the device's public key at the factory. EnsureKey here
@@ -50,6 +55,13 @@ static void PrintFactoryIdentityLine() {
     printf("FACTORY|device_id=%s|fw=%s\n",
            SystemInfo::GetMacAddress().c_str(),
            esp_app_get_description()->version);
+}
+
+static void SpawnFactoryIdentityLine() {
+    xTaskCreate([](void*) {
+        PrintFactoryIdentityLine();
+        vTaskDelete(NULL);
+    }, "factory_id", 8192, nullptr, 1, nullptr);
 }
 
 Application::Application() {
@@ -211,7 +223,7 @@ void Application::Initialize() {
                 std::string msg = Lang::Strings::CONNECTED_TO;
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
-                PrintFactoryIdentityLine();
+                SpawnFactoryIdentityLine();
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
             }
@@ -225,7 +237,7 @@ void Application::Initialize() {
                 // this state too so the flashing station works on a
                 // credential-less bench (the STA MAC is readable once the
                 // WiFi stack is initialized; association is not required).
-                PrintFactoryIdentityLine();
+                SpawnFactoryIdentityLine();
                 break;
             case NetworkEvent::WifiConfigModeExit:
                 // WiFi config mode exit is handled by WifiBoard internally
