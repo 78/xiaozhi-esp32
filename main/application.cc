@@ -11,6 +11,7 @@
 #include "settings.h"
 
 #include <cstring>
+#include <esp_app_desc.h>
 #include <esp_log.h>
 #include <esp_random.h>
 #include <cJSON.h>
@@ -180,6 +181,16 @@ void Application::Initialize() {
                 std::string msg = Lang::Strings::CONNECTED_TO;
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
+                // Machine-readable line for the factory flashing station
+                // (robo-worker spec 2026-07-06 factory-provisioning §4.1).
+                // Emitted every boot on purpose: station retries stay trivial.
+                // The C6 WiFi MAC (= fleet Device-Id) is only readable once the
+                // network is up, which is why this lives here. Phase B appends
+                // |pubkey_jwk=<json> to the same line; parsers must ignore
+                // unknown keys.
+                printf("FACTORY|device_id=%s|fw=%s\n",
+                       SystemInfo::GetMacAddress().c_str(),
+                       esp_app_get_description()->version);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
             }
