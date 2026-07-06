@@ -41,6 +41,8 @@ private:
     bool has_activation_code_ = false;
     bool has_serial_number_ = false;
     bool has_activation_challenge_ = false;
+    // One-shot guard for the JWT clock-bootstrap retry (device_identity, spec §5.3).
+    bool jwt_bootstrap_retried_ = false;
     std::string current_version_;
     std::string firmware_version_;
     std::string firmware_url_;

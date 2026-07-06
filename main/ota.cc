@@ -1,4 +1,5 @@
 #include "ota.h"
+#include "device_identity.h"
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -60,6 +61,19 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());
+#ifdef CONFIG_DEVICE_JWT_AUTH
+    // Device identity auth (robo-worker factory spec §5): a short-lived ES256
+    // JWT signed by the per-device NVS key. Empty (key failure) degrades to an
+    // unauthenticated check-in — the server answers setup_required rather than
+    // the boot blocking. A pre-server_time clock makes the token unverifiable;
+    // CheckVersion handles that with a one-shot bootstrap retry.
+    {
+        std::string jwt = DeviceIdentity::GetInstance().SignOtaJwt();
+        if (!jwt.empty()) {
+            http->SetHeader("Authorization", (std::string("Bearer ") + jwt).c_str());
+        }
+    }
+#endif
     if (has_serial_number_) {
         http->SetHeader("Serial-Number", serial_number_.c_str());
         ESP_LOGI(TAG, "Setup HTTP, User-Agent: %s, Serial-Number: %s", user_agent.c_str(), serial_number_.c_str());
@@ -77,6 +91,12 @@ std::unique_ptr<Http> Ota::SetupHttp() {
 esp_err_t Ota::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
+#ifdef CONFIG_DEVICE_JWT_AUTH
+    // Captured before the request: if the wall clock is still unset (no
+    // server_time yet this boot), the JWT we attach is unverifiable.
+    const bool clock_was_sane = DeviceIdentity::ClockLooksSane();
+#endif
+    bool got_ws_token = false;
 
     // Check if there is a new firmware version available
     current_version_ = app_desc->version;
@@ -171,6 +191,9 @@ esp_err_t Ota::CheckVersion() {
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, websocket) {
             if (cJSON_IsString(item)) {
+                if (strcmp(item->string, "token") == 0 && item->valuestring[0] != '\0') {
+                    got_ws_token = true;
+                }
                 if (settings.GetString(item->string) != item->valuestring) {
                     settings.SetString(item->string, item->valuestring);
                 }
@@ -241,6 +264,23 @@ esp_err_t Ota::CheckVersion() {
     }
 
     cJSON_Delete(root);
+
+#ifdef CONFIG_DEVICE_JWT_AUTH
+    // Clock-bootstrap retry (factory spec §5.3): the first check-in of a boot
+    // may have carried a JWT with 1970 timestamps (rejected server-side), but
+    // this response's server_time just set the wall clock. One silent signed
+    // retry gets the session token without surfacing an error alert. Guarded
+    // to once per Ota instance; only when the server actually withheld the
+    // token (the dev-bypass path can hand out tokens regardless of the JWT).
+    if (!clock_was_sane && has_server_time_ && !got_ws_token && !jwt_bootstrap_retried_ &&
+        DeviceIdentity::ClockLooksSane()) {
+        jwt_bootstrap_retried_ = true;
+        ESP_LOGI(TAG, "Retrying check-in with server-time-synced clock (JWT bootstrap)");
+        return CheckVersion();
+    }
+#else
+    (void)got_ws_token;
+#endif
     return ESP_OK;
 }
 

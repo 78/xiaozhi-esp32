@@ -15,7 +15,8 @@
                 "CONFIG_VAD_GATED_UPSTREAM=y",
                 "CONFIG_LANGUAGE_VI_VN=y",
                 "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
-                "CONFIG_ESP32P4_REV_MIN_100=y"
+                "CONFIG_ESP32P4_REV_MIN_100=y",
+                "CONFIG_DEVICE_JWT_AUTH=y"
             ]
         },
         {
@@ -32,7 +33,8 @@
                 "CONFIG_VAD_GATED_UPSTREAM=y",
                 "CONFIG_LANGUAGE_VI_VN=y",
                 "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n",
-                "CONFIG_ESP32P4_REV_MIN_300=y"
+                "CONFIG_ESP32P4_REV_MIN_300=y",
+                "CONFIG_DEVICE_JWT_AUTH=y"
             ]
         }
     ]

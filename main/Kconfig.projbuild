@@ -784,6 +784,16 @@ config VAD_GATED_UPSTREAM
         continuously. Intended for always-on open-mic AutoStop boards with
         on-device VAD (no device AEC). Compiled out when unset.
 
+config DEVICE_JWT_AUTH
+    bool "Sign OTA check-ins with a per-device identity key (ES256 JWT)"
+    default n
+    help
+        Generate a P-256 keypair in NVS on first boot and sign every OTA
+        check-in with a short-lived ES256 JWT (robo-worker device auth).
+        The private key never leaves the device; the public JWK is printed
+        on the FACTORY boot line for fleet enrollment. Intended for tuni
+        boards talking to robo-worker. Compiled out when unset.
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"

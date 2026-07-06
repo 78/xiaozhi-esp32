@@ -1,5 +1,6 @@
 #include "application.h"
 #include "board.h"
+#include "device_identity.h"
 #include "display.h"
 #include "system_info.h"
 #include "audio_codec.h"
@@ -30,6 +31,22 @@
 // same line; parsers must ignore unknown keys. Raw printf, not ESP_LOG: the
 // line must survive log-level changes in release builds.
 static void PrintFactoryIdentityLine() {
+#ifdef CONFIG_DEVICE_JWT_AUTH
+    // Phase B: enroll the device's public key at the factory. EnsureKey here
+    // is also what triggers first-boot keygen (network-up is the earliest
+    // point the line is useful, and keygen is a one-time ~100ms cost).
+    auto& identity = DeviceIdentity::GetInstance();
+    if (identity.EnsureKey()) {
+        std::string jwk = identity.GetPublicJwkJson();
+        if (!jwk.empty()) {
+            printf("FACTORY|device_id=%s|fw=%s|pubkey_jwk=%s\n",
+                   SystemInfo::GetMacAddress().c_str(),
+                   esp_app_get_description()->version,
+                   jwk.c_str());
+            return;
+        }
+    }
+#endif
     printf("FACTORY|device_id=%s|fw=%s\n",
            SystemInfo::GetMacAddress().c_str(),
            esp_app_get_description()->version);
