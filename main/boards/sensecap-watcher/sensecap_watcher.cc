@@ -8,7 +8,9 @@
 #include "config.h"
 #include "led/single_led.h"
 #include "power_save_timer.h"
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
 #include "sscma_camera.h"
+#endif
 #include "lvgl_theme.h"
 
 #include <esp_log.h>
@@ -115,7 +117,9 @@ private:
     uint32_t long_press_cnt_;
     button_driver_t* btn_driver_ = nullptr;
     static SensecapWatcher* instance_;
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
     SscmaCamera* camera_ = nullptr;
+#endif
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
@@ -304,6 +308,7 @@ private:
     }
 
     void InitializeSpi() {
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
         ESP_LOGI(TAG, "Initialize SSCMA SPI bus");
         spi_bus_config_t spi_cfg = {0};
 
@@ -314,8 +319,9 @@ private:
         spi_cfg.quadhd_io_num = -1;
         spi_cfg.isr_cpu_id = ESP_INTR_CPU_AFFINITY_1;
         spi_cfg.max_transfer_sz = 4095;
-   
+
         ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &spi_cfg, SPI_DMA_CH_AUTO));
+#endif
 
         ESP_LOGI(TAG, "Initialize QSPI bus");
 
@@ -563,6 +569,7 @@ private:
         ESP_ERROR_CHECK(esp_console_start_repl(repl));
     }
 
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
     void InitializeCamera() {
 
         ESP_LOGI(TAG, "Initialize Camera");
@@ -583,6 +590,7 @@ private:
 
         camera_ = new SscmaCamera(io_exp_handle);
     }
+#endif
 
 public:
     SensecapWatcher() {
@@ -591,12 +599,17 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeExpander();
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
         InitializeCmd();  //工厂生产测试使用
+#endif
         InitializeButton();
         InitializeKnob();
         Initializespd2010Display();
-        GetBacklight()->RestoreBrightness();  // 对于不带摄像头的版本，InitializeCamera需要3s, 所以先恢复背光亮度
+        GetBacklight()->RestoreBrightness();
+#if !CONFIG_CONNECTION_TYPE_AGORA_RTC
+        // 对于不带摄像头的版本，InitializeCamera需要3s, 所以先恢复背光亮度
         InitializeCamera();
+#endif
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -658,7 +671,11 @@ public:
     }
 
     virtual Camera* GetCamera() override {
+#if CONFIG_CONNECTION_TYPE_AGORA_RTC
+        return nullptr;
+#else
         return camera_;
+#endif
     }
 };
 
