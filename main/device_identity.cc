@@ -204,10 +204,14 @@ std::string DeviceIdentity::SignOtaJwt() {
     time_t now = time(nullptr);
     char payload[320];
     // sub == iss is enforced server-side; aud/ttl fixed by contract (§5.1).
+    // %lu with an unsigned long cast, NOT %lld: newlib-nano's printf has no
+    // long long support and emits the literal "ld" (hardware-verified —
+    // produced invalid JSON payloads the server rejected). Unsigned 32-bit
+    // epoch seconds are fine until 2106.
     snprintf(payload, sizeof(payload),
-             "{\"sub\":\"%s\",\"iss\":\"%s\",\"aud\":\"%s\",\"jti\":\"%s\",\"iat\":%lld,\"exp\":%lld}",
-             device_id.c_str(), device_id.c_str(), kAudience, jti, static_cast<long long>(now),
-             static_cast<long long>(now + kJwtTtlSec));
+             "{\"sub\":\"%s\",\"iss\":\"%s\",\"aud\":\"%s\",\"jti\":\"%s\",\"iat\":%lu,\"exp\":%lu}",
+             device_id.c_str(), device_id.c_str(), kAudience, jti, static_cast<unsigned long>(now),
+             static_cast<unsigned long>(now + kJwtTtlSec));
 
     static const char kHeader[] = "{\"alg\":\"ES256\",\"typ\":\"JWT\"}";
     std::string signing_input =
