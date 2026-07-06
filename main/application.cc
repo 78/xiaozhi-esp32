@@ -21,6 +21,19 @@
 
 #define TAG "Application"
 
+// Machine-readable identity line for the factory flashing station
+// (robo-worker spec 2026-07-06 factory-provisioning §4.1). Emitted on every
+// network-connect AND on wifi-config-mode entry (a virgin device has no
+// credentials and never reaches Connected), so station retries stay trivial.
+// The C6 WiFi STA MAC (= fleet Device-Id) is readable once the WiFi stack is
+// up; association is not required. Phase B appends |pubkey_jwk=<json> to the
+// same line; parsers must ignore unknown keys. Raw printf, not ESP_LOG: the
+// line must survive log-level changes in release builds.
+static void PrintFactoryIdentityLine() {
+    printf("FACTORY|device_id=%s|fw=%s\n",
+           SystemInfo::GetMacAddress().c_str(),
+           esp_app_get_description()->version);
+}
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
@@ -181,16 +194,7 @@ void Application::Initialize() {
                 std::string msg = Lang::Strings::CONNECTED_TO;
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
-                // Machine-readable line for the factory flashing station
-                // (robo-worker spec 2026-07-06 factory-provisioning §4.1).
-                // Emitted every boot on purpose: station retries stay trivial.
-                // The C6 WiFi MAC (= fleet Device-Id) is only readable once the
-                // network is up, which is why this lives here. Phase B appends
-                // |pubkey_jwk=<json> to the same line; parsers must ignore
-                // unknown keys.
-                printf("FACTORY|device_id=%s|fw=%s\n",
-                       SystemInfo::GetMacAddress().c_str(),
-                       esp_app_get_description()->version);
+                PrintFactoryIdentityLine();
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
             }
@@ -198,7 +202,13 @@ void Application::Initialize() {
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
             case NetworkEvent::WifiConfigModeEnter:
-                // WiFi config mode enter is handled by WifiBoard internally
+                // WiFi config mode enter is handled by WifiBoard internally.
+                // A virgin factory device has no WiFi credentials and lands
+                // here, never reaching Connected — emit the identity line in
+                // this state too so the flashing station works on a
+                // credential-less bench (the STA MAC is readable once the
+                // WiFi stack is initialized; association is not required).
+                PrintFactoryIdentityLine();
                 break;
             case NetworkEvent::WifiConfigModeExit:
                 // WiFi config mode exit is handled by WifiBoard internally

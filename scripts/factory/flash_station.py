@@ -67,6 +67,10 @@ def parse_factory_line(line):
         if "=" not in part:
             continue
         key, value = part.split("=", 1)
+        # Strip ANSI escapes / control chars that log formatters may append —
+        # a polluted fw value would otherwise land in the CSV.
+        value = re.sub(r"\x1b\[[0-9;]*m", "", value)
+        value = "".join(ch for ch in value if ch.isprintable())
         fields[key.strip()] = value.strip()
     device_id = fields.get("device_id", "").lower()
     if not MAC_RE.match(device_id):
@@ -169,17 +173,30 @@ def flash_image(port, image_path):
 
 def wait_for_factory_line(port, timeout_s=FACTORY_LINE_TIMEOUT_S):
     """Open serial AFTER esptool released the port; DTR/RTS deasserted so we
-    don't reset the board or wedge USB-JTAG (repo gotcha)."""
+    don't reset the board or wedge USB-JTAG (repo gotcha). The USB-Serial-JTAG
+    node re-enumerates after esptool's hard reset, so opening is retried
+    within the deadline instead of dying on the first SerialException."""
     import serial  # pyserial; present in the ESP-IDF environment
 
     deadline = datetime.datetime.now() + datetime.timedelta(seconds=timeout_s)
-    with serial.Serial() as ser:
-        ser.port = port
-        ser.baudrate = SERIAL_BAUD
-        ser.timeout = 2
-        ser.dtr = False
-        ser.rts = False
-        ser.open()
+    ser = None
+    try:
+        while datetime.datetime.now() < deadline and ser is None:
+            try:
+                ser = serial.Serial()
+                ser.port = port
+                ser.baudrate = SERIAL_BAUD
+                ser.timeout = 2
+                ser.dtr = False
+                ser.rts = False
+                ser.open()
+            except serial.SerialException:
+                ser = None
+                import time
+
+                time.sleep(1)  # port re-enumerating after hard reset
+        if ser is None:
+            sys.exit(f"could not open {port} within {timeout_s}s — replug the USB cable (USB-JTAG re-enumeration)")
         while datetime.datetime.now() < deadline:
             raw = ser.readline()
             if not raw:
@@ -187,7 +204,13 @@ def wait_for_factory_line(port, timeout_s=FACTORY_LINE_TIMEOUT_S):
             parsed = parse_factory_line(raw.decode("utf-8", errors="replace"))
             if parsed:
                 return parsed
-    sys.exit(f"no FACTORY line within {timeout_s}s — is the device on WiFi? (line prints after network-up)")
+    finally:
+        if ser is not None and ser.is_open:
+            ser.close()
+    sys.exit(
+        f"no FACTORY line within {timeout_s}s — the line prints on network-connect "
+        f"AND in wifi-config mode, so check power/serial wiring"
+    )
 
 
 def factory_lines_from_file(path):
@@ -238,6 +261,10 @@ def self_test():
 
     assert parse_factory_line("garbage") is None
     assert parse_factory_line("FACTORY|device_id=not-a-mac|fw=1") is None
+
+    # ANSI escapes from log formatters must not pollute recorded values
+    dirty = parse_factory_line("FACTORY|device_id=aa:bb:cc:dd:ee:ff|fw=1.2.3\x1b[0m")
+    assert dirty is not None and dirty["fw"] == "1.2.3", dirty
 
     label, url = render_label("9c:13:9e:d7:7f:b8", "0123456789ABCDEF", "https://app.tuni.vn/claim")
     assert label == "TUNI 9c:13:9e:d7:7f:b8  CODE 0123456789ABCDEF"
@@ -313,9 +340,15 @@ def main():
     print(label)
     print(claim_url)
     print("=======================================\n")
-    qr_path = f"label-{device_id.replace(':', '')}.png"
-    if write_qr_png(claim_url, qr_path):
+    # QR PNGs contain the PLAINTEXT claim code (the QR is the physical
+    # credential) — they live in a dedicated dir and must be purged after
+    # printing; the bench machine must never accumulate claimable codes.
+    labels_dir = Path("labels-PURGE-AFTER-PRINTING")
+    labels_dir.mkdir(exist_ok=True)
+    qr_path = labels_dir / f"label-{device_id.replace(':', '')}.png"
+    if write_qr_png(claim_url, str(qr_path)):
         print(f"[station] QR written: {qr_path}")
+        print("[station] ⚠ the PNG contains the claim code — DELETE it after printing the label")
     else:
         print("[station] qrcode package not installed — no QR PNG (pip install qrcode[pil])")
     print(f"[station] recorded in {args.records} (code hash only). Print the label NOW — the code is not stored.")
