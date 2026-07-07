@@ -399,6 +399,13 @@ idf.py monitor
 
 ### 9.1 总规则
 
+> **⚠️ 重要**：每次编译前必须先清理旧的 sdkconfig，再重新配置，否则之前 Board 的配置（如 SPI RAM QUAD/OCT mode、flash 大小等）会残留导致编译错误。
+
+清理命令：
+```bash
+rm -f sdkconfig sdkconfig.old
+```
+
 - **中国大陆版本**：`Default Language` → `LANGUAGE_ZH_CN`，`Device API Server URL` → `https://mybot.sh2.agoralab.co/api`
 - **海外版本**：`Default Language` → `LANGUAGE_EN_US`，`Device API Server URL` → `https://mybot.sg3.agoralab.co/api`
 
@@ -448,6 +455,8 @@ python -m esptool --chip esp32s3 merge_bin \
 
 #### 9.3.2 BOARD_TYPE_M5STACK_CORE_S3
 
+> **⚠️ QUAD/OCT mode 残留问题**：M5Stack Core S3 使用 **Quad Mode PSRAM**。如果在此 Board 之后编译其他 Board，必须清理 sdkconfig（`rm -f sdkconfig`），否则残留的 `CONFIG_SPIRAM_MODE_QUAD=y` 会导致其他使用 OCT mode 或不同 SPI RAM 配置的 Board 编译失败。
+
 除总规则外，还需配置：
 ```
 Component config → ESP PSRAM → Support for external, SPI-connected RAM
@@ -470,11 +479,17 @@ Serial flasher config → Flash size → 32 MB
 ### 9.4 完整编译及打包示例（中国大陆版 zhengchen）
 
 ```bash
+# 第一步：清理旧配置（重点！防止不同 Board 配置残留）
+rm -f sdkconfig sdkconfig.old
+
+# 第二步：配置 Board、语言、协议
 idf.py menuconfig
 # Xiaozhi Assistant → Board Type → 征辰科技1.54(ML307)
 # Xiaozhi Assistant → Default Language → Chinese
 # Connection Protocol → Agora RTC → Device API Server URL
 #   → https://mybot.sh2.agoralab.co/api
+
+# 第三步：生成新配置并编译
 idf.py reconfigure
 idf.py build
 cd build
