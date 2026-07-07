@@ -476,6 +476,10 @@ Serial flasher config → Flash size → 32 MB
 
 除总规则外，其余保持默认。
 
+#### 9.3.5 BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
+
+除总规则外，其余保持默认。
+
 ### 9.4 完整编译及打包示例（中国大陆版 zhengchen）
 
 ```bash
