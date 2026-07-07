@@ -64,14 +64,15 @@ private:
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
-            GetBacklight()->SetBrightness(5); });
+            GetBacklight()->SetBrightness(5);
+        });
         power_save_timer_->OnExitSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(false);
-            GetBacklight()->RestoreBrightness();});
+            GetBacklight()->RestoreBrightness();
+        });
         power_save_timer_->SetEnabled(true);
     }
 
-    
     void InitializeGpio() {
         // Zero-initialize the GPIO configuration structure
         gpio_config_t io_conf = {};
@@ -212,7 +213,7 @@ private:
                                   DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
 
         backlight_ = new CustomBacklight(io_expander);
-        backlight_->RestoreBrightness();                    
+        backlight_->RestoreBrightness();
     }
 
     void InitializeTouch() {
@@ -241,7 +242,7 @@ private:
         tp_io_config.dc_bit_offset = 0;
         tp_io_config.lcd_cmd_bits = 16;
         tp_io_config.flags.disable_control_phase = 1;
-        
+
         esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);
 
         ESP_LOGI(TAG, "Initialize touch controller");
@@ -268,17 +269,17 @@ public:
 
     virtual AudioCodec* GetAudioCodec() override {
         static WaveshareAudioCodec audio_codec(
-            i2c_bus_, 
-            AUDIO_INPUT_SAMPLE_RATE, 
+            i2c_bus_,
+            AUDIO_INPUT_SAMPLE_RATE,
             AUDIO_OUTPUT_SAMPLE_RATE,
-            BSP_I2S_MCLK, 
-            BSP_I2S_SCLK, 
-            BSP_I2S_LCLK, 
-            BSP_I2S_DOUT, 
+            BSP_I2S_MCLK,
+            BSP_I2S_SCLK,
+            BSP_I2S_LCLK,
+            BSP_I2S_DOUT,
             BSP_I2S_DSIN,
-            BSP_PA_PIN, 
-            BSP_CODEC_ES8389_ADDR, 
-            BSP_CODEC_ES7210_ADDR, 
+            BSP_PA_PIN,
+            BSP_CODEC_ES8389_ADDR,
+            BSP_CODEC_ES7210_ADDR,
             AUDIO_INPUT_REFERENCE
         );
         return &audio_codec;
@@ -294,6 +295,12 @@ public:
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;
+        if (bq27220_ == NULL) {
+            level = 0;
+            charging = false;
+            discharging = false;
+            return false;
+        }
         charging = (bq27220_get_current(bq27220_) > 0);
         discharging = !charging;
         if (discharging != last_discharging) {
@@ -303,7 +310,7 @@ public:
         level = bq27220_get_state_of_charge(bq27220_);
         return true;
     }
-    
+
     virtual void SetPowerSaveLevel(PowerSaveLevel level) override {
         if (level != PowerSaveLevel::LOW_POWER) {
             power_save_timer_->WakeUp();
