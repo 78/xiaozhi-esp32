@@ -360,6 +360,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3C
         bool "Waveshare ESP32-S3-Touch-LCD-4.3C"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_7C
+        bool "Waveshare ESP32-S3-Touch-LCD-7C"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C
         bool "Waveshare ESP32-S3-Touch-LCD-1.85C"
         depends on IDF_TARGET_ESP32S3
