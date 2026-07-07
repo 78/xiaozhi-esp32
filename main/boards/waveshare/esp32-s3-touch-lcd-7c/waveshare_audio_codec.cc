@@ -165,7 +165,7 @@ void WaveshareAudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk,
             .big_endian = false,
             .bit_order_lsb = false,
             .skip_mask = false,
-            .total_slot = I2S_TDM_AUTO_SLOT_NUM 
+            .total_slot = I2S_TDM_AUTO_SLOT_NUM
         },
         .gpio_cfg = {
             .mclk = mclk,
@@ -237,7 +237,7 @@ void WaveshareAudioCodec::EnableOutput(bool enable) {
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 1);
         }
-    } 
+    }
     else {
         ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
         if (pa_pin_ != GPIO_NUM_NC) {
