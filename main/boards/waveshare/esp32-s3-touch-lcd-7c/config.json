@@ -3,7 +3,7 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "waveshare-s3-touch-lcd-7c",
+            "name": "esp32-s3-touch-lcd-7c",
             "sdkconfig_append": [
                 "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_7C=y",
                 "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
