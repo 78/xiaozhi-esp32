@@ -403,7 +403,29 @@ void AgoraRtcProtocol::OnRejoinChannelSuccess(connection_id_t conn_id, uint32_t 
 // ==================== RTM Static Callbacks ====================
 
 void AgoraRtcProtocol::OnRtmEvent(const char* rtm_uid, rtm_event_type_e event_type, rtm_err_code_e err_code) {
-    ESP_LOGI(TAG, "RTM event: uid=%s, type=%d, err=%d", rtm_uid ? rtm_uid : "null", event_type, err_code);
+    const char* event_str = "unknown";
+    switch (event_type) {
+        case RTM_EVENT_TYPE_LOGIN:   event_str = "LOGIN";   break;
+        case RTM_EVENT_TYPE_KICKOFF: event_str = "KICKOFF"; break;
+        case RTM_EVENT_TYPE_EXIT:    event_str = "EXIT";    break;
+        default: break;
+    }
+    const char* err_str = "unknown";
+    switch (err_code) {
+        case ERR_RTM_OK:                 err_str = "OK";                 break;
+        case ERR_RTM_FAILED:             err_str = "FAILED";             break;
+        case ERR_RTM_LOGIN_REJECTED:      err_str = "LOGIN_REJECTED";     break;
+        case ERR_RTM_INVALID_RTM_UID:    err_str = "INVALID_RTM_UID";    break;
+        case ERR_RTM_LOGIN_INVALID_TOKEN: err_str = "INVALID_TOKEN";     break;
+        case ERR_RTM_LOGIN_NOT_AUTHORIZED: err_str = "NOT_AUTHORIZED";   break;
+        case ERR_RTM_LOCAL_NETDOWN:      err_str = "LOCAL_NETDOWN";      break;
+        case ERR_RTM_LOCAL_INTERRUPT:    err_str = "LOCAL_INTERRUPT";    break;
+        case ERR_RTM_LOCAL_TIMEOUT:      err_str = "LOCAL_TIMEOUT";      break;
+        case ERR_RTM_SERVER_TIMEOUT:     err_str = "SERVER_TIMEOUT";     break;
+        default: break;
+    }
+    ESP_LOGI(TAG, "RTM event: uid=%s, type=%s(%d), err=%s(%d)",
+             rtm_uid ? rtm_uid : "null", event_str, event_type, err_str, err_code);
 
     if (!g_instance) {
         return;
@@ -414,7 +436,7 @@ void AgoraRtcProtocol::OnRtmEvent(const char* rtm_uid, rtm_event_type_e event_ty
             g_instance->rtm_logged_in_ = true;
             xEventGroupSetBits(g_instance->event_group_handle_, AGORA_RTM_LOGIN_EVENT);
         } else {
-            ESP_LOGE(TAG, "RTM login failed: %d", err_code);
+            ESP_LOGE(TAG, "RTM login failed: %s(%d)", err_str, err_code);
             g_instance->SetError("RTM login failed");
         }
     } else if (event_type == RTM_EVENT_TYPE_KICKOFF) {
@@ -431,6 +453,23 @@ void AgoraRtcProtocol::OnRtmData(const char* rtm_uid, const void* msg, size_t ms
     if (!g_instance) {
         return;
     }
+
+    // Print message payload as string (truncated to avoid log flooding)
+    std::string payload_str;
+    if (msg && msg_len > 0) {
+        size_t print_len = (msg_len > 512) ? 512 : msg_len;
+        payload_str.assign((const char*)msg, print_len);
+        if (msg_len > 512) {
+            payload_str += "... (" + std::to_string(msg_len) + " bytes total)";
+        }
+    } else {
+        payload_str = "(empty)";
+    }
+    ESP_LOGI(TAG, "RTM data: from=%s, custom_type=%s, len=%zu, payload=[%s]",
+             rtm_uid ? rtm_uid : "null",
+             custom_type ? custom_type : "null",
+             msg_len,
+             payload_str.c_str());
 
     g_instance->last_incoming_time_ = std::chrono::steady_clock::now();
 
