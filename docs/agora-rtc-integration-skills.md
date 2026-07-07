@@ -394,3 +394,96 @@ idf.py monitor
 
 ---
 
+
+## 九、编译完整固件包
+
+### 9.1 总规则
+
+- **中国大陆版本**：`Default Language` → `LANGUAGE_ZH_CN`，`Device API Server URL` → `https://mybot.sh2.agoralab.co/api`
+- **海外版本**：`Default Language` → `LANGUAGE_EN_US`，`Device API Server URL` → `https://mybot.sg3.agoralab.co/api`
+
+完整固件包命名规则：
+
+```
+{board_name}_{region}.bin
+
+board_name = BOARD_TYPE 去掉前缀 "BOARD_TYPE_"，全小写
+region     = Device API URL 中的区域标识（sh2 或 sg3）
+
+示例：
+  BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307 + sh2
+  → zhengchen_1_54tft_ml307_sh2.bin
+
+  BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307 + sg3
+  → zhengchen_1_54tft_ml307_sg3.bin
+```
+
+### 9.2 生成完整固件包
+
+编译完成后，在 `build/` 目录下执行：
+
+```bash
+# 从 build 输出获取正确的 flash args
+idf.py build
+
+# 打包为单个完整固件（以 zhengchen sh2 为例）
+cd build
+python -m esptool --chip esp32s3 merge_bin \
+  --output zhengchen_1_54tft_ml307_sh2.bin \
+  --flash_mode dio --flash_size 16MB --flash_freq 80m \
+  0x0 bootloader/bootloader.bin \
+  0x8000 partition_table/partition-table.bin \
+  0xd000 ota_data_initial.bin \
+  0x20000 xiaozhi.bin \
+  0x800000 generated_assets.bin
+```
+
+> `--flash_size`、偏移地址以 `idf.py build` 输出的烧录命令为准，不同分区表可能不同。
+
+### 9.3 已支持的 Board 编译配置
+
+#### 9.3.1 BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
+
+除总规则外，其余均保持默认。
+
+#### 9.3.2 BOARD_TYPE_M5STACK_CORE_S3
+
+除总规则外，还需配置：
+```
+Component config → ESP PSRAM → Support for external, SPI-connected RAM
+  → SPI RAM config → Mode (QUAD/OCT) of SPI RAM chip in use
+    → Quad Mode PSRAM
+```
+
+#### 9.3.3 BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
+
+除总规则外，还需配置：
+```
+Partition Table → Custom partition table file → partitions/v2/32m.csv
+Serial flasher config → Flash size → 32 MB
+```
+
+#### 9.3.4 BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75C
+
+除总规则外，其余保持默认。
+
+### 9.4 完整编译及打包示例（中国大陆版 zhengchen）
+
+```bash
+idf.py menuconfig
+# Xiaozhi Assistant → Board Type → 征辰科技1.54(ML307)
+# Xiaozhi Assistant → Default Language → Chinese
+# Connection Protocol → Agora RTC → Device API Server URL
+#   → https://mybot.sh2.agoralab.co/api
+idf.py reconfigure
+idf.py build
+cd build
+python -m esptool --chip esp32s3 merge_bin \
+  --output zhengchen_1_54tft_ml307_sh2.bin \
+  --flash_mode dio --flash_size 16MB --flash_freq 80m \
+  0x0 bootloader/bootloader.bin \
+  0x8000 partition_table/partition-table.bin \
+  0xd000 ota_data_initial.bin \
+  0x20000 xiaozhi.bin \
+  0x800000 generated_assets.bin
+```
