@@ -234,7 +234,13 @@ def register_device(api_url, token, identity, hw_rev, batch):
     req = urllib.request.Request(
         f"{api_url.rstrip('/')}/api/factory/devices",
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            # Cloudflare's bot protection 403s Python-urllib's default UA at the
+            # edge (error 1010) before the worker ever sees the request.
+            "User-Agent": "tuni-flash-station/1.0",
+        },
         method="POST",
     )
     try:
