@@ -21,13 +21,26 @@ WebsocketProtocol::~WebsocketProtocol() {
 }
 
 bool WebsocketProtocol::Start() {
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    ESP_LOGI(TAG, "Google board local mode: opening websocket for status updates");
+    return OpenAudioChannel();
+#else
     // Only connect to server when audio channel is needed
     return true;
+#endif
 }
 
 bool WebsocketProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     if (websocket_ == nullptr || !websocket_->IsConnected()) {
         return false;
+    }
+
+    static uint32_t audio_packet_count = 0;
+    audio_packet_count++;
+    if (audio_packet_count == 1 || audio_packet_count % 50 == 0) {
+        ESP_LOGI(TAG, "Sending audio packet #%lu, %u bytes",
+            (unsigned long)audio_packet_count,
+            (unsigned int)packet->payload.size());
     }
 
     if (version_ == 2) {
@@ -174,6 +187,18 @@ bool WebsocketProtocol::OpenAudioChannel() {
 
     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_);
     if (!websocket_->Connect(url.c_str())) {
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+        const std::string fallback_url = CONFIG_GOOGLE_BOARD_LOCAL_WEBSOCKET_FALLBACK_URL;
+        if (!fallback_url.empty() && fallback_url != url) {
+            ESP_LOGW(TAG, "Primary local websocket failed, trying fallback: %s", fallback_url.c_str());
+            if (websocket_->Connect(fallback_url.c_str())) {
+                url = fallback_url;
+            }
+        }
+#endif
+    }
+
+    if (!websocket_->IsConnected()) {
         ESP_LOGE(TAG, "Failed to connect to websocket server, code=%d", websocket_->GetLastError());
         SetError(Lang::Strings::SERVER_NOT_CONNECTED);
         return false;

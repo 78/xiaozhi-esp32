@@ -19,6 +19,25 @@
 
 #define TAG "Application"
 
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+static constexpr int kGoogleBoardMaxListeningMs = 10000;
+#endif
+
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+static void ConfigureGoogleBoardLocalServer() {
+    Settings websocket("websocket", true);
+    const std::string url = CONFIG_GOOGLE_BOARD_LOCAL_WEBSOCKET_URL;
+    if (websocket.GetString("url") != url) {
+        websocket.SetString("url", url);
+    }
+    if (websocket.GetInt("version", 1) != 1) {
+        websocket.SetInt("version", 1);
+    }
+    websocket.EraseKey("token");
+
+    ESP_LOGI(TAG, "Google board local server enabled: %s", url.c_str());
+}
+#endif
 
 Application::Application() {
     event_group_ = xEventGroupCreate();
@@ -477,6 +496,10 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    ConfigureGoogleBoardLocalServer();
+    protocol_ = std::make_unique<WebsocketProtocol>();
+#else
     if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
@@ -485,6 +508,7 @@ void Application::InitializeProtocol() {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
+#endif
 
     protocol_->OnConnected([this]() {
         DismissAlert();
@@ -562,6 +586,15 @@ void Application::InitializeProtocol() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
+        } else if (strcmp(type->valuestring, "agent_status") == 0) {
+            char* json = cJSON_PrintUnformatted(root);
+            if (json) {
+                std::string status_json(json);
+                cJSON_free(json);
+                Schedule([display, status_json]() {
+                    display->SetAgentStatus(status_json.c_str());
+                });
+            }
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
             if (cJSON_IsObject(payload)) {
@@ -592,11 +625,25 @@ void Application::InitializeProtocol() {
 #if CONFIG_RECEIVE_CUSTOM_MESSAGE
         } else if (strcmp(type->valuestring, "custom") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
-            ESP_LOGI(TAG, "Received custom message: %s", cJSON_PrintUnformatted(root));
+            char* root_json = cJSON_PrintUnformatted(root);
+            ESP_LOGI(TAG, "Received custom message: %s", root_json ? root_json : "");
+            if (root_json) cJSON_free(root_json);
             if (cJSON_IsObject(payload)) {
-                Schedule([this, display, payload_str = std::string(cJSON_PrintUnformatted(payload))]() {
-                    display->SetChatMessage("system", payload_str.c_str());
-                });
+                auto payload_type = cJSON_GetObjectItem(payload, "type");
+                char* payload_json = cJSON_PrintUnformatted(payload);
+                if (payload_json) {
+                    std::string payload_str(payload_json);
+                    cJSON_free(payload_json);
+                    if (cJSON_IsString(payload_type) && strcmp(payload_type->valuestring, "agent_status") == 0) {
+                        Schedule([display, payload_str]() {
+                            display->SetAgentStatus(payload_str.c_str());
+                        });
+                    } else {
+                        Schedule([display, payload_str]() {
+                            display->SetChatMessage("system", payload_str.c_str());
+                        });
+                    }
+                }
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
             }
@@ -825,7 +872,9 @@ void Application::HandleWakeWordDetectedEvent() {
 
 void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     // Check state again in case it was changed during scheduling
-    if (GetDeviceState() != kDeviceStateConnecting) {
+    auto state = GetDeviceState();
+    if (state != kDeviceStateConnecting &&
+        !(state == kDeviceStateIdle && protocol_->IsAudioChannelOpened())) {
         return;
     }
 
@@ -883,6 +932,29 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+            listening_timeout_token_++;
+            {
+                struct ListeningTimeoutContext {
+                    Application* app;
+                    uint32_t token;
+                };
+                auto* timeout_context = new ListeningTimeoutContext{this, listening_timeout_token_};
+                xTaskCreate([](void* arg) {
+                    auto* ctx = static_cast<ListeningTimeoutContext*>(arg);
+                    vTaskDelay(pdMS_TO_TICKS(kGoogleBoardMaxListeningMs));
+                    ctx->app->Schedule([app = ctx->app, token = ctx->token]() {
+                        if (app->GetDeviceState() == kDeviceStateListening &&
+                            app->listening_timeout_token_ == token) {
+                            ESP_LOGI(TAG, "Listening timeout reached, sending stop");
+                            app->StopListening();
+                        }
+                    });
+                    delete ctx;
+                    vTaskDelete(NULL);
+                }, "listen_timeout", 2048, timeout_context, 1, nullptr);
+            }
+#endif
 
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
@@ -953,7 +1025,11 @@ void Application::SetListeningMode(ListeningMode mode) {
 }
 
 ListeningMode Application::GetDefaultListeningMode() const {
+#if CONFIG_GOOGLE_BOARD_LOCAL_JARVIS_SERVER
+    return kListeningModeManualStop;
+#else
     return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;
+#endif
 }
 
 void Application::Reboot() {
@@ -1128,4 +1204,3 @@ void Application::ResetProtocol() {
         protocol_.reset();
     });
 }
-
