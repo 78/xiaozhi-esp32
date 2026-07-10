@@ -115,6 +115,9 @@ public:
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
     
+    void SetMuted(bool muted) { muted_ = muted; }
+    bool IsMuted() const { return muted_; }
+    
     /**
      * Reset protocol resources (thread-safe)
      * Can be called from any task to release resources allocated after network connected
@@ -142,6 +145,7 @@ private:
 
     bool has_server_time_ = false;
     bool aborted_ = false;
+    bool muted_ = false;
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;

@@ -140,6 +140,9 @@ void CustomWakeWord::Stop() {
     running_ = false;
 
     std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    if (multinet_ != nullptr && multinet_model_data_ != nullptr) {
+        multinet_->clean(multinet_model_data_);
+    }
     input_buffer_.clear();
 }
 
