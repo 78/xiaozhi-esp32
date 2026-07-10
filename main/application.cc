@@ -44,12 +44,38 @@ Application::Application() {
         .skip_unhandled_events = true
     };
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+
+    // Talking-mouth animation timer. Periodic 200 ms callback that flips the
+    // OLED emote between a closed-mouth and open-mouth glyph so the face
+    // looks like it's talking while TTS plays.
+    esp_timer_create_args_t talking_anim_args = {
+        .callback = [](void* arg) {
+            Application* app = (Application*)arg;
+            app->talking_anim_open_ = !app->talking_anim_open_;
+            const char* emo = app->talking_anim_open_ ? "surprised" : "happy";
+            app->Schedule([emo]() {
+                auto display = Board::GetInstance().GetDisplay();
+                if (display && Application::GetInstance().GetDeviceState() == kDeviceStateSpeaking) {
+                    display->SetEmotion(emo);
+                }
+            });
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "talking_anim",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&talking_anim_args, &talking_anim_timer_handle_);
 }
 
 Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
+    }
+    if (talking_anim_timer_handle_ != nullptr) {
+        esp_timer_stop(talking_anim_timer_handle_);
+        esp_timer_delete(talking_anim_timer_handle_);
     }
     vEventGroupDelete(event_group_);
 }
@@ -81,7 +107,39 @@ void Application::Initialize() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
     };
     callbacks.on_vad_change = [this](bool speaking) {
+        vad_speaking_ = speaking;
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
+    };
+    // RMS-based silence fallback for boards where AFE/VADNet can't detect
+    // end-of-speech against a noisy mic baseline (e.g. XH-S3E-AI purple PCB).
+    // AudioService fires this once per turn after the user spoke then went
+    // quiet for ~900ms. We send listen.stop without changing state — server's
+    // tts state:start will drive the transition to kDeviceStateSpeaking.
+    callbacks.on_silence_detected = [this]() {
+        if (GetDeviceState() != kDeviceStateListening) return;
+        if (listening_mode_ != kListeningModeAutoStop) return;
+        if (listen_stop_sent_) return;
+        if (!protocol_) return;
+        Schedule([this]() {
+            if (GetDeviceState() == kDeviceStateListening &&
+                listening_mode_ == kListeningModeAutoStop &&
+                !listen_stop_sent_ && protocol_) {
+                // Flush the batched Opus packets in one burst, then send
+                // listen.stop. TCP/WS preserves ordering so the server
+                // receives all audio frames before listen.stop.
+                audio_batch_mode_ = false;
+                int flushed = 0;
+                while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+                    if (!protocol_->SendAudio(std::move(packet))) {
+                        break;
+                    }
+                    flushed++;
+                }
+                ESP_LOGI(TAG, "RMS silence -> flushed %d opus packets then sending listen.stop", flushed);
+                protocol_->SendStopListening();
+                listen_stop_sent_ = true;
+            }
+        });
     };
     audio_service_.SetCallbacks(callbacks);
 
@@ -106,6 +164,7 @@ void Application::Initialize() {
             case NetworkEvent::Scanning:
                 display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
+                audio_service_.PlaySound(Lang::Sounds::OGG_WIFI_SCANNING);
                 break;
             case NetworkEvent::Connecting: {
                 if (data.empty()) {
@@ -117,6 +176,7 @@ void Application::Initialize() {
                     msg += data;
                     msg += "...";
                     display->ShowNotification(msg.c_str(), 30000);
+                    audio_service_.PlaySound(Lang::Sounds::OGG_WIFI_CONNECTING);
                 }
                 break;
             }
@@ -218,9 +278,14 @@ void Application::Run() {
         }
 
         if (bits & MAIN_EVENT_SEND_AUDIO) {
-            while (auto packet = audio_service_.PopPacketFromSendQueue()) {
-                if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
-                    break;
+            // In batch mode, do NOT drain the send queue while the user is
+            // talking — packets stay buffered and will be flushed in one
+            // burst when silence is detected, just before listen.stop.
+            if (!(audio_batch_mode_ && GetDeviceState() == kDeviceStateListening)) {
+                while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+                    if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
+                        break;
+                    }
                 }
             }
         }
@@ -233,6 +298,25 @@ void Application::Run() {
             if (GetDeviceState() == kDeviceStateListening) {
                 auto led = Board::GetInstance().GetLed();
                 led->OnStateChanged();
+
+                // Device-side end-of-speech detection.
+                // In AutoStop mode the device is responsible for telling the
+                // server when the user has stopped talking so it can finalize
+                // STT. Send {type:listen,state:stop} once per turn after we've
+                // observed at least one speaking=true → speaking=false edge.
+                // Don't change state — server's tts state:start will move us
+                // to kDeviceStateSpeaking when TTS playback begins.
+                if (listening_mode_ == kListeningModeAutoStop && !listen_stop_sent_) {
+                    if (vad_speaking_) {
+                        vad_had_speech_in_turn_ = true;
+                    } else if (vad_had_speech_in_turn_) {
+                        if (protocol_) {
+                            ESP_LOGI(TAG, "VAD end-of-speech, sending listen.stop");
+                            protocol_->SendStopListening();
+                            listen_stop_sent_ = true;
+                        }
+                    }
+                }
             }
         }
 
@@ -276,6 +360,8 @@ void Application::HandleNetworkConnectedEvent() {
             app->activation_task_handle_ = nullptr;
             vTaskDelete(NULL);
         }, "activation", 4096 * 2, this, 2, &activation_task_handle_);
+    } else {
+        audio_service_.PlaySound(Lang::Sounds::OGG_RECONNECTED);
     }
 
     // Update the status bar immediately to show the network state
@@ -289,6 +375,7 @@ void Application::HandleNetworkDisconnectedEvent() {
     if (state == kDeviceStateConnecting || state == kDeviceStateListening || state == kDeviceStateSpeaking) {
         ESP_LOGI(TAG, "Closing audio channel due to network disconnection");
         protocol_->CloseAudioChannel();
+        audio_service_.PlaySound(Lang::Sounds::OGG_DISCONNECTED);
     }
 
     // Update the status bar immediately to show the network state
@@ -524,10 +611,14 @@ void Application::InitializeProtocol() {
         if (strcmp(type->valuestring, "tts") == 0) {
             auto state = cJSON_GetObjectItem(root, "state");
             if (strcmp(state->valuestring, "start") == 0) {
-                Schedule([this]() {
-                    aborted_ = false;
-                    SetDeviceState(kDeviceStateSpeaking);
-                });
+                // Synchronous (WS task) — must happen before the next binary
+                // Opus frame arrives on the same WS connection, otherwise the
+                // state-gate in OnIncomingAudio drops the audio. Required for
+                // spec v2 auto-greeting (Sequence A) and lesson back-to-back
+                // (Sequence C) where TTS arrives with no preceding user turn.
+                aborted_ = false;
+                audio_service_.ResetDecoder();
+                SetDeviceState(kDeviceStateSpeaking);
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (GetDeviceState() == kDeviceStateSpeaking) {
@@ -542,18 +633,15 @@ void Application::InitializeProtocol() {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (cJSON_IsString(text)) {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    Schedule([display, message = std::string(text->valuestring)]() {
-                        display->SetChatMessage("assistant", message.c_str());
-                    });
+                    // Chat text suppressed on OLED — only the talking-mouth
+                    // emote animates during speaking. Text still logged.
                 }
             }
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                Schedule([display, message = std::string(text->valuestring)]() {
-                    display->SetChatMessage("user", message.c_str());
-                });
+                // Chat text suppressed on OLED. Text still logged.
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
@@ -726,7 +814,12 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
         }
     }
 
-    SetListeningMode(mode);
+    // OpenAudioChannel blocks for the server hello; while waiting, the server
+    // may have already sent tts.start and transitioned us to Speaking
+    // (auto-greeting flow). Don't clobber that with Listening.
+    if (GetDeviceState() == kDeviceStateConnecting) {
+        SetListeningMode(mode);
+    }
 }
 
 void Application::HandleStartListeningEvent() {
@@ -865,7 +958,12 @@ void Application::HandleStateChangedEvent() {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
-    
+
+    // Stop the talking-mouth animation when leaving the speaking state.
+    if (new_state != kDeviceStateSpeaking && talking_anim_timer_handle_ != nullptr) {
+        esp_timer_stop(talking_anim_timer_handle_);
+    }
+
     switch (new_state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
@@ -883,6 +981,13 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
+            // Reset VAD turn tracking for a fresh end-of-speech detection
+            vad_had_speech_in_turn_ = false;
+            listen_stop_sent_ = false;
+            vad_speaking_ = false;
+            // Streaming mode: send each Opus packet immediately as it's
+            // produced (every ~60ms). Backend supports streaming STT.
+            audio_batch_mode_ = false;
 
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
@@ -919,7 +1024,15 @@ void Application::HandleStateChangedEvent() {
                 // Only AFE wake word can be detected in speaking mode
                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
-            audio_service_.ResetDecoder();
+            // ResetDecoder is now done synchronously in the WS task by the
+            // tts.start handler — calling it again here would clear queued
+            // packets that arrived while the main task was waking up.
+            // Kick off the talking-mouth animation (~200 ms flip rate).
+            talking_anim_open_ = false;
+            display->SetEmotion("happy");
+            if (talking_anim_timer_handle_ != nullptr) {
+                esp_timer_start_periodic(talking_anim_timer_handle_, 200 * 1000);
+            }
             break;
         case kDeviceStateWifiConfiguring:
             audio_service_.EnableVoiceProcessing(false);
