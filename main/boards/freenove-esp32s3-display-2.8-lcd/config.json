@@ -8,6 +8,7 @@
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
                 "CONFIG_LANGUAGE_EN_US=y",
                 "CONFIG_SR_WN_WN9_COMPUTER_TTS=y",
+                "CONFIG_WAKE_WORD_DETECTION_IN_LISTENING=y",
                 "CONFIG_SEND_WAKE_WORD_DATA=n",
                 "CONFIG_OTA_URL=\"http://192.168.22.102:18792/ota\"",
                 "CONFIG_FLASH_DEFAULT_ASSETS=n",

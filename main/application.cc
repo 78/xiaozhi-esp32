@@ -250,6 +250,17 @@ void Application::Run() {
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
         
+            // Check listening timeout — return to Idle after silence
+            if (GetDeviceState() == kDeviceStateListening) {
+                if (IsVoiceDetected()) {
+                    listening_silence_seconds_ = 0;
+                } else if (++listening_silence_seconds_ > 10) {
+                    ESP_LOGI(TAG, "Listening timeout, closing audio channel");
+                    protocol_->CloseAudioChannel();
+                    listening_silence_seconds_ = 0;
+                }
+            }
+
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
                 SystemInfo::PrintHeapStats();
@@ -882,6 +893,7 @@ void Application::HandleStateChangedEvent() {
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
+            listening_silence_seconds_ = 0;
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
 
