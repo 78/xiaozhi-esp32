@@ -4,13 +4,15 @@
         {
             "name": "bread-compact-esp32",
             "sdkconfig_append": [
-                "CONFIG_OLED_SSD1306_128X64=y"
+                "CONFIG_OLED_SSD1306_128X64=y",
+                "CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096"
             ]
         },
         {
             "name": "bread-compact-esp32-128x32",
             "sdkconfig_append": [
-                "CONFIG_OLED_SSD1306_128X32=y"
+                "CONFIG_OLED_SSD1306_128X32=y",
+                "CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096"
             ]
         }
     ]

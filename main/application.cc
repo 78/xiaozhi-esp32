@@ -98,61 +98,65 @@ void Application::Initialize() {
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
 
-    // Set network event callback for UI updates and network state handling
+    // Set network event callback for UI updates and network state handling.
+    // WiFi callbacks run on the ESP event task, whose stack is small on ESP32;
+    // keep that path light and do UI work on the main application task.
     board.SetNetworkEventCallback([this](NetworkEvent event, const std::string& data) {
-        auto display = Board::GetInstance().GetDisplay();
-        
-        switch (event) {
-            case NetworkEvent::Scanning:
-                display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
-                xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
-                break;
-            case NetworkEvent::Connecting: {
-                if (data.empty()) {
-                    // Cellular network - registering without carrier info yet
-                    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
-                } else {
-                    // WiFi or cellular with carrier info
-                    std::string msg = Lang::Strings::CONNECT_TO;
-                    msg += data;
-                    msg += "...";
-                    display->ShowNotification(msg.c_str(), 30000);
+        Schedule([this, event, data]() {
+            auto display = Board::GetInstance().GetDisplay();
+
+            switch (event) {
+                case NetworkEvent::Scanning:
+                    display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
+                    xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
+                    break;
+                case NetworkEvent::Connecting: {
+                    if (data.empty()) {
+                        // Cellular network - registering without carrier info yet
+                        display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
+                    } else {
+                        // WiFi or cellular with carrier info
+                        std::string msg = Lang::Strings::CONNECT_TO;
+                        msg += data;
+                        msg += "...";
+                        display->ShowNotification(msg.c_str(), 30000);
+                    }
+                    break;
                 }
-                break;
+                case NetworkEvent::Connected: {
+                    std::string msg = Lang::Strings::CONNECTED_TO;
+                    msg += data;
+                    display->ShowNotification(msg.c_str(), 30000);
+                    xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
+                    break;
+                }
+                case NetworkEvent::Disconnected:
+                    xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
+                    break;
+                case NetworkEvent::WifiConfigModeEnter:
+                    // WiFi config mode enter is handled by WifiBoard internally
+                    break;
+                case NetworkEvent::WifiConfigModeExit:
+                    // WiFi config mode exit is handled by WifiBoard internally
+                    break;
+                // Cellular modem specific events
+                case NetworkEvent::ModemDetecting:
+                    display->SetStatus(Lang::Strings::DETECTING_MODULE);
+                    break;
+                case NetworkEvent::ModemErrorNoSim:
+                    Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
+                    break;
+                case NetworkEvent::ModemErrorRegDenied:
+                    Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_REG);
+                    break;
+                case NetworkEvent::ModemErrorInitFailed:
+                    Alert(Lang::Strings::ERROR, Lang::Strings::MODEM_INIT_ERROR, "triangle_exclamation", Lang::Sounds::OGG_EXCLAMATION);
+                    break;
+                case NetworkEvent::ModemErrorTimeout:
+                    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
+                    break;
             }
-            case NetworkEvent::Connected: {
-                std::string msg = Lang::Strings::CONNECTED_TO;
-                msg += data;
-                display->ShowNotification(msg.c_str(), 30000);
-                xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
-                break;
-            }
-            case NetworkEvent::Disconnected:
-                xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
-                break;
-            case NetworkEvent::WifiConfigModeEnter:
-                // WiFi config mode enter is handled by WifiBoard internally
-                break;
-            case NetworkEvent::WifiConfigModeExit:
-                // WiFi config mode exit is handled by WifiBoard internally
-                break;
-            // Cellular modem specific events
-            case NetworkEvent::ModemDetecting:
-                display->SetStatus(Lang::Strings::DETECTING_MODULE);
-                break;
-            case NetworkEvent::ModemErrorNoSim:
-                Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_PIN);
-                break;
-            case NetworkEvent::ModemErrorRegDenied:
-                Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "triangle_exclamation", Lang::Sounds::OGG_ERR_REG);
-                break;
-            case NetworkEvent::ModemErrorInitFailed:
-                Alert(Lang::Strings::ERROR, Lang::Strings::MODEM_INIT_ERROR, "triangle_exclamation", Lang::Sounds::OGG_EXCLAMATION);
-                break;
-            case NetworkEvent::ModemErrorTimeout:
-                display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
-                break;
-        }
+        });
     });
 
     // Start network asynchronously
