@@ -1,6 +1,6 @@
 #include "sdkconfig.h"
 
-#if CONFIG_XIAOZHI_USE_ETHERNET
+#if CONFIG_XIAOZHI_NETWORK_ETHERNET
 #include "ethernet_board.h"
 #else
 #include "wifi_board.h"
@@ -30,7 +30,7 @@
 #include "esp_lcd_touch_gt911.h"
 #define TAG "WaveshareEsp32p4nano"
 
-#if CONFIG_XIAOZHI_USE_ETHERNET
+#if CONFIG_XIAOZHI_NETWORK_ETHERNET
 using WaveshareEsp32p4nanoBase = EthernetBoard;
 #else
 using WaveshareEsp32p4nanoBase = WifiBoard;
@@ -253,7 +253,7 @@ private:
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-#if CONFIG_XIAOZHI_USE_ETHERNET
+#if CONFIG_XIAOZHI_NETWORK_ETHERNET
             if (app.GetDeviceState() != kDeviceStateStarting) {
                 app.ToggleChatState();
             }
