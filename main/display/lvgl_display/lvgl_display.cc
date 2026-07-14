@@ -55,6 +55,9 @@ LvglDisplay::~LvglDisplay() {
     if (status_label_ != nullptr) {
         lv_obj_del(status_label_);
     }
+    if (time_label_ != nullptr) {
+        lv_obj_del(time_label_);
+    }
     if (mute_label_ != nullptr) {
         lv_obj_del(mute_label_);
     }
@@ -67,6 +70,9 @@ LvglDisplay::~LvglDisplay() {
     if (pm_lock_ != nullptr) {
         esp_pm_lock_delete(pm_lock_);
     }
+}
+
+void LvglDisplay::SetEmotion(const char* emotion) {
 }
 
 void LvglDisplay::SetStatus(const char* status) {
@@ -141,7 +147,11 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             // Check if the we have already set the time
             if (tm->tm_year >= 2025 - 1900) {
                 char time_str[16];
-                strftime(time_str, sizeof(time_str), "%H:%M", tm);
+#if CONFIG_USE_IDLE_CLOCK
+                strftime(time_str, sizeof(time_str), "%Y-%m-%d %A", tm);
+#else
+                strftime(time_str, sizeof(time_str), "%H %M", tm);
+#endif               
                 SetStatus(time_str);
             } else {
                 ESP_LOGW(TAG, "System time is not set, tm_year: %d", tm->tm_year);
@@ -216,6 +226,36 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     }
 
     esp_pm_lock_release(pm_lock_);
+}
+
+void LvglDisplay::UpdateTime(const bool show) {
+    auto& app = Application::GetInstance();
+    if (!setup_ui_called_) {
+        ESP_LOGW(TAG, "UpdateTime('%s') called before SetupUI() - message will be lost!", time);
+    }
+
+    if (app.GetDeviceState() != kDeviceStateIdle || !show) {
+        DisplayLockGuard lock(this);
+        lv_obj_add_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    SetEmotion(NULL);
+    time_t now = time(NULL);
+    struct tm* tm = localtime(&now);
+    char time_str[16];
+    static bool show_colon = false;
+    if (show_colon) {
+        strftime(time_str, sizeof(time_str), "%H:%M", tm);
+        show_colon = false;
+    } else {
+        strftime(time_str, sizeof(time_str), "%H %M", tm);
+        show_colon = true;
+    }
+
+    DisplayLockGuard lock(this);
+    lv_label_set_text(time_label_, time_str);
+    lv_obj_remove_flag(time_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void LvglDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
