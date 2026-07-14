@@ -1,5 +1,6 @@
 # Define source files
 set(SOURCES "audio/audio_codec.cc"
+            "audio/audio_debugger.cc"
             "audio/audio_service.cc"
             "audio/demuxer/ogg_demuxer.cc"
             "audio/codecs/no_audio_codec.cc"
@@ -9,7 +10,6 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/codecs/es8388_audio_codec.cc"
             "audio/codecs/es8389_audio_codec.cc"
             "audio/codecs/dummy_audio_codec.cc"
-            "audio/processors/audio_debugger.cc"
             "led/single_led.cc"
             "led/circular_strip.cc"
             "led/gpio_led.cc"
@@ -885,16 +885,13 @@ else()
 endif()
 list(APPEND SOURCES ${BOARD_SOURCES})
 
-# Select audio processor according to Kconfig
-if(CONFIG_USE_AUDIO_PROCESSOR)
-    list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
-else()
-    list(APPEND SOURCES "audio/processors/no_audio_processor.cc")
-endif()
+# Select one audio engine for each chip family
 if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
-    list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
+    list(APPEND SOURCES "audio/engines/afe_audio_engine.cc")
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/wake_word_audio_cache.cc")
 else()
+    list(APPEND SOURCES "audio/engines/lite_audio_engine.cc")
     list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
 endif()
 

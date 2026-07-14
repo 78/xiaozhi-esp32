@@ -19,18 +19,17 @@
 #include "esp_audio_types.h"
 
 #include "audio_codec.h"
-#include "audio_processor.h"
-#include "processors/audio_debugger.h"
-#include "wake_word.h"
+#include "audio_debugger.h"
+#include "audio_engine.h"
 #include "protocol.h"
 #include "ogg_demuxer.h"
 
 /*
  * There are two types of audio data flow:
- * 1. (MIC) -> [Processors] -> {Encode Queue} -> [Opus Encoder] -> {Send Queue} -> (Server)
+ * 1. (MIC) -> [Audio Engine] -> {Encode Queue} -> [Opus Encoder] -> {Send Queue} -> (Server)
  * 2. (Server) -> {Decode Queue} -> [Opus Decoder] -> {Playback Queue} -> (Speaker)
  *
- * We use one task for MIC / Speaker / Processors, and one task for Opus Encoder / Opus Decoder.
+ * We use dedicated tasks for input, output, and Opus encoding/decoding.
  * 
  * Decode Queue and Send Queue are the main queues, because Opus packets are quite smaller than PCM packets.
  * 
@@ -137,8 +136,7 @@ public:
 private:
     AudioCodec* codec_ = nullptr;
     AudioServiceCallbacks callbacks_;
-    std::unique_ptr<AudioProcessor> audio_processor_;
-    std::unique_ptr<WakeWord> wake_word_;
+    std::unique_ptr<AudioEngine> audio_engine_;
     std::unique_ptr<AudioDebugger> audio_debugger_;
     void* opus_encoder_ = nullptr;
     void* opus_decoder_ = nullptr;
@@ -174,9 +172,13 @@ private:
     // For server AEC
     std::deque<uint32_t> timestamp_queue_;
 
-    bool wake_word_initialized_ = false;
-    bool audio_processor_initialized_ = false;
+    bool audio_engine_initialized_ = false;
     bool voice_detected_ = false;
+#if CONFIG_USE_DEVICE_AEC
+    bool device_aec_enabled_ = true;
+#else
+    bool device_aec_enabled_ = false;
+#endif
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
 
@@ -188,6 +190,7 @@ private:
     void AudioOutputTask();
     void OpusCodecTask();
     void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
+    bool InitializeAudioEngine();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckAndUpdateAudioPowerState();
 };
