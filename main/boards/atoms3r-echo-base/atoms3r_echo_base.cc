@@ -9,6 +9,7 @@
 
 #include <driver/gpio.h>
 #include <esp_log.h>
+#include <esp_idf_version.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_master.h>
 #include <esp_lcd_panel_vendor.h>
@@ -370,7 +371,11 @@ private:
         esp_lcd_panel_handle_t panel_handle = nullptr;
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = LCD_RST_GPIO; // Set to -1 if not use
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+#else
         panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;
+#endif
         panel_config.bits_per_pixel = 16; // Implemented by LCD command `3Ah` (16/18)
 
         if (config.type == LcdPanelType::kGc9107) {

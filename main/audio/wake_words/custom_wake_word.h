@@ -2,6 +2,8 @@
 #define CUSTOM_WAKE_WORD_H
 
 #include <esp_attr.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <esp_mn_iface.h>
 #include <esp_mn_models.h>
 #include <model_path.h>

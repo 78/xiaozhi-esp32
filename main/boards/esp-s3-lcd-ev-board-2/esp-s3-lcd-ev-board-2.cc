@@ -111,7 +111,7 @@ private:
             },
         };
         const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = -1,
+            .reset_gpio_num = GPIO_NUM_NC,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             // .bits_per_pixel = 16,
             //add surpport ev board

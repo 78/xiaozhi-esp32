@@ -257,7 +257,7 @@ private:
 
         esp_lcd_panel_dev_config_t lcd_dev_config = {};
         lcd_dev_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-        lcd_dev_config.reset_gpio_num = -1;
+        lcd_dev_config.reset_gpio_num = GPIO_NUM_NC;
         lcd_dev_config.bits_per_pixel = 16;
         lcd_dev_config.vendor_config = &vendor_config;
 
@@ -335,7 +335,7 @@ private:
         vendor_config.mipi_config.dpi_config = &dpi_config;
         vendor_config.mipi_config.lane_num = 2;
 
-        lcd_dev_config.reset_gpio_num = -1;
+        lcd_dev_config.reset_gpio_num = GPIO_NUM_NC;
         lcd_dev_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         lcd_dev_config.data_endian = LCD_RGB_DATA_ENDIAN_LITTLE;
         lcd_dev_config.bits_per_pixel = 24;
@@ -571,4 +571,3 @@ public:
 
 
 DECLARE_BOARD(M5StackTab5Board);
-
