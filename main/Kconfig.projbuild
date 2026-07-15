@@ -897,11 +897,13 @@ config WAKE_WORD_DETECTION_IN_LISTENING
         When disabled (default), wake word detection is turned off during listening.
 
 config USE_AUDIO_PROCESSOR
-    bool "Enable Audio Noise Reduction"
+    bool "Enable AFE Audio Processing"
     default y
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     help
-        Requires ESP32 S3 and PSRAM
+        Enable the shared AFE uplink path with AEC and VAD. Noise suppression
+        is not enabled because this project does not provide an NSNet model.
+        Requires ESP32-S3 or ESP32-P4 with PSRAM.
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
