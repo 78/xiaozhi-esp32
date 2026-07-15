@@ -68,7 +68,7 @@ private:
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
 #else
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
 #endif
         panel_config.bits_per_pixel = 16;                       // Implemented by LCD command `3Ah` (16/18)
 

@@ -67,13 +67,13 @@ private:
         io_config.trans_queue_depth = 10;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io));
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
 #else
             .color_space = ESP_LCD_COLOR_SPACE_BGR,
 #endif
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
         };
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7796(io, &lcd_dev_config, &disp_panel));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(disp_panel));

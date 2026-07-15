@@ -96,10 +96,15 @@ private:
         
         // 液晶屏控制IO初始化
         ESP_LOGI(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = AXS15231B_PANEL_IO_QSPI_CONFIG(
-            LCD_CS,
-            NULL,
-            NULL);
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = LCD_CS;
+        io_config.dc_gpio_num = GPIO_NUM_NC;
+        io_config.spi_mode = 3;
+        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 32;
+        io_config.lcd_param_bits = 8;
+        io_config.flags.quad_mode = true;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片
@@ -111,12 +116,11 @@ private:
                 .use_qspi_interface = 1,
             },
         };
-        esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = GPIO_NUM_NC,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            .bits_per_pixel = 16,
-            .vendor_config = (void *)&vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.vendor_config = (void *)&vendor_config;
         esp_lcd_new_panel_axs15231b(panel_io, &panel_config, &panel);
         
         gpio_set_level(LCD_RST,1);

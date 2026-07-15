@@ -1063,6 +1063,14 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
         espressif__touch_button_sensor
     )
 endif()
+if(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
+   OR CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307
+   OR CONFIG_BOARD_TYPE_ZHENGCHEN_CAM
+   OR CONFIG_BOARD_TYPE_ZHENGCHEN_CAM_ML307)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        esp_driver_tsens
+    )
+endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}

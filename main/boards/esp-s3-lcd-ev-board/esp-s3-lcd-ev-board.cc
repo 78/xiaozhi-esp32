@@ -68,7 +68,8 @@ private:
             //add support ev board
             .timings = GC9503_480_480_PANEL_60HZ_RGB_TIMING(),
             .data_width = 16, // RGB565 in parallel mode, thus 16bit in width
-            .bits_per_pixel = 16,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = GC9503V_LCD_RGB_BUFFER_NUMS,
             .bounce_buffer_size_px = GC9503V_LCD_H_RES * GC9503V_LCD_RGB_BOUNCE_BUFFER_HEIGHT,
             .dma_burst_size = 64,
@@ -109,14 +110,12 @@ private:
                 .auto_del_panel_io = 1,
             },
         };
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = GPIO_NUM_NC,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            // .bits_per_pixel = 16,
-            //add surpport ev board
-            .bits_per_pixel = 18,
-            .vendor_config = &vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        // The GC9503V accepts 18-bit panel data while the RGB framebuffer is RGB565.
+        panel_config.bits_per_pixel = 18;
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.vendor_config = &vendor_config;
         (esp_lcd_new_panel_gc9503(panel_io, &panel_config, &panel_handle));
         (esp_lcd_panel_reset(panel_handle));
         (esp_lcd_panel_init(panel_handle));

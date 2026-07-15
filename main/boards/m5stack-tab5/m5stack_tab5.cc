@@ -228,7 +228,8 @@ private:
             .virtual_channel = 0,
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 60,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 2,
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
@@ -239,9 +240,6 @@ private:
                 .vsync_pulse_width = 4,
                 .vsync_back_porch  = 20,
                 .vsync_front_porch = 20,
-            },
-            .flags = {
-                .use_dma2d = false,
             },
         };
 
@@ -317,7 +315,8 @@ private:
         dpi_config.virtual_channel = 0;
         dpi_config.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
         dpi_config.dpi_clock_freq_mhz = 70;  // ST7123 DPI clock frequency
-        dpi_config.pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
+        dpi_config.in_color_format = LCD_COLOR_FMT_RGB565;
+        dpi_config.out_color_format = LCD_COLOR_FMT_RGB565;
         dpi_config.num_fbs = 1;
         dpi_config.video_timing.h_size = 720;
         dpi_config.video_timing.v_size = 1280;
@@ -327,7 +326,6 @@ private:
         dpi_config.video_timing.vsync_pulse_width = 2;
         dpi_config.video_timing.vsync_back_porch = 8;
         dpi_config.video_timing.vsync_front_porch = 220;
-        dpi_config.flags.use_dma2d = true;
 
         vendor_config.init_cmds = st7123_vendor_specific_init_default;
         vendor_config.init_cmds_size = sizeof(st7123_vendor_specific_init_default) / sizeof(st7123_vendor_specific_init_default[0]);
@@ -407,14 +405,13 @@ private:
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = {
-            .dev_addr = 0x55,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 0,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-            .scl_speed_hz = 100000,
-        };
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {};
+        tp_io_config.dev_addr = 0x55;
+        tp_io_config.scl_speed_hz = 100000;
+        tp_io_config.control_phase_bytes = 1;
+        tp_io_config.dc_bit_offset = 0;
+        tp_io_config.lcd_cmd_bits = 8;
+        tp_io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_st7123(tp_io_handle, &tp_cfg, &touch_));
     }
