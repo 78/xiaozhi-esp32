@@ -329,6 +329,13 @@ void Application::HandleActivationDoneEvent() {
         // Play the success sound to indicate the device is ready
         audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
     });
+
+    // Establish persistent WebSocket for server-initiated communication
+    auto* ws_protocol = dynamic_cast<WebsocketProtocol*>(protocol_.get());
+    if (ws_protocol != nullptr) {
+        ESP_LOGI(TAG, "Establishing persistent WebSocket connection");
+        ws_protocol->ConnectControlChannel();
+    }
 }
 
 void Application::ActivationTask() {
@@ -537,17 +544,21 @@ void Application::InitializeProtocol() {
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
                     aborted_ = false;
+                    if (GetDeviceState() == kDeviceStateIdle) {
+                        server_initiated_session_ = true;
+                    }
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
                     if (GetDeviceState() == kDeviceStateSpeaking) {
-                        if (listening_mode_ == kListeningModeManualStop) {
+                        if (listening_mode_ == kListeningModeManualStop || server_initiated_session_) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
                             SetDeviceState(kDeviceStateListening);
                         }
                     }
+                    server_initiated_session_ = false;
                 });
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
                 auto text = cJSON_GetObjectItem(root, "text");
@@ -897,10 +908,17 @@ void Application::HandleStateChangedEvent() {
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
 
+            // Play popup sound BEFORE enabling mic, so the microphone
+            // doesn't pick up the popup echo as speech
+            if (play_popup_on_listening_) {
+                play_popup_on_listening_ = false;
+                audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+            }
+
             // Make sure the audio processor is running
-            if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
-                // For auto mode, wait for playback queue to be empty before enabling voice processing
-                // This prevents audio truncation when STOP arrives late due to network jitter
+            if (!audio_service_.IsAudioProcessorRunning()) {
+                // For auto mode, wait for playback queue to be empty (includes popup)
+                // before enabling voice processing
                 if (listening_mode_ == kListeningModeAutoStop) {
                     audio_service_.WaitForPlaybackQueueEmpty();
                 }
@@ -917,12 +935,6 @@ void Application::HandleStateChangedEvent() {
             // Disable wake word detection in listening mode
             audio_service_.EnableWakeWordDetection(false);
 #endif
-            
-            // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
-            if (play_popup_on_listening_) {
-                play_popup_on_listening_ = false;
-                audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
-            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
