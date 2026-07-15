@@ -10,6 +10,7 @@
 #include <freertos/task.h>
 #include <esp_network.h>
 #include <esp_log.h>
+#include <esp_mac.h>
 #include <utility>
 
 #include <font_awesome.h>
@@ -56,6 +57,14 @@ void WifiBoard::StartNetwork() {
     WifiManagerConfig config;
     config.ssid_prefix = "Xiaozhi";
     config.language = Lang::CODE;
+    // Set a DHCP hostname so the router shows a friendly name instead of "espressif".
+    // Uses the same "<prefix>-<last 2 MAC bytes>" scheme as the config AP SSID.
+    uint8_t mac[6];
+    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
+        char hostname[32];
+        snprintf(hostname, sizeof(hostname), "%s-%02X%02X", config.ssid_prefix.c_str(), mac[4], mac[5]);
+        config.station_hostname = hostname;
+    }
     wifi_manager.Initialize(config);
 
     // Set unified event callback - forward to NetworkEvent with SSID data
