@@ -16,6 +16,12 @@ idf.py menuconfig           # Xiaozhi Assistant > Board Type
 idf.py build
 idf.py flash monitor
 
+# Build with OTA upload (auto-pushes firmware to voice_gateway):
+python scripts/release.py <board-dir-name> --upload   # e.g. python scripts/release.py freenove-esp32s3-display-2.8-lcd --upload
+
+# Or upload manually after build:
+scripts/ota-upload.sh   # uploads build/xiaozhi.bin to OTA server
+
 # List all board variants:
 python scripts/release.py --list-boards
 

@@ -392,6 +392,16 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
         # Zip
         zip_bin(final_name, project_version)
 
+        # OTA upload
+        if args.upload:
+            upload_cmd = f"{Path(__file__).parent}/ota-upload.sh"
+            firmware_path = Path("build/xiaozhi.bin").resolve()
+            if firmware_path.exists():
+                if os.system(f"{upload_cmd} {firmware_path} {project_version}") != 0:
+                    print(f"[WARN] OTA upload failed, continuing...", file=sys.stderr)
+            else:
+                print(f"[WARN] Firmware not found at {firmware_path}, skipping OTA upload", file=sys.stderr)
+
 ################################################################################
 # CLI entry
 ################################################################################
@@ -403,6 +413,7 @@ if __name__ == "__main__":
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
     parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
     parser.add_argument("--name", help="Variant name to compile (original name without manufacturer prefix)")
+    parser.add_argument("--upload", action="store_true", help="Upload firmware to OTA server after build")
 
     args = parser.parse_args()
 
