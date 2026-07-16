@@ -46,7 +46,7 @@ python scripts/release.py all
 | `main/` | Application core, entrypoint `main.cc:app_main()` |
 | `main/boards/` | All board definitions (70+) |
 | `main/boards/common/` | Shared board components (button, backlight, battery, etc.) |
-| `main/audio/` | Audio codecs, processors, wake words |
+| `main/audio/engines/afe_audio_engine.cc` | AFE config: `AFE_TYPE_FD`/`AFE_MODE_LOW_COST` + `agc_init=true` |
 | `main/display/` | Display drivers (OLED, LCD, LVGL) |
 | `main/protocols/` | WebSocket + MQTT+UDP communication |
 | `partitions/v2/` | Partition tables — **v2 only** (4m, 8m, 16m, 16m_c3, 32m) |
@@ -91,7 +91,7 @@ GitHub Actions in `.github/workflows/build.yml`. Uses `espressif/idf:v5.5.2` Doc
 
 ## Version
 
-`2.2.6` (PROJECT_VER in root `CMakeLists.txt`). v1 branch (`git checkout v1`) maintained until Feb 2026 — **partition tables are incompatible between v1 and v2**.
+`2.3.0` (PROJECT_VER in root `CMakeLists.txt`). v1 branch (`git checkout v1`) maintained until Feb 2026 — **partition tables are incompatible between v1 and v2**.
 
 ## Testing
 
@@ -119,6 +119,24 @@ TP4054 CHRG pin NOT routed to GPIO (confirmed). Voltage-trend detection via `Adc
 - `main/boards/common/adc_battery_monitor.h` — `ChargeState` enum, state machine, median filter
 - `main/boards/common/adc_battery_monitor.cc` — Voltage-trend state machine, `GetVoltageMv()` via adc_oneshot + curve_fitting
 - `main/audio/audio_service.h/.cc` — `EnableWakeWordDetection()`, `IsWakeWordRunning()`, `AudioInputTask()`
+
+### Release Workflow (After Code Change)
+
+1. `python scripts/release.py freenove-esp32s3-display-2.8-lcd --upload`
+   — builds + uploads firmware to OTA server
+2. Flash via USB: `idf.py -p /dev/ttyACM0 flash` (repeat for `/dev/ttyACM1`)
+3. Wait for device to OTA-update automatically (if version bumped) or restart manually
+4. Tag: `git tag v1.<N>-freenove && git push origin v1.<N>-freenove`
+5. Push: `git push origin HEAD:v1.2-freenove`
+
+### OTA Update Mechanism
+
+- Device checks `CONFIG_OTA_URL` (`http://192.168.22.102:18792/ota`) on every boot
+- Server returns `{"firmware":{"version":"X.Y.Z","url":"http://..."}}` 
+- Device auto-downloads + applies if version > current
+- No need to flash USB for subsequent updates — just bump `PROJECT_VER` in `CMakeLists.txt`, rebuild, then `python scripts/release.py <board> --upload`
+- Upload endpoint: `POST /api/firmware/upload` (multipart, field `file`)
+- See `docs/ota-api.md` for server-side API contract
 
 ### Other Notes
 
