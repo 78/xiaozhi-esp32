@@ -435,7 +435,8 @@ public:
             AUDIO_I2S_GPIO_DOUT, 
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC, 
-            AUDIO_CODEC_ES8389_ADDR
+            AUDIO_CODEC_ES8389_ADDR,
+            AUDIO_CODEC_USE_MCLK
         );
         return &audio_codec;
     }
