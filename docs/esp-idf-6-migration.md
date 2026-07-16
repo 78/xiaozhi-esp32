@@ -6,14 +6,14 @@
 
 ## Current Status
 
-The migration baseline is reproducible from committed project files and published Component Registry packages. GitHub Actions built the complete 157-variant release matrix with ESP-IDF 6.0.1: 155 variants passed and 2 variants are blocked by third-party components that do not support IDF 6. Fourteen legacy ESP32-P4 Rev < 3 variants have been removed from the supported release matrix.
+The migration baseline is reproducible from committed project files and published Component Registry packages. GitHub Actions built the complete 157-variant release matrix with ESP-IDF 6.0.1: 155 variants passed in that run. A subsequent local full build validated `esp-spot-c5` with `espressif/bmi270_sensor 0.1.2`, bringing the current compatibility result to 156 passing variants and 1 variant blocked by third-party components. Fourteen legacy ESP32-P4 Rev < 3 variants have been removed from the supported release matrix.
 
 | Status | Variants | Meaning |
 |---|---:|---|
-| ✅ Full build passed | 155 | Clean full build completed in GitHub Actions with ESP-IDF 6.0.1; this does not imply hardware or complete peripheral validation |
-| 🔴 Blocked by upstream | 2 | An upstream component either has no IDF 6 artifact or explicitly rejects IDF 6 |
+| ✅ Full build passed | 156 | Clean full build completed with ESP-IDF 6.0.1; 155 variants were validated in GitHub Actions and `esp-spot-c5` was subsequently validated locally |
+| 🔴 Blocked by upstream | 1 | An upstream component explicitly rejects IDF 6 |
 
-The remaining blockers affect one ESP32-C5 variant and one ESP32-S3 variant. `78/esp_lcd_nv3023 1.0.1-idf6` and `78/sscma_client 1.0.3-idf6` are published under namespace 78 and are consumed directly by the project, so local copies under the ignored `components/` directory are not required. Legacy ESP32-P4 Rev < 3 is no longer supported, while ESP32-P4 v3.x remains in scope.
+The remaining blockers affect one ESP32-S3 variant. [`78/esp_lcd_nv3023 1.0.1`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1) and `78/sscma_client 1.0.3-idf6` are published under namespace 78 and are consumed directly by the project, so local copies under the ignored `components/` directory are not required. Legacy ESP32-P4 Rev < 3 is no longer supported, while ESP32-P4 v3.x remains in scope.
 
 Representative local full-build results are shown below. Firmware size and free space are reported by ESP-IDF 6.0.1 `check_sizes.py`. The authoritative per-variant compatibility result is the full GitHub Actions matrix in the next section.
 
@@ -41,6 +41,8 @@ For backward-compatibility regression coverage, `xmini-c3` also completed a full
 
 GitHub Actions run [29443980391](https://github.com/78/xiaozhi-esp32/actions/runs/29443980391) built the complete matrix with the `espressif/idf:v6.0.1` container and only committed files plus published registry components. The matrix-generation job and 155 board jobs passed; exactly 2 board jobs failed at explicit configure-time guards for known unsupported upstream components.
 
+After that run, `espressif/bmi270_sensor 0.1.2` added IDF 6.0 prebuilt libraries. A clean local full build of `esp-spot-c5` resolved and linked version 0.1.2 successfully. The historical table below records the referenced Actions run; a new full-matrix run is required to replace it with the current 156/1 result.
+
 Results by chip target:
 
 | Chip target | Variants | Passed | Blocked |
@@ -53,12 +55,12 @@ Results by chip target:
 | ESP32-P4 v3.x | 14 | 14 | 0 |
 | **Total** | **157** | **155** | **2** |
 
-The two remaining failures are:
+The two failures in that run were:
 
 | Build variant | Upstream blocker | Required next event |
 |---|---|---|
-| `esp-spot-c5` | `espressif/bmi270_sensor 0.1.1` has no ESP-IDF 6 prebuilt library | Espressif publishes an IDF 6-compatible component artifact or source implementation |
-| `esp-vocat` | The same BMI270 limitation; `touch_slider_sensor` and `touch_button_sensor` also require IDF < 6.0 | All three upstream components add ESP-IDF 6 support |
+| `esp-spot-c5` | `espressif/bmi270_sensor 0.1.1` had no ESP-IDF 6 prebuilt library | Resolved locally with `bmi270_sensor 0.1.2`; complete matrix rerun pending |
+| `esp-vocat` | BMI270 was unavailable in that run; `touch_slider_sensor` and `touch_button_sensor` also require IDF < 6.0 | BMI270 is resolved by 0.1.2; both touch components still need IDF 6 support |
 
 ## ESP32-P4 Silicon Scope and Naming
 
@@ -83,11 +85,11 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | `esp_emote_expression` | `1.0.2` | ✅ Upstream support | Replaces the previous dependency on the built-in `json` component |
 | `78/sscma_client` | [`1.0.3-idf6`](https://components.espressif.com/components/78/sscma_client/versions/1.0.3-idf6) | ✅ Patched registry release | Forked from upstream `1.0.2`; its CMake metadata now uses `espressif/cjson` instead of the built-in `json` component removed by IDF 6 |
 | `espressif/servo` / `espfriends/servo_dog_ctrl` | `1.0.0` / `0.2.0` | ✅ Upstream support | Uses official registry releases; compilation and linking were validated in the full IDF 6.0.1 build of `esp-hi`, with no local override required |
-| `78/esp_lcd_nv3023` | [`1.0.1-idf6`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1-idf6) | ✅ Patched registry release | Forked from `1.0.0`; uses the IDF 6 `rgb_ele_order` field and `LCD_RGB_ELEMENT_ORDER_*` constants while retaining compatibility with older IDF releases |
+| `78/esp_lcd_nv3023` | [`1.0.1`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1) | ✅ Upstream-based registry release | Mirrors MakerM0 upstream commit `15dae953`; adds IDF 6 color-order and GPIO compatibility while retaining older IDF branches; validated through the registry in a clean `magiclick-c3` full build |
 | `llgok/cpp_bus_driver` | Excluded from the IDF 6 baseline | ⚪ Waiting for upstream | Version `2.1.0` still requires local patches for IDF 6. It is used only by the `LILYGO T-Display-P4` source, and that board has no release `config.json`, so the component has been removed until upstream support is available |
 | MQTT protocol AES-CTR | PSA Crypto | ✅ Ported | Replaces the legacy AES context API removed by IDF 6 / Mbed TLS 4 |
 | BluFi security negotiation (conditional path) | Legacy Mbed TLS DHM/AES API | ⚪ Not yet migrated | None of the 157 supported release variants enables it. IDF 6 removed `mbedtls/dhm.h`; compatibility of the official PSA FFDH + AES-CTR approach with the existing mobile-client protocol must be evaluated |
-| `espressif/bmi270_sensor` | Latest version remains `0.1.1` | 🔴 Unsupported | Provides prebuilt libraries only for IDF 5.3/5.4/5.5; affects ESP Spot C5 and ESP Vocat |
+| `espressif/bmi270_sensor` | [`0.1.2`](https://components.espressif.com/components/espressif/bmi270_sensor/versions/0.1.2/readme?language=en) | ✅ Upstream support | Provides IDF 6.0 prebuilt libraries for ESP32-C5 and ESP32-S3; validated by a full `esp-spot-c5` build |
 | `touch_slider_sensor` / `touch_button_sensor` | Current versions | 🔴 Unsupported | Their manifests require IDF < 6.0; affects ESP Vocat |
 | ESP32-P4 Rev < 3 / `espressif/esp-sr` | Not included | ⚫ Out of scope | Legacy P4 support and its 14 release variants have been removed; ESP32-P4 v3.x is unaffected |
 
@@ -114,7 +116,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32c3` | `xmini-c3-4g` | `xmini-c3-4g` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `xmini-c3-v3` | `xmini-c3-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c5` | `esp-sensairshuttle` | `esp-sensairshuttle` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32c5` | `esp-spot` | `esp-spot-c5` | 🔴 Blocked by upstream | Component artifact review + configure-time guard | BMI270 0.1.1 has no prebuilt ESP-IDF 6.0 library |
+| `esp32c5` | `esp-spot` | `esp-spot-c5` | ✅ Full build passed | IDF 6.0.1 `idf.py build`; `bmi270_sensor 0.1.2` | Hardware smoke, BMI270, audio, and power-management regression pending |
 | `esp32c5` | `movecall-moji2-esp32c5` | `movecall-moji2-esp32c5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c5` | `waveshare/esp32-c5-touch-lcd-1.69` | `waveshare-esp32-c5-touch-lcd-1.69` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
 | `esp32c6` | `waveshare/esp32-c6-lcd-0.85` | `waveshare-esp32-c6-lcd-0.85` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
@@ -152,7 +154,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `esp-s3-lcd-ev-board` | `esp-s3-lcd-ev-board-1p4`<br>`esp-s3-lcd-ev-board-1p5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `esp-s3-lcd-ev-board-2` | `esp-s3-lcd-ev-board-2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `esp-sparkbot` | `esp-sparkbot` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-vocat` | `esp-vocat` | 🔴 Blocked by upstream | Component artifact review + configure-time guard | BMI270 0.1.1 has no IDF 6 library; touch_slider/touch_button require IDF < 6.0 |
+| `esp32s3` | `esp-vocat` | `esp-vocat` | 🔴 Blocked by upstream | Component artifact review + configure-time guard | `touch_slider_sensor` and `touch_button_sensor` require IDF < 6.0; BMI270 is resolved by 0.1.2 |
 | `esp32s3` | `esp32s3-korvo2-v3` | `esp32s3-korvo2-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `esp32s3-korvo2-v3-rndis` | `esp32s3-korvo2-v3-rndis` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `freenove-esp32s3-display-2.8-lcd` | `freenove-esp32s3-display-2.8-lcd` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -238,10 +240,10 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 
 ## Next Steps and Acceptance Criteria
 
-1. Wait for IDF 6-compatible upstream releases of `espressif/bmi270_sensor`, `touch_slider_sensor`, and `touch_button_sensor`, then rerun `esp-spot-c5` and `esp-vocat`. Legacy P4 Rev < 3 remains out of scope.
+1. Wait for IDF 6-compatible upstream releases of `touch_slider_sensor` and `touch_button_sensor`, then rerun `esp-vocat`. Rerun the complete matrix to promote the locally validated `esp-spot-c5` result into GitHub Actions. Legacy P4 Rev < 3 remains out of scope.
 2. For every green variant, complete a minimal hardware smoke test covering boot, networking, audio input/output, display/touch when present, camera when present, and 4G/Ethernet when present.
 3. Perform a physical negative test for the `xmini-c3`/`xmini-c3-v3` firmware guard. CI proves that both images compile; it does not prove that a wrong image is safely rejected. Acceptance requires flashing each wrong image to a sacrificial or recoverable board and verifying that startup stops before any board-specific power or peripheral initialization can cause damage.
-4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1-idf6` and `78/sscma_client 1.0.3-idf6` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
+4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1` and `78/sscma_client 1.0.3-idf6` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
 
 ## Reproduction
 
