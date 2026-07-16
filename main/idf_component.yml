@@ -43,7 +43,7 @@ dependencies:
     rules:
     - if: target in [esp32s3]
   espressif/esp_video:
-    version: ^2.3.0
+    version: ^2.0.1
     rules:
     - if: target in [esp32p4, esp32s3]
   

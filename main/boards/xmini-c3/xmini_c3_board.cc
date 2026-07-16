@@ -173,18 +173,10 @@ public:
     XminiC3Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeCodecI2c();
         InitializeSsd1306Display();
-        while (true) {
-            ESP_LOGI(TAG, "Initializing SSD1306 display");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-        }
         InitializeButtons();
         InitializePowerSaveTimer();
         InitializeTools();
 
-        while (true) {
-            ESP_LOGI(TAG, "Waiting for boot button to be pressed");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-        }
         // 避免使用错误的固件，把 EFUSE 操作放在最后
         // 把 ESP32C3 的 VDD SPI 引脚作为普通 GPIO 口使用
         esp_efuse_write_field_bit(ESP_EFUSE_VDD_SPI_AS_GPIO);
