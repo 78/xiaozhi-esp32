@@ -1041,16 +1041,11 @@ if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
     )
 endif()
 if(CONFIG_BOARD_TYPE_ESP_SPOT_S3 OR CONFIG_BOARD_TYPE_ESP_SPOT_C5 OR CONFIG_BOARD_TYPE_ESP_VOCAT)
-    if(IDF_VERSION_MAJOR GREATER_EQUAL 6 AND CONFIG_BOARD_TYPE_ESP_VOCAT)
-        message(FATAL_ERROR
-            "${BOARD_TYPE} is not compatible with ESP-IDF ${IDF_VERSION}: "
-            "touch_slider_sensor and touch_button_sensor require ESP-IDF < 6.0")
-    endif()
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__bmi270_sensor
     )
 endif()
-if(CONFIG_BOARD_TYPE_ESP_VOCAT)
+if(CONFIG_BOARD_TYPE_ESP_VOCAT AND IDF_VERSION_MAJOR LESS 6)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
         espressif__touch_button_sensor

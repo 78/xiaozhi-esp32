@@ -70,8 +70,8 @@ dependencies:
   espressif/esp_new_jpeg: ^0.6.1
 
   # SenseCAP Watcher Board
-  78/sscma_client:
-    version: ==1.0.3-idf6
+  wvirgil123/sscma_client:
+    version: ==1.0.3
     rules:
     - if: target in [esp32s3]
 
