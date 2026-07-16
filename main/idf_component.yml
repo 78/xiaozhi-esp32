@@ -126,12 +126,15 @@ dependencies:
   espressif/touch_slider_sensor:
     version: ^0.2.0~1
     rules:
+    # The conditions specified in 'rules' with 'if' are combined with 'and'
     - if: target in [esp32s3]
+    - if: idf_version < 6.0.0
 
   espressif/touch_button_sensor:
     version: ^0.2.2~1
     rules:
     - if: target in [esp32s3]
+    - if: idf_version < 6.0.0
 
   espressif/esp_lcd_touch_st7123: ^1.0.0
   espressif/iot_usbh_rndis: 
