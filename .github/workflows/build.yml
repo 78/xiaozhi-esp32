@@ -16,6 +16,8 @@ jobs:
   prepare:
     name: Determine variants to build
     runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0.1
     outputs:
       variants: ${{ steps.select.outputs.variants }}
     steps:
@@ -25,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: apt-get update && apt-get install -y jq
 
       - id: list
         name: Get all variant list

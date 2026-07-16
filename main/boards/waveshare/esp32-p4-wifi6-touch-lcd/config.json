@@ -4,6 +4,23 @@
     "builds": [
         {
             "name": "esp32-p4-wifi6-touch-lcd-4b",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4B=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-4b-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -18,6 +35,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-4.3",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-4.3-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -32,6 +66,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-5",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-5-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -46,6 +97,26 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-7b",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/32m.csv\"",
+                "CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-7b-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -63,6 +134,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-3.4c",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-3.4c-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -77,6 +165,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-4c",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-4c-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -91,6 +196,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-7",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-7-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -105,6 +227,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-8",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_8=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-8-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -119,6 +258,23 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-10.1",
+            "idf_version": "<6.0",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_10_1=y",
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CAMERA_OV5647=y",
+                "CONFIG_CAMERA_OV5647_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y",
+                "CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y"
+            ]
+        },
+        {
+            "name": "esp32-p4-wifi6-touch-lcd-10.1-p4x",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",

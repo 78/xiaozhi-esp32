@@ -6,7 +6,7 @@
 
 ## Current Status
 
-The migration baseline is reproducible from committed project files and published Component Registry packages. All 157 supported variants are now build-compatible with ESP-IDF 6.0.1: 156 passed the last complete GitHub Actions matrix, and `esp-vocat` subsequently passed a local full build after rebasing onto upstream commit `467b96a` and fixing two IDF 6/C++26 ST77916 initialization errors. A new complete matrix is pending. Fourteen legacy ESP32-P4 Rev < 3 variants have been removed from the supported release matrix.
+The migration baseline is reproducible from committed project files and published Component Registry packages. All 157 IDF 6 variants are now build-compatible with ESP-IDF 6.0.1: 156 passed the last complete GitHub Actions matrix, and `esp-vocat` subsequently passed a local full build after rebasing onto upstream commit `467b96a` and fixing two IDF 6/C++26 ST77916 initialization errors. A new complete matrix is pending. Fourteen legacy ESP32-P4 Rev < 3 variants are excluded from the IDF 6 matrix but remain available when building with ESP-IDF < 6.
 
 | Status | Variants | Meaning |
 |---|---:|---|
@@ -14,7 +14,7 @@ The migration baseline is reproducible from committed project files and publishe
 | 🟡 Feature-degraded subset | 1 | `esp-vocat` builds on IDF 6, but its PCB capacitive slider/button support is disabled pending compatible touch-sensor components |
 | 🔴 Build-blocked | 0 | No supported release variant remains blocked at compile or link time |
 
-There are no remaining build blockers. [`78/esp_lcd_nv3023 1.0.1`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1) and [`wvirgil123/sscma_client 1.0.3`](https://components.espressif.com/components/wvirgil123/sscma_client/versions/1.0.3/readme) are consumed directly from the Component Registry, so local copies under the ignored `components/` directory are not required. Legacy ESP32-P4 Rev < 3 is no longer supported, while ESP32-P4 v3.x remains in scope.
+There are no remaining IDF 6 build blockers. [`78/esp_lcd_nv3023 1.0.1`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1) and [`wvirgil123/sscma_client 1.0.3`](https://components.espressif.com/components/wvirgil123/sscma_client/versions/1.0.3/readme) are consumed directly from the Component Registry, so local copies under the ignored `components/` directory are not required. ESP32-P4 Rev < 3 remains on the ESP-IDF 5.5 legacy build path, while the IDF 6 matrix supports ESP32-P4 v3.x.
 
 Representative local full-build results are shown below. Firmware size and free space are reported by ESP-IDF 6.0.1 `check_sizes.py`. The authoritative per-variant compatibility result is the full GitHub Actions matrix in the next section.
 
@@ -33,10 +33,10 @@ Representative local full-build results are shown below. Firmware size and free 
 | ESP32-S3 | `otto-robot` | `0x37ff70` | 11% |
 | ESP32-S3 | `esp-vocat` | `0x2742f0` | 38% |
 | ESP32-S3 | `sensecap-watcher` | `0x2faff0` | 25% |
-| ESP32-P4 v3.x | `esp-p4-function-ev-board` | `0x385420` | 11% |
-| ESP32-P4 v3.x | `m5stack-tab5` | `0x380790` | 11% |
+| ESP32-P4 v3.x | `esp-p4-function-ev-board-p4x` | `0x385420` | 11% |
+| ESP32-P4 v3.x | `m5stack-tab5-p4x` | `0x380790` | 11% |
 
-As a negative test, `esp-p4-function-ev-board` (legacy P4 Rev < 3) was rejected as expected by `esp-sr 2.4.6` during IDF 6.0.1 configuration. Legacy P4 variants have therefore been removed from the supported release matrix instead of being carried as permanent blockers.
+As a negative test, `esp-p4-function-ev-board` (legacy P4 Rev < 3) was rejected as expected by `esp-sr 2.4.6` during IDF 6.0.1 configuration. Legacy P4 variants are therefore version-gated to ESP-IDF < 6 instead of being carried as permanent IDF 6 blockers.
 
 For backward-compatibility regression coverage, `xmini-c3` also completed a full build with ESP-IDF 5.5.4 (application size `0x234920`, 44% free in the smallest app partition). This confirms that the compatibility changes for I2S port numbering, LCD I2C configuration, and the UHCI DMA dependency did not break the existing 5.5 build chain.
 
@@ -64,7 +64,14 @@ The failure in that run and its current resolution are:
 
 ## ESP32-P4 Silicon Scope and Naming
 
-The release matrix supports only ESP32-P4 v3.x silicon. The former `-p4x` build-name suffix has been removed because it no longer distinguishes two supported product lines; all 14 legacy Rev < 3 build variants are out of scope.
+The IDF 6 release matrix supports only ESP32-P4 v3.x silicon. Each legacy Rev < 3 build keeps its original name and contains `idf_version: "<6.0"`. Variant selection behaves as follows:
+
+| SDK | ESP32-P4 Rev < 3 | ESP32-P4 Rev >= 3 |
+|---|---|---|
+| ESP-IDF < 6 | Original name without a suffix; adds `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` and `CONFIG_ESP32P4_REV_MIN_100=y` | Original name plus `-p4x` |
+| ESP-IDF >= 6 | Not listed or built | `-p4x` |
+
+This restores the historical artifact names and keeps the IDF 6 matrix at 157 variants. The IDF 5.5 selection contains 171 variants: 14 P4 `-p4x` artifacts, 14 legacy-P4 artifacts with their original unsuffixed names, and 143 non-P4 variants.
 
 Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1, and v3.2, with no v4.0 revision. The public errata history added v3.0/v3.1 information on 2026-02-12 and v3.2 information on 2026-04-20. ESP-IDF 6.0 release notes explicitly describe support for "ESP32-P4 Version3 silicon." See the official [chip revision identification](https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/01-chip-identification/index.html), [errata revision history](https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/revision-history/index.html), and [ESP-IDF releases](https://github.com/espressif/esp-idf/releases).
 
@@ -91,7 +98,7 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | BluFi security negotiation (conditional path) | Legacy Mbed TLS DHM/AES API | ⚪ Not yet migrated | None of the 157 supported release variants enables it. IDF 6 removed `mbedtls/dhm.h`; compatibility of the official PSA FFDH + AES-CTR approach with the existing mobile-client protocol must be evaluated |
 | `espressif/bmi270_sensor` | [`0.1.2`](https://components.espressif.com/components/espressif/bmi270_sensor/versions/0.1.2/readme?language=en) | ✅ Upstream support | Provides IDF 6.0 prebuilt libraries for ESP32-C5 and ESP32-S3; validated by a full `esp-spot-c5` build |
 | `touch_slider_sensor` / `touch_button_sensor` | Disabled for IDF 6 | 🟡 Feature gap | Their manifests require IDF < 6.0, so ESP Vocat omits its PCB capacitive slider/button path on IDF 6. CST816 display touch is unaffected |
-| ESP32-P4 Rev < 3 / `espressif/esp-sr` | Not included | ⚫ Out of scope | Legacy P4 support and its 14 release variants have been removed; ESP32-P4 v3.x is unaffected |
+| ESP32-P4 Rev < 3 / `espressif/esp-sr` | Version-gated to IDF < 6 | 🟡 Legacy SDK path | The 14 legacy variants are restored for IDF 5.5 builds. They remain excluded from IDF 6 because `esp-sr 2.4.6` rejects the old-silicon configuration; ESP32-P4 v3.x is unaffected |
 
 ## Per-Board Progress
 
@@ -231,16 +238,16 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `zhengchen-1.54tft-wifi` | `zhengchen-1.54tft-wifi` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `zhengchen-cam` | `zhengchen-cam` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `zhengchen-cam-ml307` | `zhengchen-cam-ml307` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `esp-p4-function-ev-board` | `esp-p4-function-ev-board` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `m5stack-tab5` | `m5stack-tab5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-nano` | `waveshare-esp32-p4-nano-10.1-a` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd` | `waveshare-esp32-p4-wifi6-touch-lcd-4b`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4.3`<br>`waveshare-esp32-p4-wifi6-touch-lcd-5`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7b`<br>`waveshare-esp32-p4-wifi6-touch-lcd-3.4c`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4c`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7`<br>`waveshare-esp32-p4-wifi6-touch-lcd-8`<br>`waveshare-esp32-p4-wifi6-touch-lcd-10.1` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd-3.5` | `waveshare-esp32-p4-wifi6-touch-lcd-3.5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `wireless-tag-wtp4c5mp07s` | `wireless-tag-wtp4c5mp07s` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `esp-p4-function-ev-board` | `esp-p4-function-ev-board-p4x` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `m5stack-tab5` | `m5stack-tab5-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `waveshare/esp32-p4-nano` | `waveshare-esp32-p4-nano-10.1-a-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd` | `waveshare-esp32-p4-wifi6-touch-lcd-4b-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4.3-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-5-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7b-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-3.4c-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4c-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-8-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-10.1-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd-3.5` | `waveshare-esp32-p4-wifi6-touch-lcd-3.5-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `wireless-tag-wtp4c5mp07s` | `wireless-tag-wtp4c5mp07s-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 
 ## Next Steps and Acceptance Criteria
 
-1. Run the complete 157-variant GitHub Actions matrix on the rebased branch. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path. Legacy P4 Rev < 3 remains out of scope.
+1. Run the complete 157-variant IDF 6 GitHub Actions matrix on the rebased branch, and add an IDF 5.5 legacy job to build and hardware-test at least one P4 v1.3 device. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
 2. For every green variant, complete a minimal hardware smoke test covering boot, networking, audio input/output, display/touch when present, camera when present, and 4G/Ethernet when present.
 3. Perform a physical negative test for the `xmini-c3`/`xmini-c3-v3` firmware guard. CI proves that both images compile; it does not prove that a wrong image is safely rejected. Acceptance requires flashing each wrong image to a sacrificial or recoverable board and verifying that startup stops before any board-specific power or peripheral initialization can cause damage.
 4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1` and `wvirgil123/sscma_client 1.0.3` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
