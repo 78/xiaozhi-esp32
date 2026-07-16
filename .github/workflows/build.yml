@@ -36,6 +36,7 @@ jobs:
 
       - id: select
         name: Select variants based on changes
+        shell: bash
         env:
           ALL_VARIANTS: ${{ steps.list.outputs.all_variants }}
         run: |
