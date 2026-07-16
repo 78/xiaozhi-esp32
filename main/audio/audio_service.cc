@@ -121,7 +121,8 @@ void AudioService::Initialize(AudioCodec* codec) {
 
 void AudioService::Start() {
     service_stopped_ = false;
-    xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING);
+    xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING |
+        AS_EVENT_AUDIO_PROCESSOR_RUNNING | AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
 
     esp_timer_start_periodic(audio_power_timer_, 1000000);
 
@@ -225,14 +226,34 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 }
 
 void AudioService::AudioInputTask() {
+    constexpr EventBits_t kAudioInputActiveBits = AS_EVENT_AUDIO_TESTING_RUNNING |
+        AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING;
+
     while (true) {
-        EventBits_t bits = xEventGroupWaitBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
-            AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING,
+        EventBits_t bits = xEventGroupWaitBits(event_group_, kAudioInputActiveBits |
+            AS_EVENT_AUDIO_INPUT_STOP_REQUEST,
             pdFALSE, pdFALSE, portMAX_DELAY);
 
         if (service_stopped_) {
+            // ADC continuous mode keeps its hardware mutex from start until stop,
+            // so the input task that started it must also stop it before exiting.
+            if (codec_->input_enabled()) {
+                codec_->EnableInput(false);
+            }
             break;
         }
+
+        if (bits & AS_EVENT_AUDIO_INPUT_STOP_REQUEST) {
+            xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
+
+            // Recheck the active state in this task. Audio capture may have been
+            // enabled after the timer posted the stop request.
+            if ((xEventGroupGetBits(event_group_) & kAudioInputActiveBits) == 0 &&
+                codec_->input_enabled()) {
+                codec_->EnableInput(false);
+            }
+        }
+
         if (audio_input_need_warmup_) {
             audio_input_need_warmup_ = false;
             vTaskDelay(pdMS_TO_TICKS(120));
@@ -669,7 +690,9 @@ void AudioService::CheckAndUpdateAudioPowerState() {
     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
     auto output_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_output_time_).count();
     if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled()) {
-        codec_->EnableInput(false);
+        // ADC continuous start/stop must run in the same task. Wake the audio
+        // input task instead of closing the codec from the esp_timer task.
+        xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
     }
     if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
         // Keep TX clock when duplex RX is active; otherwise RX may stall on some boards.
