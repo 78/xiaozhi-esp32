@@ -222,19 +222,6 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
     
     emoji_list = []
     
-    # Check if this is otto-gif collection
-    is_otto_gif = 'otto-emoji-gif-component' in emoji_collection_dir or emoji_collection_dir.endswith('otto-gif')
-    
-    # Otto GIF emoji aliases mapping
-    otto_gif_aliases = {
-        "staticstate": ["neutral", "relaxed", "sleepy", "idle"],
-        "happy": ["laughing", "funny", "loving", "confident", "winking", "cool", "delicious", "kissy", "silly"],
-        "sad": ["crying"],
-        "anger": ["angry"],
-        "scare": ["surprised", "shocked"],
-        "buxue": ["thinking", "confused", "embarrassed"]
-    }
-    
     # Copy each image from input directory to build/assets directory
     for root, dirs, files in os.walk(emoji_collection_dir):
         for file in files:
@@ -252,13 +239,6 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
                         "file": file
                     })
                     
-                    # Add aliases for otto-gif emojis
-                    if is_otto_gif and filename_without_ext in otto_gif_aliases:
-                        for alias in otto_gif_aliases[filename_without_ext]:
-                            emoji_list.append({
-                                "name": alias,
-                                "file": file
-                            })
     
     return emoji_list
 
