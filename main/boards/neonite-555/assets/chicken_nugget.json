@@ -1,0 +1,173 @@
+{
+  "_comment": "══════════════════════════════════════════════════════",
+  "_comment_meta": "旋转鸡块 v4 — 123BPM / 42.5s | ★修正March/Nod为4×half_ms/cycle★",
+  "_comment_timing": "BPM=123 → speed=1.0 → effective=1.025x | half500·2cyc(非March)=1951ms(1小节) | half500·1cyc=976ms(半小节) | half250·1cyc(March/Nod)=976ms(半小节) | half250·2cyc(March/Nod)=1951ms(1小节) | half250·2cyc(非March)=976ms(半小节) | walk=1500ms/步固定不受BPM缩放 | pause÷1.025",
+  "_comment_formula": "March/Nod: cycles×4×half_ms÷1.025 | 其他sway: cycles×2×half_ms÷1.025",
+  "_comment_note": "amplitude 仅文档参考，实际由 Dog_Swing* 函数内置值控制。March/Nod 每周期 4 次 legs_move_smooth（其他 sway 仅 2 次），因此耗时翻倍。",
+  "name": "旋转鸡块",
+  "music": "/assets/chicken_nugget.ogg",
+  "bpm": 123,
+  "speed": 1.0,
+  "offset_ms": 0,
+  "steps": [
+    {
+      "_comment": "══════════ Part 1: 短步入场 (0~7s) ══════════",
+      "_comment": "1. 入场 | ⏱ 3000ms (2步×1500) 累计 3.00s",
+      "type": "walk",
+      "params": { "steps": 2, "direction": "forward" }
+    },
+    {
+      "_comment": "2. 轻踏 | ⏱ 1951ms (March1×500=1×4×488) 累计 4.95s",
+      "type": "sway_march",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "3. 快扭 | ⏱ 976ms (Twist1×500=1×2×488) 累计 5.93s",
+      "type": "sway_twist",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "4. 快蹲 | ⏱ 976ms (UpDown1×500) 累计 6.90s",
+      "type": "sway_updown",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+
+    {
+      "_comment": "══════════ Part 2: 蓄力升温 (7~16.7s) ══════════",
+      "_comment": "5. 碎步 | ⏱ 1951ms (March2×250=2×4×244) 累计 8.85s",
+      "type": "sway_march",
+      "params": { "amplitude": 20, "cycles": 2, "half_ms": 250 }
+    },
+    {
+      "_comment": "6. 扭腰★ | ⏱ 1951ms (Twist2×500) 累计 10.80s",
+      "type": "sway_twist",
+      "params": { "amplitude": 20, "cycles": 2, "half_ms": 500 }
+    },
+    {
+      "_comment": "7. 蹲起★ | ⏱ 1951ms (UpDown2×500) 累计 12.76s",
+      "type": "sway_updown",
+      "params": { "amplitude": 20, "cycles": 2, "half_ms": 500 }
+    },
+    {
+      "_comment": "8. 左右★ | ⏱ 1951ms (LR2×500) 累计 14.71s",
+      "type": "sway_lr",
+      "params": { "amplitude": 45, "cycles": 2, "dir": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "9. 过渡踏步 | ⏱ 976ms (March1×250=1×4×244) 累计 15.68s",
+      "type": "sway_march",
+      "params": { "amplitude": 20, "cycles": 1, "half_ms": 250 }
+    },
+    {
+      "_comment": "10. 快扭 | ⏱ 976ms (Twist1×500) 累计 16.66s",
+      "type": "sway_twist",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+
+    {
+      "_comment": "══════════ Part 3: ★ 高潮连击 (16.7~25.4s) ══════════",
+      "_comment": "11. 左右★ | ⏱ 1951ms (LR2×500) 累计 18.61s",
+      "type": "sway_lr",
+      "params": { "amplitude": 45, "cycles": 2, "dir": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "12. 扭腰★ | ⏱ 1951ms (Twist2×500) 累计 20.56s",
+      "type": "sway_twist",
+      "params": { "amplitude": 25, "cycles": 2, "half_ms": 500 }
+    },
+    {
+      "_comment": "13. 蹲起★ | ⏱ 1951ms (UpDown2×500) 累计 22.51s",
+      "type": "sway_updown",
+      "params": { "amplitude": 25, "cycles": 2, "half_ms": 500 }
+    },
+    {
+      "_comment": "14. 左右★ | ⏱ 1951ms (LR2×500) 累计 24.46s",
+      "type": "sway_lr",
+      "params": { "amplitude": 45, "cycles": 2, "dir": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "15. 快扭收 | ⏱ 976ms (Twist1×500) 累计 25.44s",
+      "type": "sway_twist",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+
+    {
+      "_comment": "══════════ Part 4: 来回横移 (25.4~34.4s) ══════════",
+      "_comment": "16. 右倾 | ⏱ 976ms (SideR1×500) 累计 26.42s",
+      "type": "sway_side_r",
+      "params": { "amplitude": 20, "cycles": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "17. 右移 | ⏱ 3000ms (2步) 累计 29.42s",
+      "type": "walk",
+      "params": { "steps": 2, "direction": "right" }
+    },
+    {
+      "_comment": "18. 左倾 | ⏱ 976ms (SideL1×500) 累计 30.39s",
+      "type": "sway_side_l",
+      "params": { "amplitude": 20, "cycles": 1, "half_ms": 500 }
+    },
+    {
+      "_comment": "19. 左移 | ⏱ 3000ms (2步) 累计 33.39s",
+      "type": "walk",
+      "params": { "steps": 2, "direction": "left" }
+    },
+    {
+      "_comment": "20. 快扭衔接 | ⏱ 976ms (Twist1×500) 累计 34.37s",
+      "type": "sway_twist",
+      "params": { "amplitude": 15, "cycles": 1, "half_ms": 500 }
+    },
+
+    {
+      "_comment": "══════════ Part 5: 收束谢幕 (34.4~42.5s) ══════════",
+      "_comment": "21. 踏步 | ⏱ 3902ms (March2×500=2×4×488) 累计 38.27s",
+      "type": "sway_march",
+      "params": { "amplitude": 20, "cycles": 2, "half_ms": 500 }
+    },
+    {
+      "_comment": "22. 颤抖 | ⏱ 488ms (Tremble1×250=1×2×244) 累计 38.76s",
+      "type": "sway_tremble",
+      "params": { "amplitude": 20, "cycles": 1, "half_ms": 250 }
+    },
+    {
+      "_comment": "23. 点头 | ⏱ 1951ms (Nod2×250=2×4×244) 累计 40.71s",
+      "type": "sway_nod",
+      "params": { "amplitude": 18, "cycles": 2, "half_ms": 250 }
+    },
+    {
+      "_comment": "24. 定格 | ⏱ 1561ms (1600÷1.025) 累计 42.27s → 归位~250ms → 42.52s ≈ 音乐42.51s ✓",
+      "type": "pause",
+      "duration_ms": 1600
+    }
+  ],
+
+  "_legend": {
+    "_comment": "══════════════ 12 种步态速查表 ══════════════",
+    "pause":        "type: 'pause'         | duration_ms              | 纯等待（÷effective_speed）",
+    "walk":         "type: 'walk'          | steps, direction         | 固定1500ms/步，不受BPM缩放",
+    "sway_fb":      "type: 'sway_fb'       | cycles, half_ms          | ★2×half/cycle 前后摇摆",
+    "sway_lr":      "type: 'sway_lr'       | cycles, half_ms, dir     | ★2×half/cycle 左右摇摆",
+    "sway_twist":   "type: 'sway_twist'    | cycles, half_ms          | ★2×half/cycle 旋转扭腰",
+    "sway_updown":  "type: 'sway_updown'   | cycles, half_ms          | ★2×half/cycle 上下蹲起",
+    "sway_side_l":  "type: 'sway_side_l'   | cycles, half_ms          | ★2×half/cycle 左侧侧摇",
+    "sway_side_r":  "type: 'sway_side_r'   | cycles, half_ms          | ★2×half/cycle 右侧侧摇",
+    "sway_wave":    "type: 'sway_wave'     | cycles, step_ms          | 波浪步(长!)",
+    "sway_march":   "type: 'sway_march'    | cycles, half_ms          | ★★★4×half/cycle 原地踏步",
+    "sway_nod":     "type: 'sway_nod'      | cycles, half_ms          | ★★★4×half/cycle 侧向点头",
+    "sway_tremble": "type: 'sway_tremble'  | cycles, half_ms          | ★2×half/cycle 高频颤抖"
+  },
+
+  "_timing_summary": {
+    "_comment": "耗时累计表 (BPM=123, speed=1.0 → effective=1.025x)",
+    "_half_effective": "half=500→488ms, half=250→244ms",
+    "_march_nod_4x":  "March/Nod 每 cycle=4×half_eff: 1cyc·500=1951ms, 1cyc·250=976ms, 2cyc·250=1951ms, 2cyc·500=3902ms",
+    "_other_2x":      "其他sway 每 cycle=2×half_eff: 1cyc·500=976ms, 2cyc·500=1951ms, 1cyc·250=488ms",
+
+    "Part1_入场": "Walk2(3000) + March1×500(1951) + Twist1×500(976) + UpDown1×500(976) = 6.90s",
+    "Part2_蓄力": "March2×250(1951) + Twist2×500(1951) + UpDown2×500(1951) + LR2×500(1951) + March1×250(976) + Twist1×500(976) = 9.76s → 累计 16.66s",
+    "Part3_高潮": "LR2×500(1951) + Twist2×500(1951) + UpDown2×500(1951) + LR2×500(1951) + Twist1×500(976) = 8.78s → 累计 25.44s",
+    "Part4_横移": "SideR1×500(976) + WalkR2(3s) + SideL1×500(976) + WalkL2(3s) + Twist1×500(976) = 8.93s → 累计 34.37s",
+    "Part5_收束": "March2×500(3902) + Tremble1×250(488) + Nod2×250(1951) + Pause1600÷1.025(1561) = 7.90s → 累计 42.27s",
+    "归位":      "Dog_ResetAll() ~250ms → 总计 ~42.52s ≈ 音乐 42.51s ✓"
+  }
+}
