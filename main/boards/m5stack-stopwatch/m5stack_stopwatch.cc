@@ -167,8 +167,15 @@ private:
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
 
-        esp_lcd_panel_io_spi_config_t io_config = CO5300_PANEL_IO_QSPI_CONFIG(
-            DISPLAY_QSPI_CS, nullptr, nullptr);
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = DISPLAY_QSPI_CS;
+        io_config.dc_gpio_num = GPIO_NUM_NC;
+        io_config.spi_mode = 0;
+        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 32;
+        io_config.lcd_param_bits = 8;
+        io_config.flags.quad_mode = true;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(DISPLAY_QSPI_HOST, &io_config, &panel_io));
 
         co5300_vendor_config_t vendor_config = {

@@ -79,7 +79,7 @@ void Nt26Board::StartNetwork() {
     modem_ = std::make_unique<UartEthModem>(config);
     modem_->SetDebug(false);
     
-    modem_->SetNetworkEventCallback([this](UartEthModem::UartEthModemEvent event) {
+    modem_->SetNetworkEventCallback([this](UartEthModem::UartEthModemEvent event, const std::string& detail) {
         switch (event) {
             case UartEthModem::UartEthModemEvent::Connected:
                 esp_timer_stop(network_ready_timer_);
@@ -105,10 +105,13 @@ void Nt26Board::StartNetwork() {
             case UartEthModem::UartEthModemEvent::ErrorNoCarrier:
                 esp_timer_stop(network_ready_timer_);
                 ScheduleAsyncStop();
-                OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
+                OnNetworkEvent(NetworkEvent::ModemErrorInitFailed, detail);
                 break;
             case UartEthModem::UartEthModemEvent::InFlightMode:
                 ESP_LOGW(TAG, "Modem in flight mode");
+                break;
+            case UartEthModem::UartEthModemEvent::RfTestReady:
+                ESP_LOGI(TAG, "Modem RF test mode ready");
                 break;
             case UartEthModem::UartEthModemEvent::RequestingPdpContext:
                 break;

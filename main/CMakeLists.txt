@@ -1040,13 +1040,17 @@ if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
         m5stack__m5pm1
     )
 endif()
-if(CONFIG_BOARD_TYPE_ESP_VOCAT)
+if(CONFIG_BOARD_TYPE_ESP_SPOT_S3 OR CONFIG_BOARD_TYPE_ESP_SPOT_C5 OR CONFIG_BOARD_TYPE_ESP_VOCAT)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        espressif__bmi270_sensor
+    )
+endif()
+if(CONFIG_BOARD_TYPE_ESP_VOCAT AND IDF_VERSION_MAJOR LESS 6)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
         espressif__touch_button_sensor
     )
 endif()
-
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
@@ -1061,11 +1065,14 @@ idf_component_register(SRCS ${SOURCES}
                         esp_driver_spi
                         esp_driver_i2c
                         esp_driver_i2s
+                        esp_driver_ledc
                         esp_driver_jpeg
                         esp_driver_ppa
+                        esp_driver_tsens
                         esp_app_format
                         app_update
                         spi_flash
+                        mbedtls
                         console
                         efuse
                         bt

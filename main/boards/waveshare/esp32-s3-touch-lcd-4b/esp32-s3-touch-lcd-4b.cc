@@ -193,10 +193,11 @@ private:
                 }
             },
             .data_width = 16,
-            .bits_per_pixel = 16,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 2,
             .bounce_buffer_size_px = 480 * 20,
-            .psram_trans_align = 64,
+            .dma_burst_size = 64,
             .hsync_gpio_num = BSP_LCD_HSYNC,
             .vsync_gpio_num = BSP_LCD_VSYNC,
             .de_gpio_num = BSP_LCD_DE,
@@ -224,12 +225,11 @@ private:
                 .auto_del_panel_io = 1,
             }
         };
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = GPIO_NUM_NC,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            .bits_per_pixel = 18,
-            .vendor_config = &vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 18;
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.vendor_config = &vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7701(panel_io, &panel_config, &panel_handle));
         esp_lcd_panel_init(panel_handle);
 

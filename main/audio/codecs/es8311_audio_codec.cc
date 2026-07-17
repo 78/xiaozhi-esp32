@@ -88,7 +88,8 @@ void Es8311AudioCodec::UpdateDeviceState() {
         ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, input_gain_));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, output_volume_));
     } else if (!input_enabled_ && !output_enabled_ && dev_ != nullptr) {
-        esp_codec_dev_close(dev_);
+        ESP_ERROR_CHECK(esp_codec_dev_close(dev_));
+        esp_codec_dev_delete(dev_);
         dev_ = nullptr;
     }
     if (pa_pin_ != GPIO_NUM_NC) {
