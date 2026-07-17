@@ -48,7 +48,7 @@ dependencies:
     version: ^2.0.1
     rules:
     - if: target in [esp32p4, esp32s3]
-  
+
   espressif/esp_image_effects:
     version: ^1.0.1
     rules:
@@ -134,7 +134,7 @@ dependencies:
     - if: idf_version < 6.0.0
 
   espressif/esp_lcd_touch_st7123: ^1.0.0
-  espressif/iot_usbh_rndis: 
+  espressif/iot_usbh_rndis:
     version: ^0.3.1
     rules:
     - if: target in [esp32s3, esp32p4]
@@ -148,3 +148,4 @@ dependencies:
     version: '>=5.5.2'
   m5stack/m5ioe1: ^1.0.8
   m5stack/m5pm1: ^1.0.5
+  m5stack/m5ioe1: ^1.0.8
