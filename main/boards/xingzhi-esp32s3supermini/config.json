@@ -1,0 +1,16 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xingzhi-esp32s3supermini",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
+                "CONFIG_SPIRAM=y",
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_SPIRAM_SPEED_40M=y",
+                "CONFIG_SPIRAM_IGNORE_NOTFOUND=y"
+            ]
+        }
+    ]
+}
