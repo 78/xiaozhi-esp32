@@ -244,7 +244,7 @@ void AfeAudioEngine::EnableVoiceProcessing(bool enable) {
 }
 
 void AfeAudioEngine::EnableDeviceAec(bool enable) {
-    device_aec_enabled_ = enable;
+    device_aec_enabled_.store(enable);
     if (enable && (codec_ == nullptr || !codec_->input_reference())) {
         ESP_LOGW(TAG, "Device AEC requires a playback reference channel");
     }
@@ -288,6 +288,7 @@ void AfeAudioEngine::UpdateActiveState() {
         xEventGroupSetBits(event_group_, kAfeActive);
     } else {
         xEventGroupClearBits(event_group_, kAfeActive);
+        control_generation_.fetch_add(1);
         std::lock_guard<std::mutex> lock(input_buffer_mutex_);
         input_buffer_.clear();
         if (afe_data_ != nullptr) {
@@ -324,7 +325,7 @@ void AfeAudioEngine::ApplyAfeControls() {
     }
     if (codec_->input_reference()) {
         const bool enable_aec = (bits & kWakeWordEnabled) ||
-            (device_aec_enabled_ && (bits & kVoiceProcessingEnabled));
+            (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
         if (enable_aec) {
             afe_iface_->enable_aec(afe_data_);
         } else {
@@ -333,16 +334,22 @@ void AfeAudioEngine::ApplyAfeControls() {
     }
 }
 
+void AfeAudioEngine::ApplyPendingReset() {
+    if (!reset_pending_.exchange(false)) {
+        return;
+    }
+    // Discard audio recorded before (re)activation. Holding input_buffer_mutex_
+    // serializes the reset against Feed(); fetch/reset both run in this task.
+    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    input_buffer_.clear();
+    afe_iface_->reset_buffer(afe_data_);
+}
+
 void AfeAudioEngine::ProcessingTask() {
     while (true) {
         xEventGroupWaitBits(event_group_, kAfeActive, pdFALSE, pdTRUE, portMAX_DELAY);
-        if (reset_pending_.exchange(false)) {
-            // Discard audio recorded before (re)activation. Holding
-            // input_buffer_mutex_ serializes the reset against Feed(); the
-            // fetch side cannot race as it only runs in this task.
-            std::lock_guard<std::mutex> lock(input_buffer_mutex_);
-            input_buffer_.clear();
-            afe_iface_->reset_buffer(afe_data_);
+        ApplyPendingReset();
+        if ((xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
             continue;
         }
         if (afe_control_dirty_.exchange(false)) {
@@ -350,8 +357,13 @@ void AfeAudioEngine::ProcessingTask() {
             // so they are applied here, in the task that owns the fetch side.
             ApplyAfeControls();
         }
+        const uint32_t generation = control_generation_.load();
         auto* result = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
-        if ((xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
+        if (generation != control_generation_.load() ||
+            (xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
+            // A disable/re-enable may make an old blocked fetch return after the
+            // AFE is active again. Reset immediately and never process that frame.
+            ApplyPendingReset();
             continue;
         }
         if (result == nullptr || result->ret_value == ESP_FAIL) {

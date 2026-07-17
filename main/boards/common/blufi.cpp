@@ -57,8 +57,6 @@ void esp_blufi_btc_deinit(void);
 
 #include <wifi_station.h>
 #include "esp_crc.h"
-#include "esp_random.h"
-#include "mbedtls/md5.h"
 #include "ssid_manager.h"
 
 static const char* BLUFI_TAG = "BLUFI_CLASS";
@@ -345,51 +343,70 @@ esp_err_t Blufi::_controller_deinit() {
 }
 #endif
 
-static int myrand(void* rng_state, unsigned char* output, size_t len) {
-    esp_fill_random(output, len);
-    return 0;
-}
+namespace {
+
+constexpr uint8_t kDhParamLength = 0x00;
+constexpr uint8_t kDhParamData = 0x01;
+constexpr size_t kBlufiIvSize = 16;
+constexpr size_t kBlufiHashSize = 32;
+constexpr char kBlufiEncryptDomain[] = "blufi_enc";
+constexpr char kBlufiDecryptDomain[] = "blufi_dec";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+constexpr auto kBlufiHashError = ESP_BLUFI_CALC_SHA_256_ERROR;
+#else
+// IDF 5 does not expose a SHA-256-specific BluFi error code.
+constexpr auto kBlufiHashError = ESP_BLUFI_CALC_MD5_ERROR;
+#endif
+
+}  // namespace
 
 void Blufi::_security_init() {
+    _security_deinit();
+
+    psa_status_t status = psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(BLUFI_TAG, "psa_crypto_init failed: %d", status);
+        btc_blufi_report_error(ESP_BLUFI_INIT_SECURITY_ERROR);
+        return;
+    }
+
     m_sec = new BlufiSecurity();
     if (m_sec == nullptr) {
         ESP_LOGE(BLUFI_TAG, "Failed to allocate security context");
+        btc_blufi_report_error(ESP_BLUFI_INIT_SECURITY_ERROR);
         return;
     }
     memset(m_sec, 0, sizeof(BlufiSecurity));
-    m_sec->dhm = new mbedtls_dhm_context();
-    m_sec->aes = new mbedtls_aes_context();
-
-    mbedtls_dhm_init(m_sec->dhm);
-    mbedtls_aes_init(m_sec->aes);
-
-    memset(m_sec->iv, 0x0, sizeof(m_sec->iv));
+    m_sec->enc_operation = psa_cipher_operation_init();
+    m_sec->dec_operation = psa_cipher_operation_init();
 }
 
 void Blufi::_security_deinit() {
-    if (m_sec == nullptr)
+    if (m_sec == nullptr) {
         return;
-
-    if (m_sec->dh_param) {
-        free(m_sec->dh_param);
     }
-    mbedtls_dhm_free(m_sec->dhm);
-    mbedtls_aes_free(m_sec->aes);
-    delete m_sec->dhm;
-    delete m_sec->aes;
+
+    psa_cipher_abort(&m_sec->enc_operation);
+    psa_cipher_abort(&m_sec->dec_operation);
+    if (m_sec->aes_key != PSA_KEY_ID_NULL) {
+        psa_destroy_key(m_sec->aes_key);
+    }
+    free(m_sec->dh_param);
+    memset(m_sec, 0, sizeof(BlufiSecurity));
     delete m_sec;
     m_sec = nullptr;
 }
 
 void Blufi::_dh_negotiate_data_handler(uint8_t* data, int len, uint8_t** output_data,
                                        int* output_len, bool* need_free) {
-    if (m_sec == nullptr) {
+    if (m_sec == nullptr || data == nullptr || output_data == nullptr || output_len == nullptr ||
+        need_free == nullptr) {
         ESP_LOGE(BLUFI_TAG, "Security not initialized in DH handler");
         btc_blufi_report_error(ESP_BLUFI_INIT_SECURITY_ERROR);
         return;
     }
 
-    if (len < 1) {
+    if (len < 3) {
         ESP_LOGE(BLUFI_TAG, "DH handler: data too short");
         btc_blufi_report_error(ESP_BLUFI_DATA_FORMAT_ERROR);
         return;
@@ -397,70 +414,191 @@ void Blufi::_dh_negotiate_data_handler(uint8_t* data, int len, uint8_t** output_
 
     uint8_t type = data[0];
     switch (type) {
-        case 0x00:
-            if (len < 3) {
-                ESP_LOGE(BLUFI_TAG, "DH_PARAM_LEN packet too short");
-                btc_blufi_report_error(ESP_BLUFI_DATA_FORMAT_ERROR);
+        case kDhParamLength:
+            m_sec->dh_param_len = (data[1] << 8) | data[2];
+            if (m_sec->dh_param_len <= 0 || m_sec->dh_param_len > DH_PARAM_LEN_MAX) {
+                ESP_LOGE(BLUFI_TAG, "Invalid DH parameter length: %d", m_sec->dh_param_len);
+                m_sec->dh_param_len = 0;
+                btc_blufi_report_error(ESP_BLUFI_DH_PARAM_ERROR);
                 return;
             }
 
-            m_sec->dh_param_len = (data[1] << 8) | data[2];
-            if (m_sec->dh_param) {
-                free(m_sec->dh_param);
-                m_sec->dh_param = nullptr;
+            free(m_sec->dh_param);
+            m_sec->dh_param = nullptr;
+            psa_cipher_abort(&m_sec->enc_operation);
+            psa_cipher_abort(&m_sec->dec_operation);
+            m_sec->enc_operation = psa_cipher_operation_init();
+            m_sec->dec_operation = psa_cipher_operation_init();
+            if (m_sec->aes_key != PSA_KEY_ID_NULL) {
+                psa_destroy_key(m_sec->aes_key);
+                m_sec->aes_key = PSA_KEY_ID_NULL;
             }
+
             m_sec->dh_param = (uint8_t*)malloc(m_sec->dh_param_len);
             if (m_sec->dh_param == nullptr) {
                 ESP_LOGE(BLUFI_TAG, "DH malloc failed");
+                m_sec->dh_param_len = 0;
                 btc_blufi_report_error(ESP_BLUFI_DH_MALLOC_ERROR);
+                return;
             }
             break;
-        case 0x01: {
+        case kDhParamData: {
             if (m_sec->dh_param == nullptr) {
                 ESP_LOGE(BLUFI_TAG, "DH param not allocated");
                 btc_blufi_report_error(ESP_BLUFI_DH_PARAM_ERROR);
                 return;
             }
-            uint8_t* param = m_sec->dh_param;
+            if (len != m_sec->dh_param_len + 1) {
+                ESP_LOGE(BLUFI_TAG, "Invalid DH parameter packet length: %d, expected %d", len,
+                         m_sec->dh_param_len + 1);
+                btc_blufi_report_error(ESP_BLUFI_DH_PARAM_ERROR);
+                return;
+            }
+
             memcpy(m_sec->dh_param, &data[1], m_sec->dh_param_len);
-            int ret = mbedtls_dhm_read_params(m_sec->dhm, &param, &param[m_sec->dh_param_len]);
-            if (ret) {
-                ESP_LOGE(BLUFI_TAG, "mbedtls_dhm_read_params failed %d", ret);
+
+            const uint8_t* param = m_sec->dh_param;
+            const uint8_t* const end = param + m_sec->dh_param_len;
+            auto read_field = [&param, end](const uint8_t** value, size_t* value_len) -> bool {
+                if (end - param < 2) {
+                    return false;
+                }
+                *value_len = (static_cast<size_t>(param[0]) << 8) | param[1];
+                param += 2;
+                if (*value_len == 0 || static_cast<size_t>(end - param) < *value_len) {
+                    return false;
+                }
+                *value = param;
+                param += *value_len;
+                return true;
+            };
+
+            const uint8_t* prime = nullptr;
+            const uint8_t* generator = nullptr;
+            const uint8_t* peer_public_key = nullptr;
+            size_t prime_len = 0;
+            size_t generator_len = 0;
+            size_t peer_public_key_len = 0;
+            if (!read_field(&prime, &prime_len) || !read_field(&generator, &generator_len) ||
+                !read_field(&peer_public_key, &peer_public_key_len) || param != end) {
+                ESP_LOGE(BLUFI_TAG, "Malformed DH parameter data");
                 btc_blufi_report_error(ESP_BLUFI_READ_PARAM_ERROR);
                 return;
             }
 
-            const int dhm_len = mbedtls_dhm_get_len(m_sec->dhm);
+            // PSA FFDH supports named RFC 7919 groups instead of caller-supplied P/G. The IDF 6
+            // BluFi protocol uses ffdhe3072; P and G remain in the packet for framing compatibility.
+            constexpr size_t kDhKeyBits = 3072;
+            constexpr size_t kDhKeyBytes = kDhKeyBits / 8;
+            if (prime_len != kDhKeyBytes || peer_public_key_len != kDhKeyBytes ||
+                generator_len != 1 || generator[0] != 2) {
+                ESP_LOGE(BLUFI_TAG,
+                         "Unsupported DH group (P=%u, G=%u, public=%u); ffdhe3072 is required",
+                         static_cast<unsigned>(prime_len), static_cast<unsigned>(generator_len),
+                         static_cast<unsigned>(peer_public_key_len));
+                btc_blufi_report_error(ESP_BLUFI_DH_PARAM_ERROR);
+                return;
+            }
 
-            ret = mbedtls_dhm_make_public(m_sec->dhm, dhm_len, m_sec->self_public_key, dhm_len,
-                                          myrand, NULL);
-            if (ret != 0) {
-                ESP_LOGE(BLUFI_TAG, "mbedtls_dhm_make_public failed: %d", ret);
+            psa_key_attributes_t attributes = psa_key_attributes_init();
+            psa_set_key_type(&attributes, PSA_KEY_TYPE_DH_KEY_PAIR(PSA_DH_FAMILY_RFC7919));
+            psa_set_key_bits(&attributes, kDhKeyBits);
+            psa_set_key_algorithm(&attributes, PSA_ALG_FFDH);
+            psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DERIVE);
+
+            psa_key_id_t private_key = PSA_KEY_ID_NULL;
+            psa_status_t status = psa_generate_key(&attributes, &private_key);
+            psa_reset_key_attributes(&attributes);
+            if (status != PSA_SUCCESS) {
+                ESP_LOGE(BLUFI_TAG, "psa_generate_key failed: %d", status);
                 btc_blufi_report_error(ESP_BLUFI_MAKE_PUBLIC_ERROR);
                 return;
             }
-            ret = mbedtls_dhm_calc_secret(m_sec->dhm, m_sec->share_key, SHARE_KEY_LEN,
-                                          &m_sec->share_len, myrand, NULL);
-            if (ret != 0) {
-                ESP_LOGE(BLUFI_TAG, "mbedtls_dhm_calc_secret failed: %d", ret);
+
+            size_t public_key_len = 0;
+            status = psa_export_public_key(private_key, m_sec->self_public_key,
+                                           sizeof(m_sec->self_public_key), &public_key_len);
+            if (status != PSA_SUCCESS || public_key_len != kDhKeyBytes) {
+                ESP_LOGE(BLUFI_TAG, "psa_export_public_key failed: %d, length: %u", status,
+                         static_cast<unsigned>(public_key_len));
+                psa_destroy_key(private_key);
+                btc_blufi_report_error(ESP_BLUFI_MAKE_PUBLIC_ERROR);
+                return;
+            }
+
+            status = psa_raw_key_agreement(PSA_ALG_FFDH, private_key, peer_public_key,
+                                           peer_public_key_len, m_sec->share_key,
+                                           sizeof(m_sec->share_key), &m_sec->share_len);
+            psa_destroy_key(private_key);
+            if (status != PSA_SUCCESS) {
+                ESP_LOGE(BLUFI_TAG, "psa_raw_key_agreement failed: %d", status);
                 btc_blufi_report_error(ESP_BLUFI_ENCRYPT_ERROR);
                 return;
             }
 
-            ret = mbedtls_md5(m_sec->share_key, m_sec->share_len, m_sec->psk);
-            if (ret != 0) {
-                ESP_LOGE(BLUFI_TAG, "mbedtls_md5 failed: %d", ret);
-                btc_blufi_report_error(ESP_BLUFI_CALC_MD5_ERROR);
+            size_t hash_len = 0;
+            status = psa_hash_compute(PSA_ALG_SHA_256, m_sec->share_key, m_sec->share_len,
+                                      m_sec->psk, sizeof(m_sec->psk), &hash_len);
+            if (status != PSA_SUCCESS || hash_len != sizeof(m_sec->psk)) {
+                ESP_LOGE(BLUFI_TAG, "psa_hash_compute failed: %d", status);
+                btc_blufi_report_error(kBlufiHashError);
                 return;
             }
-            ret = mbedtls_aes_setkey_enc(m_sec->aes, m_sec->psk, PSK_LEN * 8);
-            if (ret != 0) {
-                ESP_LOGE(BLUFI_TAG, "mbedtls_aes_setkey_enc failed: -0x%04X", -ret);
+
+            attributes = psa_key_attributes_init();
+            psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+            psa_set_key_bits(&attributes, PSK_LEN * 8);
+            psa_set_key_algorithm(&attributes, PSA_ALG_CTR);
+            psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+            status = psa_import_key(&attributes, m_sec->psk, sizeof(m_sec->psk), &m_sec->aes_key);
+            psa_reset_key_attributes(&attributes);
+            if (status != PSA_SUCCESS) {
+                ESP_LOGE(BLUFI_TAG, "psa_import_key failed: %d", status);
                 btc_blufi_report_error(ESP_BLUFI_ENCRYPT_ERROR);
                 return;
             }
+
+            auto setup_cipher = [this](psa_cipher_operation_t* operation, const char* domain) {
+                uint8_t material[sizeof(kBlufiEncryptDomain) - 1 + SHARE_KEY_LEN];
+                memcpy(material, domain, sizeof(kBlufiEncryptDomain) - 1);
+                memcpy(material + sizeof(kBlufiEncryptDomain) - 1, m_sec->share_key,
+                       m_sec->share_len);
+                uint8_t hash[kBlufiHashSize];
+                size_t hash_len = 0;
+                psa_status_t status = psa_hash_compute(
+                    PSA_ALG_SHA_256, material,
+                    sizeof(kBlufiEncryptDomain) - 1 + m_sec->share_len, hash, sizeof(hash),
+                    &hash_len);
+                memset(material, 0, sizeof(material));
+                if (status != PSA_SUCCESS || hash_len != sizeof(hash)) {
+                    return status == PSA_SUCCESS ? PSA_ERROR_GENERIC_ERROR : status;
+                }
+                *operation = psa_cipher_operation_init();
+                status = psa_cipher_encrypt_setup(operation, m_sec->aes_key, PSA_ALG_CTR);
+                if (status == PSA_SUCCESS) {
+                    status = psa_cipher_set_iv(operation, hash, kBlufiIvSize);
+                }
+                memset(hash, 0, sizeof(hash));
+                return status;
+            };
+
+            status = setup_cipher(&m_sec->enc_operation, kBlufiEncryptDomain);
+            if (status == PSA_SUCCESS) {
+                // CTR decryption uses the same cipher primitive with an independent counter.
+                status = setup_cipher(&m_sec->dec_operation, kBlufiDecryptDomain);
+            }
+            if (status != PSA_SUCCESS) {
+                ESP_LOGE(BLUFI_TAG, "PSA cipher setup failed: %d", status);
+                psa_cipher_abort(&m_sec->enc_operation);
+                psa_cipher_abort(&m_sec->dec_operation);
+                psa_destroy_key(m_sec->aes_key);
+                m_sec->aes_key = PSA_KEY_ID_NULL;
+                btc_blufi_report_error(ESP_BLUFI_ENCRYPT_ERROR);
+                return;
+            }
+
             *output_data = m_sec->self_public_key;
-            *output_len = dhm_len;
+            *output_len = public_key_len;
             *need_free = false;
             ESP_LOGI(BLUFI_TAG, "DH negotiation completed successfully");
 
@@ -471,49 +609,56 @@ void Blufi::_dh_negotiate_data_handler(uint8_t* data, int len, uint8_t** output_
         }
         default:
             ESP_LOGE(BLUFI_TAG, "DH handler unknown type: %d", type);
+            btc_blufi_report_error(ESP_BLUFI_DATA_FORMAT_ERROR);
     }
 }
 
 int Blufi::_aes_encrypt(uint8_t iv8, uint8_t* crypt_data, int crypt_len) {
-    if (!m_sec || !m_sec->aes || !crypt_data || crypt_len <= 0) {
+    (void)iv8;
+    if (!m_sec || m_sec->aes_key == PSA_KEY_ID_NULL || !crypt_data || crypt_len < 0) {
         ESP_LOGE(BLUFI_TAG, "Invalid parameters for AES encryption");
         return -ESP_ERR_INVALID_ARG;
     }
-
-    size_t iv_offset = 0;
-    uint8_t iv0[16];
-    memcpy(iv0, m_sec->iv, 16);
-    iv0[0] = iv8;
-    int ret = mbedtls_aes_crypt_cfb128(m_sec->aes, MBEDTLS_AES_ENCRYPT, crypt_len, &iv_offset, iv0,
-                                       crypt_data, crypt_data);
-
-    if (ret == 0) {
-        return crypt_len;
-    } else {
-        ESP_LOGE(BLUFI_TAG, "AES encrypt failed: %d", ret);
-        return ret;
+    if (crypt_len == 0) {
+        return 0;
     }
+
+    std::vector<uint8_t> output(PSA_CIPHER_ENCRYPT_OUTPUT_SIZE(
+        PSA_KEY_TYPE_AES, PSA_ALG_CTR, static_cast<size_t>(crypt_len)));
+    size_t output_len = 0;
+    psa_status_t status = psa_cipher_update(&m_sec->enc_operation, crypt_data, crypt_len,
+                                            output.data(), output.size(), &output_len);
+    if (status != PSA_SUCCESS || output_len != static_cast<size_t>(crypt_len)) {
+        ESP_LOGE(BLUFI_TAG, "AES encrypt failed: %d, length: %u", status,
+                 static_cast<unsigned>(output_len));
+        return status == PSA_SUCCESS ? -ESP_FAIL : status;
+    }
+    memcpy(crypt_data, output.data(), output_len);
+    return static_cast<int>(output_len);
 }
 
 int Blufi::_aes_decrypt(uint8_t iv8, uint8_t* crypt_data, int crypt_len) {
-    if (!m_sec || !m_sec->aes || !crypt_data || crypt_len < 0) {
-        ESP_LOGE(BLUFI_TAG, "Invalid parameters for AES decryption %p %p %d", m_sec->aes,
-                 crypt_data, crypt_len);
+    (void)iv8;
+    if (!m_sec || m_sec->aes_key == PSA_KEY_ID_NULL || !crypt_data || crypt_len < 0) {
+        ESP_LOGE(BLUFI_TAG, "Invalid parameters for AES decryption");
         return -ESP_ERR_INVALID_ARG;
     }
-
-    size_t iv_offset = 0;
-    uint8_t iv0[16];
-    memcpy(iv0, m_sec->iv, 16);
-    iv0[0] = iv8;
-    int ret = mbedtls_aes_crypt_cfb128(m_sec->aes, MBEDTLS_AES_DECRYPT, crypt_len, &iv_offset, iv0,
-                                       crypt_data, crypt_data);
-    if (ret != 0) {
-        ESP_LOGE(BLUFI_TAG, "AES decrypt failed: %d", ret);
-        return ret;
-    } else {
-        return crypt_len;
+    if (crypt_len == 0) {
+        return 0;
     }
+
+    std::vector<uint8_t> output(PSA_CIPHER_DECRYPT_OUTPUT_SIZE(
+        PSA_KEY_TYPE_AES, PSA_ALG_CTR, static_cast<size_t>(crypt_len)));
+    size_t output_len = 0;
+    psa_status_t status = psa_cipher_update(&m_sec->dec_operation, crypt_data, crypt_len,
+                                            output.data(), output.size(), &output_len);
+    if (status != PSA_SUCCESS || output_len != static_cast<size_t>(crypt_len)) {
+        ESP_LOGE(BLUFI_TAG, "AES decrypt failed: %d, length: %u", status,
+                 static_cast<unsigned>(output_len));
+        return status == PSA_SUCCESS ? -ESP_FAIL : status;
+    }
+    memcpy(crypt_data, output.data(), output_len);
+    return static_cast<int>(output_len);
 }
 
 uint16_t Blufi::_crc_checksum(uint8_t iv8, uint8_t* data, int len) {

@@ -813,11 +813,7 @@ private:
         esp_lcd_panel_handle_t panel_handle = nullptr;
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = LCD_RST_GPIO;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
-#else
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
-#endif
         panel_config.bits_per_pixel = 16;
 
         if (config.type == LcdPanelType::kGc9107) {
